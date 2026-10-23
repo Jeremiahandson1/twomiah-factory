@@ -20,6 +20,7 @@ import { formatAgencyDateTime } from '../lib/agencyClock'
 import { usePrompt, useToast } from '../../../../shared'
 import { useMay } from '../lib/useMay'
 import { CHIP, SOLID, type Tone } from './ui'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** One flagged, finished punch. Numeric columns arrive as strings. */
 interface PendingEntry {
@@ -47,7 +48,7 @@ interface PendingEntry {
 type ApproveBody = { notes?: string | null; reject?: boolean; billable_minutes?: number }
 
 const fmtHrs = (h: string | number | null | undefined) => (h == null || h === '' ? '—' : `${parseFloat(String(h)).toFixed(2)}h`)
-const fmt$ = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`)
+const fmt$ = (n: number | null) => (n == null ? '—' : `${money(n)}`)
 const fmtDateTime = (t: string | null) => {
   if (!t) return '—'
   return formatAgencyDateTime(t, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })

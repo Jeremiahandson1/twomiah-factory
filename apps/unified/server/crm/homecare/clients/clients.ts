@@ -11,6 +11,8 @@
 // Changes: every read and write is the signed-in person's company; replies are camelCase (the caregiver's list and
 // card were snake_case) and lists are { data, pagination } (the office list was { clients, total, page, pages }).
 import { Hono } from 'hono'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
+import { optionalPointProblem } from '../../../core/geo.ts'
 import { and, asc, count, desc, eq, ilike, inArray, or } from 'drizzle-orm'
 import {
   clients, clientEmergencyContacts, clientOnboarding, clientAssignments, referralSources, geofenceSettings, authorizations,
@@ -308,6 +310,9 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     if (!contacts?.length && emergencyContactName) {
       contacts = [{ name: emergencyContactName, phone: emergencyContactPhone || null, relationship: emergencyContactRelationship || null, isPrimary: true }]
     }
+    if (b.zip && normaliseZip(b.zip) === null) return fail(c, 400, ZIP_ERROR)
+    const offEarth = optionalPointProblem(b)
+    if (offEarth) return fail(c, 400, offEarth)
     const data = clientValues(b, CLIENT_FIELDS)
     const [client] = await db.insert(clients).values({ ...data, companyId } as any).returning()
     const [onboardingRecord] = await db.insert(clientOnboarding).values({ companyId, clientId: client.id }).returning()
@@ -333,6 +338,9 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     const { companyId } = who(c)
     const id = c.req.param('id')
     const { emergencyContacts: _ec, onboarding: _ob, ...b } = await body(c)
+    if (b.zip && normaliseZip(b.zip) === null) return fail(c, 400, ZIP_ERROR)
+    const offEarth = optionalPointProblem(b)
+    if (offEarth) return fail(c, 400, offEarth)
     const data = clientValues(b, [...CLIENT_FIELDS, 'portalEnabled', 'portalEmail'])
     const [client] = await db.update(clients).set({ ...data, updatedAt: new Date() })
       .where(and(eq(clients.id, id), eq(clients.companyId, companyId))).returning()

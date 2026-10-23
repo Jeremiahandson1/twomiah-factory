@@ -9,6 +9,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { useMay } from '../lib/useMay'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // The payer's billing classification (referral_sources.payer_type). Claims, EVV, the punch rules and the
 // reports read it; the values match server/crm/homecare/billing/payers.ts PAYER_TYPES and payerRouter.PAYER_ROUTES.
@@ -263,7 +264,7 @@ const PayersServiceCodes = () => {
                   <tr key={sc.id}>
                     <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{sc.code}</td>
                     <td>{sc.description || '—'}</td>
-                    <td>{sc.ratePerUnit ? `$${parseFloat(String(sc.ratePerUnit)).toFixed(2)}` : '—'}</td>
+                    <td>{sc.ratePerUnit ? `${money(parseFloat(String(sc.ratePerUnit)))}` : '—'}</td>
                     <td>{sc.unitType || '—'}</td>
                     <td>{sc.revenueCode || '—'}</td>
                     <td>

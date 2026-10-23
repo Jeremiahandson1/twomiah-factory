@@ -14,6 +14,7 @@ import { fetchStaff, useMayPickStaff, staffName, openPrintable, type StaffMember
 import { useAuth } from '../../../shared'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** A refusal from the API client: its status and body ride on the error. */
 type Refusal = Error & { status?: number; data?: { error?: string; code?: string } }
@@ -141,7 +142,7 @@ function fmtDate(s?: string): string {
   return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function money(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v || 0))}`;
 }
 function ownerName(o?: Owner): string {
   if (!o) return '—';
@@ -746,11 +747,11 @@ export default function PatientDetailPage() {
                       {inv.number || 'Invoice'}
                       {inv.status && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{inv.status}</span>}
                     </p>
-                    <span className="text-sm text-gray-700 dark:text-slate-200">${Number(inv.total || 0).toFixed(2)}</span>
+                    <span className="text-sm text-gray-700 dark:text-slate-200">{formatMoney(Number(inv.total || 0))}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 mt-1">
                     <span className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(inv.issueDate)}</span>
-                    {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-700 dark:text-amber-300">${Number(inv.balance).toFixed(2)} outstanding</span>}
+                    {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-700 dark:text-amber-300">{formatMoney(Number(inv.balance))} outstanding</span>}
                   </div>
                 </Link>
               ))}

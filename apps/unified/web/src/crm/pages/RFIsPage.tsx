@@ -2,9 +2,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { formatDate } from '../date'
-import { Plus, Edit, Trash2, MessageSquare } from 'lucide-react'
+import { Plus, Edit, Trash2, MessageSquare, CheckCircle, RotateCcw } from 'lucide-react'
 import { api } from '../../api'
-import { useToast } from '../../shared'
+import { useToast, useConfirm } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
@@ -91,6 +91,25 @@ export default function RFIsPage() {
 
   const handleDelete = async () => { try { await api.rfis.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
 
+  /**
+   * CLOSE AND REOPEN. (live test 2026-10-22, contractor: "no way to close an RFI")
+   *
+   * POST /api/rfis/:id/close and /reopen have been on the server since T32/T34 and no screen called either. An answered
+   * RFI closes straight away; an unanswered one is a question nobody answered, and the server refuses that unless it is
+   * meant (closeUnanswered: true) — so the page asks first, in the app's own dialog, and says what it records.
+   */
+  const confirm = useConfirm();
+  const closeRfi = async (r: Record<string, unknown>) => {
+    const answered = !!String(r.response || '').trim();
+    if (!answered && !(await confirm(`${r.number as string} has no answer. Closing it records that the question was withdrawn without one.`, { title: 'Close without an answer?', confirmText: 'Close RFI' }))) return;
+    try { await api.post(`/api/rfis/${r.id as string}/close`, answered ? {} : { closeUnanswered: true }); toast.success(`${r.number as string} closed`); load(); }
+    catch (err) { toast.error((err as Error).message); }
+  };
+  const reopenRfi = async (r: Record<string, unknown>) => {
+    try { await api.post(`/api/rfis/${r.id as string}/reopen`, {}); toast.success(`${r.number as string} reopened`); load(); }
+    catch (err) { toast.error((err as Error).message); }
+  };
+
   const handleRespond = async () => {
     if (!response) { toast.error('Response required'); return; }
     try { await api.rfis.respond((respondRfi as Record<string, unknown>).id as string, { response }); toast.success('Response added'); setRespondOpen(false); load(); }
@@ -147,7 +166,10 @@ export default function RFIsPage() {
         emptyAction={can('rfis:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New RFI</Button> : undefined}
         actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('rfis:update') },
-        { label: 'Respond', icon: MessageSquare, show: () => can('rfis:update'), onClick: (r: Record<string, unknown>) => { setRespondRfi(r); setResponse((r.response as string) || ''); setRespondOpen(true); } },
+        // A closed RFI takes no answer until it is reopened (rfis.ts rule 1), so it offers Reopen instead.
+        { label: 'Respond', icon: MessageSquare, show: (r: Record<string, unknown>) => can('rfis:update') && r.status !== 'closed', onClick: (r: Record<string, unknown>) => { setRespondRfi(r); setResponse((r.response as string) || ''); setRespondOpen(true); } },
+        { label: 'Close', icon: CheckCircle, onClick: closeRfi, show: (r: Record<string, unknown>) => can('rfis:update') && r.status !== 'closed' },
+        { label: 'Reopen', icon: RotateCcw, onClick: reopenRfi, show: (r: Record<string, unknown>) => can('rfis:update') && r.status === 'closed' },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('rfis:delete') },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit RFI' : 'New RFI'} size="md">

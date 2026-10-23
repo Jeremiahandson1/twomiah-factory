@@ -8,6 +8,7 @@ import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface BillForm {
   vendorId: string;
@@ -198,8 +199,8 @@ export default function BillsPage() {
         {isOverdue(r) ? 'overdue' : v as string}
       </span>
     ) },
-    { key: 'amount', label: 'Amount', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
-    { key: 'amountPaid', label: 'Paid', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+    { key: 'amount', label: 'Amount', render: (v: unknown) => `${money(Number(v))}` },
+    { key: 'amountPaid', label: 'Paid', render: (v: unknown) => `${money(Number(v))}` },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(v as string) : '-' },
     { key: 'source', label: 'Source', render: (v: unknown) => v === 'vendor_portal' ? <span className="text-xs text-teal-700 dark:text-teal-300">vendor portal</span> : <span className="text-xs text-gray-500 dark:text-slate-400">manual</span> },
   ];
@@ -234,7 +235,7 @@ export default function BillsPage() {
         */}
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
-          <div className="bg-white border rounded-lg px-4 py-2 text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className="bg-white border rounded-lg px-4 py-2 text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">Outstanding: <span className="font-semibold">{money(Number(summary.outstanding || 0))}</span></div>
           <div className={`border rounded-lg px-4 py-2 ${Number(summary.overdueCount) > 0
             ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-900 dark:text-red-300'
             : 'bg-white text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'}`}>Overdue: <span className="font-semibold">{Number(summary.overdueCount || 0)}</span></div>
@@ -281,7 +282,7 @@ export default function BillsPage() {
       <Modal isOpen={payOpen} onClose={() => setPayOpen(false)} title="Record Payment" size="sm">
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-slate-400">
-            {payBill ? `${(payBill.number as string) || 'Bill'} — $${Number(payBill.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} total, $${Number(payBill.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })} already paid.` : ''}
+            {payBill ? `${(payBill.number as string) || 'Bill'} — ${money(Number(payBill.amount))} total, ${money(Number(payBill.amountPaid))} already paid.` : ''}
           </p>
           <div><label className="block text-sm font-medium mb-1">Payment amount</label>
             <input type="number" value={payAmount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayAmount(e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -320,7 +321,7 @@ export default function BillsPage() {
         {detail && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-slate-400">
-              {((detail.vendor as Record<string, unknown>)?.name as string) || 'Vendor'} · ${Number(detail.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} billed
+              {((detail.vendor as Record<string, unknown>)?.name as string) || 'Vendor'} · {money(Number(detail.amount))} billed
               {(detail.job as Record<string, unknown>)?.title ? ` · ${(detail.job as Record<string, unknown>).title as string}` : ''}
             </p>
             {((detail.payments as Record<string, unknown>[]) || []).length === 0
@@ -344,7 +345,7 @@ export default function BillsPage() {
                           <td className="px-3 py-2 capitalize">{(p.method as string) || '-'}</td>
                           <td className="px-3 py-2">{(p.reference as string) || '-'}</td>
                           <td className="px-3 py-2">{(p.recordedBy as string) || '-'}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">${Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{money(Number(p.amount))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -352,8 +353,8 @@ export default function BillsPage() {
                 </div>
               )}
             <div className="flex flex-wrap gap-4 text-sm text-gray-900 dark:text-slate-100">
-              <span>Paid: <span className="font-semibold tabular-nums">${Number(detail.paidTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
-              <span>Balance: <span className="font-semibold tabular-nums">${Number(detail.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+              <span>Paid: <span className="font-semibold tabular-nums">{money(Number(detail.paidTotal || 0))}</span></span>
+              <span>Balance: <span className="font-semibold tabular-nums">{money(Number(detail.balance || 0))}</span></span>
             </div>
             {/*
               * paidTotal is summed from the payment rows; amountPaid is the bill's own column. They
@@ -362,7 +363,7 @@ export default function BillsPage() {
               */}
             {Math.abs(Number(detail.paidTotal || 0) - Number(detail.amountPaid || 0)) >= 0.005 && (
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                The payments listed add up to ${Number(detail.paidTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}, but the bill records ${Number(detail.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} paid. Worth checking before you reconcile.
+                The payments listed add up to {money(Number(detail.paidTotal || 0))}, but the bill records {money(Number(detail.amountPaid || 0))} paid. Worth checking before you reconcile.
               </p>
             )}
           </div>

@@ -7,8 +7,8 @@ import { eq, and } from 'drizzle-orm'
 import { serviceRate, site } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 
 // Site columns that can drive area-based pricing
 const AREA_FIELDS = ['lawnSqft', 'bedSqft', 'hardscapeSqft', 'lotSqft', 'drivewaySqft'] as const
@@ -35,7 +35,7 @@ export function createAreaPricingRoutes(d: CrmDeps) {
   app.get('/rates', requirePermission('quotes:read'), async (c) => {
     const u = c.get('user')
     const rates = await db.select().from(serviceRate).where(eq(serviceRate.companyId, u.companyId)).orderBy(serviceRate.serviceType)
-    return list(c, rates, { page: 1, limit: rates.length, total: rates.length })
+    return listAll(c, rates)
   })
 
   app.post('/rates', requirePermission('quotes:create'), async (c) => {

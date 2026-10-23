@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm'
 import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor, refuseUnverifiedWebhook, aiRuleCreateSchema, aiRuleUpdateSchema, aiSettingsSchema } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one, done } from '../../http/reply.ts'
+import { fail, one, done, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createAiReceptionistService } from './aiReceptionistService.ts'
@@ -65,7 +65,7 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
 
   app.get('/rules', requirePermission('ai-receptionist:read'), async (c) => {
     const rules = await aiReceptionist.getRules(c.get('user').companyId)
-    return list(c, rules, { page: 1, limit: rules.length, total: rules.length })
+    return listAll(c, rules)
   })
 
   // Rule and settings bodies: the one shared schema (packages/tenant-backend/src/integrations/aiReceptionistSchemas.ts).

@@ -39,7 +39,7 @@ import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import { adjusterContact, claimActivity, company, insuranceClaim, job, measurementReport, supplement } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { email as emailField, money, optional, phone as phoneField } from '../validation.ts'
@@ -311,7 +311,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
       .where(and(eq(supplement.claimId, c.req.param('claimId')), eq(supplement.companyId, me.companyId)))
       .orderBy(asc(supplement.createdAt), asc(supplement.id))
     const data = rows.map(supplementFor(await maySeeClaimMoney(c)))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   // A supplement, numbered SUP-001, SUP-002… within its claim, its money computed from its lines.
@@ -495,7 +495,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
     const rows = await db.select().from(adjusterContact)
       .where(eq(adjusterContact.companyId, me.companyId))
       .orderBy(desc(adjusterContact.jobsWorkedTogether), asc(adjusterContact.id))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/adjusters', requirePermission('insurance:create'), async (c) => {
@@ -548,7 +548,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
       .where(and(eq(claimActivity.claimId, c.req.param('claimId')), eq(claimActivity.companyId, me.companyId)))
       .orderBy(desc(claimActivity.createdAt), desc(claimActivity.id))
     const data = (await maySeeClaimMoney(c)) ? rows : rows.map((a: any) => ({ ...a, body: withoutDollarFigures(a.body) }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/claims/:claimId/activity', requirePermission('insurance:create'), async (c) => {

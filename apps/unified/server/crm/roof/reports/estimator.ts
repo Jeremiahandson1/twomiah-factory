@@ -19,6 +19,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { geocodeAddress, getBuildingInsights, processRoofData } from '@twomiah/roof-core'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { company, contact, measurementReport } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -31,7 +32,7 @@ const estimateSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
   state: z.string().min(1),
-  zip: z.string().min(1),
+  zip: z.string().min(1).refine((v) => normaliseZip(v) !== null, { message: ZIP_ERROR }),
   name: z.string().optional(),
   email: optional(emailShape),
   phone: z.string().optional(),

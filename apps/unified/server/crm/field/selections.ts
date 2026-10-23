@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createSelectionsService, type SelectionsService } from './selectionsService.ts'
@@ -30,7 +30,7 @@ const optionBody = z.object({
 }).passthrough()
 const projectSelectionBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 
-const all = <T,>(c: any, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: any, rows: T[]) => listAll(c, rows)
 
 /** `service`: the one the portal also uses, when the caller built it; otherwise built here. */
 export function createSelectionsRoutes(d: CrmDeps, service?: SelectionsService) {

@@ -9,10 +9,8 @@ export interface AgreementsApi {
 export interface AgreementsConfig {
   /** Recurrence / auto-schedule fields on the agreement form (fs / landscaping maintenance contracts). Default false. */
   recurrence?: boolean
-  /**
-   * The example in the plan form's name box, in this trade's words (the vertical's settings). Absent: a neutral example.
-   * It read "e.g., HVAC Maintenance Plan" on every vertical, landscaping included (live test 2026-10-22).
-   */
+  /** The plan-name example, in the trade's words. Absent: a neutral one. (The page said "HVAC Maintenance Plan" to every
+   *  trade — found sweeping the warranty form's landscaping example on a contractor, live test 2026-10-22.) */
   planNamePlaceholder?: string
 }
 

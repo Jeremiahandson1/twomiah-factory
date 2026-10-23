@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { and, desc, eq, gte, isNull, lte, or } from 'drizzle-orm'
 import { caregiverRates } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { requireAdminOrSelf } from '../core/selfService.ts'
@@ -91,7 +91,7 @@ export function createCaregiverRateRoutes(core: HomecareCore, d: CrmDeps) {
       }).returning()
       results.push(newRate)
     }
-    return list(c, results, { page: 1, limit: results.length, total: results.length })
+    return listAll(c, results)
   })
 
   return app

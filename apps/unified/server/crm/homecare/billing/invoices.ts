@@ -36,7 +36,7 @@ import { parseClaimPortal, WISCONSIN_PRESETS } from '../core/portalClaimDays.ts'
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import { TIME_RE, isDate, num, body, who, refusalAware, csvDownload } from './shared.ts'
 
 const periodFrom = (b: any) => ({
@@ -106,7 +106,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
       }
       return { ...r, today, periodsDue }
     })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // PATCH /invoices/billing-schedule/:clientId — set a cadence in weeks (1-8), or null for manual.
@@ -378,7 +378,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const visits = await pickableScheduledVisits(db, companyId, clientId, from, to)
     const billed = await billedVisitMap(companyId, clientId, from, to)
     const rows = visits.map((v) => ({ ...v, billedOn: billed.byLine.get(visitKey(v)) || billed.byPeriod(v.visitDate) || null }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /invoices/from-visits — an invoice built from visits the office picks one by one (CVHC's Visit Documentation
@@ -651,7 +651,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const { companyId } = who(c)
     const { invoiceId, startDate, endDate } = c.req.query()
     const rows = await invoicePaymentRows(db, companyId, { invoiceId, startDate, endDate })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /invoice-payments — record a payment. One transaction with the invoice row locked, so two concurrent payments
@@ -712,7 +712,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /invoice-adjustments — a list reply.
   app.get('/invoice-adjustments', read, async (c) => {
     const rows = await invoiceAdjustmentRows(db, who(c).companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
   app.post('/invoice-adjustments', create, async (c) => {
     const b = await body(c)
@@ -723,7 +723,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const rows = await db.select().from(invoiceAdjustments)
       .where(and(eq(invoiceAdjustments.invoiceId, c.req.param('id')), eq(invoiceAdjustments.companyId, who(c).companyId)))
     rows.sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
   app.post('/invoices/:id/adjustments', create, async (c) => recordAdjustment(c, c.req.param('id'), await body(c)))
 
@@ -732,7 +732,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /referral-source-rates (and /rates) — a list reply.
   const ratesList = async (c: any) => {
     const rows = await payerRateRows(db, who(c).companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   }
   app.get('/referral-source-rates', read, ratesList)
   app.get('/rates', read, ratesList)
@@ -742,7 +742,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
   app.get('/missing-rates', read, async (c) => {
     const { companyId } = who(c)
     const rows = await missingPayerRates(db, companyId, await core.time.today(companyId))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /referral-source-rates — a new rate for a payer (+ care type) retires the active one, ending it on the new

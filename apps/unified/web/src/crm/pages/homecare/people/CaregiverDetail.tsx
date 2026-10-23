@@ -33,8 +33,9 @@ import { useMay } from '../lib/useMay'
 import { parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
+import { money } from '@twomiah/tenant-ui/src/money'
 
-const fmt$ = (n: unknown) => (n != null ? `$${parseFloat(String(n || 0)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : '—')
+const fmt$ = (n: unknown) => (n != null ? money(n) : '—')
 const fmtHrs = (n: unknown) => (n != null ? `${parseFloat(String(n || 0)).toFixed(2)}h` : '—')
 const fmtDate = (d: unknown) => (d ? parseLocalDate(d as string).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

@@ -575,8 +575,15 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   })
   app.post('/:id/history', requirePermission('equipment:update'), async (c: any) => {
     const user = c.get('user')
-    const body = await c.req.json()
-    const record = await service.addServiceRecord(c.req.param('id'), user.companyId, { ...body, technicianId: body.technicianId || user.userId })
+    const body = await c.req.json().catch(() => ({}))
+    // What was done is the column the row cannot be without (NOT NULL): missing, it was a 500. A cost is a number, 0
+    // or more, or absent. (live test 2026-10-22: the screen had no form, so nothing ever reached this.)
+    const type = typeof body?.type === 'string' ? body.type.trim() : ''
+    if (!type) return c.json({ error: 'Say what was done (type).' }, 400)
+    const cost = body?.cost === undefined || body?.cost === null || body?.cost === '' ? undefined : Number(body.cost)
+    if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return c.json({ error: 'The cost must be a number, 0 or more.' }, 400)
+    if (body?.nextDueDate && Number.isNaN(new Date(body.nextDueDate).getTime())) return c.json({ error: 'The next service date is not a date.' }, 400)
+    const record = await service.addServiceRecord(c.req.param('id'), user.companyId, { ...body, type, cost, technicianId: body.technicianId || user.userId })
     if (record === null) return c.json({ error: 'Equipment not found' }, 404)
     return c.json(record, 201)
   })

@@ -11,6 +11,7 @@ import type { FormEvent } from 'react'
 import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -190,7 +191,7 @@ export default function MaintenanceContracts() {
         {maySeeMoney && <StatCard
           icon={DollarSign}
           label="Monthly Revenue"
-          value={`$${stats.monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`${money(stats.monthlyRevenue)}`}
           color="green"
         />}
         <StatCard icon={Users} label="Total Contracts" value={stats.total} color="blue" />
@@ -277,7 +278,7 @@ export default function MaintenanceContracts() {
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{visitsText(contract)}</td>
                     {maySeeMoney && <td className="px-4 py-3 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">
-                        ${Number(contract.amount || 0).toFixed(2)}
+                        {money(Number(contract.amount || 0))}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         /{contract.billingFrequency || 'mo'}
@@ -517,7 +518,7 @@ function ContractFormModal({ contract, onSave, onClose }: {
                   {plans.map(p => (
                     <option key={p.id} value={p.id}>
                       {/* `price` is withheld without invoices:read — the name alone then, not a "$0". */}
-                      {p.price !== undefined ? `${p.name} - $${(Number(p.price) || 0).toFixed(0)}/${p.billingFrequency}` : p.name}
+                      {p.price !== undefined ? `${p.name} - ${money((Number(p.price) || 0), 0)}/${p.billingFrequency}` : p.name}
                     </option>
                   ))}
                 </select>

@@ -36,7 +36,7 @@ import { generateReportHTML, generateReportPDF, getNearmapRoofAI, getNearmapRoll
 import { company, contact, roofReport } from '../../../db/schema/index.ts'
 import { escapeHtml, escapeRow } from '../../../core/sanitize.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { createRoofReportService, imageKeyFor, imageryPrefix, REPORT_PRICE_CENTS } from './roofReportService.ts'
@@ -453,7 +453,7 @@ export function createRoofReportInternalRoutes(d: CrmDeps) {
 
   app.get('/pending', async (c) => {
     const rows = await db.select().from(roofReport).where(eq(roofReport.status, 'pending_review')).orderBy(desc(roofReport.createdAt))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.get('/:id', async (c) => {

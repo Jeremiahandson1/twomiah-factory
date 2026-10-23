@@ -12,7 +12,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { menuPackage } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { upcomingEventsUsingPackage, retirePackageRefusal, auditName } from './eventBooking.ts'
 
 // A negative per-head price would subtract from every event the package is added to (H-01); "abc" is not a number
@@ -47,7 +47,7 @@ export function createMenuPackageRoutes(d: CrmDeps) {
     if (category) conditions.push(eq(menuPackage.category, category))
     if (!includeInactive) conditions.push(eq(menuPackage.active, true))
     const data = await db.select().from(menuPackage).where(and(...conditions)).orderBy(asc(menuPackage.category), asc(menuPackage.name))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   // POST /menu-packages

@@ -7,7 +7,7 @@ import { roundsToNothing } from '@twomiah/tenant-backend'
 import { serviceMenu } from '../../db/schema/index.ts'
 import { serviceNamedOnMenu } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
@@ -28,7 +28,7 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     if (category) conditions.push(eq(serviceMenu.category, category))
     if (!includeInactive) conditions.push(eq(serviceMenu.active, true))
     const data = await db.select().from(serviceMenu).where(and(...conditions)).orderBy(asc(serviceMenu.category), asc(serviceMenu.name))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('pricebook:create'), async (c) => {

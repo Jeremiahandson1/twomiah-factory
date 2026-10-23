@@ -2,7 +2,7 @@
 // create/edit modal (also opened by /crm/contacts?edit=<id> from detail pages), delete with the
 // backend's "still has N invoices attached" guard surfaced, lead → client conversion, and the
 // duplicate guard: a 409 offers "open the existing record" or "create anyway".
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, UserCheck, Search, Handshake } from 'lucide-react'
 import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
@@ -38,6 +38,13 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<ContactRow | null>(null)
   const [form, setForm] = useState<ContactForm>(emptyForm(cfg.types[0].value))
+  /**
+   * WHAT IS WRONG WITH THE FORM, UNDER THE FIELD IT IS ABOUT. (live test 2026-10-22: "Name is required" showed only as
+   * the browser's tooltip.) The name input carried a bare `required`; the message the owner needs is the app's own,
+   * beside the field, read out by a screen reader (role=alert), with the cursor put back in the field.
+   */
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({})
+  const nameRef = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
   const [duplicate, setDuplicate] = useState<{ message: string; existingId?: string } | null>(null)
 
@@ -69,7 +76,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, typeFilter])
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm(cfg.types[0].value)); setDuplicate(null); setModalOpen(true) }
+  const openCreate = () => { setEditing(null); setForm(emptyForm(cfg.types[0].value)); setDuplicate(null); setFieldErrors({}); setModalOpen(true) }
   const openEdit = (row: ContactRow) => {
     setEditing(row)
     setForm({
@@ -78,6 +85,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
       zip: row.zip || '', source: row.source || '', notes: row.notes || '',
     })
     setDuplicate(null)
+    setFieldErrors({})
     setModalOpen(true)
   }
 
@@ -145,8 +153,11 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async (allowDuplicate = false) => {
-    if (!form.name.trim()) { toast.error('Name is required'); return }
-    if (!isValidPhone(form.phone) || !isValidPhone(form.mobile)) { toast.error('Enter a valid phone number (at least 7 digits)'); return }
+    const errors: { name?: string; phone?: string } = {}
+    if (!form.name.trim()) errors.name = 'Name is required'
+    if (!isValidPhone(form.phone) || !isValidPhone(form.mobile)) errors.phone = 'Enter a valid phone number (at least 7 digits)'
+    setFieldErrors(errors)
+    if (errors.name || errors.phone) { if (errors.name) nameRef.current?.focus(); return }
     setSaving(true)
     try {
       if (editing) {
@@ -233,7 +244,12 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (row: ContactRow) => { setToDelete(row); setDeleteOpen(true) } },
   ]
 
-  const set = (k: keyof ContactForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const set = (k: keyof ContactForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }))
+    if (k === 'name') setFieldErrors((x) => ({ ...x, name: undefined }))
+    if (k === 'phone' || k === 'mobile') setFieldErrors((x) => ({ ...x, phone: undefined }))
+  }
+  const errorCls = 'mt-1 text-sm text-red-700 dark:text-red-300'
 
   return (
     <div>
@@ -298,11 +314,11 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
               </select>
             </Field>
           </div>
-          <Field label="Name *"><input type="text" required aria-required="true" value={form.name} onChange={set('name')} className={inputCls} placeholder="John Smith" /></Field>
+          <Field label="Name *"><input ref={nameRef} type="text" aria-required="true" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'contact-name-error' : undefined} value={form.name} onChange={set('name')} className={inputCls} placeholder="John Smith" />{fieldErrors.name && <p id="contact-name-error" role="alert" className={errorCls}>{fieldErrors.name}</p>}</Field>
           <Field label="Company"><input type="text" value={form.company} onChange={set('company')} className={inputCls} /></Field>
           <Field label="Email"><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></Field>
-          <Field label="Phone"><input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
-          <Field label="Mobile"><input type="tel" value={form.mobile} onChange={set('mobile')} className={inputCls} /></Field>
+          <Field label="Phone"><input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} aria-invalid={!!fieldErrors.phone && !isValidPhone(form.phone)} />{fieldErrors.phone && !isValidPhone(form.phone) && <p role="alert" className={errorCls}>{fieldErrors.phone}</p>}</Field>
+          <Field label="Mobile"><input type="tel" value={form.mobile} onChange={set('mobile')} className={inputCls} aria-invalid={!!fieldErrors.phone && !isValidPhone(form.mobile)} />{fieldErrors.phone && !isValidPhone(form.mobile) && <p role="alert" className={errorCls}>{fieldErrors.phone}</p>}</Field>
           {/* The company's source choices, plus Other for one-offs; managers and up edit the list. (T63) */}
           <SourceField api={api as any} value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} toast={toast} />
           <div className="md:col-span-2"><Field label="Address"><input type="text" value={form.address} onChange={set('address')} className={inputCls} /></Field></div>

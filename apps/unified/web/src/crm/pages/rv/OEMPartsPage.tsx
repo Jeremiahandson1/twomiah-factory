@@ -3,8 +3,9 @@ import { useEffect, useState, type ChangeEvent } from 'react'
 import { Package, Search, Loader2, Info, Upload, X, CheckCircle2 } from 'lucide-react'
 import { api } from '../../../api'
 import { PageError, errorText, useMayWrite } from '../../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
-const money = (n?: number) => (n ? '$' + Number(n).toFixed(2) : '');
+const money = (n?: number) => (n ? formatMoney(Number(n)) : '');
 
 /** A catalogue part (server/crm/rv/parts.ts OemPart). */
 interface OemPart {

@@ -106,7 +106,7 @@ describe('a customer books from the website', () => {
   })
 
   test('the same time again is refused with the reason, and the booking page is private', async () => {
-    const r = await t.call('/api/book/services/gutter-cleaning', { method: 'POST', json: { date: day, time: '08:00', name: 'Ann', email: 'ann@example.com', phone: '1', address: 'x' } })
+    const r = await t.call('/api/book/services/gutter-cleaning', { method: 'POST', json: { date: day, time: '08:00', name: 'Ann', email: 'ann@example.com', phone: '608-555-0199', address: 'x' } })
     expect(r.status).toBe(409)
     expect((await r.json()).code).toBe('taken')
     const page = await t.call(`/booking/${token}`)
@@ -116,7 +116,7 @@ describe('a customer books from the website', () => {
   })
 
   test('a filled honeypot or an instant submit is turned away', async () => {
-    const bot = await t.call('/api/book/services/gutter-cleaning', { method: 'POST', json: { date: day, time: '09:00', name: 'Bot', email: 'bot@example.com', phone: '1', address: 'x', website: 'spam' } })
+    const bot = await t.call('/api/book/services/gutter-cleaning', { method: 'POST', json: { date: day, time: '09:00', name: 'Bot', email: 'bot@example.com', phone: '608-555-0199', address: 'x', website: 'spam' } })
     expect(bot.status).toBe(400)
   })
 
@@ -139,7 +139,7 @@ describe('a customer books from the website', () => {
   })
 
   test('the waitlist takes a name and email', async () => {
-    const r = await t.call('/api/book/services/gutter-cleaning/waitlist', { method: 'POST', json: { name: 'Wendy', email: 'wendy@example.com' } })
+    const r = await t.call('/api/book/services/gutter-cleaning/waitlist', { method: 'POST', json: { name: 'Wendy', email: 'wendy@example.com', phone: '608-555-0123' } })
     expect(r.status).toBe(200)
     expect(((await (await as('owner', '/api/booking/waitlist')).json()).data as any[]).map((w) => w.customerEmail)).toContain('wendy@example.com')
   })

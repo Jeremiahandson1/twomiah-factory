@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
-import { addDays, isIsoDate, isRealDate, isValidTz, minutesToHm, safeTz, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay } from '../data/bookingLock.ts'
@@ -351,6 +351,29 @@ export function createBookingEngine(deps: EngineDeps) {
     return { first, last: addDays(first, s.maxDaysOut) }
   }
 
+  /**
+   * What every public door holds a customer to — taking a booking, moving one, joining the waitlist — in one place, so
+   * no door can skip a rule another holds (live test 2026-10-22: the create held the window and the phone, the waitlist
+   * took a date 74 days out with no phone). Online booking must be on; `phone` undefined: the door doesn't ask for one
+   * (a move keeps the booking's). A phone or ZIP that is given must be one; each date must be inside the window.
+   */
+  function customerRules(s: SettingsRow, x: { phone?: string | null; zip?: string | null; dates: string[] }) {
+    if (!s.enabled) throw new BookingError('Online booking is switched off.', 403, 'disabled')
+    if (x.phone !== undefined && s.requirePhone && !x.phone) throw new BookingError('Please enter a phone number.')
+    detailRules(x)
+    const w = window(s)
+    for (const d of x.dates) {
+      if (d < w.first) throw new BookingError('That date is in the past.')
+      if (d > w.last) throw new BookingError(`Please choose a date within ${s.maxDaysOut} days.`)
+    }
+  }
+
+  /** A phone or ZIP on a booking, whoever types it (customer or staff): one that is given must be one. */
+  function detailRules(x: { phone?: string | null; zip?: string | null }) {
+    if (x.phone && !isValidPhone(x.phone)) throw new BookingError('Please enter a valid phone number (at least 7 digits).')
+    if (x.zip && normaliseZip(x.zip) === null) throw new BookingError(ZIP_ERROR)
+  }
+
   /** An unpaid deposit past its hold releases its time. Run before any question about free times. */
   async function expireHolds(companyId: string, s: SettingsRow) {
     const cutoff = new Date(now() - s.depositHoldMinutes * 60_000)
@@ -548,7 +571,6 @@ export function createBookingEngine(deps: EngineDeps) {
   async function book(companyId: string, input: BookInput, opts: { by: 'customer' | 'staff'; assignedUserId?: string | null; override?: boolean; seriesId?: string; seriesIndex?: number; source?: 'public' | 'staff' | 'series' }) {
     const s = await settingsOf(companyId)
     const customer = opts.by === 'customer'
-    if (customer && !s.enabled) throw new BookingError('Online booking is switched off.', 403, 'disabled')
     await expireHolds(companyId, s)
     const svc = customer ? await activeService(companyId, input.service) : await serviceById(companyId, input.service) ?? await serviceBySlug(companyId, input.service)
     if (!svc) throw new BookingError('Choose a service.', 404)
@@ -558,7 +580,8 @@ export function createBookingEngine(deps: EngineDeps) {
     const email = String(input.email || '').trim().toLowerCase().slice(0, 320)
     const phone = String(input.phone || '').trim().slice(0, 40) || null
     const address = String(input.address || '').trim().slice(0, 300) || null
-    const zip = String(input.zip || '').trim().slice(0, 10) || null
+    const typedZip = String(input.zip || '').trim().slice(0, 10) || null
+    const zip = typedZip && (normaliseZip(typedZip) ?? typedZip)
     if (!name) throw new BookingError('Please enter your name.')
     if (!EMAIL_RE.test(email)) throw new BookingError('Please enter a valid email address.')
     const answers: Record<string, string> = {}
@@ -568,17 +591,15 @@ export function createBookingEngine(deps: EngineDeps) {
       if (a) answers[q.name] = a
     }
     if (customer) {
-      if (s.requirePhone && !phone) throw new BookingError('Please enter a phone number.')
+      customerRules(s, { phone, zip: typedZip, dates: [input.date] })
       if (requireAddress(s) && !address) throw new BookingError('Please enter the address.')
       for (const q of questions) if (q.requiredMessage && !answers[q.name]) throw new BookingError(q.requiredMessage)
-      const w = window(s)
-      if (input.date < w.first) throw new BookingError('That date is in the past.')
-      if (input.date > w.last) throw new BookingError(`Please choose a date within ${s.maxDaysOut} days.`)
       // Refused plainly. The site answered a banned address with a fake success, so a person turned away believed
       // they had an appointment.
       if (await isBanned(companyId, email, phone)) throw new BookingError("We can't take this booking online — please call us.", 403, 'refused')
-    } else if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) {
-      throw new BookingError('That time has already passed.')
+    } else {
+      detailRules({ phone, zip: typedZip })
+      if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
     if (opts.assignedUserId && !(await companyUserIds(companyId)).has(opts.assignedUserId)) throw new BookingError('That person is not on this account.')
 
@@ -737,10 +758,7 @@ export function createBookingEngine(deps: EngineDeps) {
     if (!isRealDate(date) || !HM_RE.test(String(time))) throw new BookingError('Choose a real date and time.')
     const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
     if (!svc) throw new BookingError("This booking's service no longer exists; book a new one instead.", 409)
-    if (opts.by === 'customer') {
-      const w = window(s)
-      if (date < w.first || date > w.last) throw new BookingError(`Please choose a date within ${s.maxDaysOut} days.`)
-    }
+    if (opts.by === 'customer') customerRules(s, { dates: [date] })
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(date, time, tz)
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
@@ -812,6 +830,8 @@ export function createBookingEngine(deps: EngineDeps) {
         u[k] = v
       }
     }
+    detailRules({ phone: u.customerPhone as string | null | undefined, zip: u.customerZip as string | null | undefined })
+    if (typeof u.customerZip === 'string') u.customerZip = normaliseZip(u.customerZip)
     if (!Object.keys(u).length) throw new BookingError('Nothing to change.')
     const [row] = await db.update(booking).set({ ...u, updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
     return row
@@ -845,7 +865,7 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   return {
-    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, selfServiceOpen, questions,
+    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
     getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,

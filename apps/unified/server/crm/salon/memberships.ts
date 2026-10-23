@@ -9,7 +9,7 @@ import { roundsToNothing } from '@twomiah/tenant-backend'
 import { membershipPlan, membershipEnrollment, contact } from '../../db/schema/index.ts'
 import { takeMembershipCredit } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonServices } from './services.ts'
 
@@ -176,7 +176,7 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     const conditions = [eq(membershipPlan.companyId, currentUser.companyId)]
     if (c.req.query('includeInactive') !== '1') conditions.push(eq(membershipPlan.active, true))
     const data = await db.select().from(membershipPlan).where(and(...conditions)).orderBy(desc(membershipPlan.createdAt))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('pricebook:create'), async (c) => {

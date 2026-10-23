@@ -6,7 +6,7 @@ import { eq, and, count, desc, inArray, ne, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { scheduleOfValues, drawRequest, project } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 const drawScheduleSchema = z.object({
@@ -67,7 +67,7 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
       }
     })
 
-    return list(c, enriched, { page: 1, limit: enriched.length, total: enriched.length })
+    return listAll(c, enriched)
   })
 
   app.get('/:id', async (c) => {
@@ -156,7 +156,7 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
     if (status) conditions.push(eq(drawRequest.status, status))
 
     const requests: any[] = await db.select().from(drawRequest).where(and(...conditions)).orderBy(desc(drawRequest.createdAt))
-    return list(c, requests, { page: 1, limit: requests.length, total: requests.length })
+    return listAll(c, requests)
   })
 
   app.post('/requests', requirePermission('draw-schedules:create'), async (c) => {

@@ -10,6 +10,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { FleetApi, FleetPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 import { whenTime, whenDateTime } from '../time/companyClock'
+import { money } from '../money'
 
 // api + the gps flag are injected once at the page root; child components read them via useFleet().
 /**
@@ -190,7 +191,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
           <StatCard icon={Truck} label="Vehicles" value={stats.totalVehicles} />
           <StatCard icon={Navigation} label="Trips (30d)" value={stats.tripsThisMonth} color="blue" />
           <StatCard icon={TrendingUp} label="Miles (30d)" value={`${Math.round(stats.milesThisMonth)}`} color="green" />
-          <StatCard icon={Fuel} label="Fuel Cost" value={`$${stats.fuelCostThisMonth?.toFixed(0) || 0}`} color="purple" />
+          <StatCard icon={Fuel} label="Fuel Cost" value={money(stats.fuelCostThisMonth, 0)} color="purple" />
           <StatCard icon={DollarSign} label="Gallons" value={stats.gallonsThisMonth?.toFixed(0) || 0} color="cyan" />
         </div>
       )}
@@ -749,7 +750,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
             </div>
             <div className="p-3 bg-gray-50 rounded-lg text-center dark:bg-slate-900">
               <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
-              <p className="text-2xl font-bold">${totalCost}</p>
+              <p className="text-2xl font-bold">{money(totalCost)}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Mileage</label>

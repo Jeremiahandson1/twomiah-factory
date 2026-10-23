@@ -3,7 +3,7 @@
 // Before: two copies whose tables read fields the backend never sent (recipients / enrolled always 0, opens and clicks
 // always "-"), no way to enroll a contact in a sequence, edit a sequence, duplicate or delete a template, alert()s for
 // every failure, and a trigger picker offering automations nothing fires.
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, Clock, Play, Pause, UserPlus, Calendar, X } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
@@ -151,12 +151,65 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
   )
 }
 
+// ─── merge fields ─────────────────────────────────────────────────────────────
+/**
+ * What an email can say about its reader, offered as buttons that put the field where the cursor is — from the
+ * server's own list (GET /api/marketing/merge-fields), the one the save and the send check against. Live test
+ * 2026-10-22: a campaign went out reading "Hi {firstName}"; the hint named three fields in a grey line. A field the
+ * server does not have is named here as it is typed; the server refuses to save or send it either way.
+ */
+interface MergeField { key: string; label: string; token: string }
+const MERGE_TOKEN = /\{\{\s*([A-Za-z_]\w*)\s*\}\}|\{\s*([A-Za-z_]\w*)\s*\}/g
+function useMergeFields(api: MarketingApi) {
+  const [fields, setFields] = useState<MergeField[]>([])
+  useEffect(() => { api.get('/api/marketing/merge-fields').then((r: any) => setFields(Array.isArray(r?.data) ? r.data : [])).catch(() => setFields([])) }, [api])
+  return fields
+}
+function unknownTokens(fields: MergeField[], ...texts: string[]): string[] {
+  if (!fields.length) return []
+  const known = new Set(fields.map((f) => f.key.toLowerCase()))
+  const out = new Set<string>()
+  for (const t of texts) for (const m of String(t || '').matchAll(MERGE_TOKEN)) if (!known.has(String(m[1] ?? m[2]).toLowerCase())) out.add(m[0])
+  return [...out]
+}
+/** Put `token` into `value` where the textarea's cursor is (the end when it has none), and the cursor after it. */
+function insertAt(el: HTMLTextAreaElement | null, value: string, token: string, set: (v: string) => void) {
+  const start = el && document.activeElement === el ? el.selectionStart : value.length
+  const end = el && document.activeElement === el ? el.selectionEnd : value.length
+  set(value.slice(0, start) + token + value.slice(end))
+  requestAnimationFrame(() => { if (!el) return; el.focus(); el.setSelectionRange(start + token.length, start + token.length) })
+}
+function MergeFieldBar({ fields, onInsert, check }: { fields: MergeField[]; onInsert: (token: string) => void; check: string[] }) {
+  if (!fields.length) return null
+  const bad = unknownTokens(fields, ...check)
+  return (
+    <div className="mt-2" data-testid="merge-fields">
+      <p className="text-xs text-gray-600 dark:text-slate-300 mb-1">Personalize — click to insert where your cursor is:</p>
+      <div className="flex flex-wrap gap-1.5">
+        {fields.map((f) => (
+          <button key={f.key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onInsert(f.token)} title={`Inserts ${f.token}`}
+            className="px-2 py-1 rounded-md border border-gray-300 bg-white text-xs text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            {f.label} <code className="text-gray-500 dark:text-slate-400">{f.token}</code>
+          </button>
+        ))}
+      </div>
+      {bad.length > 0 && (
+        <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">
+          {bad.join(', ')} {bad.length === 1 ? 'is not a field we can fill' : 'are not fields we can fill'} — it would be sent as written. Use one of the fields above.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; onSaved: () => void; onClose: () => void }) {
   const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string } | null) || null
   const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10) })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [audience, setAudience] = useState<number | null>(null)
+  const fields = useMergeFields(api)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const audienceFilter = form.audienceType === 'segment' ? { ...(form.segmentType ? { type: form.segmentType } : {}), ...(form.segmentCreatedAfter ? { createdAfter: form.segmentCreatedAfter } : {}) } : null
   useEffect(() => {
     let cancelled = false; setAudience(null)
@@ -189,7 +242,9 @@ function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: 
           )}
           <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{audience === null ? 'Counting recipients…' : `This campaign will go to ${audience} contact${audience === 1 ? '' : 's'}.`} Contacts who unsubscribed are always excluded.</p>
         </Field>
-        <Field label="Email body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
+        <Field label="Email body (HTML)"><textarea ref={bodyRef} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} />
+          <MergeFieldBar fields={fields} check={[form.subject, form.body]} onInsert={(tok) => insertAt(bodyRef.current, form.body, tok, (body) => setForm((f) => ({ ...f, body })))} />
+        </Field>
       </div>
       <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
     </Modal>
@@ -236,6 +291,8 @@ function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast
 }
 function TemplateForm({ api, toast, template, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; template: Template | null; onSaved: () => void; onClose: () => void }) {
   const [form, setForm] = useState({ name: template?.name || '', subject: template?.subject || '', body: template?.body || '', category: template?.category || template?.type || 'general', active: template?.active !== false })
+  const fields = useMergeFields(api)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const save = async () => {
@@ -254,7 +311,9 @@ function TemplateForm({ api, toast, template, onSaved, onClose }: { api: Marketi
           <Field label="Category"><select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputCls}>{TEMPLATE_CATEGORIES.map((c) => <option key={c} value={c}>{c === 'followup' ? 'Follow-up' : c.charAt(0).toUpperCase() + c.slice(1)}</option>)}</select></Field>
         </div>
         <Field label="Subject *"><input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className={inputCls} /></Field>
-        <Field label="Body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
+        <Field label="Body (HTML)"><textarea ref={bodyRef} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} />
+          <MergeFieldBar fields={fields} check={[form.subject, form.body]} onInsert={(tok) => insertAt(bodyRef.current, form.body, tok, (body) => setForm((f) => ({ ...f, body })))} />
+        </Field>
         {template && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="rounded" /> Active</label>}
       </div>
       <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
@@ -321,6 +380,8 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const setStep = (i: number, patch: Partial<Step>) => setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
+  const fields = useMergeFields(api)
+  const stepRefs = useRef<Array<HTMLTextAreaElement | null>>([])
   const save = async () => {
     if (!form.name.trim()) { setError('Sequence name is required'); return }
     const bad = form.steps.findIndex((s) => !s.subject.trim())
@@ -362,7 +423,8 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
                 </div>
               </div>
               <input value={s.subject} onChange={(e) => setStep(i, { subject: e.target.value })} className={inputCls} placeholder="Subject line *" />
-              <textarea value={s.body} onChange={(e) => setStep(i, { body: e.target.value })} className={`${inputCls} text-sm`} rows={3} placeholder="Email body (HTML) — {{name}}, {{firstName}}, {{company}} are filled in" />
+              <textarea ref={(el) => { stepRefs.current[i] = el }} value={s.body} onChange={(e) => setStep(i, { body: e.target.value })} className={`${inputCls} text-sm`} rows={3} placeholder="Email body (HTML)" />
+              <MergeFieldBar fields={fields} check={[s.subject, s.body]} onInsert={(tok) => insertAt(stepRefs.current[i], s.body, tok, (body) => setStep(i, { body }))} />
             </div>
           ))}
         </div>

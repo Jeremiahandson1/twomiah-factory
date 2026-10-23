@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { careTypes, caregiverCareTypeRates } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { isCompanyPerson, payrollOrCaregiver } from './shared.ts'
@@ -67,7 +67,7 @@ export function createCaregiverCareTypeRateRoutes(d: CrmDeps) {
       .from(caregiverCareTypeRates)
       .leftJoin(careTypes, eq(caregiverCareTypeRates.careTypeId, careTypes.id))
       .where(and(eq(caregiverCareTypeRates.companyId, companyId), caregiverId ? eq(caregiverCareTypeRates.caregiverId, caregiverId) : undefined))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST / { caregiverId, careTypeId, hourlyRate?, overtimeRate?, holidayRate? }

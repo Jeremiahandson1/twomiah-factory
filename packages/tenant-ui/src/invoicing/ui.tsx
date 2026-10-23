@@ -9,12 +9,9 @@ import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 
 // ---------------------------------------------------------------- formatting
-export const money = (n: unknown) => {
-  const v = Number(n)
-  if (!Number.isFinite(v)) return '$0.00'
-  const s = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return (v < 0 ? '-$' : '$') + s
-}
+// The one money formatter (../money.ts): the sign before the dollar sign.
+import { money } from '../money'
+export { money }
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 /** A date-only value ("2026-09-20" or an ISO midnight) shown as the calendar day it names, not the viewer's UTC offset. */
 export const dateOnly = (v: unknown) => {

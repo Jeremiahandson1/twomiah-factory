@@ -21,6 +21,7 @@ import { useAuth, useKnownPermission, usePermissions, useToast } from '../../../
 import { displayName } from '../lib/user'
 import { PIPELINE_STATUSES, TERMINAL_STATUSES, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** The chart's shorter labels for the pipeline stages. */
 const STAGE_LABELS: Record<string, string> = {
@@ -87,10 +88,10 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
       <span className="w-36 text-gray-600 truncate text-right dark:text-slate-400">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
         <div className="h-full rounded-full flex items-center px-2" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
-          {pct > 15 && labelFitsOnBar(color) && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+          {pct > 15 && labelFitsOnBar(color) && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>{formatMoney(value)}</span>}
         </div>
       </div>
-      {(pct <= 15 || !labelFitsOnBar(color)) && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+      {(pct <= 15 || !labelFitsOnBar(color)) && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">{formatMoney(value)}</span>}
     </div>
   )
 }
@@ -262,7 +263,7 @@ export default function ReportsPage() {
                 <span className="text-sm text-gray-500 dark:text-slate-400">Avg Job Value</span>
               </div>
               <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
-                ${avgJobValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {formatMoney(avgJobValue, 0)}
               </p>
             </div>
           )}
@@ -277,7 +278,7 @@ export default function ReportsPage() {
                 <span className="text-sm text-gray-500 dark:text-slate-400">Pipeline Value</span>
               </div>
               <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
-                ${jobs.reduce((s, j) => s + jobValue(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {formatMoney(jobs.reduce((s, j) => s + jobValue(j), 0), 0)}
               </p>
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">estimated value of all jobs</p>
             </div>
@@ -295,7 +296,7 @@ export default function ReportsPage() {
               <div key={label} className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
                 <span className="text-sm text-gray-500 dark:text-slate-400">{label}</span>
                 <p className={`text-3xl font-bold mt-2 ${tone}`}>
-                  ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(value)}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{hint}</p>
               </div>

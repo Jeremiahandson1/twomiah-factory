@@ -7,12 +7,25 @@ import { Hono } from 'hono'
 import { and, eq, ne } from 'drizzle-orm'
 import { geofence, job } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createGeofencingService } from './geofencingService.ts'
 import { crewLocations } from '../../data/crewLocations.ts'
+import { num, pointProblem } from '../../core/geo.ts'
 
-const all = <T,>(c: any, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: any, rows: T[]) => listAll(c, rows)
+
+/**
+ * A point on the Earth and a fence around it, by one rule for every door that takes them (create, edit, the phone's
+ * location, nearest, check): latitude −90…90, longitude −180…180, radius 25–500 m (the Geofences page's own slider).
+ * Latitude 999, radius −5 and radius 99,999,999 were all saved (live test 2026-10-22). Numbers only — "12abc" is not
+ * 12 — and 0 is a real latitude (the template's `!lat` refused the equator).
+ */
+export const GEOFENCE_RADIUS = { min: 25, max: 500 } as const
+export function radiusProblem(radius: unknown): string | null {
+  const r = num(radius)
+  return Number.isInteger(r) && r >= GEOFENCE_RADIUS.min && r <= GEOFENCE_RADIUS.max ? null : `Radius must be a whole number of metres between ${GEOFENCE_RADIUS.min} and ${GEOFENCE_RADIUS.max}.`
+}
 
 export function createGeofencingRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
@@ -43,14 +56,15 @@ export function createGeofencingRoutes(d: CrmDeps) {
   app.post('/', requirePermission('settings:update'), async (c) => {
     const user = c.get('user')
     const { name, lat, lng, radius, jobId, projectId, address } = await c.req.json()
-    if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
+    const bad = pointProblem(lat, lng) ?? (radius != null && radius !== '' ? radiusProblem(radius) : null)
+    if (bad) return fail(c, 400, bad)
     if (jobId) { const p = await jobProblem(user.companyId, jobId); if (p) return fail(c, 409, p, 'geofence_job') }
     const geofence = await geofencing.createGeofence({
       companyId: user.companyId,
       name: name || 'Job Site',
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      radius: radius ? parseInt(radius) : 100,
+      lat: num(lat),
+      lng: num(lng),
+      radius: radius != null && radius !== '' ? num(radius) : 100,
       jobId,
       projectId,
       address,
@@ -62,13 +76,25 @@ export function createGeofencingRoutes(d: CrmDeps) {
   app.put('/settings', async (c) => {
     const user = c.get('user')
     const { locationTrackingEnabled, autoClockEnabled, locationAccuracy, trackingInterval } = await c.req.json()
-    const settings = await geofencing.updateLocationSettings(user.userId, { locationTrackingEnabled, autoClockEnabled, locationAccuracy, trackingInterval })
+    // The switches are switches; the interval is seconds between fixes; the accuracy one of the phone's three modes.
+    // Each was written as sent — a string into the integer column was a 500 (sweep 2026-10-22).
+    for (const [k, v] of [['locationTrackingEnabled', locationTrackingEnabled], ['autoClockEnabled', autoClockEnabled]] as const) {
+      if (v !== undefined && typeof v !== 'boolean') return fail(c, 400, `${k} must be true or false.`)
+    }
+    if (trackingInterval !== undefined && !(Number.isInteger(num(trackingInterval)) && num(trackingInterval) >= 10 && num(trackingInterval) <= 3600)) {
+      return fail(c, 400, 'Tracking interval must be a whole number of seconds between 10 and 3600.')
+    }
+    if (locationAccuracy !== undefined && !['high', 'balanced', 'low'].includes(locationAccuracy)) return fail(c, 400, 'Location accuracy must be high, balanced or low.')
+    const settings = await geofencing.updateLocationSettings(user.userId, { locationTrackingEnabled, autoClockEnabled, locationAccuracy, trackingInterval: trackingInterval === undefined ? undefined : num(trackingInterval) })
     return one(c, settings)
   })
 
   app.put('/:id', requirePermission('settings:update'), async (c) => {
     const user = c.get('user')
     const { name, lat, lng, radius, active, address, jobId } = await c.req.json()
+    // A move gives both halves of the point; either one alone is checked against the other's range.
+    const bad = (lat !== undefined || lng !== undefined ? pointProblem(lat === undefined ? 0 : lat, lng === undefined ? 0 : lng) : null) ?? (radius !== undefined ? radiusProblem(radius) : null)
+    if (bad) return fail(c, 400, bad)
     const updates: any = {}
     if (address !== undefined) updates.address = address || null
     if (jobId !== undefined) {
@@ -76,9 +102,9 @@ export function createGeofencingRoutes(d: CrmDeps) {
       updates.jobId = jobId || null
     }
     if (name !== undefined) updates.name = name
-    if (lat !== undefined) updates.lat = parseFloat(lat)
-    if (lng !== undefined) updates.lng = parseFloat(lng)
-    if (radius !== undefined) updates.radius = parseInt(radius)
+    if (lat !== undefined) updates.lat = num(lat)
+    if (lng !== undefined) updates.lng = num(lng)
+    if (radius !== undefined) updates.radius = num(radius)
     if (active !== undefined) updates.active = active
     await geofencing.updateGeofence(c.req.param('id'), user.companyId, updates)
     return done(c)
@@ -97,11 +123,12 @@ export function createGeofencingRoutes(d: CrmDeps) {
   app.post('/location', async (c) => {
     const user = c.get('user')
     const { lat, lng, accuracy } = await c.req.json()
-    if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
+    const bad = pointProblem(lat, lng)
+    if (bad) return fail(c, 400, bad)
     const settings = await geofencing.getLocationSettings(user.userId)
     if (!settings.locationTrackingEnabled) return one(c, { actions: [], tracking: false })
     const actions = await geofencing.processLocationUpdate(user.userId, user.companyId, {
-      lat: parseFloat(lat), lng: parseFloat(lng), accuracy: parseFloat(accuracy) || 0,
+      lat: num(lat), lng: num(lng), accuracy: Math.max(0, num(accuracy) || 0),
     }, { autoClock: !!settings.autoClockEnabled })
     // The person hears about an automatic clock in or out on their phone (it happened in their pocket).
     for (const a of actions) {
@@ -117,8 +144,9 @@ export function createGeofencingRoutes(d: CrmDeps) {
     const user = c.get('user')
     const lat = c.req.query('lat')
     const lng = c.req.query('lng')
-    if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
-    const nearest = await geofencing.findNearestGeofence(user.companyId, parseFloat(lat), parseFloat(lng))
+    const bad = pointProblem(lat, lng)
+    if (bad) return fail(c, 400, bad)
+    const nearest = await geofencing.findNearestGeofence(user.companyId, num(lat), num(lng))
     if (!nearest) return fail(c, 404, 'No active geofence')
     return one(c, nearest)
   })
@@ -127,11 +155,12 @@ export function createGeofencingRoutes(d: CrmDeps) {
     const user = c.get('user')
     const lat = c.req.query('lat')
     const lng = c.req.query('lng')
-    if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
+    const bad = pointProblem(lat, lng)
+    if (bad) return fail(c, 400, bad)
     const geofences = await geofencing.getGeofences(user.companyId, { active: true })
     const inside: any[] = []
     for (const g of geofences) {
-      if (geofencing.isInsideGeofence(parseFloat(lat), parseFloat(lng), g)) {
+      if (geofencing.isInsideGeofence(num(lat), num(lng), g)) {
         inside.push({ id: g.id, name: g.name, jobId: g.jobId, projectId: g.projectId })
       }
     }
@@ -165,7 +194,7 @@ export function createGeofencingRoutes(d: CrmDeps) {
   app.get('/crew', requirePermission('team:read'), async (c) => {
     const user = c.get('user')
     const rows = await crewLocations(d.db, user.companyId)
-    return list(c, rows, { page: 1, limit: rows.length || 1, total: rows.length })
+    return listAll(c, rows)
   })
 
   // Someone else's location history: team:read.

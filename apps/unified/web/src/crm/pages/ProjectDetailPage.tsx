@@ -14,6 +14,7 @@ import { StatusBadge } from '../ui/DataTable'
 import { ConfirmModal } from '../ui/Modal'
 import { usePermissions } from '../../shared'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface RelatedItem {
   id: string;
@@ -259,9 +260,9 @@ export default function ProjectDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Budget</p>
                     <p className="text-gray-900 dark:text-slate-100">
-                      {project.budget && <span className="font-medium">${Number(project.budget).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                      {project.budget && <span className="font-medium">{money(Number(project.budget))}</span>}
                       {project.estimatedValue && (
-                        <span className="text-gray-500 dark:text-slate-400"> (Est: ${Number(project.estimatedValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+                        <span className="text-gray-500 dark:text-slate-400"> (Est: {money(Number(project.estimatedValue))})</span>
                       )}
                     </p>
                   </div>
@@ -395,7 +396,7 @@ export default function ProjectDetailPage() {
                           */}
                         {co.amount === undefined || co.amount === null
                           ? null
-                          : <p className="font-medium tabular-nums">${Number(co.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                          : <p className="font-medium tabular-nums">{money(Number(co.amount))}</p>}
                         <StatusBadge status={co.status} />
                       </div>
                     </>
@@ -481,7 +482,7 @@ export default function ProjectDetailPage() {
               {project.budget && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500 dark:text-slate-400">Budget</span>
-                  <span className="font-medium">${Number(project.budget).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{money(Number(project.budget))}</span>
                 </div>
               )}
               {/**
@@ -504,7 +505,7 @@ export default function ProjectDetailPage() {
                         Approved change orders{project.financials.approvedCount ? ` (${project.financials.approvedCount})` : ''}
                       </span>
                       <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-700 dark:text-orange-200'}`}>
-                        {project.financials.approvedChangeOrders < 0 ? '−' : '+'}${Math.abs(project.financials.approvedChangeOrders).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {project.financials.approvedChangeOrders < 0 ? '−' : '+'}{money(Math.abs(project.financials.approvedChangeOrders))}
                       </span>
                     </div>
                   )}
@@ -512,14 +513,14 @@ export default function ProjectDetailPage() {
                     <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 pt-3">
                       <span className="font-medium text-gray-900 dark:text-slate-100">Contract value</span>
                       <span className="font-semibold tabular-nums text-gray-900 dark:text-slate-100">
-                        ${project.financials.revisedContractValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {money(project.financials.revisedContractValue)}
                       </span>
                     </div>
                   )}
                   {project.financials.pendingChangeOrders !== 0 && (
                     <p className="text-xs text-gray-500 dark:text-slate-400">
                       {project.financials.pendingCount === 1 ? 'One change order' : `${project.financials.pendingCount} change orders`} worth{' '}
-                      {project.financials.pendingChangeOrders < 0 ? '−' : ''}${Math.abs(project.financials.pendingChangeOrders).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} raised and not yet
+                      {project.financials.pendingChangeOrders < 0 ? '−' : ''}{money(Math.abs(project.financials.pendingChangeOrders))} raised and not yet
                       approved — not in the contract value above.
                     </p>
                   )}

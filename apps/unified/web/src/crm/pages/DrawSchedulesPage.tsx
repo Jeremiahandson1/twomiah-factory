@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { DollarSign, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth, usePrompt, useToast, errorText } from '../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -108,9 +109,9 @@ export default function DrawSchedulesPage() {
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>
               </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-700 dark:text-green-300">${Number(s.drawnAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">{money(Number(s.totalAmount))}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-700 dark:text-green-300">{money(Number(s.drawnAmount || 0))}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">{money(Number(s.remainingAmount || s.totalAmount))}</span></div>
               </div>
               <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">{s.drawCount || 0} draws</div>
             </button>
@@ -133,9 +134,9 @@ export default function DrawSchedulesPage() {
                         <td className="px-4 py-3 font-mono text-sm">#{r.drawNumber}</td>
                         {/* The draw's own columns (gross, retainage, net). The template read amountRequested,
                             amountApproved and percentComplete, which no draw carries — every row printed $NaN. */}
-                        <td className="px-4 py-3 font-mono text-sm">${Number(r.grossAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 font-mono text-sm">${Number(r.retainageAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 font-mono text-sm">${Number(r.netAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{money(Number(r.grossAmount))}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{money(Number(r.retainageAmount))}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{money(Number(r.netAmount))}</td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">

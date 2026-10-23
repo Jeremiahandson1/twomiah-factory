@@ -18,7 +18,7 @@
 import { Hono, type Context, type Next } from 'hono'
 import PDFDocument from 'pdfkit'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
 import { addDays, isYmd } from '../core/agencyTime.ts'
@@ -414,7 +414,7 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
     const range = parseRange(c.req.query('startDate'), c.req.query('endDate'), addDays(today, -30), today)
     if ('error' in range) return fail(c, 400, range.error)
     const rows = await q.caregiverProductivity(d.db, companyId, range.startDate, range.endDate)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // ==================== DRILL-DOWN REPORTS (GET, ?format=csv) ====================

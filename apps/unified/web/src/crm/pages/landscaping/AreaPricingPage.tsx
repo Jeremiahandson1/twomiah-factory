@@ -4,6 +4,7 @@ import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const AREA_FIELDS = [
   { value: 'lawnSqft', label: 'Lawn' },
@@ -124,8 +125,8 @@ export default function AreaPricingPage() {
                 <tr key={r.id} className="border-b dark:border-slate-700">
                   <td className="py-2 font-medium">{r.serviceType}</td>
                   <td>{AREA_FIELDS.find((a) => a.value === r.areaField)?.label || r.areaField}</td>
-                  <td>${Number(r.ratePer1000Sqft).toFixed(2)}</td>
-                  <td>${Number(r.minCharge).toFixed(2)}</td>
+                  <td>{money(Number(r.ratePer1000Sqft))}</td>
+                  <td>{money(Number(r.minCharge))}</td>
                   <td>{r.unitLabel}</td>
                   <td>{mayDeleteRate && <button aria-label="Delete rate" onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded dark:text-red-400 dark:hover:bg-red-950/40"><Trash2 className="w-4 h-4" /></button>}</td>
                 </tr>
@@ -177,7 +178,7 @@ export default function AreaPricingPage() {
         </div>
         {calcResult && (
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded dark:bg-green-950/40 dark:border-green-900">
-            <div className="text-2xl font-bold text-green-800 dark:text-green-300">${Number(calcResult.price).toFixed(2)}</div>
+            <div className="text-2xl font-bold text-green-800 dark:text-green-300">{money(Number(calcResult.price))}</div>
             <div className="text-sm text-green-700 dark:text-green-300">{calcResult.lineItem?.description}</div>
             {calcResult.minChargeApplied && <div className="text-xs text-green-700 mt-1 dark:text-green-300">Minimum charge applied.</div>}
           </div>

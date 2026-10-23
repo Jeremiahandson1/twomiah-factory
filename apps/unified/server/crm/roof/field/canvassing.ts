@@ -23,7 +23,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { canvassingScript, canvassingSession, canvassingStop } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { companyTimeZone } from '@twomiah/tenant-backend'
 import { canvassingOutcome, email as emailField, onCompanyClock, optional, phone as phoneField } from '../validation.ts'
@@ -123,7 +123,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const sessions = await db.select().from(canvassingSession)
       .where(mine ? and(eq(canvassingSession.companyId, companyId), eq(canvassingSession.userId, userId)) : eq(canvassingSession.companyId, companyId))
       .orderBy(desc(canvassingSession.createdAt), desc(canvassingSession.id))
-    return list(c, sessions, { page: 1, limit: sessions.length, total: sessions.length })
+    return listAll(c, sessions)
   })
 
   // POST /sessions — a new session, the caller's.
@@ -241,7 +241,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const stops = await db.select().from(canvassingStop)
       .where(and(eq(canvassingStop.sessionId, c.req.param('sessionId')), eq(canvassingStop.companyId, companyId)))
       .orderBy(desc(canvassingStop.visitedAt), desc(canvassingStop.id))
-    return list(c, stops, { page: 1, limit: stops.length, total: stops.length })
+    return listAll(c, stops)
   })
 
   // PUT /stops/:id — a door corrected: by the session's canvasser, or the team.
@@ -288,7 +288,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
       address: canvassingStop.address, doorHangerLeft: canvassingStop.doorHangerLeft, jobId: canvassingStop.jobId,
       contactId: canvassingStop.contactId, notes: canvassingStop.notes, visitedAt: canvassingStop.visitedAt,
     }).from(canvassingStop).where(and(eq(canvassingStop.sessionId, c.req.param('sessionId')), eq(canvassingStop.companyId, companyId)))
-    return list(c, stops, { page: 1, limit: stops.length, total: stops.length })
+    return listAll(c, stops)
   })
 
   // ==================== SCRIPTS ====================
@@ -297,7 +297,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
   app.get('/scripts', async (c) => {
     const scripts = await db.select().from(canvassingScript).where(eq(canvassingScript.companyId, c.get('user').companyId))
       .orderBy(desc(canvassingScript.createdAt), desc(canvassingScript.id))
-    return list(c, scripts, { page: 1, limit: scripts.length, total: scripts.length })
+    return listAll(c, scripts)
   })
 
   /**

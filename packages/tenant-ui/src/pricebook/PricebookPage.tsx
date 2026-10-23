@@ -8,6 +8,7 @@ import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from 
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
 import { usePrompt } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { money } from '../money'
 
 type Item = Record<string, any>
 type Category = { id: string; name: string; _count?: { items?: number } }
@@ -16,7 +17,7 @@ const DEFAULT_TIERS: TierPreset[] = [
   { tier: 'better', name: 'Standard', description: '', recommended: true },
   { tier: 'best', name: 'Premium', description: '', recommended: false },
 ]
-const usd = (v: unknown) => '$' + Number(v || 0).toFixed(2)
+const usd = (v: unknown) => money(Number(v || 0))
 
 export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast: PricebookToast; config?: PricebookConfig }) {
   /**
@@ -178,7 +179,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         </div>
       )}
 
-      {editing.open && <ItemModal api={api} toast={toast} item={editing.item} categories={categories} itemWord={itemWord} namePlaceholder={config?.itemNamePlaceholder || 'e.g. Standard service visit'} onClose={() => setEditing({ open: false, item: null })} onSaved={() => { setEditing({ open: false, item: null }); load() }} />}
+      {editing.open && <ItemModal api={api} toast={toast} item={editing.item} categories={categories} itemWord={itemWord} namePlaceholder={config?.namePlaceholder || 'e.g. Standard service call'} onClose={() => setEditing({ open: false, item: null })} onSaved={() => { setEditing({ open: false, item: null }); load() }} />}
       {catsOpen && <CategoriesModal api={api} toast={toast} categories={categories} onClose={() => setCatsOpen(false)} onChanged={load} />}
       {tiersFor && <TiersModal api={api} toast={toast} item={tiersFor} presets={config?.tierPresets || DEFAULT_TIERS} title={config?.tiersTitle || 'Good-Better-Best options'} onClose={() => setTiersFor(null)} onSaved={() => { setTiersFor(null); load() }} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title={`Delete ${itemWord.toLowerCase()}`} message={`Delete "${toDelete?.name}" and its pricing tiers?`} confirmText="Delete" />

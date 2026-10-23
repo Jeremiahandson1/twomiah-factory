@@ -6,6 +6,7 @@ import {
 import { api } from '../../../api'
 import { useMayWrite, useToast, useConfirm } from '../../../shared'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Wellness Plans — list/CRUD plans (GET/POST/PUT/DELETE /api/wellness-plans)
@@ -57,7 +58,7 @@ interface Enrollment {
 // Money shows its cents: $24.5 read as a typo on a price card (the template printed 0–2 decimals).
 function money(v: number | string | undefined | null): string {
   const n = Number(v || 0);
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(n)}`;
 }
 
 /** A list reply: { data, pagination }. */

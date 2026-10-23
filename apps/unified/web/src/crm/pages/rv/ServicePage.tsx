@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Loader2, X, Wrench } from 'lucide-react'
 import { api } from '../../../api'
 import { PageError, errorText, useMayWrite } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Service Department — repair orders backed by /api/repair-orders.
@@ -149,9 +150,9 @@ export default function ServicePage() {
                         not the estimate (M-14). Label estimates so the two aren't
                         confused. */}
                     {row.ro.actualTotal
-                      ? `$${Number(row.ro.actualTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ? `${money(Number(row.ro.actualTotal))}`
                       : row.ro.estimatedTotal
-                        ? <span className="text-gray-500 dark:text-slate-400">${Number(row.ro.estimatedTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs">est</span></span>
+                        ? <span className="text-gray-500 dark:text-slate-400">{money(Number(row.ro.estimatedTotal))} <span className="text-xs">est</span></span>
                         : '—'}
                   </td>
                   <td className="px-4 py-3">

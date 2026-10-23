@@ -27,7 +27,7 @@ import { createActorName } from '@twomiah/tenant-backend'
 import {
   clients, company, familyMembers, familyMessages, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
 } from '../../../db/schema/index.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, one, done, listAll } from '../../../http/reply.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
@@ -71,7 +71,7 @@ const composeName = (b: any): string =>
   [b?.firstName, b?.lastName].map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).join(' ')
   || (typeof b?.name === 'string' ? b.name.trim() : '')
 
-const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Context, rows: T[]) => listAll(c, rows)
 
 export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientPortal: ClientPortal) {
   const { db } = d

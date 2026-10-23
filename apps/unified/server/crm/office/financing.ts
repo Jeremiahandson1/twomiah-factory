@@ -4,7 +4,7 @@
 import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { createFinancingService } from './financingService.ts'
 
 export function createFinancingRoutes(d: CrmDeps) {
@@ -26,7 +26,7 @@ export function createFinancingRoutes(d: CrmDeps) {
       enabled: enabledNames.has(p.name),
       fullyImplemented: p.name === 'wisetack', // only wisetack has full API integration
     }))
-    return list(c, providers, { page: 1, limit: providers.length, total: providers.length })
+    return listAll(c, providers)
   })
 
   // Options for an amount from every enabled provider. A list (the template: a bare array).
@@ -35,7 +35,7 @@ export function createFinancingRoutes(d: CrmDeps) {
     const amount = Number(c.req.query('amount') || '10000')
     if (amount <= 0) return fail(c, 400, 'Amount must be positive')
     const options = await financing.getFinancingOptionsForCompany(user.companyId, amount)
-    return list(c, options, { page: 1, limit: options.length, total: options.length })
+    return listAll(c, options)
   })
 
   // Options for one provider
@@ -80,7 +80,7 @@ export function createFinancingRoutes(d: CrmDeps) {
   app.get('/applications/:contactId', async (c) => {
     const user = c.get('user') as any
     const apps = await financing.getApplicationsForContact(user.companyId, c.req.param('contactId'))
-    return list(c, apps, { page: 1, limit: apps.length, total: apps.length })
+    return listAll(c, apps)
   })
 
   return app

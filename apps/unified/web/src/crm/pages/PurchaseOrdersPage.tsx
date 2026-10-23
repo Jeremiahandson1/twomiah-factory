@@ -7,6 +7,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface Line { description: string; quantity: string; unitCost: string }
 interface PoForm {
@@ -136,7 +137,7 @@ export default function PurchaseOrdersPage() {
     { key: 'vendor', label: 'Vendor', render: (v: unknown) => v ? contactName(v as Record<string, unknown>) : '-' },
     { key: 'job', label: 'Job', render: (v: unknown) => ((v as Record<string, unknown>)?.title as string) || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{v as string}</span> },
-    { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+    { key: 'total', label: 'Total', render: (v: unknown) => `${money(Number(v))}` },
     { key: 'expectedDate', label: 'Expected', render: (v: unknown) => v ? formatDate(v as string) : '-' },
   ];
 
@@ -157,7 +158,7 @@ export default function PurchaseOrdersPage() {
       <PageHeader title="Purchase Orders" action={can('purchase-orders:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New PO</Button> : undefined} />
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
-          <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Open committed: <span className="font-semibold">${Number(summary.openCommitted || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Open committed: <span className="font-semibold">{money(Number(summary.openCommitted || 0))}</span></div>
           {(summary.byStatus as Record<string, { count: number }> | undefined) && Object.entries(summary.byStatus as Record<string, { count: number }>).map(([s, v]) => (
             <div key={s} className="bg-white border rounded-lg px-4 py-2 capitalize dark:bg-slate-900">{s}: <span className="font-semibold">{v.count}</span></div>
           ))}
@@ -203,7 +204,7 @@ export default function PurchaseOrdersPage() {
 
           <div><label className="block text-sm font-medium mb-1">Notes</label>
             <textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
-          <div className="text-right text-sm text-gray-600 dark:text-slate-400">Total with tax: <span className="font-semibold text-gray-900 dark:text-slate-100">${formTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+          <div className="text-right text-sm text-gray-600 dark:text-slate-400">Total with tax: <span className="font-semibold text-gray-900 dark:text-slate-100">{money(formTotal)}</span></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>

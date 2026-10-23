@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { Shield, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -70,7 +71,7 @@ export default function LienWaiversPage() {
                   <td className="px-4 py-3 font-medium">{w.vendorName}<div className="text-xs text-gray-500 dark:text-slate-400">{w.vendorType}</div></td>
                   <td className="px-4 py-3 text-sm">{TYPE_LABELS[w.waiverType]}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{w.project?.name || '—'}</td>
-                  <td className="px-4 py-3 font-mono text-sm">${Number(w.amountTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{money(Number(w.amountTotal))}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[w.status]}`}>{w.status}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">

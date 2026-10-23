@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ne } from 'drizzle-orm'
 import { barSettings, barStatus, barTap, barSpecial, barGame, barEvent, barMenuSection, barMenuItem, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { endOfBusinessDay, ROOM_STATUSES, TAP_STATUSES } from './barLive.ts'
 import { isHoursConfig, type HoursConfig } from './barHours.ts'
@@ -26,7 +26,7 @@ type Ctx = any
 type Status = 400 | 403 | 404 | 409
 const me = (c: Ctx) => c.get('user') as { userId: string; companyId: string; email: string; role: string }
 const bad = (c: Ctx, error: string, status: Status = 400) => fail(c, status, error)
-const all = <T,>(c: Ctx, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Ctx, rows: T[]) => listAll(c, rows)
 
 // ─── input readers: each returns the clean value, or a refusal the page can show ─────────────────────
 const str = (v: unknown, max: number): string | null => {

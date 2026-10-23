@@ -9,7 +9,7 @@ import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { vaccination } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 
 const isDay = (v: unknown): v is string =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
@@ -51,7 +51,7 @@ export function createVaccinationRoutes(d: CrmDeps) {
     const conditions = [eq(vaccination.companyId, currentUser.companyId)]
     if (patientId) conditions.push(eq(vaccination.patientId, patientId))
     const data = await db.select().from(vaccination).where(and(...conditions)).orderBy(desc(vaccination.givenDate))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('contacts:create'), async (c) => {

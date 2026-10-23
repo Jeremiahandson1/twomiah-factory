@@ -4,6 +4,7 @@ import { Plus, Loader2, X, Utensils, Edit2, Trash2 } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * MENU — the bar's menu, as its website shows it: real prices, sizes, signature items with their own page,
@@ -23,7 +24,7 @@ interface Section { id: string; name: string; slug: string; description: string 
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
 const LBL = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
 
-const price = (cents: number | null) => cents === null || cents === undefined ? '' : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const price = (cents: number | null) => cents === null || cents === undefined ? '' : `${money((cents / 100))}`;
 
 export default function MenuPage() {
   const mayEdit = useMayWrite('bar:update');

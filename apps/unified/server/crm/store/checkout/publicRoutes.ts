@@ -41,7 +41,7 @@ import {
 } from '../../../db/schema/store.ts'
 import { ratingSummaries, verifyingOrderId } from '../../../data/storeCheckout.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import type { WebhookResult } from '../payments/types.ts'
@@ -190,7 +190,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   pub.get('/products', shopperDoor, async (c) => {
     const s = await theShop(c); if (s.reply) return s.reply
     const rows = await storefrontCatalogue(d, s.co.id)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   pub.get('/products/:slug', shopperDoor, async (c) => {

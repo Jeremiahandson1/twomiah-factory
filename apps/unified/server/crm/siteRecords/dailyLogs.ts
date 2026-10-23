@@ -8,6 +8,7 @@ import { dailyLog, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { recordPhotos } from './recordPhotos.ts'
 
 const schema = z.object({ date: z.string().optional(), projectId: z.string(), weather: z.string().optional(), temperature: z.number().optional(), conditions: z.string().optional(), crewSize: z.number().optional(), hoursWorked: z.number().optional(), workPerformed: z.string().optional(), materials: z.string().optional(), equipment: z.string().optional(), visitors: z.string().optional(), delays: z.string().optional(), safetyNotes: z.string().optional(), notes: z.string().optional() })
 
@@ -41,6 +42,21 @@ export function createDailyLogRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
+  /**
+   * The day's photos (recordPhotos.ts; live test 2026-10-22: "Daily logs: no photo field"). A photo is part of the record
+   * of the day, so it is added or removed only while the log itself can be changed — rule 2's window.
+   */
+  const photos = recordPhotos(d, {
+    table: dailyLog, base: '/api/daily-logs', folder: 'daily-logs', read: 'daily-logs:read', write: 'daily-logs:update', notFound: 'Daily log not found',
+    editable: async (c, log) => {
+      const tz = await companyTimeZone(db, log.companyId)
+      const logDay = markerDay(new Date(log.date))
+      const age = daysBetween(logDay, dayIn(tz, new Date()))
+      return age > EDIT_WINDOW_DAYS ? fail(c, 400, `The log for ${logDay} is ${age} days old and can no longer be changed, photos included.`, 'daily_log_closed') : null
+    },
+  })
+  const withUrls = photos.withUrls
+
   app.get('/', requirePermission('daily-logs:read'), async (c) => {
     const { projectId, startDate, endDate, page = '1', limit = '50' } = c.req.query() as any
     const currentUser = c.get('user') as any
@@ -68,7 +84,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
       db.select({ value: count() }).from(dailyLog).where(where),
     ])
 
-    return list(c, data, { page: pageNum, limit: limitNum, total: Number(total) })
+    return list(c, data.map((r: any) => ({ ...r, dailyLog: withUrls(r.dailyLog) })), { page: pageNum, limit: limitNum, total: Number(total) })
   })
 
   app.get('/:id', requirePermission('daily-logs:read'), async (c) => {
@@ -84,7 +100,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
       .where(and(eq(dailyLog.id, id), eq(dailyLog.companyId, currentUser.companyId)))
       .limit(1)
     if (!log) return fail(c, 404, 'Daily log not found')
-    return one(c, log)
+    return one(c, { ...log, dailyLog: withUrls(log.dailyLog) })
   })
 
   app.post('/', requirePermission('daily-logs:create'), async (c) => {
@@ -162,7 +178,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
       updatedAt: new Date(),
     }).where(and(eq(dailyLog.id, id), eq(dailyLog.companyId, currentUser.companyId))).returning()
     if (!log) return fail(c, 404, 'Daily log not found')
-    return one(c, log)
+    return one(c, withUrls(log))
   })
 
   app.delete('/:id', requirePermission('daily-logs:delete'), async (c) => {
@@ -186,8 +202,11 @@ export function createDailyLogRoutes(d: CrmDeps) {
     // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
     const [gone] = await db.delete(dailyLog).where(and(eq(dailyLog.id, id), eq(dailyLog.companyId, currentUser.companyId))).returning()
     if (!gone) return fail(c, 404, 'Daily log not found')
+    photos.removeFiles(gone)
     return c.body(null, 204)
   })
+
+  photos.routes(app)
 
   return app
 }

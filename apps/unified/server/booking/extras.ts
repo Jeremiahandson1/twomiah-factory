@@ -3,7 +3,7 @@
 // Moved from the premium site (routes/admin.ts, server-static.ts) with its faults fixed — each named where it is.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, ne, gt } from 'drizzle-orm'
-import { tzParts, isRealDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { tzParts, isRealDate, normaliseZip, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSeries, bookingWaitlist, bookingBan, bookingWebhook, bookingSettings, company } from '../db/schema/index.ts'
 import type { EmailService } from '../core/email.ts'
 import type { Logger } from '../core/logger.ts'
@@ -92,9 +92,13 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
     if (!EMAIL_RE.test(mail)) throw new BookingError('Please enter a valid email address.')
     for (const k of ['from', 'to']) if (body[k] && !isRealDate(body[k])) throw new BookingError('Choose real dates.')
     if (body.from && body.to && body.from > body.to) throw new BookingError('The first date must be before the last.')
-    if (await engine.isBanned(companyId, mail, body.phone || null)) throw new BookingError("We can't take this online — please call us.", 403)
+    // The same rules as taking a booking (engine.customerRules): the window, and the phone the booking form asks for.
+    const phone = text(body.phone, 40) ?? null
+    const zip = text(body.zip, 10) ?? null
+    engine.customerRules(await engine.settingsOf(companyId), { phone, zip, dates: [body.from, body.to].filter(Boolean) })
+    if (await engine.isBanned(companyId, mail, phone)) throw new BookingError("We can't take this online — please call us.", 403)
     const [row] = await db.insert(bookingWaitlist).values({
-      companyId, serviceId: svc.id, customerName: name, customerEmail: mail, customerPhone: text(body.phone, 40), customerZip: text(body.zip, 10),
+      companyId, serviceId: svc.id, customerName: name, customerEmail: mail, customerPhone: phone, customerZip: zip && (normaliseZip(zip) ?? zip),
       preferredFrom: body.from || null, preferredTo: body.to || null, notes: text(body.notes, 1000),
     }).returning()
     return row

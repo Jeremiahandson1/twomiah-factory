@@ -7,6 +7,7 @@ import { useMayWrite, useConfirm } from '../../../shared'
 import ClientPicker from './ClientPicker'
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
 import FormError, { errorText } from '../../ui/FormError'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Events — the pipeline and the book, over the same list.
@@ -67,7 +68,7 @@ export function localDay(d: Date = new Date()): string {
 
 export function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v))}`;
 }
 
 export function prettyType(t?: string): string {

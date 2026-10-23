@@ -9,7 +9,7 @@
 // Replies: the two lists are list replies ({ data, pagination }) of camelCase rows; DELETE is { success, message }.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { hms, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -18,7 +18,7 @@ import { exceptionsForSchedules } from '../../../data/homecareCore.ts'
 import { listExceptions, activeScheduleExists, replaceException, exceptionById, deleteException } from '../../../data/homecareScheduling.ts'
 import { who } from './shared.ts'
 
-const asList = (c: any, rows: any[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const asList = (c: any, rows: any[]) => listAll(c, rows)
 
 export function createScheduleExceptionsRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()

@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
 import { auditLogs, user } from '../../../db/schema/index.ts'
-import { fail, list } from '../../../http/reply.ts'
+import { fail, list, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
 
@@ -72,7 +72,7 @@ export function createAuditLogRoutes(d: CrmDeps) {
     if (!where) return fail(c, 400, 'Dates must be valid dates')
     const rows = await d.db.select(ROW).from(auditLogs).leftJoin(user, eq(auditLogs.userId, user.id)).where(where)
       .orderBy(desc(auditLogs.timestamp))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /compliance-report — counts by action.
@@ -82,7 +82,7 @@ export function createAuditLogRoutes(d: CrmDeps) {
     if (!where) return fail(c, 400, 'Dates must be valid dates')
     const rows = await d.db.select({ action: auditLogs.action, count: count() }).from(auditLogs).where(where)
       .groupBy(auditLogs.action).orderBy(desc(count()))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   return app

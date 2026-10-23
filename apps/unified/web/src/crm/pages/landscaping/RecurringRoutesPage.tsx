@@ -8,6 +8,7 @@ import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle } from 
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -205,7 +206,7 @@ export default function RecurringRoutesPage() {
               <div key={s.id} className="flex justify-between items-center text-sm border-b dark:border-slate-700 py-2">
                 <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {s.serviceType} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
-                  {s.pricePerVisit !== undefined && <span className="font-medium">${Number(s.pricePerVisit).toFixed(2)}</span>}
+                  {s.pricePerVisit !== undefined && <span className="font-medium">{money(Number(s.pricePerVisit))}</span>}
                   {mayEditStops && <button aria-label="Remove stop" onClick={() => removeStop(s.id)} className="text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                 </span>
               </div>

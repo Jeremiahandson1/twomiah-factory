@@ -8,7 +8,7 @@
 // Replies: rows are camelCase (RULEBOOK §2); the two shift lists are list replies ({ data, pagination }).
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -21,7 +21,7 @@ import {
 } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, who, type SchedulingShared } from './shared.ts'
 
-const asList = (c: any, rows: any[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const asList = (c: any, rows: any[]) => listAll(c, rows)
 
 export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: SchedulingShared) {
   const app = new Hono<AppEnv>()

@@ -1,3 +1,4 @@
+import { money } from '@twomiah/tenant-ui/src/money'
 // What the jobs group's pages read, in one place: the pipeline's stages and the rows the server answers.
 //
 // The stages are the server's (apps/unified/server/crm/roof/validation.ts PIPELINE_STATUSES and TERMINAL_STATUSES),
@@ -51,7 +52,7 @@ export function formatStatus(s: string | null | undefined): string {
 
 /** A money figure as the template printed it: $1,234.50. */
 export function dollars(v: unknown): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `${money(Number(v || 0))}`
 }
 
 /** A list reply (RULEBOOK §3), or a bare array from a shared module that still answers one. */

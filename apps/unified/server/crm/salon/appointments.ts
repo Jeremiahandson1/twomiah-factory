@@ -14,7 +14,7 @@ import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
 import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice } from '../../db/schema/index.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn } from './days.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './formulas.ts'
@@ -220,7 +220,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       }
     })
     // A window is the whole of it: one page holding every row.
-    if (windowed) return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    if (windowed) return listAll(c, rows)
     const [{ total }] = await db.select({ total: count() }).from(appointment).where(and(...conditions))
     return list(c, rows, { page, limit, total: Number(total) })
   })

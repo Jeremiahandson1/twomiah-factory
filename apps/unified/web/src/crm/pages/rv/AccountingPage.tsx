@@ -4,6 +4,7 @@ import { Receipt, Loader2, RefreshCw, CheckCircle2, Link2 } from 'lucide-react'
 import { api } from '../../../api'
 import { formatDate } from '../../date'
 import { PageError, errorText, useMayWrite } from '../../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * AN ACCOUNTING PAGE DOES NOT ROUND. (T41)
@@ -15,7 +16,7 @@ import { PageError, errorText, useMayWrite } from '../../../shared'
  * (It also escaped the fleet money sweep, which looked for `$${…}` inside a template literal and
  * not for a '$' concatenated with +. The guard now covers both forms.)
  */
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatMoney(Number(n || 0))}`;
 
 /** One unposted invoice on the ledger (GET /api/accounting/status, server/crm/rv/accounting.ts). */
 interface PendingEntry { type: string; ref: string; customer: string; amount: number; date: string | null; posted: boolean }

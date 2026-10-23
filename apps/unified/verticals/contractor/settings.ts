@@ -10,11 +10,14 @@ const contractor: VerticalSettings = {
   visionUrl: () => process.env.VISION_URL || null,
   // templates/crm/frontend/src/*Config.ts
   screens: {
+    // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
+    warranties: { namePlaceholder: 'e.g., Workmanship — one year', categoryPlaceholder: 'e.g., workmanship', claimTitlePlaceholder: 'e.g., Leak in master bathroom', claimLocationPlaceholder: 'e.g., Master bathroom, near shower' },
     contacts: { vendorPortalInvite: true, sections: { projects: true, quotes: true, portal: true } },
     jobs: {},
     invoicing: { clientLabel: 'Client', projects: true, jobs: true, quoteNamePlaceholder: 'e.g. Kitchen remodel — phase 1', pricebook: true },
     documents: { projects: true, markup: true, types: ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
     equipment: {
+      placeholders: { name: 'e.g., Job-site generator', manufacturer: 'e.g., DeWalt', location: 'e.g., Shop' },
       contacts: true,
       categories: [
         { name: 'Power tools', icon: 'tool' }, { name: 'Heavy equipment', icon: 'mower' }, { name: 'Trucks & trailers', icon: 'truck' },
@@ -31,8 +34,8 @@ const contractor: VerticalSettings = {
       ],
     },
     pricebook: {
+      namePlaceholder: 'e.g. Drywall patch and paint',
       tiersTitle: 'Pricing tiers',
-      itemNamePlaceholder: 'e.g. Drywall patch and paint',
       tiersButton: 'Tiers',
       tierPresets: [
         { tier: 'best', name: 'Sign Today', description: 'Best price — available today only', recommended: true },
@@ -51,7 +54,7 @@ const contractor: VerticalSettings = {
     leads: {},
     marketing: {},
     messages: {},
-    agreements: { planNamePlaceholder: 'e.g., Annual Home Maintenance Plan' },
+    agreements: { planNamePlaceholder: 'e.g., Annual home maintenance plan' },
     // The live map of the drivers' vehicles (BASE_CRM fleet.gps).
     fleet: { gps: true },
     reviews: {},

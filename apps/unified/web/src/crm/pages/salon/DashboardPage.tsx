@@ -8,6 +8,7 @@ import {
 import { api } from '../../../api'
 import { stylistNameOf as stylistName } from './staff';
 import { whenDateTime, momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Twomiah Salon — dashboard.
@@ -62,7 +63,7 @@ interface Activity {
 
 function money(v: number | string | undefined | null): string {
   const n = Number(v || 0);
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(n)}`;
 }
 
 function fmtDateTime(s?: string): string {

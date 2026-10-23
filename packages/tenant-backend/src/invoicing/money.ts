@@ -168,6 +168,18 @@ export function defaultTaxRateFrom(settings: any): number {
   return Number.isFinite(r) && r >= 0 && r <= 100 ? r : 0
 }
 
+/**
+ * Payment terms in days, wherever they are typed (Settings → Company, a recurring invoice): a whole number from 0 (due
+ * on receipt) to a year. One rule, so no form takes 999 while another refuses it (live test 2026-10-22). Returns the
+ * sentence to refuse with, or null; blank is "not given".
+ */
+export const PAYMENT_TERMS_MAX_DAYS = 365
+export function paymentTermsProblem(v: unknown): string | null {
+  if (v == null || (typeof v === 'string' && !v.trim())) return null
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.trim()) : NaN
+  return Number.isInteger(n) && n >= 0 && n <= PAYMENT_TERMS_MAX_DAYS ? null : `Payment terms must be a whole number of days between 0 and ${PAYMENT_TERMS_MAX_DAYS}.`
+}
+
 /** Settings → Company → Invoice Payment Terms. 0 means "due on receipt" and must survive; unset means net-30. */
 export function paymentTermsDaysFrom(settings: any): number {
   const d = Number(settings?.paymentTermsDays)

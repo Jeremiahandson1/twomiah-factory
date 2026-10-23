@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { RecurringPageProps } from './types';
+import { money } from '../money'
 
 interface FrequencyOption {
   value: string;
@@ -395,7 +396,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   />
                 </div>
                 <div className="w-28 py-2 text-right font-medium">
-                  ${((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {money(((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)))}
                 </div>
                 <button aria-label="Remove line item"
                   type="button"
@@ -423,7 +424,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
             <div className="max-w-xs ml-auto space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-slate-400">Subtotal</span>
-                <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>{money(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
                 <span className="text-gray-600 dark:text-slate-400">Tax %</span>
@@ -435,7 +436,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   min="0"
                   step="0.1"
                 />
-                <span className="w-24 text-right">${taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="w-24 text-right">{money(taxAmount)}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
                 <span className="text-gray-600 dark:text-slate-400">Discount</span>
@@ -447,11 +448,11 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   min="0"
                   step="0.01"
                 />
-                <span className="w-24 text-right">-${Number(form.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="w-24 text-right">-{money(Number(form.discount || 0))}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total</span>
-                <span>${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>{money(total)}</span>
               </div>
             </div>
           </div>

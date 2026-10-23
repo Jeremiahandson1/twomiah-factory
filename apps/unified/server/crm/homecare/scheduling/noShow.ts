@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { noshowAlerts, noshowAlertConfig, user, clients } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { noShowStats } from '../../../data/homecareScheduling.ts'
@@ -56,7 +56,7 @@ export function createNoShowRoutes(core: HomecareCore, d: CrmDeps) {
       caregiverName: caregiverFirstName ? `${caregiverFirstName} ${caregiverLastName}` : null,
       clientName: clientFirstName ? `${clientFirstName} ${clientLastName}` : null,
     }))
-    return list(c, alerts, { page: 1, limit: alerts.length, total: alerts.length })
+    return listAll(c, alerts)
   })
 
   // GET /api/no-show/stats — "today" is the agency's calendar day. resolved / pending are the older names, kept.

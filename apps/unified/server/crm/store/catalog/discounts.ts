@@ -21,7 +21,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { discountCode } from '../../../db/schema/store.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
@@ -64,7 +64,7 @@ export function createDiscountRoutes(d: CrmDeps, core: StoreCore) {
   app.get('/', async (c) => {
     const u = c.get('user')
     const codes = await db.select().from(discountCode).where(eq(discountCode.companyId, u.companyId)).orderBy(desc(discountCode.createdAt))
-    return list(c, codes, { page: 1, limit: Math.max(codes.length, 1), total: codes.length })
+    return listAll(c, codes)
   })
 
   app.post('/', requirePermission('discounts:create'), async (c) => {

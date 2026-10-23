@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { createWisetackService } from './wisetackService.ts'
 
 export function createWisetackRoutes(d: CrmDeps) {
@@ -103,7 +103,7 @@ export function createWisetackRoutes(d: CrmDeps) {
       invoiceId: c.req.query('invoiceId'),
       contactId: c.req.query('contactId'),
     })
-    return list(c, applications, { page: 1, limit: applications.length, total: applications.length })
+    return listAll(c, applications)
   })
 
   // The options preview (no application). A list: { data, pagination } (the template: a bare array).
@@ -111,7 +111,7 @@ export function createWisetackRoutes(d: CrmDeps) {
     const amount = c.req.query('amount')
     if (!amount) return fail(c, 400, 'amount is required')
     const options = wisetack.getFinancingOptions(parseFloat(amount))
-    return list(c, options, { page: 1, limit: options.length, total: options.length })
+    return listAll(c, options)
   })
 
   app.get('/calculate', async (c) => {

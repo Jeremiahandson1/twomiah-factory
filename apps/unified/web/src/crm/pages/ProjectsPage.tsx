@@ -7,6 +7,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface ProjectForm {
   name: string;
@@ -117,7 +118,7 @@ export default function ProjectsPage() {
     { key: 'name', label: 'Name', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'type', label: 'Type', render: (v: unknown) => (v as string) || '-' },
-    { key: 'estimatedValue', label: 'Value', render: (v: unknown) => v ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-' },
+    { key: 'estimatedValue', label: 'Value', render: (v: unknown) => v ? `${money(Number(v))}` : '-' },
     { key: 'progress', label: 'Progress', render: (v: unknown) => <div className="w-20 h-2 bg-gray-200 rounded-full dark:bg-slate-700 dark:text-slate-100"><div className="h-full bg-orange-500 rounded-full" style={{width:`${v}%`}}/></div> },
   ];
 

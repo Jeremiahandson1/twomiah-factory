@@ -1,6 +1,7 @@
 // Moved from templates/crm/frontend/src/pages/VendorPortalPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Vendor / subcontractor portal — reached only through the private link the
@@ -38,7 +39,7 @@ export default function VendorPortalPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const money = (v: unknown) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const money = (v: unknown) => `${formatMoney(Number(v || 0))}`;
   const statusChip = (s: string) => {
     const styles: Record<string, string> = {
       sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', acknowledged: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',

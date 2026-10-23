@@ -30,7 +30,7 @@ import {
   clientNotifications, portalMessageThreads, portalMessages, clientDocuments, auditLogs, clientPortalAccounts,
   clientNotificationPreferences, backgroundChecks,
 } from '../../../db/schema/index.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { clientVisibleInvoiceSql } from '../../../data/homecareBilling.ts'
@@ -108,7 +108,7 @@ function validateSignatureInput(body: any): { ok: true; signerName: string } | {
 }
 
 /** A list that is the whole answer (no paging): one page holding every row. */
-const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Context, rows: T[]) => listAll(c, rows)
 
 /**
  * The portal's sign-in: the emailed link's token (x-portal-token), a password session, the direct link's session, or

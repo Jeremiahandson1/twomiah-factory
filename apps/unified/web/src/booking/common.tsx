@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { useKnownPermission } from '../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 export interface Booking {
   id: string
@@ -154,4 +155,4 @@ export const blockStyle = (status: Booking['status']) => ({
 })[status]
 
 export const minutesWords = (m: number) => (m % 60 === 0 ? `${m / 60} hr` : m > 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`)
-export const dollars = (v: string | number | null | undefined) => (v == null || v === '' ? '' : '$' + (Number(v) % 1 ? Number(v).toFixed(2) : String(Number(v))))
+export const dollars = (v: string | number | null | undefined) => (v == null || v === '' ? '' : money(v, Number(v) % 1 ? 2 : 0))

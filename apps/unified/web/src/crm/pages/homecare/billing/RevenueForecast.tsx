@@ -9,6 +9,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { parseLocalDate } from '../lib/date'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 type Num = string | number | null | undefined
 
@@ -27,7 +28,7 @@ interface ForecastReply { actual: ActualRow[]; projected: AuthRow[]; weekly: Wee
 interface UtilRow { id: string; caregiverName: string; clientCount: number; weeklyHours: Num; weeklyRevenue: Num }
 
 const num = (n: Num): number => parseFloat(String(n ?? 0)) || 0
-const fmt$ = (n: Num) => '$' + num(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+const fmt$ = (n: Num) => money(num(n), 0)
 const fmtH = (n: Num) => num(n).toFixed(1) + 'h'
 
 // The template's palette as theme pairs (homecare.css tokens): blue figures, green collected, amber, red.

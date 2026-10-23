@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
 import { downloadCsv, csvName, type CsvCell } from './csv'
+import { moneyCompact } from '../money'
 
 interface Summary {
   period: string
@@ -31,7 +32,7 @@ interface DealerReport {
 const RANGES: Array<[string, string]> = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year']]
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
 const muted = 'text-gray-500 dark:text-slate-400'
-const compact = (n: number) => (Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : money(n))
+const compact = moneyCompact
 /** Money in a CSV: a plain number a spreadsheet can add up, not "$1,234.00". */
 const amount = (n: unknown) => (Number(n) || 0).toFixed(2)
 type CsvTable = { head: string[]; rows: CsvCell[][] }

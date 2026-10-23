@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm'
 import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor, verifyCallRailSignature, refuseUnverifiedWebhook } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one, done } from '../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingService } from './calltrackingService.ts'
@@ -86,7 +86,7 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       source: c.req.query('source'),
       active: active === 'false' ? false : active === 'all' ? null : true,
     })
-    return list(c, numbers, { page: 1, limit: numbers.length, total: numbers.length })
+    return listAll(c, numbers)
   })
 
   app.post('/numbers', requirePermission('calltracking:create'), async (c) => {
@@ -158,7 +158,7 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     const user = c.get('user')
     const { startDate, endDate, groupBy } = c.req.query() as any
     const report = await calltracking.getCallVolumeReport(user.companyId, { startDate, endDate, groupBy })
-    return list(c, report, { page: 1, limit: report.length, total: report.length })
+    return listAll(c, report)
   })
 
   // Settings — the CallRail signing key. Owner and admins (integrations:update). Write-only: GET answers whether one
