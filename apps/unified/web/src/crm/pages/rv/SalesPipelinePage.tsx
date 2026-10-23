@@ -8,6 +8,7 @@ import { useToast } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { useNavigate } from 'react-router-dom'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * RV Sales Pipeline — kanban over /api/sales-leads.
@@ -222,7 +223,7 @@ export default function SalesPipelinePage() {
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
                       <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>
-                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{row.lead.source}</span>}
+                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{codeLabel(row.lead.source)}</span>}
                     </div>
                     {canDealDesk && (
                       <button

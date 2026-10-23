@@ -8,6 +8,7 @@ import { DollarSign, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -106,7 +107,7 @@ export default function DrawSchedulesPage() {
             <button key={s.id} onClick={() => loadDetail(s.id)} className={`w-full text-left bg-white dark:bg-slate-900 rounded-lg border p-4 hover:shadow ${selected?.id === s.id ? 'border-orange-500 shadow' : ''}`}>
               <div className="flex items-start justify-between">
                 <div><div className="font-semibold">{s.name}</div><div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{s.lenderName || 'No lender'}</div></div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{codeLabel(s.status)}</span>
               </div>
               <div className="mt-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">{money(Number(s.totalAmount))}</span></div>
@@ -137,7 +138,7 @@ export default function DrawSchedulesPage() {
                         <td className="px-4 py-3 font-mono text-sm">{money(Number(r.grossAmount))}</td>
                         <td className="px-4 py-3 font-mono text-sm">{money(Number(r.retainageAmount))}</td>
                         <td className="px-4 py-3 font-mono text-sm">{money(Number(r.netAmount))}</td>
-                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{r.status}</span></td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{codeLabel(r.status)}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
                             {(r.status === 'draft' || r.status === 'rejected') && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}

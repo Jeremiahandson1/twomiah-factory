@@ -16,6 +16,7 @@ import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** A refusal from the API client: its status and body ride on the error. */
 type Refusal = Error & { status?: number; data?: { error?: string; code?: string } }
@@ -677,7 +678,7 @@ export default function PatientDetailPage() {
                       {l.category && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{l.category}</span>}
                     </p>
                     <div className="flex items-center gap-3">
-                      {l.status && <span className="text-xs text-gray-500 capitalize dark:text-slate-400">{l.status}</span>}
+                      {l.status && <span className="text-xs text-gray-500 capitalize dark:text-slate-400">{codeLabel(l.status)}</span>}
                       <span className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(l.resultDate)}</span>
                     </div>
                   </div>
@@ -749,7 +750,7 @@ export default function PatientDetailPage() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium text-gray-900 dark:text-slate-100">
                       {inv.number || 'Invoice'}
-                      {inv.status && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{inv.status}</span>}
+                      {inv.status && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{codeLabel(inv.status)}</span>}
                     </p>
                     <span className="text-sm text-gray-700 dark:text-slate-200">{formatMoney(Number(inv.total || 0))}</span>
                   </div>
@@ -1043,7 +1044,7 @@ function LabModal({ patientId, onSave, onClose }: { patientId: string; onSave: (
           <Field label="Status">
             <select value={form.status} onChange={(e) => set('status', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
               <option value="">Final (default)</option>
-              {LAB_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {LAB_STATUSES.map((s) => <option key={s} value={s}>{codeLabel(s)}</option>)}
             </select>
           </Field>
         </div>

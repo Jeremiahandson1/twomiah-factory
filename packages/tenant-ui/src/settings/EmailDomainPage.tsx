@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import { codeLabel } from '../labels/codes'
 
 // BYOD walkthrough + verification polling.
 // Shows the DNS records that must exist at the tenant's DNS host (Cloudflare
@@ -119,7 +120,7 @@ export function EmailDomainPage(): React.ReactElement {
                 <tbody>
                   {status.records.map((r, i) => (
                     <tr key={i} className="border-t border-gray-100">
-                      <td className="px-3 py-2 uppercase font-mono text-xs">{r.type}</td>
+                      <td className="px-3 py-2 uppercase font-mono text-xs">{codeLabel(r.type)}</td>
                       <td className="px-3 py-2 font-mono text-xs break-all">
                         <button onClick={() => copy('host-' + i, r.host)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.host}

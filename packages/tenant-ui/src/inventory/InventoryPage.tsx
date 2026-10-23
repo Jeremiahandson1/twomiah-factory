@@ -9,6 +9,7 @@ import type { InventoryApi, InventoryPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 import { PageError, errorText } from '../ui/PageError'
 import { money } from '../invoicing/ui'
+import { codeLabel } from '../labels/codes'
 
 // api is injected once at the page root; child components read it via useInventory().
 type Branch = { id: string; name: string; code?: string | null };
@@ -606,7 +607,7 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
                 order.status === 'partial' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
                 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
               } dark:text-slate-200`}>
-                {order.status}
+                {codeLabel(order.status)}
               </span>
             </div>
           ))}

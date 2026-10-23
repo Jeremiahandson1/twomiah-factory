@@ -11,6 +11,7 @@ import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 // ---------------------------------------------------------------- formatting
 // The one money formatter (../money.ts): the sign before the dollar sign.
 import { money } from '../money'
+import { codeLabel } from '../labels/codes'
 export { money }
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 /** A date-only value ("2026-09-20" or an ISO midnight) shown as the calendar day it names, not the viewer's UTC offset. */
@@ -203,9 +204,10 @@ const STATUS_STYLES: Record<string, string> = {
   vendor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
 }
 // `status` picks the colour and is the default text; `label` overrides the text where the vertical calls the
-// same value something else — a clinic's "client" is an Owner. (T24 M11)
+// same value something else — a clinic's "client" is an Owner. (T24 M11) Without a label, the stored code goes through
+// the one rule for codes (labels/codes.ts: the vertical's words, the shared ones, then readable).
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
-  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}>{(label || status).replace(/_/g, ' ')}</span>
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}>{label || codeLabel(status)}</span>
 }
 
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'warn'

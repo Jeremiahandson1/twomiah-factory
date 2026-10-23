@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Hammer, MapPin, CalendarDays, CheckCircle2, Clock, FileSignature, FileCheck2, RotateCcw, HelpCircle, FolderOpen, Download } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, inputCls, labelCls, formatDate, moneyShort, PortalModal } from './common'
+import { codeLabel } from '../labels/codes'
 
 // ---------------------------------------------------------------- My Jobs
 interface SubJob { id: string; number: string; title: string; description?: string | null; status: string; priority?: string; scheduledDate?: string | null; scheduledTime?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; notes?: string | null; completedAt?: string | null; projectName?: string | null; projectNumber?: string | null }
@@ -100,7 +101,7 @@ export function PortalLienWaivers() {
         </div>
         <div className="text-right shrink-0">
           {w.amountTotal !== undefined && w.amountTotal !== null && <p className="font-bold text-gray-900 dark:text-slate-100">{moneyShort(w.amountTotal)}</p>}
-          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')} mt-1 dark:text-slate-200`}>{w.status}</span>
+          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')} mt-1 dark:text-slate-200`}>{codeLabel(w.status)}</span>
           {onSign && <div className="mt-2"><button onClick={onSign} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Sign</button></div>}
         </div>
       </div>
@@ -169,7 +170,7 @@ export function PortalSubmittalReview() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className={pill(SUB_STYLES[s.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{s.status}</span>
+          <span className={pill(SUB_STYLES[s.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{codeLabel(s.status)}</span>
           {actions && <div className="mt-2 flex flex-col gap-1.5"><button onClick={() => { setModal({ kind: 'approve', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800"><CheckCircle2 className="w-3.5 h-3.5" /> Approve</button><button onClick={() => { setModal({ kind: 'revise', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-yellow-700 text-white rounded-lg hover:bg-yellow-800"><RotateCcw className="w-3.5 h-3.5" /> Revise</button></div>}
         </div>
       </div>
@@ -231,7 +232,7 @@ export function PortalAssignedRfis() {
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">{r.dueDate && <span>Due {formatDate(r.dueDate)}</span>}<span>Opened {formatDate(r.createdAt)}</span>{r.respondedAt && <span>Answered {formatDate(r.respondedAt)}</span>}</div>
           </div>
         </div>
-        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{r.status}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Respond</button></div>}</div>
+        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{codeLabel(r.status)}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Respond</button></div>}</div>
       </div>
     </div>
   )

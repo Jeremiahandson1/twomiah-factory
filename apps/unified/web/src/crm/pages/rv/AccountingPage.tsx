@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { formatDate } from '../../date'
 import { PageError, errorText, useMayWrite } from '../../../shared'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * AN ACCOUNTING PAGE DOES NOT ROUND. (T41)
@@ -111,7 +112,7 @@ export default function AccountingPage() {
           <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Type</th><th className="px-4 py-2 text-left font-semibold">Ref</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Date</th><th className="px-4 py-2 text-right font-semibold">Amount</th></tr></thead>
           <tbody>
             {pending.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">{done ? 'All entries posted ✓' : 'Nothing pending.'}</td></tr>}
-            {pending.map((e, i) => (<tr key={i} className="border-t"><td className="px-4 py-2">{e.type}</td><td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{e.ref}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{e.customer}</td>{/* The entry's date, not the raw timestamp the API happens to send. (T41: "Accounting shows raw ISO dates") */}
+            {pending.map((e, i) => (<tr key={i} className="border-t"><td className="px-4 py-2">{codeLabel(e.type)}</td><td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{e.ref}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{e.customer}</td>{/* The entry's date, not the raw timestamp the API happens to send. (T41: "Accounting shows raw ISO dates") */}
               <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{formatDate(e.date) || '—'}</td><td className="px-4 py-2 text-right font-medium">{money(e.amount)}</td></tr>))}
           </tbody>
         </table>

@@ -7,6 +7,7 @@ import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
 import { formatAgencyDate } from '../lib/agencyClock'
 import { allRows, type Client, type Caregiver } from './shared'
 import { useMay } from '../lib/useMay'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text Input', icon: '✏️' },
@@ -547,7 +548,7 @@ export default function FormBuilder() {
                     <td style={{ padding: '0.65rem 0.85rem', color: 'var(--hc-muted)' }}>{formatAgencyDate(s.createdAt)}</td>
                     <td style={{ padding: '0.65rem 0.85rem' }}>
                       <span className={s.status === 'signed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200'}
-                        style={{ padding: '0.15rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}>{s.status}</span>
+                        style={{ padding: '0.15rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}>{codeLabel(s.status)}</span>
                     </td>
                     <td style={{ padding: '0.65rem 0.85rem' }}>
                       <button title="Download printable PDF" onClick={() => downloadPdf(s)}

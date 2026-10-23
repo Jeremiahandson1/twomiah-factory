@@ -10,6 +10,7 @@ import { api } from '../../api'
 import { CallTrackingSettings, usePermissions } from '../../shared'
 import type { LucideIcon } from 'lucide-react'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface CallFilters {
   source: string;
@@ -385,7 +386,7 @@ function CallRow({ call }: CallRowProps) {
       </td>
       <td className="px-4 py-3">
         <span className={`px-2 py-1 text-xs rounded-full ${statusColors[call.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
-          {call.status}
+          {codeLabel(call.status)}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -521,7 +522,7 @@ function TrackingNumbersTab() {
                 <td className="px-4 py-3">{num.name || '-'}</td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded dark:bg-slate-800 dark:text-slate-200">
-                    {num.source}
+                    {codeLabel(num.source)}
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-gray-500 dark:text-slate-400">{num.forwardTo}</td>

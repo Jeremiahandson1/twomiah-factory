@@ -9,6 +9,7 @@ import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 import { whenDateTime, companyFromLocalInput } from '../time/companyClock'
+import { codeLabel } from '../labels/codes'
 
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
@@ -113,7 +114,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                 <tr key={c.id} className="text-gray-900 dark:text-slate-100 hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3"><p className="font-medium">{c.name}</p><p className="text-gray-500 dark:text-slate-400">{c.subject}</p></td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-xs rounded-full ${statusCls[c.status] || statusCls.draft}`}>{c.status}</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${statusCls[c.status] || statusCls.draft}`}>{codeLabel(c.status)}</span>
                     {c.status === 'scheduled' && c.scheduledDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.scheduledDate)}</p>}
                     {c.status === 'sent' && c.sentAt && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.sentAt)}</p>}
                     {c.status === 'failed' && !!c.lastError && <p className="text-xs text-red-600 mt-1 max-w-xs dark:text-red-400">{c.lastError}</p>}

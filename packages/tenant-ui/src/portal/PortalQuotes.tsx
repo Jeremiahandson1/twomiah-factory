@@ -5,6 +5,7 @@ import { FileText, CheckCircle, XCircle, Clock, Download, PenTool } from 'lucide
 import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
+import { codeLabel } from '../labels/codes'
 
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' }
 const RESPONDABLE = ['sent', 'viewed']
@@ -53,7 +54,7 @@ function QuoteCard({ quote, token, highlight }: { quote: PortalQuoteData; token?
           <div className="p-2 bg-blue-100 rounded-lg shrink-0 dark:bg-blue-950/40"><FileText className="w-5 h-5 text-blue-600 dark:text-blue-300" /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 truncate dark:text-slate-100">{quote.name || quote.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p></div>
         </div>
-        <div className="text-right shrink-0"><p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(quote.total)}</p><span className={pill(STATUS_STYLES[quote.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{quote.status}</span></div>
+        <div className="text-right shrink-0"><p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(quote.total)}</p><span className={pill(STATUS_STYLES[quote.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{codeLabel(quote.status)}</span></div>
       </div>
       {quote.expiryDate && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Valid until {formatDate(quote.expiryDate)}</p>}
     </PLink>
@@ -109,7 +110,7 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{quote.name || quote.number}</h1><p className="text-gray-500 dark:text-slate-400">{quote.number}{quote.project ? ` · ${quote.project.name}` : ''}</p></div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[quote.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{quote.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[quote.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{codeLabel(quote.status)}</span>
           </div>
           {quote.expiryDate && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Valid until {formatDate(quote.expiryDate)}</p>}
         </div>

@@ -90,6 +90,11 @@ export interface VerticalScreens {
    * absent setting reads as an empty object here.
    */
   sites: { singular?: string; plural?: string; namePlaceholder?: string }
+  /**
+   * The vertical's own words for stored codes — statuses, stages, types (packages/tenant-ui labels/codes.ts codeLabel):
+   * registered once at startup (main.tsx). Absent: the shared words, then the code made readable.
+   */
+  codeLabels?: Record<string, string>
   /** The Schedule screen: `events` shows calendar appointments (/api/schedule-events) with "New Appointment" (RV). */
   schedule: { events?: boolean }
   /** Settings › Integrations: the vertical's words for its cards and which extra panels it shows (RV's call tracking). */

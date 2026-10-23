@@ -16,6 +16,7 @@ import { useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
 import { EVV_REASONS, EVV_REASONS_NEEDING_MEMO } from '../lib/sandata'
 import { formatAgencyDateTime, agencyLocalInput, agencyFromLocalInput } from '../lib/agencyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** One EVV record of GET /api/sandata/status (evvVisitsInRange: ev.* with the client's and caregiver's names). */
 export interface EvvVisit {
@@ -318,7 +319,7 @@ export default function SandataPanel({ visits = [], onChanged }: { visits?: EvvV
           <div className={h4}>📤 Submission queue (last 7 days)</div>
           <div className="mb-2 flex flex-wrap gap-3 text-sm text-gray-700 dark:text-slate-300">
             {(queue.queueStatus || []).length === 0 && <span>No submissions yet.</span>}
-            {(queue.queueStatus || []).map((s) => <span key={s.status}><strong>{s.count}</strong> {s.status}</span>)}
+            {(queue.queueStatus || []).map((s) => <span key={s.status}><strong>{s.count}</strong> {codeLabel(s.status)}</span>)}
           </div>
           {(queue.recentFailures || []).map((f) => (
             <div key={f.id} className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm dark:border-amber-800 dark:bg-amber-950">

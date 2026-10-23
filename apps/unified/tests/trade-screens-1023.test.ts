@@ -20,6 +20,7 @@ import { getFeaturesForTemplate, mayBeGivenWork as serverMayBeGivenWork, NOT_GIV
 import { resolveContactsConfig, defaultQuickActions, customersOnly, SECTION_FEATURES, quickActionFeature } from '../../../packages/tenant-ui/src/contacts/types.ts'
 import { mayBeGivenWork as screenMayBeGivenWork, NOT_GIVEN_WORK_ROLES as SCREEN_WORKLESS } from '../../../packages/tenant-ui/src/people/work.ts'
 import { nextBillOf } from '../../../packages/tenant-ui/src/agreements/types.ts'
+import { codeLabel, codesInText, registerCodeWords } from '../../../packages/tenant-ui/src/labels/codes.ts'
 // A screen (.tsx): loaded at run time, as this app's server tsconfig compiles no JSX.
 const COSTING: string = '../../../packages/tenant-ui/src/reporting/JobCostingPage.tsx'
 const { marginOf } = await import(COSTING)
@@ -129,6 +130,25 @@ describe('10. when an agreement next bills — the billing run\'s own rule', () 
     expect(nextBillOf({ status: 'active', startDate: '2025-10-01', endDate: '2026-10-01' }, now)).toEqual({ kind: 'none' })
     // The next date falls after the agreement ends: it bills no more.
     expect(nextBillOf({ status: 'active', startDate: '2026-01-01', endDate: '2026-11-01', nextBillDate: '2026-12-01' }, now)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('raw codes: a stored code is shown in words, the vertical words first', () => {
+  test('codeLabel: the vertical, the shared words, then readable; anything not a code as it is', async () => {
+    registerCodeWords({})
+    expect(codeLabel('in_production')).toBe('In production')
+    expect(codeLabel('no_show')).toBe('No-show')
+    expect(codeLabel('percent_of_invoice')).toBe('% of invoice')
+    expect(codeLabel('CNAME')).toBe('CNAME')
+    expect(codeLabel('Spring cleanup')).toBe('Spring cleanup')
+    expect(codeLabel(null)).toBe('')
+    const roof: any = await loadVertical('roofing')
+    registerCodeWords(roof.screens.codeLabels)
+    expect(codeLabel('in_production')).toBe('In Production')
+    expect(codesInText('Status changed: invoiced → collected')).toBe('Status changed: Invoiced → Collected')
+    expect(codesInText('Status changed: material_ordered → in_production')).toBe('Status changed: Material Ordered → In Production')
+    expect(codesInText('Called the adjuster')).toBe('Called the adjuster')
+    registerCodeWords({})
   })
 })
 

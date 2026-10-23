@@ -22,6 +22,7 @@ import { todayKey } from '../time/day'
 import { errMsg } from '../invoicing/ui'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { whenDate, companyTodayKey } from '../time/companyClock'
+import { codeLabel } from '../labels/codes'
 
 export interface TechApi {
   get: (path: string, params?: Record<string, any>) => Promise<any>
@@ -197,7 +198,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-xs font-mono text-gray-600 dark:text-slate-400">{job.number}</span>
-            {job.priority && <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${PRIORITY_COLORS[job.priority] || PRIORITY_COLORS.normal}`}>{job.priority}</span>}
+            {job.priority && <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${PRIORITY_COLORS[job.priority] || PRIORITY_COLORS.normal}`}>{codeLabel(job.priority)}</span>}
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_COLORS[job.status] || STATUS_COLORS.scheduled}`}>{STATUS_LABELS[job.status] || job.status}</span>
           </div>
           <h3 className="font-semibold text-gray-900 text-[15px] truncate dark:text-slate-100">{job.title}</h3>
@@ -297,7 +298,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
           <h3 className={heading}>Job</h3>
           <div className="space-y-2 text-sm">
             {kindOf(job) && <div className="flex justify-between"><span className="text-gray-600 dark:text-slate-400">Type</span><span className="font-medium text-gray-900 capitalize dark:text-slate-100">{kindOf(job).replace(/_/g, ' ')}</span></div>}
-            {job.priority && <div className="flex justify-between"><span className="text-gray-600 dark:text-slate-400">Priority</span><span className={`px-2 py-0.5 rounded text-xs font-bold ${PRIORITY_COLORS[job.priority] || PRIORITY_COLORS.normal}`}>{job.priority}</span></div>}
+            {job.priority && <div className="flex justify-between"><span className="text-gray-600 dark:text-slate-400">Priority</span><span className={`px-2 py-0.5 rounded text-xs font-bold ${PRIORITY_COLORS[job.priority] || PRIORITY_COLORS.normal}`}>{codeLabel(job.priority)}</span></div>}
             {job.scheduledTime && <div className="flex justify-between"><span className="text-gray-600 dark:text-slate-400">Time</span><span className="font-medium text-gray-900 dark:text-slate-100">{job.scheduledTime}</span></div>}
             {job.estimatedHours && <div className="flex justify-between"><span className="text-gray-600 dark:text-slate-400">Expected to take</span><span className="font-medium text-gray-900 dark:text-slate-100">{job.estimatedHours} h</span></div>}
           </div>

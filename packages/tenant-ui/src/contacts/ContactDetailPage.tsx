@@ -33,6 +33,7 @@ const h2 = 'font-semibold text-gray-900 dark:text-slate-100'
 const rowLink = 'p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800'
 const quickBtn = 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100'
 import { money } from '../invoicing/ui'
+import { codeLabel } from '../labels/codes'
 
 function RelatedList({ title, rows, href, icon: Icon, render }: { title: string; rows: Related[]; href: (r: Related) => string; icon: React.ComponentType<{ className?: string }>; render: (r: Related) => React.ReactNode }) {
   return (
@@ -661,7 +662,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {shows('quotes') && hasQuotes && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
               {showInvoices && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Invoices</span><span className="font-medium">{contact.invoices?.length || 0}</span></div>}
               {showEquipment && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Equipment</span><span className="font-medium">{contact.equipment?.length || 0}</span></div>}
-              {contact.source && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Source</span><span className="font-medium">{contact.source}</span></div>}
+              {contact.source && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Source</span><span className="font-medium">{codeLabel(contact.source)}</span></div>}
               <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Type</span><span className="font-medium">{typeLabel}</span></div>
             </div>
           </div>

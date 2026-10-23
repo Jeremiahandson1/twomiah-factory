@@ -4,6 +4,7 @@ import { Repeat, Plus, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
 import { errorText, useMayWrite } from '../../../shared'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** A reservation as the server shapes it (server/crm/rv/rentals.ts `shape`). */
 interface Rental { id: string; unitId: string; unit: string; contactId: string | null; customer: string; start: string; end: string; days: number; rate: number; total: number; status: string; notes: string | null }
@@ -115,7 +116,7 @@ export default function RentalsPage() {
               <td className="px-4 py-2">{r.unit}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{r.customer}</td>
               <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{r.start} → {r.end} ({r.days}d)</td>
               <td className="px-4 py-2 text-right">{money(r.rate)}/day</td><td className="px-4 py-2 text-right font-medium">{money(r.total)}</td>
-              <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[r.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{r.status}</span></td>
+              <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[r.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{codeLabel(r.status)}</span></td>
               <td className="px-4 py-2 text-right whitespace-nowrap">{(mayUpdate ? (ACTIONS[r.status] || []) : []).map(([s, label]) => (
                 <button key={s} onClick={() => changeStatus(r.id, s)} disabled={busyId === r.id} className="ml-2 text-xs text-indigo-700 hover:underline disabled:opacity-50 dark:text-indigo-300">{label}</button>
               ))}</td>

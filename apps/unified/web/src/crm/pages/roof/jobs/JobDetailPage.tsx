@@ -41,6 +41,7 @@ import JobMaterials from '../field/JobMaterials'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
+import { codeLabel, codesInText } from '@twomiah/tenant-ui/src/labels/codes'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -356,7 +357,7 @@ export default function JobDetailPage() {
             {isClosed ? (
               <>
                 <span className="text-sm text-gray-600 dark:text-slate-300">
-                  Closed as <span className="font-semibold">{job.status}</span>
+                  Closed as <span className="font-semibold">{codeLabel(job.status)}</span>
                   {job.lostReason ? ` — ${job.lostReason}` : ''}
                 </span>
                 {mayWorkJob && (<button
@@ -699,7 +700,7 @@ export default function JobDetailPage() {
                 {notes.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No notes yet</p>}
                 {notes.map((note, i) => (
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{codesInText(note.body)}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
                       {note.createdAt && <span>{whenDateTime(note.createdAt)}</span>}
                     </div>
@@ -739,7 +740,7 @@ export default function JobDetailPage() {
                     <div key={event.id || i} className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-gray-900 dark:text-slate-100">{event.body}</p>
+                        <p className="text-sm text-gray-900 dark:text-slate-100">{codesInText(event.body)}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                           {event.createdAt ? whenDateTime(event.createdAt) : ''}
                         </p>
@@ -777,7 +778,7 @@ export default function JobDetailPage() {
               )}
               {contact?.source && (
                 <span className="inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">
-                  {contact.source}
+                  {codeLabel(contact.source)}
                 </span>
               )}
             </div>

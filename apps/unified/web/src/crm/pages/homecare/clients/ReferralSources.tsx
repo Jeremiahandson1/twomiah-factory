@@ -5,6 +5,7 @@ import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import type { ReferralSource } from './shared'
 import { useMay } from '../lib/useMay'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface SourceForm {
   name: string
@@ -206,7 +207,7 @@ const ReferralSources = () => {
             <div key={source.id} className="hc-card">
               <div className="source-card-header">
                 <h4>{source.name}</h4>
-                <span className="hc-badge hc-badge-info">{source.type}</span>
+                <span className="hc-badge hc-badge-info">{codeLabel(source.type)}</span>
               </div>
 
               {source.contactName && <p><strong>Contact:</strong> {source.contactName}</p>}

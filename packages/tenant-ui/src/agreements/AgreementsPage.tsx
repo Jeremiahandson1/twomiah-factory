@@ -13,6 +13,7 @@ import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { money } from '../invoicing/ui'
 import { whenDate, daysUntilDay } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
+import { codeLabel } from '../labels/codes'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -594,7 +595,7 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
       </td>
       <td className="px-4 py-3">
         <span className={`px-2 py-1 rounded-full text-xs ${statusColors[agreement.status]}`}>
-          {agreement.status}
+          {codeLabel(agreement.status)}
         </span>
       </td>
       {/*
@@ -633,7 +634,7 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
       </td>
       {maySeeMoney && <td className="px-4 py-3 text-right font-medium">
         {money(agreement.amount)}
-        <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
+        <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{codeLabel(agreement.billingFrequency)}</span>
       </td>}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end">
@@ -697,10 +698,10 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
           {maySeeMoney ? (
           <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             {money(plan.price)}
-            <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{plan.billingFrequency}</span>
+            <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{codeLabel(plan.billingFrequency)}</span>
           </div>
           ) : (
-          <p className="text-sm text-gray-500 mb-4 capitalize dark:text-slate-400">Billed {plan.billingFrequency}</p>
+          <p className="text-sm text-gray-500 mb-4 capitalize dark:text-slate-400">Billed {codeLabel(plan.billingFrequency)}</p>
           )}
 
           {plan.description && (
@@ -1135,7 +1136,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <option value="">Select plan...</option>
                 {plans.filter((p: Plan) => p.active || p.id === form.planId).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{maySeeMoney && p.price != null ? ` - ${money(p.price)}` : ''}/{p.billingFrequency}
+                    {p.name}{maySeeMoney && p.price != null ? ` - ${money(p.price)}` : ''}/{codeLabel(p.billingFrequency)}
                   </option>
                 ))}
               </select>

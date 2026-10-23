@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const AREA_FIELDS = [
   { value: 'lawnSqft', label: 'Lawn' },
@@ -123,7 +124,7 @@ export default function AreaPricingPage() {
             <tbody>
               {rates.map((r) => (
                 <tr key={r.id} className="border-b dark:border-slate-700">
-                  <td className="py-2 font-medium">{r.serviceType}</td>
+                  <td className="py-2 font-medium">{codeLabel(r.serviceType)}</td>
                   <td>{AREA_FIELDS.find((a) => a.value === r.areaField)?.label || r.areaField}</td>
                   <td>{money(Number(r.ratePer1000Sqft))}</td>
                   <td>{money(Number(r.minCharge))}</td>
@@ -172,7 +173,7 @@ export default function AreaPricingPage() {
           </div>
           <select className="input w-auto" aria-label="Service" value={calc.serviceType} onChange={(e) => setCalc({ ...calc, serviceType: e.target.value })}>
             <option value="">Select service…</option>
-            {rates.map((r) => <option key={r.id} value={r.serviceType}>{r.serviceType}</option>)}
+            {rates.map((r) => <option key={r.id} value={r.serviceType}>{codeLabel(r.serviceType)}</option>)}
           </select>
           <button onClick={runQuote} className="btn-primary">Calculate</button>
         </div>

@@ -8,6 +8,7 @@ import { Shield, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -72,7 +73,7 @@ export default function LienWaiversPage() {
                   <td className="px-4 py-3 text-sm">{TYPE_LABELS[w.waiverType]}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{w.project?.name || '—'}</td>
                   <td className="px-4 py-3 font-mono text-sm">{money(Number(w.amountTotal))}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[w.status]}`}>{w.status}</span></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[w.status]}`}>{codeLabel(w.status)}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       {w.status === 'draft' && <button onClick={() => act(w.id, 'request')} className="text-orange-700 hover:bg-orange-50 p-1 rounded dark:text-orange-200" title="Send request">Send</button>}

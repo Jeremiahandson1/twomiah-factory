@@ -5,6 +5,7 @@ import { ClipboardList, CheckCircle, XCircle, Clock, PenTool, AlertTriangle } fr
 import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
+import { codeLabel } from '../labels/codes'
 
 const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', submitted: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 
@@ -63,7 +64,7 @@ function ChangeOrderCard({ co, token, highlight }: { co: ChangeOrderData; token?
           <div className={`p-2 rounded-lg shrink-0 ${isAddition ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'}`}><ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`} /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 truncate dark:text-slate-100">{co.title || co.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{co.number}{projectName ? ` - ${projectName}` : ''}</p></div>
         </div>
-        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{co.status}</span></div>
+        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{codeLabel(co.status)}</span></div>
       </div>
     </PLink>
   )
@@ -105,7 +106,7 @@ export function PortalChangeOrderDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{co.title || co.number}</h1><p className="text-gray-500 dark:text-slate-400">{co.number}</p>{co.project?.name && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Project: {co.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{co.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{codeLabel(co.status)}</span>
           </div>
         </div>
         <div className={`p-6 ${isAddition ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20'}`}>

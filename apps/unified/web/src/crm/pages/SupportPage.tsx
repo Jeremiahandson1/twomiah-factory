@@ -6,6 +6,7 @@ import { useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { LifeBuoy, Plus, Search, MessageSquare, Star, Send, ArrowLeft, Clock, AlertTriangle, X, Bot, ChevronRight } from 'lucide-react'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 type Ticket = {
   id: string;
@@ -242,7 +243,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-2">
               <span className="text-gray-500 text-xs font-mono dark:text-slate-400">{selected.number}</span>
               <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (statusColors[selected.status] || '')}>{selected.status.replace('_', ' ')}</span>
-              <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[selected.priority] || '')}>{selected.priority}</span>
+              <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[selected.priority] || '')}>{codeLabel(selected.priority)}</span>
               {isSlaBreached(selected) && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-400">SLA BREACHED</span>}
             </div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mt-1">{selected.subject}</h2>
@@ -384,7 +385,7 @@ export default function SupportPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-gray-900 dark:text-white text-sm font-medium">{t.subject}</span>
                   <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (statusColors[t.status] || '')}>{t.status.replace('_', ' ')}</span>
-                  <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[t.priority] || '')}>{t.priority}</span>
+                  <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[t.priority] || '')}>{codeLabel(t.priority)}</span>
                   {isSlaBreached(t) && <AlertTriangle size={12} className="text-red-700 dark:text-red-400" />}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">

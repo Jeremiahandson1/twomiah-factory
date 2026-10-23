@@ -21,6 +21,7 @@ import { formatDate } from '../../../date'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const DAMAGE_COLORS: Record<string, string> = {
   minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
@@ -271,7 +272,7 @@ export default function StormLeadsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap size={14} className={event.status === 'detected' ? 'text-yellow-500 dark:text-yellow-300' : 'text-gray-400'} />
-                  <span className="text-sm font-medium capitalize">{event.eventType}</span>
+                  <span className="text-sm font-medium capitalize">{codeLabel(event.eventType)}</span>
                 </div>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                   event.status === 'detected' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
@@ -303,7 +304,7 @@ export default function StormLeadsPage() {
               <div>
                 <h2 className="text-lg font-bold capitalize flex items-center gap-2">
                   <Zap size={18} className="text-yellow-500 dark:text-yellow-300" />
-                  {selectedEvent.eventType} — {formatDate(selectedEvent.eventDate)}
+                  {codeLabel(selectedEvent.eventType)} — {formatDate(selectedEvent.eventDate)}
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
                   {(selectedEvent.affectedZipCodes || []).join(', ')} · {selectedEvent.leadCount || 0} leads
@@ -387,7 +388,7 @@ export default function StormLeadsPage() {
                         </td>
                         <td className="px-4 py-2">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_COLORS[lead.status] || ''}`}>
-                            {lead.status}
+                            {codeLabel(lead.status)}
                           </span>
                         </td>
                         <td className="px-4 py-2">

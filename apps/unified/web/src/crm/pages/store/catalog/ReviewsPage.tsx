@@ -19,6 +19,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { listOf, type Review } from './lib'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all'
 const FILTERS: Filter[] = ['pending', 'approved', 'rejected', 'all']
@@ -120,7 +121,7 @@ export default function ReviewsPage() {
                     {r.verifiedPurchase && (
                       <span className="text-xs text-green-700 flex items-center gap-1 dark:text-green-300"><ShieldCheck className="h-3 w-3" /> Verified buyer</span>
                     )}
-                    {status === 'all' && <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_BADGE[r.status]}`}>{r.status}</span>}
+                    {status === 'all' && <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_BADGE[r.status]}`}>{codeLabel(r.status)}</span>}
                   </div>
                   {r.title && <p className="font-medium text-gray-900 mt-1 break-words dark:text-slate-100">{r.title}</p>}
                   {r.body && <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap break-words dark:text-slate-300">{r.body}</p>}
