@@ -8,6 +8,7 @@ import { punchListItem, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { recordPhotos } from './recordPhotos.ts'
 
 /**
  * Signing off somebody else's work is manager and above. (T32 M2)
@@ -35,6 +36,9 @@ export function createPunchListRoutes(d: CrmDeps) {
   }
 
   const app = new Hono<AppEnv>()
+  // The snag's photos (recordPhotos.ts): punch_list_item.photos was a column nothing wrote, found sweeping for the daily
+  // log's missing photo field (live test 2026-10-22).
+  const photos = recordPhotos(d, { table: punchListItem, base: '/api/punch-lists', folder: 'punch-lists', read: 'punch-lists:read', write: 'punch-lists:update', notFound: 'Punch list item not found' })
 
   app.get('/', requirePermission('punch-lists:read'), async (c) => {
     const { status, projectId, page = '1', limit = '50' } = c.req.query() as any
@@ -60,7 +64,7 @@ export function createPunchListRoutes(d: CrmDeps) {
       db.select({ value: count() }).from(punchListItem).where(where),
     ])
 
-    return list(c, data, { page: pageNum, limit: limitNum, total: Number(total) })
+    return list(c, data.map((r: any) => ({ ...r, punchListItem: photos.withUrls(r.punchListItem) })), { page: pageNum, limit: limitNum, total: Number(total) })
   })
 
   app.get('/:id', requirePermission('punch-lists:read'), async (c) => {
@@ -74,7 +78,7 @@ export function createPunchListRoutes(d: CrmDeps) {
       .where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, me.companyId)))
       .limit(1)
     if (!item) return fail(c, 404, 'Punch list item not found')
-    return one(c, item)
+    return one(c, { ...item, punchListItem: photos.withUrls(item.punchListItem) })
   })
 
   app.post('/', requirePermission('punch-lists:create'), async (c) => {
@@ -101,7 +105,7 @@ export function createPunchListRoutes(d: CrmDeps) {
       updatedAt: new Date(),
     }).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, me.companyId))).returning()
     if (!item) return fail(c, 404, 'Punch list item not found')
-    return one(c, item)
+    return one(c, photos.withUrls(item))
   })
 
   app.delete('/:id', requirePermission('punch-lists:delete'), async (c) => {
@@ -110,6 +114,7 @@ export function createPunchListRoutes(d: CrmDeps) {
     // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
     const [gone] = await db.delete(punchListItem).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, me.companyId))).returning()
     if (!gone) return fail(c, 404, 'Punch list item not found')
+    photos.removeFiles(gone)
     return c.body(null, 204)
   })
 
@@ -181,6 +186,8 @@ export function createPunchListRoutes(d: CrmDeps) {
     }).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, me.companyId))).returning()
     return one(c, item)
   })
+
+  photos.routes(app)
 
   return app
 }

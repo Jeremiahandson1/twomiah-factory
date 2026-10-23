@@ -424,7 +424,10 @@ export function createJobRoutes(deps: JobDeps) {
     const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
     // What the work is WORTH is not part of reading the schedule. (T41)
     const data = await shapeJobMoney(c, withOverdue)
-    return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+    // Every status a job can hold (JOB_STATUSES, the list the filter above and every write are checked against), so the
+    // screen's status filter offers the same list: a job converted from a quote is 'pending', which the filter did not
+    // offer (live test 2026-10-22).
+    return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) }, statuses: [...JOB_STATUSES] })
   })
 
   app.get('/today', requirePermission('jobs:read'), async (c) => {

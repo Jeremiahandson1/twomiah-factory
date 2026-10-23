@@ -1,3 +1,4 @@
+import { money } from '@twomiah/tenant-ui/src/money'
 // What the orders screens share: the order's shape as server/crm/store/orders answers it, money in integer cents, the
 // status badges, and reading a reply (RULEBOOK §3: a list is { data, pagination }; a refusal { error, code?, fields? },
 // which the app's client throws as an Error whose `data` is that body). Moved from templates/crm-store/frontend/src
@@ -52,7 +53,7 @@ export function cents(value: number | null | undefined, currency = 'usd'): strin
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: (currency || 'usd').toUpperCase() }).format((Number.isFinite(n) ? n : 0) / 100)
   } catch {
-    return `$${((Number.isFinite(n) ? n : 0) / 100).toFixed(2)}`
+    return `${money(((Number.isFinite(n) ? n : 0) / 100))}`
   }
 }
 

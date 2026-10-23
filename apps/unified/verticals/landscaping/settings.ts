@@ -58,6 +58,8 @@ const landscaping: VerticalSettings = {
   },
   // templates/crm-landscaping/frontend/src/*Config.ts and the page wrappers' configs
   screens: {
+    // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
+    warranties: { namePlaceholder: 'e.g., Plantings — one-year replacement', categoryPlaceholder: 'e.g., plantings', claimTitlePlaceholder: 'e.g., Shrub died after planting', claimLocationPlaceholder: 'e.g., Front bed, left of the driveway' },
     // The menu in this trade's words, by page address (shellConfig.ts). Field service's own items sit under
     // "Operations" here (T58: each named after what it is, so no pair reads as the same thing).
     nav: { '/crm/tech': 'Crew View', '/crm/parts': 'Parts & Materials', '/crm/pricebook-rates': 'Flat-Rate Pricing' },
@@ -71,6 +73,7 @@ const landscaping: VerticalSettings = {
     // to this vertical).
     documents: { markup: false, projects: false, types: DOC_TYPES },
     equipment: {
+      placeholders: { name: 'e.g., Zero-turn mower 1', manufacturer: 'e.g., Toro', location: 'e.g., Shop, bay 2' },
       contacts: true, sites: true, linkedJobs: true,
       // A lawn-care crew's own kit, not HVAC / Plumbing / Electrical. (T41)
       categories: [
@@ -89,14 +92,14 @@ const landscaping: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Service Visits & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options' },
+    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Spring cleanup' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: { jobLabel: 'Service Visit' },
     expenses: { jobLabel: 'Service Visit' },
     team: { rolePlaceholder: 'e.g. Crew Lead' },
-    agreements: { recurrence: true },
+    agreements: { recurrence: true, planNamePlaceholder: 'e.g., Weekly mowing plan' },
     fleet: { gps: true },
     // A grounds crew's stock, not an HVAC van's (T63). Any category already stored on a part is still offered.
     parts: {

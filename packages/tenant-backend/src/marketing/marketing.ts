@@ -74,18 +74,53 @@ function normaliseSteps(steps: any[]): Array<{ stepNumber: number; delayDays: nu
     if (!Number.isFinite(delayDays) || delayDays < 0 || !Number.isFinite(delayHours) || delayHours < 0) throw new MarketingError(`Step ${i + 1}: delay must be a number of days/hours ≥ 0`, 400)
     const subject = String(step.subject || '').trim()
     if (!subject) throw new MarketingError(`Step ${i + 1}: subject is required`, 400)
+    checkMergeFields(`Step ${i + 1}`, subject, String(step.body || ''))
     return { stepNumber: i + 1, delayDays: Math.floor(delayDays), delayHours: Math.floor(delayHours), subject, body: String(step.body || ''), templateId: step.templateId || null }
   })
 }
-function personalize(content: string, c: any): string {
+/**
+ * MERGE FIELDS — what an email can say about the person it goes to, and the one rule for writing them.
+ *
+ * Live test 2026-10-22 (contractor): a campaign went out reading "Hi {firstName}" — the owner had written the field the
+ * way the review-request texts take it (single braces), and the send only knew double braces, so the raw text went to
+ * every customer. Both spellings now work for a field we have — {{firstName}} (the one the editor shows) and {firstName},
+ * any case, spaces inside the braces allowed — and a field we do not have is refused where the email is saved and again
+ * where it is sent, naming it and the fields there are, so an unfilled token never reaches a customer.
+ */
+export const MERGE_FIELDS: Array<{ key: string; label: string }> = [
+  { key: 'firstName', label: 'First name' },
+  { key: 'lastName', label: 'Last name' },
+  { key: 'name', label: 'Full name' },
+  { key: 'company', label: 'Company' },
+  { key: 'email', label: 'Email address' },
+]
+const MERGE_TOKEN = /\{\{\s*([A-Za-z_][\w]*)\s*\}\}|\{\s*([A-Za-z_][\w]*)\s*\}/g
+const fieldKey = (raw: string) => MERGE_FIELDS.find((f) => f.key.toLowerCase() === raw.toLowerCase())?.key ?? null
+/** The tokens in a text that are not one of MERGE_FIELDS, as written ("{first_name}"), each once. */
+export function unknownMergeFields(...texts: Array<string | null | undefined>): string[] {
+  const out = new Set<string>()
+  for (const t of texts) for (const m of String(t || '').matchAll(MERGE_TOKEN)) if (!fieldKey(m[1] ?? m[2])) out.add(m[0])
+  return [...out]
+}
+/** Refuse an email that has a merge field we cannot fill. */
+function checkMergeFields(where: string, ...texts: Array<string | null | undefined>) {
+  const bad = unknownMergeFields(...texts)
+  if (bad.length) throw new MarketingError(`${where} has ${bad.length === 1 ? 'a merge field' : 'merge fields'} we can't fill: ${bad.join(', ')}. The fields you can use are ${MERGE_FIELDS.map((f) => `{{${f.key}}}`).join(', ')}.`, 400)
+}
+export function personalize(content: string, c: any): string {
   if (!content) return content
-  const map: Record<string, string> = {
-    '{{name}}': c?.name || 'there', '{{firstName}}': c?.firstName || c?.name?.split(' ')[0] || 'there',
-    '{{lastName}}': c?.lastName || '', '{{email}}': c?.email || '', '{{company}}': c?.company || '',
+  const full = String(c?.name || '').trim()
+  const [first, ...rest] = full.split(/\s+/)
+  const values: Record<string, string> = {
+    firstName: c?.firstName || first || 'there',
+    lastName: c?.lastName || rest.join(' '),
+    name: full || 'there',
+    company: c?.company || '',
+    email: c?.email || '',
   }
-  let out = content
-  for (const [k, v] of Object.entries(map)) out = out.split(k).join(v)
-  return out
+  // A field we have is filled in either spelling; anything else is left as written — the checks above keep it from
+  // being saved or sent, and the CSS of an HTML email (`p { color: red }`) is not a token.
+  return content.replace(MERGE_TOKEN, (whole, a, b) => { const k = fieldKey(a ?? b); return k ? values[k] : whole })
 }
 const camelSequence = (s: any) => s ? ({ ...s, companyId: s.company_id ?? s.companyId, createdAt: s.created_at ?? s.createdAt, updatedAt: s.updated_at ?? s.updatedAt, steps: parseSteps(s.steps), enrollmentCount: Number(s.enrollment_count ?? s.enrollmentCount ?? 0), activeEnrollments: Number(s.active_enrollments ?? s.activeEnrollments ?? 0) }) : s
 
@@ -96,6 +131,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
 
   // ─── templates ─────────────────────────────────────────────────────────────
   async function createTemplate(companyId: string, data: { name: string; subject: string; body: string; category?: string }) {
+    checkMergeFields('This template', data.subject, data.body)
     // The id default lives in Drizzle ($defaultFn), not in the database — a raw INSERT without it is a NOT NULL
     // violation, which is why no template could ever be created (400 "A required field is missing" on 7/7).
     return first(await db.execute(sql`
@@ -114,6 +150,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
   }
   async function updateTemplate(id: string, companyId: string, data: { name?: string; subject?: string; body?: string; category?: string; active?: boolean }) {
     if (!(await getTemplate(id, companyId))) throw new MarketingError('Template not found', 404)
+    checkMergeFields('This template', data.subject, data.body)
     const sets: any[] = []
     if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
     if (data.subject !== undefined) sets.push(sql`subject = ${data.subject}`)
@@ -158,6 +195,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
   // ─── campaigns ─────────────────────────────────────────────────────────────
   const ownCampaign = async (id: string, companyId: string) => { const [row] = await db.select().from(t.campaign).where(and(eq(t.campaign.id, id), eq(t.campaign.companyId, companyId))); return row || null }
   async function createCampaign(companyId: string, data: { name: string; subject: string; body?: string; audienceType?: string; audienceFilter?: any; scheduledFor?: string | null }) {
+    checkMergeFields('This campaign', data.subject, data.body)
     const [created] = await db.insert(t.campaign).values({
       companyId, name: data.name, type: 'email', subject: data.subject, content: data.body || '', status: 'draft',
       audienceType: data.audienceType || 'all', audienceFilter: data.audienceFilter ?? null,
@@ -185,6 +223,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const existing = await ownCampaign(id, companyId)
     if (!existing) throw new MarketingError('Campaign not found', 404)
     if (existing.status === 'sent' || existing.status === 'sending') throw new MarketingError('A campaign that has been sent cannot be edited — duplicate it instead', 409)
+    checkMergeFields('This campaign', data.subject, data.body)
     // The form sends `body`; the column is `content` (VET-06).
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     if (data.name !== undefined) updates.name = data.name
@@ -207,6 +246,8 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const row = await ownCampaign(id, companyId)
     if (!row) throw new MarketingError('Campaign not found', 404)
     if (row.status === 'sent' || row.status === 'sending') throw new MarketingError('This campaign has already been sent', 409)
+    // A draft saved before the check, or a field typed wrong: nothing goes out with a token in it.
+    checkMergeFields('This campaign', row.subject, row.content)
     const contacts = await audienceContacts(companyId, row.audienceType, row.audienceFilter)
     // Delivery truth: an empty audience is not a successful send.
     if (contacts.length === 0) throw new MarketingError('This campaign has no deliverable recipients. Add contacts with email addresses to the selected audience, then send.', 400)
@@ -332,7 +373,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
   }
   async function processDripEmails() {
     const due = rows(await db.execute(sql`
-      SELECT se.*, ds.company_id, ds.steps, c.email, c.name AS contact_name, c.email_opt_out
+      SELECT se.*, ds.company_id, ds.steps, c.email, c.name AS contact_name, c.company AS contact_company, c.email_opt_out
       FROM sequence_enrollment se JOIN drip_sequence ds ON se.sequence_id = ds.id JOIN contact c ON se.contact_id = c.id
       WHERE se.status = 'active' AND ds.active = true AND se.next_email_at <= NOW()`))
     let sent = 0
@@ -343,8 +384,11 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       const steps = parseSteps(e.steps)
       const step = steps.find((s: any) => Number(s.stepNumber) === Number(e.current_step))
       if (!step) { await db.execute(sql`UPDATE sequence_enrollment SET status = 'completed', completed_at = NOW() WHERE id = ${e.id}`); continue }
+      // A step saved before the merge-field check, with a field we cannot fill: held (not sent, not skipped) until the
+      // sequence is edited — the edit is checked — so no customer gets "{first_name}".
+      if (unknownMergeFields(step.subject, step.body).length) { console.error('[Marketing] Drip step held, unknown merge field:', e.sequence_id, unknownMergeFields(step.subject, step.body).join(', ')); continue }
       try {
-        const person = { name: e.contact_name, email: e.email }
+        const person = { name: e.contact_name, email: e.email, company: e.contact_company }
         await sendRaw({ to: e.email, subject: personalize(step.subject, person), html: decorate(personalize(step.body, person), null, e.contact_id) })
         const next = steps.find((s: any) => Number(s.stepNumber) === Number(e.current_step) + 1)
         if (next) await db.execute(sql`UPDATE sequence_enrollment SET current_step = ${Number(e.current_step) + 1}, next_email_at = NOW() + INTERVAL '1 day' * ${Number(next.delayDays || 0)} + INTERVAL '1 hour' * ${Number(next.delayHours || 0)}, last_email_at = NOW() WHERE id = ${e.id}`)
@@ -470,6 +514,9 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
     catch (e: any) { if (e instanceof MarketingError) return c.json({ error: e.message }, e.status as any); throw e }
   }
   const body = (c: any) => c.req.json().catch(() => ({}))
+
+  // The merge fields an email can use, for the editor to show (the same list the checks and the send use).
+  app.get('/merge-fields', requirePermission('marketing:read'), (c) => c.json({ data: MERGE_FIELDS.map((f) => ({ ...f, token: `{{${f.key}}}` })) }))
 
   // templates
   app.get('/templates', requirePermission('marketing:read'), async (c) => {

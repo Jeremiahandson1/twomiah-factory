@@ -7,6 +7,7 @@ import {
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import { useToast } from '../../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Rebooking — the retention page.
@@ -73,7 +74,7 @@ function fmtDate(s?: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function money(v: number | undefined): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v || 0))}`;
 }
 // Rendered at text-gray-600, not gray-500, in all three tabs. An OVERDUE row is painted red-50
 // (rgb 254,242,242) and gray-500 measures 4.42:1 on that tint — under AA, on the phone number someone

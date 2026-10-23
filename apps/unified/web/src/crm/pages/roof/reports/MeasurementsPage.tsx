@@ -7,6 +7,7 @@ import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, Alert
 import { useMayWrite, useToast, errorText } from '../../../../shared';
 import { api } from '../../../../api';
 import { formatDate } from '../../../date';
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** A row of GET /api/measurements (`cost` only for a seat with margin:read). */
 interface MeasurementSegment {
@@ -253,7 +254,7 @@ export default function MeasurementsPage() {
                         {m.totalArea != null ? Number(m.totalArea).toLocaleString() : '—'}
                       </td>
                       {maySeeCost && <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">
-                        {m.cost != null ? `$${Number(m.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                        {m.cost != null ? `${money(Number(m.cost))}` : '—'}
                       </td>}
                       <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {m.createdAt ? formatDate(m.createdAt) : '—'}
@@ -494,7 +495,7 @@ export default function MeasurementsPage() {
                 ))}
               </div>
               {pricePerReport != null && (<p className="text-sm font-medium text-gray-900 mt-3 dark:text-slate-100">
-                Total: ${(buyQty * Number(pricePerReport)).toFixed(2)}
+                Total: {money((buyQty * Number(pricePerReport)))}
               </p>)}
             </div>
             <div className="flex justify-end gap-2 mt-5">

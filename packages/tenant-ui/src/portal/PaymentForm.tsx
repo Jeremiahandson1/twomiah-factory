@@ -5,6 +5,7 @@ import { loadStripe, type Stripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { CreditCard, Lock, Loader2, Check, AlertCircle } from 'lucide-react'
 import { API_URL } from './PortalContext'
+import { money } from '../money'
 
 // One Stripe.js instance per publishable key + connected account. A business that took payments through
 // "Connect Stripe" charges on its own connected account, and Stripe.js must be told which one or it
@@ -93,7 +94,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-gray-50 rounded-lg p-4 text-center dark:bg-slate-800">
         <p className="text-sm text-gray-500 dark:text-slate-400">Payment Amount</p>
-        <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{money(Number(amount))}</p>
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-lg border p-4"><PaymentElement options={{ layout: 'tabs' }} /></div>
       {error && <div role="alert" className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm dark:bg-red-950/40 dark:text-red-300"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
@@ -101,7 +102,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
       <div className="flex gap-3">
         {onCancel && <button type="button" onClick={onCancel} disabled={processing} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800">Cancel</button>}
         <button type="submit" disabled={!stripe || processing} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">
-          {processing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : <><CreditCard className="w-4 h-4" /> Pay ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</>}
+          {processing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : <><CreditCard className="w-4 h-4" /> Pay {money(Number(amount))}</>}
         </button>
       </div>
     </form>

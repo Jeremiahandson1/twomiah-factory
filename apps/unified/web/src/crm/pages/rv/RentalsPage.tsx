@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Repeat, Plus, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
 import { errorText, useMayWrite } from '../../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** A reservation as the server shapes it (server/crm/rv/rentals.ts `shape`). */
 interface Rental { id: string; unitId: string; unit: string; contactId: string | null; customer: string; start: string; end: string; days: number; rate: number; total: number; status: string; notes: string | null }
@@ -14,7 +15,7 @@ interface RentalReply { rental: Rental; summary?: RentalSummary }
 interface UnitOption { id: string; year?: number | null; make?: string | null; modelName?: string | null; stockNumber?: string | null; status?: string }
 type RentalForm = { unitId: string; customer: string; start: string; end: string; rate: string }
 
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatMoney(Number(n || 0))}`;
 const STATUS: Record<string, string> = { out: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', reserved: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40', returned: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', cancelled: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' };
 // the status changes the server allows
 const ACTIONS: Record<string, [string, string][]> = { reserved: [['out', 'Check out'], ['cancelled', 'Cancel']], out: [['returned', 'Return']] };

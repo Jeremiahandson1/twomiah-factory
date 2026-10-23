@@ -4,6 +4,7 @@ import { Plus, Loader2, X, UtensilsCrossed, Edit2, Trash2, Users, ChevronDown, C
 import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Catering menus — packages priced per head.
@@ -31,7 +32,7 @@ interface Package {
 
 function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v))}`;
 }
 
 export default function MenusPage() {

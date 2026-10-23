@@ -13,6 +13,7 @@ import { api, errorMessage } from '../../lib/http'
 import { formatDate } from '../../lib/date'
 import { formatTime } from '../../lib/datetime'
 import { useToast } from '../../../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** One shift of the period (payroll_shift_reviews). */
 export interface PendingShift {
@@ -38,7 +39,7 @@ export interface PendingVerification {
 
 const formatMinutes = (m: number) => { const h = Math.floor(m / 60); const r = m % 60; return r === 0 ? `${h}h` : `${h}h ${r}m` }
 const formatDay = (d: string | null | undefined) => formatDate(String(d || '').slice(0, 10), { weekday: 'short', month: 'short', day: 'numeric' })
-const fmtMoney = (n: unknown) => `$${(parseFloat(String(n ?? 0)) || 0).toFixed(2)}`
+const fmtMoney = (n: unknown) => `${money((parseFloat(String(n ?? 0)) || 0))}`
 
 export default function PaydayVerificationModal({ pending, onResolved, onLater }: { pending: PendingVerification; onResolved: () => void; onLater: () => void }) {
   const toast = useToast()

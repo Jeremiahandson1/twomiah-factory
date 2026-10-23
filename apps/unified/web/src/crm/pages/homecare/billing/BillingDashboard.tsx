@@ -19,6 +19,7 @@ import { useMay } from '../lib/useMay'
 import { cancelReasonLabel } from '../lib/cancelReasons'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
 import { formatAgencyDate } from '../lib/agencyClock'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 type Num = string | number | null | undefined
 
@@ -98,9 +99,9 @@ const lineQty = (li: LineItem) => {
   const rate = parseFloat(String(li?.rate || 0)) || 0
   if (li?.rateType === '15min') {
     const units = Math.round(hours * 4 * 100) / 100
-    return { qty: `${Number.isInteger(units) ? units : units.toFixed(2)} unit${units === 1 ? '' : 's'}`, rate: `$${rate.toFixed(2)} / 15 min` }
+    return { qty: `${Number.isInteger(units) ? units : units.toFixed(2)} unit${units === 1 ? '' : 's'}`, rate: `${formatMoney(rate)} / 15 min` }
   }
-  return { qty: `${hours.toFixed(2)} h`, rate: `$${rate.toFixed(2)} / h` }
+  return { qty: `${hours.toFixed(2)} h`, rate: `${formatMoney(rate)} / h` }
 }
 
 /** GET /api/billing/invoices/totals (server/data/homecareBillingRoutes.ts visitInvoiceTotals). */
@@ -456,7 +457,7 @@ const BillingDashboard = () => {
     const h = parseFloat(String(hours || 0)) || 0
     return r.rateType === 'hourly' ? h * r.rate : (Math.round(h * 4 * 100) / 100) * r.rate
   }
-  const rateLabel = (r: ResolvedRate | { rate: number; rateType: string } | null) => (r ? `$${r.rate.toFixed(2)}${r.rateType === 'hourly' ? '/h' : '/15 min'}` : 'No rate set')
+  const rateLabel = (r: ResolvedRate | { rate: number; rateType: string } | null) => (r ? `${formatMoney(r.rate)}${r.rateType === 'hourly' ? '/h' : '/15 min'}` : 'No rate set')
   const manualRate = effectiveRateFor(manualFormData.clientId)
   const calculateManualTotal = () => manualLineItems.reduce((sum, item) => sum + amountAt(item.hours, manualRate), 0)
 
@@ -1183,7 +1184,7 @@ const BillingDashboard = () => {
           choosable.forEach((r) => { next[r.key] = basis })
           return next
         })
-        const money = (n: Num) => `$${(Number(n) || 0).toFixed(2)}`
+        const money = (n: Num) => `${formatMoney((Number(n) || 0))}`
         const mins = (m: number | null | undefined) => (m == null ? '—' : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`)
         // Punch times come back already on the agency's clock (clockedStartLabel).
         const clockRange = (r: ReconcileRow) => (r.clockedStartLabel ? `${r.clockedStartLabel}–${r.clockedEndLabel || '…'}` : '')
@@ -2183,23 +2184,23 @@ const BillingDashboard = () => {
                   </div>
                   <div className="invoice-total-row">
                     <span className="invoice-total-label">Total</span>
-                    <span className="invoice-total-value"><strong>${(parseFloat(String(selectedInvoice.total)) || 0).toFixed(2)}</strong></span>
+                    <span className="invoice-total-value"><strong>{formatMoney((parseFloat(String(selectedInvoice.total)) || 0))}</strong></span>
                   </div>
                   {parseFloat(String(selectedInvoice.amountPaid || 0)) > 0 && (
                     <div className="invoice-total-row">
                       <span className="invoice-total-label">Amount Paid</span>
-                      <span className="invoice-total-value" style={{ color: '#1e7e34' }}>-${parseFloat(String(selectedInvoice.amountPaid)).toFixed(2)}</span>
+                      <span className="invoice-total-value" style={{ color: '#1e7e34' }}>-{formatMoney(parseFloat(String(selectedInvoice.amountPaid)))}</span>
                     </div>
                   )}
                   {parseFloat(String(selectedInvoice.amountAdjusted || 0)) > 0 && (
                     <div className="invoice-total-row">
                       <span className="invoice-total-label">Written Off / Discount</span>
-                      <span className="invoice-total-value">-${parseFloat(String(selectedInvoice.amountAdjusted)).toFixed(2)}</span>
+                      <span className="invoice-total-value">-{formatMoney(parseFloat(String(selectedInvoice.amountAdjusted)))}</span>
                     </div>
                   )}
                   <div className="invoice-total-row grand-total">
                     <span className="invoice-total-label">Balance Due</span>
-                    <span className="invoice-total-value">${balanceOf(selectedInvoice).toFixed(2)}</span>
+                    <span className="invoice-total-value">{formatMoney(balanceOf(selectedInvoice))}</span>
                   </div>
                 </div>
               </div>

@@ -10,11 +10,12 @@ import { BarChart3, Target, Lightbulb, Beaker, Settings, Loader2, Pause, Play, P
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './types'
+import { money } from '../money'
 
 type Tab = 'overview' | 'campaigns' | 'recommendations' | 'experiments' | 'settings'
 interface Can { update: boolean; admin: boolean }
 
-const usd = (cents: unknown) => '$' + (Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const usd = (cents: unknown) => money((Number(cents || 0) / 100))
 const num = (v: unknown) => Number(v || 0).toLocaleString()
 const pct = (a: unknown, b: unknown) => (Number(b) > 0 ? ((Number(a) / Number(b)) * 100).toFixed(2) + '%' : '-')
 const when = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-')

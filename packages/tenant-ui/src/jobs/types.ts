@@ -47,7 +47,13 @@ export interface JobsConfig {
   billing?: boolean
 }
 
-export const DEFAULT_JOB_STATUSES = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled']
+/**
+ * Every status a job can hold — the server's JOB_STATUSES (tenant-backend jobs/jobs.ts), which GET /api/jobs also sends as
+ * `statuses`; the page uses the server's once it has it, this until then. It was five of the eight, so a job converted
+ * from a quote ('pending') or a booking awaiting its deposit showed a status the filter could not select (live test
+ * 2026-10-22). apps/unified/tests/job-statuses.test.ts holds this to the server's list.
+ */
+export const DEFAULT_JOB_STATUSES = ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold', 'completed', 'cancelled']
 export const DEFAULT_JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent']
 export const PRIORITY_COLORS: Record<string, string> = { low: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300', normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200', high: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200', urgent: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200' }
 

@@ -27,6 +27,7 @@ import { api, rows, errorMessage, listAll } from '../lib/http'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
 import { useConfirm, useMayWrite } from '../../../../shared'
 import { CHIP, FILL, INK, SOLID, type Tone } from './ui'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // ── The replies' shapes ──────────────────────────────────────────────────────
 type Num = number | string | null | undefined
@@ -819,7 +820,7 @@ const RouteOptimizer = () => {
                   ✅ Optimization saves {optimizedRoute.summary.milesSaved} mi &amp; {optimizedRoute.summary.drivingMinutesSaved} min driving
                 </span>
                 <span style={{ fontSize: '0.78rem', color: 'var(--hc-success-ink)' }}>
-                  💰 ${(optimizedRoute.summary.milesSaved * mileageRate).toFixed(2)} less in mileage
+                  💰 {money((optimizedRoute.summary.milesSaved * mileageRate))} less in mileage
                 </span>
               </div>
             )}
@@ -973,7 +974,7 @@ const RouteOptimizer = () => {
               { val: dailyRoutes.reduce((t, r) => t + r.visits.length, 0), lbl: 'Visits', tone: 'violet' },
               { val: `${dailyRoutes.reduce((t, r) => t + r.totalMiles, 0).toFixed(2)}`, lbl: 'Total Miles', tone: 'orange' },
               { val: `${(dailyRoutes.reduce((t, r) => t + r.totalServiceMinutes, 0) / 60).toFixed(2)}h`, lbl: 'Service', tone: 'green' },
-              { val: `$${(dailyRoutes.reduce((t, r) => t + r.totalMiles, 0) * mileageRate).toFixed(2)}`, lbl: 'Mileage $', tone: 'cyan' },
+              { val: `${money((dailyRoutes.reduce((t, r) => t + r.totalMiles, 0) * mileageRate))}`, lbl: 'Mileage $', tone: 'cyan' },
             ] as Array<{ val: string | number; lbl: string; tone: Tone }>).map(statTile)}
           </div>
 

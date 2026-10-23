@@ -9,6 +9,7 @@ import type { FormEvent } from 'react'
 import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -219,11 +220,11 @@ export default function FlatRatePricebook() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <p className="font-bold text-gray-900 dark:text-white text-lg">
-                          ${Number(item.price || 0).toFixed(2)}
+                          {money(Number(item.price || 0))}
                         </p>
                         {Number(item.cost || 0) > 0 && (
                           <p className="text-xs text-gray-500 dark:text-slate-400">
-                            Cost: ${Number(item.cost || item.totalCost || 0).toFixed(2)}
+                            Cost: {money(Number(item.cost || item.totalCost || 0))}
                           </p>
                         )}
                       </td>

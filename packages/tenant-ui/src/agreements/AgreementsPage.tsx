@@ -25,7 +25,7 @@ function formatDate(value?: string | number | Date | null): string {
 }
 
 // api + the recurrence flag are injected once at the page root; child components read them via useAgreements().
-const AgreementsCtx = createContext<{ api: AgreementsApi; recurrence: boolean }>({ api: null as any, recurrence: false });
+const AgreementsCtx = createContext<{ api: AgreementsApi; recurrence: boolean; planNamePlaceholder: string }>({ api: null as any, recurrence: false, planNamePlaceholder: 'e.g., Annual maintenance plan' });
 const useAgreements = () => useContext(AgreementsCtx);
 
 interface AgreementContact {
@@ -222,7 +222,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   );
 
   return (
-    <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence }}>
+    <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence, planNamePlaceholder: config?.planNamePlaceholder || 'e.g., Annual maintenance plan' }}>
     <div className="space-y-6">
       {actionError && (
         <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
@@ -302,7 +302,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
             <StatCard
               icon={DollarSign}
               label="Monthly Revenue"
-              value={`$${stats.monthlyRecurringRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              value={`${money(stats.monthlyRecurringRevenue)}`}
               color="green"
             />
           )}
@@ -310,7 +310,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
             <StatCard
               icon={TrendingUp}
               label="Annual Revenue"
-              value={`$${stats.annualRecurringRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              value={`${money(stats.annualRecurringRevenue)}`}
               color="blue"
             />
           )}
@@ -795,7 +795,7 @@ function VisitsTab() {
 }
 
 function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
-  const { api } = useAgreements();
+  const { api, planNamePlaceholder } = useAgreements();
   const [form, setForm] = useState<{
     name: string;
     description: string;
@@ -865,7 +865,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 value={form.name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
-                placeholder="e.g., HVAC Maintenance Plan"
+                placeholder={planNamePlaceholder}
                 required
               />
             </div>

@@ -8,6 +8,7 @@ import { formatDate } from '../date'
 import { FileText, Plus, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth, usePrompt, useToast, errorText } from '../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -20,7 +21,10 @@ export default function AiaFormsPage() {
   const prompt = usePrompt()
   const toast = useToast()
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
-  const projectsOn = useAuth().hasFeature('projects')
+  const { hasFeature, can } = useAuth()
+  const projectsOn = hasFeature('projects')
+  // The writes below are aia-forms:update on the server (aiaForms.ts).
+  const mayUpdate = can('aia-forms:update')
   const [forms, setForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -72,6 +76,16 @@ export default function AiaFormsPage() {
     load();
   };
 
+  /**
+   * Submit and Mark paid: POST /:id/submit and /:id/mark-paid were on the server with no button, so a pay app stopped at
+   * "signed" for good. Found sweeping for the RFI's missing Close (live test 2026-10-22).
+   */
+  const advance = async (id: string, step: 'submit' | 'mark-paid') => {
+    try { await api.post(`/api/aia-forms/${id}/${step}`, {}); toast.success(step === 'submit' ? 'Pay application submitted' : 'Pay application marked paid'); }
+    catch (e) { toast.error(errorText(e, step === 'submit' ? 'The form could not be submitted' : 'The form could not be marked paid')); }
+    load();
+  };
+
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
 
   return (
@@ -92,9 +106,13 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 font-semibold">{f.formType}</td>
                   <td className="px-4 py-3 text-sm">{f.project?.name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(f.periodTo)}</td>
-                  <td className="px-4 py-3 font-mono text-sm">${Number(f.currentPaymentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{money(Number(f.currentPaymentDue))}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{f.status}</span></td>
-                  <td className="px-4 py-3">{f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-orange-600 text-xs hover:underline dark:text-orange-200">Sign</button>}</td>
+                  <td className="px-4 py-3">
+                    {mayUpdate && f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Sign</button>}
+                    {mayUpdate && f.status === 'signed' && <button onClick={() => advance(f.id, 'submit')} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Submit</button>}
+                    {mayUpdate && f.status === 'submitted' && <button onClick={() => advance(f.id, 'mark-paid')} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Mark paid</button>}
+                  </td>
                 </tr>
               ))}
           </tbody>
@@ -131,7 +149,7 @@ export default function AiaFormsPage() {
                           <td className="p-1"><input type="number" step="0.01" value={li.workPreviouslyCompleted} onChange={(e) => updateLine(i, 'workPreviouslyCompleted', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
                           <td className="p-1"><input type="number" step="0.01" value={li.workThisPeriod} onChange={(e) => updateLine(i, 'workThisPeriod', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
                           <td className="p-1"><input type="number" step="0.01" value={li.materialsStored} onChange={(e) => updateLine(i, 'materialsStored', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
-                          <td className="p-1 text-right font-mono">${Number(li.totalCompletedAndStored).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="p-1 text-right font-mono">{money(Number(li.totalCompletedAndStored))}</td>
                           <td className="p-1 text-right">{Number(li.percentComplete).toFixed(0)}%</td>
                         </tr>
                       ))}

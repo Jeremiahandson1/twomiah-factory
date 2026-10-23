@@ -6,6 +6,7 @@ import { Plus, Trash2, Snowflake, Loader2, CloudSnow } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const MODES = [
   { value: 'per_push', label: 'Per Push' },
@@ -167,7 +168,7 @@ export default function SnowBillingPage() {
     }
     try {
       const res = await api.post('/api/snow/events', { snowContractId: selected.id, ...evForm }) as { billableAmount: string | number }
-      toast.success(`Logged — billed $${dollars(Number(res.billableAmount))}`)
+      toast.success(`Logged — billed ${money(Number(res.billableAmount))}`)
       setEvForm(EMPTY_EVENT)
       openContract(selected); load()
     } catch (error) { toast.error(serverMessage(error, 'Failed to log event')) }
@@ -175,7 +176,7 @@ export default function SnowBillingPage() {
 
   // Unbilled visits → one draft invoice to the site's customer (T14 H5: the charge had no way to be billed).
   const billContract = async (ct: Contract, amount: number) => {
-    const ok = await confirm(`A draft invoice for the $${dollars(amount)} of unbilled snow visits at ${ct.siteName || 'this site'}. Review and send it from Invoices.`,
+    const ok = await confirm(`A draft invoice for the ${money(amount)} of unbilled snow visits at ${ct.siteName || 'this site'}. Review and send it from Invoices.`,
       { title: 'Bill these visits?', confirmText: 'Create draft invoice', danger: false })
     if (!ok) return
     setBilling(ct.id)
@@ -257,12 +258,12 @@ export default function SnowBillingPage() {
                     <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded dark:text-blue-300 dark:bg-blue-950/40">{MODES.find((m) => m.value === ct.billingMode)?.label}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-green-700 dark:text-green-300">${unbilled.toFixed(2)}</div>
+                    <div className="text-sm font-semibold text-green-700 dark:text-green-300">{money(unbilled)}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">unbilled • {sm.events || 0} events</div>
                     {unbilled > 0 && mayBill && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, unbilled) }} disabled={billing === ct.id}
                         className="btn-primary btn-sm mt-1 mr-2 disabled:opacity-50">
-                        {billing === ct.id ? 'Billing…' : `Bill $${dollars(unbilled)}`}
+                        {billing === ct.id ? 'Billing…' : `Bill ${money(unbilled)}`}
                       </button>
                     )}
                     {mayDelete && <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id) }} className="text-red-500 mt-1 dark:text-red-400" aria-label="Delete contract"><Trash2 className="w-4 h-4" /></button>}
@@ -325,7 +326,7 @@ export default function SnowBillingPage() {
                       {ev.belowTrigger && ev.billBelowTrigger && (
                         <span className="font-normal text-xs text-gray-500 dark:text-slate-400">below trigger · billed on request</span>
                       )}
-                      ${Number(ev.billableAmount).toFixed(2)}
+                      {money(Number(ev.billableAmount))}
                     </span>
                   </div>
                 ))}

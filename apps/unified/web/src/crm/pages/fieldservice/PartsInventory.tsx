@@ -10,6 +10,7 @@ import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { verticalScreens } from '../../vertical'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -133,7 +134,7 @@ export default function PartsInventory() {
         {maySeeCost && <StatCard
           icon={DollarSign}
           label="Total Value"
-          value={`$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`${money(totalValue)}`}
           color="green"
         />}
       </div>
@@ -234,7 +235,7 @@ export default function PartsInventory() {
                       {minStock || '-'}
                     </td>
                     {maySeeCost && <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
-                      ${Number(part.unitCost || 0).toFixed(2)}
+                      {money(Number(part.unitCost || 0))}
                     </td>}
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {/* Where it is stocked — the locations holding it. The template read part.location, which the

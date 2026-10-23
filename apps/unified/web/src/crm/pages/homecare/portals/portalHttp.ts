@@ -14,6 +14,7 @@
 //   · any other refusal is thrown as an Error carrying the server's sentence.
 import { createContext, useContext } from 'react'
 import { api } from '../lib/http'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** The address the API lives at (the app's client's: VITE_API_URL, or this origin). */
 const base = (): string => api.baseUrl
@@ -147,5 +148,5 @@ export function listRows<T>(reply: unknown): T[] {
 /** A money figure as the template printed it ($1234.50). Postgres numerics arrive as strings. */
 export function money(amount: unknown): string {
   if (amount == null) return '—'
-  return `$${(parseFloat(String(amount)) || 0).toFixed(2)}`
+  return `${formatMoney((parseFloat(String(amount)) || 0))}`
 }

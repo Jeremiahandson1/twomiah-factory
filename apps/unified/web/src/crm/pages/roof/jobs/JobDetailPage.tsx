@@ -32,6 +32,7 @@ import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -512,19 +513,19 @@ export default function JobDetailPage() {
                     <div>
                       <p className="text-gray-500 dark:text-slate-400">Deductible</p>
                       <p className="font-medium text-gray-900 dark:text-slate-100">
-                        {job.deductible != null ? `$${Number(job.deductible).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                        {job.deductible != null ? `${money(Number(job.deductible))}` : '—'}
                       </p>
                     </div>
                     <div>
                       <p className="text-gray-500 dark:text-slate-400">RCV</p>
                       <p className="font-medium text-gray-900 dark:text-slate-100">
-                        {job.rcv != null ? `$${Number(job.rcv).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                        {job.rcv != null ? `${money(Number(job.rcv))}` : '—'}
                       </p>
                     </div>
                     <div>
                       <p className="text-gray-500 dark:text-slate-400">ACV</p>
                       <p className="font-medium text-gray-900 dark:text-slate-100">
-                        {job.acv != null ? `$${Number(job.acv).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                        {job.acv != null ? `${money(Number(job.acv))}` : '—'}
                       </p>
                     </div>
                   </>)}
@@ -839,7 +840,7 @@ export default function JobDetailPage() {
                           </span>
                         </div>
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                          ${Number(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {money(Number(q.total || 0))}
                         </span>
                       </Link>
                     ))}
@@ -878,9 +879,9 @@ export default function JobDetailPage() {
                             </span>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900 dark:text-slate-100">${Number(inv.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{money(Number(inv.total || 0))}</p>
                             {balance > 0 && (
-                              <p className="text-xs text-red-600 dark:text-red-400">Bal: ${balance.toFixed(2)}</p>
+                              <p className="text-xs text-red-600 dark:text-red-400">Bal: {money(balance)}</p>
                             )}
                           </div>
                         </Link>

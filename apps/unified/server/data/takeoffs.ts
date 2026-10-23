@@ -72,6 +72,33 @@ export async function updateAssemblyFields(db: any, assemblyId: string, companyI
   `)
 }
 
+/**
+ * The prices on an assembly's materials — what each unit costs the company (unit_cost) and what the customer is charged
+ * for it (unit_price). Only rows of THIS assembly, and only when the assembly is this company's: assembly_material has
+ * no company_id, so it is reached through takeoff_assembly. A field not given is left as it is.
+ */
+export async function updateAssemblyMaterialPrices(db: any, assemblyId: string, companyId: string, materials: Array<{ id: string; unitCost?: number; unitPrice?: number }>) {
+  for (const m of materials) {
+    const sets: any[] = []
+    if (m.unitCost !== undefined) sets.push(sql`unit_cost = ${m.unitCost}`)
+    if (m.unitPrice !== undefined) sets.push(sql`unit_price = ${m.unitPrice}`)
+    if (!sets.length) continue
+    await db.execute(sql`
+      UPDATE assembly_material SET ${sql.join(sets, sql`, `)}
+      WHERE id = ${m.id} AND assembly_id = ${assemblyId}
+        AND assembly_id IN (SELECT id FROM takeoff_assembly WHERE company_id = ${companyId})
+    `)
+  }
+}
+
+/** The ids of this company's takeoff items measured with an assembly, so their materials can be worked out again. */
+export async function itemIdsUsingAssembly(db: any, assemblyId: string, companyId: string): Promise<string[]> {
+  return rowsOf(await db.execute(sql`
+    SELECT ti.id FROM takeoff_item ti JOIN takeoff_sheet ts ON ts.id = ti.sheet_id
+    WHERE ti.assembly_id = ${assemblyId} AND ts.company_id = ${companyId}
+  `)).map((r: any) => r.id)
+}
+
 export async function findAssemblyIdByName(db: any, companyId: string, name: string): Promise<string | null> {
   const row = rowsOf(await db.execute(sql`
     SELECT id FROM takeoff_assembly WHERE company_id = ${companyId} AND name = ${name}

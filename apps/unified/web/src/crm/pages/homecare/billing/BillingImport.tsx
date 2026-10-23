@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useMay } from '../lib/useMay'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // Column header aliases → canonical field names
 const HEADER_MAP: Record<string, string> = {
@@ -320,7 +321,7 @@ const BillingImport = () => {
                   <td className={td}>{row.serviceDate || '—'}</td>
                   <td className={td}>{row.hours || '—'}</td>
                   <td className={td}>{row.rate ? `$${row.rate}` : '—'}</td>
-                  <td className={td}>{row.amount ? `$${Number(parseFloat(row.amount || '0')).toFixed(2)}` : '—'}</td>
+                  <td className={td}>{row.amount ? `${money(Number(parseFloat(row.amount || '0')))}` : '—'}</td>
                 </tr>
               ))}
             </tbody>

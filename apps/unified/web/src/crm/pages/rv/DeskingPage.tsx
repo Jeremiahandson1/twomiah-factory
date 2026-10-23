@@ -5,8 +5,9 @@ import { ClipboardList, Loader2, Save } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite, errorText } from '../../../shared'
 import { DEAL_DEFAULTS, DEAL_KEYS, dealToText, dealTotals, parseDeal, leadLabel, type Deal, type DealInfo, type InboxLead, type InboxReply } from './deal';
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatMoney(Number(n || 0))}`;
 function payment(p: number, apr: number, m: number) {
   const r = apr / 100 / 12;
   if (!p || !m) return 0;

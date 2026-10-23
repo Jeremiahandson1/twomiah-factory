@@ -4,6 +4,7 @@ import { ClipboardCheck, Loader2, Send, CheckCircle2, AlertCircle } from 'lucide
 import { api } from '../../../api'
 import { errorText } from '../../../shared'
 import type { InboxLead, InboxReply } from './deal'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** POST /api/title-reg/submit (server/crm/rv/titleReg.ts): the DMV rail's answer, with the desked fee. */
 interface TitleResult {
@@ -13,7 +14,7 @@ interface TitleResult {
 type TitleOutcome = { result: TitleResult; provider: string; live: boolean } | { error: string }
 
 const STATES = ['WI', 'MN', 'IA', 'IL', 'MI', 'ND', 'SD', 'Other'];
-const money = (n: number) => '$' + (Number(n) || 0).toFixed(2);
+const money = (n: number) => formatMoney((Number(n) || 0));
 
 // Title & registration is filed for a sold deal (the server refuses others), and the fee shown is the title & reg
 // fee desked on the deal. Nothing reads as a success unless the DMV rail actually accepted it. (RV T19 L1)

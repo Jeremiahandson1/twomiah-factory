@@ -8,6 +8,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { EquipmentApi, EquipmentCategory, EquipmentPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
+import { money } from '../money';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -111,14 +112,18 @@ interface EquipmentStats {
   needsRepair: number;
 }
 
+/**
+ * One row of equipment_maintenance, as GET /:id/history sends it (tenant-backend equipment/equipment.ts). This read
+ * serviceType / serviceDate / technician / recommendations, none of which the row has, so a record that was there
+ * showed with no type and no date. (live test 2026-10-22)
+ */
 interface ServiceRecord {
   id: string;
-  serviceType: string;
-  serviceDate: string;
-  technician?: { firstName: string; lastName: string };
-  cost?: number;
-  description?: string;
-  recommendations?: string;
+  type: string;
+  performedAt: string;
+  description?: string | null;
+  cost?: string | number | null;
+  nextDueDate?: string | null;
 }
 
 interface Contact {
@@ -147,7 +152,7 @@ interface EquipmentFormModalProps {
   types: CategoryRow[];
   suggestions: EquipmentCategory[];
   onTypesChanged: () => void;
-  config: { contacts: boolean; sites: boolean; linkedJobs: boolean };
+  config: { contacts: boolean; sites: boolean; linkedJobs: boolean; placeholders: { name: string; manufacturer: string; location: string } };
   onSave: () => void;
   onClose: () => void;
 }
@@ -179,7 +184,10 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
    * history of the machine in front of them, and hiding those is the more expensive mistake.
    */
   const mayCreate = useMayWrite('equipment:create');
-  const cfg = { contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs };
+  const cfg = {
+    contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs,
+    placeholders: { name: config?.placeholders?.name || 'e.g., Main unit', manufacturer: config?.placeholders?.manufacturer || 'e.g., Brand name', location: config?.placeholders?.location || 'e.g., Garage' },
+  };
   const [types, setTypes] = useState<CategoryRow[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [stats, setStats] = useState<EquipmentStats | null>(null);
@@ -693,7 +701,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                   value={form.name}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="e.g., Main AC Unit"
+                  placeholder={config.placeholders.name}
                   required
                 />
               </div>
@@ -759,7 +767,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                   value={form.brand}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, brand: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="e.g., Carrier"
+                  placeholder={config.placeholders.manufacturer}
                 />
               </div>
 
@@ -790,7 +798,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                   value={form.location}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, location: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="e.g., Basement, Attic"
+                  placeholder={config.placeholders.location}
                 />
               </div>
 
@@ -928,22 +936,21 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
         <div key={record.id} className="p-4 border rounded-lg">
           <div className="flex items-start justify-between">
             <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">{record.serviceType}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{record.type}</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">
-                {formatDate(record.serviceDate)}
-                {record.technician && ` • ${record.technician.firstName} ${record.technician.lastName}`}
+                {formatDate(record.performedAt)}
               </p>
             </div>
-            {record.cost && record.cost > 0 && (
-              <span className="text-gray-900 font-medium dark:text-slate-100">${record.cost}</span>
+            {Number(record.cost) > 0 && (
+              <span className="text-gray-900 font-medium dark:text-slate-100">{money(record.cost)}</span>
             )}
           </div>
           {record.description && (
             <p className="mt-2 text-gray-600 dark:text-slate-400">{record.description}</p>
           )}
-          {record.recommendations && (
-            <p className="mt-2 text-sm text-orange-600 dark:text-orange-200">
-              Recommendation: {record.recommendations}
+          {record.nextDueDate && (
+            <p className="mt-2 text-sm text-orange-700 dark:text-orange-200">
+              Next service due {formatDate(record.nextDueDate)}
             </p>
           )}
         </div>
@@ -999,12 +1006,27 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
             {mayUpdate && (
               <button
                 onClick={() => setShowAddForm(true)}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg"
+                disabled={showAddForm}
+                className="px-4 py-2 bg-orange-700 hover:bg-orange-800 text-white rounded-lg disabled:opacity-50"
               >
                 Add Service Record
               </button>
             )}
           </div>
+
+          {/*
+            "Add Service Record does nothing." (live test 2026-10-22, contractor) The button set showAddForm and
+            nothing ever read it — there was no form. This is the form POST /:id/history takes: what was done
+            (type, required), notes, what it cost and when the next service is due.
+          */}
+          {showAddForm && (
+            <AddServiceRecordForm
+              api={api}
+              equipmentId={equipment.id}
+              onCancel={() => setShowAddForm(false)}
+              onSaved={() => { setShowAddForm(false); setTab('maintenance'); loadHistory(); onRefresh(); }}
+            />
+          )}
 
           {config.linkedJobs && (
             <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 dark:bg-slate-800">
@@ -1039,5 +1061,61 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
         </div>
       </div>
     </div>
+  );
+}
+/** The record POST /api/equipment/:id/history writes (equipment:update): the button above it only opened this. */
+function AddServiceRecordForm({ api, equipmentId, onCancel, onSaved }: { api: EquipmentApi; equipmentId: string; onCancel: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ type: '', description: '', cost: '', nextDueDate: '' });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const field = 'w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.type.trim()) { setError('Say what was done — for example "Annual service".'); return; }
+    const cost = form.cost.trim() === '' ? undefined : Number(form.cost);
+    if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) { setError('The cost must be a number, 0 or more.'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.post(`/api/equipment/${equipmentId}/history`, {
+        type: form.type.trim(),
+        ...(form.description.trim() ? { description: form.description.trim() } : {}),
+        ...(cost !== undefined ? { cost } : {}),
+        ...(form.nextDueDate ? { nextDueDate: form.nextDueDate } : {}),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'The service record could not be saved.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <form onSubmit={save} noValidate aria-label="Add service record" className="mb-4 p-4 border border-gray-200 rounded-lg space-y-3 dark:border-slate-700">
+      <div>
+        <label htmlFor="service-record-type" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What was done *</label>
+        <input id="service-record-type" value={form.type} onChange={(e) => { setForm((f) => ({ ...f, type: e.target.value })); setError(''); }}
+          aria-invalid={!!error && !form.type.trim()} aria-describedby={error ? 'service-record-error' : undefined}
+          className={field} placeholder="e.g. Annual service" autoFocus />
+      </div>
+      <div>
+        <label htmlFor="service-record-notes" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+        <textarea id="service-record-notes" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={field} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="service-record-cost" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Cost</label>
+          <input id="service-record-cost" type="number" min="0" step="0.01" inputMode="decimal" value={form.cost} onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))} className={field} />
+        </div>
+        <div>
+          <label htmlFor="service-record-next" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Next service due</label>
+          <input id="service-record-next" type="date" value={form.nextDueDate} onChange={(e) => setForm((f) => ({ ...f, nextDueDate: e.target.value }))} className={field} />
+        </div>
+      </div>
+      {error && <p id="service-record-error" role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 dark:border-slate-600 dark:text-slate-200">Cancel</button>
+        <button type="submit" disabled={saving} className="px-4 py-2 bg-orange-700 hover:bg-orange-800 text-white rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save record'}</button>
+      </div>
+    </form>
   );
 }

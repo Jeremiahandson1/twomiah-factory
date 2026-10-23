@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Calculator, Loader2, Info } from 'lucide-react'
 import { api } from '../../../api'
 import { errorText } from '../../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 type TradeForm = { year: string; make: string; model: string; category: string; mileageHours: string; condition: string }
 /** POST /api/ai-trade/appraise (server/crm/rv/ai.ts): the model's estimate, whole dollars. */
@@ -18,7 +19,7 @@ interface Appraisal {
 
 const CATEGORIES = ['motorcycle', 'atv', 'utv', 'snowmobile', 'pwc', 'boat', 'motorhome', 'towable'];
 const CONDITIONS = ['excellent', 'good', 'fair', 'rough'];
-const money = (n?: number) => (typeof n === 'number' ? `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
+const money = (n?: number) => (typeof n === 'number' ? `${formatMoney(n)}` : '—');
 
 export default function AITradeAppraisalPage() {
   const [f, setF] = useState<TradeForm>({ year: '2022', make: 'Bennington', model: '22 SSBX', category: 'boat', mileageHours: '50 hrs', condition: 'good' });

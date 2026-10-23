@@ -50,6 +50,10 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<JobRow | null>(null)
+  // The statuses the filter and the form offer: a vertical's own list if it set one, else the server's (one list —
+  // JOB_STATUSES, sent with every page of jobs), else the same list built in until the first page arrives.
+  const [serverStatuses, setServerStatuses] = useState<string[] | null>(null)
+  const statuses = config?.statuses && config.statuses.length ? cfg.statuses : (serverStatuses || cfg.statuses)
   const [form, setForm] = useState<JobForm>(emptyForm(cfg.statuses[0], 'normal'))
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -77,6 +81,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       const res = await api.get('/api/jobs', params)
       setData(res?.data || [])
       setPagination(res?.pagination || null)
+      if (Array.isArray(res?.statuses) && res.statuses.length) setServerStatuses(res.statuses)
     } catch (err) { toast.error(errMsg(err, `Failed to load ${cfg.labels.plural.toLowerCase()}`)) } finally { setLoading(false) }
   }, [page, search, statusFilter, projectFilter, branchFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -249,7 +254,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${selectCls} capitalize`}>
           <option value="">All Status</option>
-          {cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+          {statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}
         </select>
         {branches.length > 0 && (
           <select aria-label="Branch" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className={selectCls}>
@@ -270,7 +275,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${cfg.labels.singular}` : cfg.labels.add} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2"><Field label="Title *"><input value={form.title} onChange={set('title')} className={inputCls} /></Field></div>
-          <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!cfg.statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
+          <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
           <Field label="Priority"><select value={form.priority} onChange={set('priority')} className={`${inputCls} capitalize`}>{cfg.priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}{form.locationId && !branches.some((b) => b.id === form.locationId) && <option value={form.locationId}>Inactive branch</option>}</select></Field>}
           {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}

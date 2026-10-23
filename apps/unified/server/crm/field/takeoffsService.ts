@@ -38,12 +38,17 @@ function calculateMeasurement(data: any, measurementType: string): number {
 
 /**
  * A thing you buy one of, or a measure you buy some of (T32 L8). Anything unrecognised keeps its decimals.
+ *
+ * Goods sold BY WEIGHT are bought in whole pounds (or kilos): screws and nails come in 1 lb boxes, and nobody orders
+ * 1.23 lb of drywall screws. The standard Drywall assembly's screws are in lb, so a quote showed "1.23" of them
+ * (live test 2026-10-22, contractor).
  */
 const DISCRETE_UNITS = new Set([
   'each', 'ea', 'pc', 'pcs', 'piece', 'pieces', 'unit', 'units',
   'sheet', 'sheets', 'board', 'boards', 'stud', 'studs', 'panel', 'panels',
   'bag', 'bags', 'box', 'boxes', 'roll', 'rolls', 'tube', 'tubes', 'bundle', 'bundles',
   'can', 'cans', 'bucket', 'buckets', 'pail', 'pails',
+  'lb', 'lbs', 'pound', 'pounds', 'kg', 'kgs',
 ])
 const isDiscreteUnit = (unit: unknown) => DISCRETE_UNITS.has(String(unit || '').trim().toLowerCase())
 
@@ -131,8 +136,18 @@ export function createTakeoffsService(d: CrmDeps) {
     return assemblies
   }
 
+  /**
+   * The assembly's own fields and, with `materials`, the cost and SELLING price of its materials — the one place an owner
+   * sets what a material is charged at. Nothing could: the standard assemblies are seeded with a cost and no selling price,
+   * and no screen edited one, so "Add to quote" priced every line at $0.00 (live test 2026-10-22). A sheet keeps the price
+   * it was worked out at (takeoff_calculated_material), so every item measured with this assembly is worked out again.
+   */
   async function updateAssembly(assemblyId: string, companyId: string, data: any) {
     await q.updateAssemblyFields(db, assemblyId, companyId, data)
+    if (Array.isArray(data?.materials) && data.materials.length) {
+      await q.updateAssemblyMaterialPrices(db, assemblyId, companyId, data.materials)
+      for (const itemId of await q.itemIdsUsingAssembly(db, assemblyId, companyId)) await calculateItemMaterials(itemId)
+    }
   }
 
   async function seedDefaultAssemblies(companyId: string) {

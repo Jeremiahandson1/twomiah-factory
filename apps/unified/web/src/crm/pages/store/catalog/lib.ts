@@ -6,6 +6,7 @@
 // parseFloat and multiplied, so '1.005' or '0.29' could land a cent off; these read the digits instead).
 import { useEffect, useState } from 'react'
 import { api } from '../../../../api'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 export interface ProductImage { id: string; productId: string; url: string; alt: string | null; position: number; isPrimary: boolean }
 export interface ProductVariant {
@@ -89,7 +90,7 @@ export function formatMoney(cents: number | null | undefined, currency = 'usd'):
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: (currency || 'usd').toUpperCase() }).format(n)
   } catch {
-    return `$${n.toFixed(2)}`
+    return `${money(n)}`
   }
 }
 

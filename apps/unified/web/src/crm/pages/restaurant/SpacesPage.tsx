@@ -4,6 +4,7 @@ import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide
 import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Spaces — the rooms you can sell. Minimum spend is the number the sales
@@ -27,7 +28,7 @@ interface Space {
 
 function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v))}`;
 }
 
 export default function SpacesPage() {

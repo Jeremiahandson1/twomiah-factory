@@ -55,6 +55,8 @@ const fieldservice: VerticalSettings = {
   },
   // templates/crm-fieldservice/frontend/src/*Config.ts
   screens: {
+    // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
+    warranties: { namePlaceholder: 'e.g., Parts and labor — one year', categoryPlaceholder: 'e.g., parts', claimTitlePlaceholder: 'e.g., AC not cooling after repair', claimLocationPlaceholder: 'e.g., Attic air handler' },
     // The menu in this trade's words, by page address.
     nav: { '/crm/jobs': 'Service Calls', '/crm/job-costing': 'Service Call Costing', '/crm/tech': 'Tech View' },
     searchPlaceholder: 'Search contacts, service calls, invoices...',
@@ -63,6 +65,7 @@ const fieldservice: VerticalSettings = {
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. AC Compressor Replacement', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
     equipment: {
+      placeholders: { name: 'e.g., Main AC Unit', manufacturer: 'e.g., Carrier', location: 'e.g., Basement, Attic' },
       contacts: true, sites: true, linkedJobs: true,
       categories: [
         { name: 'HVAC', icon: 'hvac' }, { name: 'Plumbing', icon: 'plumbing' }, { name: 'Electrical', icon: 'electrical' },
@@ -79,14 +82,14 @@ const fieldservice: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Service Calls & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options' },
+    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. AC tune-up' },
     reporting: { jobsLabel: 'Service Calls', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },
     time: { jobLabel: 'Service Call' },
     expenses: { jobLabel: 'Service Call' },
     team: { rolePlaceholder: 'e.g. Lead Technician' },
-    agreements: { recurrence: true },
+    agreements: { recurrence: true, planNamePlaceholder: 'e.g., HVAC Maintenance Plan' },
     fleet: { gps: true },
     portal: {
       providerNoun: 'service team',

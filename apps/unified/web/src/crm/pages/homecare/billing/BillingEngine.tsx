@@ -14,9 +14,10 @@ import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { useMay } from '../lib/useMay'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 type Num = string | number | null | undefined
-const money = (n: Num) => `$${(parseFloat(String(n || 0)) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const money = (n: Num) => `${formatMoney((parseFloat(String(n || 0)) || 0))}`
 const STATUSES = ['draft', 'pending', 'ready', 'submitted', 'accepted', 'paid', 'denied', 'voided']
 // Self-contained chips: ground + ink set together, readable in both themes.
 const STATUS_CHIP: Record<string, string> = {

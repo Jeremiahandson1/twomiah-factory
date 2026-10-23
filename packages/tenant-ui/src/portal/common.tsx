@@ -3,10 +3,11 @@ import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { dateOnly } from '../invoicing/ui'
+import { money as formatMoney } from '../money'
 
 /** Date-only values (due dates, scheduled dates) rendered without the UTC-midnight day shift. */
 export const formatDate = (v: unknown): string => { if (!v) return ''; const s = dateOnly(v); return s === '-' ? '' : s }
-export const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+export const money = (n: unknown) => `${formatMoney(Number(n || 0))}`
 // Money the customer is shown always carries its cents — this used to drop them, so a $824.60 quote read "$824.6".
 // (Landscaping T14 L1; the name is kept because the portal pages use it throughout.)
 export const moneyShort = money

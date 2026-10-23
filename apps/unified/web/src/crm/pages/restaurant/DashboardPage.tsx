@@ -10,6 +10,7 @@ import {
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { STATUS_COLORS, fmtEventDate, prettyType, localDay } from './EventsPage';
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Twomiah Events — dashboard.
@@ -38,7 +39,7 @@ interface DueRow { id: string; label?: string; amount?: number | string; paidAmo
 interface Activity { newEnquiries?: EnquiryRow[]; upcomingEvents?: UpcomingRow[]; duePayments?: DueRow[]; moneyWithheld?: boolean }
 
 function money(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(Number(v || 0))}`;
 }
 function isOverdue(dueDate?: string): boolean {
   return !!dueDate && dueDate < localDay();

@@ -10,6 +10,7 @@ import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDa
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
 import { PAYMENT_METHODS, useMayWrite, useConfirm, errorText } from '../../../shared'
 import ClientPicker from './ClientPicker'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * The event file — GET /api/events/:id returns
@@ -73,7 +74,7 @@ interface PackageOption { id: string; name?: string; pricePerPerson?: number | s
 interface SpaceOption { id: string; name?: string; seatedCapacity?: number }
 
 function money2(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${money(Number(v || 0))}`;
 }
 function lineTotal(l: MenuLine): number {
   return Number(l.unitPrice || 0) * Number(l.quantity || 0);

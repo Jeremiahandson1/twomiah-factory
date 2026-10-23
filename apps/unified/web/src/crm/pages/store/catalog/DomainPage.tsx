@@ -22,6 +22,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AlertCircle, Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2 } from 'lucide-react'
 import { api } from '../../../../api'
 import { errorText, useMayWrite } from '../../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // What a domain costs, charged to the owner: now, and each year after (Factory services/domainQuote.ts).
 interface DomainQuote { firstYearCents: number; renewalCents: number; renewsHigher: boolean }
@@ -29,7 +30,7 @@ interface DomainCheck { domain: string; available: boolean; premium?: boolean; q
 // registrar 'byod' = the owner's own registrar, where they set the nameservers; otherwise bought through Twomiah.
 interface DomainStatus { status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain?: string | null; nameservers?: string[]; registrar?: string | null }
 
-const usd = (cents: number) => '$' + (cents / 100).toFixed(2)
+const usd = (cents: number) => money((cents / 100))
 /** server/modules/domain.ts DOMAIN_RE. */
 const DOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/
 

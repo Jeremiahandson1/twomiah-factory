@@ -7,6 +7,7 @@ import {
 import type { RecurringPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext';
+import { money } from '../money'
 
 // UTC-safe date formatting (carried from templates' utils/date).
 function formatDate(value?: string | number | Date | null): string {
@@ -191,7 +192,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                 <DollarSign className="w-5 h-5 text-orange-600 dark:text-orange-200" />
               </div>
               <div>
-                <p className="text-2xl font-bold">${(stats.monthlyRecurringRevenue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold">{money((stats.monthlyRecurringRevenue ?? 0))}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Monthly Revenue</p>
               </div>
             </div>
@@ -246,7 +247,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                     <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400">
                       <span>{FREQUENCIES[item.frequency as string] || item.frequency as string}</span>
                       <span>•</span>
-                      <span>${Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span>{money(Number(item.total))}</span>
                       {/* invoiceCount is what the API sends (invoice_count, camelised); _count.generatedInvoices never existed. (T64) */}
                       {Number(item.invoiceCount || 0) > 0 && (
                         <>

@@ -4,6 +4,7 @@ import { Plus, Loader2, X, CalendarDays, Trophy, Repeat, Trash2 } from 'lucide-r
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * WHAT'S ON — the public calendar the website shows (trivia, live music, the fish fry), the games worth
@@ -134,7 +135,7 @@ export default function HappeningsPage() {
               <li key={s.id} className="flex items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-slate-100">{s.title}</p>
-                  <p className="text-sm text-gray-500 dark:text-slate-400">{daysLabel(s.recurrenceDays)}{s.priceCents !== null ? ` · $${(s.priceCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{daysLabel(s.recurrenceDays)}{s.priceCents !== null ? ` · ${money((s.priceCents / 100))}` : ''}</p>
                 </div>
                 {mayEdit && <button onClick={() => remove('/api/bar/specials', s.id)} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Remove ${s.title}`}><Trash2 className="w-4 h-4" /></button>}
               </li>
