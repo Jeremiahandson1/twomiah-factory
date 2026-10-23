@@ -30,6 +30,8 @@ export interface IntegrationsConfig {
    * person holds integrations:update (the API's own right). Templates WITH a Call Tracking page carry it there.
    */
   callTracking?: boolean
+  /** The business's switches: the QuickBooks card shows with quickbooks on, the Stripe card with online_payments. Absent: both show. */
+  hasFeature?: (id: string) => boolean
 }
 
 export interface ImportTypeDef {
@@ -57,4 +59,9 @@ export interface ReviewsConfig {
   subjectLabel?: string
   autoRequestHelp?: string
   emptyHelp?: string
+  /**
+   * Where this vertical asks one customer by hand (the Send review request button), as the end of a sentence:
+   * "on a job or a customer's page". Empty: the vertical has no such button, and the page does not claim one.
+   */
+  manualHelp?: string
 }

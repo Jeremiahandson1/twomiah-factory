@@ -8,6 +8,7 @@ import { eq, and, gte, lte, count, desc, asc, sql, inArray } from 'drizzle-orm'
 import { checkFilter } from '../listFilter'
 import { hasHappened } from '../dateInput'
 import { createStaffBalanceStore, SETTLE_ROUTES, payrollDeductionsAllowed, PAYROLL_DEDUCTION_SETTING, type SettleRoute } from '../team/staffBalance'
+import { sniffType } from '../files/storage'
 
 export interface ExpenseTables {
   expense: any
@@ -30,6 +31,16 @@ export interface ExpenseDeps {
   authenticate: any
   requirePermission: (permission: string) => any
   audit?: { log: (entry: any) => any }
+  /**
+   * The private file store, for a receipt's photo (POST/GET/DELETE /:id/receipt). Absent: those routes are not mounted
+   * and an expense keeps only the receipt address typed into it — the old templates' behaviour.
+   */
+  storage?: {
+    put: (key: string, body: Buffer, contentType: string) => Promise<void>
+    getObject: (key: string) => Promise<{ body: ArrayBuffer; contentType: string } | null>
+    deleteFile?: (key: string) => unknown
+    storageConfigured?: () => boolean
+  }
   options?: {
     /** Allowed category ids. Default materials / equipment / labor / travel / other. */
     categories?: string[]
@@ -332,6 +343,86 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
       payrollDeductionSetting: PAYROLL_DEDUCTION_SETTING,
     })
   })
+
+  /**
+   * A RECEIPT'S PHOTO. (live test 2026-10-22: "Expenses: no receipt photo")
+   *
+   * The registry sells Expense Tracking as "Expense logging and receipts", and the only receipt an expense could carry
+   * was a web address typed into a field the form never showed. Now a photo (or a PDF) of the receipt is kept in the
+   * company's PRIVATE store — never a public address — and served back only here, to whoever may read that expense:
+   * a manager, or the person who claimed it (the list's own rule, Salon RR6 E7). Attaching one is evidence, not a
+   * change to the figure, so it never ends an approval (the rule PUT /:id states) and the claimant may attach one to
+   * their own claim even once it is approved.
+   *
+   * Stored as /api/expenses/<id>/receipt?f=<file> in receipt_url: the address the screen opens, and the file's name
+   * under <companyId>/receipts/ — read back only when the address is this expense's own.
+   */
+  if (deps.storage) {
+    const store = deps.storage
+    const RECEIPT_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' }
+    const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
+    const ownAddress = (id: string) => `/api/expenses/${id}/receipt?f=`
+    const fileOf = (row: any): string | null => {
+      const url = String(row?.receiptUrl || '')
+      const prefix = ownAddress(row.id)
+      if (!url.startsWith(prefix)) return null
+      const f = url.slice(prefix.length)
+      return /^[a-f0-9]{32}\.(jpg|png|webp|gif|pdf)$/.test(f) ? f : null
+    }
+    const mayReach = (u: any, row: any) => MANAGER_ROLES.has(u.role) || isMine(u, row)
+
+    app.post('/:id/receipt', requirePermission('expenses:update'), async (c) => {
+      const currentUser = (c as any).get('user')
+      const row = await ownExpense(c.req.param('id'), currentUser.companyId)
+      if (!row || !mayReach(currentUser, row)) return c.json({ error: 'Expense not found' }, 404)
+      const form = await c.req.formData().catch(() => null)
+      const file = form?.get('receipt') as File | null
+      if (!file || typeof file === 'string') return c.json({ error: 'Choose a photo or a PDF of the receipt.' }, 400)
+      if (file.size > MAX_RECEIPT_BYTES) return c.json({ error: 'A receipt must be under 10 MB.' }, 400)
+      const buffer = Buffer.from(await file.arrayBuffer())
+      // The bytes decide what it is, not the name or the declared type.
+      const type = sniffType(buffer) || ''
+      if (!RECEIPT_TYPES[type]) return c.json({ error: 'A receipt must be a photo (JPEG, PNG, WebP or GIF) or a PDF.' }, 400)
+      if (store.storageConfigured && !store.storageConfigured()) return c.json({ error: 'File storage is not set up yet, so a receipt cannot be kept.', code: 'storage_not_configured' }, 503)
+      const name = `${crypto.randomUUID().replace(/-/g, '')}.${RECEIPT_TYPES[type]}`
+      await store.put(`${currentUser.companyId}/receipts/${name}`, buffer, type)
+      const before = fileOf(row)
+      const [updated] = await db.update(t.expense).set({ receiptUrl: ownAddress(row.id) + name, updatedAt: new Date() })
+        .where(and(eq(t.expense.id, row.id), eq(t.expense.companyId, currentUser.companyId))).returning()
+      if (before) { try { await store.deleteFile?.(`${currentUser.companyId}/receipts/${before}`) } catch { /* the row is the record */ } }
+      audit?.log({ action: 'update', entity: 'expense', entityId: row.id, metadata: { receipt: 'attached' }, req: { user: currentUser } })
+      return c.json((await withRelations(currentUser.companyId, [updated]))[0], 201)
+    })
+
+    app.get('/:id/receipt', requirePermission('expenses:read'), async (c) => {
+      const currentUser = (c as any).get('user')
+      const row = await ownExpense(c.req.param('id'), currentUser.companyId)
+      if (!row || !mayReach(currentUser, row)) return c.json({ error: 'Expense not found' }, 404)
+      const name = fileOf(row)
+      if (!name) return c.json({ error: 'This expense has no receipt attached.' }, 404)
+      const obj = await store.getObject(`${currentUser.companyId}/receipts/${name}`)
+      if (!obj) return c.json({ error: 'The receipt file could not be found.' }, 404)
+      // Shown in the browser (a photo, or a PDF in its viewer), never as a page that could run anything.
+      return c.body(obj.body as any, 200, {
+        'Content-Type': RECEIPT_TYPES[obj.contentType] ? obj.contentType : 'application/octet-stream',
+        'Content-Disposition': `inline; filename="receipt.${name.split('.').pop()}"`,
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+        'Cache-Control': 'private, max-age=300',
+      })
+    })
+
+    app.delete('/:id/receipt', requirePermission('expenses:update'), async (c) => {
+      const currentUser = (c as any).get('user')
+      const row = await ownExpense(c.req.param('id'), currentUser.companyId)
+      if (!row || !mayReach(currentUser, row)) return c.json({ error: 'Expense not found' }, 404)
+      const name = fileOf(row)
+      await db.update(t.expense).set({ receiptUrl: null, updatedAt: new Date() })
+        .where(and(eq(t.expense.id, row.id), eq(t.expense.companyId, currentUser.companyId)))
+      if (name) { try { await store.deleteFile?.(`${currentUser.companyId}/receipts/${name}`) } catch { /* the row is the record */ } }
+      return c.body(null, 204)
+    })
+  }
 
   app.get('/:id', requirePermission('expenses:read'), async (c) => {
     const currentUser = (c as any).get('user')

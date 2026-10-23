@@ -7,6 +7,7 @@
 // cache, so a switch takes effect on the next request. settings.enabledFeatures is no longer written: nothing in the
 // unified app reads it.
 import { eq } from 'drizzle-orm'
+import { withinOffer } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 
@@ -18,7 +19,8 @@ export function createAgencyFeatures(d: CrmDeps) {
   async function setAgencyFeatures(companyId: string, features: string[], extra: Record<string, unknown> = {}) {
     const [row] = await d.db.select({ id: company.id }).from(company).where(eq(company.id, companyId)).limit(1)
     if (!row) return null
-    const list = [...new Set((features || []).filter((f): f is string => typeof f === 'string'))]
+    // Only what home care is offered (withinOffer, the rule every writer of the list applies).
+    const list = withinOffer('crm-homecare', (features || []).filter((f): f is string => typeof f === 'string'))
     const [updated] = await d.db.update(company)
       .set({ ...extra, enabledFeatures: list, updatedAt: new Date() } as any)
       .where(eq(company.id, row.id))

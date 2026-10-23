@@ -23,6 +23,9 @@ export interface IntegrationsRoutesDeps {
    */
   factoryApiClient?: { registerStripeAccount(accountId: string | null): Promise<unknown> }
   frontendUrl?: string
+  /** Gates for the QuickBooks and Stripe doors (the unified app: the quickbooks and online_payments switches). */
+  requireQuickbooks?: (c: any, next: any) => any
+  requireOnlinePayments?: (c: any, next: any) => any
 }
 
 export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
@@ -75,6 +78,10 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   })
 
   app.use('*', authenticate)
+  // QuickBooks' doors are its switch's, Stripe's are Online Payments' (2026-10-22): off, refused, as their cards on the
+  // Integrations page are gone. QuickBooks' callback above stays (no session).
+  if (deps.requireQuickbooks) app.use('/quickbooks/*', deps.requireQuickbooks)
+  if (deps.requireOnlinePayments) app.use('/stripe/*', deps.requireOnlinePayments)
   const user = (c: any) => c.get('user') as any
 
   /**

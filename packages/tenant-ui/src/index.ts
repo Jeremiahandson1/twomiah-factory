@@ -17,6 +17,7 @@ export { IntegrationsPage, DEFAULT_LEAD_SOURCES } from './settings/IntegrationsP
 export { ImportPage, DEFAULT_IMPORT_TYPES, DEFAULT_IMPORT_CONTACT_TYPES } from './settings/ImportPage'
 export { MigrationPage } from './settings/MigrationPage'
 export { ReviewsPage } from './reviews/ReviewsPage'
+export { ReviewRequestButton } from './reviews/ReviewRequestButton'
 export type { SettingsApi, SettingsToast, IntegrationsConfig, LeadSourceGuide, ImportConfig, ImportTypeDef, MigrationConfig, ReviewsConfig } from './settings/integrationsTypes'
 // Email marketing (campaigns / templates / sequences with enrolment) and the two-way texting inbox — one page each for every CRM.
 export { MarketingPage } from './marketing/MarketingPage'

@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import { FileText, CheckCircle, XCircle, Clock, Download, PenTool } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
-import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, moneyShort, PortalModal, inputCls, labelCls } from './common'
+import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
 
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' }
 const RESPONDABLE = ['sent', 'viewed']
@@ -67,7 +67,7 @@ function QuoteCard({ quote, token, highlight }: { quote: PortalQuoteData; token?
 export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {}) {
   const { quoteId: routeId } = useParams<{ quoteId: string }>()
   const quoteId = givenId || routeId
-  const { token, fetch: portalFetch, contact, url, link } = usePortal()
+  const { token, fetch: portalFetch, contact, url, link, company } = usePortal()
   const [quote, setQuote] = useState<PortalQuoteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -141,7 +141,7 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700">
             <div className="flex items-start gap-4">
               <CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" />
-              <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatDate(quote.approvedAt)}` : ''}</p>{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} />}</div>
+              <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatWhen(quote.approvedAt, company?.timeZone)}` : ''}</p>{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} timeZone={company?.timeZone} />}</div>
             </div>
           </div>
         )}

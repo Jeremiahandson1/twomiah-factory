@@ -21,7 +21,7 @@ import { api } from '../../../../api'
 import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
-import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, pipelineFor, rowsOf } from './model'
+import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
@@ -61,7 +61,10 @@ interface JobForm {
   contactId: string; jobType: string; address: string; city: string; state: string; zip: string
   roofType: string; stories: string; totalSquares: string; scheduledDate: string; scheduledTime: string; notes: string
 }
-const EMPTY_FORM: JobForm = { contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', totalSquares: '', scheduledDate: '', scheduledTime: '', notes: '' }
+/** The required address boxes and the word each is called by (server/crm/roof/jobs.ts REQUIRED_JOB_FIELDS). */
+const REQUIRED_ADDRESS: Array<[keyof JobForm, string]> = [['address', 'property address'], ['city', 'city'], ['state', 'state'], ['zip', 'ZIP code']]
+const spoken = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`)
+const EMPTY_FORM: JobForm ={ contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', totalSquares: '', scheduledDate: '', scheduledTime: '', notes: '' }
 
 export default function JobsPage() {
   // Offer a write only where it is allowed: POST /api/jobs asks jobs:create.
@@ -97,6 +100,9 @@ export default function JobsPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<JobForm>(EMPTY_FORM)
   const [contacts, setContacts] = useState<ContactOption[]>([])
+  // The required boxes left blank on the last Create press, outlined until it is pressed again.
+  const [missing, setMissing] = useState<string[]>([])
+  const addressBox = (k: string) => `w-full text-sm border rounded-lg px-3 py-2 ${missing.includes(k) ? 'border-red-500 dark:border-red-400' : ''}`
 
   const limit = 25
 
@@ -114,7 +120,8 @@ export default function JobsPage() {
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
         api.get('/api/jobs', params) as Promise<{ data?: RoofJob[]; pagination?: { total?: number } }>,
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
       ])
       setJobs(rowsOf<RoofJob>(jobsRes))
       // The distinct set for the whole tenant, not just this page — a legacy type further down the list would
@@ -137,6 +144,7 @@ export default function JobsPage() {
 
   const openCreate = async () => {
     setForm(EMPTY_FORM)
+    setMissing([])
     try {
       // The homeowner: customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
       setContacts(customersOnly(rowsOf<ContactOption>(await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }))))
@@ -146,6 +154,11 @@ export default function JobsPage() {
 
   const handleCreate = async () => {
     if (!form.contactId) { toast.error('Select a contact'); return }
+    // The property address, city, state and ZIP are what a roofing job is made from (the server refuses without them in
+    // the same words, server/crm/roof/jobs.ts REQUIRED_JOB_FIELDS); said and marked here before anything is sent.
+    const blank = REQUIRED_ADDRESS.filter(([k]) => !form[k].trim()).map(([k]) => k)
+    setMissing(blank)
+    if (blank.length) return
     setSaving(true)
     try {
       const { address, stories, roofType, totalSquares, scheduledDate, scheduledTime, ...rest } = form
@@ -169,7 +182,8 @@ export default function JobsPage() {
   crews.forEach((c) => (crewMap[c.id] = c.name))
 
   const totalPages = Math.ceil(total / limit) || 1
-  const revenueOf = (job: RoofJob) => job.finalRevenue ?? job.estimatedValue ?? job.rcv
+  // The Revenue column: what the job is worth by the one rule Reports use (model.ts jobValue).
+  const revenueOf = (job: RoofJob) => jobValue(job)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -214,10 +228,10 @@ export default function JobsPage() {
             <option value="">All Types</option>
             {typeOptions(...knownTypes, ...jobs.map((j) => j.jobType)).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
           </select>
-          <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
+          {hasFeature('crews') && <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Crews</option>
             {crews.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </select>}
           {users.length > 0 && <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Sales Reps</option>
             {users.map((u) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
@@ -235,7 +249,7 @@ export default function JobsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Address</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Type</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>
+                  {hasFeature('crews') && <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>}
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
                   {maySeeMoney && <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Revenue</th>}
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Created</th>
@@ -243,9 +257,9 @@ export default function JobsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan={(maySeeMoney ? 9 : 8) - (hasFeature('crews') ? 0 : 1)} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : jobs.length === 0 ? (
-                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
+                  <tr><td colSpan={(maySeeMoney ? 9 : 8) - (hasFeature('crews') ? 0 : 1)} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
                 ) : jobs.map((job) => {
                   const revenue = revenueOf(job)
                   return (
@@ -269,7 +283,7 @@ export default function JobsPage() {
                           {formatStatus(job.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{(job.assignedCrewId && crewMap[job.assignedCrewId]) || '—'}</td>
+                      {hasFeature('crews') && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{(job.assignedCrewId && crewMap[job.assignedCrewId]) || '—'}</td>}
                       <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{job.totalSquares || '—'}</td>
                       {maySeeMoney && (
                         <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">
@@ -326,24 +340,26 @@ export default function JobsPage() {
                   {typeOptions(form.jobType).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
                 </select>
               </div>
+              {/* Required: the property address, city, state and ZIP (server/crm/roof/jobs.ts REQUIRED_JOB_FIELDS). */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Address</label>
-                <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                <label htmlFor="roof-new-address" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Property address *</label>
+                <input id="roof-new-address" required aria-required="true" aria-invalid={missing.includes('address')} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={addressBox('address')} />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City</label>
-                  <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <label htmlFor="roof-new-city" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City *</label>
+                  <input id="roof-new-city" required aria-required="true" aria-invalid={missing.includes('city')} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className={addressBox('city')} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State</label>
-                  <input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <label htmlFor="roof-new-state" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State *</label>
+                  <input id="roof-new-state" required aria-required="true" aria-invalid={missing.includes('state')} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className={addressBox('state')} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Zip</label>
-                  <input value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <label htmlFor="roof-new-zip" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">ZIP *</label>
+                  <input id="roof-new-zip" required aria-required="true" aria-invalid={missing.includes('zip')} value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} className={addressBox('zip')} />
                 </div>
               </div>
+              {missing.length > 0 && <p role="alert" className="text-sm text-red-700 dark:text-red-300">Enter the {spoken(REQUIRED_ADDRESS.filter(([k]) => missing.includes(k)).map(([, w]) => w))}.</p>}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Roof Type</label>

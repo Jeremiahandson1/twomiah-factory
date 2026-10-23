@@ -1,5 +1,5 @@
 {
-  "id": "d7443b56-6cef-4c67-accd-dba7509a84e9",
+  "id": "fdec387b-9c7c-459f-af18-4178851d1e4a",
   "prevId": "246bd517-2464-4ae4-84ec-d2ee204fd1aa",
   "version": "7",
   "dialect": "postgresql",
@@ -2096,13 +2096,6 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
-        },
-        "user_ids": {
-          "name": "user_ids",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::json"
         },
         "created_at": {
           "name": "created_at",
@@ -4294,6 +4287,18 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "series_id": {
+          "name": "series_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_index": {
+          "name": "series_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -4362,6 +4367,21 @@
           "columns": [
             {
               "expression": "subcontractor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_series_id_idx": {
+          "name": "job_series_id_idx",
+          "columns": [
+            {
+              "expression": "series_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4549,6 +4569,19 @@
           "tableTo": "measurement_report",
           "columnsFrom": [
             "measurement_report_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "job_series_id_job_series_id_fk": {
+          "name": "job_series_id_job_series_id_fk",
+          "tableFrom": "job",
+          "tableTo": "job_series",
+          "columnsFrom": [
+            "series_id"
           ],
           "columnsTo": [
             "id"
@@ -4751,6 +4784,138 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.job_series": {
+      "name": "job_series",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "interval_count": {
+          "name": "interval_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "first_date": {
+          "name": "first_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurrences_count": {
+          "name": "occurrences_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "until_date": {
+          "name": "until_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "stopped_at": {
+          "name": "stopped_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "job_series_company_id_idx": {
+          "name": "job_series_company_id_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_series_company_id_company_id_fk": {
+          "name": "job_series_company_id_company_id_fk",
+          "tableFrom": "job_series",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_series_created_by_id_user_id_fk": {
+          "name": "job_series_created_by_id_user_id_fk",
+          "tableFrom": "job_series",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

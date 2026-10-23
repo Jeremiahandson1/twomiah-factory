@@ -10,6 +10,7 @@ import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { useConfirm, useMayWrite } from '../../../shared'
+import { whenTime, companyDayBounds, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -63,8 +64,9 @@ function visitWarnings(profile: ClientProfileLite | null | undefined, service: S
   const out: string[] = [];
   if (profile?.allergies && profile.allergies.trim()) out.push(`Allergies on file: ${profile.allergies.trim()}`);
   if (service?.requiresPatchTest) {
-    const at = profile?.patchTestAt ? new Date(String(profile.patchTestAt).slice(0, 10) + 'T00:00:00') : null;
-    const ageDays = at && !isNaN(at.getTime()) ? (Date.now() - at.getTime()) / 86400000 : Infinity;
+    // Whole days since the test's day, counted from the company's today (not the browser's clock).
+    const at = profile?.patchTestAt && /^\d{4}-\d{2}-\d{2}/.test(String(profile.patchTestAt)) ? String(profile.patchTestAt).slice(0, 10) : null;
+    const ageDays = at ? -daysUntilDay(at) : Infinity;
     if (ageDays > PATCH_TEST_VALID_DAYS) out.push(at ? `${service.name || 'This service'} needs a patch test — last one was ${Math.round(ageDays)} days ago` : `${service.name || 'This service'} needs a patch test — none on file`);
   }
   return out;
@@ -86,12 +88,9 @@ export function isDayComplete(day: string): boolean {
   return !Number.isNaN(new Date(`${day}T12:00:00`).getTime());
 }
 
-function dayBounds(day: string): { from: string; to: string } {
-  // Local-day bounds, sent as ISO.
-  const start = new Date(`${day}T00:00:00`);
-  const end = new Date(`${day}T23:59:59.999`);
-  return { from: start.toISOString(), to: end.toISOString() };
-}
+// The day's window on the COMPANY's clock (its midnight to the next), as the book's times are — the browser's day
+// fetched the wrong evening's appointments for a viewer in another zone (2026-10-23).
+const dayBounds = (day: string): { from: string; to: string } => companyDayBounds(day);
 
 /** The heading for a day, or null while the one being typed is not a day yet. */
 export function dayHeading(day: string, today: string): string | null {
@@ -104,7 +103,7 @@ function fmtTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return whenTime(d, { hour: 'numeric', minute: '2-digit' });
 }
 
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
@@ -307,10 +306,9 @@ export default function AppointmentsPage() {
 
 /* ---------------- Reschedule Modal ---------------- */
 
+// A booked moment's day and time on the COMPANY's clock (now, if none) — what the reschedule boxes show.
 function toLocalParts(iso?: string): { date: string; time: string } {
-  const d = iso ? new Date(iso) : new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+  return companyWall(iso ? new Date(iso) : new Date());
 }
 
 // Start + a number of minutes, as "HH:MM". One definition, because the callers used to carry a copy
@@ -318,8 +316,8 @@ function toLocalParts(iso?: string): { date: string; time: string } {
 // Reschedule modal needs the same arithmetic as the New Appointment modal. (T41)
 const shiftTime = (from: string, minutes: number) => {
   const [h, m] = from.split(':').map(Number);
-  const t = new Date(2000, 0, 1, h, m + minutes);
-  return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  const t = (((h * 60 + m + minutes) % 1440) + 1440) % 1440; // wall-clock minutes, no zone
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
 const minutesBetween = (from: string, to: string) => {
   const [fh, fm] = from.split(':').map(Number);
@@ -360,8 +358,9 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
     e.preventDefault();
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { startTime: new Date(`${date}T${startTime}:00`).toISOString() };
-      if (endTime) payload.endTime = new Date(`${date}T${endTime}:00`).toISOString();
+      // The typed day and times are the company's wall clock.
+      const payload: Record<string, unknown> = { startTime: companyMoment(date, startTime).toISOString() };
+      if (endTime) payload.endTime = companyMoment(date, endTime).toISOString();
       await api.put(`/api/appointments/${appt.id}`, payload);
       onSave();
     } catch (err) {
@@ -465,13 +464,13 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     try {
       const payload: Record<string, unknown> = {
         contactId,
-        startTime: new Date(`${form.date}T${form.startTime}:00`).toISOString(),
+        startTime: companyMoment(form.date, form.startTime).toISOString(), // the company's wall clock
         status: 'scheduled',
       };
       if (form.serviceId) payload.serviceId = form.serviceId;
       if (form.stylistId) payload.stylistId = form.stylistId;
       // Left blank, the backend derives the end from the service duration.
-      if (form.endTime) payload.endTime = new Date(`${form.date}T${form.endTime}:00`).toISOString();
+      if (form.endTime) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
       if (form.station) payload.station = form.station;
       if (form.quotedPrice !== '') payload.quotedPrice = Number(form.quotedPrice);
       if (form.notes) payload.notes = form.notes;

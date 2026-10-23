@@ -159,8 +159,15 @@
     {
       "idx": 22,
       "version": "7",
-      "when": 1792744964492,
-      "tag": "0022_commission_plan_people",
+      "when": 1792724053593,
+      "tag": "0022_job_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792754487343,
+      "tag": "0023_commission_plan_people",
       "breakpoints": true
     }
   ]

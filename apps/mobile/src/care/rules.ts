@@ -156,3 +156,14 @@ export function readableOn(color: string, ground: string, dark: boolean): string
   }
   return dark ? '#ffffff' : '#000000'
 }
+
+/**
+ * The documents a caregiver is asked to sign, after a refresh: the server's list when it answered; none on a 403 — the
+ * agency's Documents switch is off (or the seat may not read them), so a list loaded earlier must not stay on the Today
+ * card; the list already shown on anything else (no signal, a server blip). (2026-10-22)
+ */
+export function docsToSign<T>(prev: T[], res: { ok: boolean; status: number }, list: () => T[]): T[] {
+  if (res.ok) return list()
+  if (res.status === 403) return []
+  return prev
+}

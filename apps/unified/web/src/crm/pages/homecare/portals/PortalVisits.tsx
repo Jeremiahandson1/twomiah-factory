@@ -17,6 +17,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useToast } from '../../../../shared'
 import { formatDate as formatDay, parseLocalDate, toLocalYMD } from '../lib/date'
 import { listRows, usePortal } from './portalHttp'
+import { agencyToday } from '../lib/agencyClock'
 
 interface Visit {
   id: string
@@ -91,7 +92,7 @@ const formatTime = (timeStr: string | null | undefined) => {
   return `${h12}:${m} ${ampm}`
 }
 
-const isToday = (dateStr: string) => toLocalYMD(new Date()) === dateStr
+const isToday = (dateStr: string) => agencyToday() === dateStr
 const isTomorrow = (dateStr: string) => toLocalYMD(new Date(Date.now() + 86400000)) === dateStr
 const dayLabel = (dateStr: string) => {
   if (isToday(dateStr)) return 'Today'

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './types'
 import { permissionAllows } from './types'
+import { setCompanyTimeZone } from '../time/companyClock'
 
 /**
  * Exported so PermissionsContext can read it WITHOUT useAuth's throw. (T41)
@@ -140,6 +141,9 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const isAdmin = role === 'admin' || role === 'owner'
   const isManager = role === 'owner' || role === 'admin' || role === 'manager'
   const getToken = useCallback(() => localStorage.getItem('accessToken'), [])
+  // The company's clock for every screen below (time/companyClock.ts): set as this renders, so the first render of a
+  // screen already prints moments on it. Signed out, it is cleared and the browser's zone is used.
+  setCompanyTimeZone((company as { timeZone?: unknown } | null)?.timeZone)
   const hasFeature = (featureId: string): boolean => company?.enabledFeatures?.includes(featureId) ?? false
   // False while the list is unknown, exactly like hasFeature above: show the menu a moment late rather
   // than offer a button the API will refuse. Routes must wait for `company` instead — see types.ts.

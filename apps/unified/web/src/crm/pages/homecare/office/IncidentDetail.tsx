@@ -18,7 +18,7 @@ import { useMay } from '../lib/useMay';
 import {
   INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, DISPOSITIONS, MANDATORY_REPORT_STATUSES,
   ENTRY_TYPES, ATTACHMENT_CATEGORIES, TRAINING_ACK_METHODS, incidentLabel,
-  ATTACHMENT_MAX_BYTES, ATTACHMENT_ACCEPT, incidentsApi, incidentsBlob, saveBlob, localToday,
+  ATTACHMENT_MAX_BYTES, ATTACHMENT_ACCEPT, incidentsApi, incidentsBlob, saveBlob, agencyToday,
   STATUS_CHIP, FIELD, LABEL, CARD, H3, MUTED, BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER,
 } from '../lib/incidentOptions';
 import type { PersonOption } from './IncidentReporting';
@@ -246,10 +246,10 @@ export default function IncidentDetail() {
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState('');
   const [includeSchedule, setIncludeSchedule] = useState(false); // packet Exhibit A; off unless the payer asked for visit records
-  const [noteForm, setNoteForm] = useState({ entryDate: localToday(), entryType: 'interview', summary: '' });
+  const [noteForm, setNoteForm] = useState({ entryDate: agencyToday(), entryType: 'interview', summary: '' });
   const [uploadForm, setUploadForm] = useState({ category: 'payer_notice', description: '' });
   const [uploading, setUploading] = useState(false);
-  const [removalForm, setRemovalForm] = useState({ fromDate: localToday(), postOpenShifts: true, coverageWeeks: 4 });
+  const [removalForm, setRemovalForm] = useState({ fromDate: agencyToday(), postOpenShifts: true, coverageWeeks: 4 });
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [ackForm, setAckForm] = useState({ supervisorName: '', method: 'in_person' });
   const [sigOpen, setSigOpen] = useState(false);
@@ -316,7 +316,7 @@ export default function IncidentDetail() {
     if (!noteForm.summary.trim()) { toast.error('Describe what happened'); return; }
     try {
       await incidentsApi(`/${incidentId}/notes`, { method: 'POST', body: JSON.stringify(noteForm) });
-      setNoteForm({ entryDate: localToday(), entryType: noteForm.entryType, summary: '' });
+      setNoteForm({ entryDate: agencyToday(), entryType: noteForm.entryType, summary: '' });
       setNotes(rows<TimelineEntry>(await incidentsApi(`/${incidentId}/notes`)));
     } catch (e) { toast.error(errorMessage(e)); }
   };
@@ -414,7 +414,7 @@ export default function IncidentDetail() {
     );
   }
 
-  const today = schedule?.today || localToday();
+  const today = schedule?.today || agencyToday();
   const removalActive = !!(incident.caregiverRemovedFromYmd && !incident.caregiverReturnedOnYmd);
   const dueSoon = form.responseDueDate && !incident.responseSentDateYmd && incident.status !== 'closed';
   const removal = schedule?.removal || null;

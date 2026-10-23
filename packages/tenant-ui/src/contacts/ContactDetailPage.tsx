@@ -13,6 +13,7 @@ import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dat
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 import { quickActionPermission } from './types'
+import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 
 type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
@@ -112,6 +113,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // Each related list, count and quick action: the vertical has it AND the business has its feature on (types.ts).
   const shows = cfg.shows
   const sites = cfg.siteLabels
+  // The thread and the send box are Two-Way Texting's (two_way_texting): off, /api/sms refuses them, so they are not
+  // offered — the customer's opt-out stays, because it governs every text the business sends (2026-10-22).
+  const textingOn = hasFeature('two_way_texting')
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -164,7 +168,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     loadContact()
     if (showPortal) loadPortalStatus()
     // only for a seat the thread is read for (sms:send) — the panel below asks the same; anyone else got a 403 (T62)
-    if (shows('sms') && cfg.can('sms:send')) loadSms()
+    if (sections.sms && cfg.can('sms:send') && textingOn) loadSms()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePortal = async () => {
@@ -356,6 +360,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           {mayMerge && (
             <Button variant="secondary" onClick={() => setMergeOpen(true)}><Merge className="w-4 h-4 inline mr-2" />Merge duplicate</Button>
           )}
+          {/* Ask this customer for a Google review now (Review Requests; reviews/ReviewRequestButton.tsx). */}
+          <ReviewRequestButton api={api} toast={toast} contactId={id} hasFeature={config?.hasFeature} />
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>
@@ -542,7 +548,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {contact.equipment && contact.equipment.length > 0 ? (
                 <div className="divide-y dark:divide-slate-800">
                   {contact.equipment.map((eq) => {
-                    const active = !!eq.warrantyExpiry && new Date(eq.warrantyExpiry) > new Date()
+                    const active = !!eq.warrantyExpiry && !isPastDay(eq.warrantyExpiry)
                     return (
                       <NavLink key={eq.id} to="/crm/equipment" className={rowLink}>
                         <div className="flex items-center gap-3">
@@ -605,7 +611,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           )}
 
-          {shows('sms') && cfg.can('sms:send') && (
+          {sections.sms && cfg.can('sms:send') && (
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
                 <h2 className={`${h2} flex items-center gap-2`}><MessageSquare className="w-4 h-4" /> Messages</h2>
@@ -618,6 +624,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <span className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200">Opted out of SMS</span>
                 ) : null}
               </div>
+              {!textingOn ? (
+                <p className="p-4 text-sm text-gray-600 dark:text-slate-400" data-testid="texting-off">Two-Way Texting is switched off, so texts can’t be sent or read here. Turn it on in Settings › Features.</p>
+              ) : <>
               <div className="max-h-80 overflow-y-auto p-4 space-y-2">
                 {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}
                 {smsMessages.map((m: any) => (
@@ -635,6 +644,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <Button onClick={sendSms} disabled={smsSending || !smsInput.trim()}>{smsSending ? '...' : 'Send'}</Button>
                 </div>
               )}
+              </>}
             </div>
           )}
         </div>

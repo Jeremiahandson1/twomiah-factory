@@ -163,7 +163,7 @@ const salon: VerticalSettings = {
     leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client enquiries arrive: Google, Meta, Yelp, booking apps and your website' },
     marketing: { contactTypes: CONTACT_TYPES },
     messages: {},
-    reviews: { subtitle: 'Automatically ask clients for a Google review after their visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after each completed visit (one per client per month)', emptyHelp: 'Requests are created automatically after completed visits' },
+    reviews: { manualHelp: '', subtitle: 'Automatically ask clients for a Google review after their visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after each completed visit (one per client per month)', emptyHelp: 'Requests are created automatically after completed visits' },
     booking: { calendarLabel: 'Appointment', calendarPath: '/crm/appointments', serviceMenuPath: '/crm/service-menu', concurrentLabel: 'Chairs bookable at once', concurrentHelp: 'Online bookings per time slot — the number of stylists taking online clients. Desk bookings count too.' },
     settings: {
       roles: [

@@ -45,7 +45,7 @@ const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
 const UNI = (process.env.FACTORY_ROOT || '') + 'apps/unified/'
 const usrc = (p: string) => readFileSync(UNI + p, 'utf8').replace(/\r\n/g, '\n') /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/<group>/ and the server to apps/unified/server/crm/homecare/<group>/ and server/data/homecare*.ts (docs/UNIFIED_HOMECARE_SCREENS.md): usrc reads the moved files, so these checks hold the code that ships */
 
-const [ag] = await db.insert(agencies).values({ name: 'Integration Care', slug: 'integration', state: 'WI', timezone: 'UTC' } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Integration Care', slug: 'integration', state: 'WI', timezone: 'UTC', enabledFeatures: ['documents', 'reports', 'two_way_texting'] } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
   email: `${tag}-int@test.local`, passwordHash: 'x', firstName: tag, lastName: 'Tester', role, phone: '7155550199',
 } as any).returning())[0]

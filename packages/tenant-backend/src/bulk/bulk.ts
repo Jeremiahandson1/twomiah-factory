@@ -9,6 +9,7 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { recordInvoicePayment } from '../invoicing/invoices';
 import { invoiceBalance } from '../invoicing/money';
+import { jobHookFor, type JobHooks } from '../jobs/jobs';
 
 export interface BulkTables {
   contact: any
@@ -24,6 +25,11 @@ export interface BulkTables {
 export interface BulkServiceDeps {
   db: any
   tables: BulkTables
+  /**
+   * The job's moments, as the job routes run them (jobs.ts jobHookFor): a job bulk-moved INTO completed asks for its
+   * review and makes its agreement's next visit, the same as one completed from its page. Absent: none run, as before.
+   */
+  jobHooks?: JobHooks
 }
 
 export function createBulkService(deps: BulkServiceDeps) {
@@ -127,7 +133,10 @@ export function createBulkService(deps: BulkServiceDeps) {
     return result.length;
   }
 
-  async function bulkUpdateJobStatus(companyId: string, jobIds: string[], status: string): Promise<number> {
+  async function bulkUpdateJobStatus(companyId: string, jobIds: string[], status: string, userId = ''): Promise<number> {
+    // What each job was before, so only a job that MOVES into the status runs its hook (jobs.ts jobHookFor).
+    const before = await db.select({ id: job.id, status: job.status }).from(job).where(and(inArray(job.id, jobIds), eq(job.companyId, companyId)));
+    const was = new Map(before.map((r: any) => [r.id, r.status]));
     const updates: Record<string, unknown> = { status, updatedAt: new Date() };
     // Same rule the single-job routes follow (#213): completing stamps when, and moving back out of completed
     // clears it — a reopened job must not keep claiming it was finished. COALESCE keeps the ORIGINAL completion
@@ -142,6 +151,13 @@ export function createBulkService(deps: BulkServiceDeps) {
       .set(updates)
       .where(and(inArray(job.id, jobIds), eq(job.companyId, companyId)))
       .returning();
+    const hook = jobHookFor(status, deps.jobHooks);
+    if (hook) {
+      for (const row of result) {
+        if (was.get(row.id) === status) continue;
+        try { await hook({ job: row, companyId, userId }) } catch (err) { console.warn('[bulk] job hook failed:', (err as Error)?.message || err) }
+      }
+    }
     return result.length;
   }
 

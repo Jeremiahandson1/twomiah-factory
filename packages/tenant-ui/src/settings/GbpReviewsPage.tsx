@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { momentDate } from '../time/companyClock'
 
 // Google Business Profile reviews — connect the business's Google listing,
 // see the rating + reviews, reply inline. OAuth runs through the factory
@@ -171,7 +172,7 @@ export function GbpReviewsPage(): React.ReactElement {
               <div key={r.name} className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-sm">{r.reviewer}</span>
-                  <span className="text-xs text-gray-500 dark:text-slate-400">{new Date(r.createTime).toLocaleDateString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">{momentDate(r.createTime)}</span>
                 </div>
                 <Stars rating={STARS[r.starRating] || 0} />
                 {r.comment && <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap dark:text-slate-200">{r.comment}</p>}

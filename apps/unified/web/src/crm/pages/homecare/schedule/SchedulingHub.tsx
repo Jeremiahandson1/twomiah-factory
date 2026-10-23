@@ -23,7 +23,6 @@ import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode
 import { Link } from 'react-router-dom'
 import { useAuth, useConfirm, usePrompt, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
-import { getTodayCT } from '../lib/timezone'
 import { formatDate } from '../lib/datetime'
 import { isBiweeklyOn } from '../lib/biweekly'
 import { endsBeforeStart, shiftTimesError } from '../lib/shiftTimes'
@@ -35,6 +34,7 @@ import MakeShiftAvailableModal, { type OfferedVisit } from './MakeShiftAvailable
 import { useMay } from '../lib/useMay'
 import { C, FILL, MARKS, dialog, field, overlay, pill, tint, type Tone } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
+import { agencyToday, agencyTodayDate } from '../lib/agencyClock'
 
 function getWeekStart(date: Date | string): Date {
   const d = parseLocalDate(date)
@@ -181,7 +181,7 @@ const SchedulingHub = () => {
   const [caregiverSchedules, setCaregiverSchedules] = useState<ScheduleRow[]>([])
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState<CreateForm>({
-    caregiverId: '', clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: getTodayCT(),
+    caregiverId: '', clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: agencyToday(),
     startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false,
   })
   const [selectedDays, setSelectedDays] = useState<number[]>([])
@@ -201,13 +201,13 @@ const SchedulingHub = () => {
 
   // ── Week view ──
   // The week view is always this week: the template had no control to move it (its navigateWeek was never wired).
-  const [weekOf] = useState(toLocalYMD(getWeekStart(new Date())))
+  const [weekOf] = useState(toLocalYMD(getWeekStart(agencyTodayDate())))
   const [weekData, setWeekData] = useState<WeekView | null>(null)
   const [reassignModal, setReassignModal] = useState<{ schedule: WeekOcc; currentCaregiver: { id: string; firstName: string; lastName: string } } | null>(null)
   const [reassignReason, setReassignReason] = useState('admin_decision')
 
   // ── Month calendar ──
-  const [calCurrentDate, setCalCurrentDate] = useState(new Date())
+  const [calCurrentDate, setCalCurrentDate] = useState(agencyTodayDate())
   const [calSchedules, setCalSchedules] = useState<ScheduleRow[]>([])
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null)
   const [calDaySchedules, setCalDaySchedules] = useState<ScheduleRow[]>([])
@@ -225,7 +225,7 @@ const SchedulingHub = () => {
   // ── Coverage ──
   const [coverageData, setCoverageData] = useState<Coverage | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(false)
-  const [coverageWeekOf, setCoverageWeekOf] = useState(toLocalYMD(getWeekStart(new Date())))
+  const [coverageWeekOf, setCoverageWeekOf] = useState(toLocalYMD(getWeekStart(agencyTodayDate())))
 
   // ── Caregiver suggestions (create form) ──
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -235,7 +235,7 @@ const SchedulingHub = () => {
   // ── Conflict heatmap ──
   const [heatmap, setHeatmap] = useState<Heatmap | null>(null)
   const [heatmapLoading, setHeatmapLoading] = useState(false)
-  const [heatmapWeekOf, setHeatmapWeekOf] = useState(toLocalYMD(getWeekStart(new Date())))
+  const [heatmapWeekOf, setHeatmapWeekOf] = useState(toLocalYMD(getWeekStart(agencyTodayDate())))
   const loadHeatmap = async () => {
     setHeatmapLoading(true)
     try { setHeatmap(await api.get('/api/scheduling/conflict-heatmap', { weekOf: heatmapWeekOf }) as Heatmap) }
@@ -477,7 +477,7 @@ const SchedulingHub = () => {
       ...prev,
       caregiverId: caregiverId || '',
       clientId: clientId || '',
-      date: date || getTodayCT(),
+      date: date || agencyToday(),
       dayOfWeek: dayOfWeek !== '' ? dayOfWeek.toString() : '',
       // A specific date cell means "add a shift on THAT date" — a one-time shift. Recurring only when a weekday was
       // chosen without a concrete date (a cell click once made a recurring shift whose start was clamped forward).
@@ -530,7 +530,7 @@ const SchedulingHub = () => {
     const timesError = shiftTimesError(formData.startTime, formData.endTime, formData.overnight)
     if (timesError) { showMsg(timesError, 'error'); return }
     const overnight = endsBeforeStart(formData.startTime, formData.endTime) && !!formData.overnight
-    const today = getTodayCT()
+    const today = agencyToday()
     // Sent as typed; the server aligns it per weekday so Sat+Sun starting 9/12 anchor to 9/12 and 9/13 — the same weekend.
     const anchorStr = biWeeklyAnchorDate || formData.date || today
     setSaving(true)
@@ -576,7 +576,7 @@ const SchedulingHub = () => {
         }) as SavedReply
         showSaved('Schedule created!', body)
       }
-      setFormData((prev) => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: getTodayCT(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
+      setFormData((prev) => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
       setSelectedDays([])
       loadCaregiverSchedules(selectedCaregiverId)
       if (scheduleView === 'week') loadWeekView()
@@ -607,7 +607,7 @@ const SchedulingHub = () => {
   // The most recent date this weekday came round, today included: when the office opens a repeating shift to fix it at
   // payday, the day they mean is almost always the last time it actually ran.
   const lastOccurrenceOnOrBefore = (dow: number) => {
-    const t = new Date()
+    const t = agencyTodayDate() // the agency's today
     t.setHours(12, 0, 0, 0)
     t.setDate(t.getDate() - ((t.getDay() - Number(dow) + 7) % 7))
     return toLocalYMD(t)
@@ -637,7 +637,7 @@ const SchedulingHub = () => {
   // deleted — the schedule is paused from a date and resumes exactly as it was.
   const handleSuspend = async (scope: 'this' | 'client') => {
     if (!editModal) return
-    const fromDate = editModal.suspendFromDate || toLocalYMD(new Date())
+    const fromDate = editModal.suspendFromDate || agencyToday()
     setSuspendBusy(true)
     try {
       const r = await api.post(`/api/schedules/${editModal.id}/suspend`, { scope, fromDate }) as { suspended: number }
@@ -962,7 +962,7 @@ const SchedulingHub = () => {
       <input type="date" value={value} onChange={(e) => set(toLocalYMD(getWeekStart(parseLocalDate(e.target.value))))}
         style={{ padding: '0.3rem 0.5rem', border: `1px solid ${C.line}`, borderRadius: '6px', fontSize: '0.85rem' }} />
       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { const d = parseLocalDate(value); d.setDate(d.getDate() + 7); set(toLocalYMD(getWeekStart(d))) }}>Next ▶</button>
-      <button className="hc-btn hc-btn-sm hc-btn-primary" disabled={value === toLocalYMD(getWeekStart(new Date()))} onClick={() => set(toLocalYMD(getWeekStart(new Date())))}>📍 Today</button>
+      <button className="hc-btn hc-btn-sm hc-btn-primary" disabled={value === toLocalYMD(getWeekStart(agencyTodayDate()))} onClick={() => set(toLocalYMD(getWeekStart(agencyTodayDate())))}>📍 Today</button>
       {extra}
     </div>
   )
@@ -983,7 +983,7 @@ const SchedulingHub = () => {
             <button className="hc-btn hc-btn-secondary hc-btn-sm" aria-label="Previous month" onClick={() => setCalCurrentDate(new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth() - 1))}>‹</button>
             <strong style={{ fontSize: '0.88rem' }}>{formatDay(calCurrentDate, { month: 'long', year: 'numeric' })}</strong>
             <button className="hc-btn hc-btn-secondary hc-btn-sm" aria-label="Next month" onClick={() => setCalCurrentDate(new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth() + 1))}>›</button>
-            <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setCalCurrentDate(new Date())}>Today</button>
+            <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setCalCurrentDate(agencyTodayDate())}>Today</button>
             <select value={calFilterCaregiver} onChange={(e) => setCalFilterCaregiver(e.target.value)} style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: `1px solid ${C.line}`, fontSize: '0.82rem' }}>
               <option value="">All Caregivers</option>
               {caregivers.map((cg) => <option key={cg.id} value={cg.id}>{cg.firstName} {cg.lastName}</option>)}
@@ -1006,7 +1006,7 @@ const SchedulingHub = () => {
                     <th style={{ width: '140px' }}>Caregiver</th>
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
                       const date = parseLocalDate(weekData.weekStart); date.setDate(date.getDate() + idx)
-                      const isToday = toLocalYMD(date) === getTodayCT()
+                      const isToday = toLocalYMD(date) === agencyToday()
                       return (
                         <th key={day} style={{ textAlign: 'center', minWidth: '95px', background: isToday ? C.todayBg : undefined }}>
                           <div>{day}</div>
@@ -1027,7 +1027,7 @@ const SchedulingHub = () => {
                       </td>
                       {[0, 1, 2, 3, 4, 5, 6].map((di) => {
                         const date = parseLocalDate(weekData.weekStart); date.setDate(date.getDate() + di)
-                        const isToday = toLocalYMD(date) === getTodayCT()
+                        const isToday = toLocalYMD(date) === agencyToday()
                         const dateStr = toLocalYMD(date)
                         const cell = dayData[String(di)] || []
                         const hasShifts = cell.length > 0
@@ -1114,7 +1114,7 @@ const SchedulingHub = () => {
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 600, fontSize: '0.8rem', background: C.subtle, color: C.ink }}>{d}</div>)}
               {Array.from({ length: calFirstDay }, (_, i) => <div key={`e${i}`} style={{ background: C.ground, minHeight: isMobile ? '50px' : '80px' }} />)}
               {Array.from({ length: calDaysInMonth }, (_, i) => {
-                const day = i + 1, todayParts = getTodayCT().split('-').map(Number)
+                const day = i + 1, todayParts = agencyToday().split('-').map(Number)
                 const isToday = day === todayParts[2] && calCurrentDate.getMonth() === todayParts[1] - 1 && calCurrentDate.getFullYear() === todayParts[0]
                 const dayScheds = getCalSchedulesForDay(day)
                 const dayProspectAppts = getProspectApptsForDay(day)
@@ -1171,7 +1171,7 @@ const SchedulingHub = () => {
           <div className="hc-card" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '1rem' }}>
             <h3 style={{ margin: 0 }}>📈 Coverage Overview</h3>
             {weekNav(coverageWeekOf, setCoverageWeekOf,
-              <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setCoverageWeekOf(toLocalYMD(getWeekStart(new Date())))}>Today</button>)}
+              <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setCoverageWeekOf(toLocalYMD(getWeekStart(agencyTodayDate())))}>Today</button>)}
           </div>
           {coverageLoading ? loadingCard() : coverageData ? (
             <>
@@ -1605,7 +1605,7 @@ const SchedulingHub = () => {
                 <div>
                   <div style={{ display: 'flex', gap: '0.3rem', marginBottom: editModal.frequency === 'biweekly' ? '0.4rem' : 0 }}>
                     <button type="button" onClick={() => setEditModal((prev) => prev && ({ ...prev, frequency: 'weekly', anchorDate: null }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', background: editModal.frequency === 'weekly' ? FILL.blue : C.line, color: editModal.frequency === 'weekly' ? '#fff' : C.ink }}>Weekly</button>
-                    <button type="button" onClick={() => setEditModal((prev) => prev && ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || prev.editDate || getTodayCT() }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', background: editModal.frequency === 'biweekly' ? FILL.orange : C.line, color: editModal.frequency === 'biweekly' ? '#fff' : C.ink }}>Bi-Weekly</button>
+                    <button type="button" onClick={() => setEditModal((prev) => prev && ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || prev.editDate || agencyToday() }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', background: editModal.frequency === 'biweekly' ? FILL.orange : C.line, color: editModal.frequency === 'biweekly' ? '#fff' : C.ink }}>Bi-Weekly</button>
                   </div>
                   {editModal.frequency === 'biweekly' && (
                     <div style={{ padding: '0.5rem', background: orange.bg, borderRadius: '6px', border: `1px solid ${orange.line}` }}>
@@ -1718,7 +1718,7 @@ const SchedulingHub = () => {
                     <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', color: C.ink, marginBottom: '0.5rem' }}>Suspend service</label>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
                       <span style={{ fontSize: '0.8rem', color: C.inkSoft }}>Starting</span>
-                      <input type="date" value={editModal.suspendFromDate || toLocalYMD(new Date())} onChange={(e) => setEditModal((prev) => prev && ({ ...prev, suspendFromDate: e.target.value }))}
+                      <input type="date" value={editModal.suspendFromDate || agencyToday()} onChange={(e) => setEditModal((prev) => prev && ({ ...prev, suspendFromDate: e.target.value }))}
                         style={{ padding: '0.4rem', borderRadius: '6px', border: `1px solid ${C.line}`, fontSize: '0.85rem' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

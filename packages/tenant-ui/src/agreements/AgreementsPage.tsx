@@ -11,20 +11,17 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { money } from '../invoicing/ui'
+import { whenDate, daysUntilDay } from '../time/companyClock'
+import { todayKey, dayKeyPlus } from '../time/day'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
 function formatDate(value?: string | number | Date | null): string {
-  if (value === null || value === undefined || value === '') return '';
-  let d: Date;
-  if (value instanceof Date) { d = value; }
-  else {
-    const s = String(value);
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
-    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
-  }
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  // A calendar day (YYYY-MM-DD or midnight UTC) as the day it names; a moment on the company's clock, not the reader's
+  // (time/companyClock.ts — the one rule every screen prints a stored time by).
+  return whenDate(value)
 }
+
 
 // api + the recurrence flag are injected once at the page root; child components read them via useAgreements().
 const AgreementsCtx = createContext<{ api: AgreementsApi; recurrence: boolean; planNamePlaceholder: string }>({ api: null as any, recurrence: false, planNamePlaceholder: 'e.g., Annual maintenance plan' });
@@ -574,7 +571,8 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
   const mayUpdate = useMayWrite('agreements:update');
   const maySeeMoney = useMayWrite('invoices:read'); // see AgreementsPage (T62)
-  const endingSoon = agreement.status === 'active' && new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  // Ends within 30 days on the company's calendar (the server's rule: the term ends as its end day begins).
+  const endingSoon = agreement.status === 'active' && daysUntilDay(agreement.endDate) <= 30;
   const isExpiringSoon = endingSoon && agreement.renewalType !== 'auto'; // auto-renew agreements renew instead
   const renewsSoon = endingSoon && agreement.renewalType === 'auto';
 
@@ -994,8 +992,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
   const mayUpdate = useMayWrite('agreements:update');
   const maySeeMoney = useMayWrite('invoices:read');
   const readOnly = !!agreement && !mayUpdate;
-  const defaultNextDate = new Date();
-  defaultNextDate.setDate(defaultNextDate.getDate() + 30);
+  const defaultNextDate = dayKeyPlus(todayKey(), 30); // 30 days from the company's today
   const [form, setForm] = useState<{
     planId: string;
     contactId: string;
@@ -1005,16 +1002,39 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     recurrenceFrequency: string;
     nextServiceDate: string;
     reminderDaysBefore: string | number;
+    firstVisitDate: string;
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
-    startDate: agreement?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+    startDate: agreement?.startDate?.split('T')[0] || todayKey(),
     autoRenew: agreement?.renewalType ? agreement.renewalType === 'auto' : true,
     autoSchedule: agreement?.autoSchedule ?? false,
     recurrenceFrequency: agreement?.recurrenceRule?.frequency || 'quarterly',
-    nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate.toISOString().split('T')[0],
+    nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate,
     reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
+    firstVisitDate: '',
   });
+  /**
+   * The plan's visits per term go on the Schedule when the agreement is saved (server scheduleTermVisits), spread
+   * across the term from the first visit. (live test 2026-10-22: a two-visit contract scheduled nothing.)
+   */
+  const selectedPlan = plans.find((p: Plan) => p.id === form.planId);
+  const planVisits = Number(selectedPlan?.visitsIncluded || 0);
+  const [visitMsg, setVisitMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [scheduling, setScheduling] = useState<boolean>(false);
+  const scheduleTerm = async () => {
+    if (!agreement) return;
+    setScheduling(true); setVisitMsg(null);
+    try {
+      const r = await api.post(`/api/agreements/${agreement.id}/schedule-visits`, {});
+      const made = Number(r?.made || 0);
+      setVisitMsg(made > 0
+        ? { kind: 'ok', text: `${made} visit${made === 1 ? '' : 's'} put on the Schedule: ${(r?.dates || []).map((d: string) => formatDate(d)).join(', ')}.` }
+        : { kind: 'ok', text: "This term's visits are already on the Schedule." });
+    } catch (err) {
+      setVisitMsg({ kind: 'err', text: err instanceof Error && err.message ? err.message : 'The visits could not be scheduled.' });
+    } finally { setScheduling(false); }
+  };
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -1043,6 +1063,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
         contactId: form.contactId,
         startDate: form.startDate,
         autoRenew: form.autoRenew,
+        // The first of the term's visits; blank is the start date (server scheduleTermVisits).
+        ...(!agreement && planVisits > 0 && form.firstVisitDate ? { firstVisitDate: form.firstVisitDate } : {}),
       };
       const saveRecurrence = async (id: string, on: boolean) => {
         await api.put(`/api/agreements/${id}/recurrence`, {
@@ -1054,12 +1076,12 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
       };
       if (agreement) {
         await api.put(`/api/agreements/${agreement.id}`, payload);
-        if (recurrence && (form.autoSchedule || agreement.autoSchedule)) {
+        if (recurrence && planVisits === 0 && (form.autoSchedule || agreement.autoSchedule)) {
           await saveRecurrence(agreement.id, form.autoSchedule);
         }
       } else {
         const created = await api.post('/api/agreements', payload);
-        if (recurrence && form.autoSchedule && created?.id) {
+        if (recurrence && planVisits === 0 && form.autoSchedule && created?.id) {
           await saveRecurrence(created.id, true);
         }
       }
@@ -1149,8 +1171,34 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
             </label>
 
-            {/* Scheduling — fs / landscaping maintenance contracts (config.recurrence) */}
-            {recurrence && (
+            {/* The plan's visits — every vertical: they go on the Schedule with the agreement. */}
+            {planVisits > 0 && (
+              <div className="border-t pt-4 mt-4 space-y-3" data-testid="agreement-visits">
+                <p className="text-sm text-gray-700 dark:text-slate-200">
+                  {selectedPlan?.name} includes <strong>{planVisits} visit{planVisits === 1 ? '' : 's'}</strong> a term.{' '}
+                  {agreement
+                    ? `This term: ${Number(agreement.visitsScheduled || 0)} booked, ${Number(agreement.visitsCompleted || 0)} done.`
+                    : 'They go on the Schedule when you save, spread evenly across the term from the first visit.'}
+                </p>
+                {!agreement && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200" htmlFor="agreement-first-visit">First visit</label>
+                    <input id="agreement-first-visit" type="date" min={form.startDate} value={form.firstVisitDate || form.startDate}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, firstVisitDate: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                )}
+                {agreement && !readOnly && agreement.status === 'active' && Number(agreement.visitsScheduled || 0) + Number(agreement.visitsCompleted || 0) < planVisits && (
+                  <button type="button" onClick={scheduleTerm} disabled={scheduling} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-60">
+                    {scheduling ? 'Scheduling…' : "Schedule this term's visits"}
+                  </button>
+                )}
+                {visitMsg && <p role={visitMsg.kind === 'err' ? 'alert' : 'status'} className={`text-sm ${visitMsg.kind === 'err' ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>{visitMsg.text}</p>}
+              </div>
+            )}
+
+            {/* Scheduling — fs / landscaping maintenance contracts (config.recurrence), for a plan that sets no visits */}
+            {recurrence && planVisits === 0 && (
             <div className="border-t pt-4 mt-4">
               <label className="flex items-center gap-2 mb-3">
                 <input

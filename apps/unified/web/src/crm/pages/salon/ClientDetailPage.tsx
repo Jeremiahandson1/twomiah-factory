@@ -11,6 +11,7 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { money, useMayWrite } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
+import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -98,13 +99,13 @@ function fmtDate(s?: string | null): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function fmtDateTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return whenDateTime(d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 // One currency formatter for the fleet — this copy had no MINIMUM fraction digits, so a lifetime value
 // of $331.70 printed as "$331.7". (Salon T28 L4)

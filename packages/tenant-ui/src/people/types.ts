@@ -4,6 +4,8 @@ export interface PeopleApi {
   post: (path: string, body?: any) => Promise<any>
   put: (path: string, body?: any) => Promise<any>
   delete: (path: string, id?: string) => Promise<any>
+  /** A multipart POST (the client's upload) — a receipt's photo. */
+  upload?: (path: string, form: FormData) => Promise<any>
 }
 export interface PeopleToast { success: (msg: string) => void; error: (msg: string) => void }
 
@@ -35,6 +37,13 @@ export interface ExpensesConfig {
   projectsFeature?: string
   /** Category ids + labels; ids must match the backend's options.categories. */
   categories?: Array<{ value: string; label: string }>
+  /**
+   * A receipt's photo on each expense (POST/GET /api/expenses/:id/receipt — only where the server keeps them, the
+   * unified app). Absent: no photo field, as before.
+   */
+  receipts?: boolean
+  /** The company's zone, for which days "this month" and "this year" are. Absent: the browser's. */
+  timeZone?: string
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES: Array<{ value: string; label: string }> = [

@@ -5,7 +5,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { toLocalYMD } from '../lib/date'
-import { formatAgencyDate, formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDate, formatAgencyDateTime, agencyLocalInput, agencyFromLocalInput, agencyToday } from '../lib/agencyClock'
 import { allRows, type Client, type Caregiver } from './shared'
 import { useMay } from '../lib/useMay'
 
@@ -87,7 +87,7 @@ const ADLTracking = () => {
   const [showLogModal, setShowLogModal] = useState(false)
   const [dateRange, setDateRange] = useState({
     start: toLocalYMD(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
-    end: toLocalYMD(new Date()),
+    end: agencyToday(),
   })
 
   useEffect(() => {
@@ -447,12 +447,8 @@ const LogADLForm = ({ categories, requirements, caregivers, onSubmit, onCancel }
   categories: Category[]; requirements: Requirement[]; caregivers: Caregiver[]; onSubmit: (b: LogBody) => void; onCancel: () => void
 }) => {
   const toast = useToast()
-  // Local "YYYY-MM-DDTHH:MM" for the datetime-local input, defaulting to now.
-  const nowLocal = () => {
-    const d = new Date()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
+  // The datetime-local box is the AGENCY's wall clock (YYYY-MM-DDTHH:MM), defaulting to now there — not the browser's.
+  const nowLocal = () => agencyLocalInput(new Date())
   const [formData, setFormData] = useState<LogBody>({
     adlCategory: '',
     status: 'completed',
@@ -478,7 +474,7 @@ const LogADLForm = ({ categories, requirements, caregivers, onSubmit, onCancel }
       toast.warning('Please select an ADL category')
       return
     }
-    const when = new Date(formData.performedAt)
+    const when = agencyFromLocalInput(formData.performedAt)
     if (!formData.performedAt || isNaN(when.getTime())) {
       toast.warning('Please enter the date and time this activity was performed')
       return

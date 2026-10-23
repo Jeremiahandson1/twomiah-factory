@@ -48,6 +48,12 @@ export interface JobsConfig {
    * and a hand-made invoice attaches to no work, leaving the job showing cost against no revenue.
    */
   billing?: boolean
+  /**
+   * A new job can repeat — every week, every few weeks or every month, for a number of visits or until a date — and
+   * every visit is made on the calendar at once; the job page shows the series and stops it. Only where the server keeps
+   * series (packages/tenant-backend jobs.ts tables.jobSeries — the unified app). Default false. (live test 2026-10-22)
+   */
+  repeat?: boolean
 }
 
 /**
@@ -73,6 +79,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     notes: !!cfg.notes,
     timeZone: cfg.timeZone,
     billing: !!cfg.billing,
+    repeat: !!cfg.repeat,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),
@@ -110,6 +117,8 @@ export interface JobRow {
   equipment?: { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null } | null
   isOverdue?: boolean
   createdAt?: string
+  /** The series this visit is in (GET /api/jobs/:id), where jobs repeat. */
+  series?: { id: string; summary: string; status: string; index: number | null; total: number; upcoming: number } | null
   [key: string]: unknown
 }
 

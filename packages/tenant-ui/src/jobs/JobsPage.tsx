@@ -20,6 +20,22 @@ type Pick = { id: string; contactId?: string | null; name?: string; firstName?: 
 const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '' })
 const label = (s: string) => s.replace(/_/g, ' ')
 
+/**
+ * How a new job repeats (JobsConfig.repeat). "none" is a single job, as before. The choices are the ones the server
+ * takes — weekly × 1–4 or monthly — and an end: a number of visits, or a last day.
+ */
+type RepeatChoice = 'none' | 'w1' | 'w2' | 'w3' | 'w4' | 'm1'
+const REPEAT_CHOICES: Array<{ value: RepeatChoice; label: string }> = [
+  { value: 'none', label: 'Does not repeat' }, { value: 'w1', label: 'Every week' }, { value: 'w2', label: 'Every 2 weeks' },
+  { value: 'w3', label: 'Every 3 weeks' }, { value: 'w4', label: 'Every 4 weeks' }, { value: 'm1', label: 'Every month' },
+]
+interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string }
+const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '' }
+const repeatBody = (r: RepeatForm) => r.choice === 'none' ? undefined : {
+  frequency: r.choice === 'm1' ? 'monthly' : 'weekly', interval: r.choice === 'm1' ? 1 : Number(r.choice.slice(1)),
+  ...(r.ends === 'count' ? { count: r.count === '' ? undefined : Number(r.count) } : { until: r.until || undefined }),
+}
+
 export function JobsPage({ api, toast, config }: JobsPageProps) {
   const cfg = resolveJobsConfig(config)
   // A technician's job is to work the calls, not to raise or assign them: `field` holds jobs:read and
@@ -57,6 +73,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const statuses = config?.statuses && config.statuses.length ? cfg.statuses : (serverStatuses || cfg.statuses)
   const [form, setForm] = useState<JobForm>(emptyForm(cfg.statuses[0], 'normal'))
   const [saving, setSaving] = useState(false)
+  const [repeat, setRepeat] = useState<RepeatForm>(NO_REPEAT)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [toDelete, setToDelete] = useState<JobRow | null>(null)
 
@@ -158,6 +175,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     // Arrived from a project's Quick Action: that project is already the answer (T51), and so is its customer.
     if (projectId) f = withProject(f, projectId)
     setForm(f)
+    setRepeat(NO_REPEAT)
     setModalOpen(true)
   }
   const openEdit = (item: JobRow) => {
@@ -202,6 +220,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
   const save = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
+    const repeating = !editing && cfg.repeat && repeat.choice !== 'none'
+    if (repeating && !form.scheduledDate) { toast.error('Pick the scheduled date — the first visit — to make it repeat'); return }
     setSaving(true)
     try {
       const payload: any = { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined }
@@ -209,6 +229,13 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (!cfg.sites) delete payload.siteId
       if (!tenantHasBranches) delete payload.locationId
       if (editing) { await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`) }
+      else if (repeating) {
+        // Every visit is made now and is on the calendar; a day the person is already booked is listed back.
+        const r: any = await api.post('/api/jobs', { ...payload, repeat: repeatBody(repeat) })
+        const s = r?.series
+        toast.success(s ? `${s.made} visits scheduled — ${s.summary.toLowerCase()}` : `${cfg.labels.singular} created`)
+        if (s?.skipped?.length) toast.error(`${s.skipped.length} not booked: ${s.skipped.slice(0, 3).map((k: any) => `${dateOnly(k.date)} (${k.reason})`).join('; ')}`)
+      }
       else { await api.post('/api/jobs', payload); toast.success(`${cfg.labels.singular} created`) }
       setModalOpen(false); load()
     } catch (err) { toast.error(errMsg(err, 'Failed to save')) } finally { setSaving(false) }
@@ -322,6 +349,38 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Field label="Scheduled Date"><input type="date" value={form.scheduledDate} onChange={set('scheduledDate')} className={inputCls} /></Field>
           <Field label="Scheduled Time"><input type="time" value={form.scheduledTime} onChange={set('scheduledTime')} className={inputCls} /></Field>
           <Field label="Estimated Hours"><input type="number" min="0" step="0.25" value={form.estimatedHours} onChange={set('estimatedHours')} className={inputCls} /></Field>
+          {/* Repeat — a new job only; an existing visit's series is shown and stopped on its own page. */}
+          {!editing && cfg.repeat && (
+            <div className="md:col-span-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700" data-testid="job-repeat">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label="Repeat">
+                  <select aria-label="Repeat" value={repeat.choice} onChange={(e) => setRepeat((r) => ({ ...r, choice: e.target.value as RepeatChoice }))} className={inputCls}>
+                    {REPEAT_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </Field>
+                {repeat.choice !== 'none' && (
+                  <>
+                    <Field label="Ends">
+                      <select aria-label="Ends" value={repeat.ends} onChange={(e) => setRepeat((r) => ({ ...r, ends: e.target.value as 'count' | 'until' }))} className={inputCls}>
+                        <option value="count">After a number of visits</option>
+                        <option value="until">On a date</option>
+                      </select>
+                    </Field>
+                    {repeat.ends === 'count'
+                      ? <Field label="Visits"><input aria-label="Visits" type="number" min={2} max={52} value={repeat.count} onChange={(e) => setRepeat((r) => ({ ...r, count: e.target.value }))} className={inputCls} /></Field>
+                      : <Field label="Last day"><input aria-label="Last day" type="date" min={form.scheduledDate || undefined} value={repeat.until} onChange={(e) => setRepeat((r) => ({ ...r, until: e.target.value }))} className={inputCls} /></Field>}
+                  </>
+                )}
+              </div>
+              {repeat.choice !== 'none' && (
+                <p className="mt-2 text-xs text-gray-600 dark:text-slate-300">
+                  {form.scheduledDate
+                    ? `Starts ${dateOnly(form.scheduledDate)}. Every visit goes on the Schedule now (up to 52), each its own ${cfg.labels.singular.toLowerCase()}; stop the series from any visit's page.`
+                    : 'Pick the scheduled date above — it is the first visit.'}
+                </p>
+              )}
+            </div>
+          )}
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Address</label>

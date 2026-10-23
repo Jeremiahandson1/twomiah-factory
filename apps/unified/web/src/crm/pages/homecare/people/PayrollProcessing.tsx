@@ -31,7 +31,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, useToast, usePermissions } from '../../../../shared'
 import { api, downloadBlob, errorMessage, rows, saveBlob, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
-import { formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 import PaydayVerificationSetting from './PaydayVerificationSetting'
 import { useMay } from '../lib/useMay'
 import { fullName, money as formatCurrency, type CaregiverRow } from './shared'
@@ -131,7 +131,7 @@ export default function PayrollProcessing() {
   const toast = useToast()
   const [payPeriod, setPayPeriod] = useState({
     startDate: toLocalYMD(new Date(new Date().setDate(new Date().getDate() - 14))),
-    endDate: toLocalYMD(new Date()),
+    endDate: agencyToday(),
   })
   const [payrollData, setPayrollData] = useState<PayrollRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -168,7 +168,7 @@ export default function PayrollProcessing() {
   })
 
   // Mileage form
-  const [mileageForm, setMileageForm] = useState({ caregiverId: '', date: toLocalYMD(new Date()), miles: '', fromLocation: '', toLocation: '', notes: '' })
+  const [mileageForm, setMileageForm] = useState({ caregiverId: '', date: agencyToday(), miles: '', fromLocation: '', toLocation: '', notes: '' })
 
   // PTO form
   const [ptoForm, setPtoForm] = useState({ caregiverId: '', type: 'vacation', startDate: '', endDate: '', hours: '', notes: '' })
@@ -402,7 +402,7 @@ export default function PayrollProcessing() {
     e.preventDefault()
     try {
       await api.post('/api/mileage', { ...mileageForm, startLocation: mileageForm.fromLocation, endLocation: mileageForm.toLocation })
-      setMileageForm({ caregiverId: '', date: toLocalYMD(new Date()), miles: '', fromLocation: '', toLocation: '', notes: '' })
+      setMileageForm({ caregiverId: '', date: agencyToday(), miles: '', fromLocation: '', toLocation: '', notes: '' })
       setShowMileageModal(false)
       setMessage('✓ Mileage recorded')
       setTimeout(() => setMessage(''), 2000)

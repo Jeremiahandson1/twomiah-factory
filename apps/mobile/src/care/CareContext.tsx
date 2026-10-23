@@ -37,7 +37,7 @@ import { createPunchQueue, isUnreachable, newLocalId, isOfflineId, OFFLINE_PREFI
 import { expandVisits, type ScheduleRow, type Visit } from './schedule'
 import { needsSandata, sandataAfterPunch, type SandataClient, type SandataContext } from './sandata'
 import {
-  clockInBlocker, clockOutNoteBlocker, geofenceVerdict, showPayday, snoozePayday,
+  clockInBlocker, clockOutNoteBlocker, geofenceVerdict, showPayday, snoozePayday, docsToSign,
   type GeofenceVerdict, type PaydayPending, type PaydaySnooze,
 } from './rules'
 import { formatClock, ymdOf } from './time'
@@ -306,7 +306,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (rec.ok) setRecent(asList(rec.data))
-      if (docs.ok) setDocs(asList(docs.data))
+      setDocs((prev) => docsToSign(prev, docs, () => asList(docs.data)))
       if (sw.ok) setSwaps(asList(sw.data))
       if (vcr.ok) setRequests(asList(vcr.data))
       if (hrs.ok && hrs.data?.totalHours != null) setHours(parseFloat(hrs.data.totalHours) || 0)

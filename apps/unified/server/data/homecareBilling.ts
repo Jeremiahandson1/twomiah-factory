@@ -13,7 +13,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { camelRows, camelFirst } from '@twomiah/tenant-backend'
 import { invoices } from '../db/schema/index.ts'
-import { occurrencesCte, privatePaySql, type Q } from './homecareCore.ts'
+import { occurrencesCte, privatePaySql, type Q, agencyClock } from './homecareCore.ts'
 
 const alias = (a: string) => {
   if (!/^[a-z_][a-z0-9_]*$/i.test(a)) throw new Error(`bad alias: ${a}`)
@@ -178,12 +178,13 @@ export async function lockInvoiceMoney(tx: Q, companyId: string, invoiceId: stri
 
 /** Recompute amount_paid and the status from the payments that exist (inside the caller's tx). */
 export async function rollUpInvoicePayments(tx: Q, companyId: string, invoiceId: string, paymentDate: string | null): Promise<void> {
+  const { today } = await agencyClock(tx, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   await tx.execute(sql`
     UPDATE invoices i SET
       amount_paid = p.paid,
       payment_status = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN 'paid'
                             WHEN p.paid > 0 THEN 'partial' ELSE 'pending' END,
-      payment_date = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(${paymentDate}::date, i.payment_date, CURRENT_DATE) ELSE i.payment_date END,
+      payment_date = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(${paymentDate}::date, i.payment_date, ${today}::date) ELSE i.payment_date END,
       paid_at = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(i.paid_at, NOW()) ELSE NULL END,
       updated_at = NOW()
     FROM (SELECT COALESCE(SUM(amount), 0)::numeric AS paid FROM invoice_payments WHERE invoice_id = ${invoiceId} AND company_id = ${companyId}) p

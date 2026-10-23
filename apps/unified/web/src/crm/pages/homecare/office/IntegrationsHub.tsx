@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSPrope
 import { CallTrackingSettings, useToast, usePermissions } from '../../../../shared'
 import { api, rows, errorMessage, downloadBlob, saveBlob, listAll } from '../lib/http'
 import { parseLocalDate, toLocalYMD } from '../lib/date'
-import { formatAgencyDate } from '../lib/agencyClock'
+import { formatAgencyDate, agencyToday } from '../lib/agencyClock'
 import SandataPanel, { type EvvVisit } from './SandataPanel'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -184,7 +184,7 @@ const rowLine: CSSProperties = { borderBottom: '1px solid var(--hc-line)' }
 
 /** An authorization's state, by the rules GET /api/authorizations/summary counts with. */
 function authHealth(a: Authorization): { key: string; label: string } {
-  const today = toLocalYMD(new Date())
+  const today = agencyToday()
   const in30 = toLocalYMD(new Date(Date.now() + 30 * 86400000))
   const end = a.endDate ? String(a.endDate).slice(0, 10) : ''
   const remaining = num(a.authorizedUnits) - num(a.usedUnits)

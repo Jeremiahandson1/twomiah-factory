@@ -22,8 +22,9 @@ export function vetMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     { path: '/api/patients', access: 'user', feature: 'patient_records', router: createPatientRoutes(d) },
     { path: '/api/visits', access: 'user', feature: 'patient_records', router: createVisitRoutes(d) },
     { path: '/api/vaccinations', access: 'user', feature: 'patient_records', router: createVaccinationRoutes(d) },
-    { path: '/api/prescriptions', access: 'user', feature: 'patient_records', router: createPrescriptionRoutes(d) },
-    { path: '/api/lab-results', access: 'user', feature: 'patient_records', router: createLabResultRoutes(d) },
+    // Prescriptions and Lab Results are their own switches (Settings › Features): off, their APIs refuse and the chart's tabs go.
+    { path: '/api/prescriptions', access: 'user', feature: 'prescriptions', router: createPrescriptionRoutes(d) },
+    { path: '/api/lab-results', access: 'user', feature: 'lab_results', router: createLabResultRoutes(d) },
     { path: '/api/wellness-plans', access: 'user', feature: 'wellness_plans', router: createWellnessPlanRoutes(d) },
     ...(settings.appointments === 'practice' ? [
       { path: '/api/appointments', access: 'user', feature: 'appointment_scheduling', router: createVetAppointmentRoutes(d) },

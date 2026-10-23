@@ -21,6 +21,7 @@ import {
 import { todayKey } from '../time/day'
 import { errMsg } from '../invoicing/ui'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { whenDate, companyTodayKey } from '../time/companyClock'
 
 export interface TechApi {
   get: (path: string, params?: Record<string, any>) => Promise<any>
@@ -150,7 +151,7 @@ export function TechView({ api, toast, config }: TechViewProps) {
     <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-950">
       <div className="bg-white border-b border-gray-200 px-4 py-3 dark:bg-slate-900 dark:border-slate-700">
         <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">{config.title || 'My Jobs'}</h1>
-        <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+        <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{whenDate(companyTodayKey(), { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
       <div className="flex-1 overflow-y-auto pb-20">
         {loading ? (

@@ -4,9 +4,9 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
-import { formatDate, parseLocalDate } from '../lib/date'
+import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
-import { formatAgencyDate } from '../lib/agencyClock'
+import { formatAgencyDate, agencyDayHasBegun } from '../lib/agencyClock'
 import SignaturePad from '../lib/SignaturePad'
 import { allRows, type Client, type Caregiver } from './shared'
 import { useMay } from '../lib/useMay'
@@ -248,7 +248,7 @@ const DocumentsManagement = () => {
                   </td>
                   <td>
                     {doc.expirationDate ? (
-                      <span style={{ color: parseLocalDate(doc.expirationDate) < new Date() ? 'var(--hc-red-ink)' : 'var(--hc-ink)' }}>
+                      <span style={{ color: agencyDayHasBegun(doc.expirationDate) ? 'var(--hc-red-ink)' : 'var(--hc-ink)' }}>
                         {formatDate(doc.expirationDate)}
                       </span>
                     ) : '-'}

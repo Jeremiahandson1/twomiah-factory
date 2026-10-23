@@ -9,20 +9,15 @@ import type { LucideIcon } from 'lucide-react';
 import type { EquipmentApi, EquipmentCategory, EquipmentPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
+import { whenDate } from '../time/companyClock'
 import { money } from '../money';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
 function formatDate(value?: string | number | Date | null): string {
-  if (value === null || value === undefined || value === '') return '';
-  let d: Date;
-  if (value instanceof Date) { d = value; }
-  else {
-    const s = String(value);
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
-    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
-  }
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  // A calendar day (YYYY-MM-DD or midnight UTC) as the day it names; a moment on the company's clock, not the reader's
+  // (time/companyClock.ts — the one rule every screen prints a stored time by).
+  return whenDate(value)
 }
 
 /**

@@ -88,12 +88,11 @@ export const DEFAULT_SITE_LABELS: SiteLabels = { singular: 'Location', plural: '
 /**
  * THE FEATURE BEHIND EACH PART OF A CONTACT'S PAGE. A section the vertical has (config.sections) is shown only when this
  * feature is switched on too: the list, its count in the Summary, and the quick action that opens its page. Sections
- * missing here (sites, patients, orders) belong to the contact record itself.
+ * missing here (sites, patients, orders) belong to the contact record itself; the texting panel keeps the
+ * customer's opt-out and shows its thread only with Two-Way Texting on (ContactDetailPage `textingOn`).
  */
 export const SECTION_FEATURES: Record<string, string> = {
   projects: 'projects', quotes: 'quotes', invoices: 'invoices', jobs: 'jobs', equipment: 'equipment_tracking', events: 'event_bookings',
-  // The contact's text thread is Two-Way Texting's, as the Messages page is.
-  sms: 'two_way_texting',
 }
 
 export const DEFAULT_CONTACT_TYPES: ContactType[] = [

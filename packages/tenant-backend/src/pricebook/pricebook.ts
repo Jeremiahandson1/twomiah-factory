@@ -26,6 +26,11 @@ export interface PricebookRoutesDeps {
   /** Any of these enabled opens the API. Default ['pricebook', 'flat_rate_pricebook']. */
   features?: string[]
   /**
+   * The app's own feature gate for those ids (the unified app: requireEnabledFeature, whose cache a switch drops at
+   * once). Absent: the module reads the company row itself, cached 15 s — so a switch took up to 15 s to bite.
+   */
+  requireFeature?: (c: any, next: any) => any
+  /**
    * May this caller see what the company PAYS? Not wired → yes, so an un-migrated template is
    * unchanged, and a thrown lookup also answers yes rather than hiding an owner's own figures —
    * the same convention the jobs dashboard uses for `canSee`. (T32 H1)
@@ -392,7 +397,8 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
   const app = new Hono()
   app.use('*', authenticate)
   const cache = new Map<string, { at: number; list: string[] }>()
-  app.use('*', async (c, next) => {
+  if (deps.requireFeature) app.use('*', deps.requireFeature)
+  else app.use('*', async (c, next) => {
     const u = c.get('user') as any
     if (!u?.companyId) return c.json({ error: 'Authentication required' }, 401)
     const hit = cache.get(u.companyId)

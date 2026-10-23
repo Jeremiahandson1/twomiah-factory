@@ -2,7 +2,7 @@
 // The premium site (lib/booking-recurrence.ts) stepped weekly visits by a fixed 7×24 hours, so a 10:00 visit became
 // 9:00 or 11:00 after a clock change, and stepped months in the SERVER's zone; here the calendar date is stepped and
 // the time is put back on it in the business's zone. "Every other week" is weekly × 2 (the site also had 'biweekly').
-import { addDays, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { tzParts, zonedWallTimeToUtc, seriesDays } from '@twomiah/tenant-backend'
 
 export type Frequency = 'weekly' | 'monthly'
 export interface SeriesSpec {
@@ -22,26 +22,17 @@ export const MAX_VISITS = 52
 
 const hm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 
-/** The same day of the month n months on, or that month's last day (Jan 31 → Feb 28). */
-function addMonths(dateIso: string, n: number): string {
-  const [y, m, d] = dateIso.split('-').map(Number)
-  const first = new Date(Date.UTC(y, m - 1 + n, 1))
-  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate()
-  return new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(d, last))).toISOString().slice(0, 10)
-}
-
+/**
+ * The visits: the series' calendar days (packages/tenant-backend time/series.ts — the one stepping rule, shared with
+ * repeating jobs and a maintenance contract's visits), each at the first visit's wall-clock time in the business's zone.
+ */
 export function expandSeries(spec: SeriesSpec): Array<{ startAt: Date; endAt: Date; index: number; date: string }> {
   const { date: firstDate, minutes } = tzParts(spec.firstStartAt, spec.timezone)
-  const interval = Math.max(1, Math.trunc(spec.intervalCount || 1))
-  const cap = Math.min(MAX_VISITS, spec.occurrencesCount && spec.occurrencesCount > 0 ? spec.occurrencesCount : MAX_VISITS)
-  const out: Array<{ startAt: Date; endAt: Date; index: number; date: string }> = []
-  for (let i = 0; out.length < cap; i++) {
-    const date = spec.frequency === 'monthly' ? addMonths(firstDate, i * interval) : addDays(firstDate, i * 7 * interval)
-    if (spec.untilDate && date > spec.untilDate) break
-    const startAt = zonedWallTimeToUtc(date, hm(minutes), spec.timezone)
-    out.push({ startAt, endAt: new Date(startAt.getTime() + spec.durationMinutes * 60_000), index: i + 1, date })
-  }
-  return out
+  return seriesDays({ frequency: spec.frequency, intervalCount: spec.intervalCount, firstDate, occurrencesCount: spec.occurrencesCount, untilDate: spec.untilDate, max: MAX_VISITS })
+    .map(({ date, index }) => {
+      const startAt = zonedWallTimeToUtc(date, hm(minutes), spec.timezone)
+      return { startAt, endAt: new Date(startAt.getTime() + spec.durationMinutes * 60_000), index, date }
+    })
 }
 
 /** "Every other Tuesday, 8 times" — in the business's zone. */

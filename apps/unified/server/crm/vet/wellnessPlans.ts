@@ -6,6 +6,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { wellnessPlan, wellnessEnrollment, patient, contact } from '../../db/schema/index.ts'
 import { createWellnessBillingService } from './wellnessBillingService.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, one, listAll } from '../../http/reply.ts'
@@ -81,7 +82,7 @@ export function createWellnessPlanRoutes(d: CrmDeps) {
       status: body.status || 'active',
       billingCycle: body.billingCycle || 'monthly',
       // A start date by default, so enrolments don't show "—". (VET-25)
-      startDate: body.startDate || new Date().toISOString().slice(0, 10),
+      startDate: body.startDate || storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId)), // the clinic's today
       renewsAt: body.renewsAt || null,
       cancelledAt: body.cancelledAt ? new Date(body.cancelledAt) : null,
       companyId: currentUser.companyId,

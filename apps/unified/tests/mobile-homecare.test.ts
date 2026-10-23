@@ -42,7 +42,8 @@ beforeAll(async () => {
   const seeded = await seedOwner(t)
   const companyId = seeded.company.id
   // The agency's clock is UTC here, so "today" below is the agency's today.
-  await t.db.update(t.schema.company).set({ timezone: 'UTC' } as any).where(eq(t.schema.company.id, companyId))
+  // Documents to sign are the Documents switch's (2026-10-22: home care's switches hide what they name).
+  await t.db.update(t.schema.company).set({ timezone: 'UTC', enabledFeatures: ['documents'] } as any).where(eq(t.schema.company.id, companyId))
   today = new Date().toISOString().slice(0, 10)
   tomorrow = addDays(today, 1)
   tokens.owner = (await login('owner@test.example', seeded.password)).accessToken

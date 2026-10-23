@@ -10,7 +10,7 @@
 // `field` on a new one); every whole read takes the company.
 import { sql, type SQL } from 'drizzle-orm'
 import { camelRows } from '@twomiah/tenant-backend'
-import type { Q } from './homecareCore.ts'
+import { agencyClock, type Q } from './homecareCore.ts'
 
 /** The two stored spellings of the caregiver seat (moved tenants keep `caregiver`; new ones are `field`). */
 export const CAREGIVER_ROLES = ['caregiver', 'field']
@@ -24,11 +24,11 @@ export const descNullsLast = (col: unknown): SQL => sql`${col} DESC NULLS LAST`
 export const emailIs = (col: unknown, email: string): SQL => sql`LOWER(${col}) = ${email}`
 
 /** The office's interview note appended to what is there, dated (applications POST /:id/notes). Never overwrites. */
-export const appendedNote = (col: unknown, note: string): SQL =>
-  sql`COALESCE(${col}, '') || E'\n\n' || ${note} || ' - ' || CURRENT_DATE::text`
+export const appendedNote = (col: unknown, note: string, today: string): SQL =>
+  sql`COALESCE(${col}, '') || E'\n\n' || ${note} || ' - ' || ${today}::text` // dated by the agency's day
 
 /** The status counts of the application queue (applications GET /stats/summary), one column each. */
-export const applicationCounts = (status: unknown, createdAt: unknown) => ({
+export const applicationCounts = (status: unknown, createdAt: unknown, today: string, tz: string) => ({
   total: sql<number>`COUNT(*)::int`,
   newCount: sql<number>`(COUNT(*) FILTER (WHERE ${status} = 'new'))::int`,
   reviewingCount: sql<number>`(COUNT(*) FILTER (WHERE ${status} = 'reviewing'))::int`,
@@ -36,8 +36,9 @@ export const applicationCounts = (status: unknown, createdAt: unknown) => ({
   offeredCount: sql<number>`(COUNT(*) FILTER (WHERE ${status} = 'offered'))::int`,
   hiredCount: sql<number>`(COUNT(*) FILTER (WHERE ${status} = 'hired'))::int`,
   rejectedCount: sql<number>`(COUNT(*) FILTER (WHERE ${status} = 'rejected'))::int`,
-  last7Days: sql<number>`(COUNT(*) FILTER (WHERE ${createdAt} >= CURRENT_DATE - INTERVAL '7 days'))::int`,
-  last30Days: sql<number>`(COUNT(*) FILTER (WHERE ${createdAt} >= CURRENT_DATE - INTERVAL '30 days'))::int`,
+  // From the agency's midnight 7 / 30 days back (created_at is a naive-UTC timestamp).
+  last7Days: sql<number>`(COUNT(*) FILTER (WHERE ${createdAt} >= ((${today}::date - 7)::timestamp AT TIME ZONE ${tz}) AT TIME ZONE 'UTC'))::int`,
+  last30Days: sql<number>`(COUNT(*) FILTER (WHERE ${createdAt} >= ((${today}::date - 30)::timestamp AT TIME ZONE ${tz}) AT TIME ZONE 'UTC'))::int`,
 })
 
 /**
@@ -46,12 +47,12 @@ export const applicationCounts = (status: unknown, createdAt: unknown) => ({
  */
 export const checkDocumentCount = sql<number>`(SELECT COUNT(*)::int FROM background_check_documents d WHERE d.background_check_id = "background_checks"."id")`
 
-/** An expiration date set and within `days` days of today (the database's day, as the template). */
-export const expiresWithin = (col: unknown, days: number): SQL =>
-  sql`${col} IS NOT NULL AND ${col} <= CURRENT_DATE + ${days}::integer`
+/** An expiration date set and within `days` days of the agency's today (the database's day was UTC's). */
+export const expiresWithin = (col: unknown, days: number, today: string): SQL =>
+  sql`${col} IS NOT NULL AND ${col} <= ${today}::date + ${days}::integer`
 
 /** The template's older "expiring" list: within 30 days (an unset date never matches). */
-export const expiresWithin30 = (col: unknown): SQL => sql`${col} <= CURRENT_DATE + 30`
+export const expiresWithin30 = (col: unknown, today: string): SQL => sql`${col} <= ${today}::date + 30`
 
 /**
  * A posting's applications, counted live. Written out in full: in a single-table select Drizzle renders the posting's id
@@ -66,9 +67,10 @@ export const postingApplicationsLive = sql<number>`(SELECT COUNT(*)::int FROM ap
  * failed (disqualifying) and pending. camelCase: passedChecks, failedChecks, pendingChecks.
  */
 export async function backgroundCheckCompliance(q: Q, companyId: string): Promise<any[]> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   const rows = await q.execute(sql`
     SELECT u.id, u.first_name, u.last_name,
-      COALESCE(ARRAY_AGG(DISTINCT bc.check_type) FILTER (WHERE bc.status = 'completed' AND bc.result = 'clear' AND (bc.expiration_date IS NULL OR bc.expiration_date > CURRENT_DATE)), '{}') AS passed_checks,
+      COALESCE(ARRAY_AGG(DISTINCT bc.check_type) FILTER (WHERE bc.status = 'completed' AND bc.result = 'clear' AND (bc.expiration_date IS NULL OR bc.expiration_date > ${today}::date)), '{}') AS passed_checks,
       COALESCE(ARRAY_AGG(DISTINCT bc.check_type) FILTER (WHERE bc.result = 'disqualifying'), '{}') AS failed_checks,
       COALESCE(ARRAY_AGG(DISTINCT bc.check_type) FILTER (WHERE bc.status = 'pending' OR bc.status = 'in_progress'), '{}') AS pending_checks
     FROM "user" u

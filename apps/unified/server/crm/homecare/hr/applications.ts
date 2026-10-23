@@ -45,7 +45,8 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
 
   // GET /api/applications/stats/summary — before /:id
   app.get('/stats/summary', requirePermission('care-hr:read'), async (c) => {
-    const [row] = await d.db.select(applicationCounts(applications.status, applications.createdAt))
+    const tz = await core.time.timezone(companyOf(c))
+    const [row] = await d.db.select(applicationCounts(applications.status, applications.createdAt, await core.time.today(companyOf(c), tz), tz))
       .from(applications).where(eq(applications.companyId, companyOf(c)))
     return one(c, row)
   })
@@ -98,7 +99,7 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
     const notes = typeof b.notes === 'string' ? b.notes.trim() : ''
     if (!notes) return fail(c, 400, 'Notes are required')
     const [row] = await d.db.update(applications)
-      .set({ interviewNotes: appendedNote(applications.interviewNotes, notes), updatedAt: new Date() })
+      .set({ interviewNotes: appendedNote(applications.interviewNotes, notes, await core.time.today(companyOf(c))), updatedAt: new Date() })
       .where(ours(companyOf(c), c.req.param('id')))
       .returning()
     if (!row) return fail(c, 404, 'Application not found')

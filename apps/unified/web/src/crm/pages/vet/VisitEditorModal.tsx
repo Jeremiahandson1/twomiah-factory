@@ -3,6 +3,8 @@ import { useState, type FormEvent } from 'react'
 import { X, Stethoscope } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast } from '../../../shared'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
+import { companyDayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * Visit editor — create/update a visit (vitals + SOAP) for a patient.
@@ -41,10 +43,10 @@ interface VisitEditorModalProps {
 }
 
 function toDateInput(s?: string): string {
-  if (!s) return new Date().toISOString().slice(0, 10);
+  if (!s) return todayKey();
   const d = new Date(s);
-  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
-  return d.toISOString().slice(0, 10);
+  if (isNaN(d.getTime())) return todayKey();
+  return companyDayKey(d); // a visit is a moment: its day on the company's clock, not UTC's
 }
 
 type FormKey = 'visitDate' | 'reason' | 'weightLb' | 'temperatureF' | 'heartRate' | 'respRate' | 'subjective' | 'objective'

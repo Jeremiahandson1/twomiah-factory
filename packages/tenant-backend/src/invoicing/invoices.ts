@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
 import { money } from './money'
+import { companyTimeZone, storeDateString } from '../time/businessDay'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { withoutPortalCredential } from '../contacts/contacts'
@@ -422,6 +423,8 @@ export type ApplyCreditOutcome =
 export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLineItem: any }, input: ApplyCreditInput): Promise<ApplyCreditOutcome> {
   const { invoiceId: id, amount } = input
   let outcome: ApplyCreditOutcome = { ok: false, status: 400, error: 'Credit failed' }
+  // The note is dated on the company's calendar (read before the transaction — never the outer db inside it).
+  const creditDay = storeDateString(new Date(), await companyTimeZone(db, input.companyId))
   await db.transaction(async (tx: any) => {
     const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${input.companyId} FOR UPDATE`)
     const row = (locked.rows || locked)[0]
@@ -467,7 +470,7 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)
     if ('error' in retotal) { outcome = { ok: false, status: 400, error: retotal.error }; return }
     const balanceAfter = invoiceBalance({ ...figures, total: retotal.fields.total, status: retotal.fields.status })
-    const note = `Credit ${money(amount)} applied ${new Date().toISOString().slice(0, 10)}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
+    const note = `Credit ${money(amount)} applied ${creditDay}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
     const set: Record<string, any> = { ...retotal.fields, notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }
     if (balanceAfter <= 0.005 && !row.paid_at) set.paidAt = new Date()
     const [updated] = await tx.update(t.invoice).set(set).where(eq(t.invoice.id, id)).returning()
@@ -515,7 +518,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // asked for read a short page as the end of the list. (Field Service T28 L3)
   const maxLimit = deps.options?.maxLimit ?? 500
   const minLineItems = deps.options?.minLineItems ?? 0
-  const derive = (inv: any) => deriveStatus(inv, openStatuses)
+  // Overdue on the company's clock (money.ts isOverdue / overdueCutoff): a due day ends at the company's midnight, the
+  // customer pages' rule too (portal.ts). The admin list said "overdue" from 7pm Central on the due day. (2026-10-22)
+  const derive = (inv: any, timeZone?: string | null) => deriveStatus(inv, openStatuses, timeZone || undefined)
+  const zoneOf = async (companyId: string) => (await deps.options?.timeZoneFor?.(companyId)) || undefined
 
   /**
    * THE AUDIT LOG RECORDED NO MONEY. (T41, found on three verticals independently)
@@ -620,7 +626,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     // has, and keep past-due rows out of the plain open-status filters so the page and its count agree.
     // …and the customer has the whole of the due day, so the cut-off is the start of TODAY, not this
     // instant — otherwise the filter disagreed with isOverdue by up to a day. (T14 M17)
-    const now = overdueCutoff()
+    const tz = await zoneOf(currentUser.companyId)
+    const now = overdueCutoff(new Date(), tz)
     if (status === 'overdue') { conditions.push(inArray(t.invoice.status, openStatuses)); conditions.push(lt(t.invoice.dueDate, now)) }
     else if (status && openStatuses.includes(status)) { conditions.push(eq(t.invoice.status, status)); conditions.push(or(isNull(t.invoice.dueDate), gte(t.invoice.dueDate, now))) }
     else if (status) conditions.push(eq(t.invoice.status, status))
@@ -643,7 +650,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.invoiceId] ||= []).push(li) })
     const paymentMap: Record<string, any[]> = {}; payments.forEach((p: any) => { (paymentMap[p.invoiceId] ||= []).push(p) })
 
-    const rows = data.map((inv: any) => ({ ...inv, status: derive(inv), balance: invoiceBalance(inv), contact: inv.contactId ? contactMap[inv.contactId] || null : null, lineItems: lineItemMap[inv.id] || [], payments: paymentMap[inv.id] || [] }))
+    const rows = data.map((inv: any) => ({ ...inv, status: derive(inv, tz), balance: invoiceBalance(inv), contact: inv.contactId ? contactMap[inv.contactId] || null : null, lineItems: lineItemMap[inv.id] || [], payments: paymentMap[inv.id] || [] }))
     return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -704,8 +711,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
+    const tz = await zoneOf(currentUser.companyId)
     for (const inv of invoices) {
-      const s = derive(inv)
+      const s = derive(inv, tz)
       stats[s] = (stats[s] || 0) + 1
       if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
@@ -741,7 +749,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const accountBalance = deps.options?.accountBalance && found.contactId
       ? await deps.options.accountBalance.balanceOf(cid, found.contactId).catch(() => 0)
       : null
-    return c.json({ ...found, status: derive(found), balance, accountBalance, contact: ct[0] ? withoutPortalCredential(ct[0]) : null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
+    return c.json({ ...found, status: derive(found, await zoneOf(cid)), balance, accountBalance, contact: ct[0] ? withoutPortalCredential(ct[0]) : null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
   })
 
   // ---------------------------------------------------------------- create
@@ -1082,7 +1090,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
-    const pdfBuffer = await generateInvoicePDF({ ...found, status: derive(found), contact: ct[0] ? withoutPortalCredential(ct[0]) : null, lineItems, payments }, co)
+    const pdfBuffer = await generateInvoicePDF({ ...found, status: derive(found, await zoneOf(cid)), contact: ct[0] ? withoutPortalCredential(ct[0]) : null, lineItems, payments }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="invoice-${found.number}.pdf"` } })
   })
 

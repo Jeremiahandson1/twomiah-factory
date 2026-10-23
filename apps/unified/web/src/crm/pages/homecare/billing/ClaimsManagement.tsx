@@ -12,6 +12,7 @@ import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { useMay } from '../lib/useMay'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { agencyToday } from '../lib/agencyClock'
 
 interface Claim {
   id: string; claimNumber: string | null; clientFirstName: string | null; clientLastName: string | null
@@ -120,7 +121,7 @@ const ClaimsManagement = () => {
         const b = await res.json().catch(() => ({}))
         throw new Error((b as { error?: string }).error || 'Export failed')
       }
-      saveBlob(await res.blob(), `claims-837p-${toLocalYMD(new Date())}.edi`)
+      saveBlob(await res.blob(), `claims-837p-${agencyToday()}.edi`)
       loadClaims()
       setSelectedClaims([])
     } catch (error) {

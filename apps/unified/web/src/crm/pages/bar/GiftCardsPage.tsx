@@ -4,6 +4,7 @@ import { Loader2, Search } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog } from './registerUi';
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * GIFT CARDS — every card the bar has sold, what is still on each, and the total the bar owes its guests in food
@@ -58,7 +59,7 @@ export default function GiftCardsPage() {
               <button className="w-full text-left py-3 flex items-center justify-between gap-3 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg px-2" onClick={() => show(c.id)}>
                 <span className="min-w-0">
                   <span className="block font-mono font-semibold text-gray-900 dark:text-slate-100">{c.code}</span>
-                  <span className={`block text-xs ${MUTED}`}>{c.soldVia === 'online' ? 'Sold online' : `Sold by ${c.soldByName || '—'}`} · {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{c.recipientName ? ` · for ${c.recipientName}` : ''}</span>
+                  <span className={`block text-xs ${MUTED}`}>{c.soldVia === 'online' ? 'Sold online' : `Sold by ${c.soldByName || '—'}`} · {momentDate(c.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}{c.recipientName ? ` · for ${c.recipientName}` : ''}</span>
                 </span>
                 <span className="text-right">
                   <span className="block font-mono text-gray-900 dark:text-slate-100">{c.status === 'void' ? 'Voided' : money(c.balanceCents)}</span>
@@ -94,7 +95,7 @@ function CardDialog({ data, onClose, onChanged }: { data: { card: Card; history:
       <ul className="text-sm divide-y divide-gray-200 dark:divide-slate-800">
         {data.history.map((h) => (
           <li key={h.id} className="py-2 flex justify-between gap-3 text-gray-900 dark:text-slate-100">
-            <span>{KIND[h.kind] || h.kind}{h.byName ? ` · ${h.byName}` : ''}{h.note ? ` · ${h.note}` : ''}<span className={`block text-xs ${MUTED}`}>{new Date(h.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></span>
+            <span>{KIND[h.kind] || h.kind}{h.byName ? ` · ${h.byName}` : ''}{h.note ? ` · ${h.note}` : ''}<span className={`block text-xs ${MUTED}`}>{momentDate(h.at, { month: 'short', day: 'numeric', year: 'numeric' })}</span></span>
             <span className="font-mono">{h.amountCents > 0 ? '+' : ''}{money(h.amountCents)}</span>
           </li>
         ))}

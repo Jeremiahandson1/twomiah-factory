@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite, useToast } from '../../../shared'
 import OwnerPicker from './OwnerPicker'
 import { fetchStaff, useMayPickStaff, staffName, type StaffMember, APPOINTMENT_TYPES, appointmentTypeLabel } from './vetHelpers'
+import { whenTime, companyDayBounds, companyMoment, companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /** A refusal from the API client: its body rides on `data` ({ error, code }). */
 type Refusal = Error & { data?: { code?: string } }
@@ -48,22 +49,18 @@ interface Appointment {
   providerLastName?: string;
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+// Today on the company's calendar — UTC's day (toISOString) opened the book on tomorrow every evening.
+const todayStr = (): string => companyTodayKey();
 
-function dayBounds(day: string): { from: string; to: string } {
-  // Local-day bounds, sent as ISO.
-  const start = new Date(`${day}T00:00:00`);
-  const end = new Date(`${day}T23:59:59.999`);
-  return { from: start.toISOString(), to: end.toISOString() };
-}
+// The day's window on the COMPANY's clock (its midnight to the next), as the book's times are — the browser's day
+// fetched the wrong evening's appointments for a viewer in another zone (2026-10-23).
+const dayBounds = (day: string): { from: string; to: string } => companyDayBounds(day);
 
 function fmtTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return whenTime(d, { hour: 'numeric', minute: '2-digit' });
 }
 
 function providerName(a: Appointment): string {
@@ -243,8 +240,9 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     if (!form.patientId) { toast.error('Patient is required'); return; }
     setSaving(true);
     try {
-      const startTime = new Date(`${form.date}T${form.startTime}:00`).toISOString();
-      const endTime = form.endTime ? new Date(`${form.date}T${form.endTime}:00`).toISOString() : undefined;
+      // The typed day and times are the company's wall clock.
+      const startTime = companyMoment(form.date, form.startTime).toISOString();
+      const endTime = form.endTime ? companyMoment(form.date, form.endTime).toISOString() : undefined;
       const payload: Record<string, unknown> = {
         patientId: form.patientId,
         type: form.type,

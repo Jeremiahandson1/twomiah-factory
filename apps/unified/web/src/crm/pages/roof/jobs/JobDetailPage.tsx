@@ -19,6 +19,10 @@
 //   · "New quote" opens the CRM's quote form filled in with the homeowner and this job (packages/tenant-ui
 //     invoicing/QuotesPage.tsx, roofing's screens set quoteJobs; /crm/quotes?new=1&contactId=&jobId=) — a quote for a
 //     job is how a roofing proposal is made, and the job's Quotes list reads them back.
+//   · the homeowner's quotes and invoices on no job are offered under each card with an Attach button (./AttachDocuments,
+//     POST /api/jobs/:id/attach) — the job read "No quotes" beside a QTE-00001 made from the Quotes page (2026-10-22);
+//   · Materials: the job's material orders, and a New order form (../field/JobMaterials) — the Materials page had no way
+//     to add one (2026-10-22).
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -27,11 +31,14 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import AttachDocuments from './AttachDocuments'
+import JobMaterials from '../field/JobMaterials'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
 
@@ -155,7 +162,8 @@ export default function JobDetailPage() {
       const [jobData, usersRes, crewsRes, timelineRes] = await Promise.all([
         api.get(`/api/jobs/${id}`) as Promise<JobDetail>,
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
         api.get(`/api/jobs/${id}/timeline`).catch(() => null),
       ])
       setJob(jobData)
@@ -379,6 +387,8 @@ export default function JobDetailPage() {
                 </button>)}
               </>
             )}
+            {/* Ask the homeowner for a Google review now (Review Requests; the shared button the other trades' job page has). */}
+            {job.contactId && <ReviewRequestButton api={api as any} toast={toast} jobId={job.id} hasFeature={hasFeature} className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-50" />}
           </div>
         </div>
       </div>
@@ -691,7 +701,7 @@ export default function JobDetailPage() {
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
                     <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
+                      {note.createdAt && <span>{whenDateTime(note.createdAt)}</span>}
                     </div>
                   </div>
                 ))}
@@ -731,7 +741,7 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm text-gray-900 dark:text-slate-100">{event.body}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                          {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
+                          {event.createdAt ? whenDateTime(event.createdAt) : ''}
                         </p>
                       </div>
                     </div>
@@ -792,7 +802,7 @@ export default function JobDetailPage() {
                     ))}
                   </select>
                 </div>
-                <div>
+                {hasFeature('crews') && <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
                   <select disabled={!mayWorkJob}
                     value={job.assignedCrewId || ''}
@@ -804,7 +814,7 @@ export default function JobDetailPage() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                </div>
+                </div>}
               </div>
             </div>
 
@@ -848,6 +858,7 @@ export default function JobDetailPage() {
                     ))}
                   </div>
                 )}
+                {job && <AttachDocuments kind="quote" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
 
@@ -891,8 +902,12 @@ export default function JobDetailPage() {
                     })}
                   </div>
                 )}
+                {job && <AttachDocuments kind="invoice" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
+
+            {/* Materials ordered for this job (the materials feature; GET/POST /api/materials?jobId=). */}
+            {job && hasFeature('materials') && <JobMaterials jobId={job.id} jobAddress={job.address} />}
           </div>
         </div>
       </div>
