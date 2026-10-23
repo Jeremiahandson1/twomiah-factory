@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, Package } from 'lucide-react'
 import { api } from '../../../../api'
+import { money } from '@twomiah/tenant-ui/src/money'
 import { errorText, useToast } from '../../../../shared'
 import { listOf } from './http'
 
@@ -154,7 +155,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
           <button type="button" onClick={() => setLines((ls) => [...ls, blankLine()])} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-300">
             <Plus className="w-4 h-4" /> Add a line
           </button>
-          <span className="text-sm text-gray-700 dark:text-slate-300">Total ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="text-sm text-gray-700 dark:text-slate-300">Total {money(total)}</span>
         </div>
         <div className="mt-3">
           <label htmlFor="mo-notes" className={lab}>Notes</label>

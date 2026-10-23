@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Package, Plus } from 'lucide-react'
 import { api } from '../../../../api'
+import { money } from '@twomiah/tenant-ui/src/money'
 import { useMayWrite, usePermissions } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
@@ -54,7 +55,7 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
               </p>
               <p className="text-xs text-gray-500 dark:text-slate-400">
                 {o.orderDate ? `Ordered ${formatDate(o.orderDate)}` : 'Not ordered yet'}{o.deliveryDate ? ` · Delivery ${formatDate(o.deliveryDate)}` : ''}
-                {showCost && o.totalCost != null ? ` · $${Number(o.totalCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+                {showCost && o.totalCost != null ? ` · ${money(o.totalCost)}` : ''}
               </p>
             </div>
           ))}

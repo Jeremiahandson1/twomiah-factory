@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link2 } from 'lucide-react'
 import { api } from '../../../../api'
+import { money } from '@twomiah/tenant-ui/src/money'
 import { errorText, useMayWrite, useToast } from '../../../../shared'
 import { formatStatus, rowsOf } from './model'
 
@@ -59,7 +60,7 @@ export default function AttachDocuments({ kind, jobId, contactId, onAttached }: 
         {docs.map((d) => (
           <div key={d.id} className="flex items-center justify-between gap-2 text-sm">
             <span className="text-gray-800 dark:text-slate-200">
-              {d.number}{d.name ? ` — ${d.name}` : ''} · {formatStatus(d.status)} · ${Number(d.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {d.number}{d.name ? ` — ${d.name}` : ''} · {formatStatus(d.status)} · {money(d.total || 0)}
             </span>
             <button type="button" onClick={() => attach(d)} disabled={busy === d.id}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-50 disabled:opacity-50 dark:border-orange-700 dark:text-orange-200 dark:hover:bg-orange-950/40">
