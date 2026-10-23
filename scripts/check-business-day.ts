@@ -38,8 +38,20 @@ if (!/STATE_TIME_ZONES\[String\(row\??\.state \|\| ''\)/.test(day)) fail('…the
 const authPayload = read(B + 'auth/auth.ts')
 if (!/timeZone: companyRowTimeZone\(c\)/.test(authPayload)) fail('…and /auth/me hands the shop\'s zone to the screens')
 if (!/} catch \{[\s\S]{0,200}return DEFAULT_BUSINESS_ZONE/.test(day)) fail('…and never throwing: an unreadable company row must behave as before, not 500 the dashboard')
-if (!/export function storeDayRange\(/.test(day)) fail('…and one definition of the day itself')
-if (/const end = new Date\(start\.getTime\(\) \+ 86400000\)/.test(day)) fail('a business day is not always 24 hours — the day the clocks change is 23 or 25, so the end must come from the zone')
+/**
+ * THE DAY ITSELF LIVES IN zoneDay.ts NOW (78df7bb67). The pure date arithmetic — dayMarker … storeDayRange — was split
+ * out of businessDay.ts into time/zoneDay.ts so invoicing/money.ts can end a due day on the company's clock without
+ * importing drizzle-orm; businessDay.ts re-exports it. Still ONE definition: it must be defined in zoneDay.ts,
+ * re-exported (not redefined) by businessDay.ts, and the 23/25-hour rule below is read against that file too.
+ */
+const zoneDay = read(B + 'time/zoneDay.ts')
+const DEFINED_HERE = /export function storeDayRange\(/.test(day)
+const DEFINED_IN_ZONEDAY = /export function storeDayRange\(/.test(zoneDay)
+  && /export \{[^}]*\bstoreDayRange\b[^}]*\} from '\.\/zoneDay'/.test(day)
+if (DEFINED_HERE === DEFINED_IN_ZONEDAY) fail('…and one definition of the day itself')
+const dayDef = DEFINED_HERE ? day : zoneDay
+if (!/const end = storeDayStart\(/.test(dayDef)) fail('…whose end is the NEXT day\'s start in the zone, not start + 24 hours')
+if (/const end = new Date\(start\.getTime\(\) \+ 86400000\)/.test(dayDef)) fail('a business day is not always 24 hours — the day the clocks change is 23 or 25, so the end must come from the zone')
 
 // the marker-versus-instant rule, which is the part that could silently lose a day's work
 if (!/export const jobLocalDay = /.test(day)) fail('a job\'s own day must be worked out in one place')
