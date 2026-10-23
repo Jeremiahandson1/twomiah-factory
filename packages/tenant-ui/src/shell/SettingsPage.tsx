@@ -265,7 +265,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     const fail = (m: string) => { setEditError(m); toast.error(m) }
     if (!editUser.firstName.trim() || !editUser.lastName.trim()) return fail('First and last name are required.')
     const before = users.find((u) => u.id === editUser.id)
-    const body: Record<string, unknown> = { firstName: editUser.firstName.trim(), lastName: editUser.lastName.trim(), phone: editUser.phone.trim() || null }
+    const body: Record<string, unknown> = { firstName: editUser.firstName.trim(), lastName: editUser.lastName.trim() }
+    // Only when it changed: an older phone the server's rule would now refuse must not block fixing a name.
+    if ((before?.phone || '') !== editUser.phone.trim()) body.phone = editUser.phone.trim() || null
     if (!editUser.isOwner && before && editUser.role !== (before.role === 'user' ? 'field' : before.role)) body.role = editUser.role
     setSavingEdit(true)
     try {
