@@ -121,6 +121,7 @@ export default function App() {
                         <Route path="quotes/:id" element={<Crm.QuoteDetail />} />
                         <Route path="invoices" element={<Crm.Invoices />} />
                         <Route path="invoices/:id" element={<Crm.InvoiceDetail />} />
+                        <Route path="financing" element={<Crm.FinancingPage />} />
                         <Route path="schedule" element={<Crm.Schedule />} />
                         <Route path="time" element={<Crm.Time />} />
                         <Route path="expenses" element={<Crm.Expenses />} />

@@ -6,7 +6,7 @@ import {
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
   ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy, Radio, FileSignature, Box,
-  BookMarked, LocateFixed, Paintbrush,
+  BookMarked, LocateFixed, Paintbrush, Landmark,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 import { verticalScreens } from './crm/vertical'
@@ -30,6 +30,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/tech', icon: Smartphone, label: 'Field View', features: ['tech_mobile_view'] },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', features: ['quotes'], permission: 'quotes:read' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'], permission: 'invoices:read' },
+  // Customer financing (crm/financing.tsx): its own switch, which is not ready — on for nobody until it is tested.
+  { to: '/crm/financing', icon: Landmark, label: 'Financing', features: ['consumer_financing'], permission: 'financing:read' },
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time', features: ['time_tracking'] },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', features: ['expense_tracking'] },

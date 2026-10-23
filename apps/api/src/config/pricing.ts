@@ -19,7 +19,7 @@ export type ProductId = typeof PRODUCTS[number]['id']
 export const DEFAULT_SAAS_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
   { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Consumer Financing', 'Advanced Reporting'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
   { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
 ]
@@ -61,7 +61,7 @@ export const DEFAULT_FEATURE_BUNDLES = [
   { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49, description: 'Client selections, material takeoffs' },
   { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties' },
   { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, financing' },
+  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
 ]
 
 // ─── Per-Product Defaults ────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export const DEFAULT_FEATURE_BUNDLES = [
 const CRM_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
   { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Consumer Financing', 'Advanced Reporting'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
   { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
 ]
@@ -90,9 +90,9 @@ const FIELDSERVICE_TIERS = [
 // Template uses `starter`/`pro`/`business`/`storm`/`enterprise` for feature gating.
 const ROOF_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Lead intake', 'Job tracking', 'Quotes & invoices', 'Payments', 'Customer portal', 'Documents', 'Mobile app'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Good-Better-Best pricing', 'Pricebook', 'Measurement reports (3/mo)', 'Review requests', 'Two-way SMS', 'Photos & before/after galleries', 'QuickBooks sync', 'Showcase website included'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', '10 measurement reports/mo', 'Insurance workflow + adjuster directory', 'Consumer financing', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
-  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Unlimited measurement reports', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Service area pages on website'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Good-Better-Best pricing', 'Pricebook', 'Review requests', 'Two-way SMS', 'Photos & before/after galleries', 'QuickBooks sync', 'Showcase website included'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Insurance workflow + adjuster directory', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
+  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Service area pages on website'] },
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited everything', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
 ]
 
@@ -119,7 +119,7 @@ const CRM_BUNDLES = [
   { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49, description: 'Client selections, material takeoffs' },
   { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties' },
   { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, financing' },
+  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
 ]
 
 const FIELDSERVICE_BUNDLES = [
@@ -132,7 +132,7 @@ const FIELDSERVICE_BUNDLES = [
   { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
   { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties, recurring maintenance' },
   { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, financing' },
+  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
 ]
 
 const ROOF_BUNDLES = [
@@ -144,7 +144,7 @@ const ROOF_BUNDLES = [
   { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
   { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
   { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, financing' },
+  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
 ]
 
 const HOMECARE_BUNDLES = [

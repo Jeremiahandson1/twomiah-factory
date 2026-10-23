@@ -6,6 +6,7 @@
  */
 
 import { verticalFor } from '../config/industryRouting'
+import { withoutNotReadyCopy } from '../../../../packages/tenant-backend/src/notReadyCopy.ts'
 
 export interface ContentGenerationInput {
   businessName: string
@@ -313,7 +314,9 @@ Do NOT generate privacy-policy or terms-of-service pages — the template ships 
   }
 
   // Fill in defaults and normalize the response
-  const result = normalizeContent(parsed, input, serviceAreas, now)
+  // …without a sentence or list item naming a feature that is not ready (the content packs mention financing; the
+  // owner's rule, 2026-10-23, is that no site advertises it until it is live): notReadyCopy.ts, the composer's same rule.
+  const result = withoutNotReadyCopy(normalizeContent(parsed, input, serviceAreas, now))
 
   // Fill empty service-card images so cards are never blank. Prefer the live
   // Unsplash+ pool (relevant, only when an Unsplash key is configured), else our

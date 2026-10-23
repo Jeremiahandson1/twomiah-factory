@@ -39,6 +39,7 @@ export {
   FEATURE_REGISTRY, FEATURE_MAP,
   getCategories, getFeaturesForTemplate, getDefaultFeaturesForTemplate,
   getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan, withoutNotReady, withinOffer,
+  notReadyWords, notReadyPattern, siteSectionFeature,
 } from './featureRegistry'
 export type { FeatureDef } from './featureRegistry'
 
@@ -280,3 +281,7 @@ export { pointsForSale, punchCardProgress, visitQualifies, inBirthdayMonth, rewa
 export type { Reward, RewardType, BasketLine, PunchCardState, PunchCardProgress, RedeemCheck, RedeemVocabulary } from './loyalty/engine'
 export { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS, PRIVATE_SETTING_KEYS } from './auth/redactSettings'
 export { AUTH_MODE_HEADER, ACCESS_COOKIE, REFRESH_COOKIE, VIEW_AS_COOKIE, wantsCookieSession, withSession, setSessionCookies, clearSessionCookies, setViewAsCookie, clearViewAsCookie, viewAsCookie, requestToken } from './auth/cookieSession'
+// This tenant's own public address (texts' delivery reports, review clicks, a lender's webhook callback).
+export { publicApiBase } from './publicOrigin'
+// A not-ready feature's words taken out of copy a customer reads (notReadyCopy.ts).
+export { mentionsNotReady, withoutNotReadySentences, withoutNotReadyCopy } from './notReadyCopy'

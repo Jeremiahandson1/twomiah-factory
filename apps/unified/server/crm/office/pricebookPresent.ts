@@ -12,9 +12,10 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { escapeHtml, escapeRow } from '../../core/sanitize.ts'
 import { presentationTiers } from '../../data/pricebookPresent.ts'
-import { createFinancingService, type FinancingService } from './financingService.ts'
+import { offerFor, type FinancingService } from '../financing/service.ts'
 
-async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, financing: FinancingService) {
+async function renderPresentation(c: Context<AppEnv, '/:itemId'>, d: CrmDeps, financing: FinancingService) {
+  const db = d.db
   const itemId = c.req.param('itemId')
 
   // Fetch the item
@@ -42,9 +43,11 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
   // Fetch Good/Better/Best tiers (best first)
   const tiers = (await presentationTiers(db, itemId)).map((t: any) => escapeRow(t, ['features']))
 
-  // Fetch financing options for this company
+  // The lender's estimate on the best tier — only for a business with Consumer Financing switched on (not ready: on for
+  // nobody) and its lender account connected. The template showed made-up rates from seven "providers" to anyone.
   const bestTierPrice = tiers.find(t => t.tier === 'best')?.price || item.price
-  const financingOptions = await financing.getFinancingOptionsForCompany(item.companyId, Number(bestTierPrice))
+  const offer = (await d.features.isFeatureEnabled(item.companyId, 'consumer_financing')) && (await financing.connection(item.companyId))
+    ? offerFor(Number(bestTierPrice)) : null
 
   // The recommended tier the owner ticked, else the best one.
   const recommended = tiers.find(t => t.recommended) || tiers.find(t => t.tier === 'best') || tiers[0]
@@ -379,21 +382,12 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
     ${tiers.length > 0 ? tierCardsHtml : singleItemHtml}
   </div>
 
-  ${financingOptions.length > 0 ? `
+  ${offer ? `
   <div style="max-width:1200px;margin:0 auto;padding:0 48px 32px">
     <div style="background:#f8fafc;border-radius:16px;padding:32px;text-align:center">
-      <h3 style="font-size:20px;font-weight:700;margin-bottom:4px;color:#111827">Financing Available</h3>
-      <p style="font-size:15px;color:#6b7280;margin-bottom:24px">Affordable monthly payments — check your rate with no impact to your credit score</p>
-      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-        ${financingOptions.flatMap(fp => fp.options.slice(0, 2).map(opt => `
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 28px;min-width:180px">
-            <div style="font-size:28px;font-weight:800;color:#111827">${fmt(opt.monthlyPayment)}</div>
-            <div style="font-size:13px;color:#6b7280">/month</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:8px">${opt.label}</div>
-            <div style="font-size:11px;color:#9ca3af;margin-top:4px">via ${fp.displayName}</div>
-          </div>
-        `)).join('')}
-      </div>
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:4px;color:#111827">As low as ${fmt(offer.asLowAs)}/mo*</h3>
+      <p style="font-size:15px;color:#4b5563;margin-bottom:12px">Pay over time with ${escapeHtml(offer.lender)}. Checking your options won't affect your credit score.</p>
+      <p style="font-size:12px;color:#4b5563;max-width:760px;margin:0 auto">*${escapeHtml(`Estimate on ${fmt(offer.amount)}: ${fmt(offer.asLowAs)}/mo for ${offer.termMonths} months at ${offer.apr}% APR. `)}${escapeHtml(offer.disclosure)}</p>
     </div>
   </div>
   ` : ''}
@@ -439,11 +433,10 @@ export const PRESENT_JS = `(function () {
 })();
 `
 
-export function createPricebookPresentRoutes(d: CrmDeps) {
-  const financing = createFinancingService(d)
+export function createPricebookPresentRoutes(d: CrmDeps, financing: FinancingService) {
   const app = new Hono<AppEnv>()
   // Before '/:itemId', which would take "present.js" for an item id.
   app.get('/present.js', (c) => c.body(PRESENT_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' }))
-  app.get('/:itemId', (c) => renderPresentation(c, d.db, financing))
+  app.get('/:itemId', (c) => renderPresentation(c, d, financing))
   return app
 }

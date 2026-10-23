@@ -70,6 +70,11 @@ export interface InvoicingConfig {
    * (T30 debt: the QuickBooks sync button)
    */
   can?: (permission: string) => boolean
+  /**
+   * An app's own panel at the top of the quote's or invoice's side column (the unified app's customer financing), given
+   * the record as loaded. Absent: nothing.
+   */
+  aside?: (doc: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => import('react').ReactNode
 }
 
 export interface InvoicingPageProps {

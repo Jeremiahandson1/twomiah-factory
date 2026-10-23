@@ -163,6 +163,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
         </>}
+        {config?.paymentsExtra && <>{!on('online_payments') && <SectionLabel label="Payments" />}{config.paymentsExtra}</>}
         <SectionLabel label="Communication" />
         <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
           <div className="flex items-start gap-4">

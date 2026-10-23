@@ -42,6 +42,8 @@ export interface IntegrationsConfig {
   textingPage?: string
   /** The business's switches: the QuickBooks card shows with quickbooks on, the Stripe card with online_payments. Absent: both show. */
   hasFeature?: (id: string) => boolean
+  /** An app's own cards under Payments (the unified app's lender account). Absent: nothing more. */
+  paymentsExtra?: import('react').ReactNode
 }
 
 export interface ImportTypeDef {

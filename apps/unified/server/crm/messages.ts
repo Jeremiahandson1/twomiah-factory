@@ -44,6 +44,31 @@ export const crmTemplates: Record<string, Template> = {
     text: `Welcome ${data.firstName}! Your account for ${data.companyName} is ready. Login: ${appUrl}/login`,
   }),
 
+  // Consumer financing's application link (server/crm/financing/service.ts send), with the lender's required disclosure.
+  financingApplication: (data, b) => ({
+    subject: `Pay over time: apply for financing with ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>You can apply to pay for your ${escHtml(data.amount)} job over time with ${escHtml(data.lender)}. Checking your options won't affect your credit score.</p>
+          <p style="text-align:center;"><a href="${escHtml(data.url)}" class="button">Apply with ${escHtml(data.lender)}</a></p>
+          <p style="font-size:12px;color:#6b7280;">${escHtml(data.disclosure)}</p>
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName},
+
+You can apply to pay for your ${data.amount} job over time with ${data.lender}. Checking your options won't affect your credit score.
+
+Apply: ${data.url}
+
+${data.disclosure}`,
+  }),
+
   invoiceSent: (data, b, appUrl) => { const link = invoiceLink(data, appUrl); return {
     subject: `Invoice ${data.invoiceNumber} from ${data.companyName}`,
     html: `

@@ -198,9 +198,14 @@ export const review = pgTable('review', {
   index('review_company_id_idx').on(t.companyId),
 ])
 
+// A customer's application to the business's lender (Consumer Financing — not ready; server/crm/financing). One per
+// lender transaction, for a quote or an invoice; the lender's signed webhooks move its status, and the money it pays out
+// is recorded once as a payment on the invoice (paymentId). provider stays 'wisetack', the one lender wired in.
 export const financingApplication = pgTable('financing_application', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  provider: text('provider').default('wisetack').notNull(), // wisetack, greensky, mosaic, synchrony, hearth, enhancify, service_finance
+  provider: text('provider').default('wisetack').notNull(),
+  // not_started (a link made, nothing heard), pending, prequalified, action_required, approved, confirmed, funded,
+  // declined, expired, canceled — server/crm/financing/lender.ts FinancingStatus.
   status: text('status').default('pending').notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   term: integer('term'),
@@ -212,11 +217,45 @@ export const financingApplication = pgTable('financing_application', {
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  // What it is for: the quote or the invoice it was opened from, and the job either belongs to.
+  quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  /** The lender's own word for the status, as it last sent it. */
+  lenderStatus: text('lender_status'),
+  /** When the link last went to the customer, and how (sms | email). */
+  sentAt: timestamp('sent_at'),
+  sentVia: text('sent_via'),
+  fundedAmount: decimal('funded_amount', { precision: 12, scale: 2 }),
+  fundedAt: timestamp('funded_at'),
+  /** The payment the funded money was recorded as, on the invoice. */
+  paymentId: text('payment_id'),
+  createdById: text('created_by_id'),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('financing_application_company_id_idx').on(t.companyId),
+  index('financing_application_quote_id_idx').on(t.quoteId),
+  index('financing_application_invoice_id_idx').on(t.invoiceId),
+  uniqueIndex('financing_application_provider_external_idx').on(t.provider, t.externalId),
+])
+
+// Every lender webhook delivery that was applied, once: a retried delivery carries the same event id and is not applied
+// again (the unique index), and the list is the application's history.
+export const financingEvent = pgTable('financing_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(),
+  eventId: text('event_id').notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  applicationId: text('application_id').notNull().references(() => financingApplication.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(),
+  lenderStatus: text('lender_status'),
+  amount: decimal('amount', { precision: 12, scale: 2 }),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('financing_event_provider_event_idx').on(t.provider, t.eventId),
+  index('financing_event_application_id_idx').on(t.applicationId),
 ])
 
 export const emailTemplate = pgTable('email_template', {

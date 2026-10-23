@@ -12,8 +12,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { createFileStorage, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
-import { website, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
+import { createFileStorage, companyTimeZone, storeDateString, siteSectionFeature } from '@twomiah/tenant-backend'
+import { website, page, post, portfolioItem, photo, pageView, lead, contact, company } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
 import { one, fail, done, listAll } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
@@ -147,15 +147,20 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   }
 
   // ── Sections and pages ──────────────────────────────────────────────────
-  app.get('/section-types', may('site:read'), (c) => {
+  app.get('/section-types', may('site:read'), async (c) => {
     const dir = path.join(VIEWS, 'sections')
     const types: string[] = []
+    // A section that IS a feature (the financing calculator) is offered only to a business with that feature on — the
+    // site would not show it otherwise (render.ts sectionsShown).
+    const [co] = await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, (c.get('user') as any).companyId)).limit(1)
+    const on = new Set<string>(Array.isArray(co?.f) ? co.f : [])
     for (const type of fs.readdirSync(dir)) {
       const sub = path.join(dir, type)
       if (!fs.statSync(sub).isDirectory()) continue
       for (const f of fs.readdirSync(sub)) {
         const key = type + '/' + f.replace(/\.ejs$/, '')
-        if (f.endsWith('.ejs') && offersSection(key, deps.vertical)) types.push(key)
+        const feature = siteSectionFeature(type)
+        if (f.endsWith('.ejs') && offersSection(key, deps.vertical) && (!feature || on.has(feature))) types.push(key)
       }
     }
     types.sort()

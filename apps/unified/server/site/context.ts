@@ -4,6 +4,7 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { businessHoursLines, checkBusinessHours } from '@twomiah/tenant-backend'
 import { company, website, page, post, portfolioItem } from '../db/schema/index.ts'
+import { sectionsShown } from './render.ts'
 import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS, COVER_DESIGNS } from '../core/vertical.ts'
@@ -26,6 +27,8 @@ export interface SiteContext {
   /** The business's own services for "What we do", and the trade its home hero names (site/menu.ts). */
   services?: SiteService[]
   trade?: string
+  /** The company's switched-on features: a section that IS a feature (the financing calculator) renders only with it on. */
+  features: string[]
 }
 
 /**
@@ -58,9 +61,12 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     businessServices(db, co.id),
   ])
   const trade = tradeOf(pages.find((p: any) => p.slug === 'home')?.sections)
+  const features: string[] = Array.isArray(co.enabledFeatures) ? co.enabledFeatures : []
   const serviceAreas = Array.isArray(s?.serviceAreas) ? s.serviceAreas : []
   const nav = siteMenu(Array.isArray(s?.nav) ? s.nav : [], {
-    pages: new Map(pages.map((p: any) => [p.slug, { live: !!p.isPublished && keepsContent(p.sections, withBusinessServices(p.sections, services, trade)) }])),
+    // What the page shows is its sections less any that is a switched-off feature (render.ts sectionsShown), then "What
+    // we do" filled in — a page left with nothing of its own by either rule is not linked.
+    pages: new Map(pages.map((p: any) => [p.slug, { live: !!p.isPublished && keepsContent(p.sections, withBusinessServices(sectionsShown({ features }, Array.isArray(p.sections) ? p.sections : []), services, trade)) }])),
     posts: !!aPost, portfolio: !!aWork,
     areas: serviceAreas.some((a: any) => String((a && typeof a === 'object' ? a.name : a) || '').trim()),
   })
@@ -72,6 +78,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: COVER_DESIGNS.has(design), ctaHref: vertical.site.ctaHref || '/contact' },
     colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
     services, trade,
+    features,
     settings: {
       companyName: co.name,
       phone: co.phone || '',

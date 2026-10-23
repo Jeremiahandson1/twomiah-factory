@@ -77,7 +77,7 @@ beforeAll(async () => {
   const offeredNow = FEATURE_REGISTRY.filter((f) => f.templates.includes('crm')).map((f) => f.id)
   // …and the modules no industry is offered any more (no screen — scripts/check-unified-feature-has-screen.ts) whose API
   // is still mounted behind its switch: a door stays walked for money while it exists.
-  const offered = [...offeredNow, 'route_optimization', 'map_view', 'consumer_financing']
+  const offered = [...offeredNow, 'route_optimization', 'map_view']
   await t.db.update(t.schema.company).set({ enabledFeatures: offered }).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()
 

@@ -185,6 +185,13 @@
       "breakpoints": true
     },
     {
+      "idx": 26,
+      "version": "7",
+      "when": 1792759596679,
+      "tag": "0026_financing",
+      "breakpoints": true
+    },
+    {
       "idx": 27,
       "version": "7",
       "when": 1792759696679,
