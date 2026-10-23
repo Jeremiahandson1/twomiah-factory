@@ -69,6 +69,7 @@ const FlatRatePricebook = page(() => import('./crm/pages/fieldservice/FlatRatePr
 const MaintenanceContracts = page(() => import('./crm/pages/fieldservice/MaintenanceContracts'))
 const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventory'))
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
+const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 
 function NotFound() {
   return (
@@ -224,6 +225,7 @@ export default function App() {
                       <Route path="settings/features" element={<FeaturesSettings />} />
                       <Route path="settings/billing" element={<Billing />} />
                       <Route path="settings/email" element={<EmailAliases />} />
+                      <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />
                     </Route>

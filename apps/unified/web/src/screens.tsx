@@ -11,9 +11,15 @@ import { verticalScreens } from './crm/vertical'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { useLiveConnection, subscribeLive } from './live'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, BellRing } from 'lucide-react'
+import { isHomecare } from './crm/verticals/homecare'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
 const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read' }
+/**
+ * Settings › Invoice Reminders (crm/pages/InvoiceRemindersPage.tsx; server crm/billing): the owner and admins, where the
+ * business invoices — the Invoices feature, or home care's own Billing.
+ */
+const INVOICE_REMINDER_SETTINGS = { to: '/crm/settings/invoice-reminders', label: 'Invoice Reminders', icon: BellRing, permission: 'company:update', ...(isHomecare ? {} : { feature: 'invoices' }) }
 
 /** Where the admin opens. */
 export const HOME = '/crm'
@@ -43,7 +49,7 @@ export const ResetPassword = () => <ResetPasswordPage api={api} />
 export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA], timeZone: true }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA], timeZone: true }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

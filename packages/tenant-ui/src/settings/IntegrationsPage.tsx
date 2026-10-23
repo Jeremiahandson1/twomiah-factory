@@ -40,7 +40,8 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: IntegrationsConfig }) {
   const confirm = useConfirm()
   const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
-  const copy = { quickbooks: 'Sync invoices, expenses, and customers with your books.', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
+  // QuickBooks takes customers, invoices and payments (integrations/quickbooks.ts) — never expenses, which this said.
+  const copy = { quickbooks: 'Send customers, invoices and payments to QuickBooks Online.', quickbooksAutoSync: 'Auto-sync new invoices and customers', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const navigate = useNavigate()
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)
@@ -75,7 +76,11 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
   const qbConnect = () => run('qb-connect', async () => { const d = await api.get('/api/integrations/quickbooks/auth-url'); const url = d?.authUrl || d?.url; if (url) window.location.href = url; else throw new Error('QuickBooks did not return a sign-in link') }, 'Failed to start QuickBooks connection')
   const qbDisconnect = async () => { if (!(await confirm('Disconnect QuickBooks? Your data will stop syncing.', { title: 'Disconnect QuickBooks', confirmText: 'Disconnect' }))) return; run('quickbooks', async () => { await api.post('/api/integrations/quickbooks/disconnect'); setStatus((s) => ({ ...s, quickbooks: { ...EMPTY.quickbooks } })); flash('QuickBooks disconnected') }, 'Failed to disconnect QuickBooks') }
-  const qbSync = () => run('sync', async () => { await api.post('/api/integrations/quickbooks/sync'); flash('Sync started'); load() }, 'Sync failed')
+  const qbSync = () => run('sync', async () => {
+    if (config?.quickbooksSyncPath) { await api.post(config.quickbooksSyncPath); flash('Sync finished — see the sync log below') }
+    else { await api.post('/api/integrations/quickbooks/sync'); flash('Sync started') }
+    load()
+  }, 'Sync failed')
   const qbAutoSync = () => run('autosync', async () => { const next = !status.quickbooks.syncEnabled; await api.post('/api/quickbooks/auto-sync', { enabled: next }); setStatus((s) => ({ ...s, quickbooks: { ...s.quickbooks, syncEnabled: next } })); flash(`Auto-sync ${next ? 'enabled' : 'disabled'}`) }, 'Failed to update auto-sync')
   const stripeConnect = () => run('stripe-connect', async () => { const d = await api.get('/api/integrations/stripe/connect-url'); if (d?.connectUrl) window.location.href = d.connectUrl; else throw new Error('Stripe did not return an onboarding link') }, 'Failed to start Stripe connection')
   const stripeDisconnect = async () => { if (!(await confirm("Disconnect Stripe? You won't be able to accept payments.", { title: 'Disconnect Stripe', confirmText: 'Disconnect' }))) return; run('stripe', async () => { await api.post('/api/integrations/stripe/disconnect'); setStatus((s) => ({ ...s, stripe: { ...EMPTY.stripe } })); flash('Stripe disconnected') }, 'Failed to disconnect Stripe') }
@@ -130,8 +135,9 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {whenDateTime(status.quickbooks.lastSync)}</p>}
               <button onClick={qbAutoSync} disabled={saving === 'autosync'} className="flex items-center gap-2 text-gray-700 dark:text-slate-300" data-testid="qb-autosync">
                 {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
-                <span className="text-sm">Auto-sync new invoices and customers</span>
+                <span className="text-sm">{copy.quickbooksAutoSync}</span>
               </button>
+              {config?.quickbooksExtra?.({ lastSync: status.quickbooks.lastSync, syncEnabled: !!status.quickbooks.syncEnabled })}
             </div>
           )}
           actions={status.quickbooks.configured === false ? null : status.quickbooks.connected ? (<>

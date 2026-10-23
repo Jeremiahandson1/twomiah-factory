@@ -21,7 +21,7 @@ export interface LeadSourceGuide {
 }
 export interface IntegrationsConfig {
   /** Card copy per vertical (vocabulary only — behaviour is identical everywhere). */
-  copy?: { quickbooks?: string; sms?: string; email?: string; intro?: string }
+  copy?: { quickbooks?: string; sms?: string; email?: string; intro?: string; quickbooksAutoSync?: string }
   /** Setup guides shown under "Lead Sources"; default = the trades set (Angi, Thumbtack, Google LSA). */
   leadSources?: LeadSourceGuide[]
   /**
@@ -44,6 +44,16 @@ export interface IntegrationsConfig {
   hasFeature?: (id: string) => boolean
   /** An app's own cards under Payments (the unified app's lender account). Absent: nothing more. */
   paymentsExtra?: import('react').ReactNode
+  /**
+   * Where Sync Now posts, when the app records its syncs (the unified app's '/api/qb-sync/run', whose run is in its sync
+   * log). Absent: the shared /api/integrations/quickbooks/sync, as before.
+   */
+  quickbooksSyncPath?: string
+  /**
+   * An app's own panel inside the connected QuickBooks card (the unified app's sync log), drawn again with the card's
+   * last sync time and switch so it shows what a sync just did. Absent: nothing more.
+   */
+  quickbooksExtra?: (state: { lastSync: string | null; syncEnabled: boolean }) => import('react').ReactNode
 }
 
 export interface ImportTypeDef {
