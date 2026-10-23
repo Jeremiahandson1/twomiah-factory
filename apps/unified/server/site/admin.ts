@@ -19,6 +19,7 @@ import { one, fail, done, listAll } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
+import { linkSlug } from './menu.ts'
 
 /** Where public website photos are kept: the one prefix /media serves (site/routes.ts). */
 export const PUBLIC_PHOTO_PREFIX = 'photos/'
@@ -161,6 +162,20 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     return listAll(c, types)
   })
 
+  /**
+   * A page the owner publishes joins the site's menu, once — as the first published piece of work adds Projects
+   * (ensurePortfolioInNav). Taken out of the menu afterwards, it stays out while it stays published (a landing page).
+   * The home page is the logo and the contact page the header's button, so neither is added. (Live test 2026-10-22:
+   * a page shown on the site never reached the menu.)
+   */
+  async function ensurePageInNav(companyId: string, p: { slug: string; title: string }) {
+    if (p.slug === 'home' || p.slug === 'contact') return
+    const s = await siteRow(companyId)
+    const nav = Array.isArray(s.nav) ? s.nav as Array<{ label: string; href: string }> : []
+    if (nav.some((n) => linkSlug(n?.href) === p.slug)) return
+    await db.update(website).set({ nav: [...nav, { label: p.title, href: p.slug }], updatedAt: new Date() }).where(eq(website.id, s.id))
+  }
+
   app.get('/pages', may('site:read'), async (c) => {
     const rows = await db.select({ id: page.id, slug: page.slug, title: page.title, isPublished: page.isPublished, navOrder: page.navOrder, updatedAt: page.updatedAt })
       .from(page).where(eq(page.companyId, c.get('user').companyId)).orderBy(asc(page.navOrder), asc(page.title))
@@ -191,6 +206,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       metaTitle: typeof body.metaTitle === 'string' ? body.metaTitle : null,
       metaDescription: typeof body.metaDescription === 'string' ? body.metaDescription : null,
     }).returning()
+    if (created.isPublished) await ensurePageInNav(companyId, created)
     return one(c, created, 201)
   })
 
@@ -205,8 +221,13 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     if (typeof body.navOrder === 'number' && Number.isFinite(body.navOrder)) patch.navOrder = Math.trunc(body.navOrder)
     if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
     patch.updatedAt = new Date()
-    const [updated] = await db.update(page).set(patch).where(and(eq(page.companyId, c.get('user').companyId), eq(page.slug, c.req.param('slug')))).returning()
-    return updated ? one(c, updated) : fail(c, 404, 'Page not found')
+    const companyId = c.get('user').companyId
+    const where = and(eq(page.companyId, companyId), eq(page.slug, c.req.param('slug')))
+    const [before] = await db.select({ isPublished: page.isPublished }).from(page).where(where).limit(1)
+    const [updated] = await db.update(page).set(patch).where(where).returning()
+    if (!updated) return fail(c, 404, 'Page not found')
+    if (updated.isPublished && before && !before.isPublished) await ensurePageInNav(companyId, updated)
+    return one(c, updated)
   })
 
   app.delete('/pages/:slug', may('site:delete'), async (c) => {

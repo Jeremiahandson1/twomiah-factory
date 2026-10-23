@@ -170,7 +170,7 @@ export function SiteSettingsPage() {
         {/* Navigation */}
         <section className="card card-padding mb-6">
           <h2 className="text-lg font-semibold text-ink mb-1">Navigation</h2>
-          <p className="text-xs text-muted mb-4">Items appear in the header in this order.</p>
+          <p className="text-xs text-muted mb-4">Items appear in the header in this order. A page you publish is added here; a link to a hidden page isn't shown. Blog, Projects and Service areas are shown on their own once they have something in them.</p>
           <div className="space-y-2">
             {nav.map((item, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_auto] sm:grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-center">
@@ -195,9 +195,9 @@ export function SiteSettingsPage() {
         {/* SEO */}
         <section className="card card-padding mb-6">
           <h2 className="text-lg font-semibold text-ink mb-1">Search defaults</h2>
-          <p className="text-xs text-muted mb-4">Used for pages that don't set their own title and description.</p>
+          <p className="text-xs text-muted mb-4">The title is your home page's in search results and the browser tab (left empty: your business name and town). Other pages show their own name first, like “About — your business, your town”, unless they set their own. The description is used for pages that don't set their own.</p>
           <div className="space-y-4">
-            <TextField label="Default title" value={settings.seoTitle || ''} onChange={(e) => update({ seoTitle: e.target.value || null })} />
+            <TextField label="Home page title" value={settings.seoTitle || ''} onChange={(e) => update({ seoTitle: e.target.value || null })} />
             <TextAreaField label="Default description" rows={3} value={settings.seoDescription || ''} onChange={(e) => update({ seoDescription: e.target.value || null })} />
           </div>
         </section>

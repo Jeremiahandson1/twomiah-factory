@@ -20,6 +20,7 @@ import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
 import type { Storefront } from '../crm/store/index.ts'
 import { servesWhileClosed, unavailablePage } from './shop.ts'
 import type { SiteFacts, PageFacts } from './facts.ts'
+import { pageTitle, withBusinessServices } from './menu.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
@@ -220,7 +221,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Service areas', title: 'Where we work', subtitle: served } },
       { type: 'areas', variant: 'list', data: { heading: 'Areas we serve', areas } },
       contactCta(ctx),
-    ], { title: 'Service areas', metaTitle: 'Service areas | ' + name, metaDescription: served })
+    ], { title: 'Service areas', metaDescription: served })
   })
 
   app.get('/service-areas/:area', async (c) => {
@@ -229,7 +230,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     const area = areas.find((a) => a.slug === c.req.param('area'))
     if (!ctx || !area) return c.notFound()
     const name = ctx.settings.companyName
-    const [services, contact] = await Promise.all([firstSectionOfType(ctx.companyId, 'services', ['services', 'home']), firstSectionOfType(ctx.companyId, 'contact', ['contact'])])
+    const [found, contact] = await Promise.all([firstSectionOfType(ctx.companyId, 'services', ['services', 'home']), firstSectionOfType(ctx.companyId, 'contact', ['contact'])])
+    // As the business has them now (site/menu.ts): never the trade stand-in in "Roofing in Altoona."
+    const [services] = found ? withBusinessServices([found], ctx.services ?? [], ctx.trade ?? '') : []
     const serviceNames: string[] = Array.isArray(services?.data?.items)
       ? services.data.items.map((i: any) => String(i?.title || '').trim()).filter(Boolean).slice(0, 4) : []
     const lead = serviceNames.length ? listOf(serviceNames) + ' in ' + area.name + '.' : name + ' serves ' + area.name + '.'
@@ -240,7 +243,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (services) sections.push({ ...services, data: { ...services.data, heading: 'What we do in ' + area.name } })
     if (others.length) sections.push({ type: 'areas', variant: 'list', data: { heading: 'Other areas we serve', areas: others } })
     sections.push(contact || contactCta(ctx))
-    return page200(c, ctx, '/service-areas/' + area.slug, sections, { title: area.name, metaTitle: name + ' in ' + area.name, metaDescription: lead })
+    return page200(c, ctx, '/service-areas/' + area.slug, sections, { title: area.name, metaDescription: lead })
   })
 
   // The owner's finished work (the site's "projects"; table portfolio_item).
@@ -264,7 +267,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       ]
     }
     return page200(c, ctx, '/projects', sections, {
-      title: composedPage?.title || 'Projects', metaTitle: composedPage?.metaTitle || 'Projects | ' + name, metaDescription: composedPage?.metaDescription || 'Recent work by ' + name + '.',
+      title: composedPage?.title || 'Projects', metaTitle: composedPage?.metaTitle || null, metaDescription: composedPage?.metaDescription || 'Recent work by ' + name + '.',
     })
   })
 
@@ -284,7 +287,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     ]
     if (more.length) sections.push({ type: 'projects', variant: 'grid', data: { heading: 'More projects', items: more.map(projectCard) } })
     sections.push(contact || contactCta(ctx))
-    return page200(c, ctx, '/projects/' + p.slug, sections, { title: p.title, metaTitle: p.metaTitle || alt + ' | ' + name, metaDescription: p.metaDescription || p.summary || '' })
+    return page200(c, ctx, '/projects/' + p.slug, sections, { title: alt, metaTitle: p.metaTitle || null, metaDescription: p.metaDescription || p.summary || '' })
   })
 
   // ── A store's shop (CrmSettings.store; sections/shop/*) ───────────────────
@@ -296,7 +299,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!ctx) return c.notFound()
       const products = await shop.catalogue(ctx.companyId)
       const name = ctx.settings.companyName
-      return page200(c, ctx, '/shop', [{ type: 'shop', variant: 'grid', data: { products } }], { title: 'Shop', metaTitle: 'Shop | ' + name, metaDescription: 'Browse products from ' + name + '.' })
+      return page200(c, ctx, '/shop', [{ type: 'shop', variant: 'grid', data: { products } }], { title: 'Shop', metaDescription: 'Browse products from ' + name + '.' })
     })
     app.get('/product/:slug', async (c) => {
       const ctx = await ctxOf()
@@ -305,13 +308,13 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!p) return c.notFound()
       const name = ctx.settings.companyName
       return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p } }], {
-        title: p.name, metaTitle: (p.seoTitle || p.name) + ' | ' + name, metaDescription: (p.seoDescription || p.tagline || p.name || '').slice(0, 300),
+        title: p.name, metaTitle: p.seoTitle || null, metaDescription: (p.seoDescription || p.tagline || p.name || '').slice(0, 300),
       })
     })
     app.get('/cart', async (c) => {
       const ctx = await ctxOf()
       if (!ctx) return c.notFound()
-      return page200(c, ctx, '/cart', [{ type: 'shop', variant: 'cart', data: {} }], { title: 'Your Cart', metaTitle: 'Your Cart | ' + ctx.settings.companyName, metaDescription: 'Review the items in your cart.' })
+      return page200(c, ctx, '/cart', [{ type: 'shop', variant: 'cart', data: {} }], { title: 'Your Cart', metaDescription: 'Review the items in your cart.' })
     })
     // Stripe returns ?session_id=; Square and PayPal ?ref=<order id>. An order whose payment notice is late is finished here.
     app.get('/checkout/success', async (c) => {
@@ -319,7 +322,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!ctx) return c.notFound()
       const sessionId = c.req.query('session_id') || '', ref = c.req.query('ref') || ''
       const order = sessionId || ref ? await shop.orderSummary(ctx.companyId, { sessionId: sessionId || null, ref: ref || null }).catch(() => null) : null
-      return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order } }], { title: 'Order received', metaTitle: 'Order received | ' + ctx.settings.companyName, metaDescription: 'Thank you for your order.' })
+      return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order } }], { title: 'Order received', metaDescription: 'Thank you for your order.' })
     })
   }
 
@@ -343,7 +346,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       composedHero || { type: 'hero', variant: 'centered-stats', data: { eyebrow: name, title: 'Inventory' } },
       { type: 'inventory', variant: 'live', data: { units, total: all.length, facets, query: q } },
       contactCta(ctx),
-    ], { title: 'Inventory', metaTitle: 'Inventory | ' + name, metaDescription: name + ' — ' + all.length + ' unit' + (all.length === 1 ? '' : 's') + ' for sale.' })
+    ], { title: 'Inventory', metaDescription: name + ' — ' + all.length + ' unit' + (all.length === 1 ? '' : 's') + ' for sale.' })
   })
 
   app.get('/inventory/:unit', async (c) => {
@@ -354,8 +357,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (!u) return c.redirect('/inventory', 302)  // sold or delisted: the lot, not a dead end
     const name = ctx.settings.companyName
     return page200(c, ctx, '/inventory/' + u.slug, [{ type: 'inventory', variant: 'unit', data: { unit: u, specs: unitSpecs(u) } }], {
-      title: u.title,
-      metaTitle: u.title + (u.price ? ' — $' + Number(u.price).toLocaleString('en-US') : '') + ' | ' + name,
+      title: u.title + (u.price ? ' — $' + Number(u.price).toLocaleString('en-US') : ''),
       metaDescription: (u.description || u.title + ' at ' + name + '.').slice(0, 300),
     })
   })
@@ -377,7 +379,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       { type: 'hero', variant: 'centered-stats', data: { eyebrow: name, title: 'See it on your home', subtitle: 'Upload a photo of your house and try materials and colors before any work begins.' } },
       { type: 'tools', variant: 'visualizer', data: { src: origin + '/embed?tenant=' + encodeURIComponent(ctx.slug) } },
       contactCta(ctx),
-    ], { title: 'Visualizer', metaTitle: 'Visualizer | ' + name, metaDescription: 'Try materials and colors on a photo of your home with ' + name + '.' })
+    ], { title: 'Visualizer', metaDescription: 'Try materials and colors on a photo of your home with ' + name + '.' })
   })
 
   // ── The business's privacy policy and terms (site/legal.ts) ───────────────
@@ -388,7 +390,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       count(c, ctx, pathname)
       return c.html(await renderBody(ctx, html(ctx.settings as any), {
         siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
-        seoTitle: title + ' · ' + ctx.settings.companyName,
+        seoTitle: pageTitle(ctx.settings, { title }),
         seoDescription: title + ' for ' + ctx.settings.companyName + ', including how we text customers.',
       }, pathname))
     })
@@ -417,7 +419,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     count(c, ctx, '/blog')
     return c.html(await renderBody(ctx, body, {
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
-      seoTitle: 'Blog · ' + ctx.settings.companyName,
+      seoTitle: pageTitle(ctx.settings, { title: 'Blog' }),
       seoDescription: ctx.settings.seoDescription || 'Recent posts from ' + ctx.settings.companyName + '.',
     }, '/blog'))
   })
@@ -441,7 +443,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     count(c, ctx, '/blog/' + p.slug)
     return c.html(await renderBody(ctx, body, {
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
-      seoTitle: p.metaTitle || p.title + ' — ' + ctx.settings.companyName,
+      seoTitle: pageTitle(ctx.settings, { own: p.metaTitle, title: p.title }),
       seoDescription: p.metaDescription || p.excerpt || '',
     }, '/blog/' + p.slug))
   })
