@@ -63,7 +63,7 @@ export function tierFor(lifetimePoints: number, cfg: LoyaltyConfig): TierStandin
 export function pointsForSaleAtTier(amountCents: number, cfg: LoyaltyConfig, lifetimePoints: number): number {
   if (!cfg.enabled || cfg.pointsPerDollar <= 0) return 0
   const amount = Math.max(0, cents(amountCents))
-  return Math.floor((amount / 100) * cfg.pointsPerDollar * tierFor(lifetimePoints, cfg).multiplier + 1e-9)
+  return Math.floor((amount / 100) * cfg.pointsPerDollar * tierFor(lifetimePoints, cfg).multiplier)
 }
 
 // ─────────────────────────────────────────────────────────────── punch cards

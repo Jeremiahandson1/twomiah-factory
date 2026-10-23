@@ -28,7 +28,7 @@ describe('the engine', () => {
   test('points at a tier: the rate times the multiplier, floored; with no tiers exactly pointsForSale', () => {
     expect(pointsForSaleAtTier(8000, cfg, 0)).toBe(80)
     expect(pointsForSaleAtTier(8000, cfg, 600)).toBe(120)
-    expect(pointsForSaleAtTier(11500, cfg, 600)).toBe(172) // 115 × 1.5 = 172.5 → 172 (and 1.15 × 100 is not 114)
+    expect(pointsForSaleAtTier(11500, cfg, 600)).toBe(172) // 115 × 1.5 = 172.5 → floored, never rounded up
     expect(pointsForSaleAtTier(8000, cfg, 2000)).toBe(160)
     const plain = loyaltyConfig({ loyalty: { pointsPerDollar: 3 } })
     for (const c of [0, 1, 999, 12345, 99999]) expect(pointsForSaleAtTier(c, plain, 5000)).toBe(pointsForSale(c, plain))
