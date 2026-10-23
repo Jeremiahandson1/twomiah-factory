@@ -34,7 +34,19 @@ export function adminHostHandover(siteUrl?: () => string | undefined): Middlewar
     const path = c.req.path
     if (SHARED.some((re) => re.test(path))) return next()
     if (path === '/robots.txt') return c.text('User-agent: *\nDisallow: /\n', 200, { 'Cache-Control': 'public, max-age=3600' })
-    if (path === '/') return c.redirect('/crm', 302)
+    // The page editor's live preview is a frame of the website on this same name. Sending it to the admin put the CRM in
+    // the preview; sending it to the domain is another origin, which the site's frame-ancestors 'self' refuses. So a
+    // same-origin frame (the browser sets both headers; a page can't) is served the website here, kept out of search.
+    if (c.req.header('sec-fetch-dest') === 'iframe' && c.req.header('sec-fetch-site') === 'same-origin') {
+      await next()
+      c.res.headers.set('X-Robots-Tag', 'noindex')
+      return
+    }
+    // "/" typed or bookmarked opens the admin; the admin's own "View site" / "Open" link to "/" means the website.
+    if (path === '/') {
+      const fromAdmin = c.req.header('sec-fetch-site') === 'same-origin' && c.req.header('sec-fetch-dest') === 'document'
+      return fromAdmin ? c.redirect('https://' + siteDomain(url) + '/', 302) : c.redirect('/crm', 302)
+    }
     const query = new URL(c.req.url).search
     return c.redirect('https://' + siteDomain(url) + path + query, 301)
   }
