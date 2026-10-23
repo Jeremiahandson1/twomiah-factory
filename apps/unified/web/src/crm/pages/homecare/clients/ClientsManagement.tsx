@@ -9,6 +9,7 @@ import CareTasksManager from './CareTasksManager'
 import ClientReportModal from './ClientReportModal'
 import { allRows, SECTION_HEAD, HINT, type Client, type ReferralSource, type CareType } from './shared'
 import { useMay } from '../lib/useMay'
+import PayerSelect from './PayerSelect'
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }: { address?: string | null; city?: string | null; state?: string | null; zip?: string | null }) => {
@@ -401,11 +402,8 @@ const ClientsManagement = () => {
               {!formData.isPrivatePay ? (
                 <>
                   <div className="form-group">
-                    <label>Payer / referral source</label>
-                    <select value={formData.referralSourceId} onChange={(e) => set('referralSourceId', e.target.value)}>
-                      <option value="">Select payer...</option>
-                      {referralSources.map((rs) => (<option key={rs.id} value={rs.id}>{rs.name}</option>))}
-                    </select>
+                    <label htmlFor="add-client-payer">Payer / referral source</label>
+                    <PayerSelect id="add-client-payer" payers={referralSources} value={formData.referralSourceId} onChange={(v) => set('referralSourceId', v)} onPrivatePay={() => set('isPrivatePay', true)} />
                   </div>
                   <div className="form-group">
                     <label>Medicaid (MA) ID</label>

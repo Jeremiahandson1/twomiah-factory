@@ -133,7 +133,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
 
   // Field Operations
-  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon', 'crm-bar'] },
+  // Not home care: a caregiver's clock-in and clock-out is EVV (Compliance › EVV), the agency's own and always on — this
+  // switch opened the trades' Time page, which an agency's menu does not have, so it switched nothing (live test 2026-10-22).
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
   // Where's the crew and the job-site geofences (/crm/geofences) and the phone app's location sharing. Not home care: its
   // caregivers' location is EVV's, at clock-in and clock-out, and the phone app offers tracking to the trades only.
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -321,6 +323,22 @@ export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f
  */
 export function withoutNotReady(features: string[]): string[] {
   return features.filter((f) => !FEATURE_MAP[f]?.hidden)
+}
+
+/**
+ * A feature list with what this product does not offer taken out — ONE rule for every door that writes a business's
+ * features (the owner's Settings › Features, the Factory's sync, a first setup, the in-CRM subscription service) and for
+ * the boot-time sweep of the rows already written (apps/unified server/modules/company.ts dropUnofferedFeatures).
+ *
+ * A feature taken off an industry's templates[] stayed switched on for every business that already had it: home care's
+ * shared Invoices was withdrawn on 2026-10-22, but an agency created before then still had it on — a second billing
+ * book beside its own Billing, its payments counted by neither the dashboard nor Billing, its pages reachable only by a
+ * typed address (live test 2026-10-22). So the list is the offer: an id kept is one this template lists (a not-ready one
+ * a platform admin already switched on included — withoutNotReady is the rule for switching one ON); an id no template
+ * lists, or only other templates, goes.
+ */
+export function withinOffer(template: string, features: string[]): string[] {
+  return [...new Set(features)].filter((f) => typeof f === 'string' && !!FEATURE_MAP[f]?.templates.includes(template))
 }
 
 export function getCategories(): string[] {

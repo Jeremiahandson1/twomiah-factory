@@ -38,7 +38,7 @@ export type { AccountDeps } from './account'
 export {
   FEATURE_REGISTRY, FEATURE_MAP,
   getCategories, getFeaturesForTemplate, getDefaultFeaturesForTemplate,
-  getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan, withoutNotReady,
+  getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan, withoutNotReady, withinOffer,
 } from './featureRegistry'
 export type { FeatureDef } from './featureRegistry'
 

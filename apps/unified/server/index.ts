@@ -19,6 +19,11 @@ services.crm.startJobs()
 // empty feature list from the plan at boot; not here: the Factory sets every tenant's features when it builds it,
 // and a fill from a CRM plan would switch the CRM on for a website-only business.)
 void services.refreshSubscription()
+// A feature withdrawn from this industry goes from the business's list (modules/company.ts dropUnofferedFeatures): what
+// the Factory, Settings › Features and the menu read is what the industry still offers.
+void services.dropUnofferedFeatures().then((changed) => {
+  for (const c of changed) logger.info('Features this industry no longer offers were switched off', { companyId: c.companyId, dropped: c.dropped })
+})
 const port = Number(process.env.PORT) || 3001
 
 // websocket: the live-updates socket (http/live.ts) — Bun hands each request's server to the app, which upgrades it.

@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { withoutNotReady, isValidTz } from '@twomiah/tenant-backend'
+import { withoutNotReady, withinOffer, isValidTz } from '@twomiah/tenant-backend'
 import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript, bookingSettings, bookingHours, bookingService } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { BASE_STARTER, starterArticleRows, starterCategories } from '../core/starter.ts'
@@ -114,8 +114,9 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
     const parsed = provisionSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const input = parsed.data
-    // A not-ready feature is switched on by no path, a first setup included (withoutNotReady).
-    input.features = withoutNotReady(input.features)
+    // A not-ready feature is switched on by no path, a first setup included (withoutNotReady); nor is one this industry is
+    // not offered (withinOffer, the rule every writer of the list applies).
+    input.features = withinOffer(vertical.featureSet, withoutNotReady(input.features))
 
     const result = await db.transaction(async (tx: any) => {
       // One business per tenant database (SPEC §2); the oldest company row is it.

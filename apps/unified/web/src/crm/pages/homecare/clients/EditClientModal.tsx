@@ -8,6 +8,7 @@ import { formatDateForInput, toLocalYMD } from '../lib/date'
 import { formatAgencyDate } from '../lib/agencyClock'
 import InsuranceCardUploader from './InsuranceCardUploader'
 import { useMay } from '../lib/useMay'
+import PayerSelect from './PayerSelect'
 import { allRows, SECTION_HEAD, HINT, type Client, type Caregiver, type CareType, type EmergencyContact, type ReferralSource } from './shared'
 
 // A JSON list column shown in a textarea, one entry per line, and back.
@@ -568,13 +569,8 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   <h4 style={SECTION_HEAD}>Referral Information</h4>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>Payer / referral source</label>
-                      <select value={formData.referralSourceId} onChange={(e) => set('referralSourceId', e.target.value)}>
-                        <option value="">Select payer...</option>
-                        {referralSources.map((rs) => (
-                          <option key={rs.id} value={rs.id}>{rs.name}</option>
-                        ))}
-                      </select>
+                      <label htmlFor="edit-client-payer">Payer / referral source</label>
+                      <PayerSelect id="edit-client-payer" payers={referralSources} value={formData.referralSourceId} onChange={(v) => set('referralSourceId', v)} onPrivatePay={() => set('isPrivatePay', true)} />
                     </div>
                     <div className="form-group">
                       <label>Care Type</label>
