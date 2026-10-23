@@ -60,7 +60,9 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   }
 
   function getAuthUrl(companyId: string): string {
-    if (!configured()) throw new Error('QuickBooks is not configured on this server (QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REDIRECT_URI).')
+    // This sentence reaches the owner (GET /quickbooks/auth-url answers with it): the server's setting names stay in the
+    // code, not the message (live test 10/22). Missing: QBO_CLIENT_ID, QBO_CLIENT_SECRET or QBO_REDIRECT_URI.
+    if (!configured()) throw new Error('QuickBooks isn’t switched on for your account yet. Email support@twomiah.com and we will turn it on.')
     const params = new URLSearchParams({ client_id: CLIENT_ID()!, response_type: 'code', scope: 'com.intuit.quickbooks.accounting', redirect_uri: REDIRECT_URI()!, state: signState(companyId) })
     return `${QBO_AUTH_URL}?${params}`
   }

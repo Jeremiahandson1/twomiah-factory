@@ -181,27 +181,33 @@ const rv: VerticalSettings = {
         },
         {
           id: 'rv_trader', label: 'RV Trader', category: 'lead_sources',
-          description: 'Automatically pull RV Trader leads into your CRM lead inbox.',
+          // The Lead Sources page's own steps (email forwarding): there is no "Connect RV Trader" button (live test 10/22).
+          description: 'Forward RV Trader buyer enquiries into your Lead Inbox.',
           guideSteps: [
-            'Go to Settings > Integrations > Lead Sources in your CRM', 'Click "Connect RV Trader" and enter your RV Trader dealer account details',
-            'New leads will automatically flow into your Lead Inbox', 'Set up auto-reply templates to respond to shoppers instantly',
+            'Open Lead Sources and connect RV Trader / Cycle Trader to get your inbound email address',
+            'In the TraderInteractive dealer portal: Settings → Lead notifications — send lead emails to that address (or add it as a CC)',
+            "Each enquiry becomes a lead with the buyer's name, unit of interest and message",
           ],
+          open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
         },
         {
           id: 'cycle_trader', label: 'Cycle Trader', category: 'lead_sources',
-          description: 'Pull Cycle Trader / powersports leads directly into your CRM.',
+          description: 'Forward Cycle Trader / powersports buyer enquiries into your Lead Inbox.',
           guideSteps: [
-            'Go to Settings > Integrations > Lead Sources', 'Click "Connect Cycle Trader" and authenticate with your dealer account',
-            'Choose which listings to route leads from', 'Leads will appear in your Lead Inbox automatically',
+            'Cycle Trader is the same TraderInteractive portal as RV Trader: open Lead Sources and connect RV Trader / Cycle Trader',
+            'In the dealer portal: Settings → Lead notifications — send lead emails to the inbound address it shows',
+            'Each enquiry becomes a lead in your Lead Inbox',
           ],
+          open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
         },
         {
           id: 'dealer_spike', label: 'Dealer Spike / DX1', category: 'lead_sources',
           description: 'Route website and marketplace leads from your dealer website provider.',
           guideSteps: [
-            'Go to Settings > Integrations > Lead Sources', 'Add your Dealer Spike / DX1 lead-forwarding email or webhook',
-            'Point your website provider’s lead notifications to it', 'New website leads will appear in your Lead Inbox',
+            'Open Lead Sources and connect Website contact form to get your inbound email address and webhook URL',
+            'Point your Dealer Spike / DX1 lead notifications at that email address (or the webhook)', 'New website leads appear in your Lead Inbox',
           ],
+          open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
         },
       ],
     },

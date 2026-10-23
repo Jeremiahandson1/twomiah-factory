@@ -6,8 +6,9 @@ import { Hono } from 'hono'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
   createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
-  withoutNotReady,
+  withoutNotReady, isValidTimeZone, companyRowTimeZone,
 } from '@twomiah/tenant-backend'
+import { z } from 'zod'
 import { asc, eq } from 'drizzle-orm'
 import { company, user, emailAlias, lead, leadSource, contact } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
@@ -40,6 +41,16 @@ export interface CompanyModuleDeps {
   /** Where an uploaded logo is kept (the website's photo store, served at /media). */
   store: PhotoStore
 }
+
+/**
+ * The business's own time zone on PUT /api/company: an IANA name Postgres and Intl both know, or blank/null for "the
+ * state's" (companyRowTimeZone then decides). The same rule as home care's (crm/homecare/office/companyFields.ts).
+ */
+export const companyTimezoneField = z.union([z.string().trim(), z.null()]).optional()
+  .refine((v) => v === undefined || v === null || v === '' || isValidTimeZone(v), (v) => ({
+    message: `"${String(v).slice(0, 64)}" is not a time zone — use a name such as America/Chicago`,
+  }))
+  .transform((v) => (v === '' ? null : v))
 
 /** The Factory subscription's doors (packages/tenant-backend billing.ts createBillingRoutes). */
 export const SUBSCRIPTION_DOORS = ['/subscription', '/portal-link', '/restart-checkout'] as const
@@ -84,9 +95,12 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
-    // Home care's own company columns (time zone, mileage rate, legal name, NPI, Medicaid id) and the zone its reports
-    // count days on (server/crm/homecare/office/companyFields.ts; templates/crm-homecare routes/company.ts).
-    ...(vertical.crm?.homecare ? { fields: homecareCompanyFields, describe: describeAgency } : {}),
+    // Every business's time zone (company.timezone, Settings › Company — live test 10/22: the contractor's was only under
+    // Booking settings) and the zone its days are counted on; home care's own columns besides (mileage rate, legal name,
+    // NPI, Medicaid id) and its agency rule for the zone (server/crm/homecare/office/companyFields.ts).
+    ...(vertical.crm?.homecare
+      ? { fields: homecareCompanyFields, describe: describeAgency }
+      : { fields: { timezone: companyTimezoneField }, describe: (row: any) => ({ effectiveTimezone: companyRowTimeZone(row) }) }),
     // The roles a login may hold here (CrmSettings.team.roles; the store's manager and staff). 'user' is the old
     // spelling of field — the shared POST /users defaults to it and stores it as field — so it rides along with field.
     ...(vertical.crm?.team?.roles?.length

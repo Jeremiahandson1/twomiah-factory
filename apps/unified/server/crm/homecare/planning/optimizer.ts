@@ -587,7 +587,7 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
       // `configured` / `provider` / `message` are the template's earlier shape; kept for any reader.
       configured: !!key,
       provider: key ? 'google-maps' : null,
-      message: key ? 'Route optimization is enabled.' : 'Route optimization uses straight-line estimates. Set GOOGLE_MAPS_API_KEY for real road miles.',
+      message: key ? 'Route optimization is enabled.' : 'Route optimization uses straight-line distances for now. Email support@twomiah.com to switch on real road miles and drive times.',
       googleApiKeyConfigured: !!key,
       routingSource: key ? 'Google Routes API (real road miles + drive times)' : 'Haversine (straight-line estimate)',
       geocodingSource: key ? 'Google Geocoding API' : 'Nominatim (OpenStreetMap)',

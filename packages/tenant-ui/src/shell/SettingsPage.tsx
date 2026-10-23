@@ -36,7 +36,16 @@ const hoursToSave = (f: HoursForm) => {
   return Object.keys(out).length ? out : null
 }
 const dayLabel = (d: string) => d[0].toUpperCase() + d.slice(1)
-interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value']; invite: boolean }
+/** The US zones, by the names an owner uses (config.timeZone). A zone saved some other way is offered too, as itself. */
+const US_ZONES: Array<[string, string]> = [
+  ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'], ['America/Denver', 'Mountain'], ['America/Phoenix', 'Arizona (no daylight saving)'],
+  ['America/Los_Angeles', 'Pacific'], ['America/Anchorage', 'Alaska'], ['Pacific/Honolulu', 'Hawaii'],
+]
+const zoneName = (z?: string | null) => (z ? (US_ZONES.find(([id]) => id === z)?.[1] || z.replace(/_/g, ' ')) : '')
+/** How a new teammate signs in the first time: a password the admin sets now, or an emailed invite. Asked, never assumed. */
+type SignInWay = '' | 'password' | 'invite'
+interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value']; way: SignInWay }
+interface EditUserForm { id: string; firstName: string; lastName: string; phone: string; role: string; email: string; isOwner: boolean }
 
 /**
  * The side links, each with the lowest rung its own page will serve. Every one of these was shown to
@@ -56,7 +65,9 @@ const SUB_PAGES = [
   { to: '/crm/settings/migration', label: 'Migrate Data', icon: ArrowRightLeft, needs: 'admin' },
   { to: '/crm/settings/import', label: 'Import from CSV', icon: Upload, needs: 'admin' },
 ]
-const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field', invite: true })
+const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field', way: '' })
+/** Never signed in: the seat a first password may still be set for, and an invite resent to (company.ts). */
+const neverSignedIn = (u: any) => !!u?.isActive && !u?.lastLogin && u?.role !== 'owner'
 
 export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const confirm = useConfirm()
@@ -90,6 +101,10 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const [tab, setTab] = useState(() => (((auth as any).can?.('company:update') ?? true) ? 'company' : 'profile'))
   const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
   const [hours, setHours] = useState<HoursForm>(() => hoursFrom(null))
+  // The business's clock (config.timeZone): '' = its state's. Every vertical shows it beside the hours (live test 10/22:
+  // the contractor's was only under Booking settings).
+  const showZone = !!config?.timeZone
+  const [zone, setZone] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
@@ -101,6 +116,14 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [addingUser, setAddingUser] = useState(false)
   const [newUser, setNewUser] = useState<NewUserForm>(emptyUser())
+  const [addUserError, setAddUserError] = useState('')
+  const [editUser, setEditUser] = useState<EditUserForm | null>(null)
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [pwFor, setPwFor] = useState<any>(null)
+  const [firstPw, setFirstPw] = useState('')
+  const [pwError, setPwError] = useState('')
+  const [settingPw, setSettingPw] = useState(false)
 
   // Mirrors the server: requireAdmin = admin|owner; grants are the owner's alone.
   const isOwner = user?.role === 'owner'
@@ -117,6 +140,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
         paymentTermsDays: company.settings?.paymentTermsDays != null ? String(company.settings.paymentTermsDays) : '30',
       })
       setHours(hoursFrom(company.settings?.businessHours))
+      setZone(typeof company.timezone === 'string' ? company.timezone : '')
     }
     loadUsers()
   }, [company]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -159,6 +183,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       const settings = { ...(company?.settings || {}), defaultTaxRate: taxNum, paymentTermsDays: termsNum, businessHours: hoursToSave(hours) }
       const payload: any = { ...fields, settings }
       if (!showLicense) delete payload.licenseNumber
+      if (showZone) payload.timezone = zone || null
       const updated = await api.put('/api/company', payload)
       updateCompany(updated)
       toast.success('Company updated')
@@ -208,22 +233,59 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'Failed to change password')) } finally { setSaving(false) }
   }
 
-  // Adding a teammate is what makes the seat-based plan real. By default they are EMAILED a link to choose their own
-  // password (7 days, once); an admin who hands logins over in person can still set the first password. (E2E run 1)
+  // Adding a teammate is what makes the seat-based plan real. The admin CHOOSES how they sign in the first time: a
+  // password set now and handed over (they can sign in at once), or an emailed link to choose their own (7 days, once).
+  // It defaulted to the invite behind a tick-box, so the testers' manager and staff sat at "Invite sent" (live tests 10/22).
   const addUser = async () => {
-    if (!newUser.firstName.trim() || !newUser.lastName.trim()) { toast.error('First and last name are required'); return }
-    if (!newUser.email.trim()) { toast.error('Email is required'); return }
-    if (!newUser.invite && newUser.password.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    setAddUserError('')
+    const fail = (m: string) => { setAddUserError(m); toast.error(m) }
+    if (!newUser.firstName.trim() || !newUser.lastName.trim()) return fail('First and last name are required.')
+    if (!newUser.email.trim()) return fail('Email is required.')
+    if (!newUser.way) return fail('Choose how they will sign in: set a password now, or email them an invite.')
+    if (newUser.way === 'password' && newUser.password.length < 8) return fail('The password needs at least 8 characters.')
+    // Said here, before the round trip, when the list in hand already shows it; the server refuses it either way.
+    const email = newUser.email.trim().toLowerCase()
+    const taken = users.find((u) => String(u.email || '').toLowerCase() === email)
+    if (taken) return fail(`${email} already has a login here (${[taken.firstName, taken.lastName].filter(Boolean).join(' ')}).${taken.isActive ? ' Each person needs their own email address.' : ' That login is switched off — reactivate it from the list instead of adding it again.'}`)
     setAddingUser(true)
     try {
-      const { invite, password, ...person } = newUser
-      const created: any = await api.post('/api/company/users', invite ? person : { ...person, password })
-      if (!created?.invited) toast.success('User added')
-      else if (created.inviteSent) toast.success(`Invite sent to ${person.email}`)
-      else toast.error(`${person.firstName} was added, but the invite email could not be sent. Use Resend invite, or set their password instead.`)
+      const { way, password, ...person } = newUser
+      const created: any = await api.post('/api/company/users', way === 'invite' ? { ...person, email } : { ...person, email, password })
+      if (!created?.invited) toast.success(`${person.firstName} can sign in now with ${email} and the password you set.`)
+      else if (created.inviteSent) toast.success(`Invite sent to ${email}`)
+      else toast.error(`${person.firstName} was added, but the invite email could not be sent. Use Resend invite, or Set password instead.`)
       setAddUserOpen(false); setNewUser(emptyUser()); loadUsers()
     }
-    catch (err) { toast.error(errMsg(err, 'Could not add the user')) } finally { setAddingUser(false) }
+    catch (err) { fail(errMsg(err, 'Could not add the user')) } finally { setAddingUser(false) }
+  }
+  // Change a teammate's name, phone or role (PUT /users/:id). Their email is their login and is not edited.
+  const saveEdit = async () => {
+    if (!editUser) return
+    setEditError('')
+    const fail = (m: string) => { setEditError(m); toast.error(m) }
+    if (!editUser.firstName.trim() || !editUser.lastName.trim()) return fail('First and last name are required.')
+    const before = users.find((u) => u.id === editUser.id)
+    const body: Record<string, unknown> = { firstName: editUser.firstName.trim(), lastName: editUser.lastName.trim(), phone: editUser.phone.trim() || null }
+    if (!editUser.isOwner && before && editUser.role !== (before.role === 'user' ? 'field' : before.role)) body.role = editUser.role
+    setSavingEdit(true)
+    try {
+      await api.put(`/api/company/users/${editUser.id}`, body)
+      toast.success(`${body.firstName} ${body.lastName} saved`)
+      setEditUser(null); loadUsers()
+    } catch (err) { fail(errMsg(err, 'Could not save the changes')) } finally { setSavingEdit(false) }
+  }
+  // A first password for someone who has never signed in (POST /users/:id/password). After their first sign-in the
+  // password is theirs, and Forgot password is the way back in.
+  const setFirstPassword = async () => {
+    if (!pwFor) return
+    setPwError('')
+    if (firstPw.length < 8) { setPwError('The password needs at least 8 characters.'); return }
+    setSettingPw(true)
+    try {
+      await api.post(`/api/company/users/${pwFor.id}/password`, { password: firstPw })
+      toast.success(`${pwFor.firstName} can sign in now with ${pwFor.email} and that password.`)
+      setPwFor(null); setFirstPw(''); loadUsers()
+    } catch (err) { const m = errMsg(err, 'Could not set the password'); setPwError(m); toast.error(m) } finally { setSettingPw(false) }
   }
   const resendInvite = async (u: any) => {
     try {
@@ -232,12 +294,14 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       else toast.error('The invite email could not be sent. Try again in a moment.')
     } catch (err) { toast.error(errMsg(err, 'Could not resend the invite')) }
   }
-  // Revoking access is a deactivation, not a delete — jobs and quotes point at this user, and the seat
-  // count is of ACTIVE users, so this is also what frees a seat.
-  const toggleAccess = async (id: string, active: boolean) => {
-    if (active && !(await confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.', { title: 'Revoke access', confirmText: 'Revoke it' }))) return
-    try { await api.put(`/api/company/users/${id}`, { isActive: !active }); toast.success(active ? 'Access revoked' : 'Access restored'); loadUsers() }
-    catch (err) { toast.error(errMsg(err, 'Could not change access')) }
+  // Deactivating is not a delete — jobs and quotes point at this user, and the seat count is of ACTIVE users, so this is
+  // also what frees a seat. Called "Revoke access" until the live test of 10/22 looked for "deactivate" and found nothing.
+  const toggleAccess = async (u: any) => {
+    const active = !!u.isActive
+    const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
+    if (active && !(await confirm(`Deactivate ${name}? They can't sign in until you reactivate them, and their seat is freed. Their jobs and records stay.`, { title: 'Deactivate user', confirmText: 'Deactivate' }))) return
+    try { await api.put(`/api/company/users/${u.id}`, { isActive: !active }); toast.success(active ? `${name} is deactivated` : `${name} is active again`); loadUsers() }
+    catch (err) { toast.error(errMsg(err, active ? 'Could not deactivate them' : 'Could not reactivate them')) }
   }
   // Owner-only grant: who may see the login-user list besides the owner. (Wrench QA decision)
   /**
@@ -399,6 +463,15 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   </div>
                 ))}
               </div>
+              {showZone && (
+                <Field label="Time zone" hint="Your hours, reports, invoices and timesheets count days on this clock. Online bookings keep their own under Booking settings.">
+                  <select aria-label="Time zone" value={zone} onChange={(e) => setZone(e.target.value)} className={inputCls}>
+                    <option value="">From your state{!zone && (company?.effectiveTimezone || company?.timeZone) ? ` (${zoneName(company.effectiveTimezone || company.timeZone)})` : ''}</option>
+                    {US_ZONES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    {zone && !US_ZONES.some(([id]) => id === zone) && <option value={zone}>{zoneName(zone)}</option>}
+                  </select>
+                </Field>
+              )}
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Default Sales Tax Rate (%)" hint="Applied to new quotes and invoices. Leave 0 if you do not collect sales tax."><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>
@@ -422,6 +495,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   ['Phone', form.phone],
                   ['Address', [form.address, form.city, form.state, form.zip].filter(Boolean).join(', ')],
                   ['Website', form.website],
+                  ...(showZone ? [['Time zone', zoneName(zone || company?.effectiveTimezone || company?.timeZone)]] : []),
                 ].map(([label, value]) => (
                   <div key={label} className="py-2 flex gap-4">
                     <dt className="w-40 shrink-0 text-gray-500 dark:text-slate-400">{label}</dt>
@@ -468,7 +542,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
-                {canManageUsers && <Button onClick={() => { setNewUser(emptyUser()); setAddUserOpen(true) }}>Add User</Button>}
+                {canManageUsers && <Button onClick={() => { setNewUser(emptyUser()); setAddUserError(''); setAddUserOpen(true) }}>Add User</Button>}
               </div>
               {!ownerExists && users.length > 0 && canManageUsers && (
                 <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -492,7 +566,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <td className="px-4 py-3">{u.email}</td>
                         <td className="px-4 py-3">{roleWord(u.role)}</td>
                         {/* "Active" for someone who has not yet opened their invite was not true (invite re-test, 10/14). */}
-                        <td className="px-4 py-3">{!u.isActive ? <span className="text-gray-500 dark:text-slate-400">Inactive</span> : u.invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-300">Active</span>}</td>
+                        <td className="px-4 py-3">{!u.isActive ? <span className="text-gray-500 dark:text-slate-400">Deactivated</span> : u.invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-300">Active</span>}</td>
                         <td className="px-4 py-3 text-right">
                           {u.id === myId ? (
                             <>
@@ -529,11 +603,16 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                               {mayTransfer && u.role !== 'owner' && u.isActive && (
                                 <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Make owner</button>
                               )}
-                              {/* Never signed in: the invite may have expired or gone to spam. */}
-                              {u.isActive && !u.lastLogin && (
-                                <button type="button" onClick={() => resendInvite(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Resend invite</button>
+                              {/* Name, phone and role. The owner's row is the owner's (above); their role moves by transfer. */}
+                              <button type="button" onClick={() => { setEditError(''); setEditUser({ id: u.id, firstName: u.firstName || '', lastName: u.lastName || '', phone: u.phone || '', role: u.role === 'user' ? 'field' : String(u.role || ''), email: u.email, isOwner: u.role === 'owner' }) }} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Edit</button>
+                              {/* Never signed in: set their first password, or send the invite again (it may have expired or gone to spam). */}
+                              {neverSignedIn(u) && (
+                                <button type="button" onClick={() => { setPwFor(u); setFirstPw(''); setPwError('') }} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Set password</button>
                               )}
-                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                              {neverSignedIn(u) && (
+                                <button type="button" onClick={() => resendInvite(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">{u.invitePending ? 'Resend invite' : 'Send invite'}</button>
+                              )}
+                              <button type="button" onClick={() => toggleAccess(u)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Deactivate' : 'Reactivate'}</button>
                             </>
                           ) : null}
                         </td>
@@ -581,12 +660,19 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <Field label="Last name *"><input value={newUser.lastName} onChange={(e) => setNewUser((prev) => ({ ...prev, lastName: e.target.value }))} className={inputCls} /></Field>
                       </div>
                       <Field label="Email *"><input type="email" value={newUser.email} onChange={(e) => setNewUser((prev) => ({ ...prev, email: e.target.value }))} className={inputCls} /></Field>
-                      <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
-                        <input type="checkbox" className="mt-0.5" checked={newUser.invite} onChange={(e) => setNewUser((prev) => ({ ...prev, invite: e.target.checked }))} />
-                        <span>Email them an invite to choose their own password<span className="block text-xs text-gray-500 dark:text-slate-400">The link works once, for 7 days.</span></span>
-                      </label>
-                      {!newUser.invite && (
-                        <Field label="Temporary password *" hint="Share this with them — they can change it after signing in."><PasswordInput autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser((prev) => ({ ...prev, password: e.target.value }))} placeholder="At least 8 characters" className={inputCls} /></Field>
+                      <fieldset className="space-y-2">
+                        <legend className="text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">How will they sign in? *</legend>
+                        <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-2 text-sm text-gray-700 dark:border-slate-700 dark:text-slate-200">
+                          <input type="radio" name="sign-in-way" className="mt-0.5" checked={newUser.way === 'password'} onChange={() => setNewUser((prev) => ({ ...prev, way: 'password' }))} />
+                          <span>Set a password for them now<span className="block text-xs text-gray-500 dark:text-slate-400">They can sign in straight away. Tell them the password; they can change it under Settings › Security.</span></span>
+                        </label>
+                        <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-2 text-sm text-gray-700 dark:border-slate-700 dark:text-slate-200">
+                          <input type="radio" name="sign-in-way" className="mt-0.5" checked={newUser.way === 'invite'} onChange={() => setNewUser((prev) => ({ ...prev, way: 'invite', password: '' }))} />
+                          <span>Email them an invite<span className="block text-xs text-gray-500 dark:text-slate-400">They choose their own password from the link. It works once, for 7 days.</span></span>
+                        </label>
+                      </fieldset>
+                      {newUser.way === 'password' && (
+                        <Field label="Password *" hint="At least 8 characters."><PasswordInput autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser((prev) => ({ ...prev, password: e.target.value }))} placeholder="At least 8 characters" className={inputCls} /></Field>
                       )}
                       <Field label="Access Role">
                         <select value={newUser.role} onChange={(e) => setNewUser((prev) => ({ ...prev, role: e.target.value as RoleOption['value'] }))} className={inputCls}>
@@ -594,9 +680,53 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         </select>
                       </Field>
                     </div>
+                    {addUserError && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">{addUserError}</p>}
                     <div className="flex justify-end gap-2 mt-6">
                       <Button variant="secondary" onClick={() => setAddUserOpen(false)}>Cancel</Button>
-                      <Button onClick={addUser} disabled={addingUser}>{addingUser ? 'Adding...' : newUser.invite ? 'Send invite' : 'Add User'}</Button>
+                      <Button onClick={addUser} disabled={addingUser}>{addingUser ? 'Adding...' : newUser.way === 'invite' ? 'Send invite' : 'Add User'}</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {editUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEditUser(null)}>
+                  <div role="dialog" aria-modal="true" aria-label="Edit user" className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">Edit user</h3>
+                    <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">Signs in as {editUser.email}</p>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="First name *"><input value={editUser.firstName} onChange={(e) => setEditUser((p) => p && ({ ...p, firstName: e.target.value }))} className={inputCls} /></Field>
+                        <Field label="Last name *"><input value={editUser.lastName} onChange={(e) => setEditUser((p) => p && ({ ...p, lastName: e.target.value }))} className={inputCls} /></Field>
+                      </div>
+                      <Field label="Phone"><input type="tel" value={editUser.phone} onChange={(e) => setEditUser((p) => p && ({ ...p, phone: e.target.value }))} className={inputCls} /></Field>
+                      {!editUser.isOwner && (
+                        <Field label="Access Role">
+                          <select value={editUser.role} onChange={(e) => setEditUser((p) => p && ({ ...p, role: e.target.value }))} className={inputCls}>
+                            {roles.map((r) => <option key={r.value} value={r.value}>{r.label} — {r.description}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                    </div>
+                    {editError && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">{editError}</p>}
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
+                      <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pwFor && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPwFor(null)}>
+                  <div role="dialog" aria-modal="true" aria-label="Set password" className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">Set a password for {pwFor.firstName}</h3>
+                    <p className="text-sm text-gray-600 mb-4 dark:text-slate-300">They haven&rsquo;t signed in yet. Set their first password and tell them it — they sign in with {pwFor.email}. {pwFor.invitePending ? 'The invite link stops working. ' : ''}After they sign in, the password is theirs to change.</p>
+                    <Field label="Password *" hint="At least 8 characters."><PasswordInput autoComplete="new-password" value={firstPw} onChange={(e) => setFirstPw(e.target.value)} placeholder="At least 8 characters" className={inputCls} /></Field>
+                    {pwError && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">{pwError}</p>}
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button variant="secondary" onClick={() => setPwFor(null)}>Cancel</Button>
+                      <Button onClick={setFirstPassword} disabled={settingPw}>{settingPw ? 'Saving...' : 'Set password'}</Button>
                     </div>
                   </div>
                 </div>

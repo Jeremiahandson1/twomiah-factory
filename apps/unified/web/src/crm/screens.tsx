@@ -176,7 +176,9 @@ export const GoogleReviews = () => <GbpReviewsPage />
 // lead sources.
 // Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
 export const Texting = () => <TextingPage />
-export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
+// The web address is connected on this app's Domain page, and texting is the business's own registered number (Settings ›
+// Texting) — so those two cards send the owner there, in plain words, rather than to a CNAME guide and a Twilio form.
+export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), domainPage: '/crm/domain', textingPage: '/crm/settings/texting' }} />
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

@@ -41,9 +41,9 @@ export const TRADES_LEAD_PLATFORMS: LeadPlatform[] = [
     'Log in to your Angi for Pros account', 'Go to Settings > Lead Notifications > Email', 'Set your notification email to the inbound address below', 'Angi will forward all new lead emails to your CRM' ] },
   { value: 'homeadvisor', label: 'HomeAdvisor', color: '#e65100', tone: 'sky', description: 'Forward HomeAdvisor lead notifications into your Lead Inbox.', instructions: [
     'Log in to your HomeAdvisor Pro account', 'Go to My Account > Notification Preferences', 'Add the inbound email address below as a notification recipient', 'Enable "New Lead" email notifications' ] },
-  { value: 'thumbtack', label: 'Thumbtack', color: '#1565c0', tone: 'blue', description: 'Pull Thumbtack leads directly into your CRM.', instructions: [
+  { value: 'thumbtack', label: 'Thumbtack', color: '#1565c0', tone: 'blue', description: 'Forward Thumbtack lead notifications into your Lead Inbox.', instructions: [
     'Log in to your Thumbtack Pro account', 'Go to Settings > Notifications', 'Add the inbound email below to receive lead notifications', 'Or connect a Zapier / Make zap to the webhook URL below' ] },
-  { value: 'google_lsa', label: 'Google Local Services', color: '#c62828', tone: 'indigo', description: 'Import Google Local Services Ads leads automatically.', instructions: [
+  { value: 'google_lsa', label: 'Google Local Services', color: '#c62828', tone: 'indigo', description: 'Forward Google Local Services lead notifications into your Lead Inbox.', instructions: [
     'Google LSA leads arrive via phone calls and messages', 'Set up email forwarding from your Google LSA notification email', 'Forward all "New lead" emails to the inbound address below', 'You can also use the webhook URL with a third-party integration (Zapier, Make)' ] },
   { value: 'houzz', label: 'Houzz', color: '#6a1b9a', tone: 'pink', description: 'Forward Houzz Pro enquiries into your Lead Inbox.', instructions: [
     'Log in to your Houzz Pro account', 'Go to Settings > Email Notifications', 'Forward lead notification emails to the inbound address below', 'Houzz does not support direct webhooks — email forwarding is recommended' ] },

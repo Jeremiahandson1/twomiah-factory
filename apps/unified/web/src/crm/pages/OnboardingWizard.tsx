@@ -7,7 +7,7 @@ import {
   Sparkles, Link2, ExternalLink, HelpCircle,
   CreditCard, Wrench, ArrowRight, SkipForward,
 } from 'lucide-react';
-import { EmailAliasesStep, useAuth, useToast } from '../../shared'
+import { EmailAliasesStep, useAuth, useToast, leadSourceGuides } from '../../shared'
 import { api } from '../../api'
 import { verticalScreens } from '../vertical'
 
@@ -27,30 +27,37 @@ interface Integration {
   fields?: { key: string; label: string; placeholder: string; type?: string }[];
 }
 
+/** A lead platform's steps as the Lead Sources page gives them (forward its emails to your inbound address) — the wizard
+ *  said "Click Connect Angi and enter your Angi Pro credentials", a button no page has. */
+const platformSteps = (id: string) => leadSourceGuides().find((g) => g.id === id)?.steps ?? []
+
 const INTEGRATIONS: Integration[] = [
   {
+    // The Domain page connects it (crm/pages/DomainPage.tsx): a CNAME at the registrar is not how this app is reached.
     id: 'dns',
-    label: 'Custom Domain (DNS)',
-    description: 'Point your domain to your CRM so customers see your brand.',
+    label: 'Your web address (domain)',
+    description: 'Put your website on your own address, like yourbusiness.com.',
     category: 'dns',
     guideSteps: [
-      'Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)',
-      'Go to DNS settings for your domain',
-      'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM’s current hostname (the address shown in your browser bar while signed in)',
-      'Save changes — DNS propagation can take up to 24 hours',
+      'Open the Domain page',
+      'Buy a new address there — you see the first-year price and the yearly renewal before you pay, and we set it up',
+      'Or type in one you already own: the page shows the nameservers to set where you bought it',
     ],
+    open: { to: '/crm/domain', label: 'Open the Domain page' },
   },
   {
     id: 'quickbooks',
     label: 'QuickBooks',
-    description: 'Sync invoices, payments, and expenses with QuickBooks Online or Desktop.',
+    // QuickBooks Online only (Intuit's sign-in); the page has Sync Now and an Auto-sync switch, no "choose what to sync".
+    description: 'Send your invoices and customers to QuickBooks Online.',
     category: 'accounting',
     guideSteps: [
-      'Go to Settings > Integrations in your CRM after onboarding',
-      'Click "Connect QuickBooks" and sign in to your QuickBooks account',
-      'Authorize access to sync invoices, customers, and payments',
-      'Choose which data to sync (invoices, expenses, or both)',
+      'Open Settings › Integrations',
+      'Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported)',
+      'Pick your company and allow the connection',
+      'Press Sync Now, or turn on Auto-sync so each new invoice and customer is sent across',
     ],
+    open: { to: '/crm/settings/integrations', label: 'Open Integrations' },
   },
   {
     id: 'jobber',
@@ -67,38 +74,26 @@ const INTEGRATIONS: Integration[] = [
   {
     id: 'angi',
     label: "Angi's List / HomeAdvisor",
-    description: 'Automatically pull leads from Angi into your CRM lead inbox.',
+    description: 'Forward Angi lead emails into your Lead Inbox.',
     category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources in your CRM',
-      'Click "Connect Angi" and enter your Angi Pro account credentials',
-      'New leads will automatically flow into your Lead Inbox',
-      'Set up auto-reply templates to respond to leads instantly',
-    ],
+    guideSteps: platformSteps('angi'),
+    open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
   },
   {
     id: 'thumbtack',
     label: 'Thumbtack',
-    description: 'Pull Thumbtack leads directly into your CRM.',
+    description: 'Forward Thumbtack lead emails into your Lead Inbox.',
     category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Thumbtack" and authenticate with your Thumbtack Pro account',
-      'Configure which service categories to import leads from',
-      'Leads will appear in your Lead Inbox automatically',
-    ],
+    guideSteps: platformSteps('thumbtack'),
+    open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
   },
   {
     id: 'google_lsa',
     label: 'Google Local Services',
-    description: 'Import Google LSA leads into your CRM automatically.',
+    description: 'Forward Google Local Services lead emails into your Lead Inbox.',
     category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Google LSA" and sign in with your Google account',
-      'Authorize access to your Local Services Ads account',
-      'New LSA leads will appear in your Lead Inbox',
-    ],
+    guideSteps: platformSteps('google_lsa'),
+    open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
   },
   {
     id: 'stripe',
@@ -106,11 +101,11 @@ const INTEGRATIONS: Integration[] = [
     description: 'Accept credit card payments on invoices and through the customer portal.',
     category: 'payments',
     guideSteps: [
-      'Go to Settings > Integrations in your CRM',
-      'Click "Connect Stripe" to create or link your Stripe account',
-      'Complete the Stripe onboarding (takes 5-10 minutes)',
-      'Once connected, customers can pay invoices online',
+      'Open Settings › Integrations and click Connect Stripe',
+      'Sign in to Stripe, or create a free account — it asks for your business details and the bank account to pay you into (about 10 minutes)',
+      'Back in Integrations the Stripe card says "Ready to accept payments"; customers can then pay invoices by card from the invoice email',
     ],
+    open: { to: '/crm/settings/integrations', label: 'Open Integrations' },
   },
   {
     // Texting is the business's own registered number, set up in Settings › Texting (crm/pages/TextingPage.tsx) — no

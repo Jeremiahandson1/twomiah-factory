@@ -28,7 +28,9 @@ const hmac = (secret: string, s: string) => crypto.createHmac('sha256', secret).
 
 /** A signed state. Throws without a secret — an unsigned state lets anyone attach their books to any company. */
 export function signQboState(p: QboStatePayload, secret: string, now: number = Date.now()): string {
-  if (!secret) throw new Error('QuickBooks state secret is not set (QBO_STATE_SECRET / JWT_SECRET)')
+  // Reaches the owner through GET /quickbooks/auth-url, so it is said in their words; the missing setting is
+  // QBO_STATE_SECRET (or JWT_SECRET).
+  if (!secret) throw new Error('QuickBooks can’t be connected right now. Email support@twomiah.com and we will fix it.')
   const ts = now
   const body: Record<string, unknown> = { companyId: p.companyId, ts }
   if (p.userId !== undefined) body.userId = p.userId

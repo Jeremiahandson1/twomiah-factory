@@ -97,6 +97,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/website/blog', icon: Newspaper, label: 'Blog', permission: 'site:read' },
   { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', permission: 'site:read' },
   { to: '/crm/website/settings', icon: Settings2, label: 'Website settings', permission: 'site:settings' },
+  // The web address: /api/admin/domain asks settings:update on every door (server/modules/domain.ts).
+  { to: '/crm/domain', icon: Globe, label: 'Domain', permission: 'settings:update' },
   // Bookings: the online_booking feature, behind the same permissions as /api/booking.
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Bookings', section: 'Bookings', features: ['online_booking'], permission: 'bookings:read', exact: true },
   { to: '/crm/bookings/calendar', icon: CalendarDays, label: 'Calendar', features: ['online_booking'], permission: 'bookings:read' },

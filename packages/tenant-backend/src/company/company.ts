@@ -6,7 +6,7 @@
 // this route share). User writes are company-scoped and guard against locking the tenant out.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
 import { seatRefusal } from './seats'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
@@ -187,6 +187,27 @@ const canonicalRole = (role?: string) => (role === 'user' ? 'field' : role)
  */
 const withCanonicalRole = <T extends { role?: unknown }>(row: T): T =>
   (row && row.role === 'user' ? { ...row, role: 'field' } : row)
+
+/** The refusal for an address that already has a login here — who holds it, and what to do instead. */
+const duplicateEmailMessage = (email: string, who: { firstName?: string | null; lastName?: string | null; isActive?: boolean | null }) => {
+  const name = [who.firstName, who.lastName].filter(Boolean).join(' ')
+  return `${email} already has a login here${name ? ` (${name})` : ''}.`
+    + (who.isActive === false ? ' That login is switched off — reactivate it from the list instead of adding it again.' : ' Each person needs their own email address.')
+}
+
+/**
+ * What PUT /users/:id may change. `.strict()`: a field it does not take is REFUSED, never answered 200 and dropped. A PUT
+ * carrying `password` came back 200 and changed nothing, so an owner believed they had set a teammate's password
+ * (coordinator, 10/23). A first password has its own door (POST /users/:id/password); email is the login and is not
+ * edited here.
+ */
+const USER_EDIT_FIELDS = ['firstName', 'lastName', 'phone', 'role', 'extraPermissions', 'isActive'] as const
+const nameField = (label: string) => z.string().trim().min(1, `${label} can't be blank.`).max(100, `${label} is too long (100 characters at most).`)
+const unknownUserFieldMessage = (keys: string[]) => {
+  if (keys.includes('password')) return 'A password is not changed here. For someone who has never signed in, use Set password; anyone else uses Forgot password on the sign-in page.'
+  if (keys.includes('email')) return "A login's email address is not changed here — add a new login for the new address, then switch the old one off."
+  return `These can't be changed here: ${keys.join(', ')}. You can change ${USER_EDIT_FIELDS.join(', ')}.`
+}
 
 export function createCompanyRoutes(deps: CompanyDeps) {
   const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel, sendInvite } = deps
@@ -626,8 +647,11 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         const full = await seatRefusal(tx, t, companyRow)
         if (full) return { status: 403 as const, body: full }
       }
-      const [existing] = await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.email, rest.email), eq(t.user.companyId, currentUser.companyId))).limit(1)
-      if (existing) return { status: 409 as const, body: { error: 'Email already exists' } }
+      // One login per address, whatever its case: an older row may hold "Sam@Shop.com", and "sam@shop.com" is the same
+      // inbox. The refusal says who already has it, in words (live test 10/22: "Email already exists" read like a fault).
+      const [existing] = await tx.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, isActive: t.user.isActive }).from(t.user)
+        .where(and(sql`lower(${t.user.email}) = ${rest.email}`, eq(t.user.companyId, currentUser.companyId))).limit(1)
+      if (existing) return { status: 409 as const, body: { error: duplicateEmailMessage(rest.email, existing), code: 'email_taken' } }
       const [created] = await tx.insert(t.user).values({ ...rest, ...inviteFields, passwordHash, companyId: currentUser.companyId }).returning(USER_COLUMNS(t.user))
       return { status: 201 as const, body: created, companyName: companyRow?.name as string | undefined }
     })
@@ -681,6 +705,36 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     return c.json({ invited: true, inviteSent })
   })
 
+  /**
+   * SET A FIRST PASSWORD — for a login that has never been used. (Coordinator 10/23; live tests 10/22)
+   *
+   * Adding someone by invite left them at "Invite sent" until they opened the email, and the owner had no way to hand
+   * over a password instead: PUT /users/:id dropped `password` and answered 200, so the testers' manager and staff
+   * logins could only be made by deleting the invited seat and adding it again. The way the big CRMs do it (Jobber,
+   * Housecall Pro): the admin may set the first password for someone who has not signed in yet.
+   *
+   * Only before the first sign-in. After that the password is the person's own, and Forgot password is how it is
+   * replaced — an admin who could set anyone's password at any time could become anyone. The owner's account is never
+   * set this way, a switched-off login is restored first, and the unused invite link stops working (one way in).
+   * Recorded in the audit log, by whom and for whom; the password itself never is.
+   */
+  app.post('/users/:id/password', requireAdmin, async (c) => {
+    const currentUser = (c as any).get('user')
+    const parsed = z.object({ password: z.string().min(8, 'The password needs at least 8 characters.').max(200, 'That password is too long.') }).strict().safeParse(await readBody(c))
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Enter a password of at least 8 characters.' }, 400)
+    const target = await findTarget(c.req.param('id'), currentUser.companyId)
+    if (!target) return c.json({ error: 'User not found' }, 404)
+    if (target.role === 'owner') return c.json({ error: "The owner's password is the owner's own. They change it under Settings › Security, or use Forgot password.", code: 'owner_account' }, 409)
+    if (target.id === currentUser.userId) return c.json({ error: 'Change your own password under Settings › Security.', code: 'own_account' }, 409)
+    if (!target.isActive) return c.json({ error: 'Turn their login back on first — a switched-off login cannot sign in.', code: 'inactive' }, 409)
+    if (target.lastLogin) return c.json({ error: 'They have already signed in, so the password is theirs now. If they have lost it, Forgot password on the sign-in page sends them a new link.', code: 'already_signed_in' }, 409)
+    const passwordHash = await Bun.password.hash(parsed.data.password, 'bcrypt')
+    await db.update(t.user).set({ passwordHash, resetToken: null, resetTokenExp: null, updatedAt: new Date() })
+      .where(and(eq(t.user.id, target.id), eq(t.user.companyId, currentUser.companyId)))
+    logSeat(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', target, null, `First password set by an admin — ${target.email}`)
+    return c.json({ success: true, id: target.id, invitePending: false })
+  })
+
   const findTarget = async (id: string, companyId: string) => {
     const [row] = await db.select().from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, companyId))).limit(1)
     return row
@@ -695,9 +749,20 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   app.put('/users/:id', requireAdmin, async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(roles).optional(), extraPermissions: z.array(z.enum(['users:read'])).optional(), isActive: z.boolean().optional() })
+    const schema = z.object({
+      firstName: nameField('First name').optional(), lastName: nameField('Last name').optional(),
+      // Blank clears it; anything else reads like a phone number (the company phone's rule).
+      phone: z.union([z.string().trim(), z.null()]).optional()
+        .refine((v) => !v || (v.replace(/\D/g, '').length >= 7 && v.replace(/\D/g, '').length <= 15), 'Enter a valid phone number (7–15 digits), or leave it blank.')
+        .transform((v) => (v === '' ? null : v)),
+      role: z.enum(roles).optional(), extraPermissions: z.array(z.enum(['users:read'])).optional(), isActive: z.boolean().optional(),
+    }).strict()
     const parsed = schema.safeParse(await readBody(c))
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
+    if (!parsed.success) {
+      const unknown = parsed.error.issues.flatMap((i: any) => (i.code === 'unrecognized_keys' ? i.keys : []))
+      if (unknown.length) return c.json({ error: unknownUserFieldMessage(unknown), code: 'field_not_editable', fields: unknown }, 400)
+      return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
+    }
     const data = parsed.data
     // …and on the edit too, so saving an existing 'user' row converts it rather than keeping the
     // legacy spelling alive. The owner-demotion check below reads data.role, and `field` and `user`
@@ -738,7 +803,23 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (losingAccess && id === currentUser.userId) return c.json({ error: "You can't remove your own access." }, 400)
     if (losingAdmin && (await isLastAdmin(target, currentUser.companyId))) return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
     if (data.extraPermissions !== undefined) invalidateExtraPermissions?.(id)
-    const [row] = await db.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
+    /**
+     * Turning a login back ON spends a seat, so it meets the plan's cap — the one rule (seats.ts) the add above meets, under
+     * the same lock on the company row. It did not: switch someone off, add a person, switch them back on, and a 10-seat
+     * plan had 11 active logins (found re-checking the seat rules for the live test, 10/23).
+     */
+    const reactivating = data.isActive === true && target.isActive === false
+    const outcome = await db.transaction(async (tx: any) => {
+      if (reactivating) {
+        const [companyRow] = await tx.select().from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1).for('update')
+        const full = companyRow ? await seatRefusal(tx, t, companyRow) : null
+        if (full) return { full }
+      }
+      const [updated] = await tx.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
+      return { row: updated }
+    })
+    if ((outcome as any).full) return c.json({ ...(outcome as any).full, code: 'seat_limit' }, 403)
+    const row = (outcome as any).row
     if (row) {
       const changes: Record<string, { old: unknown; new: unknown }> = {}
       for (const k of Object.keys(data)) {

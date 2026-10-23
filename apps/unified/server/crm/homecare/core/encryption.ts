@@ -21,10 +21,9 @@ const ALGORITHM = 'aes-256-gcm'
 function getKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY
   if (!raw) {
-    throw new Error(
-      'ENCRYPTION_KEY environment variable is not set. ' +
-      'Cannot encrypt/decrypt sensitive fields.'
-    )
+    // The setting's name is for the log; the error can reach a person, so it says what happened in their words.
+    console.error('[encryption] ENCRYPTION_KEY is not set')
+    throw new Error('Sensitive details can’t be stored safely right now. Email support@twomiah.com and we will fix it.')
   }
   if (/^[0-9a-fA-F]{64}$/.test(raw)) {
     return Buffer.from(raw, 'hex')
