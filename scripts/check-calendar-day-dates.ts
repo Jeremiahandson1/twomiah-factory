@@ -33,7 +33,21 @@ if (!/return \{ value: startOfUtcDay\(d\) \}/.test(money)) {
 const overdue = money.match(/export function isOverdue[\s\S]*?\n\}/)?.[0] || ''
 if (!overdue) fail('isOverdue is missing')
 if (/return new Date\(inv\.dueDate as any\) < new Date\(\)/.test(overdue)) fail('isOverdue compares the stored instant — an invoice goes overdue part-way through its due day')
-if (!/23, 59, 59, 999/.test(overdue)) fail('…it must wait for the END of the due day')
+/**
+ * WHOSE END OF DAY. 78df7bb67 put the day's end on the COMPANY's clock: isOverdue (and quotePastExpiry) now ask the one
+ * helper dayIsOver(), which ends a marker's day at the company's midnight when the zone is known (zoneDay.ts
+ * markerDayIsOver — the end of storeDayRange) and at UTC's 23:59:59.999 otherwise, as before. UTC's midnight is 7pm in
+ * Chicago, so the zone is the fix, not a loosening. The property — the whole due day is the customer's — is read
+ * through that chain: isOverdue → dayIsOver → (markerDayIsOver | the UTC end of day).
+ */
+const dayIsOver = money.match(/function dayIsOver\([\s\S]*?\n\}/)?.[0] || ''
+const zoneDay = read('packages/tenant-backend/src/time/zoneDay.ts')
+const endOfDayInline = /23, 59, 59, 999/.test(overdue)
+const endOfDayShared = /return dayIsOver\(inv\.dueDate, Date\.now\(\), timeZone\)/.test(overdue)
+  && /if \(timeZone\) return markerDayIsOver\(d, timeZone, now\)/.test(dayIsOver)
+  && /return Date\.UTC\(d\.getUTCFullYear\(\), d\.getUTCMonth\(\), d\.getUTCDate\(\), 23, 59, 59, 999\) < now/.test(dayIsOver)
+  && /export function markerDayIsOver\([^\n]*\): boolean \{(?:(?!\n\})[\s\S])*?return storeDayRange\(tz, day\)\.end\.getTime\(\) <= now/.test(zoneDay)
+if (!endOfDayInline && !endOfDayShared) fail('…it must wait for the END of the due day')
 
 // every path that raises an invoice
 const inv = read('packages/tenant-backend/src/invoicing/invoices.ts')
@@ -48,9 +62,13 @@ if (!/const dueDate = startOfUtcDay\(v\.dueDate\)/.test(inv) || !/const issueDat
 if (!/const today = businessToday\(/.test(inv)) fail("a defaulted issue date must come from the business's calendar day (businessToday), not the server's")
 if (!/const issueDate = issue\.value \?\? today/.test(inv)) fail('a defaulted issue date must be a day too')
 if (!/const dueDate = due\.value \?\? dueDateFromTerms\(settings, today\)/.test(inv)) fail('payment terms must be counted from that same business day, or the due date slides with it')
-if (!/const now = overdueCutoff\(\)/.test(inv)) fail('the invoice list filter must use the shared cut-off')
+// The cut-off is the start of TODAY on the same clock isOverdue ends the day on — the company's when the caller passes
+// its zone (78df7bb67), UTC's when it does not. Both the list filter and Reports pass the company's zone.
+if (!/export function overdueCutoff\(now: Date = new Date\(\), timeZone\?: string \| null\): Date \{\n\s*return businessToday\(timeZone, now\)\n\}/.test(money)
+  && !/export function overdueCutoff\(now: Date = new Date\(\)\): Date \{\n\s*return startOfUtcDay\(now\)/.test(money)) fail('the shared cut-off must be the start of today, on the clock isOverdue uses')
+if (!/const now = overdueCutoff\(\)/.test(inv) && !/const tz = await zoneOf\(currentUser\.companyId\)\n\s*const now = overdueCutoff\(new Date\(\), tz\)/.test(inv)) fail('the invoice list filter must use the shared cut-off')
 const reporting = read('packages/tenant-backend/src/reporting/reporting.ts')
-if (!/lt\(t\.invoice\.dueDate, overdueCutoff\(\)\)/.test(reporting)) fail('Reports must use it as well, or it disagrees with the page it links to')
+if (!/lt\(t\.invoice\.dueDate, overdueCutoff\(\)\)/.test(reporting) && !/lt\(t\.invoice\.dueDate, overdueCutoff\(new Date\(\), await companyTimeZone\(db, companyId\)\)\)/.test(reporting)) fail('Reports must use it as well, or it disagrees with the page it links to')
 
 // reachable from a template
 if (!/startOfUtcDay, overdueCutoff/.test(read('packages/tenant-backend/src/index.ts'))) fail('both helpers must be exported from the shared barrel')
