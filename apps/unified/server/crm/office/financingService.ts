@@ -288,8 +288,13 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger'>) {
   }
 
   async function getEnabledProviders(companyId: string): Promise<{ provider: FinancingProvider; config: ProviderConfig }[]> {
-    const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, companyId)).limit(1)
+    const [comp] = await db.select({ integrations: company.integrations, enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
     if (!comp) return []
+    // Lenders are Consumer Financing's, which no industry is offered yet (featureRegistry consumer_financing: no screen
+    // to set a lender up or follow an application). A business whose settings still name a lender — moved from an old
+    // CRM — shows none of it: the pricebook presentation's "Financing Available" read this list ungated (2026-10-23).
+    const features = (comp.enabledFeatures as string[] | null) || []
+    if (!features.includes('consumer_financing')) return []
 
     const integrations = (comp.integrations || {}) as Record<string, any>
     const financingConfig = integrations.financing || {}

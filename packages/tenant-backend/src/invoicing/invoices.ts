@@ -14,6 +14,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { resolveCustomer } from '../contacts/customer'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
+import { customerLines } from './itemCodes'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 
 export interface InvoiceTables {
@@ -1086,7 +1087,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!found) return c.json({ error: 'Invoice not found' }, 404)
     const [ct, lineItems, payments, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id)),
+      // The PDF is the customer's copy: no pricebook item codes (itemCodes.ts).
+      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id)).then((rows: any[]) => customerLines(db, cid, rows)),
       db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])

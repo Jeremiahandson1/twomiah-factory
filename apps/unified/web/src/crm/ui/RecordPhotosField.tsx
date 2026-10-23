@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import { api } from '../../api'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 
 export interface SavedPhoto { id: string; url: string; caption?: string | null; name?: string }
 export interface PendingPhoto { file: File; preview: string }
@@ -40,6 +41,8 @@ export function RecordPhotosField({ base, recordId, photos, onPhotosChange, pend
   inputId: string
 }) {
   const [error, setError] = useState('')
+  // The saved photo open full size (the shared viewer), by its place in `photos`.
+  const [viewing, setViewing] = useState<number | null>(null)
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     e.target.value = ''
@@ -64,7 +67,7 @@ export function RecordPhotosField({ base, recordId, photos, onPhotosChange, pend
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-2">
           {photos.map((p) => (
             <div key={p.id} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
-              <a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={p.caption || p.name || 'Photo'} className="w-full h-full object-cover" /></a>
+              <button type="button" onClick={() => setViewing(photos.indexOf(p))} aria-label={`Open ${p.caption || p.name || 'photo'} full size`} className="block w-full h-full"><img src={p.url} alt={p.caption || p.name || 'Photo'} className="w-full h-full object-cover" /></button>
               {canEdit && <button type="button" onClick={() => removeSaved(p.id)} aria-label={`Remove ${p.name || 'photo'}`} className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white hover:bg-black/80"><X className="w-3 h-3" /></button>}
             </div>
           ))}
@@ -85,6 +88,12 @@ export function RecordPhotosField({ base, recordId, photos, onPhotosChange, pend
         </label>
       )}
       {error && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
+      <PhotoViewer
+        photos={photos.map((p) => ({ id: p.id, src: p.url, caption: p.caption || p.name }))}
+        index={viewing}
+        onIndex={setViewing}
+        onClose={() => setViewing(null)}
+      />
     </div>
   )
 }

@@ -2,7 +2,7 @@
 // photos (when the vertical has them), notes (where the app mounts them), related project / contact / equipment.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X, FileText } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, FileText } from 'lucide-react'
 import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -10,6 +10,7 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { JobPartsPanel } from '../inventory/JobPartsPanel'
 import { JobNotesPanel } from './JobNotesPanel'
 import { JobPhotosPanel } from './JobPhotosPanel'
+import { PhotoViewer } from '../files/PhotoViewer'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
 import { codeLabel } from '../labels/codes'
@@ -229,16 +230,15 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
         </div>
       </div>
 
-      {fullscreen && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Photo">
-          <div className="flex items-center justify-between p-4">
-            <button type="button" onClick={() => setFullscreen(null)} className="p-2 text-white hover:text-gray-300" aria-label="Close"><X className="w-6 h-6" /></button>
-            {mayUpdate && <button type="button" onClick={() => deletePhoto(fullscreen.id)} className="p-2 text-red-400 hover:text-red-300" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button>}
-          </div>
-          <div className="flex-1 flex items-center justify-center p-4"><img src={fullscreen.url} alt={fullscreen.caption || ''} className="max-w-full max-h-full object-contain" /></div>
-          {fullscreen.caption && <p className="text-white text-center p-4 text-sm">{fullscreen.caption}</p>}
-        </div>
-      )}
+      {/* The shared full-size viewer (files/PhotoViewer.tsx): next and previous, the keyboard, a phone's swipe. */}
+      <PhotoViewer
+        label={`${cfg.labels.singular} photos`}
+        photos={photos.map((p) => ({ id: p.id, src: p.url, caption: p.caption }))}
+        index={fullscreen ? Math.max(0, photos.findIndex((p) => p.id === fullscreen.id)) : null}
+        onIndex={(i) => setFullscreen(photos[i] ?? null)}
+        onClose={() => setFullscreen(null)}
+        actions={(p) => (mayUpdate && p.id ? <button type="button" onClick={() => deletePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button> : null)}
+      />
 
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${job.title}"?`} confirmText="Delete" />
     </div>

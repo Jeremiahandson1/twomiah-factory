@@ -9,6 +9,7 @@ import { api } from '../../../api'
 import { useAuth } from '../../../shared'
 import { useMayWrite, useConfirm, PageError, PageNotice, errorText } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 
 /** A list reply (RULEBOOK §3). */
 interface Page<T> { data: T[]; pagination?: { page: number; limit: number; total: number; pages: number } }
@@ -146,6 +147,8 @@ export default function InventoryPage() {
   const [category, setCategory] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
+  // A unit's photos open full size in the shared viewer.
+  const [viewing, setViewing] = useState<{ photos: string[]; index: number; name: string } | null>(null);
   const [editing, setEditing] = useState<Unit | null>(null);
   const [recallUnit, setRecallUnit] = useState<Unit | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -306,7 +309,10 @@ export default function InventoryPage() {
           {units.map((u) => (
             <div key={u.id} className="bg-white rounded-xl border overflow-hidden flex flex-col dark:bg-slate-900">
               {u.photos && u.photos.length > 0 ? (
-                <img src={u.photos[0]} alt={u.modelName || 'Unit'} className="h-40 w-full object-cover" />
+                // The unit's photos full size, every one of them, in the shared viewer.
+                <button type="button" onClick={() => setViewing({ photos: u.photos || [], index: 0, name: u.modelName || 'Unit' })} aria-label={`Open the photos of ${u.modelName || 'this unit'}${u.photos.length > 1 ? ` (${u.photos.length})` : ''}`} className="block w-full">
+                  <img src={u.photos[0]} alt={u.modelName || 'Unit'} className="h-40 w-full object-cover" />
+                </button>
               ) : (
                 <div className="h-40 w-full bg-gray-100 flex items-center justify-center dark:bg-slate-800">
                   <Caravan className="w-10 h-10 text-gray-300" />
@@ -379,6 +385,13 @@ export default function InventoryPage() {
       {showFeedUrls && (
         <FeedUrlModal onClose={() => setShowFeedUrls(false)} />
       )}
+      <PhotoViewer
+        label={viewing ? `${viewing.name} photos` : 'Photos'}
+        photos={(viewing?.photos || []).map((src) => ({ src }))}
+        index={viewing ? viewing.index : null}
+        onIndex={(i) => setViewing((v) => (v ? { ...v, index: i } : v))}
+        onClose={() => setViewing(null)}
+      />
     </div>
   );
 }

@@ -76,20 +76,29 @@ describe('storms', () => {
     expect((await call('mgr', 'GET', `/api/storms/events/${theirs.id}`)).status).toBe(404)
   })
 
-  test('leads are the company\'s own contacts in the storm\'s zips, less an address that already has a job', async () => {
+  // Live test 2026-10-22 (P4.7): a customer whose address already had a job was skipped, so a storm never matched the
+  // business's own past customers. Every contact in the zips is a lead now; one with a job is flagged with it.
+  test('leads are the company\'s own contacts in the storm\'s zips — a customer with a job too, flagged with it', async () => {
     const mk = async (name: string, address: string, zip: string, co = companyId) =>
       (await t.db.insert(t.schema.contact).values({ companyId: co, name, address, zip, city: 'Akron', state: 'OH' } as any).returning())[0]
     ids.c1 = (await mk('Lee Marsh', '1 Elm St', '44301')).id
     ids.c2 = (await mk('Ada Byrne', '2 Elm St', '44301')).id
-    await mk('Has Job', '3 Elm St', '44301')
+    ids.c3 = (await mk('Has Job', '3 Elm St', '44301-2201')).id // zip+4 is still 44301
     await mk('Elsewhere', '9 Oak St', '44999')
     await mk('Not Ours', '4 Elm St', '44301', otherId)
-    await t.db.insert(t.schema.job).values({ companyId, number: 'ROOF-0100', title: '3 Elm St', address: '3 Elm St', zip: '44301', jobType: 'insurance', status: 'lead' } as any)
+    const [hasJob] = await t.db.insert(t.schema.job).values({ companyId, number: 'ROOF-0100', title: '3 Elm St', address: '3 Elm St', zip: '44301', jobType: 'insurance', status: 'lead' } as any).returning()
+    const contactsBefore = (await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.companyId, companyId))).length
     const gen = await call('mgr', 'POST', `/api/storms/events/${ids.storm}/generate-leads`)
-    expect(gen.body).toEqual({ leadCount: 2, existingCustomersFound: 3 })
+    expect(gen.body).toEqual({ leadCount: 3, existingCustomersFound: 3 })
     const leads = await call('rep', 'GET', `/api/storms/events/${ids.storm}/leads`)
-    expect(leads.body.pagination).toMatchObject({ total: 2, pages: 1 })
+    expect(leads.body.pagination).toMatchObject({ total: 3, pages: 1 })
     expect(leads.body.data.every((l: any) => l.isExistingCustomer === true)).toBe(true)
+    // The customer with a job is matched, linked to the job and to themselves, and nobody new was made.
+    const flagged = leads.body.data.find((l: any) => l.address === '3 Elm St')
+    expect(flagged).toMatchObject({ contactId: ids.c3, jobId: hasJob.id, status: 'new' })
+    expect(flagged.notes).toContain('job ROOF-0100')
+    expect((await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.companyId, companyId))).length).toBe(contactsBefore)
+    expect((await call('mgr', 'GET', `/api/storms/events/${ids.storm}`)).body.leadCount).toBe(3)
     ids.lead1 = leads.body.data.find((l: any) => l.address === '1 Elm St').id
     ids.lead2 = leads.body.data.find((l: any) => l.address === '2 Elm St').id
     // A second run leads nobody twice.
@@ -97,20 +106,33 @@ describe('storms', () => {
     expect((await call('mgr', 'PUT', `/api/storms/leads/${ids.lead1}`, {})).status).toBe(400)
   })
 
+  test('a lead that is a contact converts onto that contact — no second homeowner', async () => {
+    const before = (await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.companyId, companyId))).length
+    const r = await call('mgr', 'POST', `/api/storms/leads/${ids.lead2}/convert`, { name: 'Somebody Else' })
+    expect(r.status).toBe(200)
+    expect(r.body.contactId).toBe(ids.c2)
+    expect((await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.companyId, companyId))).length).toBe(before)
+    const [made] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.id, r.body.jobId))
+    expect(made).toMatchObject({ number: 'ROOF-0101', address: '2 Elm St', contactId: ids.c2, source: 'storm' })
+  })
+
   test('a converted lead is a homeowner with one name and a roofing job made as jobs.ts makes one; once', async () => {
+    // A lead with no contact behind it (made by hand or from a feed): the homeowner is made from the name given.
+    const [loose] = await t.db.insert(t.schema.stormLead).values({ companyId, stormEventId: ids.storm, address: '1 Birch St', city: 'Akron', state: 'OH', zip: '44301' } as any).returning()
+    ids.lead1 = loose.id
     const r = await call('mgr', 'POST', `/api/storms/leads/${ids.lead1}/convert`, { name: '  Jane   Roe ', phone: '330-555-0101' })
     expect(r.status).toBe(200)
     const [homeowner] = await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.id, r.body.contactId))
-    expect(homeowner).toMatchObject({ name: 'Jane Roe', source: 'storm', propertyType: 'residential', address: '1 Elm St', zip: '44301', companyId })
+    expect(homeowner).toMatchObject({ name: 'Jane Roe', source: 'storm', propertyType: 'residential', address: '1 Birch St', zip: '44301', companyId })
     const [made] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.id, r.body.jobId))
-    // The company's highest ROOF number was 0100 (seeded above): the next is 0101 — numeric, only forwards.
-    expect(made).toMatchObject({ number: 'ROOF-0101', title: '1 Elm St', address: '1 Elm St', jobType: 'insurance', status: 'lead', source: 'storm', priority: 'high', createdById: ids.mgr, contactId: homeowner.id })
+    // The company's highest ROOF number was 0101 (above): the next is 0102 — numeric, only forwards.
+    expect(made).toMatchObject({ number: 'ROOF-0102', title: '1 Birch St', address: '1 Birch St', jobType: 'insurance', status: 'lead', source: 'storm', priority: 'high', createdById: ids.mgr, contactId: homeowner.id })
     expect(made.notes).toContain('Storm lead — hail 1.75" hail on ')
     const [lead] = await t.db.select().from(t.schema.stormLead).where(eq(t.schema.stormLead.id, ids.lead1))
     expect(lead).toMatchObject({ status: 'converted', jobId: made.id, contactId: homeowner.id })
     expect((await call('mgr', 'POST', `/api/storms/leads/${ids.lead1}/convert`, { name: 'Again' })).status).toBe(400)
     // One word is the name as given — not "Jane Lead" (roofing's required last name filled with "Lead").
-    expect((await call('rep', 'POST', `/api/storms/leads/${ids.lead2}/convert`, { name: 'Ada' })).status).toBe(403)
+    expect((await call('rep', 'POST', `/api/storms/leads/${ids.lead1}/convert`, { name: 'Ada' })).status).toBe(403)
   })
 
   test('bulk convert names each homeowner "Storm Lead"; two at once convert once', async () => {
@@ -123,7 +145,7 @@ describe('storms', () => {
     ])
     expect(both[0].body.converted + both[1].body.converted).toBe(2)
     const jobs = await t.db.select().from(t.schema.job).where(and(eq(t.schema.job.companyId, companyId), eq(t.schema.job.source, 'storm')))
-    expect(jobs.map((j: any) => j.number).sort()).toEqual(['ROOF-0101', 'ROOF-0102', 'ROOF-0103'])
+    expect(jobs.map((j: any) => j.number).sort()).toEqual(['ROOF-0101', 'ROOF-0102', 'ROOF-0103', 'ROOF-0104'])
     const names = await t.db.select({ name: t.schema.contact.name }).from(t.schema.contact).where(and(eq(t.schema.contact.companyId, companyId), eq(t.schema.contact.source, 'storm')))
     expect(names.map((n: any) => n.name).sort()).toEqual(['Jane Roe', 'Storm Lead', 'Storm Lead'])
     expect((await call('mgr', 'POST', '/api/storms/leads/bulk-dismiss', { leadIds: [ids.lead2, 'nope'] })).body).toEqual({ dismissed: 1 })
@@ -203,7 +225,7 @@ describe('canvassing', () => {
     const [homeowner] = await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.id, door.body.contactId))
     expect(homeowner).toMatchObject({ name: 'Ray Fox', source: 'canvassing', phone: '(330) 555-0199' })
     const [made] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.id, door.body.jobId))
-    expect(made).toMatchObject({ number: 'ROOF-0104', title: '20 Oak St', address: '20 Oak St', priority: 'high', source: 'canvassing', createdById: ids.rep, notes: 'Canvassing lead — Oct 10 hail — Elm St sweep\nDented gutters' })
+    expect(made).toMatchObject({ number: 'ROOF-0105', title: '20 Oak St', address: '20 Oak St', priority: 'high', source: 'canvassing', createdById: ids.rep, notes: 'Canvassing lead — Oct 10 hail — Elm St sweep\nDented gutters' })
     expect(new Date(made.inspectionDate as any).toISOString()).toBe('2026-10-21T15:00:00.000Z')
     ids.stop = door.body.id
     const [sess] = await t.db.select().from(t.schema.canvassingSession).where(eq(t.schema.canvassingSession.id, ids.session))
@@ -294,7 +316,7 @@ describe('crews', () => {
     const listed = await call('rep', 'GET', '/api/crews')
     expect(listed.body.pagination.total).toBe(1)
     const one = await call('rep', 'GET', `/api/crews/${ids.crew}`)
-    expect(one.body.activeJobs).toEqual([expect.objectContaining({ number: 'ROOF-0101', address: '1 Elm St' })])
+    expect(one.body.activeJobs).toEqual([expect.objectContaining({ number: 'ROOF-0101', address: '2 Elm St' })])
     expect(one.body.activeJobs[0]).not.toHaveProperty('jobNumber')
     // A finished or closed job is not active work for the crew (the template listed every job it ever had).
     const [assigned] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.number, 'ROOF-0101'))
