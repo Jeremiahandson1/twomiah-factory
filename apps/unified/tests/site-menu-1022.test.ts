@@ -138,6 +138,15 @@ describe('a roofer\'s starting site (the roofing retest)', () => {
     expect(title((await page(s.t, '/contact')).body)).toBe('Contact — Test Co, Eau Claire, WI')
   })
 
+  test('a service-area page never names the trade as the service it offers there', async () => {
+    await s.as('/api/site/settings', { method: 'PATCH', json: { serviceAreas: ['Eau Claire', 'Altoona'] } })
+    const area = await page(s.t, '/service-areas/altoona')
+    expect(area.status).toBe(200)
+    expect(area.body).not.toContain('Roofing in Altoona.')
+    expect(area.body).toContain('Test Co serves Altoona.')
+    expect(menus((await page(s.t, '/')).body).desktop).toEqual([['Service areas', '/service-areas']])
+  })
+
   test('services the roofer adds to the price book are shown under What we do', async () => {
     await s.t.db.insert(s.t.schema.pricebookItem).values({ companyId: s.companyId, name: 'Roof replacement', price: '9000' } as any)
     expect(whatWeDo((await page(s.t, '/')).body)).toEqual(['Roof replacement'])
