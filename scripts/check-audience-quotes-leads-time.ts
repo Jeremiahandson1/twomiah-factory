@@ -68,10 +68,29 @@ if (/scheduledDate[^\n]*hasHappened/.test(jobsSrc)) fail('…and NOT by the past
 const moneySrc = read('packages/tenant-backend/src/invoicing/money.ts')
 if (!/if \(!withinHorizon\(d\)\) return \{ error: `That date is too far ahead/.test(moneySrc)) fail('one bound in normalizeDateInput must cover due date, issue date and quote expiry together')
 const expPage = read('packages/tenant-ui/src/people/ExpensesPage.tsx')
-if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(expPage)) fail("the Expenses page must date an expense by the person's own day, not UTC's")
+/**
+ * WHOSE DAY. The rule these two checks hold is "never UTC's day": toISOString() rolls over at UTC midnight and
+ * pre-filled tomorrow all evening west of Greenwich. They were written when the browser's local day was the only
+ * other day a screen could know (`d.getTime() - d.getTimezoneOffset() * 60000`).
+ *
+ * c84c5e2ce made the day the COMPANY's (the product rule: a business's dates are on the business's clock, as the
+ * server's businessToday() is — a receipt typed by an owner travelling, or a timesheet filled from a UTC cloud
+ * browser, is dated the day it is at the shop). The pages now call todayKey() from time/day.ts, which is
+ * companyTodayKey() in time/companyClock.ts: an Intl calendar day on the company zone, the browser's own day only
+ * before a session names the zone. So the day is read from that single source, and either form is accepted:
+ * the old local-day arithmetic, or todayKey() → companyTodayKey() → Intl on the zone. A toISOString() day fails both.
+ */
+const dayTs = read('packages/tenant-ui/src/time/day.ts')
+const clockTs = read('packages/tenant-ui/src/time/companyClock.ts')
+const COMPANY_DAY = /export const todayKey = \(\): string => companyTodayKey\(\)/.test(dayTs)
+  && /import \{ companyTodayKey \} from '\.\/companyClock'/.test(dayTs)
+  && /export function companyTodayKey\(now: Date = new Date\(\)\): string \{\n\s*return new Intl\.DateTimeFormat\('en-CA', \{ timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' \}\)\.format\(now\)\n\}/.test(clockTs)
+const datesByCompanyDay = (page: string) => COMPANY_DAY && /import \{ todayKey(?:, [^}]*)? \} from '\.\.\/time\/day'/.test(page)
+  && /\nconst today = \(\) => todayKey\(\)/.test(page)
+if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(expPage) && !datesByCompanyDay(expPage)) fail("the Expenses page must date an expense by the company's day (time/day.ts todayKey), never UTC's")
 if (!/<input type="date" max=\{today\(\)\}/.test(expPage)) fail("the expense date box must stop at today, as the timesheet's does")
 if (!/\.refine\(notFuture, \{ message: 'Time can only be logged for a date that has happened' \}\)/.test(time)) fail('…on the shared entry schema, so the bound covers the edit as well as the entry')
-if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(timePage)) fail("the Time page must date an entry by the person's own day — toISOString() rolls over at UTC midnight and pre-filled tomorrow all evening")
+if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(timePage) && !datesByCompanyDay(timePage)) fail("the Time page must date an entry by the company's day (time/day.ts todayKey), never UTC's — toISOString() rolls over at UTC midnight and pre-filled tomorrow all evening")
 if (!/<input type="date" max=\{today\(\)\}/.test(timePage)) fail('the date box must stop at today, so the typo is caught at the picker and not only by the API')
 
 if (failed) { console.error(`\naudience, quote stats, lead sources and the clock: ${failed} check(s) FAILED`); process.exit(1) }
