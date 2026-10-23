@@ -48,18 +48,46 @@ export function whenDate(v: unknown, opts: Intl.DateTimeFormatOptions = {}): str
   return d.toLocaleDateString(undefined, { ...opts, timeZone: isDay(v, d) ? 'UTC' : zone })
 }
 
-/** A moment's date and time on the company's clock. */
+/**
+ * A CLOCK TIME ON ANOTHER ZONE'S CLOCK SAYS WHICH ONE (scripts/check-converted-time-names-its-zone.ts). Once a session
+ * has named the company's zone, a time printed on it carries the zone's short name — "8:30 PM CDT" — so an owner
+ * reading from another state, or a tester's UTC browser, can tell whose clock it is: the reason the time was converted
+ * at all. Before a zone is named nothing is converted (the browser's own clock) and nothing is added. A caller's own
+ * timeZoneName wins.
+ *
+ * dateStyle / timeStyle cannot be combined with timeZoneName (Intl throws), so they are spelled out as the component
+ * options they stand for.
+ */
+const DATE_STYLE: Record<string, Intl.DateTimeFormatOptions> = {
+  full: { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
+  long: { year: 'numeric', month: 'long', day: 'numeric' },
+  medium: { year: 'numeric', month: 'short', day: 'numeric' },
+  short: { year: '2-digit', month: 'numeric', day: 'numeric' },
+}
+const TIME_STYLE: Record<string, Intl.DateTimeFormatOptions> = {
+  full: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+  long: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+  medium: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+  short: { hour: 'numeric', minute: '2-digit' },
+}
+const spelledOut = (opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions => {
+  const { dateStyle, timeStyle, ...rest } = opts
+  if (!dateStyle && !timeStyle) return opts
+  return { ...(dateStyle ? DATE_STYLE[dateStyle] : {}), ...(timeStyle ? TIME_STYLE[timeStyle] : {}), ...rest }
+}
+
+/** A moment's date and time on the company's clock, naming the zone once one is set. */
 export function whenDateTime(v: unknown, opts: Intl.DateTimeFormatOptions = {}): string {
   const d = asDate(v)
   if (!d) return ''
-  return d.toLocaleString(undefined, { ...opts, timeZone: zone })
+  return d.toLocaleString(undefined, zone ? { timeZoneName: 'short', ...spelledOut(opts), timeZone: zone } : opts)
 }
 
-/** A moment's time of day on the company's clock. */
+/** A moment's time of day on the company's clock, naming the zone once one is set. */
 export function whenTime(v: unknown, opts: Intl.DateTimeFormatOptions = {}): string {
   const d = asDate(v)
   if (!d) return ''
-  return d.toLocaleTimeString(undefined, { ...opts, timeZone: zone })
+  return d.toLocaleTimeString(undefined, zone ? { timeZoneName: 'short', ...spelledOut(opts), timeZone: zone } : opts)
 }
 
 /** Today on the company's clock, YYYY-MM-DD (the browser's day before a session names the zone). */

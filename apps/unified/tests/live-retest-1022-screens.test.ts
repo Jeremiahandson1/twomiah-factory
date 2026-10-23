@@ -54,6 +54,13 @@ describe('1 · admin screens print a stored moment on the company’s clock', ()
     expect(ui.dateTime(EVENING)).toContain('8:30')
     expect(ui.dateTime(EVENING)).toContain(usDay(2026, 10, 22))
     expect(ui.instantDay(EVENING)).toBe(usDay(2026, 10, 22))
+    // A time converted onto the company's clock names the zone (check-converted-time-names-its-zone) — and a caller's
+    // dateStyle/timeStyle, which Intl will not combine with a zone name, still prints rather than throwing.
+    const zoneName = new Intl.DateTimeFormat(undefined, { timeZone: 'America/Chicago', timeZoneName: 'short' }).formatToParts(new Date(EVENING)).find((p) => p.type === 'timeZoneName')!.value
+    expect(ui.dateTime(EVENING)).toContain(zoneName)
+    expect(clock.whenTime(EVENING, { hour: 'numeric', minute: '2-digit' })).toContain(zoneName)
+    expect(clock.whenDateTime(EVENING, { dateStyle: 'medium', timeStyle: 'short' })).toContain(zoneName)
+    expect(clock.whenDateTime(EVENING, { dateStyle: 'medium', timeStyle: 'short' })).toContain('8:30')
     // A calendar day is still the day it names (a due date), whatever the zone.
     expect(ui.dateOnly('2026-10-22T00:00:00.000Z')).toBe(new Date(2026, 9, 22).toLocaleDateString())
     expect(clock.whenDate('2026-10-22T00:00:00.000Z')).toBe(usDay(2026, 10, 22))
