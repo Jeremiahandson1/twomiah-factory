@@ -821,21 +821,24 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const tz = await companyTimeZone(db, companyId)
     const today = businessToday(tz)
     /**
-     * BILL A PERIOD ONCE. The period is claimed first — moved on only while it still says what this run read — so two
-     * runs at once, or a run on each side of the clock switch, cannot both invoice it. (2026-10-22)
+     * BILL A PERIOD ONCE. The agreement row is locked `FOR UPDATE` inside the transaction that writes the invoice, and
+     * the period is checked against the LOCKED row: a second run at the same moment blocks on the lock until the
+     * first commits, then sees the period already moved on and refuses — so two runs at once, or a run on each side
+     * of the clock switch, cannot both invoice it. Moving the period on and writing the invoice are one transaction,
+     * so an invoice that cannot be written leaves the period unbilled for the next run, and a crash between the two
+     * cannot lose it. (2026-10-22; T41 is the race this shape exists for.)
      */
     const billedAt = new Date()
-    // The next bill DAY is this period's bill day (or the company's today, for a first bill) one interval on.
-    const nextBillDate = addInterval(dayMarker(agreement.nextBillDate ? billDay(agreement.nextBillDate, tz) : storeDateString(billedAt, tz)), agreement.billingFrequency)
-    const [claimed] = await db.update(serviceAgreement).set({ lastBilledAt: billedAt, nextBillDate, updatedAt: billedAt })
-      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId),
-        agreement.nextBillDate ? eq(serviceAgreement.nextBillDate, new Date(agreement.nextBillDate)) : sql`${serviceAgreement.nextBillDate} IS NULL`))
-      .returning({ id: serviceAgreement.id })
-    if (!claimed) throw Object.assign(new Error('This period was already billed'), { status: 409, alreadyBilled: true })
-    // An invoice that could not be written hands the period back, so the next run bills it.
-    const release = () => db.update(serviceAgreement).set({ lastBilledAt: agreement.lastBilledAt ?? null, nextBillDate: agreement.nextBillDate ?? null })
-      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.nextBillDate, nextBillDate)))
+    const sameBillDate = (a: unknown, b: unknown) => (a == null || b == null) ? a == null && b == null : new Date(a as any).getTime() === new Date(b as any).getTime()
     const inv = await db.transaction(async (tx: any) => {
+      const [locked] = await tx.select({ nextBillDate: serviceAgreement.nextBillDate }).from(serviceAgreement)
+        .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).for('update')
+      if (!locked) throw Object.assign(new Error('Agreement not found'), { status: 404 })
+      if (!sameBillDate(locked.nextBillDate, agreement.nextBillDate)) throw Object.assign(new Error('This period was already billed'), { status: 409, alreadyBilled: true })
+      // The next bill DAY is this period's bill day (or the company's today, for a first bill) one interval on.
+      const nextBillDate = addInterval(dayMarker(agreement.nextBillDate ? billDay(agreement.nextBillDate, tz) : storeDateString(billedAt, tz)), agreement.billingFrequency)
+      await tx.update(serviceAgreement).set({ lastBilledAt: billedAt, nextBillDate, updatedAt: billedAt })
+        .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
       const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
       const [created] = await tx.insert(invoice).values({
         companyId,
@@ -855,7 +858,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         total: String(agreement.amount),
       })
       return created
-    }).catch(async (err: unknown) => { await release().catch(() => {}); throw err })
+    })
     return inv
   }
 
