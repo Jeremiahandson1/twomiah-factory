@@ -43,7 +43,7 @@ export function InvoiceRemindersPanel({ invoiceId, status }: { invoiceId: string
         <ul className="mt-2 space-y-1.5 text-sm text-gray-700 dark:text-slate-200">
           {entries.map((e, i) => (
             <li key={i}>
-              <span className="font-medium">{stepWords(e)}</span> — {STATUS[e.status] || e.status}{e.sentTo && e.status === 'sent' ? ` to ${e.sentTo}` : ''}, {whenDateTime(e.at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              <span className="font-medium">{stepWords(e)}</span>{e.kind === 'invoice_late_fee' ? '' : ` — ${STATUS[e.status] || e.status}${e.sentTo && e.status === 'sent' ? ` to ${e.sentTo}` : ''}`}, {whenDateTime(e.at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               {e.status !== 'sent' && e.detail && <span className="block text-xs text-gray-600 dark:text-slate-300">{e.detail}</span>}
               {e.kind === 'invoice_late_fee' && e.detail && <span className="block text-xs text-gray-600 dark:text-slate-300">{e.detail}</span>}
             </li>
