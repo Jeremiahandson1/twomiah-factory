@@ -66,8 +66,11 @@ describe('every reader keeps time on the company’s zone', () => {
     // Settings › Company moves every clock at once.
     expect((await as('/api/company', { method: 'PUT', json: { timezone: 'America/Los_Angeles' } })).status).toBe(200)
     expect(((await (await as('/api/booking/settings')).json()) as any).timezone).toBe('America/Los_Angeles')
-    const own = await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago' } })
+    // A zone of its own is refused in words, the rest of that save with it — never stored where nothing reads it.
+    const own = await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago', maxDaysOut: 21 } })
     expect(own.status).toBe(400)
+    expect(JSON.stringify(await own.json())).toContain('Settings › Company')
+    expect(((await (await as('/api/booking/settings')).json()) as any).maxDaysOut).not.toBe(21)
     expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Los_Angeles', maxDaysOut: 20 } })).status).toBe(200)
 
     // The AI Receptionist: the same clock, and no zone of its own.
