@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from 'lucide-react'
 import { api } from '../api'
-import { useToast } from '../shared'
+import { useMayWrite, useToast } from '../shared'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 interface Run { id: string; trigger: 'auto' | 'manual'; status: 'running' | 'ok' | 'partial' | 'failed'; customers: number; invoices: number; payments: number; failed: number; error: string | null; startedAt: string }
@@ -20,6 +20,8 @@ const sentWords = (r: Run) => {
 
 export function QuickBooksSyncLog() {
   const toast = useToast()
+  // Retry asks settings:update, the /api/qb-sync routes' own line (server crm/office/quickbooksSyncRoutes.ts).
+  const mayRetry = useMayWrite('settings:update')
   const [log, setLog] = useState<Log | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const load = () => api.get('/api/qb-sync/log').then(setLog).catch(() => setLog(null))
@@ -52,9 +54,11 @@ export function QuickBooksSyncLog() {
                 <span className="block text-xs text-amber-900 dark:text-amber-200">
                   {f.gaveUp ? `Tried ${f.attempts} times — fix it, then press Retry.` : `Tried ${f.attempts} time${f.attempts === 1 ? '' : 's'}; tried again ${f.nextAttemptAt ? `after ${when(f.nextAttemptAt)}` : 'on the next sync'}.`}
                 </span>
-                <button type="button" onClick={() => retry(f)} disabled={busy === f.id} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-900 underline dark:text-amber-100">
-                  {busy === f.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}Retry now
-                </button>
+                {mayRetry && (
+                  <button type="button" onClick={() => retry(f)} disabled={busy === f.id} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-900 underline dark:text-amber-100">
+                    {busy === f.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}Retry now
+                  </button>
+                )}
               </li>
             ))}
           </ul>
