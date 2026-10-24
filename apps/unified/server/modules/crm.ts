@@ -58,6 +58,7 @@ import { fieldMounts } from '../crm/field/index.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { officeMounts } from '../crm/office/index.ts'
+import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
@@ -331,6 +332,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : jobs },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
     { path: '/api/invoices', access: 'user', feature: 'invoices', router: invoices },
+    // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
+    // no one feature; each action asks its permission.
+    { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
     { path: '/api/team', access: 'user', feature: 'team', router: createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
       // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).

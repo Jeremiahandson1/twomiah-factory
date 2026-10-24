@@ -4,7 +4,7 @@ import {
   Loader2, BellRing, Syringe, UserX, Send, X, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { api } from '../../../api'
-import { useMayWrite, useToast } from '../../../shared'
+import { useMayWrite, useToast, usePermissions } from '../../../shared'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
@@ -76,6 +76,68 @@ interface DueReport { count?: number; overdue?: number; data?: DueRow[] }
 interface LapsedReport { count?: number; data?: LapsedRow[] }
 /** POST /api/reminders/send: what went out; `error` is the shared reason when nothing did. */
 interface SendOutcome { sent?: number; failed?: number; error?: string }
+/** GET/PUT /api/reminders/settings (server crm/vet/vaccineReminders.ts). */
+interface AutoSettings { auto: boolean; leadDays: number; message: string; defaultMessage: string; sendsBetween: [number, number] }
+
+const hourWords = (h: number) => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
+
+/**
+ * Automatic vaccine reminders: the clinic's switch, how many days before a due date, and the words. Sent by the server
+ * every hour within the hours shown, on the clinic's clock, once per vaccine due date, by text from the clinic's own
+ * number; an owner who replied STOP is never texted. The manual Send Reminder below stays.
+ */
+function AutoReminders() {
+  const toast = useToast()
+  const { can, known } = usePermissions()
+  const mayEdit = !known || can('company:update')
+  const [s, setS] = useState<AutoSettings | null>(null)
+  const [form, setForm] = useState<{ auto: boolean; leadDays: string; message: string } | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    api.get('/api/reminders/settings').then((r: AutoSettings) => { setS(r); setForm({ auto: r.auto, leadDays: String(r.leadDays), message: r.message }) }).catch(() => setS(null))
+  }, [])
+  if (!s || !form) return null
+  const save = async () => {
+    setSaving(true); setErrors({})
+    try {
+      const r: AutoSettings = await api.put('/api/reminders/settings', { auto: form.auto, leadDays: Number(form.leadDays), message: form.message })
+      setS(r); setForm({ auto: r.auto, leadDays: String(r.leadDays), message: r.message })
+      toast.success(r.auto ? 'Automatic reminders are on' : 'Automatic reminders saved (off)')
+    } catch (e: any) { setErrors(e?.data?.fields || {}); toast.error(e?.message || 'Could not save the reminder settings') } finally { setSaving(false) }
+  }
+  return (
+    <section aria-label="Automatic reminders" className="rounded-xl border bg-white p-4 dark:border-slate-700 dark:bg-slate-900" data-testid="vet-auto-reminders">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Automatic reminders</h2>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.auto ? 'bg-teal-100 text-teal-900 dark:bg-teal-900/50 dark:text-teal-100' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200'}`}>{s.auto ? 'On' : 'Off'}</span>
+      </div>
+      <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">
+        {s.auto ? `Each owner is texted once about every vaccine due in the next ${s.leadDays} days` : 'When on, each owner is texted once about every vaccine coming due'}, between {hourWords(s.sendsBetween[0])} and {hourWords(s.sendsBetween[1])} on your clinic&rsquo;s clock, from your clinic&rsquo;s texting number. Owners who replied STOP are never texted. You can still send reminders by hand below.
+      </p>
+      {mayEdit && (
+        <div className="mt-3 space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
+            <input type="checkbox" checked={form.auto} onChange={(e) => setForm({ ...form, auto: e.target.checked })} className="h-4 w-4" />
+            Text owners automatically when a vaccine is coming due
+          </label>
+          <div>
+            <label htmlFor="vet-lead" className="block text-sm font-medium text-gray-800 dark:text-slate-200">Days before the due date</label>
+            <input id="vet-lead" type="number" min="1" max="90" inputMode="numeric" value={form.leadDays} onChange={(e) => setForm({ ...form, leadDays: e.target.value })} className="mt-1 w-28 rounded-lg border px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+            {errors.leadDays && <p className="mt-1 text-xs text-red-700 dark:text-red-300">{errors.leadDays}</p>}
+          </div>
+          <div>
+            <label htmlFor="vet-message" className="block text-sm font-medium text-gray-800 dark:text-slate-200">The text owners receive</label>
+            <textarea id="vet-message" rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+            <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">Filled in for each owner: <code>{'{{owner_name}}'}</code> <code>{'{{pet_name}}'}</code> <code>{'{{vaccine}}'}</code> <code>{'{{due_date}}'}</code> <code>{'{{clinic_name}}'}</code>. An owner with two pets due gets one text naming both.</p>
+            {errors.message && <p className="mt-1 text-xs text-red-700 dark:text-red-300">{errors.message}</p>}
+          </div>
+          <button type="button" onClick={save} disabled={saving} className="px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      )}
+    </section>
+  )
+}
 
 export default function RemindersPage() {
   const toast = useToast();
@@ -167,6 +229,8 @@ export default function RemindersPage() {
         </h1>
         <p className="text-gray-500 dark:text-slate-400">Bring patients back in for the care they're due</p>
       </div>
+
+      <AutoReminders />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">

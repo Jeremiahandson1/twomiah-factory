@@ -76,11 +76,11 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv'] },
   { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
-  { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event, per-inch, and seasonal snow billing', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
+  { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event and per-inch snow billing; a seasonal contract leaves its visits uncharged (bill the season itself with a recurring invoice)', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* not crm-homecare: an agency has no quotes or invoices to price (owner, 2026-10-19) */ },
 
   // Field Service
-  { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
+  { id: 'dispatch_board', name: 'Dispatch Board', description: 'A day of jobs by technician on one board — assign, reassign and set status', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
   { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Maintenance plans whose included visits go on the Schedule for each term', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
@@ -92,15 +92,15 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'service_to_sales', name: 'Service-to-Sales Bridge', description: 'Alert salespeople when their leads check into service', category: 'Automotive', core: false, templates: ['crm-automotive'] },
 
   // RV / Powersports (crm-rv) — dealership CRM layer (not a DMS)
-  { id: 'unit_inventory', name: 'Unit Inventory', description: 'New/used/consignment units with VIN decode, floorplans, photos and spec sheets', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
+  { id: 'unit_inventory', name: 'Unit Inventory', description: 'New/used/consignment units with VIN decode, floor-plan image, photos and full specifications', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
   { id: 'deal_pipeline', name: 'Sales Pipeline', description: 'Kanban pipeline linking each lead to a unit of interest, by stage and salesperson', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
-  { id: 'service_dept', name: 'Service Department', description: 'Repair orders, bay/tech scheduling and service-to-sales alerts', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
+  { id: 'service_dept', name: 'Service Department', description: 'Repair orders with a technician, service drop-offs on the Schedule, and service-to-sales alerts', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
   { id: 'deal_desk', name: 'Deal Desk', description: 'Structure deals with payment calculator, fees, tax and trade allowance', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
   { id: 'trade_in', name: 'Trade-In Management', description: 'Appraise trades, attach to a deal, recondition and roll back into used inventory', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'recall_lookup', name: 'Recall Lookup', description: 'One-click NHTSA/OEM open-recall check by VIN at sale and service intake', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'Push inventory feeds to RV Trader, RVUSA, RVT, Cycle Trader & ATV Trader', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos/video to drive upsell approvals', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences that work long RV/powersports research cycles', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'recall_lookup', name: 'Recall Lookup', description: 'Look up NHTSA recalls by VIN, unit or year/make/model (CPSC for off-road) — the recalls for that model, not whether this unit\'s was done', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'A listings feed of your available units that RV Trader, RVUSA, RVT, Cycle Trader, ATV Trader or a feed service can be set up to pull', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automatic texts to the customer when a repair order is being worked on, waiting for parts, or ready for pickup', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-step email follow-ups, sent on a delay after a lead is enrolled, for long RV/powersports research cycles', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
 
   // Veterinary (crm-vet) — client-relationship + preventive-care record (retention layer, not a clinical PIMS)
   // The wording here is what a prospect is sold. Three of these described things the app does not do — a
@@ -112,8 +112,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'appointment_scheduling', name: 'Appointments', description: 'Day schedule showing each appointment\'s provider and type (wellness, sick, surgery, dental), with check-in', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'medical_records', name: 'Medical Records', description: 'Per-visit SOAP notes, vitals, problem/diagnosis list and treatments', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'vaccinations', name: 'Vaccinations', description: 'Vaccine history with due dates that drive reminders and rabies certificates', category: 'Veterinary', core: true, templates: ['crm-vet'] },
-  { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Automated vaccine/wellness-due reminders and lapsed-client reactivation', category: 'Veterinary', core: true, templates: ['crm-vet'] },
-  { id: 'wellness_plans', name: 'Wellness Plans', description: 'Recurring preventive-care memberships billed monthly', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+  { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Vaccine-due reminder texts — sent automatically on the clinic\'s own schedule once switched on, or by hand — and a lapsed-client list to win back', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'wellness_plans', name: 'Wellness Plans', description: 'Preventive-care memberships billed monthly or yearly, each renewal invoiced as it comes due', category: 'Veterinary', core: false, templates: ['crm-vet'] },
   { id: 'lab_results', name: 'Lab Results', description: 'Record and attach lab/diagnostic results to the patient', category: 'Veterinary', core: false, templates: ['crm-vet'] },
   { id: 'rabies_certificates', name: 'Rabies Certificates', description: 'Generate printable rabies vaccination certificates from the vaccine record', category: 'Veterinary', core: false, templates: ['crm-vet'] },
   { id: 'prescriptions', name: 'Prescriptions', description: 'Prescription records with prescriber, refills and a controlled-substance flag; dispensing, EPCS and PDMP reporting are not included', category: 'Veterinary', core: false, templates: ['crm-vet'] },
@@ -151,13 +151,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
   // Where's the crew and the job-site geofences (/crm/geofences) and the phone app's location sharing. Not home care: its
   // caregivers' location is EVV's, at clock-in and clock-out, and the phone app offers tracking to the trades only.
-  { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'gps_tracking', name: 'GPS Tracking', description: 'Crew locations and automatic clock-in and out at job-site fences, from the Twomiah phone app', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
   { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
   { id: 'fleet', name: 'Fleet Management', description: 'Vehicle fleet tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
 
   // Finance
-  { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — deposits and payments by card or ACH', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — invoices and deposits paid by card, or by bank account where you turn that on in your Stripe account', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
   { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
   { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
@@ -178,7 +178,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-bar'] /* not crm-roof: no call-tracking screen there — the API is consumed by the AI receptionist page, so it rides that switch */ },
   { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile — see your rating and reply to reviews from the CRM', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-store', 'crm-bar'] },
   { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-bar', 'crm-store'] },
-  { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
+  { id: 'client_portal', name: 'Client Portal', description: 'A customer portal by private link — quotes to approve, invoices to view and pay, and their projects where you run them', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   { id: 'lead_inbox', name: 'Lead Inbox', description: 'Every enquiry in one inbox — marketplaces, ads, booking apps and your website', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
   // Marketing
@@ -187,7 +187,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
   // Factory wizard. Put the templates back when the service is ready.
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
-  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review after a job or visit — automatically once switched on in Reviews › Settings', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
+  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review — sent automatically after a completed job or salon visit once switched on in Reviews › Settings, or by hand from Reviews', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
 
@@ -199,9 +199,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // manifests, so the answer was to finish it rather than delete it. Non-core, so it stays OFF until
   // an owner switches it on — no existing tenant changes behaviour.
   { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-dispensary', 'crm-bar'] },
-  { id: 'reports', name: 'Reports', description: 'Drill-down reporting — visits, revenue, reminders due, reactivation', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'reports', name: 'Reports', description: 'Revenue, outstanding balances and work done for any period, with CSV downloads', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
-  { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-bar'] },
+  { id: 'ai_receptionist', name: 'AI Receptionist', description: 'Missed-call text-back: replies by text or email to missed calls and voicemails, with each voicemail written out', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-bar'] },
   { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: [] /* offered to no industry: no screen in any industry's menu or pages (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22). The id stays because the server still gates its API on it. */ },
 
   // Roofing
@@ -230,7 +230,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'id_verification', name: 'ID Verification', description: 'Customer ID verification tracking at pickup/delivery', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
 
   // Dispensary — Loyalty & Marketing
-  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points, tiers, rewards, and referral tracking', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary', 'crm-salon', 'crm-bar'] },
+  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points and rewards for regulars; member tiers (Silver, Gold…) in the salon and dispensary programmes', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary', 'crm-salon', 'crm-bar'] },
   { id: 'sms_marketing', name: 'SMS Marketing', description: 'Text message campaigns and opt-in management', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
   { id: 'email_campaigns', name: 'Email Campaigns', description: 'Email marketing and deal notifications', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
 

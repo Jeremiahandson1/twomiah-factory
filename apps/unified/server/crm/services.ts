@@ -27,6 +27,8 @@ import { createAppointmentReminders } from './salon/appointmentReminders.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
+import { createInvoiceReminders } from './billing/invoiceReminders.ts'
+import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -126,6 +128,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // QuickBooks customers are this vertical's paying contacts (CrmSettings.contacts.customerType: a dealership's
   // 'customer', templates/crm-rv services/quickbooks.ts).
   const quickbooks = createQuickBooksService({ db, tables: { contact, invoice, invoiceLineItem, payment, company, qbIntegration }, options: { customerType: settings.contacts?.customerType ?? 'client' } } as any)
+  // The Auto-sync switch, made real (office/quickbooksAutoSync.ts): new and changed customers, invoices and payments every
+  // 15 minutes where it is on, with retries and a log the Integrations card shows.
+  const quickbooksSync = createQuickBooksAutoSync({ db, quickbooks, logger, isFeatureEnabled, customerType: settings.contacts?.customerType ?? 'client' })
   // Vehicles' locations and trips from the driver's phone pings where the vertical has GPS (CrmSettings.fleet; the
   // field-service and basic copies' services/fleet.ts); elsewhere those endpoints give the neutral answers.
   const fleet = createFleetService((settings.fleet?.gps
@@ -176,6 +181,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // Bulk status changes run the same moments as the job routes (packages/tenant-backend jobs.ts jobHookFor).
   const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks } as any)
 
+  // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
+  // vertical's invoices, and home care's Billing invoices where this is home care.
+  const invoiceReminders = createInvoiceReminders({ db, email: emailService, audit, logger, isFeatureEnabled, homecare: !!settings.homecare })
+
   /** A module's own timed work (home care's reminders and polls), registered when it mounts, started with the rest. */
   const moduleJobs: Array<() => void> = []
 
@@ -183,7 +192,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -211,6 +220,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
       if (settings.events) void backfillEventInvoices(db, logger).catch((err: any) => logger.error('[events] invoice backfill failed', { error: err?.message }))
       // Tomorrow's appointments get a reminder text, every 10 minutes (templates/crm-salon index.ts startAppointmentReminders).
       if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
+      // Due-soon and overdue invoice reminders, and the late fee, every hour (each company's own switch decides).
+      invoiceReminders.start()
+      // QuickBooks auto-sync, every 15 minutes, for the companies whose switch is on.
+      quickbooksSync.start()
       for (const start of moduleJobs) start()
     },
   }

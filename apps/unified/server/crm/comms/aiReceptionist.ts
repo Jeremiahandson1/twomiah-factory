@@ -59,6 +59,50 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
     return c.body(null, 200)
   })
 
+  // ── The phone line: Twilio's voice webhooks (no session; signed). TwiML out. ──
+  // Twilio's voice URL for the business's number is /api/ai-receptionist/webhook/voice/<company id> (Twomiah sets it when
+  // the line is connected). The paths in the TwiML are relative: Twilio requests them on this same address.
+  const xml = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const twiml = (c: any, body: string) => { c.header('Content-Type', 'text/xml'); return c.body(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`, 200) }
+  /** The greeting, then a message of up to two minutes; the recording comes back to /webhook/recording. */
+  const voicemail = (companyId: string, greeting: string) =>
+    `<Say voice="alice">${xml(greeting)}</Say>` +
+    `<Record maxLength="120" playBeep="true" timeout="5" action="/api/ai-receptionist/webhook/voicemail-done/${xml(companyId)}" method="POST" recordingStatusCallback="/api/ai-receptionist/webhook/recording/${xml(companyId)}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>` +
+    `<Say voice="alice">We did not get a message. Goodbye.</Say>`
+  const signed = async (c: any, label: string) => {
+    const companyId = c.req.param('companyId')
+    const payload: any = await parseTwilioBody(c)
+    const v = verifyTwilioRequest(c, payload, await twilioTokenFor(companyId))
+    return v.ok ? { companyId, payload } : { refused: refuseUnverifiedWebhook(c, label, v.reason) }
+  }
+
+  // A call arrives: ring the forwarding number for 20 seconds; with none, straight to the greeting and voicemail.
+  app.post('/webhook/voice/:companyId', async (c) => {
+    const s = await signed(c, 'Twilio voice webhook')
+    if ('refused' in s) return s.refused
+    const line = await aiReceptionist.callArrived(s.companyId, s.payload)
+    if (line.forwardTo) {
+      return twiml(c, `<Dial timeout="20" action="/api/ai-receptionist/webhook/dial-result/${xml(s.companyId)}" method="POST">${xml(line.forwardTo)}</Dial>`)
+    }
+    const after = await aiReceptionist.dialEnded(s.companyId, { ...s.payload, DialCallStatus: 'no-answer' })
+    return twiml(c, voicemail(s.companyId, after.greeting))
+  })
+
+  // The forwarded ring ended: picked up — done; not — the missed-call replies go, and the caller gets voicemail.
+  app.post('/webhook/dial-result/:companyId', async (c) => {
+    const s = await signed(c, 'Twilio dial-result webhook')
+    if ('refused' in s) return s.refused
+    const after = await aiReceptionist.dialEnded(s.companyId, s.payload)
+    return twiml(c, after.answered ? '<Hangup/>' : voicemail(s.companyId, after.greeting))
+  })
+
+  // The message has been left (the recording itself arrives at /webhook/recording).
+  app.post('/webhook/voicemail-done/:companyId', async (c) => {
+    const s = await signed(c, 'Twilio voicemail webhook')
+    if ('refused' in s) return s.refused
+    return twiml(c, '<Say voice="alice">Thank you. Goodbye.</Say><Hangup/>')
+  })
+
   // ── Signed in, and the AI Receptionist on ──
   app.use('*', d.authenticate)
   app.use('*', d.features.requireEnabledFeature('ai_receptionist'))
@@ -101,6 +145,11 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
     // The zone is the business's (Settings › Company). Sending back the one shown is fine; another is refused in words.
     if (parsed.data.timezone !== undefined && parsed.data.timezone !== (await aiReceptionist.getSettings(companyId)).timezone) {
       return fail(c, 400, 'The AI Receptionist keeps time on your business’s time zone. Change it under Settings › Company.', 'timezone_is_the_company_s')
+    }
+    // The forwarding number is dialled: a number that cannot be rung is refused here, not discovered on a missed call.
+    const fwd = parsed.data.forwardingNumber
+    if (fwd && String(fwd).trim() && !aiReceptionist.forwardTo({ forwardingNumber: fwd })) {
+      return fail(c, 400, 'The forwarding number must be a 10-digit US phone number, like (608) 555-0123.', 'validation_failed', { forwardingNumber: 'Enter a 10-digit US phone number' })
     }
     return one(c, await aiReceptionist.upsertSettings(companyId, parsed.data as any))
   })

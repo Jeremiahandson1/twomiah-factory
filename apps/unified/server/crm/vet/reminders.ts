@@ -12,7 +12,10 @@ import { lapsedPatients, stampVaccinationsReminded } from '../../data/vetReminde
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { z } from 'zod'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
+import { invalid } from '../../http/errors.ts'
+import { vetReminderSettings, DEFAULT_VET_MESSAGE, QUIET_BEFORE, QUIET_FROM } from './vaccineReminders.ts'
 
 // The clinic's today (UTC's was a day ahead every evening).
 const todayStr = async (db: any, companyId: string) => storeDateString(new Date(), await companyTimeZone(db, companyId))
@@ -42,7 +45,7 @@ export function listPhrase(items: string[]): string {
   return `${seen.slice(0, -1).join(', ')} and ${seen[seen.length - 1]}`
 }
 
-const prettyDate = (d: unknown) => {
+export const prettyDate = (d: unknown) => {
   const s = String(d ?? '').slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return ''
   const [y, m, day] = s.split('-').map(Number)
@@ -77,7 +80,10 @@ export function createReminderRoutes(d: CrmDeps) {
   app.get('/due', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
     const windowDays = Math.min(365, Math.max(1, +(c.req.query('window') || '30')))
-    const cutoff = new Date(Date.now() + windowDays * 86400000).toISOString().slice(0, 10)
+    // The window ends `windowDays` after the CLINIC's today (UTC's ran a day ahead every evening).
+    const today = await todayStr(db, u.companyId)
+    const end = new Date(`${today}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + windowDays)
+    const cutoff = end.toISOString().slice(0, 10)
 
     const rows = await db.select({
       vaccinationId: vaccination.id, vaccine: vaccination.vaccine, givenDate: vaccination.givenDate, dueDate: vaccination.dueDate, isRabies: vaccination.isRabies,
@@ -98,7 +104,7 @@ export function createReminderRoutes(d: CrmDeps) {
       const cur = latest.get(key)
       if (!cur || (r.givenDate || '') > (cur.givenDate || '')) latest.set(key, r)
     }
-    const t = await todayStr(db, u.companyId)
+    const t = today
     const recentCutoff = Date.now() - REMINDED_RECENTLY_DAYS * 86400000
     const data = [...latest.values()]
       .filter((r) => (r.dueDate || '') <= cutoff)
@@ -160,7 +166,10 @@ export function createReminderRoutes(d: CrmDeps) {
     const reached: string[] = []
     // Why nothing went out, when the reason is the same for everybody (an empty usage wallet, say).
     let blockedReason = ''
+    // An owner who texted STOP is not texted, by hand or automatically (contact.optedOutSms).
+    let optedOut = 0
     for (const ct of owners) {
+      if ((ct as any).optedOutSms) { failures.push(ct.id); optedOut++; continue }
       const to = (ct as any).mobile || ct.phone
       if (!to) { failures.push(ct.id); continue }
       const b = perOwner.get(ct.id)
@@ -209,11 +218,36 @@ export function createReminderRoutes(d: CrmDeps) {
     // The outcome of a send, as the template answered it: `error` carries the shared reason when nothing went out,
     // which the page shows instead of a bare "0 sent".
     return one(c, {
-      sent, failed: failures.length, failures,
+      sent, failed: failures.length, failures, optedOut,
       remindersRecorded: stamped,
       remindedAt: reached.length ? now.toISOString() : null,
-      ...(sent === 0 && blockedReason ? { error: blockedReason } : {}),
+      ...(sent === 0 && blockedReason ? { error: blockedReason } : sent === 0 && optedOut === owners.length && optedOut > 0 ? { error: optedOut === 1 ? 'That owner asked not to be texted (they replied STOP).' : 'Those owners asked not to be texted (they replied STOP).' } : {}),
     })
+  })
+
+  // GET/PUT /reminders/settings — automatic vaccine reminders (./vaccineReminders.ts): the clinic's switch, how many days
+  // ahead of the due date, and the words. Reading is anyone who reads the list; changing it is a company setting.
+  const settingsView = (settings: unknown) => ({ ...vetReminderSettings(settings), defaultMessage: DEFAULT_VET_MESSAGE, sendsBetween: [QUIET_BEFORE, QUIET_FROM] })
+  app.get('/settings', requirePermission('contacts:read'), async (c) => {
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, c.get('user').companyId)).limit(1)
+    return one(c, settingsView(co?.settings))
+  })
+  const settingsSchema = z.object({
+    auto: z.boolean(),
+    leadDays: z.number({ invalid_type_error: 'Enter a whole number of days' }).int('Enter a whole number of days').min(1, 'At least 1 day ahead').max(90, 'At most 90 days ahead'),
+    message: z.string().trim().min(1, 'Write the text owners receive').max(480, 'Keep the text under 480 characters'),
+  })
+  app.put('/settings', requirePermission('company:update'), async (c) => {
+    const parsed = settingsSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const companyId = c.get('user').companyId
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    const settings: any = (typeof co?.settings === 'string' ? JSON.parse(co.settings || '{}') : co?.settings) || {}
+    const before = vetReminderSettings(settings)
+    const next = vetReminderSettings({ vetReminders: parsed.data })
+    await db.update(company).set({ settings: { ...settings, vetReminders: next }, updatedAt: new Date() } as any).where(eq(company.id, companyId))
+    d.audit.log({ action: d.audit.ACTIONS.UPDATE, entity: 'company', entityId: companyId, metadata: { vetReminders: { before, after: next } }, req: c })
+    return one(c, settingsView({ vetReminders: next }))
   })
 
   // GET /reminders/rabies/:vaccinationId — a printable rabies vaccination certificate (HTML → print to PDF).

@@ -12,6 +12,7 @@ import { money, useMayWrite } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { ClientLoyaltyCard } from './loyaltyTiers'
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -328,6 +329,8 @@ export default function ClientDetailPage() {
           </div>
         </div>
         {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{profile.notes}</p>}
+        {/* Points, punch card and tier — with the perk the desk honours (Loyalty Program on, loyalty:read held). */}
+        <ClientLoyaltyCard contactId={ct.id} />
       </div>
 
       {/* Tabs */}

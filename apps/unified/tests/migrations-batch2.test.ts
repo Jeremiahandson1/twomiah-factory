@@ -50,6 +50,8 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
     const entries = journal().entries
     expect(entries.map((e: any) => `${e.idx}:${e.tag}`).slice(22, 28)).toEqual(BATCH2)
     expect(entries.map((e: any) => e.idx)).toEqual(entries.map((_: any, i: number) => i))
+    // Batch 3 put fix-k's 0028 and fix-m's (made as 0030, renumbered 0029) together: every tag's number is its place.
+    for (const e of entries) expect(Number(e.tag.slice(0, 4))).toBe(e.idx)
     for (let i = 1; i < entries.length; i++) expect(entries[i].when).toBeGreaterThan(entries[i - 1].when)
   })
 
@@ -159,4 +161,58 @@ describe('0028 site drafts (fix-k): every existing page, post, work and settings
     expect((await client.query<{ t: string }>(`SELECT tagline AS t FROM website WHERE id = 'w1'`)).rows[0].t).toBe('Live words')
     await client.close()
   }, 180_000)
+})
+
+describe('batch 3 chain, 0027 to 0029: 0028 site drafts (fix-k), then 0029 invoice reminders and QuickBooks sync (fix-m)', () => {
+  test('0029 is stamped after 0028, and 0028 after 0027', () => {
+    const entries = journal().entries
+    expect(entries.map((e: any) => `${e.idx}:${e.tag}`).slice(27, 30)).toEqual(['27:0027_one_time_zone', '28:0028_site_drafts', '29:0029_invoice_reminders_qb_sync'])
+    expect(entries[28].when).toBeGreaterThan(entries[27].when)
+    expect(entries[29].when).toBeGreaterThan(entries[28].when)
+    expect(snapshot(29).prevId).toBe(snapshot(28).id)
+    expect(snapshot(28).prevId).toBe(snapshot(27).id)
+    const last = snapshot(entries.length - 1).tables
+    for (const t of ['public.reminder_log', 'public.qb_sync_run', 'public.qb_sync_failure']) expect(last[t]).toBeDefined()
+    expect(Object.keys(last['public.contact'].columns)).toContain('qb_synced_at')
+    expect(Object.keys(last['public.payment'].columns)).toContain('qb_payment_id')
+    expect(Object.keys(last['public.page'].columns)).toContain('draft')
+  })
+
+  for (const stop of [27, 28]) {
+    test(`a database at ${String(stop).padStart(4, '0')} holding rows migrates through 0029, keeps every row, and a re-run is a no-op`, async () => {
+      const client = new PGlite()
+      await migrate(drizzle(client), { migrationsFolder: upTo(stop) })
+      expect(await applied(client)).toBe(stop + 1)
+      await client.exec(`INSERT INTO company (id, name, slug) VALUES ('co1', 'Old Co', 'old-co');`)
+      await insertFilled(client, 'website', { id: 'w1', company_id: 'co1', tagline: 'Live words' })
+      await insertFilled(client, 'page', { id: 'p1', company_id: 'co1', slug: 'about', title: 'About', sections: JSON.stringify([{ type: 'hero', variant: 'x', data: { title: 'Kept' } }]) })
+      await insertFilled(client, 'contact', { id: 'c1', company_id: 'co1', name: 'Pat Kept' })
+      await insertFilled(client, 'invoice', { id: 'i1', company_id: 'co1', contact_id: 'c1', number: 'INV-7', total: '120.00' })
+      await insertFilled(client, 'payment', { id: 'pay1', invoice_id: 'i1', amount: '50.00' })
+      const snap = async () => ({
+        website: (await client.query<any>(`SELECT id, tagline FROM website ORDER BY id`)).rows,
+        page: (await client.query<any>(`SELECT id, title, sections::text AS s FROM page ORDER BY id`)).rows,
+        contact: (await client.query<any>(`SELECT id, name FROM contact ORDER BY id`)).rows,
+        invoice: (await client.query<any>(`SELECT id, number, total, contact_id FROM invoice ORDER BY id`)).rows,
+        payment: (await client.query<any>(`SELECT id, invoice_id, amount FROM payment ORDER BY id`)).rows,
+      })
+      const before = await snap()
+
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
+      expect(await applied(client)).toBe(ALL)
+      expect(await snap()).toEqual(before)
+      // 0028: nothing is unpublished. 0029: the new columns are empty and the new tables have no rows.
+      expect((await client.query<any>(`SELECT draft FROM page WHERE id = 'p1'`)).rows[0].draft).toBeNull()
+      expect((await client.query<any>(`SELECT qb_synced_at FROM contact WHERE id = 'c1'`)).rows[0].qb_synced_at).toBeNull()
+      expect((await client.query<any>(`SELECT qb_payment_id FROM payment WHERE id = 'pay1'`)).rows[0].qb_payment_id).toBeNull()
+      for (const t of ['reminder_log', 'qb_sync_run', 'qb_sync_failure']) expect((await client.query<any>(`SELECT count(*)::int AS n FROM ${t}`)).rows[0].n).toBe(0)
+
+      // Re-running applies nothing and touches nothing.
+      const after = await snap()
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
+      expect(await applied(client)).toBe(ALL)
+      expect(await snap()).toEqual(after)
+      await client.close()
+    }, 180_000)
+  }
 })

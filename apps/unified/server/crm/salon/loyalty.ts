@@ -2,13 +2,15 @@
 //
 // Storage is here; the RULES are the shared package's (packages/tenant-backend loyalty), which other verticals run on
 // too. Two ways to earn: points on what a client spends, redeemed for money off or a named free service; and a punch
-// card on how often they come ("6 cuts, 7th free"). No tiers. Earning happens when a visit completes (./loyaltyAward.ts).
+// card on how often they come ("6 cuts, 7th free"). Tiers (2026-10-23 — the registry said "tiers" and there were none):
+// Silver, Gold… by lifetime points, each earning at a multiple of the rate and naming a perk; shown on the client's chart
+// and on the sale at checkout. Earning happens when a visit completes (./loyaltyAward.ts).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, desc, eq, ilike, inArray } from 'drizzle-orm'
 import {
-  loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, punchCardProgress, rewardDiscountCents, canRedeem,
-  type Reward, type BasketLine,
+  loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, punchCardProgress, rewardDiscountCents, canRedeem, tierFor,
+  MAX_TIERS, MAX_TIER_MULTIPLIER, type Reward, type BasketLine,
 } from '@twomiah/tenant-backend'
 import { loyaltyMember, loyaltyTransaction, loyaltyReward, contact, company, serviceMenu, appointment, invoice } from '../../db/schema/index.ts'
 import {
@@ -43,6 +45,16 @@ const configSchema = z.object({
     visitsRequired: z.number().int().min(0).max(100).optional(),
     rewardName: z.string().max(120).optional(),
     qualifyingServiceIds: z.array(z.string()).max(200).optional(),
+  }).optional(),
+  // Member tiers: each a name, the lifetime points that reach it, its multiplier and an optional perk.
+  loyaltyTiers: z.array(z.object({
+    name: z.string().trim().min(1, 'Give the tier a name, like Silver').max(40, 'Keep the tier name under 40 characters'),
+    minPoints: z.number({ invalid_type_error: 'Enter the points that reach this tier' }).int('Whole points only').min(1, 'A tier starts at 1 point or more'),
+    multiplier: z.number({ invalid_type_error: 'Enter the multiplier' }).min(1, 'A tier earns at least the normal rate (1×)').max(MAX_TIER_MULTIPLIER, `At most ${MAX_TIER_MULTIPLIER}×`),
+    perk: z.string().trim().max(120, 'Keep the perk under 120 characters').optional(),
+  })).max(MAX_TIERS, `At most ${MAX_TIERS} tiers`).superRefine((tiers, ctx) => {
+    const seen = new Set<number>()
+    tiers.forEach((t, i) => { if (seen.has(t.minPoints)) ctx.addIssue({ code: 'custom', path: [i, 'minPoints'], message: 'Two tiers cannot start at the same points' }); seen.add(t.minPoints) })
   }).optional(),
 })
 
@@ -89,9 +101,11 @@ export function createLoyaltyRoutes(d: CrmDeps) {
     }
   }
 
-  const withProgress = <T extends { qualifyingVisits?: number | null; punchRewardsEarned?: number | null }>(member: T, cfg: ReturnType<typeof loyaltyConfig>) => ({
+  const withProgress = <T extends { qualifyingVisits?: number | null; punchRewardsEarned?: number | null; lifetimePoints?: number | null }>(member: T, cfg: ReturnType<typeof loyaltyConfig>) => ({
     ...member,
     punchCard: punchCardProgress({ qualifyingVisits: member?.qualifyingVisits ?? 0, rewardsEarned: member?.punchRewardsEarned ?? 0 }, cfg),
+    // The member's tier by lifetime points (null below the first, or with none set), the next and how far to it.
+    tier: tierFor(member?.lifetimePoints ?? 0, cfg),
   })
 
   // ── Config ──
@@ -151,6 +165,20 @@ export function createLoyaltyRoutes(d: CrmDeps) {
       .limit(limit)
     const data = rows.map((r) => withProgress(r, cfg))
     return list(c, data, { page: 1, limit, total: data.length })
+  })
+
+  /**
+   * One client's standing, by the client (their chart, and the sale at checkout): enrolled or not, points, punch card and
+   * tier. Not enrolled is an answer, not a 404 — the chart says "not on the programme yet".
+   */
+  app.get('/contacts/:contactId', requirePermission('loyalty:read'), async (c) => {
+    const u = c.get('user')
+    const contactId = c.req.param('contactId')
+    const [client] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, u.companyId))).limit(1)
+    if (!client) return fail(c, 404, 'Client not found')
+    const cfg = await configFor(u.companyId)
+    const [member] = await db.select().from(loyaltyMember).where(and(eq(loyaltyMember.companyId, u.companyId), eq(loyaltyMember.contactId, contactId))).limit(1)
+    return one(c, { enabled: cfg.enabled, tiers: cfg.tiers, pointsPerDollar: cfg.pointsPerDollar, member: member ? withProgress(member, cfg) : null })
   })
 
   app.get('/members/:id', requirePermission('loyalty:read'), async (c) => {

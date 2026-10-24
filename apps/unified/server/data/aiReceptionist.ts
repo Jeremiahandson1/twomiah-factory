@@ -4,14 +4,19 @@ import { sql } from 'drizzle-orm'
 import { rowsOf } from '@twomiah/tenant-backend'
 
 /** A call by the provider's id (Twilio's CallSid). */
-export async function findCallByProviderId(db: any, companyId: string, providerId: string): Promise<{ id: string; callerNumber: string | null; callerName: string | null; contactId: string | null; clientId: string | null; status: string } | null> {
+export async function findCallByProviderId(db: any, companyId: string, providerId: string): Promise<{ id: string; callerNumber: string | null; callerName: string | null; contactId: string | null; clientId: string | null; status: string; aiResponseSent: boolean } | null> {
   const r = rowsOf(await db.execute(sql`
-    SELECT id, caller_number, caller_name, contact_id, client_id, status
+    SELECT id, caller_number, caller_name, contact_id, client_id, status, ai_response_sent
     FROM call_log
     WHERE company_id = ${companyId} AND provider_id = ${providerId}
     LIMIT 1
   `))[0]
-  return r ? { id: r.id, callerNumber: r.caller_number, callerName: r.caller_name, contactId: r.contact_id, clientId: r.client_id ?? null, status: r.status } : null
+  return r ? { id: r.id, callerNumber: r.caller_number, callerName: r.caller_name, contactId: r.contact_id, clientId: r.client_id ?? null, status: r.status, aiResponseSent: !!r.ai_response_sent } : null
+}
+
+/** A call's outcome as the receptionist saw it: 'ringing' → 'completed' (picked up), 'missed', 'voicemail'. */
+export async function setCallStatus(db: any, callId: string, status: string) {
+  await db.execute(sql`UPDATE call_log SET status = ${status} WHERE id = ${callId}`)
 }
 
 /** One of this company's calls' recording, for a manual transcription. */

@@ -89,14 +89,19 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   async function saveConnection(companyId: string, { accessToken, refreshToken, realmId, expiresIn }: { accessToken: string; refreshToken: string; realmId: string; expiresIn: number }) {
     const expiresAt = new Date(Date.now() + Number(expiresIn || 3600) * 1000)
     const [existing] = await db.select().from(t.qbIntegration).where(eq(t.qbIntegration.companyId, companyId)).limit(1)
-    if (existing) await db.update(t.qbIntegration).set({ accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, syncEnabled: true, updatedAt: new Date() }).where(eq(t.qbIntegration.companyId, companyId))
-    else await db.insert(t.qbIntegration).values({ companyId, accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, syncEnabled: true })
+    // syncEnabled is the AUTO-SYNC switch (the Integrations card's toggle), not "connected" — a stored access token is
+    // what connected means (getValidToken). Connecting leaves the owner's choice alone; a first connection starts with
+    // auto-sync off, as the card's steps say ("press Sync Now, or turn on Auto-sync"). It was set true here and then
+    // doubled as the connection check, so turning auto-sync off made every Sync button answer "not connected" (2026-10-23).
+    if (existing) await db.update(t.qbIntegration).set({ accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, updatedAt: new Date() }).where(eq(t.qbIntegration.companyId, companyId))
+    else await db.insert(t.qbIntegration).values({ companyId, accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, syncEnabled: false })
     return { companyId, realmId }
   }
 
   async function getValidToken(companyId: string): Promise<{ token: string; realmId: string }> {
     const [connection] = await db.select().from(t.qbIntegration).where(eq(t.qbIntegration.companyId, companyId)).limit(1)
-    if (!connection || !connection.syncEnabled || !connection.accessToken) throw new Error('QuickBooks not connected')
+    // Connected = a token is held. Auto-sync (syncEnabled) is a separate choice and never blocks a sync pressed by hand.
+    if (!connection || !connection.accessToken) throw new Error('QuickBooks not connected')
     const buffer = 5 * 60 * 1000
     if (connection.tokenExpiresAt && new Date() >= new Date(new Date(connection.tokenExpiresAt).getTime() - buffer)) {
       const tokens = await refreshAccessToken(connection.refreshToken!)

@@ -19,7 +19,7 @@ const STARTER: StarterContent = {
     { title: "Contacts & Leads", category: "Getting Started", isFaq: false,
       content: "Keep leads, customers and vendors on the Contacts page (Add Contact). Convert a lead to a customer when they buy. A contact's page lists their quotes, invoices and jobs." },
     { title: "Working Deals", category: "Sales", isFaq: false,
-      content: "On the Sales Pipeline, click New Lead and pick the contact, the Unit of Interest and the salesperson; you can note trade-in info. Move the card through New, Contacted, Demo, Desking and Sold (or Lost). Structure the price, trade, tax and fees in Desking. On F&I / Deal Jacket, add F&I products and submit the credit app. Title & Registration is filed once the deal is Sold." },
+      content: "On the Sales Pipeline, click New Lead and pick the contact, the Unit of Interest and the salesperson; you can note trade-in info. Move the card through New, Contacted, Demo, Desking and Sold (or Lost). Structure the price, trade, tax and fees in Desking. On F&I / Deal Jacket, add F&I products and work out the payment; sending a credit application to a lender is not connected yet. For a Sold deal, Title & Registration lists the documents the title needs; filing with the DMV is not connected." },
     { title: "Service & Parts", category: "Service", isFaq: false,
       content: "On the Service page, click New Repair Order and pick the customer and the unit, the advisor, the services and an estimated total. Change its status as the work moves. Look parts up in the Parts Catalog (Import parts loads a manufacturer's parts file)." },
     { title: "Invoices & Payments", category: "Billing", isFaq: false,

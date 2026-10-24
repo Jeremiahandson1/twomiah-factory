@@ -7,6 +7,7 @@ import { useToast } from '../../../shared'
 import { useConfirm } from '../../../shared'
 import { useAuth } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { TierBadge, TierNote, TierEditor, tierRowsFrom, tiersFromRows, type Standing, type Tier, type TierRow } from './loyaltyTiers'
 
 /**
  * Loyalty — who is on the programme, what they can spend it on, and how the programme is set up.
@@ -36,6 +37,8 @@ interface Member {
   lifetimePoints?: number;
   qualifyingVisits?: number;
   punchCard?: { enabled: boolean; visitsRequired: number; progress: number; remaining: number; unclaimed: number };
+  /** The member's tier by points earned to date (server: the shared engine's tierFor). */
+  tier?: Standing;
 }
 
 interface Reward {
@@ -84,6 +87,7 @@ interface LoyaltyConfig {
   loyaltyWelcomePoints?: number;
   loyaltyBirthdayBonus?: number;
   loyaltyPunchCard?: { visitsRequired?: number; rewardName?: string | null; qualifyingServiceIds?: string[] } | null;
+  loyaltyTiers?: Tier[];
 }
 
 /** One member with their ledger (GET /api/loyalty/members/:id). */
@@ -254,7 +258,8 @@ export default function LoyaltyPage() {
               : <>Clients earn {config?.loyaltyPointsPerDollar ?? 1} point per {fmtMoney(1)} spent
                 {(config?.loyaltyPunchCard?.visitsRequired ?? 0) > 0
                   ? `, and every ${config?.loyaltyPunchCard?.visitsRequired} visits earns ${config?.loyaltyPunchCard?.rewardName || 'a free service'}.`
-                  : '.'}</>}
+                  : '.'}
+                {(config?.loyaltyTiers?.length ?? 0) > 0 && ` Tiers: ${(config?.loyaltyTiers || []).map((t) => `${t.name} from ${t.minPoints.toLocaleString()} points${t.multiplier > 1 ? ` (${t.multiplier}× points)` : ''}`).join(', ')}.`}</>}
           </p>
         </div>
       </div>
@@ -297,7 +302,7 @@ export default function LoyaltyPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-800">
                   <tr>
-                    {['Client', 'Points', 'Earned to date', 'Punch card', ''].map((h) => (
+                    {['Client', 'Tier', 'Points', 'Earned to date', 'Punch card', ''].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -309,6 +314,7 @@ export default function LoyaltyPage() {
                         <div className="font-medium text-gray-900 dark:text-slate-100">{m.clientName}</div>
                         {m.clientPhone && <div className="text-sm text-gray-500 dark:text-slate-400">{m.clientPhone}</div>}
                       </td>
+                      <td className="px-4 py-3"><TierBadge standing={m.tier} /></td>
                       <td className="px-4 py-3 tabular-nums font-medium text-gray-900 dark:text-slate-100">{m.pointsBalance ?? 0}</td>
                       <td className="px-4 py-3 tabular-nums text-gray-600 dark:text-slate-400">{m.lifetimePoints ?? 0}</td>
                       <td className="px-4 py-3"><PunchCard card={m.punchCard} /></td>
@@ -466,7 +472,7 @@ function SettingsPanel({ config, services, onSaved }: { config: LoyaltyConfig | 
   // The number boxes hold what is typed (a string) until Save turns them back into numbers.
   const [f, setF] = useState<{
     enabled: boolean; pointsPerDollar: number | string; welcomePoints: number | string; birthdayBonus: number | string;
-    visitsRequired: number | string; rewardName: string; qualifyingServiceIds: string[];
+    visitsRequired: number | string; rewardName: string; qualifyingServiceIds: string[]; tiers: TierRow[];
   }>({
     enabled: config?.loyaltyEnabled !== false,
     pointsPerDollar: config?.loyaltyPointsPerDollar ?? 1,
@@ -475,6 +481,7 @@ function SettingsPanel({ config, services, onSaved }: { config: LoyaltyConfig | 
     visitsRequired: config?.loyaltyPunchCard?.visitsRequired ?? 0,
     rewardName: config?.loyaltyPunchCard?.rewardName || 'Free service',
     qualifyingServiceIds: config?.loyaltyPunchCard?.qualifyingServiceIds || [],
+    tiers: tierRowsFrom(config?.loyaltyTiers),
   });
 
   const toggleService = (id: string) => setF((prev) => ({
@@ -497,6 +504,7 @@ function SettingsPanel({ config, services, onSaved }: { config: LoyaltyConfig | 
           rewardName: f.rewardName.trim() || 'Free service',
           qualifyingServiceIds: f.qualifyingServiceIds,
         },
+        loyaltyTiers: tiersFromRows(f.tiers),
       });
       toast.success('Loyalty settings saved');
       onSaved(next);
@@ -579,6 +587,16 @@ function SettingsPanel({ config, services, onSaved }: { config: LoyaltyConfig | 
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           Save settings
         </button>
+      </div>
+
+      <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-5 space-y-3">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tiers</h2>
+        <p className="text-sm text-gray-600 dark:text-slate-300">
+          A client moves up by the points they have earned to date — spending points never moves anyone down. Each tier
+          earns more points per {fmtMoney(1)}; a perk is shown on the client&rsquo;s chart and on their sale at checkout for
+          the desk to honour. Saved with the button above.
+        </p>
+        <TierEditor rows={f.tiers} onChange={(tiers) => setF({ ...f, tiers })} />
       </div>
     </div>
   );
@@ -697,6 +715,8 @@ function MemberPanel({
           </button>
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap"><TierBadge standing={detail?.tier ?? member.tier} /></div>
+        <TierNote standing={detail?.tier ?? member.tier} />
         <div><PunchCard card={detail?.punchCard ?? member.punchCard} /></div>
 
         {mayRedeem && (

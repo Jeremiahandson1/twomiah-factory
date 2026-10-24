@@ -446,7 +446,9 @@ const homecare: VerticalSettings = {
     leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Care needed', sourcesSubtitle: 'Where enquiries from families arrive: Google, Meta, care directories and your website' },
     // Settings › Integrations' cards in an agency's words (the shared copy offered quotes and crew members).
     integrations: {
-      copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send visit reminders and updates to clients, families and caregivers.', email: 'Send invoices, receipts and reminders by email.' },
+      // QuickBooks takes the CRM's customers, invoices and payments; an agency's Billing invoices and its clients are its
+      // own tables, which nothing sends (crm/office/quickbooksAutoSync.ts) — so the card says so (2026-10-23).
+      copy: { quickbooks: 'Connects to QuickBooks Online. Your Billing invoices for visits are not sent to QuickBooks — download them from Billing as a CSV for your bookkeeper.', sms: 'Send visit reminders and updates to clients, families and caregivers.', email: 'Send invoices, receipts and reminders by email.' },
     },
     // The agency's own screens (web/src/crm/verticals/homecare.tsx): its dashboard at /crm/dashboard (the office's, or a
     // caregiver's day), its menu, and its public pages (the portals, paying an invoice, onboarding, careers).

@@ -209,8 +209,8 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   },
   salon: {
     'salon-n2-calendar-day.test.ts': {
-      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused)/, /^at least one zone sat on a different calendar day from UTC/],
-      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's.",
+      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused|tomorrow is still refused)/, /^at least one zone sat on a different calendar day from UTC/],
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's. Which of them fail depends on the hour: from 00:00Z Niue's \"tomorrow\" is UTC's today, so \"tomorrow is still refused\" reads UTC's day too (found 01:30Z, 10/24).",
       heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone set on the company: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
     },
     't27-highs.test.ts': {

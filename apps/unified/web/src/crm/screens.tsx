@@ -29,6 +29,8 @@ import TextingPage from './pages/TextingPage'
 import { ContactBookings } from '../booking/ContactBookings'
 import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
+import { DocumentAside } from './invoiceAside'
+import { QuickBooksSyncLog } from './quickbooksSyncLog'
 
 const v = verticalScreens
 const client = api as any
@@ -122,7 +124,8 @@ export function InvoiceDetail() {
   // hasFeature and can: the QuickBooks sync follows the quickbooks feature (the field-service, basic and bar copies'
   // InvoiceDetailPage.tsx passed them; the base CRM's didn't, and it offers no QuickBooks button here).
   const { company, hasFeature, can } = useAuth()
-  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can, aside: financingAside } as any} />
+  // Beside it: financing, the automatic reminders it has had, and a salon client's loyalty tier (crm/invoiceAside.tsx).
+  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can, aside: DocumentAside } as any} />
 }
 export function Schedule() {
   const { hasFeature } = useAuth()
@@ -205,7 +208,10 @@ export const Texting = () => <TextingPage />
 // Texting) — so those two cards send the owner there, in plain words, rather than to a CNAME guide and a Twilio form.
 export function Integrations() {
   const { hasFeature } = useAuth()
-  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: hasFeature('lead_inbox') ? leadSourceGuides((v().leads as any).platforms) : [], hasFeature, domainPage: '/crm/domain', textingPage: '/crm/settings/texting', paymentsExtra: hasFeature('consumer_financing') ? <FinancingIntegrationCard /> : null }} />
+  // QuickBooks: Sync Now is recorded in the sync log, which the card shows with its refusals and retries
+  // (crm/quickbooksSyncLog.tsx; server crm/office/quickbooksAutoSync.ts).
+  const integrations = v().integrations as any
+  return <IntegrationsPage api={client} config={{ ...integrations, copy: { quickbooksAutoSync: 'Auto-sync customers, invoices and payments every 15 minutes', ...(integrations?.copy || {}) }, leadSources: hasFeature('lead_inbox') ? leadSourceGuides((v().leads as any).platforms) : [], hasFeature, domainPage: '/crm/domain', textingPage: '/crm/settings/texting', paymentsExtra: hasFeature('consumer_financing') ? <FinancingIntegrationCard /> : null, quickbooksSyncPath: '/api/qb-sync/run', quickbooksExtra: (st) => <QuickBooksSyncLog key={`${st.lastSync}|${st.syncEnabled}`} /> }} />
 }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
