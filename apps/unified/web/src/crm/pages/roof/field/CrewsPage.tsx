@@ -88,7 +88,8 @@ export default function CrewsPage() {
   const [people, setPeople] = useState<Login[]>([])
   const [picked, setPicked] = useState<string[]>([])
   const loadPeople = () => {
-    api.get('/api/company/users').then((r: unknown) => setPeople(listOf<Login>(r).filter((u) => u.isActive !== false && u.role !== 'viewer'))).catch(() => setPeople([]))
+    // A bare array (the company module's GET /users), read as a list too.
+    api.get('/api/company/users').then((r: unknown) => setPeople((Array.isArray(r) ? (r as Login[]) : listOf<Login>(r)).filter((u) => u.isActive !== false && u.role !== 'viewer'))).catch(() => setPeople([]))
   }
 
   const load = useCallback(async () => {

@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/roof/t41-roof-money.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 32 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 34 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-roof — who may read what a roof is worth. (T41)
 //
@@ -44,7 +44,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 const { setupSchema } = await import('./setup.ts')
 await setupSchema()
 const { db } = await import('./db/index.ts')
-const { company, user, contact, job, crew, invoice, quote, material } = await import('./db/schema.ts')
+const { company, user, contact, job, crew, invoice, quote, material, crewLogin } = await import('./db/schema.ts') /* unified: crew_login: the logins on a crew */
 
 const [co] = await db.insert(company).values({
   name: 'Summit Ridge Roofing', slug: 'summit-ridge-money', email: 'money@test.local', state: 'OH',
@@ -83,7 +83,8 @@ const [jobA] = await db.insert(job).values({
   finalRevenue: '50750.00',
   approvedScope: 'Full tear-off approved at 52000.00 RCV, less the 1000.00 deductible.',
 } as any).returning()
-const [jobB] = await db.insert(job).values({
+await db.insert(crewLogin).values({ companyId: co.id, userId: fieldUser.id, crewId: cr.id } as any)
+const [jobB] = await db.insert(job).values({ /* unified: crew scope: the field seat reads its own and its crews' jobs and their customers (apps/unified/tests/crew-scope.test.ts), so the seat is given this work: the crew lead is put on the crew both jobs are assigned to */
   companyId: co.id, contactId: homeowner.id, assignedCrewId: cr.id, assignedSalesRepId: manager.id,
   number: 'ROOF-0002', title: '12 Cash Rd', jobType: 'retail', status: 'sold', source: 'referral',
   address: '12 Cash Rd', /* unified: a roofing job is the CRM's job: job_number → number, property_address → address, and the address is its title (plan decision 2) */ city: 'Columbus', state: 'OH', zip: '43215',

@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/roof/t62-measurement-cost.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 2 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // T62 Medium — "Roofing measurement reports show the cost per report" to staff.
 //
@@ -26,7 +26,7 @@ const mk = async (role: string, tag: string) => (await db.insert(user).values({ 
 const owner = await mk('owner', 'owner'), manager = await mk('manager', 'manager'), crew = await mk('field', 'crew')
 const [home] = await db.insert(contact).values({ companyId: co.id, name: 'Ada Quill', email: 'ada-t62@test.local' /* unified: a contact has one name (plan decision 3) */ } as any).returning()
 const [rep] = await db.insert(measurementReport).values({ companyId: co.id, address: '9 Slate Rd', city: 'Akron', state: 'OH', zip: '44301', provider: 'google_solar', status: 'complete', cost: '13.47', totalSquares: '31.5', totalArea: '3150' } as any).returning()
-const [j] = await db.insert(job).values({ companyId: co.id, contactId: home.id, number: 'RF-T62-1', jobType: 'retail', source: 'manual', address: '9 Slate Rd', title: '9 Slate Rd', /* unified: a roofing job is the CRM's job: job_number → number, property_address → address, and the address is its title (plan decision 2) */ city: 'Akron', state: 'OH', zip: '44301', measurementReportId: rep.id } as any).returning()
+const [j] = await db.insert(job).values({ companyId: co.id, contactId: home.id, number: 'RF-T62-1', jobType: 'retail', source: 'manual', address: '9 Slate Rd', title: '9 Slate Rd', /* unified: a roofing job is the CRM's job: job_number → number, property_address → address, and the address is its title (plan decision 2) */ city: 'Akron', state: 'OH', zip: '44301', measurementReportId: rep.id, assignedToId: crew.id } /* unified: crew scope: the field seat reads its own and its crews' jobs and their customers (apps/unified/tests/crew-scope.test.ts), so the seat is given this work */ as any).returning()
 await db.update(measurementReport).set({ jobId: j.id } as any).where(eq(measurementReport.id, rep.id))
 
 const app = new Hono()
