@@ -3,7 +3,7 @@
 // trade taken out: jobs at a customer's sites, equipment, recurring agreements, but no service calls, no tech view, no
 // builder's paperwork and no contractor lead marketplaces.
 import type { StarterContent } from '../../server/core/starter.ts'
-import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 // Permits and drawings are a builder's paperwork (templates/crm-basic routes/documents.ts and docsConfig.ts, T43).
 const DOC_TYPES = ['general', 'contract', 'photo', 'invoice', 'receipt', 'other']
@@ -44,6 +44,8 @@ const basic: VerticalSettings = {
   // The 1:1 text box on the contact record is for the person on their way (templates/crm-basic
   // middleware/permissions.ts, T30 L-RB).
   extraRolePermissions: { field: ['sms:send'] },
+  // Crew scope: a staff seat reads its own and its crews' jobs and their customers (server/core/vertical.ts).
+  withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
     // No billing a job on its own: the basic copy's job table had no invoice link mounted (routes/jobs.ts).
@@ -102,7 +104,8 @@ const basic: VerticalSettings = {
     time: { jobLabel: 'Job' },
     expenses: { jobLabel: 'Job' },
     // "Trade" and "Lead Technician" are a contractor's words (peopleConfig.ts, T51).
-    team: { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead' },
+    // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
+    team: { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead', crewLogins: true },
     agreements: { recurrence: true, planNamePlaceholder: 'e.g., Monthly service plan' },
     fleet: { gps: true },
     portal: {

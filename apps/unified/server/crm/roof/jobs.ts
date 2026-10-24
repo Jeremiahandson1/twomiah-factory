@@ -37,6 +37,7 @@ import { done, fail, list, one, listAll } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
+import { ownJobsWhere } from '../ownWork.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 
@@ -196,6 +197,30 @@ export function createRoofJobRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
 
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
+  /**
+   * WHOSE JOBS THIS SEAT READS — the shared jobs routes' rule (tenant-backend jobs.ts): everyone's with jobs:read-all,
+   * else its own (assigned, or the sales rep) and its crews' (crew_login). Roofing's field seat withholds read-all
+   * (verticals/roof/settings.ts). The condition, or null for all; a failed check narrows (fails closed).
+   */
+  const ownScope = async (c: any): Promise<any | null> => {
+    const u = c.get('user')
+    let all = false
+    try { all = !!(await canSee(u.role, 'jobs:read-all', u.userId)) } catch { all = false }
+    return all ? null : ownJobsWhere(db, String(u.userId))
+  }
+  // Every /:id door (read, edit, advance, photos, notes, timeline…) answers 404 for a job outside the seat's own. A path
+  // word that is no job id ('types') finds no row and passes through to its own route.
+  const ownJobOnly = async (c: any, next: any) => {
+    const scope = await ownScope(c)
+    if (scope) {
+      const where = and(eq(job.id, c.req.param('id')), eq(job.companyId, c.get('user').companyId))
+      const [row] = await db.select({ id: job.id }).from(job).where(where).limit(1)
+      if (row && !(await db.select({ id: job.id }).from(job).where(and(where, scope)).limit(1))[0]) return fail(c, 404, 'Job not found')
+    }
+    await next()
+  }
+  app.use('/:id', ownJobOnly)
+  app.use('/:id/*', ownJobOnly)
   const ownContact = async (companyId: string, contactId: string) =>
     !!(await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1))[0]
   /**
@@ -262,7 +287,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
   }
 
   // GET / — jobs, filtered; "My jobs" (?mine=1) are the jobs this person is the sales rep on, read from the session.
-  // Crews carry a foreman's NAME, not a login, so a crew is not something a person can be matched to. (T63)
+  // (A crew's logins are crew_login rows since 2026-10-24; a field seat's own-jobs scope below reads them.)
   app.get('/', requirePermission('jobs:read'), async (c) => {
     const me = c.get('user')
     const q = c.req.query()
@@ -274,6 +299,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (q.assignedSalesRepId) conditions.push(eq(job.assignedSalesRepId, q.assignedSalesRepId))
     if (q.assignedCrewId) conditions.push(eq(job.assignedCrewId, q.assignedCrewId))
     if (q.mine === '1') conditions.push(eq(job.assignedSalesRepId, me.userId))
+    // A seat without jobs:read-all lists its own and its crews' jobs only (the pipeline board reads this list too).
+    const scope = await ownScope(c)
+    if (scope) conditions.push(scope)
     // One customer's jobs (the quote form's Job picker, a contact's page).
     if (q.contactId) conditions.push(eq(job.contactId, q.contactId))
     // The calendar's week (the shared Schedule page sends ?startDate&endDate, as for every CRM's jobs).

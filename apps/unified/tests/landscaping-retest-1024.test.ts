@@ -162,7 +162,9 @@ describe('10. Add Part takes a starting quantity', () => {
 
 describe('9. a pricebook option on a quote keeps the item\'s cost', () => {
   test('pricebookLine(item, option) carries unitCost', async () => {
-    const { pricebookLine } = await import('../../../packages/tenant-ui/src/invoicing/ui.tsx')
+    // By a string the type check does not follow (customer-item-codes.test.ts's way): the app's tsconfig has no --jsx.
+    const UI = '@twomiah/tenant-ui/src/invoicing/ui'
+    const { pricebookLine } = await import(UI) as { pricebookLine: (pb: any, option?: any) => any }
     const line = pricebookLine({ id: 'p1', name: 'Mulch', price: 120, cost: 45, type: 'service' } as any, { name: 'Better', price: 150 })
     expect(line.unitPrice).toBe(150)
     expect(line.unitCost).toBe(45)

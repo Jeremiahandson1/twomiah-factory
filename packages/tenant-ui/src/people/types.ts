@@ -15,6 +15,11 @@ export interface TeamConfig {
   rolePlaceholder?: string
   /** The template's feature check. With multi_location on, each person can be put at a branch. Absent → no branch field. */
   hasFeature?: (id: string) => boolean
+  /**
+   * A roster row can be a crew with logins on it (the unified app's GET /api/team/logins, PUT /api/team/:id/logins): a
+   * field seat then reads the crew's jobs as its own. Absent → no logins field (a template without crew_login).
+   */
+  crewLogins?: boolean
 }
 
 export interface TimeConfig {

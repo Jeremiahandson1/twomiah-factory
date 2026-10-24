@@ -57,6 +57,11 @@ export interface TechRoutesDeps {
   legacyChecklistTypes?: string[]
   /** The permission check that decides which of a job's figures this person sees (../jobs/jobMoney.ts). */
   canSee?: CanSee
+  /**
+   * The jobs that are this login's: a condition on the job table — its own and its crews' (the unified app's
+   * crew_login, 2026-10-24). Not wired → the jobs assigned to the login itself, as before.
+   */
+  ownJobs?: (userId: string) => any
 }
 
 /** Where each move may start from. A finished or cancelled job is not moved from the phone. */
@@ -96,9 +101,11 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   const shapeJobMoney = async <T,>(c: any, rows: T): Promise<T> =>
     withoutJobMoney(rows, deps.canSee ? await jobMoneyWithheld(deps.canSee, c.get('user')) : ALL_JOB_MONEY)
 
+  /** This login's jobs: its own and its crews' (deps.ownJobs). */
+  const mine = (userId: string) => deps.ownJobs ? deps.ownJobs(String(userId)) : eq(t.job.assignedToId, userId)
   const myJob = async (id: string, currentUser: any) => {
     const [row] = await db.select().from(t.job)
-      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId))).limit(1)
+      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), mine(currentUser.userId))).limit(1)
     return row || null
   }
   /** The company's checklist form template — found by its category, made once if it does not exist yet. */
@@ -122,7 +129,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   app.get('/my-jobs', async (c) => {
     const currentUser = c.get('user') as any
     const jobs = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId)))
+      .where(and(eq(t.job.companyId, currentUser.companyId), mine(currentUser.userId)))
       .orderBy(asc(t.job.scheduledDate), asc(t.job.scheduledTime))
 
     // Only the contacts and equipment these jobs name — the copies fetched the company's whole contact book.

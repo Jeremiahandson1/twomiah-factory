@@ -120,6 +120,11 @@ export interface JobDeps {
    * dashboard, the pricebook and the team roster all use for `canSee`.
    */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
+  /**
+   * The jobs a seat without `jobs:read-all` reads: a condition on the job table for that login — its own, and its
+   * crews' (the unified app's crew_login). Not wired → the jobs assigned to the login itself.
+   */
+  ownJobs?: (userId: string) => any
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: { JOB_CREATED: string; JOB_UPDATED: string; JOB_DELETED: string; JOB_STATUS_CHANGED: string }
   cleanText: (min?: number) => z.ZodTypeAny
@@ -289,21 +294,26 @@ export function createJobRoutes(deps: JobDeps) {
    * WHOSE WORK THIS SEAT READS: everyone's with `jobs:read-all`, else only the jobs assigned to them — Jobber's rule for
    * a field seat. A landscaping crew login was shown every job and every customer's name (live retest, 2026-10-24); the
    * vertical withholds jobs:read-all from its field seat (verticals/landscaping/settings.ts), every other seat keeps it.
-   * Answers the user id to narrow to, or null for all. Not wired (no canSee) → all; a failed check narrows (fails closed).
+   * "Their" jobs include their crews' (deps.ownJobs; every job vertical's field seat since 2026-10-24).
+   * Answers the condition to narrow by, or null for all. Not wired (no canSee) → all; a failed check narrows (fails closed).
    */
-  const onlyAssignedTo = async (c: any): Promise<string | null> => {
+  const ownScope = async (c: any): Promise<any | null> => {
     if (!deps.canSee) return null
     const u = c.get('user') as any
-    try { return (await deps.canSee(u?.role, 'jobs:read-all', u?.userId)) ? null : String(u?.userId || '') } catch { return String(u?.userId || '') }
+    const uid = String(u?.userId || '')
+    let all = false
+    try { all = !!(await deps.canSee(u?.role, 'jobs:read-all', u?.userId)) } catch { all = false }
+    return all ? null : deps.ownJobs ? deps.ownJobs(uid) : eq(t.job.assignedToId, uid)
   }
   // Every /:id door (read, edit, photos, notes, status, invoice…) answers 404 for a job this seat may not read, as if it
   // were not there. A path word that is no job id ('today') finds no row and passes through to its own route.
   const ownJobOnly = async (c: any, next: any) => {
-    const mine = await onlyAssignedTo(c)
-    if (mine !== null) {
+    const scope = await ownScope(c)
+    if (scope) {
       const u = c.get('user') as any
-      const [row] = await db.select({ assignedToId: t.job.assignedToId }).from(t.job).where(and(eq(t.job.id, c.req.param('id')), eq(t.job.companyId, u.companyId))).limit(1)
-      if (row && row.assignedToId !== mine) return c.json({ error: 'Job not found' }, 404)
+      const where = and(eq(t.job.id, c.req.param('id')), eq(t.job.companyId, u.companyId))
+      const [row] = await db.select({ id: t.job.id }).from(t.job).where(where).limit(1)
+      if (row && !(await db.select({ id: t.job.id }).from(t.job).where(and(where, scope)).limit(1))[0]) return c.json({ error: 'Job not found' }, 404)
     }
     await next()
   }
@@ -457,8 +467,8 @@ export function createJobRoutes(deps: JobDeps) {
     const badStatus = checkFilter(c, 'status', q.status, JOB_STATUSES)
     if (badStatus) return badStatus
     const conditions: any[] = [eq(t.job.companyId, currentUser.companyId)]
-    const mine = await onlyAssignedTo(c)
-    if (mine !== null) conditions.push(eq(t.job.assignedToId, mine))
+    const scope = await ownScope(c)
+    if (scope) conditions.push(scope)
     if (q.status) conditions.push(eq(t.job.status, q.status))
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
@@ -527,9 +537,9 @@ export function createJobRoutes(deps: JobDeps) {
     // unconfigured company resolves to UTC and sees exactly what it sees today. (T24 N1)
     const tz = await companyTimeZone(db, currentUser.companyId)
     const { date: localToday } = storeDayRange(tz)
-    const mine = await onlyAssignedTo(c)
+    const scope = await ownScope(c)
     const rows = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, mine !== null ? eq(t.job.assignedToId, mine) : undefined))
+      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, scope ?? undefined))
       .orderBy(asc(t.job.scheduledTime), asc(t.job.id))
     /**
      * …and /today, which is the TECHNICIAN'S OWN SCREEN and therefore the one most likely to be
