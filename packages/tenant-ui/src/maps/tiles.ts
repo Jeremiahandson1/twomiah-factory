@@ -13,6 +13,11 @@ export type TileKind = 'roadmap' | 'hybrid'
 
 const ATTRIBUTION = 'Map data &copy; Google'
 
+// The admin pages send no referrer (Referrer-Policy: no-referrer), but the browser Maps key is restricted to our sites BY
+// referrer — Google answers every tile 'Requests from referer <empty> are blocked' (roofing retest, 10/24). The tile
+// requests alone send the site's origin, never the page path.
+export const REFERRER = 'strict-origin' as const
+
 /** The browser's Maps key, as the server served it with the page; '' when none is set. */
 export function browserMapsKey(): string {
   try {
@@ -33,7 +38,7 @@ function tileSession(key: string, kind: TileKind): Promise<string | null> {
       ? { mapType: 'satellite', language: 'en-US', region: 'US', layerTypes: ['layerRoadmap'] }
       : { mapType: 'roadmap', language: 'en-US', region: 'US' }
     made = fetch(`https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(key)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), referrerPolicy: REFERRER,
     }).then(async (r) => (r.ok ? ((await r.json())?.session as string) || null : null)).catch(() => null)
     sessions.set(id, made)
   }
@@ -50,7 +55,7 @@ export function addMapTiles(L: any, map: any, kind: TileKind = 'roadmap'): void 
   const draw = (url: string) => {
     try {
       if (!map || !map.getContainer?.()) return
-      L.tileLayer(url, { subdomains: '0123', maxZoom: 20, attribution: ATTRIBUTION }).addTo(map)
+      L.tileLayer(url, { maxZoom: 20, attribution: ATTRIBUTION, referrerPolicy: REFERRER }).addTo(map)
     } catch { /* the map was removed first */ }
   }
   const notice = () => {

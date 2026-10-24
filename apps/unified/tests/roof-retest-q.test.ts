@@ -77,6 +77,10 @@ describe('2. map tiles', () => {
     expect(tileUrl('K', 'S')).toBe('https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=S&key=K')
     const helper = fs.readFileSync(path.join(import.meta.dir, '../../../packages/tenant-ui/src/maps/tiles.ts'), 'utf8')
     expect(helper.includes('mt{s}.google.com')).toBe(false)
+    // The pages send no referrer, and the key is restricted by referrer: the tile layer and the session request must send
+    // the site's origin, or Google refuses every tile (live roofing, 10/24).
+    expect((helper.match(/referrerPolicy: REFERRER/g) || []).length).toBe(2)
+    expect(helper).toContain("export const REFERRER = 'strict-origin'")
     const roots = [path.join(import.meta.dir, '../web/src'), path.join(import.meta.dir, '../../../packages/tenant-ui/src')]
     const hits: string[] = []
     const walk = (d: string) => {
