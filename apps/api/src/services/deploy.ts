@@ -1120,6 +1120,10 @@ export async function tenantIntegrationEnv(tenantId: string, integrations: any):
   }
   const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
   if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
+  // The BROWSER key: served inside the page for map tiles, so it is a separate key restricted to our sites and the Map
+  // Tiles API in Google Cloud — never the server key above, which can't be restricted that way (10/24).
+  const browserMapsKey = process.env.GOOGLE_MAPS_BROWSER_KEY || ''
+  if (browserMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_BROWSER_KEY', value: browserMapsKey })
   if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
   // Read by the CRMs' email services; it used to reach them only through the committed .env.
   if (integrations?.sendgrid?.apiKey?.trim()) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey.trim() })
