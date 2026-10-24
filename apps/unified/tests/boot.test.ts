@@ -31,9 +31,10 @@ describe('boot', () => {
     // booking tables are replaced by the bookings layer), the 65 the near-copy CRMs add (migration 0006), home care's
     // 123 (0007), roofing's own 16 (0012), the store's 13 (0013), what each job was last announced as (0015, phone notifications),
     // who agreed to be texted (0017, sms_consent), a repeating job's series (0022, job_series), and each lender webhook
-    // applied to a financing application (0026, financing_event).
-    expect(declared.length).toBe(382)
-    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event']) expect(declared).toContain(name)
+    // applied to a financing application (0026, financing_event), and what was sent on the company's clock and QuickBooks'
+    // sync record (0030: reminder_log, qb_sync_run, qb_sync_failure).
+    expect(declared.length).toBe(385)
+    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure']) expect(declared).toContain(name)
   })
 
   test('health answers', async () => {
