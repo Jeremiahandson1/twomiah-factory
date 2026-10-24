@@ -22,6 +22,16 @@ export interface ScheduleConfig {
   loadBookings?: (from: string, to: string) => Promise<ScheduleBooking[]>
   /** Where a booking chip opens (the unified app's booking page). Absent: the chip is not a link, as before. */
   bookingHref?: (b: ScheduleBooking) => string | null
+  /**
+   * A lane per person (2026-10-24): the Day view puts each person — and "Unassigned" — in a column of their own, the
+   * Week view offers "By person". Dragging between lanes changes who is on the job. For the verticals whose jobs carry
+   * people (assignedToId and the others on it); roofing's crews are not people lanes. Default false.
+   */
+  lanes?: boolean
+  /** "Optimise route" on a person's lane (GET /api/day-route, then POST /api/jobs/retime when the office agrees). */
+  routes?: boolean
+  /** The signed-in person's id: a seat that reads only its own jobs routes only its own lane. */
+  meId?: string | null
 }
 
 export const DEFAULT_EVENT_TYPES = [
@@ -42,12 +52,17 @@ export function resolveScheduleConfig(c?: ScheduleConfig) {
     externalBookings: cfg.externalBookings !== false,
     loadBookings: cfg.loadBookings,
     bookingHref: cfg.bookingHref,
+    lanes: !!cfg.lanes,
+    routes: !!cfg.routes,
+    meId: cfg.meId || null,
   }
 }
 
 export interface SchedulePageProps { api: ScheduleApi; toast: ScheduleToast; config?: ScheduleConfig }
 
-export interface ScheduleJob { id: string; title: string; status: string; scheduledDate?: string | null; scheduledTime?: string | null; contact?: { name: string } | null }
+/** A person on a job, as GET /api/jobs joins them (tenant-backend jobs.ts withRelations): the lead first. */
+export interface ScheduleAssignee { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; kind?: 'user' | 'member'; lead?: boolean }
+export interface ScheduleJob { id: string; title: string; status: string; scheduledDate?: string | null; scheduledTime?: string | null; contact?: { name: string } | null; number?: string | null; assignedToId?: string | null; assignedToMemberId?: string | null; assignees?: ScheduleAssignee[] }
 /** One shape for both booking sources: the CRM's own online bookings (scheduledDate) and the premium website's (startAt). */
 /** `calendarId` is the job (or appointment) this booking became, when it became one — see below. */
 export interface ScheduleBooking { id: string; startAt: string; status: string; customerName: string; serviceName?: string | null; customerAddress?: string | null; calendarId?: string | null; source: 'crm' | 'website' }

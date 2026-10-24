@@ -26,18 +26,24 @@ export function whenText(scheduledFor: string | null): string | null {
   return `${day}, ${h % 12 || 12}:${m[5]} ${h < 12 ? 'AM' : 'PM'}`
 }
 
-/** The message a change earns, or null for none. */
-export function messageFor(c: JobChange): { userId: string; title: string; body: string } | null {
-  if (c.closed || !c.assigneeId) return null
+const peopleOf = (ids: string | null) => (ids ? ids.split(',').filter(Boolean) : [])
+
+/**
+ * The messages a change earns, one per person, or none. EVERYONE on the job is told (2026-10-24: several people per
+ * job): a person new to it — its lead or one of the others — that it is theirs; everyone already on it that it moved.
+ */
+export function messagesFor(c: JobChange): Array<{ userId: string; title: string; body: string }> {
+  if (c.closed || !c.assigneeId) return []
   const name = c.number ? `${c.title} (${c.number})` : c.title
   const when = whenText(c.scheduledFor)
-  if (c.fresh || c.assigneeId !== c.previousAssigneeId) {
-    return { userId: c.assigneeId, title: 'New job assigned to you', body: when ? `${name} — ${when}` : name }
+  const before = new Set(c.fresh ? [] : peopleOf(c.previousAssigneeId))
+  const moved = c.scheduledFor !== c.previousScheduledFor && !!when
+  const out: Array<{ userId: string; title: string; body: string }> = []
+  for (const userId of peopleOf(c.assigneeId)) {
+    if (!before.has(userId)) out.push({ userId, title: 'New job assigned to you', body: when ? `${name} — ${when}` : name })
+    else if (moved) out.push({ userId, title: 'Your job was rescheduled', body: `${name} — now ${when}` })
   }
-  if (c.scheduledFor !== c.previousScheduledFor && when) {
-    return { userId: c.assigneeId, title: 'Your job was rescheduled', body: `${name} — now ${when}` }
-  }
-  return null
+  return out
 }
 
 export function createPhoneRules(deps: {
@@ -54,8 +60,7 @@ export function createPhoneRules(deps: {
     if (!companyId) return 0
     let sent = 0
     for (const c of await jobChanges(deps.db, companyId)) {
-      const msg = messageFor(c)
-      if (msg) {
+      for (const msg of messagesFor(c)) {
         await deps.phonePush.send(companyId, [msg.userId], { title: msg.title, body: msg.body, data: { type: 'job', id: c.jobId } })
         sent++
       }

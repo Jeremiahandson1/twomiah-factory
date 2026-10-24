@@ -1,13 +1,20 @@
 // Phone notifications' raw SQL (RULEBOOK §2), for core/phonePush.ts and crm/notify/jobAssignments.ts: the phones a person
 // signed in on, and the jobs whose person or time changed since they were last told.
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { expoPushTokens, job, jobPushState, user } from '../db/schema/index.ts'
+import { expoPushTokens, job, jobAssignee, jobPushState, user } from '../db/schema/index.ts'
 
 /**
  * A job's scheduled day and time as one comparable text: 'YYYY-MM-DD HH:MM', the day alone with no time, NULL with no
  * day. Migration 0015 seeds job_push_state with this exact expression.
  */
 export const SCHEDULED_FOR = sql`CASE WHEN ${job.scheduledDate} IS NULL THEN NULL ELSE to_char(${job.scheduledDate}, 'YYYY-MM-DD') || COALESCE(' ' || NULLIF(${job.scheduledTime}, ''), '') END`
+
+/**
+ * Everyone on a job who can sign in, as one comparable text: the lead (assigned_to_id), then the others on it
+ * (job_assignee, 2026-10-24) by id, comma-separated; NULL with nobody. A job with only a lead reads exactly as
+ * assigned_to_id did, so the state migration 0015 seeded still matches and nobody is told twice.
+ */
+export const ASSIGNEES = sql`NULLIF(concat_ws(',', ${job.assignedToId}, (SELECT string_agg(${jobAssignee.userId}, ',' ORDER BY ${jobAssignee.userId}) FROM ${jobAssignee} WHERE ${jobAssignee.jobId} = ${job.id} AND ${jobAssignee.userId} IS NOT NULL)), '')`
 
 /** Work that is finished, lost or called off: a change to it is not news to anyone. */
 const CLOSED = ['completed', 'complete', 'cancelled', 'canceled', 'closed', 'lost', 'invoiced', 'paid', 'archived']
@@ -16,6 +23,7 @@ export interface JobChange {
   jobId: string
   title: string
   number: string | null
+  /** ASSIGNEES: everyone on the job who can sign in, comma-separated (what job_push_state.assignee_id records). */
   assigneeId: string | null
   scheduledFor: string | null
   previousAssigneeId: string | null
@@ -29,11 +37,11 @@ export interface JobChange {
 export async function jobChanges(db: any, companyId: string, limit = 500): Promise<JobChange[]> {
   const rows = await db.select({
     jobId: job.id, title: job.title, number: job.number, status: job.status,
-    assigneeId: job.assignedToId, scheduledFor: SCHEDULED_FOR,
+    assigneeId: ASSIGNEES, scheduledFor: SCHEDULED_FOR,
     stateJobId: jobPushState.jobId, previousAssigneeId: jobPushState.assigneeId, previousScheduledFor: jobPushState.scheduledFor,
   }).from(job)
     .leftJoin(jobPushState, eq(jobPushState.jobId, job.id))
-    .where(and(eq(job.companyId, companyId), sql`(${jobPushState.jobId} IS NULL OR ${jobPushState.assigneeId} IS DISTINCT FROM ${job.assignedToId} OR ${jobPushState.scheduledFor} IS DISTINCT FROM ${SCHEDULED_FOR})`))
+    .where(and(eq(job.companyId, companyId), sql`(${jobPushState.jobId} IS NULL OR ${jobPushState.assigneeId} IS DISTINCT FROM ${ASSIGNEES} OR ${jobPushState.scheduledFor} IS DISTINCT FROM ${SCHEDULED_FOR})`))
     .orderBy(job.updatedAt)
     .limit(limit)
   return rows.map((r: any) => ({

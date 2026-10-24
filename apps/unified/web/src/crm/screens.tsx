@@ -23,7 +23,7 @@ import { dashboard as dealershipDashboard } from './verticals/rv'
 // 'bar': Tonight at a glance above the party book; and the register's sales above the Reports page.
 import { dashboard as barDashboard, reportsAbove as barReportsAbove } from './verticals/bar'
 import { dashboard as homecareDashboard } from './verticals/homecare'
-import { dashboard as roofDashboard } from './verticals/roof'
+import { dashboard as roofDashboard, isRoofing } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
 import { ContactBookings } from '../booking/ContactBookings'
@@ -128,7 +128,7 @@ export function InvoiceDetail() {
   return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can, aside: DocumentAside } as any} />
 }
 export function Schedule() {
-  const { hasFeature } = useAuth()
+  const { hasFeature, user } = useAuth()
   // The week's bookings are the app's own (one booking engine for site and CRM), when the business takes bookings.
   const loadBookings = async (from: string, to: string) => {
     if (!hasFeature('online_booking')) return []
@@ -138,7 +138,10 @@ export function Schedule() {
   }
   // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
   // SchedulePage passed events: true).
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events }} />
+  // A lane per person and "Optimise route" where the jobs carry people (2026-10-24): every vertical with jobs but roofing,
+  // whose work is booked to crews (assignedCrewId), not to people.
+  const people = hasFeature('jobs') && !isRoofing
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 // A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are
