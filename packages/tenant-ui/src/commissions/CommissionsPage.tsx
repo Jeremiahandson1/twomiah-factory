@@ -10,13 +10,17 @@
  *     not a number typed in a browser.
  *   · SAY WHO. The list printed the first eight characters of a user id.
  *   · DISPUTE, EDIT, RETIRE AND BRING BACK A PLAN — the routes existed, the buttons did not.
+ *   · VOID AND REASSIGN AN EARNING (contractor live re-test 3, 2026-10-24: a $165 commission read "Former team member"
+ *     with no way to put it right). Void keeps the row, marked void with the reason; Reassign moves it to the person who
+ *     earned it. Both commissions:update, both in the audit log, neither on a paid commission (a correction is a new
+ *     record).
  *
  * Kept from the copies: one ROLE_WORDS mapping read by both the dropdown and the card (T51), a retired plan
  * marked as retired (T41), and each control gated on the permission that actually guards it (T41: a read
  * permission must not gate a write control).
  */
 import { useState, useEffect, useCallback } from 'react'
-import { DollarSign, Plus, Check, AlertTriangle, Pencil, Printer, Zap } from 'lucide-react'
+import { DollarSign, Plus, Check, AlertTriangle, Pencil, Printer, Zap, Ban, UserCog } from 'lucide-react'
 import { usePermissions } from '../auth/PermissionsContext'
 import { useConfirm, usePrompt } from '../ui/ConfirmProvider'
 import { PageHeader, Button, Modal, Field, inputCls, money, instantDay, errMsg, StatusBadge } from '../invoicing/ui'
@@ -64,6 +68,8 @@ const AUTO_WORDS: Record<string, string> = {
 const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded' }
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const blankRecord = { userId: '', planId: '', invoiceId: '', jobId: '', baseAmount: '', commissionAmount: '', notes: '' }
+/** Where a commission can still be voided or moved to another person: not yet paid out, and not already cancelled. */
+const OPEN = ['pending', 'approved', 'disputed']
 
 export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const { can } = usePermissions()
@@ -95,6 +101,9 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [people, setPeople] = useState<any[]>([])
   const [invoices, setInvoices] = useState<any[]>([])
   const [jobs, setJobs] = useState<any[]>([])
+  // Reassign: the commission being moved, and to whom.
+  const [moving, setMoving] = useState<any | null>(null)
+  const [moveTo, setMoveTo] = useState('')
 
   /**
    * The two loads are SEPARATE (T38): a person without commissions:read is still entitled to their own
@@ -188,6 +197,30 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       body = { notes }
     }
     try { await api.post(`/api/commissions/${row.id}/${action}`, body); load() } catch (err) { toast.error(errMsg(err, 'That could not be done')) }
+  }
+
+  /** Void: kept, marked void with the reason (asked in the app's own box), out of every total. */
+  const voidRecord = async (row: any) => {
+    const reason = await ask(`Why is this ${money(row.commissionAmount)} commission void? The reason is kept on it.`, { title: 'Void commission', confirmText: 'Void', placeholder: 'e.g. Recorded twice' })
+    if (reason === null) return
+    if (!reason.trim()) { toast.error('Say why it is void — the reason is kept on the record.'); return }
+    try { await api.post(`/api/commissions/${row.id}/void`, { reason: reason.trim() }); toast.success('Commission voided'); load() } catch (err) { toast.error(errMsg(err, 'The commission could not be voided')) }
+  }
+  const openMove = async (row: any) => {
+    setMoving(row)
+    setMoveTo('')
+    if (!people.length) { try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) } }
+  }
+  const saveMove = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!moving || !moveTo) return
+    setBusy(true)
+    try {
+      await api.post(`/api/commissions/${moving.id}/reassign`, { userId: moveTo })
+      toast.success(`Commission moved to ${personName(people.find((u) => u.id === moveTo))}`)
+      setMoving(null)
+      load()
+    } catch (err) { toast.error(errMsg(err, 'The commission could not be moved')) } finally { setBusy(false) }
   }
 
   const loadStatement = async () => {
@@ -298,10 +331,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{r.rateApplied ? `${Number(r.rateApplied)}%` : '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-slate-100">{money(r.commissionAmount)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{instantDay(r.earnedAt)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={r.status} />{r.status === 'void' && r.voidReason && <span className="block text-xs text-gray-600 dark:text-slate-400 mt-1">{r.voidReason}</span>}</td>
                   <td className="px-4 py-3">
                     {mayUpdate && (
                       <div className="flex flex-wrap gap-1 justify-end">
+                        {OPEN.includes(r.status) && <Button variant="secondary" className="!px-2 !py-1" onClick={() => openMove(r)}><UserCog className="w-4 h-4" />Reassign</Button>}
+                        {OPEN.includes(r.status) && <Button variant="danger" className="!px-2 !py-1" onClick={() => voidRecord(r)}><Ban className="w-4 h-4" />Void</Button>}
                         {(r.status === 'pending' || r.status === 'disputed') && <Button variant="secondary" className="!px-2 !py-1" onClick={() => act(r, 'approve')}><Check className="w-4 h-4" />Approve</Button>}
                         {r.status === 'approved' && <Button variant="success" className="!px-2 !py-1" onClick={() => act(r, 'mark-paid')}>Mark paid</Button>}
                         {(r.status === 'pending' || r.status === 'approved') && <Button variant="warn" className="!px-2 !py-1" onClick={() => act(r, 'dispute')}><AlertTriangle className="w-4 h-4" />Dispute</Button>}
@@ -393,6 +428,22 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setPlanOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={busy}>{editingPlan ? 'Save' : 'Create'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={!!moving} onClose={() => setMoving(null)} title="Reassign commission">
+        <form onSubmit={saveMove} className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-slate-300">{moving ? <>{money(moving.commissionAmount)} earned {instantDay(moving.earnedAt)}, now with <strong>{moving.userName || 'Former team member'}</strong>. The amount and status stay as they are; the move is kept in the audit log.</> : null}</p>
+          <Field label="Who earned it">
+            <select required value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={inputCls}>
+              <option value="">Choose a person…</option>
+              {people.filter((u) => u.isActive !== false && u.id !== moving?.userId).map((u) => <option key={u.id} value={u.id}>{personName(u)}</option>)}
+            </select>
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setMoving(null)}>Cancel</Button>
+            <Button type="submit" disabled={busy || !moveTo}>Reassign</Button>
           </div>
         </form>
       </Modal>

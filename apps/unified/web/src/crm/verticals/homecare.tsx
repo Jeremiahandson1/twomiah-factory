@@ -132,6 +132,19 @@ export const SHARED_HIDDEN = [
 ]
 
 /**
+ * The shared pages an agency does not have at all, typed in: the CRM's own screens home care never had, at addresses no
+ * agency page takes over — SHARED_HIDDEN without the agency's own pages at the same address (documents, reports,
+ * expenses, messages: its own; contacts: kept), the invoices' redirect to Billing, and GPS & Geofences (its feature's gate,
+ * shell.ts routeGates). Each answers "<page> isn't part of this CRM" (the shell's routeAbsent), as an un-offered feature
+ * does, instead of drawing a contractor's page whose API then refuses it. Live re-test 2 (2026-10-24): "/crm/time opens
+ * only by address" — Time Tracking left home care's offer (fix-d); its API answers FEATURE_NOT_ENABLED.
+ */
+export const SHARED_ABSENT: string[] = isHomecare ? (() => {
+  const own = new Set([...MENU.map(([path]) => path), '/crm/invoices', '/crm/geofences'])
+  return SHARED_HIDDEN.filter((to) => !own.has(to))
+})() : []
+
+/**
  * Settings pages an agency doesn't get: Migrate Data and Import from CSV bring contacts, jobs, products and invoices
  * from contractor platforms (Jobber, ServiceTitan, Housecall Pro…) — an agency has none of those records, and home
  * care's own client and caregiver import is left off by the owner (2026-10-19). Their addresses go to Settings.

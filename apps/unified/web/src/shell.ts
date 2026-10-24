@@ -19,7 +19,7 @@ import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
 import { nav as roofNav, routePermissions as roofRoutePermissions, isRoofing, roofingMenu } from './crm/verticals/roof'
 import { nav as storeNav, routePermissions as storeRoutePermissions, isStore, storeMenu } from './crm/verticals/store'
-import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SETTINGS_HIDDEN, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
+import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SHARED_ABSENT, SETTINGS_HIDDEN, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 import { ViewAsBanner } from './crm/viewAs'
 
 const SHARED_NAV: NavItem[] = [
@@ -161,6 +161,8 @@ export const SHELL: ShellConfig = {
   // and offers "Return to my account". An agency also has the header's View As button (staff and client-portal preview).
   banner: ViewAsBanner,
   ...(isHomecare ? { headerActions: homecareHeaderActions } : {}),
+  // Another business type's pages, typed in: "isn't part of this CRM" (home care's: crm/verticals/homecare.tsx SHARED_ABSENT).
+  routeAbsent: SHARED_ABSENT,
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

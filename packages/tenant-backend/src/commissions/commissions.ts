@@ -40,6 +40,8 @@ export interface CommissionRoutesDeps {
   requirePermission: (permission: string) => any
   /** hasPermission(role, permission, extraPermissions) with the caller's per-user grants already resolved. */
   canSee: (role: string, permission: string, userId?: string) => Promise<boolean>
+  /** The app's audit service (log({ action, entity, … req })): void and reassign are recorded with what changed. Optional. */
+  audit?: { log: (entry: any) => any }
 }
 
 /**
@@ -58,7 +60,7 @@ const money = z.number({ invalid_type_error: 'An amount must be a number' })
 export const COMMISSION_PLAN_TYPES = ['flat_rate', 'percent_of_invoice', 'percent_of_margin', 'tiered'] as const
 export const COMMISSION_ROLES = ['technician', 'sales_rep', 'manager', 'all'] as const
 // 'cancelled': an automatic earning whose invoice was refunded in full before it was paid out.
-export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'disputed', 'cancelled'] as const
+export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'disputed', 'cancelled', 'void'] as const
 /** Who a plan pays by itself when an invoice is paid in full. */
 export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as const
 
@@ -385,6 +387,63 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   move('dispute', 'disputed')
 
   /**
+   * VOID AND REASSIGN. (Contractor live re-test 3, 2026-10-24: a $165 commission read "Former team member" — its login
+   * had been deleted and added again — and nothing could put it right.) commissions:update, like the status moves; only
+   * while the money has not gone out (paid is final: a correction is a new record). The row is never deleted: void keeps
+   * it, marked void with the reason, out of every total. Each is recorded in the audit log with what changed.
+   */
+  const OPEN_STATUSES = ['pending', 'approved', 'disputed']
+  const audited = (c: any, row: any, changes: Record<string, { old: unknown; new: unknown }>, description: string) => {
+    try { deps.audit?.log({ action: 'update', entity: 'commission', entityId: row.id, entityName: `${row.commissionAmount}`, changes, metadata: { description }, req: c }) } catch { /* the audit never fails the change */ }
+  }
+  app.post('/:id/void', requirePermission('commissions:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const body = await c.req.json().catch(() => ({})) as { reason?: unknown }
+    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : ''
+    if (!reason) return c.json({ error: 'Say why it is void — the reason is kept on the record.', code: 'reason_required' }, 400)
+    const existing = await owned(t.commission, c.req.param('id'), currentUser.companyId)
+    if (!existing) return c.json({ error: 'Commission not found' }, 404)
+    if (!OPEN_STATUSES.includes(existing.status)) {
+      return c.json({ error: existing.status === 'paid' ? 'This commission has been paid. Record a correction instead of voiding it.' : `A ${existing.status} commission cannot be voided.`, code: 'status_order', status: existing.status }, 409)
+    }
+    const set: Record<string, any> = { status: 'void', updatedAt: new Date() }
+    // Where the table keeps the reason (the unified app), it goes there; a template's table keeps it in the notes.
+    if (t.commission.voidReason) Object.assign(set, { voidReason: reason, voidedAt: new Date(), voidedById: currentUser.userId })
+    else set.notes = `${existing.notes ? existing.notes + ' · ' : ''}Void: ${reason}`
+    const [updated] = await db.update(t.commission).set(set as any)
+      .where(and(eq(t.commission.id, existing.id), eq(t.commission.companyId, currentUser.companyId), eq(t.commission.status, existing.status))).returning()
+    if (!updated) return c.json({ error: 'This commission changed while you were looking at it. Reload and try again.', code: 'changed' }, 409)
+    audited(c, updated, { status: { old: existing.status, new: 'void' }, voidReason: { old: null, new: reason } }, `Commission voided — ${reason}`)
+    return c.json(updated)
+  })
+
+  app.post('/:id/reassign', requirePermission('commissions:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const body = await c.req.json().catch(() => ({})) as { userId?: unknown }
+    const userId = typeof body.userId === 'string' ? body.userId : ''
+    if (!userId) return c.json({ error: 'Choose who earned it', code: 'user_required' }, 400)
+    const existing = await owned(t.commission, c.req.param('id'), currentUser.companyId)
+    if (!existing) return c.json({ error: 'Commission not found' }, 404)
+    if (!OPEN_STATUSES.includes(existing.status)) {
+      return c.json({ error: existing.status === 'paid' ? 'This commission has been paid. Record a correction instead of moving it.' : `A ${existing.status} commission cannot be moved.`, code: 'status_order', status: existing.status }, 409)
+    }
+    const earner = await owned(t.user, userId, currentUser.companyId)
+    if (!earner) return c.json({ error: 'That person is not on this account' }, 400)
+    if (earner.isActive === false) return c.json({ error: 'That login is switched off. Choose someone still on the team.', code: 'inactive' }, 400)
+    if (earner.id === existing.userId) return c.json({ error: 'It is already theirs.', code: 'unchanged' }, 400)
+    // The same rule as approving: below an admin, nobody moves pay to or from themselves.
+    if ((earner.id === currentUser.userId || existing.userId === currentUser.userId) && !OWN_APPROVAL_OK.has(currentUser.role)) {
+      return c.json({ error: 'You cannot move a commission to or from yourself — ask an owner or admin.', code: 'self_approval' }, 403)
+    }
+    const [updated] = await db.update(t.commission).set({ userId: earner.id, updatedAt: new Date() } as any)
+      .where(and(eq(t.commission.id, existing.id), eq(t.commission.companyId, currentUser.companyId), eq(t.commission.status, existing.status))).returning()
+    if (!updated) return c.json({ error: 'This commission changed while you were looking at it. Reload and try again.', code: 'changed' }, 409)
+    const name = [earner.firstName, earner.lastName].filter(Boolean).join(' ') || earner.email
+    audited(c, updated, { userId: { old: existing.userId, new: earner.id } }, `Commission moved to ${name}`)
+    return c.json({ ...updated, userName: name })
+  })
+
+  /**
    * A STATEMENT: one person's commissions over a period — every line, and what is pending, approved, paid and
    * owed. The person sees their own; seeing anybody else's is commissions:read, like the list.
    */
@@ -408,7 +467,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     return c.json({
       person: { id: person.id, name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email },
       from: fromQ || null, to: toQ || null,
-      lines: lines.filter((l: any) => l.status !== 'cancelled'),
+      lines: lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void'),
       totals: { ...totals, owed: cents(totals.pending + totals.approved) },
     })
   })
