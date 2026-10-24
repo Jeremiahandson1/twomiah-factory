@@ -45,8 +45,11 @@ async function insertFilled(client: PGlite, table: string, values: Record<string
 describe('batch 2 migration chain, 0022 to 0027', () => {
   test('the journal runs 0022 to 0027 in that order, each stamped after the one before', () => {
     const entries = journal().entries
-    expect(entries.map((e: any) => `${e.idx}:${e.tag}`).slice(22)).toEqual(BATCH2)
-    expect(entries.map((e: any) => e.idx)).toEqual(entries.map((_: any, i: number) => i))
+    expect(entries.map((e: any) => `${e.idx}:${e.tag}`).slice(22, 28)).toEqual(BATCH2)
+    // Numbered in order. A later branch's migration may leave numbers free for others' (fix-m's 0030 keeps 0028 and 0029
+    // for theirs), so the numbers rise without having to be consecutive; each tag carries its own number.
+    for (let i = 1; i < entries.length; i++) expect(entries[i].idx).toBeGreaterThan(entries[i - 1].idx)
+    for (const e of entries) expect(e.tag.startsWith(String(e.idx).padStart(4, '0') + '_')).toBe(true)
     for (let i = 1; i < entries.length; i++) expect(entries[i].when).toBeGreaterThan(entries[i - 1].when)
   })
 
@@ -56,9 +59,9 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
       expect(fs.existsSync(path.join(MIGRATIONS, `${e.tag}.sql`))).toBe(true)
       expect(fs.existsSync(path.join(MIGRATIONS, `meta/${String(e.idx).padStart(4, '0')}_snapshot.json`))).toBe(true)
     }
-    for (let i = 1; i < entries.length; i++) expect(snapshot(i).prevId).toBe(snapshot(i - 1).id)
+    for (let i = 1; i < entries.length; i++) expect(snapshot(entries[i].idx).prevId).toBe(snapshot(entries[i - 1].idx).id)
     // The last snapshot carries every batch-2 schema change (drizzle-kit generates the next migration from it).
-    const last = snapshot(entries.length - 1).tables
+    const last = snapshot(entries[entries.length - 1].idx).tables
     expect(Object.keys(last['public.booking'].columns)).toEqual(expect.arrayContaining(['override_by_user_id', 'override_at']))
     expect(Object.keys(last['public.invoices'].columns)).toContain('public_token')
     expect(Object.keys(last['public.commission_plan'].columns)).toContain('user_ids')
@@ -69,7 +72,7 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
   test('a fresh database migrates through 0027', async () => {
     const client = new PGlite()
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
-    expect(await applied(client)).toBe(28)
+    expect(await applied(client)).toBe(journal().entries.length)
     expect(await columns(client, 'booking')).toEqual(expect.arrayContaining(['override_by_user_id', 'override_at']))
     expect(await columns(client, 'invoices')).toContain('public_token')
     expect(await columns(client, 'commission_plan')).toContain('user_ids')
@@ -97,7 +100,7 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
     await insertFilled(client, 'invoices', { id: 'inv1', company_id: 'co1', client_id: 'cl1' })
 
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
-    expect(await applied(client)).toBe(28)
+    expect(await applied(client)).toBe(journal().entries.length)
     // 0023/0024: the old rows keep their data, the new columns empty.
     expect((await client.query<any>(`SELECT customer_name, override_at FROM booking WHERE id = 'b1'`)).rows[0]).toEqual({ customer_name: 'Pat', override_at: null })
     expect((await client.query<any>(`SELECT id, public_token FROM invoices WHERE id = 'inv1'`)).rows[0]).toEqual({ id: 'inv1', public_token: null })
@@ -114,7 +117,7 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
       company: (await client.query<any>(`SELECT timezone, updated_at FROM company WHERE id = 'co1'`)).rows[0],
     }
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
-    expect(await applied(client)).toBe(28)
+    expect(await applied(client)).toBe(journal().entries.length)
     expect((await client.query<any>(`SELECT count(*)::int AS n FROM audit_log`)).rows[0].n).toBe(before.audit)
     expect((await client.query<any>(`SELECT timezone, updated_at FROM company WHERE id = 'co1'`)).rows[0]).toEqual(before.company)
     await client.close()
@@ -128,7 +131,7 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
       await migrate(drizzle(client), { migrationsFolder: upTo(stop) })
       expect(await applied(client)).toBe(stop + 1)
       await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
-      expect(await applied(client)).toBe(28)
+      expect(await applied(client)).toBe(journal().entries.length)
       expect(await columns(client, 'commission_plan')).toContain('user_ids')
       expect(await columns(client, 'financing_event')).toContain('event_id')
       await client.close()
