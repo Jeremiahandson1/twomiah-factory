@@ -121,7 +121,7 @@ export function createViewAs(deps: ViewAsDeps) {
 
   // Each View As's end is written once, however many requests notice it at the same moment.
   const endedOnce = new Set<string>()
-  const endKey = (d: any) => `${d?.impersonatorId}:${d?.userId}:${d?.iat}`
+  const endKey = (d: any) => `${d?.impersonatorId}:${d?.userId}:${d?.iat}:${d?.exp}`
   async function recordEnd(c: any, decoded: any, why: string, reason: string) {
     const key = endKey(decoded)
     if (endedOnce.has(key)) return
