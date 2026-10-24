@@ -32,7 +32,6 @@ const assigneeIds = (j: any) => (j.assignees || []).map((a: any) => a.id)
 let customer = ''
 
 beforeAll(async () => {
-
   // GOOGLE_MAPS_API_KEY is blanked by the harness (noLiveKeys.ts): the optimiser uses its straight-line fallback.
   t = await bootTenant({ vertical: 'landscaping' })
   const s = await seedOwner(t)
