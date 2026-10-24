@@ -3,7 +3,8 @@
 // template's services/routing.ts (templates/crm/backend/src/services); env configuration unchanged (OSRM_URL,
 // GOOGLE_MAPS_API_KEY), read when called.
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
-import { job, contact } from '../../db/schema/index.ts'
+import { onJob } from '@twomiah/tenant-backend'
+import { job, jobAssignee, contact } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 
 interface Point {
@@ -251,7 +252,7 @@ export function createRoutingService(d: CrmDeps) {
       .leftJoin(contact, eq(job.contactId, contact.id))
       .where(and(
         eq(job.companyId, companyId),
-        eq(job.assignedToId, userId),
+        onJob(db, { job, jobAssignee }, userId),
         gte(job.scheduledDate, startOfDay),
         lte(job.scheduledDate, endOfDay),
         inArray(job.status, ['scheduled', 'in_progress']),

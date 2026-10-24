@@ -17,7 +17,7 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money, createAccountBalanceStore, documentLinkPath,
+  money, createAccountBalanceStore, documentLinkPath, onJob,
 } from '@twomiah/tenant-backend'
 import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import {
@@ -25,7 +25,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries,
+  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries, jobAssignee,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -132,8 +132,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
-    // A seat without contacts:read-all (a landscaping crew login) reads the customers on the jobs assigned to it.
-    ownContacts: (userId: string) => inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(eq(job.assignedToId, userId), isNotNull(job.contactId)))),
+    // A seat without contacts:read-all (a landscaping crew login) reads the customers on the jobs it leads or is on
+    // (tenant-backend jobs/onJob.ts — a helper on the crew reads the customer as the lead does).
+    ownContacts: (userId: string) => inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(onJob(db, { job, jobAssignee }, userId), isNotNull(job.contactId)))),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
@@ -192,10 +193,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const jobs = createJobRoutes({
     db,
     tables: {
-      job, project, contact, user, timeEntry, teamMember, location, jobSeries,
+      job, project, contact, user, timeEntry, teamMember, location, jobSeries, jobAssignee,
       ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
-    authenticate, requirePermission, canSee, ...live, cleanText, cleanLines,
+    authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
     options: {
       // a job also points at a piece of equipment and a service site
       ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),
@@ -379,7 +380,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: createTechRoutes({
       // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
-      db, tables: { job, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
+      db, tables: { job, jobAssignee, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit } as any) },

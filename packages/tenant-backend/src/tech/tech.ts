@@ -34,11 +34,12 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, asc, desc, inArray } from 'drizzle-orm'
 import type { JobHook } from '../jobs/jobs'
+import { onJob } from '../jobs/onJob'
 import { companyTimeZone } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { JOB_MONEY, jobMoneyWithheld, withoutJobMoney, type CanSee } from '../jobs/jobMoney'
 
-export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any }
+export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any; /** the other people on a job (jobs/onJob.ts): a helper sees the job on their day too */ jobAssignee?: any }
 export interface TechHooks { onDispatch?: JobHook; onStart?: JobHook; onComplete?: JobHook }
 export interface TechRoutesDeps {
   db: any
@@ -98,7 +99,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
 
   const myJob = async (id: string, currentUser: any) => {
     const [row] = await db.select().from(t.job)
-      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId))).limit(1)
+      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), onJob(db, t, currentUser.userId))).limit(1)
     return row || null
   }
   /** The company's checklist form template — found by its category, made once if it does not exist yet. */
@@ -122,7 +123,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   app.get('/my-jobs', async (c) => {
     const currentUser = c.get('user') as any
     const jobs = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId)))
+      .where(and(eq(t.job.companyId, currentUser.companyId), onJob(db, t, currentUser.userId)))
       .orderBy(asc(t.job.scheduledDate), asc(t.job.scheduledTime))
 
     // Only the contacts and equipment these jobs name — the copies fetched the company's whole contact book.

@@ -218,6 +218,13 @@
       "when": 1792847592532,
       "tag": "0030_view_as_commission_void",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792867940119,
+      "tag": "0032_job_assignee",
+      "breakpoints": true
     }
   ]
 }

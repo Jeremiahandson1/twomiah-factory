@@ -27,6 +27,8 @@ import { sniffType } from '../files/storage'
 import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
 import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
+import { onJob } from './onJob'
+import { travelMinutes, type Place } from './travel'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -44,7 +46,13 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    * as a series of visits, GET /:id says which series a visit is in, and POST /:id/series/stop ends it. Absent → none
    * of that, as before (the CRM templates' job tables have no series).
    */
-  jobSeries?: any }
+  jobSeries?: any
+  /**
+   * The other people on a job (job_assignee: job_id + user_id or member_id). Present → a job can carry
+   * `otherAssigneeIds` beside its lead (assignedToId / assignedToMemberId), every one of them is checked for
+   * double-booking, and a person's own jobs include the ones they are on (./onJob.ts). Absent → one person per job.
+   */
+  jobAssignee?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
@@ -126,6 +134,8 @@ export interface JobDeps {
   /** For the multi-line fields (description, notes): markup stripped, line breaks kept. Absent: cleanText. */
   cleanLines?: (min?: number) => z.ZodTypeAny
   options?: JobOptions
+  /** Where a "book anyway" past a travel-time warning is recorded (the audit log). Absent → not recorded. */
+  audit?: { log: (entry: any) => any }
 }
 
 export const JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
@@ -241,6 +251,8 @@ export function createJobRoutes(deps: JobDeps) {
   const branches = !!(t.location && t.job.locationId)
   /** Repeating jobs, where the vertical's tables have them (JobTables.jobSeries). */
   const seriesOn = !!(t.jobSeries && t.job.seriesId)
+  /** Several people per job, where the vertical's tables have the join (JobTables.jobAssignee). */
+  const crewOn = !!t.jobAssignee
   /**
    * A job's `repeat`: { frequency: 'weekly' | 'monthly', interval?: 1–12, count?: 2–52, until?: YYYY-MM-DD }. It needs
    * the job's day (the first visit), and an end — a number of visits or a last day — because a series with no end would
@@ -302,8 +314,13 @@ export function createJobRoutes(deps: JobDeps) {
     const mine = await onlyAssignedTo(c)
     if (mine !== null) {
       const u = c.get('user') as any
-      const [row] = await db.select({ assignedToId: t.job.assignedToId }).from(t.job).where(and(eq(t.job.id, c.req.param('id')), eq(t.job.companyId, u.companyId))).limit(1)
-      if (row && row.assignedToId !== mine) return c.json({ error: 'Job not found' }, 404)
+      // A job they lead or are on (./onJob.ts): a helper on the crew opens the job as its lead does.
+      const id = c.req.param('id')
+      const [row] = await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, u.companyId))).limit(1)
+      if (row) {
+        const [mineRow] = await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), onJob(db, t, mine))).limit(1)
+        if (!mineRow) return c.json({ error: 'Job not found' }, 404)
+      }
     }
     await next()
   }
@@ -371,41 +388,159 @@ export function createJobRoutes(deps: JobDeps) {
     return Number.isFinite(h) && h > 0 ? Math.max(1, Math.round(h * 60)) : DEFAULT_JOB_MINUTES
   }
 
-  // `who` is whichever kind of assignee the job has — a roster member can be double-booked just as a login user can.
-  const assigneeConflict = async (companyId: string, who?: Assignee | null, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db, hours?: unknown) => {
-    const assignedToId = who?.assignedToId || null, memberId = who?.assignedToMemberId || null
-    if ((!assignedToId && !memberId) || !scheduledDate || !scheduledTime) return null
-    const start = minutesOfTime(scheduledTime); if (start === null) return null
-    const end = start + minutesOfHours(hours)
-    const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return null
+  /**
+   * EVERYONE ON THE JOB IS CHECKED (2026-10-24: several people per job). A person is a login user or a roster member;
+   * the job's lead plus its other people (t.jobAssignee). Each one's same-day work — jobs they lead or are on
+   * (./onJob.ts) — is compared with this slot, so a helper booked elsewhere at 10:00 cannot be put on a 10:00 job.
+   * `excludeId` is the job being saved (or, for a re-timed day, every job being moved together).
+   */
+  type Person = { userId: string | null; memberId: string | null }
+  const personId = (p: Person) => (p.userId || p.memberId) as string
+  const leadOf = (a: Assignee): Person | null => a.assignedToId ? { userId: a.assignedToId, memberId: null } : a.assignedToMemberId ? { userId: null, memberId: a.assignedToMemberId } : null
+  const sameDayFor = async (companyId: string, p: Person, scheduledDate: any, excludeId: string | string[] | undefined, exec: any, extra: Record<string, any> = {}) => {
+    const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return []
     dayStart.setUTCHours(0, 0, 0, 0)
     const dayEnd = new Date(dayStart.getTime() + 86400000)
     const conds = [
       eq(t.job.companyId, companyId),
-      assignedToId ? eq(t.job.assignedToId, assignedToId) : eq(t.job.assignedToMemberId, memberId as string),
+      onJob(exec, t, personId(p)),
       gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, dayEnd),
       notInArray(t.job.status, ['cancelled', 'completed']),
     ]
-    if (excludeId) conds.push(ne(t.job.id, excludeId))
+    const skip = Array.isArray(excludeId) ? excludeId : excludeId ? [excludeId] : []
+    if (skip.length) conds.push(notInArray(t.job.id, skip))
     // estimatedHours is not on every vertical's job table; selecting a column that is not there throws
     // inside drizzle and would 500 the whole save.
-    const cols: any = { id: t.job.id, number: t.job.number, scheduledTime: t.job.scheduledTime }
+    const cols: any = { id: t.job.id, number: t.job.number, scheduledTime: t.job.scheduledTime, ...extra }
     if (t.job.estimatedHours) cols.estimatedHours = t.job.estimatedHours
-    const sameDay = await exec.select(cols).from(t.job).where(and(...conds))
-    for (const other of sameDay) {
-      const s = minutesOfTime(other.scheduledTime)
-      if (s === null) continue                       // unscheduled work holds no slot
-      const e = s + minutesOfHours(other.estimatedHours)
-      if (start < e && end > s) return other         // half-open: 09:00–10:00 and 10:00–11:00 do NOT clash
+    return exec.select(cols).from(t.job).where(and(...conds))
+  }
+  const assigneeConflict = async (companyId: string, people: Person[], scheduledDate?: any, scheduledTime?: string, excludeId?: string | string[], exec: any = db, hours?: unknown) => {
+    if (!people.length || !scheduledDate || !scheduledTime) return null
+    const start = minutesOfTime(scheduledTime); if (start === null) return null
+    const end = start + minutesOfHours(hours)
+    for (const p of people) {
+      for (const other of await sameDayFor(companyId, p, scheduledDate, excludeId, exec)) {
+        const s = minutesOfTime(other.scheduledTime)
+        if (s === null) continue                       // unscheduled work holds no slot
+        const e = s + minutesOfHours(other.estimatedHours)
+        if (start < e && end > s) return { ...other, person: p }         // half-open: 09:00–10:00 and 10:00–11:00 do NOT clash
+      }
     }
     return null
+  }
+  /** Name the call AND when it starts, and — on a job with several people — whose diary it is in. */
+  const clashSentence = async (companyId: string, clash: any, many: boolean) =>
+    `${many ? `${await nameOf(companyId, clash.person)} is` : 'That person is'} already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`
+
+  /** A person's name for a sentence: the login user's, or the roster member's. `exec`: the transaction, inside one. */
+  const nameOf = async (companyId: string, p: Person, exec: any = db): Promise<string> => {
+    if (p.userId) {
+      const [u] = await exec.select({ firstName: t.user.firstName, lastName: t.user.lastName }).from(t.user).where(and(eq(t.user.id, p.userId), eq(t.user.companyId, companyId))).limit(1)
+      return u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'That person' : 'That person'
+    }
+    if (t.teamMember && p.memberId) {
+      const [m] = await exec.select({ name: t.teamMember.name }).from(t.teamMember).where(and(eq(t.teamMember.id, p.memberId), eq(t.teamMember.companyId, companyId))).limit(1)
+      return m?.name || 'That person'
+    }
+    return 'That person'
+  }
+  const hhmmOf = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+  /**
+   * TRAVEL TIME IS PART OF THE DAY (2026-10-24). Two calls that do not overlap can still be impossible: 10:00–11:00 on
+   * one side of town and 11:00 on the other. For each person on the job, the work just before and just after this slot
+   * on the same day is looked at: the gap between them against the drive (./travel.ts — the distance when both jobs are
+   * on the map; when they are not, back-to-back at two different addresses is never enough). Too short is a WARNING the
+   * office may book past ("Book anyway", recorded in the audit log) — not a refusal. An outright overlap stays a refusal
+   * (assigneeConflict above).
+   */
+  const travelWarning = async (companyId: string, people: Person[], scheduledDate: any, scheduledTime: string | undefined | null, hours: unknown, here: Place, excludeId: string | undefined, exec: any = db) => {
+    if (!people.length || !scheduledDate || !scheduledTime) return null
+    const start = minutesOfTime(scheduledTime); if (start === null) return null
+    const end = start + minutesOfHours(hours)
+    for (const p of people) {
+      const rows = await sameDayFor(companyId, p, scheduledDate, excludeId, exec, { lat: t.job.lat, lng: t.job.lng, address: t.job.address })
+      let before: any = null, after: any = null
+      for (const r of rows) {
+        const s = minutesOfTime(r.scheduledTime); if (s === null) continue
+        const e = s + minutesOfHours(r.estimatedHours)
+        if (e <= start && (!before || e > before.e)) before = { ...r, s, e }
+        if (s >= end && (!after || s < after.s)) after = { ...r, s, e }
+      }
+      const sides: Array<[any, number, boolean]> = [[before, before ? start - before.e : 0, false], [after, after ? after.s - end : 0, true]]
+      for (const [other, gap, ahead] of sides) {
+        if (!other) continue
+        const drive = travelMinutes(other, here)
+        if (drive === null || gap >= drive) continue
+        const who = await nameOf(companyId, p, exec)
+        const between = ahead ? `this ${jobWord} and ${other.number} (starts ${hhmmOf(other.s)})` : `${other.number} (ends ${hhmmOf(other.e)}) and this ${jobWord}`
+        const mapped = here.lat != null && here.lng != null && other.lat != null && other.lng != null
+        const drivePart = mapped ? `the drive is about ${drive} min` : 'the two are at different addresses'
+        return {
+          message: `${who} has ${gap} min between ${between}, and ${drivePart}. Book anyway, or pick another time or person.`,
+          personId: personId(p), otherJobId: other.id as string, otherNumber: other.number as string, gapMinutes: gap, travelMinutes: drive,
+        }
+      }
+    }
+    return null
+  }
+  /** "Book anyway" past a travel warning: recorded, so the office can see who overrode what. */
+  const recordOverride = (c: any, job: any, warning: any) => {
+    if (!deps.audit?.log || !warning || !job) return
+    try {
+      deps.audit.log({ action: 'book_anyway', entity: 'job', entityId: job.id, entityName: job.number ?? null, metadata: { reason: 'travel_time', ...warning }, req: c })
+    } catch { /* an audit row is never why a save fails */ }
+  }
+  /** 409 with a code the screens read to offer "Book anyway" (the same request again with bookAnyway: true). */
+  const travelRefusal = (c: any, warning: any) => c.json({ error: warning.message, code: 'travel_time', canBookAnyway: true, warning }, 409)
+
+  /** The other people on a job (t.jobAssignee), in the order the office listed them. */
+  const othersOf = async (jobId: string, exec: any = db): Promise<Person[]> => {
+    if (!crewOn) return []
+    const rows = await exec.select({ userId: t.jobAssignee.userId, memberId: t.jobAssignee.memberId }).from(t.jobAssignee).where(eq(t.jobAssignee.jobId, jobId)).orderBy(asc(t.jobAssignee.position), asc(t.jobAssignee.id))
+    return rows.map((r: any) => ({ userId: r.userId ?? null, memberId: r.memberId ?? null }))
+  }
+  /** `otherAssigneeIds` from a request: each one a person on this team, repeats left out. */
+  const readOthers = async (companyId: string, raw: unknown): Promise<{ people: Person[] } | { error: string }> => {
+    if (!Array.isArray(raw)) return { error: 'The other people on the job must be a list.' }
+    if (raw.length > 20) return { error: 'A job can have at most 20 other people on it.' }
+    const out: Person[] = [], seen = new Set<string>()
+    for (const id of raw) {
+      if (blank(id)) continue
+      const who = await resolveAssignee(companyId, id)
+      if (who.error) return { error: who.error }
+      const p = leadOf(who)!
+      if (seen.has(personId(p))) continue
+      seen.add(personId(p)); out.push(p)
+    }
+    return { people: out }
+  }
+  /**
+   * The lead and the others a save ends with. Nobody leads but someone is on it → the first of them leads: a job with
+   * people on it always has a lead, so every reader of assignedToId still finds someone. The lead is never also one of
+   * the others.
+   */
+  const settleCrew = (lead: Person | null, others: Person[]): { lead: Person | null; others: Person[] } => {
+    const rest = [...others]
+    const l = lead || rest.shift() || null
+    return { lead: l, others: rest.filter((p) => !l || personId(p) !== personId(l)) }
+  }
+  /** Replace a job's other people. */
+  const writeOthers = async (tx: any, companyId: string, jobId: string, others: Person[]) => {
+    if (!crewOn) return
+    await tx.delete(t.jobAssignee).where(eq(t.jobAssignee.jobId, jobId))
+    if (others.length) await tx.insert(t.jobAssignee).values(others.map((p, i) => ({ companyId, jobId, userId: p.userId, memberId: p.memberId, position: i + 1 })))
   }
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter(Boolean) as string[])]
 
   /** project / contact / assignedTo (/ equipment) for a set of rows, fetched by id and scoped to the company. */
   const withRelations = async (rows: any[], companyId: string, contactCols?: Record<string, any>) => {
-    const projectIds = uniq(rows.map((j) => j.projectId)), contactIds = uniq(rows.map((j) => j.contactId)), userIds = uniq(rows.map((j) => j.assignedToId)), equipmentIds = t.equipment ? uniq(rows.map((j) => j.equipmentId)) : []
-    const memberIds = t.teamMember ? uniq(rows.map((j) => j.assignedToMemberId)) : []
+    // The other people on these jobs (t.jobAssignee), named with the leads in the same two reads.
+    const jobIds = uniq(rows.map((j) => j.id))
+    const crewRows: any[] = crewOn && jobIds.length ? await db.select({ jobId: t.jobAssignee.jobId, userId: t.jobAssignee.userId, memberId: t.jobAssignee.memberId }).from(t.jobAssignee).where(inArray(t.jobAssignee.jobId, jobIds)).orderBy(asc(t.jobAssignee.position), asc(t.jobAssignee.id)) : []
+    const projectIds = uniq(rows.map((j) => j.projectId)), contactIds = uniq(rows.map((j) => j.contactId)), userIds = uniq([...rows.map((j) => j.assignedToId), ...crewRows.map((r) => r.userId)]), equipmentIds = t.equipment ? uniq(rows.map((j) => j.equipmentId)) : []
+    const memberIds = t.teamMember ? uniq([...rows.map((j) => j.assignedToMemberId), ...crewRows.map((r) => r.memberId)]) : []
     const members = memberIds.length ? await db.select({ id: t.teamMember.id, name: t.teamMember.name, role: t.teamMember.role, phone: t.teamMember.phone }).from(t.teamMember).where(and(eq(t.teamMember.companyId, companyId), inArray(t.teamMember.id, memberIds))) : []
     const [projects, contacts, users, equipmentList] = await Promise.all([
       t.project && projectIds.length ? db.select({ id: t.project.id, name: t.project.name }).from(t.project).where(and(eq(t.project.companyId, companyId), inArray(t.project.id, projectIds))) : Promise.resolve([]),
@@ -421,11 +556,22 @@ export function createJobRoutes(deps: JobDeps) {
     // gains name + kind; a roster member is split into the same two fields so every existing caller keeps working.
     const named = (u: any) => ({ ...u, name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'user' as const })
     const fromMember = (m: any) => { const [first, ...rest] = String(m.name || '').split(' '); return { id: m.id, firstName: first || m.name || '', lastName: rest.join(' '), name: m.name, role: m.role || null, phone: m.phone || null, kind: 'member' as const } }
+    const personFor = (userId?: string | null, memberId?: string | null) => userId ? (um[userId] ? named(um[userId]) : null) : memberId ? (mm[memberId] ? fromMember(mm[memberId]) : null) : null
+    /**
+     * `assignees`: EVERYONE on the job, lead first (lead: true), then the others in the order the office listed them — what the
+     * Schedule's and the Dispatch Board's lanes and the job form read. `assignedTo` stays the lead alone.
+     */
+    const crewOf = (j: any) => {
+      const lead = personFor(j.assignedToId, j.assignedToMemberId)
+      const others = crewRows.filter((r) => r.jobId === j.id).map((r) => personFor(r.userId, r.memberId)).filter(Boolean)
+      return [...(lead ? [{ ...lead, lead: true }] : []), ...others.map((p: any) => ({ ...p, lead: false }))]
+    }
     return rows.map((j) => ({
       ...j,
       project: j.projectId ? pm[j.projectId] || null : null,
       contact: j.contactId ? cm[j.contactId] || null : null,
-      assignedTo: j.assignedToId ? (um[j.assignedToId] ? named(um[j.assignedToId]) : null) : j.assignedToMemberId ? (mm[j.assignedToMemberId] ? fromMember(mm[j.assignedToMemberId]) : null) : null,
+      assignedTo: personFor(j.assignedToId, j.assignedToMemberId),
+      assignees: crewOf(j),
       ...(t.equipment ? { equipment: j.equipmentId ? em[j.equipmentId] || null : null } : {}),
       ...(branches ? { location: j.locationId ? lm[j.locationId] || null : null } : {}),
     }))
@@ -458,11 +604,12 @@ export function createJobRoutes(deps: JobDeps) {
     if (badStatus) return badStatus
     const conditions: any[] = [eq(t.job.companyId, currentUser.companyId)]
     const mine = await onlyAssignedTo(c)
-    if (mine !== null) conditions.push(eq(t.job.assignedToId, mine))
+    if (mine !== null) conditions.push(onJob(db, t, mine))
     if (q.status) conditions.push(eq(t.job.status, q.status))
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
-    if (q.assignedToId) conditions.push(eq(t.job.assignedToId, q.assignedToId))
+    // A person's jobs: the ones they lead or are on (./onJob.ts) — the Schedule's and the Dispatch Board's lanes read this.
+    if (q.assignedToId) conditions.push(onJob(db, t, q.assignedToId))
     if (branches && q.locationId) conditions.push(eq(t.job.locationId, q.locationId))
     if (q.search?.trim()) { const p = `%${q.search.trim()}%`; conditions.push(or(ilike(t.job.title, p), ilike(t.job.number, p), ilike(t.job.address, p))!) }
     // The dispatch board passes ?date=YYYY-MM-DD (F-11).
@@ -529,7 +676,7 @@ export function createJobRoutes(deps: JobDeps) {
     const { date: localToday } = storeDayRange(tz)
     const mine = await onlyAssignedTo(c)
     const rows = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, mine !== null ? eq(t.job.assignedToId, mine) : undefined))
+      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, mine !== null ? onJob(db, t, mine) : undefined))
       .orderBy(asc(t.job.scheduledTime), asc(t.job.id))
     /**
      * …and /today, which is the TECHNICIAN'S OWN SCREEN and therefore the one most likely to be
@@ -538,6 +685,50 @@ export function createJobRoutes(deps: JobDeps) {
      */
     const today = await withRelations(rows, currentUser.companyId, { id: t.contact.id, name: t.contact.name, phone: t.contact.phone })
     return c.json(await shapeJobMoney(c, today))
+  })
+
+  // ---------------------------------------------------------------- re-time a day's stops
+  /**
+   * NEW START TIMES FOR SEVERAL JOBS AT ONCE — the route optimiser's "re-time" (2026-10-24). The office reorders one
+   * person's day, sees the new times, and only then sends them here. All of them are saved or none: in one transaction
+   * under the job lock, each job's new slot is checked for EVERY person on it against their other work (the jobs being
+   * moved together are left out of each other's check — they are laid end to end by the caller). jobs:update, as a drag
+   * on the Schedule is; a seat that reads only its own jobs re-times only those.
+   */
+  app.post('/retime', requirePermission('jobs:update'), async (c) => {
+    const currentUser = (c as any).get('user')
+    const body: any = await c.req.json().catch(() => null)
+    const times: Array<{ id: string; scheduledTime: string }> | null = Array.isArray(body?.times) ? body.times : null
+    if (!times || times.length === 0 || times.length > 50) return c.json({ error: 'Send the new start time for each stop (1 to 50).' }, 400)
+    for (const x of times) {
+      if (typeof x?.id !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(x?.scheduledTime || ''))) return c.json({ error: 'Each stop needs its job and a start time (HH:MM, 24-hour).' }, 400)
+    }
+    const ids = [...new Set(times.map((x) => x.id))]
+    if (ids.length !== times.length) return c.json({ error: 'A stop is listed twice.' }, 400)
+    const mine = await onlyAssignedTo(c)
+    const rows: any[] = await db.select().from(t.job).where(and(eq(t.job.companyId, currentUser.companyId), inArray(t.job.id, ids), ...(mine !== null ? [onJob(db, t, mine)] : [])))
+    if (rows.length !== ids.length) return c.json({ error: 'Job not found' }, 404)
+    let clash: any = null
+    const saved = await db.transaction(async (tx: any) => {
+      await jobLock(tx, currentUser.companyId)
+      for (const x of times) {
+        const row = rows.find((r) => r.id === x.id)
+        const lead = leadOf({ assignedToId: row.assignedToId ?? null, assignedToMemberId: row.assignedToMemberId ?? null })
+        const people: Person[] = [...(lead ? [lead] : []), ...(await othersOf(row.id, tx))]
+        clash = await assigneeConflict(currentUser.companyId, people, row.scheduledDate, x.scheduledTime, ids, tx, row.estimatedHours)
+        if (clash) return null
+      }
+      const out: any[] = []
+      for (const x of times) {
+        const [u] = await tx.update(t.job).set({ scheduledTime: x.scheduledTime, updatedAt: new Date() }).where(and(eq(t.job.id, x.id), eq(t.job.companyId, currentUser.companyId))).returning()
+        out.push(u)
+      }
+      return out
+    })
+    if (clash || !saved) return c.json({ error: await clashSentence(currentUser.companyId, clash, true), conflictId: clash?.id }, 409)
+    const result = await withRelations(saved, currentUser.companyId)
+    for (const r of result) emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, r)
+    return c.json({ data: await shapeJobMoney(c, result) })
   })
 
   // ---------------------------------------------------------------- photos (before /:id so /:id/photos routes resolve first)
@@ -613,7 +804,7 @@ export function createJobRoutes(deps: JobDeps) {
     let mayPay = true
     if (deps.canSee) { try { mayPay = !!(await deps.canSee(currentUser.role, 'payroll:read', currentUser.userId)) } catch { mayPay = false } }
     const timeEntries = mayPay ? entries : (entries as any[]).map(({ hourlyRate: _rate, ...e }: any) => e)
-    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
+    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries, assignees: withAssignee?.assignees ?? [], ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {
@@ -634,9 +825,21 @@ export function createJobRoutes(deps: JobDeps) {
     if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
     if (who.error) return c.json({ error: who.error }, 400)
-    data.assignedToId = who.assignedToId
-    if (t.teamMember) data.assignedToMemberId = who.assignedToMemberId
+    // The other people on the job (otherAssigneeIds), read beside the job as `repeat` is. Nobody leads but someone is
+    // on it → the first of them leads (settleCrew).
+    let asked: Person[] = []
+    if (crewOn && body?.otherAssigneeIds !== undefined && body?.otherAssigneeIds !== null) {
+      const read = await readOthers(currentUser.companyId, body.otherAssigneeIds)
+      if ('error' in read) return c.json({ error: read.error, fields: { otherAssigneeIds: read.error } }, 400)
+      asked = read.people
+    }
+    const crew = settleCrew(leadOf(who), asked)
+    data.assignedToId = crew.lead?.userId ?? null
+    if (t.teamMember) data.assignedToMemberId = crew.lead?.memberId ?? null
     else delete data.assignedToMemberId
+    const everyone: Person[] = crew.lead ? [crew.lead, ...crew.others] : []
+    const bookAnyway = body?.bookAnyway === true
+    let travel: any = null
     // Conflict check + insert run in ONE transaction under the per-company job lock, so two concurrent
     // New-Job requests for the same tech/slot can't both pass the check and double-book (the check ran
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
@@ -680,9 +883,10 @@ export function createJobRoutes(deps: JobDeps) {
         }).returning()
         let first: any = null
         for (const day of days) {
-          const other = await assigneeConflict(currentUser.companyId, who, day.date, data.scheduledTime, undefined, tx, data.estimatedHours)
+          const other = await assigneeConflict(currentUser.companyId, everyone, day.date, data.scheduledTime, undefined, tx, data.estimatedHours)
           if (other) { clash = clash || other; skipped.push({ date: day.date, reason: `already booked on ${other.number}${other.scheduledTime ? ` at ${other.scheduledTime}` : ''}` }); continue }
           const row = await insertOne(tx, day.date, { seriesId: seriesRow.id, seriesIndex: day.index })
+          await writeOthers(tx, currentUser.companyId, row.id, crew.others)
           made++
           if (!first) first = row
         }
@@ -690,13 +894,20 @@ export function createJobRoutes(deps: JobDeps) {
         clash = null
         return first
       }
-      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx, data.estimatedHours)
+      clash = await assigneeConflict(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, undefined, tx, data.estimatedHours)
       if (clash) return null
-      return insertOne(tx, data.scheduledDate)
+      // Not an overlap, but no time to get there: a warning, booked past only when the office says so.
+      travel = await travelWarning(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, { address: data.address ?? null }, undefined, tx)
+      if (travel && !bookAnyway) return null
+      const row = await insertOne(tx, data.scheduledDate)
+      await writeOthers(tx, currentUser.companyId, row.id, crew.others)
+      return row
     })
     // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
     // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
-    if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    if (clash) return c.json({ error: await clashSentence(currentUser.companyId, clash, everyone.length > 1), conflictId: clash.id }, 409)
+    if (!created && travel && !bookAnyway) return travelRefusal(c, travel)
+    if (created && travel) recordOverride(c, created, travel)
     if (!created && repeat && 'spec' in repeat) return c.json({ error: `None of the visits could be booked: that person is ${skipped[0]?.reason || 'already booked'}. Pick another time or assignee.` }, 409)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
@@ -776,12 +987,26 @@ export function createJobRoutes(deps: JobDeps) {
     if (touchesAssignee) {
       who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
       if (who.error) return c.json({ error: who.error }, 400)
-      data.assignedToId = who.assignedToId
-      if (t.teamMember) data.assignedToMemberId = who.assignedToMemberId
+    }
+    // The other people: replaced when the edit sends otherAssigneeIds, else kept. A new lead who was one of the others
+    // leaves the others (never both); a lead taken off a job others are still on hands it to the first of them.
+    const touchesCrew = crewOn && raw.otherAssigneeIds !== undefined && raw.otherAssigneeIds !== null
+    let asked: Person[] = []
+    if (touchesCrew) {
+      const read = await readOthers(currentUser.companyId, raw.otherAssigneeIds)
+      if ('error' in read) return c.json({ error: read.error, fields: { otherAssigneeIds: read.error } }, 400)
+      asked = read.people
+    }
+    const before = await othersOf(id)
+    const crew = settleCrew(leadOf(who), touchesCrew ? asked : before)
+    const crewChanged = touchesCrew || touchesAssignee
+    if (crewChanged) {
+      data.assignedToId = crew.lead?.userId ?? null
+      if (t.teamMember) data.assignedToMemberId = crew.lead?.memberId ?? null
       else delete data.assignedToMemberId
     }
+    const everyone: Person[] = crew.lead ? [crew.lead, ...crew.others] : []
     // Check the resulting assignee/date/time (only the fields the edit changed override the existing).
-    const effAssignee = who
     const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate
     const effTime = data.scheduledTime !== undefined ? data.scheduledTime : existing.scheduledTime
     // The length matters as much as the start: shortening or lengthening a call changes what it overlaps,
@@ -790,10 +1015,28 @@ export function createJobRoutes(deps: JobDeps) {
     // Re-check + update in one transaction under the same per-company job lock, so a concurrent write
     // (create or edit) can't sneak the same tech/slot in between the check and the update.
     let clash: any = null
+    /**
+     * The travel check runs when the edit changes WHEN, HOW LONG, WHO or WHERE — never on a status or a note, so a
+     * technician starting a job the office already booked past a warning is not warned again.
+     */
+    const differs = (k: string, v: unknown) => v !== undefined && String(v ?? '') !== String((existing as any)[k] ?? '')
+    const placeChanged = ['address', 'city', 'state', 'zip'].some((k) => differs(k, data[k]))
+    const movesSlot = crewChanged || placeChanged || differs('scheduledTime', data.scheduledTime) || differs('estimatedHours', data.estimatedHours)
+      || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
+    // A moved address is somewhere else: its old map point would put pins and routes in the wrong place.
+    if (placeChanged && t.job.lat) { data.lat = null; data.lng = null }
+    const here: Place = placeChanged ? { address: data.address ?? existing.address ?? null } : { lat: existing.lat ?? null, lng: existing.lng ?? null, address: existing.address ?? null }
+    const bookAnyway = raw.bookAnyway === true
+    let travel: any = null
     const updated = await db.transaction(async (tx: any) => {
       await jobLock(tx, currentUser.companyId)
-      clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id, tx, effHours)
+      clash = await assigneeConflict(currentUser.companyId, everyone, effDate, effTime, id, tx, effHours)
       if (clash) return null
+      if (movesSlot) {
+        travel = await travelWarning(currentUser.companyId, everyone, effDate, effTime, effHours, here, id, tx)
+        if (travel && !bookAnyway) return null
+      }
+      if (crewChanged) await writeOthers(tx, currentUser.companyId, id, crew.others)
       // Completing a job from the status dropdown must stamp completedAt the same way POST /:id/complete does —
       // it was only stamped by that route, so "Completed today" stayed 0 and the job had no completion time.
       // Moving it back out of completed clears the stamp, so the count stays true. (Landscaping T14 L13)
@@ -812,7 +1055,9 @@ export function createJobRoutes(deps: JobDeps) {
     })
     // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
     // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
-    if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    if (clash) return c.json({ error: await clashSentence(currentUser.companyId, clash, everyone.length > 1), conflictId: clash.id }, 409)
+    if (!updated && travel && !bookAnyway) return travelRefusal(c, travel)
+    if (updated && travel) recordOverride(c, updated, travel)
     const [result] = await withRelations([updated], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, result)
     /**

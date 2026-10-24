@@ -162,7 +162,9 @@ describe('10. Add Part takes a starting quantity', () => {
 
 describe('9. a pricebook option on a quote keeps the item\'s cost', () => {
   test('pricebookLine(item, option) carries unitCost', async () => {
-    const { pricebookLine } = await import('../../../packages/tenant-ui/src/invoicing/ui.tsx')
+    // A .tsx module, loaded by Bun at run time: through a variable, so the server's tsconfig (no JSX) does not type it.
+    const uiModule = '../../../packages/tenant-ui/src/invoicing/ui.tsx'
+    const { pricebookLine } = await import(uiModule)
     const line = pricebookLine({ id: 'p1', name: 'Mulch', price: 120, cost: 45, type: 'service' } as any, { name: 'Better', price: 150 })
     expect(line.unitPrice).toBe(150)
     expect(line.unitCost).toBe(45)
