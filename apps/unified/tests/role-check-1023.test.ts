@@ -315,6 +315,8 @@ describe('3. home care deletes of an id that is not there answer 404', () => {
 
 describe('7. staff and field seats: no takings, no leads', () => {
   test("Booking insights' booked value is revenue:read's: absent for a technician, there for a manager and the viewer", async () => {
+    // One booking, so the customers list has a row whose booked value could leak.
+    await fs.db.insert(fs.schema.booking).values({ companyId: fsCo, startAt: new Date('2026-10-01T15:00:00Z'), endAt: new Date('2026-10-01T16:00:00Z'), customerName: 'Bo Booker', customerEmail: 'bo@example.com', status: 'completed', token: 'tok-role-check-1' } as any)
     for (const who of ['staff']) {
       const a = await fsAs(who, '/api/booking/analytics')
       expect(a.status).toBe(200)
@@ -322,8 +324,10 @@ describe('7. staff and field seats: no takings, no leads', () => {
       expect(typeof a.body.total).toBe('number')
       const c = await fsAs(who, '/api/booking/customers')
       expect(c.status).toBe(200)
+      expect(c.body.data.length).toBe(1)
       expect(JSON.stringify(c.body)).not.toMatch(/"bookedValue"/)
     }
+    expect('bookedValue' in (await fsAs('manager', '/api/booking/customers')).body.data[0]).toBe(true)
     for (const who of ['manager', 'viewer', 'owner']) { const r = await fsAs(who, '/api/booking/analytics'); expect(`${who} ${r.status} ${'bookedValue' in r.body}`).toBe(`${who} 200 true`) }
   })
 
