@@ -49,8 +49,9 @@ describe('on the storefront', () => {
   test("the cart's upsell line: bought with what is in the cart, not in it already, and in stock", async () => {
     expect((await k.pub('GET', '/api/public/upsells?skus=MUG-1')).json.product).toMatchObject({ sku: 'SPO-1', name: 'Spoon', priceCents: 1000, slug: 'spoon' })
     expect((await k.pub('GET', '/api/public/upsells?skus=MUG-1,SPO-1')).json.product.sku).toBe('TEE-1')
-    // The coaster (category pick for the jar) is sold out: never offered.
-    expect((await k.pub('GET', '/api/public/upsells?skus=JAR-1')).json.product.sku).toBe('MUG-1')
+    // The jar's first pick, the coaster, is sold out: never offered — the spoon is.
+    await (k.t.db as any).update(k.S.storeProduct).set({ boughtTogetherIds: [p.coaster.product.id, p.spoon.product.id] }).where(eq(k.S.storeProduct.id, p.jar.product.id))
+    expect((await k.pub('GET', '/api/public/upsells?skus=JAR-1')).json.product.sku).toBe('SPO-1')
     expect((await k.pub('GET', '/api/public/upsells?skus=TEE-1')).json.product).toBeNull()
   })
 })
