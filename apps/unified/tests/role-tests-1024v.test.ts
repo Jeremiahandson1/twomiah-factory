@@ -78,7 +78,7 @@ describe('contractor: deactivate, reactivate, and the field seat on its own job'
       expect({ change, status: r.status, code: r.body.code }).toEqual({ change, status: 403, code: 'job_dispatch_not_permitted' })
     }
     const [row] = await x.t.db.select().from(x.t.schema.job).where(eq(x.t.schema.job.id, job.id))
-    expect([row.assignedToId, row.scheduledTime, new Date(row.scheduledDate).toISOString().slice(0, 10)]).toEqual([x.ids.tech, '09:00', '2026-10-28'])
+    expect([row.assignedToId, row.scheduledTime, new Date(row.scheduledDate as any).toISOString().slice(0, 10)]).toEqual([x.ids.tech, '09:00', '2026-10-28'])
     expect((await x.as('tech', '/api/jobs/retime', 'POST', { times: [{ id: job.id, scheduledTime: '07:00' }] })).status).toBe(403)
     for (const p of ['/api/bulk/jobs/assign', '/api/bulk/jobs/reschedule', '/api/bulk/jobs/update', '/api/bulk/jobs/status'])
       expect({ p, s: (await x.as('tech', p, 'POST', { ids: [job.id], assignedToId: x.ids.tech, scheduledDate: '2026-10-30', status: 'completed', updates: { assignedToId: x.ids.tech } })).status }).toEqual({ p, s: 403 })
