@@ -67,7 +67,10 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
    * appointment edits or cancels it — schedule:update. (T68)
    */
   // every hook unconditionally — the feature flags behind cfg.dragDrop arrive after the first render
-  const mayMoveJobs = useMayWrite('jobs:update')
+  // A move changes the day or the person: jobs:dispatch on the server (tenant-backend jobs/dispatch.ts), not jobs:update.
+  const mayMoveJobs = useMayWrite('jobs:dispatch')
+  // Putting a day's jobs on the map is POST /api/day-route/locate — jobs:update.
+  const mayLocateJobs = useMayWrite('jobs:update')
   const mayBook = useMayWrite('schedule:create')
   const mayEditEvent = useMayWrite('schedule:update')
   const dragDrop = cfg.dragDrop && mayMoveJobs
@@ -601,7 +604,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         title="Not enough time to get there"
         message={override?.message || ''}
         confirmText="Book anyway" />
-      {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayMoveJobs} onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); load() }} />}
+      {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayLocateJobs} onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); load() }} />}
       {cfg.events && newFor && <AppointmentModal api={api} toast={toast} date={newFor} types={cfg.eventTypes} onClose={() => setNewFor(null)} onSaved={() => { setNewFor(null); load() }} />}
       {cfg.events && editEvent && <AppointmentModal api={api} toast={toast} date={new Date(editEvent.start)} event={editEvent} types={cfg.eventTypes} onClose={() => setEditEvent(null)} onSaved={() => { setEditEvent(null); load() }} />}
     </div>

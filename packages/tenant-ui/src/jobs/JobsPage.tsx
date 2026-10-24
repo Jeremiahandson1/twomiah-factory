@@ -50,6 +50,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   // DELETE /api/jobs/:id asks jobs:delete; the row's Delete was offered to everyone. useMayWrite, not cfg.can —
   // most wrappers never set `can` on JobsConfig, so a cfg.can gate would never close. (T62)
   const mayDelete = useMayWrite('jobs:delete')
+  // Who is on a job and when it is: jobs:dispatch (tenant-backend jobs/dispatch.ts). A field seat edits its own job's
+  // status and notes; the assignee and the date and time are shown, not offered. (HVAC live role test 2026-10-24)
+  const mayDispatch = useMayWrite('jobs:dispatch')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<JobRow[]>([])
@@ -188,6 +191,13 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     setRepeat(NO_REPEAT)
     setModalOpen(true)
   }
+  const lockSlot = !!editing && !mayDispatch
+  /**
+   * The picker's people, plus anyone the job being edited already has whom the picker leaves out — a switched-off login
+   * (GET /api/team/assignable lists active ones only). Left out, the box read "Unassigned" for a job that still had its
+   * person, and a field seat (no roster) saw "Unassigned" on its own job.
+   */
+  const pickable: Pick[] = [...team, ...((editing?.assignees || []) as any[]).filter((a) => a?.id && !team.some((u) => u.id === a.id)).map((a) => ({ id: a.id, name: a.name } as Pick))]
   const openEdit = (item: JobRow) => {
     setEditing(item)
     setForm({
@@ -340,8 +350,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Field label="Priority"><select value={form.priority} onChange={set('priority')} className={`${inputCls} capitalize`}>{cfg.priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}{form.locationId && !branches.some((b) => b.id === form.locationId) && <option value={form.locationId}>Inactive branch</option>}</select></Field>}
           {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={(e) => setForm(withProject(form, e.target.value))} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-          {cfg.assignee && <Field label="Assigned To"><select value={form.assignedToId} onChange={set('assignedToId')} className={inputCls}><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed'}</option>)}</select></Field>}
-          {cfg.assignee && team.length > 1 && (
+          {cfg.assignee && <Field label="Assigned To"><select value={form.assignedToId} onChange={set('assignedToId')} disabled={lockSlot} className={inputCls}><option value="">Unassigned</option>{pickable.map((u) => <option key={u.id} value={u.id}>{(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed') + (!maySeeRoster || team.some((x) => x.id === u.id) ? '' : ' (switched off)')}</option>)}</select></Field>}
+          {cfg.assignee && team.length > 1 && !lockSlot && (
             <fieldset className="md:col-span-2" data-testid="also-on-job">
               <legend className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Also on this {cfg.labels.singular.toLowerCase()}</legend>
               <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto rounded-lg border border-gray-300 p-2 dark:border-slate-600">
@@ -379,8 +389,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
               </select>
             </Field>
           )}
-          <Field label="Scheduled Date"><input type="date" value={form.scheduledDate} onChange={set('scheduledDate')} className={inputCls} /></Field>
-          <Field label="Scheduled Time"><input type="time" value={form.scheduledTime} onChange={set('scheduledTime')} className={inputCls} /></Field>
+          <Field label="Scheduled Date"><input type="date" value={form.scheduledDate} onChange={set('scheduledDate')} disabled={lockSlot} className={inputCls} /></Field>
+          <Field label="Scheduled Time"><input type="time" value={form.scheduledTime} onChange={set('scheduledTime')} disabled={lockSlot} className={inputCls} /></Field>
           <Field label="Estimated Hours"><input type="number" min="0" step="0.25" value={form.estimatedHours} onChange={set('estimatedHours')} className={inputCls} /></Field>
           {/* Repeat — a new job only; an existing visit's series is shown and stopped on its own page. */}
           {!editing && cfg.repeat && (

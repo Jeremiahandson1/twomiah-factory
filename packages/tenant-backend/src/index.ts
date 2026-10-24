@@ -114,6 +114,7 @@ export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES, 
 export type { JobDeps, JobOptions, JobTables, JobHook, JobPhotoStorage } from './jobs/jobs'
 export { JOB_MONEY, jobMoneyWithheld, withoutJobMoney } from './jobs/jobMoney'
 export { onJob } from './jobs/onJob'
+export { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './jobs/dispatch'
 export { travelMinutes, metresBetween } from './jobs/travel'
 export type { CanSee } from './jobs/jobMoney'
 

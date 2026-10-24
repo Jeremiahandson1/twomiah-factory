@@ -125,6 +125,9 @@ export default function JobDetailPage() {
   // jobs:update: the field rung holds it, so a crew keeps closing and advancing its own work, uploading photos and
   // adding notes; the read-only office seat holds jobs:read only, and loses all of it. (T42)
   const mayWorkJob = useMayWrite('jobs:update')
+  // Who is on the job and when it is: jobs:dispatch (tenant-backend jobs/dispatch.ts) — a Field seat works its own job,
+  // it does not reassign it or move its day (live role tests 2026-10-24).
+  const mayDispatchJob = useMayWrite('jobs:dispatch')
   const mayQuote = useMayWrite('quotes:create')
   // The roster is GET /api/company/users — users:read or team:read; asked once known. (T64)
   const { known, can } = usePermissions()
@@ -567,7 +570,7 @@ export default function JobDetailPage() {
             )}
 
             {/* When the job is on the calendar, and the roof's size — what the insurance scope is built from. */}
-            <ScheduleCard job={job} mayEdit={mayWorkJob} onSaved={merge} />
+            <ScheduleCard job={job} mayEdit={mayWorkJob} mayMove={mayDispatchJob} onSaved={merge} />
 
             {/* Measurement — the satellite report's card, only while measurement reports are on (a not-ready feature). */}
             {measurementsOn && (
@@ -817,7 +820,7 @@ export default function JobDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Sales Rep</label>
-                  <select disabled={!mayWorkJob}
+                  <select disabled={!mayWorkJob || !mayDispatchJob}
                     value={job.assignedSalesRepId || ''}
                     onChange={(e) => updateAssignment('assignedSalesRepId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"
@@ -831,7 +834,7 @@ export default function JobDetailPage() {
                 </div>
                 {hasFeature('crews') && <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
-                  <select disabled={!mayWorkJob}
+                  <select disabled={!mayWorkJob || !mayDispatchJob}
                     value={job.assignedCrewId || ''}
                     onChange={(e) => updateAssignment('assignedCrewId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"
@@ -946,7 +949,7 @@ export default function JobDetailPage() {
  * The job's day and time on the calendar and its roof size in squares, set here (PUT /api/jobs/:id, jobs:update). The day
  * is a calendar day and the time the company's wall clock, as every job on the shared Schedule is; blank clears.
  */
-function ScheduleCard({ job, mayEdit, onSaved }: { job: Pick<RoofJob, 'id' | 'scheduledDate' | 'scheduledTime' | 'totalSquares'>; mayEdit: boolean; onSaved: (j: RoofJob) => void }) {
+function ScheduleCard({ job, mayEdit, mayMove, onSaved }: { job: Pick<RoofJob, 'id' | 'scheduledDate' | 'scheduledTime' | 'totalSquares'>; mayEdit: boolean; mayMove: boolean; onSaved: (j: RoofJob) => void }) {
   const toast = useToast()
   const dayOf = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '')
   const [date, setDate] = useState(dayOf(job.scheduledDate))
@@ -980,11 +983,11 @@ function ScheduleCard({ job, mayEdit, onSaved }: { job: Pick<RoofJob, 'id' | 'sc
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <div>
           <label htmlFor="roof-job-date" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Scheduled</label>
-          <input id="roof-job-date" type="date" value={date} disabled={!mayEdit} onChange={(e) => setDate(e.target.value)} className={input} />
+          <input id="roof-job-date" type="date" value={date} disabled={!mayEdit || !mayMove} onChange={(e) => setDate(e.target.value)} className={input} />
         </div>
         <div>
           <label htmlFor="roof-job-time" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Time</label>
-          <input id="roof-job-time" type="time" value={time} disabled={!mayEdit || !date} onChange={(e) => setTime(e.target.value)} className={input} />
+          <input id="roof-job-time" type="time" value={time} disabled={!mayEdit || !mayMove || !date} onChange={(e) => setTime(e.target.value)} className={input} />
         </div>
         <div>
           <label htmlFor="roof-job-squares" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Squares</label>

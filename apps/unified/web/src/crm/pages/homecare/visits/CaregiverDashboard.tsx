@@ -1457,12 +1457,13 @@ const CaregiverDashboard = () => {
   )
 
   // The three things a caregiver can do about one visit: say the client wasn't available, ask a coworker to take it,
-  // or ask the office to move it.
+  // or ask the office to move it. The first read "Client N/A" — taken for a missing client under a shift that names
+  // its client (home care live role test 2026-10-24); it says what it does.
   const shiftActions = (s: Shift) => (
     <div className="flex flex-wrap justify-end gap-1.5">
       <button onClick={() => { setUnavailModal(s); setUnavailForm({ reason: '', note: '' }) }}
         className={`${ACTION_BTN} border-red-200 text-red-700 dark:border-red-800 dark:text-red-300`}
-        title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Client N/A</button>
+        title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Client not available</button>
       {swapPendingFor(s) ? (
         <span className={CHIP_PENDING} title="Waiting on your coworker and the office">⏳ Swap sent</span>
       ) : (

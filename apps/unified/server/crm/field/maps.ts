@@ -226,10 +226,19 @@ export function createMapsRoutes(d: CrmDeps) {
  * canvassing board and the storm map each need it. Geocoded through the same cached service as the map view.
  */
 export function createMapCenterRoutes(d: CrmDeps) {
-  const geocoding = createGeocodingService(d)
+  const centre = createBusinessCentre(d)
   const app = new Hono<AppEnv>()
-  app.get('/', async (c) => {
-    const companyId = c.get('user').companyId
+  app.get('/', async (c) => one(c, (await centre(c.get('user').companyId)) ?? { lat: null, lng: null, from: null }))
+  return app
+}
+
+/**
+ * The business's centre, or null when nothing on record places it — the one rule GET /api/map-center answers with and a
+ * canvassing session started without the phone's location is centred on (roof/field/canvassing.ts).
+ */
+export function createBusinessCentre(d: CrmDeps) {
+  const geocoding = createGeocodingService(d)
+  return async (companyId: string): Promise<{ lat: number; lng: number; from: string } | null> => {
     const [co] = await d.db.select({ address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, companyId)).limit(1)
     const tries: string[] = []
     if (co && (co.city || co.zip)) tries.push([co.address, co.city, [co.state, co.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))
@@ -240,9 +249,8 @@ export function createMapCenterRoutes(d: CrmDeps) {
     }
     for (const q of tries) {
       const found = await geocoding.geocode(q, companyId)
-      if (found) return one(c, { lat: found.lat, lng: found.lng, from: q })
+      if (found) return { lat: found.lat, lng: found.lng, from: q }
     }
-    return one(c, { lat: null, lng: null, from: null })
-  })
-  return app
+    return null
+  }
 }

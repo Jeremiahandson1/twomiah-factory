@@ -9,11 +9,16 @@
 // FACTORY_SYNC_KEY, CRON_SECRET) are left for the harness and the tests to set.
 const OURS = new Set(['JWT_SECRET', 'JWT_REFRESH_SECRET', 'PAYMENT_ENC_KEY', 'ENCRYPTION_KEY', 'FACTORY_SYNC_KEY', 'CRON_SECRET', 'QBO_STATE_SECRET', 'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY'])
 const CREDENTIAL = /(_API_KEY|_API_TOKEN|_SECRET_KEY|_SECRET|_AUTH_TOKEN|_ACCESS_KEY|_ACCESS_KEY_ID|_CLIENT_ID|_PASSWORD|_ACCOUNT_SID|_SERVICE_SID|_BROWSER_KEY|_PUBLISHABLE_KEY)$/
-const ADDRESSES = ['DATABASE_URL', 'NEARMAP_BASE_URL', 'WISETACK_API_URL', 'OSRM_URL', 'FACTORY_URL', 'FACTORY_API_URL', 'FACTORY_SYNC_URL']
+const ADDRESSES = ['DATABASE_URL', 'NOMINATIM_URL', 'NEARMAP_BASE_URL', 'WISETACK_API_URL', 'OSRM_URL', 'FACTORY_URL', 'FACTORY_API_URL', 'FACTORY_SYNC_URL']
+/**
+ * Services the app reaches with no key at all, at a default address when the variable is unset (geocodingService.ts:
+ * OpenStreetMap's Nominatim). Blanked whether or not the shell has them — blank is "none", unset is the default.
+ */
+const DEFAULT_ON = ['NOMINATIM_URL']
 
 /** The names to blank, from an environment. */
 export function liveKeys(env: Record<string, string | undefined>): string[] {
-  return Object.keys(env).filter((k) => !OURS.has(k) && (CREDENTIAL.test(k) || ADDRESSES.includes(k)))
+  return [...new Set([...Object.keys(env).filter((k) => !OURS.has(k) && (CREDENTIAL.test(k) || ADDRESSES.includes(k))), ...DEFAULT_ON])]
 }
 
 /** Blank them in this process. */

@@ -32,8 +32,9 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/pipeline', icon: LayoutDashboard, label: 'Pipeline', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
-  // Reports is its own switch (the registry offers roofing `reports`); the page reads the jobs, hence jobs:read.
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'jobs:read' },
+  // Reports is its own switch (the registry offers roofing `reports`), and reports:read as every vertical's Reports is: a Field
+  // seat has no Reports (roofing live test 2026-10-24); the page reads the jobs, the invoices' totals and the roster.
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
 ]
 
 /**
@@ -43,7 +44,7 @@ export const nav: NavItem[] = [
 export const routePermissions: Record<string, string> = {
   '/crm/pipeline': 'jobs:read',
   '/crm/jobs': 'jobs:read',
-  '/crm/reports': 'jobs:read',
+  '/crm/reports': 'reports:read',
 }
 
 /** The roofer's home at /crm/dashboard: the pipeline board (templates/crm-roof App.tsx: /crm's index). */

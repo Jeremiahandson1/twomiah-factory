@@ -118,6 +118,9 @@ export default function DispatchBoard() {
   const maySeeRoster = useKnownPermission('team:read');
   // Moving work between people, starting and completing it are all PUT /api/jobs/:id — jobs:update (T43, T68).
   const mayUpdate = useMayWrite('jobs:update');
+  // Moving work between people or days is jobs:dispatch on the server (tenant-backend jobs/dispatch.ts); starting and
+  // completing stay jobs:update.
+  const mayDispatch = useMayWrite('jobs:dispatch');
   // Routing someone else's day reads their jobs: jobs:read-all (server/crm/field/dayRoute.ts).
   const mayReadAll = useMayWrite('jobs:read-all');
   const { user } = useAuth();
@@ -233,7 +236,7 @@ export default function DispatchBoard() {
     setJobs(prev => prev.map(j => j.id === picked.job.id ? { ...j, assignees: (body.assignedToId ? [String(body.assignedToId), ...(body.otherAssigneeIds as string[])] : []).map((id, i) => ({ id, name: laneName(id), lead: i === 0 })) } : j));
     await put(picked.job, body, to === UNASSIGNED ? `Taken off ${laneName(picked.from)}'s day` : `Moved to ${laneName(to)}`);
   };
-  const laneDrop = (laneId: string) => mayUpdate ? {
+  const laneDrop = (laneId: string) => mayDispatch ? {
     onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverLane(laneId); },
     onDragLeave: () => { if (overLane === laneId) setOverLane(null); },
     onDrop: (e: DragEvent) => { e.preventDefault(); void moveTo(laneId); },
@@ -267,7 +270,7 @@ export default function DispatchBoard() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dispatch Board</h1>
           <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
-          {mayUpdate && <p className="text-sm text-gray-600 dark:text-slate-400">Drag a {JOB_WORD.toLowerCase()} to a person's lane — or tap Move, then a lane — to change who is on it.</p>}
+          {mayDispatch && <p className="text-sm text-gray-600 dark:text-slate-400">Drag a {JOB_WORD.toLowerCase()} to a person's lane — or tap Move, then a lane — to change who is on it.</p>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button aria-label="Previous day"
@@ -354,6 +357,7 @@ export default function DispatchBoard() {
                           job={job}
                           lane={lane.id}
                           mayUpdate={mayUpdate}
+                          mayDispatch={mayDispatch}
                           moving={moving?.job.id === job.id}
                           picking={!!moving}
                           onDragStart={() => { dragging.current = { job, from: lane.id }; }}
@@ -364,7 +368,7 @@ export default function DispatchBoard() {
                       ))}
                       {here.length === 0 && (
                         <div className="text-center py-6 text-gray-600 dark:text-slate-400 text-sm">
-                          {lane.id === UNASSIGNED ? 'Nothing waiting for a person' : mayUpdate ? 'Drop work here' : 'Nothing on this day'}
+                          {lane.id === UNASSIGNED ? 'Nothing waiting for a person' : mayDispatch ? 'Drop work here' : 'Nothing on this day'}
                         </div>
                       )}
                     </div>
@@ -396,7 +400,7 @@ export default function DispatchBoard() {
 
       <ConfirmModal isOpen={!!override} onClose={() => setOverride(null)} onConfirm={bookAnyway} danger={false}
         title="Not enough time to get there" message={override?.message || ''} confirmText="Book anyway" />
-      {routeFor && <RouteOptimiser api={api as any} toast={toast as any} date={selectedDate} person={routeFor} mayRetime={mayUpdate} mayLocate={mayUpdate}
+      {routeFor && <RouteOptimiser api={api as any} toast={toast as any} date={selectedDate} person={routeFor} mayRetime={mayDispatch} mayLocate={mayUpdate}
         onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); void loadData(true); }} />}
     </div>
   );
@@ -424,10 +428,11 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: { icon: LucideIc
   );
 }
 
-function DispatchCard({ job, lane, mayUpdate, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
+function DispatchCard({ job, lane, mayUpdate, mayDispatch, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
   job: DispatchJob;
   lane: string;
   mayUpdate: boolean;
+  mayDispatch: boolean;
   moving: boolean;
   picking: boolean;
   onDragStart: () => void;
@@ -440,7 +445,7 @@ function DispatchCard({ job, lane, mayUpdate, moving, picking, onDragStart, onDr
   const serviceType = job.type || '';
   const ServiceIcon = SERVICE_ICONS[serviceType] || Wrench;
   const crew = crewOf(job);
-  const draggable = mayUpdate && job.status !== 'completed';
+  const draggable = mayDispatch && job.status !== 'completed';
 
   return (
     <div data-job-id={job.id} data-lane={lane} draggable={draggable}

@@ -27,6 +27,8 @@ import type { CrmDeps } from '../../deps.ts'
 import { companyTimeZone } from '@twomiah/tenant-backend'
 import { canvassingOutcome, email as emailField, onCompanyClock, optional, phone as phoneField } from '../validation.ts'
 import { homeownerName, insertHomeowner, insertRoofJob } from './roofJob.ts'
+import { createBusinessCentre } from '../../field/maps.ts'
+import { createGeocodingService } from '../../field/geocodingService.ts'
 
 const body = async (c: any): Promise<any> => (await c.req.json().catch(() => null)) ?? {}
 const decimal = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v))
@@ -118,6 +120,8 @@ export function createCanvassingRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
   const app = new Hono<AppEnv>()
+  const businessCentre = createBusinessCentre(d)
+  const geocoding = createGeocodingService(d)
 
   /** The team view: canvassing:manage. A lookup that fails sees only its own. */
   const seesTeam = async (u: any): Promise<boolean> => {
@@ -162,11 +166,16 @@ export function createCanvassingRoutes(d: CrmDeps) {
   app.post('/sessions', requirePermission('canvassing:create'), async (c) => {
     const { companyId, userId } = c.get('user')
     const b = await body(c)
+    // No phone location (refused, or a desk browser): the business's own centre, never a stored or template default —
+    // the session map opened on downtown Dallas for an Eau Claire roofer (roofing live test 2026-10-24).
+    const fromPhone = decimal(b.centerLat || null) !== null && decimal(b.centerLng || null) !== null
+    const home = fromPhone ? null : await businessCentre(companyId).catch(() => null)
     const [session] = await db.insert(canvassingSession).values({
       companyId, userId,
       name: b.name || `Session — ${new Date().toLocaleDateString()}`,
       status: 'active',
-      centerLat: decimal(b.centerLat || null), centerLng: decimal(b.centerLng || null), radiusMiles: decimal(b.radiusMiles || null),
+      centerLat: fromPhone ? decimal(b.centerLat) : decimal(home?.lat ?? null), centerLng: fromPhone ? decimal(b.centerLng) : decimal(home?.lng ?? null),
+      radiusMiles: decimal(b.radiusMiles || null),
       weatherEvent: b.weatherEvent || null,
       startedAt: new Date(),
     } as any).returning()
@@ -231,6 +240,13 @@ export function createCanvassingRoutes(d: CrmDeps) {
 
     const [session] = await db.select().from(canvassingSession).where(and(eq(canvassingSession.id, sessionId), eq(canvassingSession.companyId, companyId))).limit(1)
     if (!session) return fail(c, 404, 'Session not found')
+    // A door logged without the phone's location is placed by its address, so it is on the map with the rest: 103 Test
+    // St, Eau Claire was logged and never shown (roofing live test 2026-10-24). Not found → no pin, as before.
+    if ((decimal(b.lat ?? null) === null || decimal(b.lng ?? null) === null) && String(b.address || '').trim()) {
+      const where = [b.address, b.city, [b.state, b.zip].filter(Boolean).join(' ')].filter((s) => String(s || '').trim()).join(', ')
+      const found = await geocoding.geocode(where, companyId).catch(() => null)
+      if (found) { b.lat = found.lat; b.lng = found.lng }
+    }
 
     const stop = await db.transaction(async (tx: any) => {
       let contactId: string | null = null

@@ -47,6 +47,12 @@ export function calculateDistance(lat1: number, lng1: number, lat2: number, lng2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+/**
+ * The geocoder: OpenStreetMap's Nominatim, or NOMINATIM_URL. Set and blank, there is none — the tests blank it
+ * (tests/noLiveKeys.ts), so a door or a session placed by its address never reaches the network from a test.
+ */
+const geocoderBase = () => (process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/+$/, '')
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 export function createGeocodingService(d: CrmDeps) {
@@ -60,14 +66,14 @@ export function createGeocodingService(d: CrmDeps) {
   }
 
   async function geocode(address: string, companyId: string): Promise<GeocodeResult | null> {
-    if (!address || address.trim().length < 5) return null
+    if (!address || address.trim().length < 5 || !geocoderBase()) return null
     const cacheKey = address.toLowerCase().trim()
     const cached = cache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
 
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        `${geocoderBase()}/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
         { headers: { 'User-Agent': await userAgent(companyId) } },
       )
       if (!response.ok) throw new Error(`Geocoding failed: ${response.status}`)
@@ -91,9 +97,10 @@ export function createGeocodingService(d: CrmDeps) {
   }
 
   async function reverseGeocode(lat: number, lng: number, companyId: string): Promise<ReverseGeocodeResult | null> {
+    if (!geocoderBase()) return null
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+        `${geocoderBase()}/reverse?format=json&lat=${lat}&lon=${lng}`,
         { headers: { 'User-Agent': await userAgent(companyId) } },
       )
       if (!response.ok) throw new Error(`Reverse geocoding failed: ${response.status}`)

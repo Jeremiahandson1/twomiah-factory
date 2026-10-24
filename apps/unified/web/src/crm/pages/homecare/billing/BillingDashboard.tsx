@@ -190,6 +190,9 @@ interface ResolvedRate { rate: number; rateType: string; source: string }
 const EMPTY_MANUAL_LINE: ManualLine = { caregiverId: '', caregiverName: '', description: 'Home Care Services', hours: '', rate: '', serviceDate: '', startTime: '', endTime: '' }
 /** Every client and caregiver for the pickers (both lists page at 50 by default). */
 
+/** The billing cadence in words, for a seat that reads it and may not change it. */
+const FREQUENCY_WORDS: Record<string, string> = { '': 'Manual only', '1': 'Every week', '2': 'Every 2 weeks', '4': 'Every 4 weeks' }
+
 const BillingDashboard = () => {
   // Each control for whoever the server lets use it (care-billing create / update / delete): the office manager reads
   // billing and changes none of it, and was offered every button (lib/useMay.ts).
@@ -989,7 +992,7 @@ const BillingDashboard = () => {
         </div>
       </div>
 
-      {message && <div className="alert alert-success">{message}</div>}
+      {message && <div role={message.startsWith('✗') ? 'alert' : 'status'} className={`alert ${message.startsWith('✗') ? 'alert-error' : 'alert-success'}`}>{message}</div>}
 
       {/* Create Due Invoices results */}
       {dueResult && (
@@ -1052,12 +1055,17 @@ const BillingDashboard = () => {
                     <td><strong>{c.firstName} {c.lastName}</strong></td>
                     <td>{c.isPrivatePay ? 'Private Pay' : (c.payerName || '—')}</td>
                     <td>
-                      <select aria-label={`Billing frequency for ${c.firstName} ${c.lastName}`} value={c.billingFrequencyWeeks || ''} onChange={(e) => setClientFrequency(c.id, e.target.value)} disabled={!may.update}>
-                        <option value="">Manual only</option>
-                        <option value="1">Every week</option>
-                        <option value="2">Every 2 weeks</option>
-                        <option value="4">Every 4 weeks</option>
-                      </select>
+                      {/* PATCH …/billing-schedule asks care-billing:update: a seat without it (the Office Manager) reads the
+                          cadence and is offered no box — a disabled one was still changed and answered "Permission
+                          denied" (home care live role test 2026-10-24). */}
+                      {may.update
+                        ? <select aria-label={`Billing frequency for ${c.firstName} ${c.lastName}`} value={c.billingFrequencyWeeks || ''} onChange={(e) => setClientFrequency(c.id, e.target.value)}>
+                            <option value="">Manual only</option>
+                            <option value="1">Every week</option>
+                            <option value="2">Every 2 weeks</option>
+                            <option value="4">Every 4 weeks</option>
+                          </select>
+                        : <span>{FREQUENCY_WORDS[String(c.billingFrequencyWeeks || '')] ?? `Every ${c.billingFrequencyWeeks} weeks`}</span>}
                     </td>
                     <td>{c.billedThrough ? formatDate(c.billedThrough) : <span className="text-amber-800 dark:text-amber-300">no invoice yet — generate the first manually</span>}</td>
                     <td>{c.periodsDue > 0

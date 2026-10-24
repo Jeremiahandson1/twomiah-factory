@@ -28,7 +28,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
-import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer } from '@twomiah/tenant-backend'
+import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer, JOB_DISPATCH_PERMISSION, dispatchRefusal } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage, user } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
@@ -55,6 +55,8 @@ const REVIEW_STAGE = 'collected'
 // it. A roofing job could not be booked for a day and time at all (live test 2026-10-22).
 const DAY_FIELDS = ['dateOfLoss', 'scheduledDate'] as const
 const JOB_DATE_FIELDS = ['dateOfLoss', 'scheduledDate', 'inspectionDate', 'installDate', 'installEndDate'] as const
+/** What a Field seat may not change on its own job: who and when (tenant-backend jobs/dispatch.ts). */
+const ROOF_DISPATCH_FIELDS = ['assignedSalesRepId', 'assignedCrewId', 'scheduledDate', 'scheduledTime', 'inspectionDate', 'installDate', 'installEndDate'] as const
 const jobDates = (data: Record<string, any>, tz: string): { error?: string; values: Record<string, Date | null | undefined> } => {
   const values: Record<string, Date | null | undefined> = {}
   for (const f of JOB_DATE_FIELDS) {
@@ -420,6 +422,16 @@ export function createRoofJobRoutes(d: CrmDeps) {
     // could be set and never taken off. Present-and-empty means clear. (T63)
     for (const k of ['assignedSalesRepId', 'assignedCrewId', 'scheduledTime', 'totalSquares'] as const) {
       if (k in raw && (raw[k] === '' || raw[k] === null)) set[k] = null
+    }
+    // Who is on the job and when it is are jobs:dispatch; what it is worth is quotes:update — never jobs:update alone,
+    // which a Field seat holds to run its own work (tenant-backend jobs/dispatch.ts; HVAC live role test 2026-10-24).
+    // Compared with what the job has, so the form posting the whole record back unchanged is never refused.
+    const asText = (v: unknown) => (v instanceof Date ? String(v.getTime()) : v == null || v === '' ? '' : String(v))
+    const moved = ROOF_DISPATCH_FIELDS.filter((k) => k in set && asText(set[k]) !== asText((before as any)[k]))
+    if (moved.length && !(await mayDo(c, JOB_DISPATCH_PERMISSION))) return dispatchRefusal(c, moved)
+    const cents = (v: unknown) => (v == null || v === '' ? null : Math.round(Number(v) * 100))
+    if ('estimatedValue' in set && cents(set.estimatedValue) !== cents((before as any).estimatedValue) && !(await mayDo(c, 'quotes:update'))) {
+      return fail(c, 403, 'Changing what a job is worth needs the same right as pricing a quote. Ask a manager to change estimatedRevenue.', 'job_money_not_permitted')
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     // Moved to the last stage from the job's own form: the same ask as Advance (askForReview).

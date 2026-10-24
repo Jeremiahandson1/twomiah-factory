@@ -67,6 +67,8 @@ export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate,
   // Both writes here — re-timing (POST /api/jobs/retime) and putting jobs on the map (POST /api/day-route/locate) — ask
   // jobs:update on the server; the screen asks it too, beside what the page that opened this decided.
   const mayUpdateJobs = useMayWrite('jobs:update')
+  // New start times are the schedule's: jobs:dispatch (tenant-backend jobs/dispatch.ts), as POST /api/jobs/retime asks.
+  const mayDispatch = useMayWrite('jobs:dispatch')
   const [route, setRoute] = useState<DayRoute | null>(null)
   const [loading, setLoading] = useState(true)
   const [asking, setAsking] = useState(false)
@@ -148,7 +150,7 @@ export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate,
             )}
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={onClose}>Close</Button>
-              {mayRetime && mayUpdateJobs && changes.length > 0 && <Button onClick={() => setAsking(true)}><Route className="mr-1 inline h-4 w-4" />Re-time {changes.length} job{changes.length === 1 ? '' : 's'}</Button>}
+              {mayRetime && mayUpdateJobs && mayDispatch && changes.length > 0 && <Button onClick={() => setAsking(true)}><Route className="mr-1 inline h-4 w-4" />Re-time {changes.length} job{changes.length === 1 ? '' : 's'}</Button>}
             </div>
           </div>
         )}

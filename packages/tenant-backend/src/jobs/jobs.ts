@@ -28,6 +28,7 @@ import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from
 import { zipField } from '../address'
 import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 import { onJob } from './onJob'
+import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
@@ -190,6 +191,12 @@ export function createJobRoutes(deps: JobDeps) {
     if (!deps.canSee) return true
     const u = c.get('user') as any
     try { return await deps.canSee(u?.role, JOB_MONEY_PERMISSION, u?.userId) } catch { return true }
+  }
+  /** Who is on a job and when it is: jobs:dispatch (./dispatch.ts). Not wired → allowed, as maySetJobMoney. */
+  const mayDispatch = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return !!(await deps.canSee(u?.role, JOB_DISPATCH_PERMISSION, u?.userId)) } catch { return false }
   }
   /**
    * A job row (or rows) with the figures this person may not see taken off (./jobMoney.ts). Both the list and the
@@ -703,7 +710,7 @@ export function createJobRoutes(deps: JobDeps) {
    * moved together are left out of each other's check — they are laid end to end by the caller). jobs:update, as a drag
    * on the Schedule is; a seat that reads only its own jobs re-times only those.
    */
-  app.post('/retime', requirePermission('jobs:update'), async (c) => {
+  app.post('/retime', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const currentUser = (c as any).get('user')
     const body: any = await c.req.json().catch(() => null)
     const times: Array<{ id: string; scheduledTime: string }> | null = Array.isArray(body?.times) ? body.times : null
@@ -1006,6 +1013,23 @@ export function createJobRoutes(deps: JobDeps) {
       asked = read.people
     }
     const before = await othersOf(id)
+    /**
+     * `jobs:update` IS NOT PERMISSION TO DISPATCH THE JOB. (HVAC live role test 2026-10-24)
+     *
+     * A field seat runs its own work — status, notes, photos, the checklist — and that right let a technician PUT their
+     * job onto somebody else (a 200, and the job left their view) and move its day. Who does it and when are the
+     * office's: `jobs:dispatch` (managers and up hold it through jobs:*; field does not). Compared with what the job has,
+     * so the edit form posting the whole record back unchanged is never refused. Refused, with the fields, not dropped.
+     */
+    const sameDay = (v: unknown) => String(v).slice(0, 10) === (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : '')
+    const key = (p: Person | null) => (p ? personId(p) : '')
+    const dispatchTouched = [
+      ...(touchesAssignee && key(leadOf(who)) !== key(leadOf({ assignedToId: existing.assignedToId ?? null, assignedToMemberId: existing.assignedToMemberId ?? null })) ? ['assignedToId'] : []),
+      ...(touchesCrew && [...asked.map(key)].sort().join(',') !== [...before.map(key)].sort().join(',') ? ['otherAssigneeIds'] : []),
+      ...(data.scheduledDate !== undefined && !sameDay(data.scheduledDate ?? '') ? ['scheduledDate'] : []),
+      ...(data.scheduledTime !== undefined && String(data.scheduledTime ?? '') !== String(existing.scheduledTime ?? '') ? ['scheduledTime'] : []),
+    ]
+    if (dispatchTouched.length && !(await mayDispatch(c))) return dispatchRefusal(c, dispatchTouched, jobWord)
     const crew = settleCrew(leadOf(who), touchesCrew ? asked : before)
     const crewChanged = touchesCrew || touchesAssignee
     if (crewChanged) {

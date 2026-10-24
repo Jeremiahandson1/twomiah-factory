@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { JOB_DISPATCH_PERMISSION } from '@twomiah/tenant-backend'
 
 /** Only the named fields of `updates`, the ones a bulk change may set. */
 const pick = (updates: Record<string, any>, allowedFields: string[]) => {
@@ -68,7 +69,7 @@ export function createBulkRoutes(d: CrmDeps) {
   })
 
   // Jobs
-  app.post('/jobs/update', requirePermission('jobs:update'), async (c) => {
+  app.post('/jobs/update', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const user = c.get('user') as any
     const { ids, updates } = await c.req.json()
     if (!ids?.length) return noIds(c)
@@ -87,21 +88,21 @@ export function createBulkRoutes(d: CrmDeps) {
     return one(c, { deleted: count })
   })
 
-  app.post('/jobs/assign', requirePermission('jobs:update'), async (c) => {
+  app.post('/jobs/assign', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const user = c.get('user') as any
     const { ids, assignedToId } = await c.req.json()
     if (!ids?.length) return noIds(c)
     return one(c, { updated: await bulk.bulkAssignJobs(user.companyId, ids, assignedToId) })
   })
 
-  app.post('/jobs/reschedule', requirePermission('jobs:update'), async (c) => {
+  app.post('/jobs/reschedule', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const user = c.get('user') as any
     const { ids, scheduledDate } = await c.req.json()
     if (!ids?.length) return noIds(c)
     return one(c, { updated: await bulk.bulkRescheduleJobs(user.companyId, ids, scheduledDate) })
   })
 
-  app.post('/jobs/status', requirePermission('jobs:update'), async (c) => {
+  app.post('/jobs/status', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const user = c.get('user') as any
     const { ids, status } = await c.req.json()
     if (!ids?.length) return noIds(c)

@@ -23,7 +23,7 @@ export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : []
 /**
  * The shared menu items a roofer doesn't get, because roofing's own page is at that address (its pipeline is the home,
  * its jobs and reports pages are roofing's) — and the shared Reports item's `reports` feature and reports:read gate,
- * matched by path, would otherwise refuse roofing's Reports page, which asks jobs:read.
+ * matched by path, is roofing's own item's (it asks reports:read too).
  */
 export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
 

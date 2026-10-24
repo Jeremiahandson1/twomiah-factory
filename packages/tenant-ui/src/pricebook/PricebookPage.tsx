@@ -161,7 +161,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${marginOf(item) === null ? 'text-gray-500 dark:text-slate-400' : (marginOf(item) as number) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-200'}`}>{marginOf(item) === null ? '—' : `${item.margin}%`}</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
-              {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
+              {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {Number(item._count.goodBetterBest) === 1 ? (config?.tiersTitle || 'pricing tiers').replace(/s$/, '') : (config?.tiersTitle || 'pricing tiers')}</div>}
               {/* Showing it to a customer is reading the book, so no write permission is asked; the page refuses an
                   item that is retired or kept from customers, and the button isn't offered for one. */}
               {config?.present && item.active !== false && item.showToCustomer !== false && (
