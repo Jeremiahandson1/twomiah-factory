@@ -16,6 +16,9 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { phone } from '../validation.ts'
+import { loginsOn, setLoginsOn } from '../../crewLogins.ts'
+import { ownJobsWhere } from '../../ownWork.ts'
+import { canSeeWith } from '../../deps.ts'
 
 const crewSchema = z.object({
   name: z.string().min(1),
@@ -50,7 +53,9 @@ export function createCrewRoutes(d: CrmDeps) {
         .groupBy(job.assignedCrewId)
       : []
     const byCrew = new Map(counts.map((r: any) => [r.crewId, Number(r.n)]))
-    const rows = crews.map((r: any) => ({ ...r, activeJobCount: byCrew.get(r.id) ?? 0 }))
+    // …and the logins on each crew (crew_login): whose phones the crew's jobs reach (2026-10-24).
+    const logins = await loginsOn(db, companyId, 'crewId', crews.map((r: any) => r.id))
+    const rows = crews.map((r: any) => ({ ...r, activeJobCount: byCrew.get(r.id) ?? 0, logins: logins[r.id] || [] }))
     return listAll(c, rows)
   })
 
@@ -68,11 +73,15 @@ export function createCrewRoutes(d: CrmDeps) {
     const id = c.req.param('id')
     const found = await ownCrew(companyId, id)
     if (!found) return fail(c, 404, 'Crew not found')
+    // A seat without jobs:read-all is shown only its own of the crew's jobs (crew scope; ownWork.ts).
+    const u = c.get('user')
+    let all = false
+    try { all = !!(await canSeeWith(d.permissions)(u.role, 'jobs:read-all', u.userId)) } catch { all = false }
     const activeJobs = await db.select({
       id: job.id, number: job.number, jobType: job.jobType, status: job.status,
       address: job.address, city: job.city, state: job.state, installDate: job.installDate,
-    }).from(job).where(and(eq(job.assignedCrewId, id), eq(job.companyId, companyId), notInArray(job.status, ACTIVE_EXCLUDES))).orderBy(desc(job.createdAt), desc(job.id))
-    return one(c, { ...found, activeJobs })
+    }).from(job).where(and(eq(job.assignedCrewId, id), eq(job.companyId, companyId), notInArray(job.status, ACTIVE_EXCLUDES), all ? undefined : ownJobsWhere(db, String(u.userId)))).orderBy(desc(job.createdAt), desc(job.id))
+    return one(c, { ...found, activeJobs, logins: (await loginsOn(db, companyId, 'crewId', [id]))[id] || [] })
   })
 
   app.put('/:id', requirePermission('crews:update'), async (c) => {
@@ -84,6 +93,16 @@ export function createCrewRoutes(d: CrmDeps) {
     const [updated] = await db.update(crew).set({ ...parsed.data, updatedAt: new Date() } as any)
       .where(and(eq(crew.id, id), eq(crew.companyId, companyId))).returning()
     return one(c, updated)
+  })
+
+  // PUT /:id/logins — exactly these logins are on the crew ({ userIds }); each then reads the crew's jobs as its own.
+  app.put('/:id/logins', requirePermission('crews:update'), async (c) => {
+    const { companyId } = c.get('user')
+    const id = c.req.param('id')
+    if (!(await ownCrew(companyId, id))) return fail(c, 404, 'Crew not found')
+    const error = await setLoginsOn(db, companyId, 'crewId', id, await c.req.json().catch(() => null))
+    if (error) return fail(c, 400, error)
+    return one(c, { crewId: id, logins: (await loginsOn(db, companyId, 'crewId', [id]))[id] || [] })
   })
 
   app.delete('/:id', requirePermission('crews:delete'), async (c) => {

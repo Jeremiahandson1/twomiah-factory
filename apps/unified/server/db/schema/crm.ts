@@ -607,6 +607,25 @@ export const teamMember = pgTable('team_member', {
   index('team_member_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A login on a crew: a roofing crew (`crew`) or a roster crew (`team_member`), exactly one per row. A seat without
+ * jobs:read-all reads the jobs assigned to its crews as its own (server/crm/ownWork.ts). Crews carried a foreman's name
+ * and no login, so a crew's work could not reach anyone's phone (crew scope, 2026-10-24).
+ */
+export const crewLogin = pgTable('crew_login', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  crewId: text('crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'cascade' }),
+  teamMemberId: text('team_member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('crew_login_company_id_idx').on(t.companyId),
+  index('crew_login_user_id_idx').on(t.userId),
+  uniqueIndex('crew_login_crew_user_idx').on(t.crewId, t.userId),
+  uniqueIndex('crew_login_member_user_idx').on(t.teamMemberId, t.userId),
+])
+
 export const userSettings = pgTable('user_settings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),

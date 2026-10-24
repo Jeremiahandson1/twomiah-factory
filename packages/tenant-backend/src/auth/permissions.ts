@@ -351,7 +351,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // Sees the bookings (their day); changing them is the office's. (2026-10-18)
     'bookings:read',
     // Everyone's jobs, customers and bookings, not only the ones assigned to them. Every vertical's field seat keeps
-    // these; one that runs Jobber's rule (a crew sees its own work) withholds them — landscaping does (2026-10-24).
+    // these; one that runs Jobber's rule (a crew sees its own work) withholds them — every job trade does (unified
+    // CREW_SCOPE_WITHHELD, 2026-10-24).
     'jobs:read-all', 'contacts:read-all', 'bookings:read-all',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',

@@ -847,6 +847,34 @@ ADAPT['roof/t41-roof-money.test.ts'].push(
   ['Number(row?.estimated_revenue) === 48500', 'Number(row?.estimated_value) === 48500', RF_EST],
 )
 
+// Crew scope (2026-10-24): every job trade's field seat reads the jobs assigned to it and its crews, and the customers on
+// them (jobs:read-all / contacts:read-all withheld). Where a template suite's field seat reads a job or customer, the copy
+// gives the seat that work — assigned to it, or the seat put on the job's crew — so the check still asks its own question.
+const CREW_SCOPE = "crew scope: the field seat reads its own and its crews' jobs and their customers (apps/unified/tests/crew-scope.test.ts), so the seat is given this work"
+ADAPT['crm/t32-contact-merge.test.ts'] = [
+  ["  const byField = await api('POST', `/api/contacts/${keeper.id}/merge`, { duplicateId: dup.id }, field)", "  await db.insert(job).values({ companyId: co.id, number: 'JOB-UNI-CS', title: 'Crew scope', status: 'scheduled', contactId: keeper.id, assignedToId: field.id } as any)\n  const byField = await api('POST', `/api/contacts/${keeper.id}/merge`, { duplicateId: dup.id }, field)", CREW_SCOPE + ' (the customer is on its job, so the merge reaches the contacts:delete refusal)'],
+  ["check('a field user, who has contacts:read only, is refused (403)', byField.status === 403, { status: byField.status, body: byField.text?.slice(0, 160) })", "check('a field user, who has contacts:read only, is refused (403)', byField.status === 403, { status: byField.status, body: byField.text?.slice(0, 160) })\n  await db.delete(job).where(eq(job.number, 'JOB-UNI-CS'))", 'the job made for the crew-scope check is gone again before the merges that count jobs'],
+]
+ADAPT['crm/t32-mediums-money-auth.test.ts'] = [
+  ["title: 'Deck rebuild', contactId: client.id, projectId: proj.id, estimatedValue: 11_183,", "title: 'Deck rebuild', contactId: client.id, projectId: proj.id, estimatedValue: 11_183, assignedToId: tech.id,", CREW_SCOPE],
+]
+ADAPT['fieldservice/t30-jobs-permissions.test.ts'] = [
+  ["title: 'Seeded', status: 'scheduled', contactId: cust.id, companyId: co.id,", "title: 'Seeded', status: 'scheduled', contactId: cust.id, companyId: co.id, assignedToId: staff.id,", CREW_SCOPE],
+]
+ADAPT['fieldservice/t41-agreement-money.test.ts'] = [
+  ["status: 'scheduled', scheduledDate: today, estimatedValue: '11183.00',", "status: 'scheduled', scheduledDate: today, estimatedValue: '11183.00', assignedToId: tech.id,", CREW_SCOPE],
+]
+ADAPT['fieldservice/t62-contact-relations.test.ts'] = [
+  ["number: 'JOB-T62-1', title: 'Annual service', status: 'scheduled' }", "number: 'JOB-T62-1', title: 'Annual service', status: 'scheduled', assignedToId: tech.id }", CREW_SCOPE],
+]
+ADAPT['roof/t41-roof-money.test.ts'].push(
+  ["const { company, user, contact, job, crew, invoice, quote, material } = await import('./db/schema.ts')", "const { company, user, contact, job, crew, invoice, quote, material, crewLogin } = await import('./db/schema.ts')", 'crew_login: the logins on a crew'],
+  ['const [jobB] = await db.insert(job).values({', "await db.insert(crewLogin).values({ companyId: co.id, userId: fieldUser.id, crewId: cr.id } as any)\nconst [jobB] = await db.insert(job).values({", CREW_SCOPE + ': the crew lead is put on the crew both jobs are assigned to'],
+)
+ADAPT['roof/t62-measurement-cost.test.ts'].push(
+  ['measurementReportId: rep.id }', 'measurementReportId: rep.id, assignedToId: crew.id }', CREW_SCOPE],
+)
+
 for (const [key, changes] of Object.entries(ADAPT)) {
   const [suite, file] = key.split('/')
   const OUT = ROOT + 'tests/unified/' + suite + '/'

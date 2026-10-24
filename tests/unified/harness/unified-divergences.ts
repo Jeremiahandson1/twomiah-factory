@@ -19,6 +19,15 @@ const WEBHOOK_REPLACED: Divergence = {
   heldBy: 'apps/unified/tests/site-routes.test.ts (an enquiry lands in the Lead Inbox as new with it on, as a lead contact with it off)',
 }
 
+/**
+ * Crew scope (2026-10-24): every job trade's field seat reads the jobs assigned to it and to its crews, and the customers
+ * on them (jobs:read-all / contacts:read-all withheld per vertical), so a job or customer that is not its own answers 404.
+ */
+const CREW_SCOPE = (what: string, heldBy: string): Divergence => ({
+  why: `The template's field seat reads every job and customer; the unified one reads its own and its crews' (Jobber's rule, owner's decision 2026-10-24), and the seat here was never given the work it reads. What it guards: ${what}.`,
+  heldBy,
+})
+
 /** The store's single-business template shape (no company, `users`, store_settings as the business), replaced in the unified app. */
 const STORE_SHAPES = (heldBy: string): Divergence => ({
   why: "Seeds the store template's single-business tables: `users` with one `name` (the unified `user` has first and last), the shop's name and support email on store_settings (the company row's — decision 1), loyalty members by email (by contact — decision 2); and reads the template's reply shapes (RULEBOOK §3).",
@@ -331,8 +340,21 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       heldBy: "apps/unified/tests/document-links.test.ts (19: every trade's email carries the link with no portal, approve with signature and audit, decline, expiry, one document only, Quotes off closes it)",
     },
   },
+  // Field service's adapted copies (tests/unified/fieldservice, run by adapted.ts).
+  'fieldservice-adapted': {
+    't30-search-money.test.ts': {
+      assertions: [/^the customer is still findable/, /^…and the service call is too/, /^…and still returns the contact/, /^…with the contact and the job they need/],
+      why: "Crew scope (2026-10-24): the search box searches every customer and job, so it asks contacts:read-all / jobs:read-all, which a technician no longer holds; its own work is on its job list. The money half still passes in this copy.",
+      heldBy: "apps/unified/tests/landscaping-retest-1024.test.ts (a crew seat's search does not reach other customers) and apps/unified/tests/crew-scope.test.ts (its own and its crews' jobs and customers)",
+    },
+  },
   // Roofing's adapted copies (tests/unified/roof, run by adapted.ts).
   'roof-adapted': {
+    't63-my-jobs.test.ts': {
+      assertions: [/^…and without it, every job \(staff see all jobs/],
+      why: "Superseded (2026-10-24, crew scope): roofing's Field seat reads the jobs it is on — assigned, the sales rep, or its crew's — not every job (T63's \"staff see all jobs\" was the owner's decision then). My jobs (?mine=1) still passes.",
+      heldBy: "apps/unified/tests/crew-scope.test.ts (roofing: the Field login reads its rep job and its crew's job, not another)",
+    },
     't43-roof-write-controls.test.ts': {
       assertions: [
         /^T42: the crew seat may NOT ask a customer for a review — it reached this handler before$/, /^…and the refusal names marketing:create$/,
@@ -411,10 +433,13 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   },
   fieldservice: {
     't30-search-money.test.ts': {
-      assertions: [/^…and still returns the contact/, /^…with the contact and the job they need/],
-      why: 'Quick search and Recent are list replies; the test reads a bare array or { results }.',
-      heldBy: 'tests/unified/fieldservice/t30-search-money.test.ts',
+      assertions: [/^…and still returns the contact/, /^…with the contact and the job they need/, /^the customer is still findable/, /^…and the service call is too/],
+      why: "Quick search and Recent are list replies; the test reads a bare array or { results }. And crew scope (2026-10-24): the search box searches every customer and job, so it asks contacts:read-all / jobs:read-all, which a technician no longer holds — it finds its own work on its job list, not by searching the whole book. The money half (no invoice or quote rows for a technician) still passes.",
+      heldBy: 'tests/unified/fieldservice/t30-search-money.test.ts (the money half) and apps/unified/tests/landscaping-retest-1024.test.ts (a crew seat’s search does not reach other customers)',
     },
+    't30-jobs-permissions.test.ts': CREW_SCOPE('a technician opens, updates, starts and completes its job but may not delete it', 'tests/unified/fieldservice/t30-jobs-permissions.test.ts (the same file, the seeded jobs assigned to the staff seat)'),
+    't41-agreement-money.test.ts': CREW_SCOPE('a technician reads its job without the money', 'tests/unified/fieldservice/t41-agreement-money.test.ts (the same file, the job assigned to the technician)'),
+    't62-contact-relations.test.ts': CREW_SCOPE('a technician opens a customer with its jobs but no quotes or invoices', 'tests/unified/fieldservice/t62-contact-relations.test.ts (the same file, the job assigned to the technician)'),
     't32-job-costing.test.ts': {
       assertions: [/^this template really has no vendor_bill table/, /^…and reconciles with the roll-up above it/],
       why: "The first asserts the template's own schema has no bills table (the unified schema has it for every vertical; with none recorded the costing is the same); the second reads by-category as a bare array.",
@@ -429,6 +454,13 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     't59-new-leads-inbox-off.test.ts': WEBHOOK_REPLACED,
   },
   crm: {
+    // The whole file: it prints its own summary on a FAIL line, so one named assertion cannot be matched alone. The one
+    // that fails is 'a field user, who has contacts:read only, is refused (403)' (404: the contact is not on its jobs).
+    't32-contact-merge.test.ts': { ...CREW_SCOPE('a merge asks contacts:delete; a field seat is refused', 'tests/unified/crm/t32-contact-merge.test.ts (the same file, the contact on a job of the field seat: 403)') },
+    't32-mediums-money-auth.test.ts': {
+      assertions: [/^field cannot reprice a job/, /^…and the refusal names the field/, /^field CAN still run the work/, /^…the note saved/, /^…and the status moved/, /^…and re-sending the UNCHANGED value is not a refusal/],
+      ...CREW_SCOPE('jobs:update is not permission to reprice a job; a technician still runs its work', 'tests/unified/crm/t32-mediums-money-auth.test.ts (the same file, the job assigned to the technician)'),
+    },
     't68-open-writes.test.ts': {
       assertions: [/^(viewer|crew): a Wisetack application is refused/, /^(viewer|crew): a financing application is refused/],
       why: "Consumer Financing was rebuilt (batch 2, fix-i): the template's guessed lender doors, POST /api/wisetack/applications and POST /api/financing/apply, are gone. An application is opened on its quote or invoice, POST /api/financing/:kind/:id/applications, asking financing:create (not invoices:create), behind consumer_financing. The rule held is the same: a viewer and a crew seat may not open one.",

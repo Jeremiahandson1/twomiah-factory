@@ -43,13 +43,24 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   // What this vertical calls the work a member holds. A contractor holds jobs, a stylist holds appointments —
   // this page used to tell a salon its stylist's "jobs" would be left unassigned. (Salon T27 N14)
   const [workLabel, setWorkLabel] = useState({ one: 'job', many: 'jobs' })
+  /**
+   * The logins on each roster crew, and the logins that can be put on one (config.crewLogins): a crew's jobs reach the
+   * phones of the logins on it (crew scope, 2026-10-24). Set by whoever may edit the roster (team:update, as the server).
+   */
+  const crewLogins = !!config?.crewLogins
+  const [linked, setLinked] = useState<Record<string, Array<{ id: string; name: string }>>>({})
+  const [logins, setLogins] = useState<Array<{ id: string; name: string }>>([])
+  const [pickedLogins, setPickedLogins] = useState<string[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { const res = await api.get('/api/team', { page, limit: 25 }); setData(res?.data || []); setPagination(res?.pagination || null); if (res?.workLabel?.one) setWorkLabel(res.workLabel) }
+    try {
+      const res = await api.get('/api/team', { page, limit: 25 }); setData(res?.data || []); setPagination(res?.pagination || null); if (res?.workLabel?.one) setWorkLabel(res.workLabel)
+      if (crewLogins) { const l = await api.get('/api/team/logins').catch(() => null); setLinked(Object.fromEntries((l?.data || []).map((r: any) => [r.teamMemberId, r.logins || []]))) }
+    }
     catch (e) { toast.error(errMsg(e, 'Failed to load team')) }
     finally { setLoading(false) }
-  }, [api, page])
+  }, [api, page, crewLogins])
   useEffect(() => { load() }, [load])
 
   const fromLogins = data.length > 0 && data.every((m) => m._source === 'user')
@@ -65,8 +76,11 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
       // this tenant with no way to hold a pay rate. Saving one creates their roster card instead: the roster
       // is "the people you schedule and pay", the user row is the login, and the list matches the two by
       // email so they stop appearing twice. (Contractor T29 M2)
-      if (editing && editing._source !== 'user') { await api.put(`/api/team/${editing.id}`, payload); toast.success('Team member updated') }
-      else { await api.post('/api/team', payload); toast.success(editing ? `${payload.name} added to the roster` : 'Team member added') }
+      let savedId: string | undefined
+      if (editing && editing._source !== 'user') { await api.put(`/api/team/${editing.id}`, payload); savedId = editing.id; toast.success('Team member updated') }
+      else { const made = await api.post('/api/team', payload); savedId = made?.id; toast.success(editing ? `${payload.name} added to the roster` : 'Team member added') }
+      // The logins on this crew, when the roster takes them and the person may edit it (team:update on the server too).
+      if (crewLogins && mayEditRoster && savedId) await api.put(`/api/team/${savedId}/logins`, { userIds: pickedLogins })
       setModalOpen(false); load()
     } catch (e) { setFormError(errMsg(e, 'Failed to save team member')) }
     finally { setSaving(false) }
@@ -83,10 +97,14 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     }
     catch (e) { toast.error(errMsg(e, 'Failed to remove team member')) }
   }
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setFormError(''); setModalOpen(true) }
+  const loadLogins = () => {
+    if (!crewLogins || !mayEditRoster) return
+    api.get('/api/team/assignable').then((r: any) => setLogins((r?.data || []).filter((u: any) => u.kind === 'user').map((u: any) => ({ id: u.id, name: u.name })))).catch(() => setLogins([]))
+  }
+  const openCreate = () => { setEditing(null); setForm(EMPTY); setPickedLogins([]); loadLogins(); setFormError(''); setModalOpen(true) }
   // A login row's `role` is their PERMISSION role (owner, field), not a trade — so it is not carried into the
   // Job Title field, which would suggest "field" is what they do. Everything else comes across. (T29 M2)
-  const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate), locationId: m.locationId || '' }); setFormError(''); setModalOpen(true) }
+  const openEdit = (m: Member) => { setEditing(m); setPickedLogins(m._source === 'user' ? [] : (linked[m.id] || []).map((l) => l.id)); loadLogins(); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate), locationId: m.locationId || '' }); setFormError(''); setModalOpen(true) }
 
   const columns = [
     // The badge says "this person can sign in", so it follows the login — not which table the row came from.
@@ -99,6 +117,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'department', label: 'Department', render: (v: any) => v || '-' },
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
+    // Who signs in as this crew: its jobs are on their phones (crew scope).
+    ...(crewLogins ? [{ key: 'crewLogins', label: 'Crew logins', render: (_v: any, row: Member) => (row._source === 'user' ? '-' : (linked[row.id] || []).map((l) => l.name).join(', ') || '-') }] : []),
     // a rate is money: 28.5 is $28.50 an hour (T14 L2)
     { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `${money(Number(v))}/hr` : '-') },
     // "Invite sent" until their login is taken up — the server's word (team.ts), the same as Settings › Users.
@@ -159,6 +179,21 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
           <Field label="Phone"><input value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>}
           <Field label="Hourly Rate"><input type="number" min="0" step="0.01" value={form.hourlyRate} onChange={set('hourlyRate')} className={inputCls} /></Field>
+          {crewLogins && mayEditRoster && editing?._source !== 'user' && (
+            <Field label="Logins on this crew">
+              <p className="mb-2 text-xs text-gray-500 dark:text-slate-400">Each login ticked here sees this crew's jobs on its own list and phone.</p>
+              {logins.length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400">No logins can be put on a crew yet.</p> : (
+                <div className="max-h-40 space-y-1 overflow-y-auto" data-testid="crew-logins">
+                  {logins.map((l) => (
+                    <label key={l.id} className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
+                      <input type="checkbox" checked={pickedLogins.includes(l.id)} onChange={(e) => setPickedLogins((p) => e.target.checked ? [...p, l.id] : p.filter((x) => x !== l.id))} />
+                      {l.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </Field>
+          )}
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

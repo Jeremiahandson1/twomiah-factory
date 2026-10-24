@@ -2,7 +2,7 @@
 // customer's property, equipment, recurring service agreements, crews texted on their way — with its own modules: the
 // weekly Route Board, area-based pricing and snow & ice contracts (server/crm/landscaping).
 import type { StarterContent } from '../../server/core/starter.ts'
-import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other']
 
@@ -43,7 +43,7 @@ const landscaping: VerticalSettings = {
   extraRolePermissions: { field: ['sms:send'] },
   // Jobber's rule: a crew login sees the jobs assigned to it, the customers on those jobs and its own bookings — not the
   // whole business (live retest, 2026-10-24: a crew seat was shown every job and every customer's name).
-  withheldRolePermissions: { field: ['jobs:read-all', 'contacts:read-all', 'bookings:read-all'] },
+  withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
@@ -108,7 +108,8 @@ const landscaping: VerticalSettings = {
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: { jobLabel: 'Service Visit' },
     expenses: { jobLabel: 'Service Visit' },
-    team: { rolePlaceholder: 'e.g. Crew Lead' },
+    // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
+    team: { rolePlaceholder: 'e.g. Crew Lead', crewLogins: true },
     agreements: { recurrence: true, planNamePlaceholder: 'e.g., Weekly mowing plan' },
     fleet: { gps: true },
     // A grounds crew's stock, not an HVAC van's (T63). Any category already stored on a part is still offered.

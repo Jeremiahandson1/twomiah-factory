@@ -36,7 +36,12 @@ interface Crew {
   activeJobs?: CrewJob[]
   /** Jobs assigned to the crew and not finished or closed (GET /api/crews). */
   activeJobCount?: number
+  /** The logins on the crew (crew_login): each reads the crew's jobs as its own. */
+  logins?: Array<{ id: string; name: string }>
 }
+
+interface Login { id: string; firstName?: string | null; lastName?: string | null; email?: string | null; role?: string | null; isActive?: boolean | null }
+const loginName = (u: Login) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Login'
 
 interface CrewForm { name: string; foremanName: string; foremanPhone: string; crewSize: string; isSubcontractor: boolean }
 
@@ -75,6 +80,17 @@ export default function CrewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<CrewForm>(EMPTY_FORM)
+  /**
+   * Who signs in as this crew (PUT /api/crews/:id/logins, crews:update — the Edit button's own permission): a Field
+   * login on a crew sees the crew's jobs as its own (crew scope, 2026-10-24). The people are GET /api/company/users,
+   * which a seat holding crews:update (manager and up) reads.
+   */
+  const [people, setPeople] = useState<Login[]>([])
+  const [picked, setPicked] = useState<string[]>([])
+  const loadPeople = () => {
+    // A bare array (the company module's GET /users), read as a list too.
+    api.get('/api/company/users').then((r: unknown) => setPeople((Array.isArray(r) ? (r as Login[]) : listOf<Login>(r)).filter((u) => u.isActive !== false && u.role !== 'viewer'))).catch(() => setPeople([]))
+  }
 
   const load = useCallback(async () => {
     try {
@@ -90,9 +106,11 @@ export default function CrewsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setModalOpen(true) }
+  const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setPicked([]); loadPeople(); setModalOpen(true) }
   const openEdit = (crew: Crew) => {
     setEditingId(crew.id)
+    setPicked((crew.logins || []).map((l) => l.id))
+    loadPeople()
     setForm({
       name: crew.name || '', foremanName: crew.foremanName || '', foremanPhone: crew.foremanPhone || '',
       crewSize: crew.size != null ? String(crew.size) : '', isSubcontractor: !!crew.isSubcontractor,
@@ -119,8 +137,10 @@ export default function CrewsPage() {
         name: form.name, foremanName: form.foremanName, foremanPhone: form.foremanPhone,
         size: form.crewSize ? Number(form.crewSize) : null, isSubcontractor: form.isSubcontractor,
       }
+      let savedId = editingId
       if (editingId) await api.put(`/api/crews/${encodeURIComponent(editingId)}`, body)
-      else await api.post('/api/crews', body)
+      else savedId = ((await api.post('/api/crews', body)) as { id?: string } | null)?.id || null
+      if (savedId && mayEditCrew) await api.put(`/api/crews/${encodeURIComponent(savedId)}/logins`, { userIds: picked })
       setModalOpen(false)
       setForm(EMPTY_FORM)
       setEditingId(null)
@@ -195,6 +215,9 @@ export default function CrewsPage() {
                       <span>{crew.foremanPhone}</span>
                     </a>
                   )}
+                  {(crew.logins || []).length > 0 && (
+                    <p className="text-xs text-gray-600 dark:text-slate-300" data-testid="crew-login-names">Logins: {(crew.logins || []).map((l) => l.name).join(', ')}</p>
+                  )}
                   <div className="flex items-center gap-4 pt-2 border-t text-gray-500 dark:text-slate-400">
                     <span className="flex items-center gap-1">
                       <Users className="w-3.5 h-3.5" />
@@ -263,6 +286,21 @@ export default function CrewsPage() {
                 <input type="checkbox" checked={form.isSubcontractor} onChange={(e) => setForm({ ...form, isSubcontractor: e.target.checked })} className="rounded" />
                 Subcontractor
               </label>
+              {mayEditCrew && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1 dark:text-slate-400">Logins on this crew — each sees the crew's jobs as its own</p>
+                  {people.length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400">No logins to choose from.</p> : (
+                    <div className="max-h-40 space-y-1 overflow-y-auto" data-testid="crew-logins">
+                      {people.map((u) => (
+                        <label key={u.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                          <input type="checkbox" className="rounded" checked={picked.includes(u.id)} onChange={(e) => setPicked((p) => e.target.checked ? [...p, u.id] : p.filter((x) => x !== u.id))} />
+                          {loginName(u)}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
