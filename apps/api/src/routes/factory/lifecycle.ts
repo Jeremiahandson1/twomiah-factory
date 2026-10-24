@@ -1,6 +1,6 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure, ensureAdsTenant } from '../../services/deploy'
-import factoryStripe from '../../services/factoryStripe'
+import factoryStripe, { subscriptionCharge } from '../../services/factoryStripe'
 import { buildTenantSubscription, TENANT_SUBSCRIPTION_COLUMNS, pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { deleteZip } from '../../services/factoryStorage'
 import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../../services/email'
@@ -143,7 +143,9 @@ factory.get('/customers/:id/subscription', async (c) => {
     // sent every tenant chasing its sync key when the key was fine.
     if (error && error.code !== 'PGRST116') { console.error('[Subscription] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
-    return c.json(buildTenantSubscription(tenant))
+    // What the business is really charged (list price, the running discount, the last invoice) — read from Stripe on a
+    // pull only, so the Billing page shows a promotion code's price instead of the list price (live retest, 2026-10-24).
+    return c.json({ ...buildTenantSubscription(tenant), charge: await subscriptionCharge(tenant.stripe_subscription_id) })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

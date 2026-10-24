@@ -328,6 +328,8 @@ function PartFormModal({ part, onSave, onClose }: {
     unit: part?.unit || 'each',
     reorderPoint: part?.reorderPoint ? String(part.reorderPoint) : '',
     vendor: part?.vendor || '',
+    // A new part only: how many are on hand now, stocked at the default location (made when there is none). Blank = none.
+    startingQuantity: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -338,12 +340,12 @@ function PartFormModal({ part, onSave, onClose }: {
       // A seat without margin:read was never sent the cost, so its blank box is "not shown", not "zero" — the server
       // reads a sent '' as 0, and an edit would have wiped the part's cost. Left out unless they typed one.
       const costHidden = !!part && part.unitCost === undefined && form.unitCost === '';
-      const { unitCost, ...rest } = form;
+      const { unitCost, startingQuantity, ...rest } = form;
       const payload = costHidden ? rest : { ...rest, unitCost };
       if (part) {
         await api.put(`/api/inventory/items/${part.id}`, payload);
       } else {
-        await api.post('/api/inventory/items', payload);
+        await api.post('/api/inventory/items', startingQuantity.trim() ? { ...payload, startingQuantity: Number(startingQuantity) } : payload);
       }
       onSave();
     } catch (error) {
@@ -456,6 +458,22 @@ function PartFormModal({ part, onSave, onClose }: {
               </div>
               {/* No Location box: an item has no location field — the server dropped what was typed here. Stock is
                   held at inventory locations (the table's Location column lists them). */}
+              {!part && (
+                <div>
+                  <label htmlFor="part-starting-qty" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Quantity on hand (optional)</label>
+                  <input
+                    id="part-starting-qty"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.startingQuantity}
+                    onChange={(e) => setForm({ ...form, startingQuantity: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Stocked at your first stock location, or a new "Main stock" if you have none.</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Vendor</label>
                 <input

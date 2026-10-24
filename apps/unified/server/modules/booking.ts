@@ -87,10 +87,19 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.get('/zones', may('bookings:read'), async (c) => { const rows = await engine.listZones(co(c)); return listAll(c, rows) })
   admin.put('/zones/:userId', may('bookings:settings'), (c) => guard(c, async () => { const z = await engine.setZone(co(c), c.req.param('userId'), (await body(c)).zips); return z ? one(c, z) : done(c) }))
 
+  /**
+   * Whose bookings this seat reads: everyone's with bookings:read-all, else the ones assigned to them — a landscaping crew
+   * login read the whole book (live retest, 2026-10-24; verticals/landscaping/settings.ts withholds it). null = all.
+   */
+  const onlyAssignedTo = async (c: Context<AppEnv>): Promise<string | null> => {
+    const u = c.get('user')
+    return permissions.hasPermission(u.role, 'bookings:read-all', await permissions.getExtraPermissions(u.userId)) ? null : String(u.userId)
+  }
   admin.get('/bookings', may('bookings:read'), async (c) => {
     const p = pageOf(c)
     const q = c.req.query()
-    const { rows, total } = await engine.listBookings(co(c), { ...p, from: q.from ? new Date(q.from) : undefined, to: q.to ? new Date(q.to) : undefined, status: q.status, assignedUserId: q.assignedUserId, contactId: q.contactId, seriesId: q.seriesId })
+    const mine = await onlyAssignedTo(c)
+    const { rows, total } = await engine.listBookings(co(c), { ...p, from: q.from ? new Date(q.from) : undefined, to: q.to ? new Date(q.to) : undefined, status: q.status, assignedUserId: mine ?? q.assignedUserId, contactId: q.contactId, seriesId: q.seriesId })
     return list(c, rows, { ...p, total })
   })
   /** Free times for staff: the same answer customers get, for any active service, by id. */
@@ -109,7 +118,8 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   }))
   admin.get('/bookings/:id', may('bookings:read'), async (c) => {
     const b = await engine.getBooking(co(c), c.req.param('id'))
-    return b ? one(c, await engine.withNames(b)) : fail(c, 404, 'Booking not found')
+    const mine = await onlyAssignedTo(c)
+    return b && (mine === null || b.assignedUserId === mine) ? one(c, await engine.withNames(b)) : fail(c, 404, 'Booking not found')
   })
   /** Move it (date + time), change its status, or edit its details — one at a time, each with its own rules. */
   admin.patch('/bookings/:id', may('bookings:update'), (c) => guard(c, async () => {

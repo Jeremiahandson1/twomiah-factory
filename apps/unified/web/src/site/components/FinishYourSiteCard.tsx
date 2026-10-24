@@ -24,17 +24,34 @@ const HOW: Record<string, { text: string; to: string }> = {
   pricing: { text: 'Add prices to the service descriptions, or answer "what does it cost" in an FAQ section.', to: '/crm/website/pages' },
 }
 
+/**
+ * Items the site itself can answer, read from what is really there rather than from a tick: the photos item said
+ * "Done" while Photos said "No photos yet" (landscaping live retest, 2026-10-24). Each answers how far along it is and
+ * whether it is met; the owner cannot tick one of these off by hand.
+ */
+const PHOTOS_WANTED = 3
+type Measured = Record<string, { met: boolean; progress: string }>
+
 export function FinishYourSiteCard() {
   const [gaps, setGaps] = useState<Gap[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [measured, setMeasured] = useState<Measured>({})
 
   useEffect(() => {
     api.get('/api/site/settings')
       .then((site: { contentGaps?: Gap[] }) => setGaps(Array.isArray(site?.contentGaps) ? site.contentGaps : []))
       .catch(() => { /* the checklist is optional — never block the pages list */ })
+    // The website's own photo library (public photos), counted by the server.
+    api.get('/api/site/photos', { limit: 1 })
+      .then((r: { pagination?: { total?: number } }) => {
+        const n = Number(r?.pagination?.total) || 0
+        setMeasured((m) => ({ ...m, photos: { met: n >= PHOTOS_WANTED, progress: n === 0 ? 'No photos yet' : `${n} of ${PHOTOS_WANTED} photos` } }))
+      })
+      .catch(() => { /* unknown: the item stays as the owner left it */ })
   }, [])
 
-  const open = gaps.filter(g => !g.done)
+  // A measured item is open until the site really has it, whatever its tick says; the rest follow the owner's tick.
+  const open = gaps.filter(g => (measured[g.id] ? !measured[g.id].met : !g.done))
   if (open.length === 0) return null
 
   const markDone = async (id: string) => {
@@ -66,16 +83,20 @@ export function FinishYourSiteCard() {
               <div className="flex-1">
                 <div className="text-sm text-ink font-semibold">{g.label}</div>
                 <div className="text-sm text-ink-soft">{g.unlocks}</div>
+                {measured[g.id] && <div className="text-xs font-semibold text-ink mt-1">{measured[g.id].progress}</div>}
                 {how && (
                   <div className="text-xs text-muted mt-1">
                     {how.text} <Link to={how.to} className="underline text-ink">Go there</Link>
                   </div>
                 )}
               </div>
-              <button onClick={() => markDone(g.id)} className="btn-secondary btn-sm inline-flex items-center gap-1 flex-shrink-0">
-                <Check className="w-3.5 h-3.5" />
-                Done
-              </button>
+              {/* "Mark done", not "Done": a bare "Done" beside an item read as its status. A measured item has no tick. */}
+              {!measured[g.id] && (
+                <button onClick={() => markDone(g.id)} className="btn-secondary btn-sm inline-flex items-center gap-1 flex-shrink-0">
+                  <Check className="w-3.5 h-3.5" />
+                  Mark done
+                </button>
+              )}
             </li>
           )
         })}

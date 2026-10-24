@@ -9,4 +9,6 @@ export interface FleetConfig {
   /** Live GPS map (leaflet) + real trips (fs / landscaping). Default false → placeholder map. */
   gps?: boolean
 }
-export interface FleetPageProps { api: FleetApi; config?: FleetConfig }
+/** The app's toasts. A saved service closed its dialog with no word (landscaping live retest, 2026-10-24). */
+export interface FleetToast { success: (message: string) => void; error: (message: string) => void }
+export interface FleetPageProps { api: FleetApi; config?: FleetConfig; toast?: FleetToast }

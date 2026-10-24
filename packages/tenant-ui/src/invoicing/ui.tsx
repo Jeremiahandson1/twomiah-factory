@@ -328,6 +328,20 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
   )
   const [menu, setMenu] = useState<{ id: string; x: number; y: number; top: number; anchor: HTMLElement } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  /**
+   * Open (or close) a row's menu beside the button that is ON SCREEN. Each row has two buttons — the phone card's and the
+   * table's — and one is always display:none. A click that reaches the hidden one (a keyboard or assistive click, an
+   * automated one) measured a box of zeros, and the menu opened at the top-left corner of the window (viewer, Documents,
+   * live retest 2026-10-24). The box is taken from whichever of the row's buttons has one.
+   */
+  const toggleMenu = (rowId: string, clicked: HTMLElement) => {
+    if (menu?.id === rowId) { setMenu(null); return }
+    const hasBox = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 || r.height > 0 }
+    const twins = Array.from(document.querySelectorAll<HTMLElement>('[data-row-actions]')).filter((el) => el.dataset.rowActions === rowId)
+    const anchor = hasBox(clicked) ? clicked : twins.find(hasBox) || clicked
+    const r = anchor.getBoundingClientRect()
+    setMenu({ id: rowId, x: r.right, y: r.bottom, top: r.top, anchor })
+  }
   useEffect(() => {
     if (!menu) return
     const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null) }
@@ -386,7 +400,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 font-medium [&_p]:truncate">{head ? cell(head) : null}</div>
                 {rowActions(row).length > 0 && (
-                  <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="-mr-1.5 -mt-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>
+                  <button aria-label="Row actions" aria-haspopup="menu" data-row-actions={row.id} onClick={e => { e.stopPropagation(); toggleMenu(row.id, e.currentTarget as HTMLElement) }} className="-mr-1.5 -mt-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>
                 )}
               </div>
               {rest.length > 0 && (
@@ -435,7 +449,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
                 })}
                 {anyRowActions && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    {rowActions(row).length > 0 && <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>}
+                    {rowActions(row).length > 0 && <button aria-label="Row actions" aria-haspopup="menu" data-row-actions={row.id} onClick={e => toggleMenu(row.id, e.currentTarget as HTMLElement)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>}
                   </td>
                 )}
               </tr>
@@ -479,15 +493,18 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
   // The item's NAME: its code (SVC-0001) is the office's filing number, and a line's description is what the customer
   // reads on the quote, the invoice, the email and the PDF (live test 2026-10-22). pricebookItemId keeps the link.
   const name = pb.name
-  if (option) return { description: option.name ? `${name} — ${option.name}` : name, quantity: 1, unitPrice: Number(option.price) || 0, type: kind, pricebookItemId: pb.id }
+  // undefined, not 0, when the book did not tell us: a zero cost is a claim, and an absent one
+  // is the truth. jobCosting counts an uncosted line instead of pricing it at nothing.
+  const cost = pb.cost === null || pb.cost === undefined || pb.cost === '' ? {} : { unitCost: Number(pb.cost) || 0 }
+  // A Good/Better/Best option carries its own price but no cost of its own (pricebook_good_better_best has none), so
+  // the item's cost goes with it: the presenter's "Build Your Quote" left "Our cost" blank (live retest, 2026-10-24).
+  if (option) return { description: option.name ? `${name} — ${option.name}` : name, quantity: 1, unitPrice: Number(option.price) || 0, type: kind, ...cost, pricebookItemId: pb.id }
   return {
     description: name,
     quantity: 1,
     unitPrice: Number(pb.price) || 0,
     type: kind,
-    // undefined, not 0, when the book did not tell us: a zero cost is a claim, and an absent one
-    // is the truth. jobCosting counts an uncosted line instead of pricing it at nothing.
-    ...(pb.cost === null || pb.cost === undefined || pb.cost === '' ? {} : { unitCost: Number(pb.cost) || 0 }),
+    ...cost,
     pricebookItemId: pb.id,
   }
 }

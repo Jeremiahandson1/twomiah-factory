@@ -1151,8 +1151,23 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   app.post('/items', requirePermission('inventory:create'), async (c) => {
     const user = c.get('user') as any
     const body = await c.req.json().catch(() => ({}))
+    /**
+     * An optional starting quantity, stocked at the business's default location — made ("Main stock", a warehouse) when
+     * it has none. Add Part had no quantity, and stock went in only through Adjust Stock, which needed a location first
+     * (landscaping live retest, 2026-10-24). Checked before the part is made, so a bad number makes nothing.
+     */
+    const startRaw = body?.startingQuantity
+    const startQty = startRaw === undefined || startRaw === null || startRaw === '' ? 0 : Number(startRaw)
+    if (!Number.isInteger(startQty) || startQty < 0) return c.json({ error: 'Starting quantity must be a whole number, 0 or more' }, 400)
     let item
     try { item = await service.createItem(user.companyId, body) } catch (err) { return refused(c, err) }
+    if (startQty > 0) {
+      try {
+        const [first] = await service.getLocations(user.companyId, {})
+        const locationId = first?.id || (await service.createLocation(user.companyId, { name: 'Main stock', type: 'warehouse' })).id
+        await service.adjustStock(user.companyId, { itemId: item.id, locationId, quantity: startQty, reason: 'Starting stock', userId: user.userId })
+      } catch (err) { return refused(c, err) }
+    }
 
     audit.log({
       action: 'INVENTORY_ITEM_CREATED',

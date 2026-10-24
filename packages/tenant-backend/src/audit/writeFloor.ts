@@ -61,6 +61,9 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const SKIP = [
   /^\/api\/auth(\/|$)/, /^\/api\/internal(\/|$)/, /^\/api\/audit(\/|$)/, /\/webhook(s)?(\/|$)/, /^\/api\/support\/ai-chat$/,
   /\/location$/, /\/heartbeat$/, /\/track$/, /\/preview(\/|$)/,
+  // A live-updates ticket (apps/unified http/live.ts) is asked for by every open screen on every (re)connect and
+  // changes no record: it filed 886 "Create ticket" rows on one week-old landscaping business (live retest 10/24).
+  /^\/api\/live\/ticket$/,
 ]
 
 const STATUS_WORDS = [

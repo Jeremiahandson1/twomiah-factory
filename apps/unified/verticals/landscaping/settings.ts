@@ -41,6 +41,9 @@ const landscaping: VerticalSettings = {
   // A crew running late tells the customer from the contact record (templates/crm-landscaping middleware/permissions.ts,
   // T30 L-RB).
   extraRolePermissions: { field: ['sms:send'] },
+  // Jobber's rule: a crew login sees the jobs assigned to it, the customers on those jobs and its own bookings — not the
+  // whole business (live retest, 2026-10-24: a crew seat was shown every job and every customer's name).
+  withheldRolePermissions: { field: ['jobs:read-all', 'contacts:read-all', 'bookings:read-all'] },
   crm: {
     serviceSites: true,
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the

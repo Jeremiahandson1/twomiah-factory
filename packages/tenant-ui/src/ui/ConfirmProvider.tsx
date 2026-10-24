@@ -34,7 +34,8 @@ const ConfirmContext = createContext<Ask | null>(null)
  * Ask for a line of TEXT. Same contract as window.prompt — the answer, or null if they backed out —
  * so a call site keeps its null check and only gains an await. (Salon T29 L3)
  */
-export interface PromptOptions { title?: string; confirmText?: string; placeholder?: string; initialValue?: string }
+/** inputType 'date': the browser's own date picker, answering YYYY-MM-DD — a day was typed by hand (live retest, 2026-10-24). */
+export interface PromptOptions { title?: string; confirmText?: string; placeholder?: string; initialValue?: string; inputType?: 'text' | 'date' }
 type AskText = (message: string, options?: PromptOptions) => Promise<string | null>
 const PromptContext = createContext<AskText | null>(null)
 
@@ -84,6 +85,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
         <input
           className={inputCls}
           autoFocus
+          type={asking?.inputType || 'text'}
           value={draft}
           placeholder={asking?.placeholder || ''}
           onChange={(e) => setDraft(e.target.value)}

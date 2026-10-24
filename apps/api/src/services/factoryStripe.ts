@@ -380,6 +380,52 @@ async function effectiveMonthlyAmount(sub: Stripe.Subscription): Promise<number>
   return Math.max(0, Math.round(amount * 100) / 100)
 }
 
+/**
+ * What a tenant is really charged, for its Billing page (routes/factory/lifecycle.ts GET …/subscription): the list
+ * price, the discount still running (a promotion code's coupon) and the last invoice actually paid. A business that
+ * signed up for $0 with a code saw the $99 list price (live retest, 2026-10-24). null when Stripe is not configured or
+ * the subscription cannot be read — the page then shows the stored amount, as before; never throws.
+ */
+export async function subscriptionCharge(subscriptionId: string | null | undefined): Promise<import('../../../../packages/tenant-backend/src/plans.ts').SubscriptionCharge | null> {
+  if (!stripe || !subscriptionId) return null
+  try {
+    const sub: any = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['discounts', 'discounts.promotion_code', 'latest_invoice'] })
+    const item = sub.items?.data?.[0]
+    const listAmount = item?.price?.unit_amount != null ? ((item.price.unit_amount || 0) * (item.quantity || 1)) / 100 : null
+    let effective = listAmount
+    let discount: any = null
+    for (const d of sub.discounts || []) {
+      const coupon = typeof d === 'string' ? null : d.coupon
+      if (!coupon || coupon.valid === false) continue
+      if (effective != null) {
+        if (coupon.percent_off) effective = effective * (1 - coupon.percent_off / 100)
+        else if (coupon.amount_off) effective = effective - coupon.amount_off / 100
+      }
+      if (!discount) {
+        const code = typeof d.promotion_code === 'object' && d.promotion_code ? d.promotion_code.code : null
+        discount = {
+          label: code || coupon.name || 'Discount',
+          percentOff: coupon.percent_off ?? null,
+          amountOff: coupon.amount_off != null ? coupon.amount_off / 100 : null,
+          duration: coupon.duration || null,
+          endsAt: d.end ? new Date(d.end * 1000).toISOString() : null,
+        }
+      }
+    }
+    const inv: any = typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null
+    const paidAtUnix = inv?.status_transitions?.paid_at
+    return {
+      listAmount,
+      effectiveAmount: effective == null ? null : Math.max(0, Math.round(effective * 100) / 100),
+      discount,
+      lastInvoice: inv && inv.status === 'paid' ? { amountPaid: (inv.amount_paid || 0) / 100, paidAt: paidAtUnix ? new Date(paidAtUnix * 1000).toISOString() : null } : null,
+    }
+  } catch (e: any) {
+    console.warn('[Stripe] Could not read the charge for', subscriptionId, '-', e?.message)
+    return null
+  }
+}
+
 // ── Webhook handling ─────────────────────────────────────────────────────────
 
 /**

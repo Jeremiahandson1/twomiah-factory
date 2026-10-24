@@ -34,6 +34,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, asc, desc, inArray } from 'drizzle-orm'
 import type { JobHook } from '../jobs/jobs'
+import { companyTimeZone } from '../time/businessDay'
+import { noteStamp } from '../time/zoneDay'
 import { JOB_MONEY, jobMoneyWithheld, withoutJobMoney, type CanSee } from '../jobs/jobMoney'
 
 export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any }
@@ -160,7 +162,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
       const [updated] = await db.update(t.job).set({
         status: rule.to,
         ...(rule.to === 'completed' ? { completedAt: new Date() } : {}),
-        internalNotes: [existing.internalNotes, `[${new Date().toISOString()}] ${MOVE_WORDS[path]}${notes ? ': ' + notes : ''}`].filter(Boolean).join('\n'),
+        internalNotes: [existing.internalNotes, `[${noteStamp(new Date(), await companyTimeZone(db, currentUser.companyId))}] ${MOVE_WORDS[path]}${notes ? ': ' + notes : ''}`].filter(Boolean).join('\n'),
         updatedAt: new Date(),
       } as any).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), eq(t.job.status, existing.status))).returning()
       if (!updated) return c.json({ error: 'This job changed while you were looking at it. Pull down to refresh.', code: 'changed' }, 409)
@@ -193,7 +195,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
     const fail = body.items.filter((i) => i.status === 'fail').length
     const attention = body.items.filter((i) => i.status === 'attention').length
     await db.update(t.job).set({
-      internalNotes: [existing.internalNotes, `[${new Date().toISOString()}] Checklist: ${body.items.length - fail - attention} pass, ${attention} attention, ${fail} fail`].filter(Boolean).join('\n'),
+      internalNotes: [existing.internalNotes, `[${noteStamp(new Date(), await companyTimeZone(db, currentUser.companyId))}] Checklist: ${body.items.length - fail - attention} pass, ${attention} attention, ${fail} fail`].filter(Boolean).join('\n'),
       updatedAt: new Date(),
     } as any).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId)))
     return c.json(submission, 201)

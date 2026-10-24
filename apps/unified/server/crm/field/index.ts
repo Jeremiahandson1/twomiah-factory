@@ -13,7 +13,7 @@ import { createTakeoffsRoutes } from './takeoffs.ts'
 import { createSelectionsRoutes } from './selections.ts'
 import { createJobCostingRoutes } from './jobCosting.ts'
 import { createRoutingRoutes } from './routing.ts'
-import { createMapsRoutes } from './maps.ts'
+import { createMapsRoutes, createMapCenterRoutes } from './maps.ts'
 import { createGeofencingRoutes } from './geofencing.ts'
 import { createWeatherRoutes } from './weather.ts'
 import { createPayrollRoutes } from './payroll.ts'
@@ -27,6 +27,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/job-costing', access: 'user', feature: 'job_costing', router: createJobCostingRoutes(d) },
     { path: '/api/routing', access: 'user', feature: 'route_optimization', router: createRoutingRoutes(d) },
     { path: '/api/maps', access: 'user', feature: 'map_view', router: createMapsRoutes(d) },
+    // Where a new map opens (the business's address or service area): every map screen's, so no one map's feature.
+    { path: '/api/map-center', access: 'user', router: createMapCenterRoutes(d) },
     { path: '/api/geofencing', access: 'user', feature: 'gps_tracking', router: createGeofencingRoutes(d) },
     // The forecast for a job or a project, and the weather filled into a daily log.
     { path: '/api/weather', access: 'user', feature: ['jobs', 'projects', 'daily_logs'], router: createWeatherRoutes(d) },

@@ -19,7 +19,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -132,6 +132,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
+    // A seat without contacts:read-all (a landscaping crew login) reads the customers on the jobs assigned to it.
+    ownContacts: (userId: string) => inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(eq(job.assignedToId, userId), isNotNull(job.contactId)))),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },

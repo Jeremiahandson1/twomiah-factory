@@ -22,7 +22,7 @@ import { todayKey } from '../time/day'
 import { errMsg } from '../invoicing/ui'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { PhotoViewer } from '../files/PhotoViewer'
-import { whenDate, companyTodayKey } from '../time/companyClock'
+import { whenDate, companyTodayKey, stampsOnClock } from '../time/companyClock'
 import { codeLabel } from '../labels/codes'
 
 export interface TechApi {
@@ -326,7 +326,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
         {job.internalNotes && (
           <div className={card}>
             <h3 className={heading}>Notes</h3>
-            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans dark:text-slate-300">{job.internalNotes}</pre>
+            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans dark:text-slate-300">{stampsOnClock(job.internalNotes)}</pre>
           </div>
         )}
         <div className={card}>

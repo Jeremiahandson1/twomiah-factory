@@ -15,6 +15,7 @@ import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
+import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
@@ -1273,13 +1274,15 @@ export function createPortalRoutes(deps: PortalDeps) {
         if (unit) { equipmentName = unit.name; equipmentId = unit.id }
       }
       const prefix = o.jobNumbering?.prefix || 'JOB', pad = o.jobNumbering?.pad ?? 5
+      // Read before the transaction (never the outer db inside one); the note is stamped on the business's clock.
+      const stamp = noteStamp(new Date(), await companyTimeZone(db, contact.companyId))
       const created = await db.transaction(async (tx: any) => {
         const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, contact.companyId, { prefix, pad })
         const values: Record<string, unknown> = {
           number, title: equipmentName ? `Service Request: ${equipmentName}` : 'Service Request from Customer Portal', description,
           status: o.serviceRequestStatus || 'pending', priority: urgency === 'urgent' ? 'high' : 'normal',
           address: contact.address, city: contact.city, state: contact.state, zip: contact.zip,
-          internalNotes: `[${new Date().toISOString()}] Customer portal request\nPreferred contact: ${preferredContact}\nUrgency: ${urgency}`,
+          internalNotes: `[${stamp}] Customer portal request\nPreferred contact: ${preferredContact}\nUrgency: ${urgency}`,
           companyId: contact.companyId, contactId: contact.id,
         }
         if (t.job.jobType) values.jobType = 'repair'

@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { addMapTiles } from '../maps/tiles';
+import { useMapCenter, US_VIEW, HOME_ZOOM } from '../maps/center';
 import {
   Truck, Plus, MapPin, Navigation, Fuel, Wrench,
   Clock, User, AlertTriangle, Loader2, Calendar,
   TrendingUp, DollarSign, MoreVertical, RefreshCw
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { FleetApi, FleetPageProps } from './types';
+import type { FleetApi, FleetPageProps, FleetToast } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
-import { whenTime, whenDateTime } from '../time/companyClock'
+import { whenTime, whenDateTime, whenDate } from '../time/companyClock'
 import { money } from '../money'
 import { todayKey } from '../time/day'
 import { codeLabel } from '../labels/codes'
@@ -30,7 +31,12 @@ import { codeLabel } from '../labels/codes'
  * It rides on the context rather than being asked again inside VehicleCard, which is a sibling
  * component — asking it there would work, but one answer for the page cannot disagree with itself.
  */
-const FleetCtx = createContext<{ api: FleetApi; gps: boolean; mayWrite: boolean }>({ api: null as any, gps: false, mayWrite: true });
+const FleetCtx = createContext<{ api: FleetApi; gps: boolean; mayWrite: boolean; toast: FleetToast }>({ api: null as any, gps: false, mayWrite: true, toast: { success: () => {}, error: () => {} } });
+/** Where a page mounted without toasts still says something: the console, never a browser pop-up. */
+const QUIET_TOAST: FleetToast = { success: (m) => console.info(m), error: (m) => console.error(m) };
+/** The service types the dialog offers, in the words it offers them. */
+const SERVICE_TYPES: Array<[string, string]> = [['oil_change', 'Oil Change'], ['tire', 'Tires'], ['brake', 'Brakes'], ['inspection', 'Inspection'], ['repair', 'Repair'], ['other', 'Other']];
+const serviceLabel = (t: string) => SERVICE_TYPES.find(([k]) => k === t)?.[1] || codeLabel(t);
 const useFleet = () => useContext(FleetCtx);
 
 interface VehicleLocation {
@@ -92,6 +98,7 @@ interface VehiclesGridProps {
   onEdit: (v: Vehicle) => void;
   onFuel: (v: Vehicle) => void;
   onMaintenance: (v: Vehicle) => void;
+  onHistory: (v: Vehicle) => void;
 }
 
 interface VehicleCardProps {
@@ -99,6 +106,7 @@ interface VehicleCardProps {
   onEdit: () => void;
   onFuel: () => void;
   onMaintenance: () => void;
+  onHistory: () => void;
 }
 
 interface FleetMapProps {
@@ -119,14 +127,16 @@ interface FuelEntryModalProps {
 
 interface MaintenanceModalProps {
   vehicle: Vehicle;
-  onSave: () => void;
+  onSave: (saved: { type: string }) => void;
   onClose: () => void;
 }
 
 /**
  * Fleet Management Page
  */
-export default function FleetPage({ api, config }: FleetPageProps) {
+export default function FleetPage({ api, config, toast: givenToast }: FleetPageProps) {
+  const toast = givenToast || QUIET_TOAST;
+  const [historyOf, setHistoryOf] = useState<Vehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [stats, setStats] = useState<FleetStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -161,7 +171,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
   };
 
   return (
-    <FleetCtx.Provider value={{ api, gps: !!config?.gps, mayWrite }}>
+    <FleetCtx.Provider value={{ api, gps: !!config?.gps, mayWrite, toast }}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -237,6 +247,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
               onEdit={(v: Vehicle) => { setSelectedVehicle(v); setShowForm(true); }}
               onFuel={(v: Vehicle) => { setSelectedVehicle(v); setShowFuel(true); }}
               onMaintenance={(v: Vehicle) => { setSelectedVehicle(v); setShowMaintenance(true); }}
+              onHistory={(v: Vehicle) => setHistoryOf(v)}
             />
           )}
 
@@ -270,10 +281,12 @@ export default function FleetPage({ api, config }: FleetPageProps) {
       {showMaintenance && selectedVehicle && (
         <MaintenanceModal
           vehicle={selectedVehicle}
-          onSave={() => { setShowMaintenance(false); loadData(); }}
+          onSave={(saved) => { setShowMaintenance(false); toast.success(`${serviceLabel(saved.type)} saved for ${selectedVehicle.name}`); loadData(); }}
           onClose={() => setShowMaintenance(false)}
         />
       )}
+
+      {historyOf && <VehicleHistoryModal vehicle={historyOf} onClose={() => setHistoryOf(null)} />}
     </div>
     </FleetCtx.Provider>
   );
@@ -297,7 +310,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   );
 }
 
-function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }: VehiclesGridProps) {
+function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance, onHistory }: VehiclesGridProps) {
   if (vehicles.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
@@ -316,13 +329,14 @@ function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }: Veh
           onEdit={() => onEdit(vehicle)}
           onFuel={() => onFuel(vehicle)}
           onMaintenance={() => onMaintenance(vehicle)}
+          onHistory={() => onHistory(vehicle)}
         />
       ))}
     </div>
   );
 }
 
-function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProps) {
+function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance, onHistory }: VehicleCardProps) {
   // The page's answer, not a second one. (T42 — see the note beside FleetCtx.)
   const { mayWrite } = useFleet();
   const hasAlert = vehicle.status === 'maintenance' ||
@@ -383,6 +397,11 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
         </div>
       )}
 
+      {/* Its service and fuel record, open to every seat that may open the page (costs only to seats that see them). */}
+      <button type="button" onClick={onHistory} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+        <Clock className="w-4 h-4" />Service history
+      </button>
+
       {/* Actions — a seat that cannot log fuel, book a service or edit the vehicle is not offered
           any of them. The card still shows the vehicle, its mileage, who has it and its alerts,
           which is what a driver opens this page for. (T42) */}
@@ -415,7 +434,9 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
 }
 
 function FleetMap({ vehicles }: FleetMapProps) {
-  const { gps } = useFleet();
+  const { gps, api } = useFleet();
+  // With no vehicle reporting, the map opens on the business's town, not the whole country (../maps/center).
+  const home = useMapCenter((p: string) => api.get(p));
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
@@ -427,7 +448,7 @@ function FleetMap({ vehicles }: FleetMapProps) {
   // Init the Leaflet map once (gps only). Tiles: Google's (../maps/tiles) — OpenStreetMap's servers refuse app traffic.
   useEffect(() => {
     if (!gps || !mapEl.current || mapRef.current) return;
-    const map = L.map(mapEl.current, { zoomControl: true }).setView([39.5, -98.35], 4); // US center
+    const map = L.map(mapEl.current, { zoomControl: true }).setView(US_VIEW.center, US_VIEW.zoom); // until the business's centre is known
     addMapTiles(L, map, 'roadmap');
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -453,7 +474,8 @@ function FleetMap({ vehicles }: FleetMapProps) {
     }
     if (pts.length === 1) map.setView(pts[0], 13);
     else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40] });
-  }, [vehicles, gps]);
+    else if (home) map.setView([home.lat, home.lng], HOME_ZOOM);
+  }, [vehicles, gps, home]);
 
   // Contractor crm has no live GPS feed — keep the original placeholder.
   if (!gps) {
@@ -594,7 +616,7 @@ function TripsTab() {
 }
 
 function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
-  const { api } = useFleet();
+  const { api, toast } = useFleet();
   const [form, setForm] = useState<{
     name: string;
     type: string;
@@ -627,7 +649,7 @@ function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
       }
       onSave();
     } catch (error) {
-      alert('Failed to save vehicle');
+      toast.error(errText(error, 'Failed to save vehicle'));
     } finally {
       setSaving(false);
     }
@@ -696,7 +718,7 @@ function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
 }
 
 function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
-  const { api } = useFleet();
+  const { api, toast } = useFleet();
   const [form, setForm] = useState<{
     date: string;
     gallons: string;
@@ -719,7 +741,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
       await api.post(`/api/fleet/vehicles/${vehicle.id}/fuel`, form);
       onSave();
     } catch (error) {
-      alert('Failed to save fuel entry');
+      toast.error(errText(error, 'Failed to save fuel entry'));
     } finally {
       setSaving(false);
     }
@@ -776,7 +798,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
 }
 
 function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
-  const { api } = useFleet();
+  const { api, toast } = useFleet();
   const [form, setForm] = useState<{
     date: string;
     type: string;
@@ -799,9 +821,9 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
     setSaving(true);
     try {
       await api.post(`/api/fleet/vehicles/${vehicle.id}/maintenance`, form);
-      onSave();
+      onSave({ type: form.type });
     } catch (error) {
-      alert('Failed to save maintenance');
+      toast.error(errText(error, 'Failed to save the service'));
     } finally {
       setSaving(false);
     }
@@ -824,12 +846,7 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
                 <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, type: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg">
-                  <option value="oil_change">Oil Change</option>
-                  <option value="tire">Tires</option>
-                  <option value="brake">Brakes</option>
-                  <option value="inspection">Inspection</option>
-                  <option value="repair">Repair</option>
-                  <option value="other">Other</option>
+                  {SERVICE_TYPES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                 </select>
               </div>
             </div>
@@ -857,6 +874,71 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** What a refused or failed save says: the server's own words when it gave some. */
+function errText(error: unknown, fallback: string): string {
+  const m = (error as any)?.message;
+  return typeof m === 'string' && m.trim() ? m : fallback;
+}
+
+/**
+ * A vehicle's service and fuel record, newest first (GET /api/fleet/vehicles/:id: the last ten of each). A service was
+ * saved and nothing on the page showed it, so nobody could tell it had been (landscaping live retest, 2026-10-24). Costs
+ * show only where the server sent them (fleet:update's seats; the route takes them off for the rest).
+ */
+function VehicleHistoryModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
+  const { api } = useFleet();
+  const [data, setData] = useState<{ maintenanceLogs?: any[]; fuelEntries?: any[] } | null>(null);
+  const [error, setError] = useState<string>('');
+  useEffect(() => {
+    api.get(`/api/fleet/vehicles/${vehicle.id}`).then((r: any) => setData(r || {})).catch((e: unknown) => setError(errText(e, 'Could not load the history')));
+  }, [vehicle.id]);
+  const services = data?.maintenanceLogs || [];
+  const fuel = data?.fuelEntries || [];
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="fleet-history-title">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <h2 id="fleet-history-title" className="text-lg font-bold mb-4 text-gray-900 dark:text-slate-100">Service history - {vehicle.name}</h2>
+          {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300 mb-3">{error}</p>}
+          {!data && !error && <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>}
+          {data && (
+            <div className="space-y-5">
+              <section>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2 flex items-center gap-1"><Wrench className="w-4 h-4" />Services</h3>
+                {services.length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400">No services recorded yet.</p> : (
+                  <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+                    {services.map((m: any) => (
+                      <li key={m.id} className="py-2 flex items-start justify-between gap-3 text-sm">
+                        <div><p className="font-medium text-gray-900 dark:text-slate-100">{serviceLabel(m.type)}</p>{m.description && <p className="text-gray-500 dark:text-slate-400">{m.description}</p>}<p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(m.performedAt)}{m.mileage != null ? ` · ${Number(m.mileage).toLocaleString()} mi` : ''}</p></div>
+                        {m.cost != null && <span className="font-medium text-gray-900 dark:text-slate-100">{money(m.cost)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2 flex items-center gap-1"><Fuel className="w-4 h-4" />Fuel</h3>
+                {fuel.length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400">No fuel entries yet.</p> : (
+                  <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+                    {fuel.map((f: any) => (
+                      <li key={f.id} className="py-2 flex items-start justify-between gap-3 text-sm">
+                        <div><p className="text-gray-900 dark:text-slate-100">{Number(f.gallons)} gal</p><p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(f.createdAt)}{f.mileage != null ? ` · ${Number(f.mileage).toLocaleString()} mi` : ''}</p></div>
+                        {f.totalCost != null && <span className="font-medium text-gray-900 dark:text-slate-100">{money(f.totalCost)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          )}
+          <div className="flex justify-end pt-4"><button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg dark:border-slate-700 dark:text-slate-200">Close</button></div>
         </div>
       </div>
     </div>

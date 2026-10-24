@@ -29,6 +29,13 @@ interface Subscription {
   seats: number | null
   hasStripeCustomer: boolean
   syncedAt: string
+  /** What is really charged (the Factory's read of Stripe; plans.ts SubscriptionCharge). Absent on a cached copy. */
+  charge?: {
+    listAmount: number | null
+    effectiveAmount: number | null
+    discount: { label: string; percentOff: number | null; amountOff: number | null; duration: string | null; endsAt: string | null } | null
+    lastInvoice: { amountPaid: number; paidAt: string | null } | null
+  } | null
 }
 interface MessagingStatus {
   configured: boolean
@@ -157,7 +164,15 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   const seatLimit = data?.seatLimit ?? null
   const seatsUsed = data?.seatsUsed ?? 0
   const seatPct = seatLimit ? Math.min(100, Math.round((seatsUsed / seatLimit) * 100)) : 0
-  const price = sub ? money(sub.monthlyAmount) : null
+  // The price the business pays: with a running discount, the discounted figure, the list price beside it struck out.
+  // It showed the $99 list price to a business that signed up for $0 with a code (live retest, 2026-10-24).
+  const charge = sub?.charge || null
+  const discounted = !!(charge?.discount && charge.effectiveAmount != null && charge.listAmount != null && charge.effectiveAmount < charge.listAmount)
+  const price = sub ? money(discounted ? charge!.effectiveAmount : sub.monthlyAmount) : null
+  const discountLine = charge?.discount
+    ? `${charge.discount.label}: ${charge.discount.percentOff ? `${charge.discount.percentOff}% off` : charge.discount.amountOff ? `${money(charge.discount.amountOff)} off` : 'discount'}${charge.discount.duration === 'forever' ? '' : charge.discount.endsAt ? ` until ${date(charge.discount.endsAt)}` : charge.discount.duration === 'once' ? ' on this bill' : ''}`
+    : null
+  const lastPaid = charge?.lastInvoice || null
   // Changing the plan, the card or cancelling is the owner's (billing:manage, POST /portal-link); an admin reads it.
   const mayManage = data?.mayManage === true
 
@@ -215,6 +230,9 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
                   {price ? <>{price} <span className="text-gray-500 dark:text-slate-400">/ {sub.billingCycle === 'annual' || sub.billingCycle === 'yearly' ? 'year' : 'month'}</span></> : sub.billingType === 'one_time' ? 'Lifetime license' : 'Included'}
                   {sub.seats ? <> · up to {sub.seats} users</> : null}
                 </div>
+                {discounted && <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">List price <span className="line-through">{money(charge!.listAmount)}</span></div>}
+                {discountLine && <div className="text-sm font-medium text-green-700 dark:text-green-300 mt-1">{discountLine}</div>}
+                {lastPaid && <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">Last charge {money(lastPaid.amountPaid)}{lastPaid.paidAt ? ` on ${date(lastPaid.paidAt)}` : ''}</div>}
               </div>
               {status && <span className={'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ' + status.cls}>{status.label}</span>}
             </div>

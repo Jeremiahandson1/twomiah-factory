@@ -39,9 +39,10 @@ const DEFAULT_TYPES = ['patient', 'unit', 'contact', 'service', 'project', 'job'
 const TYPE_PERMISSIONS: Record<string, string> = {
   invoice: 'invoices:read',
   quote: 'quotes:read',
-  job: 'jobs:read',
+  // The whole list's verb: a seat that reads only its own jobs and customers (landscaping's crew) is not searched across all.
+  job: 'jobs:read-all',
   team: 'team:read',
-  contact: 'contacts:read',
+  contact: 'contacts:read-all',
   patient: 'contacts:read',
   unit: 'contacts:read',
   event: 'contacts:read',

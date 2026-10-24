@@ -3,7 +3,7 @@
 // gated no feature and no screen calls it, so it is ungated. Permissions are the template's, action by action.
 import { Hono } from 'hono'
 import { and, asc, count, eq, gte, lt } from 'drizzle-orm'
-import { job, project, contact, user } from '../../db/schema/index.ts'
+import { job, project, contact, user, company, website } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -40,7 +40,8 @@ export function createMapsRoutes(d: CrmDeps) {
   })
 
   // Every job's location for the map, using the project's coordinates when the job has none.
-  app.get('/jobs', requirePermission('jobs:read'), async (c) => {
+  // Every job on one map is the whole business: jobs:read-all (a crew seat reads only its own — 2026-10-24).
+  app.get('/jobs', requirePermission('jobs:read-all'), async (c) => {
     const userObj = c.get('user')
     const status = c.req.query('status')
     const assignedTo = c.req.query('assignedTo')
@@ -214,5 +215,34 @@ export function createMapsRoutes(d: CrmDeps) {
     return one(c, { distance, unit: 'miles' })
   })
 
+  return app
+}
+
+/**
+ * Where a new map opens: the business's own address, else the places it serves (its website's service areas, read with
+ * the business's state). Every Leaflet map opened on Dallas — the template's fallback — whatever the business's town
+ * (landscaping live retest, 2026-10-24). Answers { lat: null, lng: null } when nothing on record places it, and the
+ * screen then shows the whole country rather than a guess. Mounted on its own, ungated by map_view: the fleet map, the
+ * canvassing board and the storm map each need it. Geocoded through the same cached service as the map view.
+ */
+export function createMapCenterRoutes(d: CrmDeps) {
+  const geocoding = createGeocodingService(d)
+  const app = new Hono<AppEnv>()
+  app.get('/', async (c) => {
+    const companyId = c.get('user').companyId
+    const [co] = await d.db.select({ address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, companyId)).limit(1)
+    const tries: string[] = []
+    if (co && (co.city || co.zip)) tries.push([co.address, co.city, [co.state, co.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))
+    const [site] = await d.db.select({ serviceAreas: website.serviceAreas }).from(website).where(eq(website.companyId, companyId)).limit(1)
+    for (const a of (Array.isArray(site?.serviceAreas) ? site!.serviceAreas as any[] : []).slice(0, 2)) {
+      const name = typeof a === 'string' ? a : String(a?.name || a?.city || a?.title || '')
+      if (name.trim()) tries.push(co?.state && !name.includes(',') ? `${name.trim()}, ${co.state}` : name.trim())
+    }
+    for (const q of tries) {
+      const found = await geocoding.geocode(q, companyId)
+      if (found) return one(c, { lat: found.lat, lng: found.lng, from: q })
+    }
+    return one(c, { lat: null, lng: null, from: null })
+  })
   return app
 }

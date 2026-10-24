@@ -551,10 +551,20 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
   );
 }
 
-/** What the Visits column says: the allowance left this term, else what has been done. (T41) */
+/**
+ * What the Visits column says: the allowance left this term, else what has been done. (T41)
+ *
+ * "Left" is left TO BOOK: the server's visitsRemaining is the allowance less the visits done AND booked. A new agreement
+ * books its visits as it is made, so it read "0 of 2 left" — true, and read as used up (landscaping live retest,
+ * 2026-10-24). With none left to book it says whether they are booked or done.
+ */
 function visitsLabel(a: Agreement): string {
   const included = Number(a.visitsIncluded || 0);
-  if (included > 0) return `${a.visitsRemaining ?? 0} of ${included} left`;
+  if (included > 0) {
+    const remaining = Number(a.visitsRemaining ?? 0);
+    if (remaining > 0) return `${remaining} of ${included} left to book`;
+    return Number(a.visitsCompleted || 0) >= included ? `All ${included} done` : `All ${included} booked`;
+  }
   const done = Number(a.visitsCompleted || 0) + Number(a.visitsScheduled || 0);
   return done > 0 ? `${done} booked` : 'No visit cap';
 }

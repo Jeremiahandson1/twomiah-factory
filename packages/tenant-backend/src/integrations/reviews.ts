@@ -493,8 +493,11 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
   if (deps.requireEnabledFeature) app.use('*', deps.requireEnabledFeature(deps.feature || 'google_reviews'))
   const user = (c: any) => c.get('user') as any
 
-  app.get('/settings', async (c) => c.json(await reviews.getReviewSettings(user(c).companyId)))
-  app.put('/settings', requireRole('admin', 'owner'), async (c) => {
+  // The settings are the marketing desk's to read (manager and up) and company configuration to change (settings:update,
+  // admin and owner — what requireRole('admin', 'owner') said by rank). A crew seat was shown the Settings tab and its
+  // form (landscaping live retest, 2026-10-24).
+  app.get('/settings', requirePermission('marketing:read'), async (c) => c.json(await reviews.getReviewSettings(user(c).companyId)))
+  app.put('/settings', requirePermission('settings:update'), async (c) => {
     const body = await c.req.json().catch(() => ({}))
     try {
       const settings = await reviews.updateReviewSettings(user(c).companyId, body)

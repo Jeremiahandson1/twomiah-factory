@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
@@ -261,6 +262,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost } : undefined}
             />
+            {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
+            {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (
+              <AreaPricedLine api={api} toast={toast} siteId={form.siteId} siteLabel={cfg.siteLabels?.singular || 'Property'}
+                onAdd={(line) => setForm((f) => {
+                  const kept = f.lineItems.filter((li) => li.description.trim() || Number(li.unitPrice) > 0)
+                  return { ...f, lineItems: [...kept, line] }
+                })} />
+            )}
           </Field>
           <div className="grid md:grid-cols-3 gap-4">
             <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm((f) => ({ ...f, taxRate: n }))} className={inputCls} /></Field>

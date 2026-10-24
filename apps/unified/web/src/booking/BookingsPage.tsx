@@ -12,6 +12,8 @@ type View = 'upcoming' | 'past' | 'all'
 export function BookingsPage() {
   const { settings, services, people, error: basicsError } = useBookingBasics()
   const mayCreate = useMayWrite('bookings:create')
+  // The CSV is the whole book in a file: the office's (bookings:export, manager and up), not a crew seat's (2026-10-24).
+  const mayExport = useMayWrite('bookings:export')
   const [view, setView] = useState<View>('upcoming')
   const [rows, setRows] = useState<Booking[] | null>(null)
   const [total, setTotal] = useState(0)
@@ -87,7 +89,7 @@ export function BookingsPage() {
             {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        {shown.length > 0 && <button type="button" onClick={exportCsv} className="btn-secondary btn-sm"><Download className="w-3.5 h-3.5" />CSV</button>}
+        {mayExport && shown.length > 0 && <button type="button" onClick={exportCsv} className="btn-secondary btn-sm"><Download className="w-3.5 h-3.5" />CSV</button>}
       </div>
 
       {rows === null && !error && <div className="text-muted text-sm">Loading…</div>}

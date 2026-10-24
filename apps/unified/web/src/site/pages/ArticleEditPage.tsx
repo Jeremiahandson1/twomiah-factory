@@ -120,7 +120,7 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
             placeholder={k.titlePlaceholder}
             aria-label="Title"
           />
-          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} saving={ed.saving} justPublished={ed.justPublished} />
+          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} saving={ed.saving} justPublished={ed.justPublished} offSite={!onSite} />
           <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

@@ -58,4 +58,21 @@ export type TenantSubscription = {
   seats: number | null
   hasStripeCustomer: boolean
   syncedAt: string
+  /**
+   * What the business is really charged, read from Stripe when the Factory answers a pull (GET …/subscription). Billing
+   * showed the $99 list price to a business that signed up for $0 with a promotion code (landscaping live retest,
+   * 2026-10-24). Absent on a pushed or cached copy; the page then shows monthlyAmount alone, as before.
+   */
+  charge?: SubscriptionCharge | null
+}
+
+export type SubscriptionCharge = {
+  /** The plan's price per period before any discount. */
+  listAmount: number | null
+  /** What the next period costs with the discounts that are still running. */
+  effectiveAmount: number | null
+  /** The discount still running, if any. */
+  discount: { label: string; percentOff: number | null; amountOff: number | null; duration: string | null; endsAt: string | null } | null
+  /** The last invoice: what was actually taken, and when. */
+  lastInvoice: { amountPaid: number; paidAt: string | null } | null
 }

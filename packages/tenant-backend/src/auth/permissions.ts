@@ -265,6 +265,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'site:read', 'site:update',
     // The book and everyone's hours and days off; not the services, prices or booking switches. (2026-10-18)
     'bookings:read', 'bookings:create', 'bookings:update',
+    // The whole book, and its CSV (a crew seat was offered the export; admin holds both through bookings:*). (2026-10-24)
+    'bookings:read-all', 'bookings:export',
     'ads:read', 'ads:update',
     'tasks:*',
     // operational modules (writes gated in their routes; reads are open) + read-only reports
@@ -348,6 +350,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'company:read', 'dashboard:read', 'schedule:read',
     // Sees the bookings (their day); changing them is the office's. (2026-10-18)
     'bookings:read',
+    // Everyone's jobs, customers and bookings, not only the ones assigned to them. Every vertical's field seat keeps
+    // these; one that runs Jobber's rule (a crew sees its own work) withholds them — landscaping does (2026-10-24).
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',
     // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works
@@ -367,6 +372,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'tasks:read',
     'loyalty:read',
     'bookings:read',
+    // Reads the whole business, as it did (the field row's note on the read-all verbs).
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all',
     // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
     'revenue:read',
     'bar:read',

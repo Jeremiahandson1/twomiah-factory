@@ -286,6 +286,31 @@ export function createJobRoutes(deps: JobDeps) {
   }
 
   /**
+   * WHOSE WORK THIS SEAT READS: everyone's with `jobs:read-all`, else only the jobs assigned to them — Jobber's rule for
+   * a field seat. A landscaping crew login was shown every job and every customer's name (live retest, 2026-10-24); the
+   * vertical withholds jobs:read-all from its field seat (verticals/landscaping/settings.ts), every other seat keeps it.
+   * Answers the user id to narrow to, or null for all. Not wired (no canSee) → all; a failed check narrows (fails closed).
+   */
+  const onlyAssignedTo = async (c: any): Promise<string | null> => {
+    if (!deps.canSee) return null
+    const u = c.get('user') as any
+    try { return (await deps.canSee(u?.role, 'jobs:read-all', u?.userId)) ? null : String(u?.userId || '') } catch { return String(u?.userId || '') }
+  }
+  // Every /:id door (read, edit, photos, notes, status, invoice…) answers 404 for a job this seat may not read, as if it
+  // were not there. A path word that is no job id ('today') finds no row and passes through to its own route.
+  const ownJobOnly = async (c: any, next: any) => {
+    const mine = await onlyAssignedTo(c)
+    if (mine !== null) {
+      const u = c.get('user') as any
+      const [row] = await db.select({ assignedToId: t.job.assignedToId }).from(t.job).where(and(eq(t.job.id, c.req.param('id')), eq(t.job.companyId, u.companyId))).limit(1)
+      if (row && row.assignedToId !== mine) return c.json({ error: 'Job not found' }, 404)
+    }
+    await next()
+  }
+  app.use('/:id', ownJobOnly)
+  app.use('/:id/*', ownJobOnly)
+
+  /**
    * Work is assigned to someone who can open the app — assignedToId points at a login user. Picking a roster-only
    * crew member used to reach the database and come back as "A related record does not exist, or is still in use.",
    * which says nothing about why. Name the reason instead. (Landscaping T21 M6)
@@ -432,6 +457,8 @@ export function createJobRoutes(deps: JobDeps) {
     const badStatus = checkFilter(c, 'status', q.status, JOB_STATUSES)
     if (badStatus) return badStatus
     const conditions: any[] = [eq(t.job.companyId, currentUser.companyId)]
+    const mine = await onlyAssignedTo(c)
+    if (mine !== null) conditions.push(eq(t.job.assignedToId, mine))
     if (q.status) conditions.push(eq(t.job.status, q.status))
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
@@ -500,8 +527,9 @@ export function createJobRoutes(deps: JobDeps) {
     // unconfigured company resolves to UTC and sees exactly what it sees today. (T24 N1)
     const tz = await companyTimeZone(db, currentUser.companyId)
     const { date: localToday } = storeDayRange(tz)
+    const mine = await onlyAssignedTo(c)
     const rows = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`))
+      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, mine !== null ? eq(t.job.assignedToId, mine) : undefined))
       .orderBy(asc(t.job.scheduledTime), asc(t.job.id))
     /**
      * …and /today, which is the TECHNICIAN'S OWN SCREEN and therefore the one most likely to be

@@ -83,6 +83,17 @@ export function whenDateTime(v: unknown, opts: Intl.DateTimeFormatOptions = {}):
   return d.toLocaleString(undefined, zone ? { timeZoneName: 'short', ...spelledOut(opts), timeZone: zone } : opts)
 }
 
+/**
+ * A log's "[2026-10-24T16:54:29.885Z] Tech arrived on site" lines, with each ISO stamp read on the company's clock. Old
+ * job notes were written that way (landscaping live retest, 2026-10-24); new ones are written readable by the server.
+ */
+export function stampsOnClock(text: string): string {
+  return String(text || '').replace(/\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z)\]/g, (whole, iso) => {
+    const shown = whenDateTime(iso, { dateStyle: 'medium', timeStyle: 'short' } as any)
+    return shown ? `[${shown}]` : whole
+  })
+}
+
 /** A moment's time of day on the company's clock, naming the zone once one is set. */
 export function whenTime(v: unknown, opts: Intl.DateTimeFormatOptions = {}): string {
   const d = asDate(v)

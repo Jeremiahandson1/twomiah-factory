@@ -104,6 +104,11 @@ export interface ContactDeps {
   cleanLines?: (min?: number) => z.ZodTypeAny
   /** May this person do X? (role list + per-user grants.) Decides which related lists a contact read carries. */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
+  /**
+   * The contacts a seat without `contacts:read-all` reads: a condition on the contact table for that user — the customers
+   * on the jobs assigned to them (Jobber's field seat). Not wired → every seat reads every contact.
+   */
+  ownContacts?: (userId: string) => any
   options?: ContactOptions
 }
 
@@ -228,6 +233,34 @@ export function createContactRoutes(deps: ContactDeps) {
     const [row] = await db.select().from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1)
     return row
   }
+
+  /**
+   * The condition narrowing this seat to its own customers, or null for every contact (contacts:read-all). A crew login
+   * was shown every customer's name (landscaping live retest, 2026-10-24). A failed check narrows (fails closed).
+   */
+  const ownScope = async (c: any): Promise<any | null> => {
+    if (!deps.ownContacts || !deps.canSee) return null
+    const u = c.get('user') as any
+    let all = false
+    try { all = await deps.canSee(u?.role, 'contacts:read-all', u?.userId) } catch { all = false }
+    return all ? null : deps.ownContacts(String(u?.userId || ''))
+  }
+  // Every /:id door answers 404 for a contact outside the seat's own; a path word that is no contact id passes through.
+  const ownContactOnly = async (c: any, next: any) => {
+    const scope = await ownScope(c)
+    if (scope) {
+      const u = c.get('user') as any
+      const id = c.req.param('id')
+      const [exists] = await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, u.companyId))).limit(1)
+      if (exists) {
+        const [inScope] = await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), scope)).limit(1)
+        if (!inScope) return c.json({ error: 'Contact not found' }, 404)
+      }
+    }
+    await next()
+  }
+  app.use('/:id', ownContactOnly)
+  app.use('/:id/*', ownContactOnly)
   const normaliseBody = (body: any) => {
     if (body && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
     return body
@@ -258,6 +291,8 @@ export function createContactRoutes(deps: ContactDeps) {
     const conditions: any[] = [eq(t.contact.companyId, currentUser.companyId)]
     if (type) conditions.push(eq(t.contact.type, type))
     if (audience === 'customers') conditions.push(ne(t.contact.type, 'vendor'))
+    const scope = await ownScope(c)
+    if (scope) conditions.push(scope)
     if (search) {
       conditions.push(or(
         ilike(t.contact.name, `%${search}%`),

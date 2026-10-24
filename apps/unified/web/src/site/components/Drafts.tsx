@@ -8,7 +8,7 @@
 //   • The bar says where you stand: unsaved, saving, a draft not yet published, or live.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, CircleDot, Eye, Loader2, Monitor, Pencil, Smartphone, Undo2, UploadCloud, Save, Layers } from 'lucide-react'
+import { CheckCircle2, CircleDot, Eye, EyeOff, Loader2, Monitor, Pencil, Smartphone, Undo2, UploadCloud, Save, Layers } from 'lucide-react'
 import { PageError, useConfirm } from '../../shared'
 import { api } from '../../api'
 
@@ -147,15 +147,20 @@ export function useDraftEditor<T>(opts: {
 
 export type DraftEditor<T> = ReturnType<typeof useDraftEditor<T>>
 
-/** Where the record stands: unsaved, saving, a draft not yet published, or live. */
-export function DraftStatus({ isDirty, hasDraft, saving, justPublished }: { isDirty: boolean; hasDraft: boolean; saving?: boolean; justPublished?: boolean }) {
-  const state = saving ? 'saving' : isDirty ? 'unsaved' : hasDraft ? 'draft' : 'live'
+/**
+ * Where the record stands: unsaved, saving, a draft not yet published, live — or saved but OFF the site (`offSite`: a
+ * hidden page or post). A post nobody could open read "Live · no unpublished changes" (landscaping live retest, 2026-10-24).
+ */
+export function DraftStatus({ isDirty, hasDraft, saving, justPublished, offSite }: { isDirty: boolean; hasDraft: boolean; saving?: boolean; justPublished?: boolean; offSite?: boolean }) {
+  const state = saving ? 'saving' : isDirty ? 'unsaved' : hasDraft ? 'draft' : offSite ? 'hidden' : 'live'
   const [cls, Icon, text] = state === 'saving'
     ? ['bg-sky-50 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200', Loader2, 'Saving draft…']
     : state === 'unsaved'
       ? ['bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200', Pencil, 'Unsaved changes']
       : state === 'draft'
         ? ['bg-sky-50 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200', CircleDot, 'Draft saved · not published']
+      : state === 'hidden'
+        ? ['bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200', EyeOff, 'Saved · not shown on your site']
         : ['bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300', CheckCircle2, justPublished ? 'Published · live now' : 'Live · no unpublished changes']
   return (
     <span role="status" data-draft-state={state} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cls}`}>

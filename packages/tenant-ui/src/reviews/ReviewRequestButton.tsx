@@ -21,6 +21,9 @@ export function ReviewRequestButton({ api, toast, jobId, contactId, hasFeature, 
 }) {
   const mayAsk = useMayWrite('marketing:create')
   const [busy, setBusy] = useState(false)
+  // Sent once from this page: the button says so and stays off, so a missed toast is not answered with a second email
+  // (live retest, 2026-10-24: "my first click showed no toast"). A refusal leaves it on, to try again once fixed.
+  const [sent, setSent] = useState(false)
   if (!hasFeature || !hasFeature('google_reviews') || !mayAsk || (!jobId && !contactId)) return null
   const send = async () => {
     setBusy(true)
@@ -28,14 +31,15 @@ export function ReviewRequestButton({ api, toast, jobId, contactId, hasFeature, 
       const r = await api.post(jobId ? `/api/reviews/request/${jobId}` : `/api/reviews/request-contact/${contactId}`, { channel: 'both' })
       // Where it went ("emailed to …"), and why the other way didn't go — never a bare "sent" (server sentSummary).
       toast.success(typeof r?.summary === 'string' && r.summary ? r.summary : 'Review request sent')
+      setSent(true)
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : 'The review request could not be sent')
     } finally { setBusy(false) }
   }
   return (
-    <button type="button" onClick={send} disabled={busy} data-testid="send-review-request"
+    <button type="button" onClick={send} disabled={busy || sent} aria-busy={busy} data-testid="send-review-request"
       className={className || 'px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-2'}>
-      <Star className="w-4 h-4" />{busy ? 'Sending…' : 'Send review request'}
+      <Star className="w-4 h-4" />{busy ? 'Sending…' : sent ? 'Review request sent' : 'Send review request'}
     </button>
   )
 }

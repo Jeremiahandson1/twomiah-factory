@@ -7,6 +7,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type * as Leaflet from 'leaflet'
 import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
+import { useMapCenter, US_VIEW, HOME_ZOOM } from '@twomiah/tenant-ui/src/maps/center'
+import { api } from '../../../../api'
 
 type L = typeof Leaflet
 
@@ -20,8 +22,6 @@ const ensureLeaflet = (): Promise<L> => {
   return leafletLoad
 }
 
-/** Where the template's maps opened with nothing to centre on. */
-const FALLBACK_CENTER: [number, number] = [32.78, -96.8]
 
 export interface Pin {
   id: string
@@ -39,7 +39,7 @@ export interface Pin {
 
 interface Props {
   pins: Pin[]
-  /** Where the map opens; the fallback when absent. */
+  /** Where the map opens; the business's own centre (GET /api/map-center) when absent. */
   center?: [number, number] | null
   zoom?: number
   /** A circle of this many miles around the centre (a canvassing session's target radius). */
@@ -77,8 +77,11 @@ export default function PinMap({ pins, center, zoom = 15, circleMiles, fit = tru
   const layerRef = useRef<Leaflet.LayerGroup | null>(null)
   const [ready, setReady] = useState(0)
   const [failed, setFailed] = useState(false)
-  const lat = center?.[0] ?? null
-  const lng = center?.[1] ?? null
+  // No centre given: the business's address or service area. It opened on Dallas, the template's fallback, wherever the
+  // business was (landscaping live retest, 2026-10-24); with nothing on record it shows the whole country.
+  const home = useMapCenter((p) => api.get(p))
+  const lat = center?.[0] ?? home?.lat ?? null
+  const lng = center?.[1] ?? home?.lng ?? null
 
   // The map itself, made once per centre.
   useEffect(() => {
@@ -86,10 +89,11 @@ export default function PinMap({ pins, center, zoom = 15, circleMiles, fit = tru
     let made: Leaflet.Map | null = null
     ensureLeaflet().then((L) => {
       if (cancelled || !divRef.current) return
-      const at: [number, number] = lat !== null && lng !== null ? [lat, lng] : FALLBACK_CENTER
-      made = L.map(divRef.current).setView(at, zoom)
+      const placed = lat !== null && lng !== null
+      const at: [number, number] = placed ? [lat, lng] : US_VIEW.center
+      made = L.map(divRef.current).setView(at, placed ? (center ? zoom : Math.min(zoom, HOME_ZOOM)) : US_VIEW.zoom)
       addMapTiles(L, made, 'hybrid')
-      if (circleMiles && circleMiles > 0) {
+      if (placed && circleMiles && circleMiles > 0) {
         L.circle(at, { radius: circleMiles * 1609.34, color: '#3B82F6', fillOpacity: 0.05, weight: 1 }).addTo(made)
       }
       libRef.current = L

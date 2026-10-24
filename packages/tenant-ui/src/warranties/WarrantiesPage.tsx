@@ -395,7 +395,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
   };
 
   const handleSchedule = async (claimId: string) => {
-    const date = await ask('Enter scheduled date (YYYY-MM-DD):', { title: 'Schedule the visit', placeholder: 'YYYY-MM-DD', confirmText: 'Schedule' });
+    const date = await ask('The day of the visit:', { title: 'Schedule the visit', inputType: 'date', initialValue: companyTodayKey(), confirmText: 'Schedule' });
     if (!date) return;
     try {
       await api.post(`/api/warranties/claims/${claimId}/schedule`, { scheduledDate: date });

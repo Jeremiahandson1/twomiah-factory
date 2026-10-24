@@ -33,6 +33,14 @@ export const markerDay = (v: Date | string | null | undefined): string => {
   return Number.isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10)
 }
 
+/**
+ * A note's time stamp, readable and on the business's clock: "Oct 24, 2026, 11:54 AM CDT". A job's log was stamped with
+ * toISOString() — "[2026-10-24T16:54:29.885Z] Tech arrived on site" (landscaping live retest, 2026-10-24).
+ */
+export function noteStamp(at: Date, tz: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(at)
+}
+
 /** What the store's wall clock calls this instant's date, as YYYY-MM-DD. */
 export function storeDateString(at: Date, tz: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)

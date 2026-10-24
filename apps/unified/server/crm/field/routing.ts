@@ -72,7 +72,7 @@ export function createRoutingRoutes(d: CrmDeps) {
   })
 
   // The dispatcher's view: every active person's optimised day.
-  app.get('/team-routes', d.permissions.requirePermission('jobs:read'), async (c) => {
+  app.get('/team-routes', d.permissions.requirePermission('jobs:read-all'), async (c) => {
     const currentUser = c.get('user')
     const date = c.req.query('date')
     const targetDate = date ? new Date(date) : new Date()

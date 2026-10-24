@@ -161,7 +161,7 @@ export function Tech() {
   const { hasFeature } = useAuth()
   return <TechView api={client} toast={useToast()} config={{ ...v().tech, hasFeature }} />
 }
-export const Fleet = () => <FleetPage api={client} config={v().fleet} />
+export const Fleet = () => <FleetPage api={client} config={v().fleet} toast={useToast()} />
 export function Inventory() {
   const { hasFeature } = useAuth()
   return <InventoryPage api={client} hasFeature={hasFeature} />
