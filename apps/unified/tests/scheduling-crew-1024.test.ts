@@ -32,8 +32,8 @@ const assigneeIds = (j: any) => (j.assignees || []).map((a: any) => a.id)
 let customer = ''
 
 beforeAll(async () => {
-  // No road router from a test: a refused address makes the optimiser use its straight-line fallback.
-  process.env.OSRM_URL = 'http://127.0.0.1:9'
+
+  // GOOGLE_MAPS_API_KEY is blanked by the harness (noLiveKeys.ts): the optimiser uses its straight-line fallback.
   t = await bootTenant({ vertical: 'landscaping' })
   const s = await seedOwner(t)
   co = s.company.id

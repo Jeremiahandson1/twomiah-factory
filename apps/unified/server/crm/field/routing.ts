@@ -46,10 +46,9 @@ export function createRoutingRoutes(d: CrmDeps) {
 
   app.get('/optimize-day', d.permissions.requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user')
-    const date = c.req.query('date')
-    const targetDate = date ? new Date(date) : new Date()
     const targetUserId = c.req.query('userId') || currentUser.userId
-    const day = await routing.optimizeDayRoute(currentUser.companyId, targetUserId, targetDate)
+    // The company's day (YYYY-MM-DD), or its today (routingService.ts).
+    const day = await routing.optimizeDayRoute(currentUser.companyId, targetUserId, c.req.query('date'))
     return one(c, { ...day, jobs: await shapeJobs(currentUser, day.jobs) })
   })
 
@@ -75,7 +74,6 @@ export function createRoutingRoutes(d: CrmDeps) {
   app.get('/team-routes', d.permissions.requirePermission('jobs:read-all'), async (c) => {
     const currentUser = c.get('user')
     const date = c.req.query('date')
-    const targetDate = date ? new Date(date) : new Date()
 
     const teamMembers = await db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName })
       .from(user)
@@ -83,7 +81,7 @@ export function createRoutingRoutes(d: CrmDeps) {
 
     const routes = await Promise.all(teamMembers.map(async (member: any) => {
       try {
-        const result = await routing.optimizeDayRoute(currentUser.companyId, member.id, targetDate)
+        const result = await routing.optimizeDayRoute(currentUser.companyId, member.id, date)
         return { user: member, ...result }
       } catch (error: any) {
         return { user: member, error: error.message }
@@ -94,7 +92,7 @@ export function createRoutingRoutes(d: CrmDeps) {
     const withheld = await jobMoneyWithheld(canSeeWith(d.permissions), currentUser)
     const activeRoutes = routes.filter((r: any) => r.jobs?.length > 0).map((r: any) => ({ ...r, jobs: withoutJobMoney(r.jobs, withheld) }))
     return one(c, {
-      date: targetDate.toISOString().split('T')[0],
+      date: routes.find((r: any) => r.date)?.date ?? (date || null),
       routes: activeRoutes,
       totalJobs: activeRoutes.reduce((sum: number, r: any) => sum + (r.jobs?.length || 0), 0),
       totalMiles: activeRoutes.reduce((sum: number, r: any) => sum + (r.optimizedRoute?.totalDistanceMiles || 0), 0),

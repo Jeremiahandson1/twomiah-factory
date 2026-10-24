@@ -619,10 +619,12 @@ export function createJobRoutes(deps: JobDeps) {
     if (q.assignedToId) conditions.push(onJob(db, t, q.assignedToId))
     if (branches && q.locationId) conditions.push(eq(t.job.locationId, q.locationId))
     if (q.search?.trim()) { const p = `%${q.search.trim()}%`; conditions.push(or(ilike(t.job.title, p), ilike(t.job.number, p), ilike(t.job.address, p))!) }
-    // The dispatch board passes ?date=YYYY-MM-DD (F-11).
-    if (q.date && /^\d{4}-\d{2}-\d{2}$/.test(q.date)) {
-      const dayStart = new Date(q.date + 'T00:00:00')
-      if (!isNaN(dayStart.getTime())) conditions.push(gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, new Date(dayStart.getTime() + 86400000)))
+    // The dispatch board passes ?date=YYYY-MM-DD (F-11): the COMPANY'S day, read per job by the rule /today uses
+    // (jobLocalDay — a booking's instant in the company's zone, a day marker as the day it names). It was the server's
+    // local midnight (new Date(date + 'T00:00:00')), so a server off UTC moved the board's day (2026-10-24).
+    const tzForOrder = await companyTimeZone(db, currentUser.companyId)
+    if (q.date && /^\d{4}-\d{2}-\d{2}$/.test(q.date) && !isNaN(new Date(`${q.date}T00:00:00Z`).getTime())) {
+      conditions.push(sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tzForOrder)} = ${q.date}::date`)
     }
     // The schedule passes ?startDate&endDate for the visible week. Every template ignored them and
     // handed back the first page of ALL jobs, so a week view silently lost jobs past the page size.
@@ -647,7 +649,6 @@ export function createJobRoutes(deps: JobDeps) {
      * why all three attempts to pick one direction failed.
      */
     const viewingRange = !!(q.startDate || q.endDate || q.date)
-    const tzForOrder = await companyTimeZone(db, currentUser.companyId)
     const { date: todayForOrder } = storeDayRange(tzForOrder)
     const order = viewingRange
       ? [asc(t.job.scheduledDate), desc(t.job.createdAt)]
