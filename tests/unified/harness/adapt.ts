@@ -72,6 +72,9 @@ const ADAPT: Record<string, [string, string, string][]> = {
     ["const r = await api('GET', '/api/comments/activity/feed-not-the-feed')", "const r = await api('GET', '/api/comments/activity/feed-not-the-feed').then((x) => ({ ...x, json: x.json?.data }))", 'a comment thread is a list reply'],
     ["const decoy = await api('GET', '/api/comments/activity/feed-decoy-check')", "const decoy = await api('GET', '/api/comments/activity/feed-decoy-check').then((x) => ({ ...x, json: x.json?.data }))", 'a comment thread is a list reply'],
   ],
+  'vet/t62-webhook-secret.test.ts': [
+    ["for (const [who, label] of [[staff, 'staff'], [manager, 'a manager']] as const) {", "check('staff are refused the sources list (403): leads:read is the desk’s', (await as(staff)('GET', '/api/leads/sources')).status === 403, null); for (const [who, label] of [[manager, 'a manager']] as const) {", "the Lead Inbox and its sources ask leads:read (managers and up), not contacts:read, which a vet desk's staff hold (live role check, 2026-10-23)"],
+  ],
   'vet/t62-billed-visit-delete.test.ts': [
     ["r.json?.code === 'visit_already_invoiced' && r.json?.invoiceId === sentInv.id, r)", "r.json?.code === 'visit_already_invoiced' && String(r.json?.error).includes(sentInv.number), r)", 'a refusal is { error, code } (RULEBOOK §3): the invoice is named by its number in the sentence, not an invoiceId field (no screen read it)'],
   ],

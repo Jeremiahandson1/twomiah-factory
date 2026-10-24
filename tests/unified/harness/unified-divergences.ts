@@ -209,8 +209,8 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   },
   salon: {
     'salon-n2-calendar-day.test.ts': {
-      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused)/, /^at least one zone sat on a different calendar day from UTC/],
-      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's.",
+      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused|tomorrow is still refused)/, /^at least one zone sat on a different calendar day from UTC/],
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's. 'Tomorrow is still refused' is the same: while Niue's day is behind UTC's (00:00-10:59Z), Niue's tomorrow IS the UTC clock's today, so it is accepted (seen at 01:14Z on 2026-10-24, the base commit fa93b5dbf included).",
       heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone set on the company: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
     },
     't27-highs.test.ts': {
@@ -369,6 +369,11 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       assertions: [/cannot delete a visit billed on INV-\d+ \(409 visit_already_invoiced\)$/],
       why: "A refusal is { error, code } (RULEBOOK §3): the invoice that holds the visit is named by its number in the sentence; the template's reply also carried an invoiceId field, which the test reads (no screen did). Still a 409 with code visit_already_invoiced, for every role.",
       heldBy: 'tests/unified/vet/t62-billed-visit-delete.test.ts (the same file, reading the invoice number in the sentence)',
+    },
+    't62-webhook-secret.test.ts': {
+      assertions: [/^staff reads the list$/, /^…without the secret$/, /^…but with the inbound email address, which is not a secret$/],
+      why: "On purpose (live role check, 2026-10-23): the Lead Inbox and Lead Sources ask the inbox's own permission, leads:read — admin and manager — not contacts:read, which a vet's desk staff (the field rung) hold to keep a client's card; staff were reading the practice's incoming leads. The template keeps contacts:read (tenant-backend leads.ts ownPermission is the unified app's). A manager still reads the list without the secret and with the inbound address.",
+      heldBy: 'tests/unified/vet/t62-webhook-secret.test.ts (the same file: staff refused 403, the manager reads the list without the secret) and apps/unified/tests/role-check-1023.test.ts (the inbox, its sources and New leads refused to a technician and a viewer, read by a manager and an admin)',
     },
     't59-website-enquiry-inbox-on.test.ts': WEBHOOK_REPLACED,
     't59-website-enquiry-inbox-off.test.ts': WEBHOOK_REPLACED,
