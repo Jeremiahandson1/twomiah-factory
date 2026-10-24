@@ -64,7 +64,9 @@ const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-
 export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const { user, company, logout, hasFeature } = auth
   // A template that has not been rewired hands us no `can`, and its whole menu must still render.
-  const can = auth.can || (() => true)
+  const canOne = auth.can || (() => true)
+  // A nav item or route may name a LIST of permissions, any one of which opens it (types.ts NavItem.permission).
+  const can = useMemo(() => (permission: string | string[]) => allowsPermission(canOne, permission), [canOne])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { setTheme, isDark } = useTheme()
@@ -87,7 +89,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const navItems = useMemo(
     () => config.nav.filter((i) =>
       meetsRole(user?.role, i.minRole)
-      && allowsPermission(can, i.permission)
+      && (!i.permission || can(i.permission))
       && (!i.features || i.features.some((f) => hasFeature(f))),
     ),
     [config.nav, hasFeature, can, user?.role],
@@ -150,7 +152,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     const permBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routePermissions || {})]
       .filter((to) => path === to || path.startsWith(to + '/'))
       .sort((a, b) => b.length - a.length)
-      .find((to) => { const need = permissionOf(to); return !!need && !allowsPermission(can, need) })
+      .find((to) => { const need = permissionOf(to); return !!need && !can(need) })
     if (permBlocked) {
       const needs = permissionOf(permBlocked)
       const label = config.nav.find((i) => i.to === permBlocked)?.label || labelFromPath(permBlocked)
