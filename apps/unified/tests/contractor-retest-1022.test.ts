@@ -147,6 +147,32 @@ describe('4. photos on a daily log and on a punch-list item', () => {
     expect((await as('ownerA', 'GET', photo.url)).status).toBe(404)
   })
 
+  // The crew photographs the day (coordinator, 2026-10-23 — as Buildertrend's daily log): daily-logs:create adds photos to
+  // any log the crew can see and removes the ones it added; somebody else's photo stays with daily-logs:update.
+  test("the crew adds photos to a log it didn't write, removes its own, and not the owner's", async () => {
+    const hash = await Bun.password.hash(PASSWORD, 'bcrypt')
+    for (const [key, role] of [['crew', 'field'], ['look', 'viewer']] as const) {
+      await t.db.insert(t.schema.user).values({ email: `${key}@test.example`, passwordHash: hash, firstName: key, lastName: 'A', role, companyId: ids.coA } as any)
+      tokens[key] = await signIn(`${key}@test.example`)
+    }
+    const log = await body(await as('ownerA', 'POST', '/api/daily-logs', { projectId: ids.project, workPerformed: 'Framing', date: new Date(Date.now() - 86400000).toISOString().slice(0, 10) /* one log a day per project: not today's */ }))
+    const ownerPhoto = (await body(await as('ownerA', 'POST', `/api/daily-logs/${log.id}/photos`, undefined, { body: photoForm() }))).photos[0]
+    // The crew can't edit the log itself, but can photograph it.
+    expect((await as('crew', 'PUT', `/api/daily-logs/${log.id}`, { workPerformed: 'changed' })).status).toBe(403)
+    const up = await as('crew', 'POST', `/api/daily-logs/${log.id}/photos`, undefined, { body: photoForm() })
+    expect(up.status).toBe(201)
+    const crewPhoto = (await body(up)).photos.find((p: any) => p.id !== ownerPhoto.id)
+    expect(crewPhoto.uploadedById).toBeTruthy()
+    // Somebody else's photo is not theirs to remove; their own is.
+    const refused = await as('crew', 'DELETE', `/api/daily-logs/${log.id}/photos/${ownerPhoto.id}`)
+    expect(refused.status).toBe(403)
+    expect((await body(refused)).code).toBe('not_your_photo')
+    expect((await as('crew', 'DELETE', `/api/daily-logs/${log.id}/photos/${crewPhoto.id}`)).status).toBe(200)
+    // A read-only seat adds nothing; the owner removes anyone's.
+    expect((await as('look', 'POST', `/api/daily-logs/${log.id}/photos`, undefined, { body: photoForm() })).status).toBe(403)
+    expect((await as('ownerA', 'DELETE', `/api/daily-logs/${log.id}/photos/${ownerPhoto.id}`)).status).toBe(200)
+  })
+
   test('a log past its edit window takes no new photo (the log itself can no longer change)', async () => {
     const [old] = await t.db.insert(t.schema.dailyLog).values({ companyId: ids.coA, projectId: ids.project, userId: ids.ownerA, date: new Date('2026-01-05T00:00:00Z') } as any).returning()
     const r = await as('ownerA', 'POST', `/api/daily-logs/${old.id}/photos`, undefined, { body: photoForm() })

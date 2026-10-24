@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { formatDate } from '../date'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Camera } from 'lucide-react'
 import { api } from '../../api'
 import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
@@ -35,7 +35,17 @@ export default function DailyLogsPage() {
   const toast = useToast();
   // Every write on this page asks daily-logs:create|update|delete on the server (routes/dailyLogs.ts); the
   // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  /**
+   * A daily log's PHOTOS are the crew's too (coordinator, 2026-10-23 — as in Buildertrend): daily-logs:create adds photos to
+   * any log the seat can see and removes the ones it added; editing the log and removing someone else's photo stay with
+   * daily-logs:update. The same rule as the server (siteRecords/recordPhotos.ts, `add`).
+   */
+  const mayEditLogs = can('daily-logs:update');
+  const mayAddPhotos = mayEditLogs || can('daily-logs:create');
+  const mayRemovePhoto = (p: SavedPhoto) => mayEditLogs || (!!p.uploadedById && p.uploadedById === (user as { id?: string } | null)?.id);
+  // The dialog opened only to add photos to a log this seat may not edit (the "Add photos" row action).
+  const [photosOnly, setPhotosOnly] = useState(false);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,12 +100,13 @@ export default function DailyLogsPage() {
     : '';
 
   const handleSave = async () => {
-    if (!form.projectId) { toast.error('Project required'); return; }
+    if (!photosOnly && !form.projectId) { toast.error('Project required'); return; }
     setSaving(true);
     try {
       const payload = { ...form, temperature: form.temperature ? Number(form.temperature) : undefined, crewSize: form.crewSize ? Number(form.crewSize) : undefined, hoursWorked: form.hoursWorked ? Number(form.hoursWorked) : undefined };
       let saved: Record<string, unknown> | null = editing;
-      if (editing) { await api.dailyLogs.update(editing.id as string, payload); }
+      if (photosOnly && editing) { /* the log is not this seat's to change: only the photos go up */ }
+      else if (editing) { await api.dailyLogs.update(editing.id as string, payload); }
       else { saved = await api.dailyLogs.create(payload) as Record<string, unknown>; }
       const { failed, reasons } = saved?.id ? await uploadRecordPhotos('/api/daily-logs', saved.id as string, pending) : { failed: [], reasons: [] };
       setPending(failed);
@@ -103,7 +114,7 @@ export default function DailyLogsPage() {
       // The log is saved either way. A photo that did not go up is named and stays in the dialog, which is now editing
       // the saved log — so trying again adds the photo rather than filing the day twice.
       if (failed.length) { if (saved) setEditing(saved); toast.error(`The log was saved, but ${failed.length === 1 ? 'a photo' : `${failed.length} photos`} did not upload — ${reasons.join('; ')}`); return; }
-      toast.success(editing ? 'Updated' : 'Created');
+      toast.success(photosOnly ? 'Photos added' : editing ? 'Updated' : 'Created');
       setModalOpen(false);
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }
@@ -111,7 +122,7 @@ export default function DailyLogsPage() {
 
   const handleDelete = async () => { try { await api.dailyLogs.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = (projectId = '') => { setEditing(null); resetPhotos([]); setForm({ date: todayKey(), projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setPhotosOnly(false); setEditing(null); resetPhotos([]); setForm({ date: todayKey(), projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
 
   /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
    *  the browser's Back button does not reopen the dialog. (T51) */
@@ -121,7 +132,8 @@ export default function DailyLogsPage() {
     const next = new URLSearchParams(searchParams); next.delete('new');
     setSearchParams(next, { replace: true });
   }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openEdit = (item: Record<string, unknown>) => { setEditing(item); resetPhotos(((item.photos as SavedPhoto[]) || []).slice()); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
+  const openPhotos = (item: Record<string, unknown>) => { setPhotosOnly(true); setEditing(item); resetPhotos(((item.photos as SavedPhoto[]) || []).slice()); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setPhotosOnly(false); setEditing(item); resetPhotos(((item.photos as SavedPhoto[]) || []).slice()); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
 
   const columns = [
     { key: 'date', label: 'Date', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
@@ -154,9 +166,10 @@ export default function DailyLogsPage() {
         emptyMessage='No daily logs yet'
         emptyHint="Record each day on site — crew, weather, work done and any delays."
         emptyAction={can('daily-logs:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button> : undefined}
-        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Log' : 'New Daily Log'} size="lg">
+        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Add photos', icon: Camera, onClick: openPhotos, show: () => mayAddPhotos && !mayEditLogs }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={photosOnly ? 'Add photos' : editing ? 'Edit Log' : 'New Daily Log'} size="lg">
         <div className="space-y-4">
+          {!photosOnly && <>
           <div className="grid md:grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium mb-1">Date</label><input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Project *</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>
@@ -173,10 +186,10 @@ export default function DailyLogsPage() {
             <div><label className="block text-sm font-medium mb-1">Delays/Issues</label><textarea value={form.delays} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, delays: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Safety Notes</label><textarea value={form.safetyNotes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, safetyNotes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          {/* A log's photos go up and come off through /api/daily-logs/:id/photos, which asks daily-logs:update (siteRecords/
-              dailyLogs.ts): the crew holds daily-logs:create, so a technician's photos on a new log were each refused after the
-              save (live role check sweep, 2026-10-23). The field is offered to whoever may add them. */}
-          <RecordPhotosField canEdit={can('daily-logs:update')} base="/api/daily-logs" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="daily-log-photos" />
+          </>}
+          {/* Photos go up through /api/daily-logs/:id/photos: daily-logs:create or :update adds; your own photo is yours to
+              remove, anyone else's is :update's (siteRecords/recordPhotos.ts). */}
+          <RecordPhotosField canAdd={mayAddPhotos} canRemove={mayRemovePhoto} base="/api/daily-logs" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="daily-log-photos" />
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

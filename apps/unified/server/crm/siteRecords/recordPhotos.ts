@@ -5,7 +5,10 @@
 // one. One rule for both, here:
 //   POST   <base>/:id/photos                 (write permission)  multipart `photo` (+ optional `caption`)
 //   GET    <base>/:id/photos/:photoId/file   (read permission)   the picture, never cached by the browser
-//   DELETE <base>/:id/photos/:photoId        (write permission)
+//   DELETE <base>/:id/photos/:photoId        (write permission — or, for a photo you added yourself, the add permission)
+// A record may name a separate ADD permission (`add`): the daily log's crew holds daily-logs:create and not :update, and
+// a crew photographs the day as it works (Buildertrend's and every pro tool's daily log). They add photos to any log
+// they can see; removing SOMEBODY ELSE'S photo stays with the write permission. (Coordinator, 2026-10-23)
 // A photo is re-encoded (JPEG, turned the right way up, its metadata — location included — dropped) and kept in the file
 // store under the company. The record holds the list; each entry is given its `url` when the record is sent.
 import type { Hono } from 'hono'
@@ -33,14 +36,22 @@ export function recordPhotos(d: CrmDeps, o: {
   folder: string
   read: string
   write: string
+  /** Who may ADD a photo (and remove their own) besides `write`; absent, `write` alone. */
+  add?: string
   /** A refusal when the record can no longer be changed (the daily log's edit window); null when it can. */
   editable?: (c: any, row: any) => Promise<Response | null>
   /** What a missing record is called in the 404 ('Daily log not found'). */
   notFound: string
 }) {
   const { db } = d
-  const { requirePermission } = d.permissions
+  const { requirePermission, requireAnyPermission } = d.permissions
   const t = o.table
+  const mayAdd = o.add ? requireAnyPermission([o.write, o.add]) : requirePermission(o.write)
+  /** Does this person hold the write permission (any photo), counting grants — not only the add permission? */
+  const writes = async (c: any) => {
+    const me = c.get('user') as any
+    return d.permissions.hasPermission(me.role, o.write, await d.permissions.getExtraPermissions(me.userId))
+  }
 
   /** The record as sent: each photo with the address its file is served at. */
   const withUrls = (row: any) => row ? ({ ...row, photos: photosOf(row).map((p) => ({ ...p, url: `${o.base}/${row.id}/photos/${p.id}/file` })) }) : row
@@ -52,7 +63,7 @@ export function recordPhotos(d: CrmDeps, o: {
   }
 
   function routes(app: Hono<AppEnv>) {
-    app.post('/:id/photos', requirePermission(o.write), async (c) => {
+    app.post('/:id/photos', mayAdd, async (c) => {
       const me = c.get('user') as any
       const row = await own(c)
       if (!row) return fail(c, 404, o.notFound)
@@ -93,7 +104,7 @@ export function recordPhotos(d: CrmDeps, o: {
       return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store, must-revalidate', Pragma: 'no-cache' } })
     })
 
-    app.delete('/:id/photos/:photoId', requirePermission(o.write), async (c) => {
+    app.delete('/:id/photos/:photoId', mayAdd, async (c) => {
       const me = c.get('user') as any
       const row = await own(c)
       if (!row) return fail(c, 404, o.notFound)
@@ -102,6 +113,8 @@ export function recordPhotos(d: CrmDeps, o: {
       const photos = photosOf(row)
       const gone = photos.find((p) => p.id === c.req.param('photoId'))
       if (!gone) return fail(c, 404, 'Photo not found')
+      // Somebody else's photo is the write permission's to remove; your own is yours.
+      if (gone.uploadedById !== me.userId && !(await writes(c))) return fail(c, 403, 'You can remove only the photos you added.', 'not_your_photo')
       const [updated] = await db.update(t).set({ photos: photos.filter((p) => p.id !== gone.id), updatedAt: new Date() })
         .where(and(eq(t.id, row.id), eq(t.companyId, me.companyId))).returning()
       try { await d.services.storage.deleteFile(gone.path) } catch { /* the record's list is what counts */ }

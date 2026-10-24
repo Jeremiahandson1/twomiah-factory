@@ -209,9 +209,8 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   },
   salon: {
     'salon-n2-calendar-day.test.ts': {
-      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused|tomorrow is still refused)/, /^at least one zone sat on a different calendar day from UTC/],
-      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's. 'Tomorrow is still refused' is the same: while Niue's day is behind UTC's (00:00-10:59Z), Niue's tomorrow IS the UTC clock's today, so it is accepted (seen at 01:14Z on 2026-10-24, the base commit fa93b5dbf included).",
-      heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone set on the company: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so every assertion about the shop's day reads the company's default clock instead — and which of them fail depends on the hour the file runs (Niue is a day behind UTC from 00:00Z to 10:59Z). The whole file is held by its adapted copy, which sets the zone on the company and pins the clock at two instants (Niue behind UTC, and on UTC's day), so every assertion runs at every hour.",
+      heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone on the company, the clock pinned at 01:30Z and 12:00Z: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
     },
     't27-highs.test.ts': {
       assertions: [/^H1: /],
