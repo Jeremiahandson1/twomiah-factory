@@ -11,7 +11,12 @@ import path from 'node:path'
 
 const dir = import.meta.dir
 const filter = process.argv[2] || ''
-const files = readdirSync(dir).filter((f) => f.endsWith('.test.ts') && f.includes(filter)).sort()
+// SHARD=i/n (1-based) runs every n-th file starting at i, so CI can split the files across parallel jobs; together the
+// n shards run every file exactly once.
+const shard = /^(\d+)\/(\d+)$/.exec(process.env.SHARD || '')
+const all = readdirSync(dir).filter((f) => f.endsWith('.test.ts') && f.includes(filter)).sort()
+const files = shard ? all.filter((_, i) => i % Number(shard[2]) === Number(shard[1]) - 1) : all
+if (shard) console.log(`shard ${shard[1]}/${shard[2]}: ${files.length} of ${all.length} file(s)`)
 const failed: string[] = []
 let passed = 0, failedTests = 0
 
