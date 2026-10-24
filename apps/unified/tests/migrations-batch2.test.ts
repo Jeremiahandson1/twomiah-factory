@@ -46,10 +46,11 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
   test('the journal runs 0022 to 0027 in that order, each stamped after the one before', () => {
     const entries = journal().entries
     expect(entries.map((e: any) => `${e.idx}:${e.tag}`).slice(22, 28)).toEqual(BATCH2)
-    // Numbered in order. A later branch's migration may leave numbers free for others' (fix-m's 0030 keeps 0028 and 0029
-    // for theirs), so the numbers rise without having to be consecutive; each tag carries its own number.
-    for (let i = 1; i < entries.length; i++) expect(entries[i].idx).toBeGreaterThan(entries[i - 1].idx)
-    for (const e of entries) expect(e.tag.startsWith(String(e.idx).padStart(4, '0') + '_')).toBe(true)
+    // The journal is dense and in order (scripts/check-migration-journal-applies.ts). A branch's migration may carry a tag
+    // number kept free for other branches (fix-m's 0030 leaves 0028 and 0029 to theirs) until they are merged, so a tag's
+    // number rises with its place without having to equal it; its snapshot is named by the tag.
+    expect(entries.map((e: any) => e.idx)).toEqual(entries.map((_: any, i: number) => i))
+    for (let i = 1; i < entries.length; i++) expect(Number(entries[i].tag.slice(0, 4))).toBeGreaterThan(Number(entries[i - 1].tag.slice(0, 4)))
     for (let i = 1; i < entries.length; i++) expect(entries[i].when).toBeGreaterThan(entries[i - 1].when)
   })
 
@@ -57,11 +58,11 @@ describe('batch 2 migration chain, 0022 to 0027', () => {
     const entries = journal().entries
     for (const e of entries) {
       expect(fs.existsSync(path.join(MIGRATIONS, `${e.tag}.sql`))).toBe(true)
-      expect(fs.existsSync(path.join(MIGRATIONS, `meta/${String(e.idx).padStart(4, '0')}_snapshot.json`))).toBe(true)
+      expect(fs.existsSync(path.join(MIGRATIONS, `meta/${e.tag.slice(0, 4)}_snapshot.json`))).toBe(true)
     }
-    for (let i = 1; i < entries.length; i++) expect(snapshot(entries[i].idx).prevId).toBe(snapshot(entries[i - 1].idx).id)
+    for (let i = 1; i < entries.length; i++) expect(snapshot(Number(entries[i].tag.slice(0, 4))).prevId).toBe(snapshot(Number(entries[i - 1].tag.slice(0, 4))).id)
     // The last snapshot carries every batch-2 schema change (drizzle-kit generates the next migration from it).
-    const last = snapshot(entries[entries.length - 1].idx).tables
+    const last = snapshot(Number(entries[entries.length - 1].tag.slice(0, 4))).tables
     expect(Object.keys(last['public.booking'].columns)).toEqual(expect.arrayContaining(['override_by_user_id', 'override_at']))
     expect(Object.keys(last['public.invoices'].columns)).toContain('public_token')
     expect(Object.keys(last['public.commission_plan'].columns)).toContain('user_ids')
