@@ -17,13 +17,27 @@ export function useShortDate() {
   }
 }
 
-export function StatusPill({ on, onLabel = 'Published', offLabel }: { on: boolean; onLabel?: string; offLabel: string }) {
+/**
+ * Whether visitors can open it ("On the site" / hidden). Not whether its edits are published: that is DraftPill
+ * (site/drafts.ts keeps the two apart).
+ */
+export function StatusPill({ on, onLabel = 'On the site', offLabel }: { on: boolean; onLabel?: string; offLabel: string }) {
   return (
     <span className={on
       ? 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300'
       : 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'}>
       {on ? <Eye className="w-3 h-3" aria-hidden="true" /> : <EyeOff className="w-3 h-3" aria-hidden="true" />}
       {on ? onLabel : offLabel}
+    </span>
+  )
+}
+
+/** Saved changes that are not on the site yet (a draft — site/drafts.ts). */
+export function DraftPill({ on }: { on?: boolean }) {
+  if (!on) return null
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+      Unpublished changes
     </span>
   )
 }

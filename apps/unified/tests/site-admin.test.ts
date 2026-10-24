@@ -1,4 +1,5 @@
-// The website's admin API through the real server: who may do what, pages that show on the public site at once,
+// The website's admin API through the real server: who may do what, pages that show on the public site once published
+// (saving keeps a draft — site/drafts.ts; tests/site-drafts.test.ts has the whole model),
 // the website's own settings (and only those), photos stored and served only under the public prefix, the blog and
 // portfolio, and the visit numbers.
 import { describe, test, expect, beforeAll } from 'bun:test'
@@ -65,11 +66,14 @@ describe('pages', () => {
     expect((await as('owner', '/api/site/pages', { method: 'POST', json: { slug: 'about', title: 'Again' } })).status).toBe(409)
   })
 
-  test('a saved page shows on the public site at once', async () => {
+  test('a saved page is a draft; published, it shows on the public site', async () => {
     const sections = [{ type: 'hero', variant: 'centered-stats', data: { title: 'Fresh from the editor' } }]
     const res = await as('owner', '/api/site/pages/about', { method: 'PATCH', json: { sections, metaDescription: 'About us' } })
     expect(res.status).toBe(200)
-    expect((await res.json()).sections).toEqual(sections)
+    expect((await res.json()).draft.sections).toEqual(sections)
+    expect(await (await t.call('/about')).text()).not.toContain('Fresh from the editor')
+    const published = await as('owner', '/api/site/pages/about/publish', { method: 'POST', json: {} })
+    expect((await published.json()).sections).toEqual(sections)
     expect(await (await t.call('/about')).text()).toContain('Fresh from the editor')
   })
 
@@ -85,7 +89,8 @@ describe("the website's settings", () => {
   test('the website\'s own fields save; a company fact is not edited here', async () => {
     const res = await as('owner', '/api/site/settings', { method: 'PATCH', json: { tagline: 'Built to last', seoTitle: 'Builders', serviceAreas: ['Verona'] } })
     expect(res.status).toBe(200)
-    const s = await res.json()
+    expect((await res.json()).draft.tagline).toBe('Built to last')
+    const s = await (await as('owner', '/api/site/settings/publish', { method: 'POST' })).json()
     expect(s.tagline).toBe('Built to last')
     expect(s.serviceAreas).toEqual(['Verona'])
     expect((await as('owner', '/api/site/settings', { method: 'PATCH', json: { companyName: 'Elsewhere' } })).status).toBe(400)
@@ -94,6 +99,8 @@ describe("the website's settings", () => {
   test('the design is one of the designs; the stylesheet follows it', async () => {
     expect((await as('owner', '/api/site/settings', { method: 'PATCH', json: { design: 'nonsense' } })).status).toBe(400)
     expect((await as('owner', '/api/site/settings', { method: 'PATCH', json: { design: 'landscaping' } })).status).toBe(200)
+    expect(await (await t.call('/styles/main.css')).text()).not.toContain('Season-aware delight')
+    expect((await as('owner', '/api/site/settings/publish', { method: 'POST' })).status).toBe(200)
     expect(await (await t.call('/styles/main.css')).text()).toContain('Season-aware delight')
   })
 

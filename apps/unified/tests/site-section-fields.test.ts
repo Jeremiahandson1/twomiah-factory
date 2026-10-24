@@ -228,6 +228,9 @@ describe('on a bar tenant: each bar section saves, comes back, and renders what 
         const sections = [{ type: s.type, variant: s.variant, data: d }]
         const saved = await as(`/api/site/pages/${slug}`, { method: 'PATCH', json: { sections, isPublished: true } })
         expect(saved.status).toBe(200)
+        // Saved is a draft (site/drafts.ts); published, it is the page.
+        expect((await (await as(`/api/site/pages/${slug}`)).json()).draft.sections).toEqual(sections)
+        expect((await as(`/api/site/pages/${slug}/publish`, { method: 'POST', json: {} })).status).toBe(200)
         expect((await (await as(`/api/site/pages/${slug}`)).json()).sections).toEqual(sections)
 
         const before = sectionFailures.length

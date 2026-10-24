@@ -8,6 +8,7 @@ import { sectionsShown } from './render.ts'
 import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS, COVER_DESIGNS } from '../core/vertical.ts'
+import { previewing } from './drafts.ts'
 
 export interface SiteContext {
   companyId: string
@@ -46,7 +47,14 @@ function addressLine(c: { address: string | null; city: string | null; state: st
 export async function loadSiteContext(db: any, vertical: VerticalSettings): Promise<SiteContext | null> {
   const [co] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!co) return null
-  const [s] = await db.select().from(website).where(eq(website.companyId, co.id)).limit(1)
+  const [row] = await db.select().from(website).where(eq(website.companyId, co.id)).limit(1)
+  // The live settings — or, in the editor's preview (site/drafts.ts), the draft ones over them, with no tracking: the
+  // owner looking at their own changes is not a visit to report to Google, Facebook or Clarity.
+  const preview = previewing()
+  const s = preview ? {
+    ...row, ...(preview.settings ?? {}),
+    googleTagManagerId: null, googleAnalyticsId: null, googleAdsId: null, facebookPixelId: null, microsoftClarityId: null,
+  } : row
   // The company's opening hours (Settings › Company; company.settings.businessHours). The blob may be stored as JSON
   // text on a moved agency (enabledFeature.ts readSettingsBlob), so it is read either way; a bad value is no hours.
   let blob: any = co.settings

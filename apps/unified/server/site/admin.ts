@@ -6,8 +6,13 @@
 //   • The company's own facts (name, phone, email, address, colours, logo) are edited in one place, the company
 //     settings (/api/company); this edits what is the website's alone.
 // Bookings move with the one booking engine (step 2d); the customize link with the admin screens.
+//
+// Draft and live (site/drafts.ts, 2026-10-23): saving a page, a post, a piece of work or the settings keeps a draft; only
+// …/publish changes what visitors see, and DELETE …/draft goes back to the live version. Who may publish is who may save
+// it: site:update for content, site:settings for the settings — the same people who, before drafts, changed the live
+// site by saving. Showing or hiding a page or a post (isPublished, status) is its own switch and takes effect at once.
 import { Hono } from 'hono'
-import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -20,6 +25,9 @@ import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
 import { linkSlug } from './menu.ts'
+import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, draftOf, nextDraft, withDraft } from './drafts.ts'
+import { addPreviewRoutes, type PreviewDeps } from './preview.ts'
+import { publishSet } from '../data/siteDrafts.ts'
 
 /** Where public website photos are kept: the one prefix /media serves (site/routes.ts). */
 export const PUBLIC_PHOTO_PREFIX = 'photos/'
@@ -133,10 +141,15 @@ export function createSeedPhotosRoute(deps: { db: any; store: PhotoStore; compan
   })
 }
 
-export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoStore; vertical: VerticalSettings }) {
+export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoStore; vertical: VerticalSettings; preview?: Omit<PreviewDeps, 'db' | 'vertical' | 'hasPermission'> }) {
   const { db, store } = deps
   const may = deps.permissions.requirePermission as (p: string) => any
   const app = new Hono<AppEnv>()
+  const hasPermission = async (c: any, permission: string) => {
+    const user = c.get('user')
+    return !!user && deps.permissions.hasPermission(user.role, permission, await deps.permissions.getExtraPermissions(user.userId))
+  }
+  if (deps.preview) addPreviewRoutes(app, may, { db, vertical: deps.vertical, hasPermission, ...deps.preview })
 
   /** The website's settings row, made the first time it's needed. */
   async function siteRow(companyId: string) {
@@ -178,18 +191,33 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     const s = await siteRow(companyId)
     const nav = Array.isArray(s.nav) ? s.nav as Array<{ label: string; href: string }> : []
     if (nav.some((n) => linkSlug(n?.href) === p.slug)) return
-    await db.update(website).set({ nav: [...nav, { label: p.title, href: p.slug }], updatedAt: new Date() }).where(eq(website.id, s.id))
+    await addToNav(s, { label: p.title, href: p.slug }, (n) => linkSlug(n?.href) === p.slug)
   }
 
+  /**
+   * A link the site adds to its menu by itself goes into the live menu — and into the draft settings' menu when there
+   * are draft settings, which publishing would otherwise put back without it.
+   */
+  async function addToNav(s: any, item: { label: string; href: string }, has: (n: any) => boolean) {
+    const nav = Array.isArray(s.nav) ? s.nav as Array<{ label: string; href: string }> : []
+    const set: Record<string, unknown> = { nav: [...nav, item], updatedAt: new Date() }
+    const draft = draftOf(s)
+    if (draft && Array.isArray(draft.nav) && !(draft.nav as any[]).some(has)) set.draft = { ...draft, nav: [...(draft.nav as any[]), item] }
+    await db.update(website).set(set).where(eq(website.id, s.id))
+  }
+
+  /** Whether each listed record has unpublished changes (not the draft itself: a list carries no page bodies). */
+  const flagDrafts = (rows: any[]) => rows.map(({ draft, ...r }) => ({ ...r, hasDraft: !!draftOf({ draft }) }))
+
   app.get('/pages', may('site:read'), async (c) => {
-    const rows = await db.select({ id: page.id, slug: page.slug, title: page.title, isPublished: page.isPublished, navOrder: page.navOrder, updatedAt: page.updatedAt })
+    const rows = await db.select({ id: page.id, slug: page.slug, title: page.title, isPublished: page.isPublished, navOrder: page.navOrder, updatedAt: page.updatedAt, draft: page.draft })
       .from(page).where(eq(page.companyId, c.get('user').companyId)).orderBy(asc(page.navOrder), asc(page.title))
-    return listAll(c, rows)
+    return listAll(c, flagDrafts(rows))
   })
 
   app.get('/pages/:slug', may('site:read'), async (c) => {
     const [p] = await db.select().from(page).where(and(eq(page.companyId, c.get('user').companyId), eq(page.slug, c.req.param('slug')))).limit(1)
-    return p ? one(c, p) : fail(c, 404, 'Page not found')
+    return p ? one(c, withDraft(p)) : fail(c, 404, 'Page not found')
   })
 
   app.post('/pages', may('site:update'), async (c) => {
@@ -212,27 +240,64 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       metaDescription: typeof body.metaDescription === 'string' ? body.metaDescription : null,
     }).returning()
     if (created.isPublished) await ensurePageInNav(companyId, created)
-    return one(c, created, 201)
+    return one(c, withDraft(created), 201)
   })
 
+  /**
+   * Saving a page: its words, sections and search tags go into the draft (site/drafts.ts) — the live page is untouched.
+   * Whether it is shown (isPublished) and its place in the list (navOrder) change at once: they are switches, not content.
+   */
   app.patch('/pages/:slug', may('site:update'), async (c) => {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
-    const patch: Record<string, any> = {}
-    if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim()
-    if (Array.isArray(body.sections)) patch.sections = body.sections
-    if (typeof body.metaTitle === 'string' || body.metaTitle === null) patch.metaTitle = body.metaTitle
-    if (typeof body.metaDescription === 'string' || body.metaDescription === null) patch.metaDescription = body.metaDescription
-    if (typeof body.isPublished === 'boolean') patch.isPublished = body.isPublished
-    if (typeof body.navOrder === 'number' && Number.isFinite(body.navOrder)) patch.navOrder = Math.trunc(body.navOrder)
-    if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
-    patch.updatedAt = new Date()
+    const content: Record<string, unknown> = {}
+    if (typeof body.title === 'string' && body.title.trim()) content.title = body.title.trim()
+    if (Array.isArray(body.sections)) content.sections = body.sections
+    if (typeof body.metaTitle === 'string' || body.metaTitle === null) content.metaTitle = body.metaTitle
+    if (typeof body.metaDescription === 'string' || body.metaDescription === null) content.metaDescription = body.metaDescription
+    const now: Record<string, any> = {}
+    if (typeof body.isPublished === 'boolean') now.isPublished = body.isPublished
+    if (typeof body.navOrder === 'number' && Number.isFinite(body.navOrder)) now.navOrder = Math.trunc(body.navOrder)
+    if (!Object.keys(content).length && !Object.keys(now).length) return fail(c, 400, 'Nothing to change')
     const companyId = c.get('user').companyId
     const where = and(eq(page.companyId, companyId), eq(page.slug, c.req.param('slug')))
-    const [before] = await db.select({ isPublished: page.isPublished }).from(page).where(where).limit(1)
-    const [updated] = await db.update(page).set(patch).where(where).returning()
+    const [before] = await db.select().from(page).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Page not found')
+    const set: Record<string, any> = { ...now }
+    if (Object.keys(content).length) set.draft = nextDraft(before, PAGE_DRAFT, content)
+    // The live page changed only if a switch did: the sitemap's date is the live page's.
+    if (Object.keys(now).length) set.updatedAt = new Date()
+    const [updated] = await db.update(page).set(set).where(where).returning()
     if (!updated) return fail(c, 404, 'Page not found')
-    if (updated.isPublished && before && !before.isPublished) await ensurePageInNav(companyId, updated)
-    return one(c, updated)
+    if (updated.isPublished && !before.isPublished) await ensurePageInNav(companyId, updated)
+    return one(c, withDraft(updated))
+  })
+
+  /**
+   * Publish: the draft becomes the live page. `show: true` also shows a hidden page — the editor offers it for a page
+   * held back while it had nothing on it (PageEditPage), so publishing its first content puts it on the site and in the
+   * menu, as saving it used to.
+   */
+  app.post('/pages/:slug/publish', may('site:update'), async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    const companyId = c.get('user').companyId
+    const where = and(eq(page.companyId, companyId), eq(page.slug, c.req.param('slug')))
+    const [before] = await db.select().from(page).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Page not found')
+    const show = body.show === true && !before.isPublished
+    if (!draftOf(before) && !show) return fail(c, 409, 'There are no unpublished changes on this page.', 'nothing_to_publish')
+    const set: Record<string, unknown> = { ...publishSet(page, PAGE_DRAFT, new Set(['sections']), new Set(['title', 'sections'])), updatedAt: new Date() }
+    if (show) set.isPublished = true
+    const [updated] = await db.update(page).set(set).where(where).returning()
+    if (!updated) return fail(c, 404, 'Page not found')
+    if (updated.isPublished && !before.isPublished) await ensurePageInNav(companyId, updated)
+    return one(c, withDraft(updated))
+  })
+
+  /** Discard: the page's unpublished changes are dropped; the editor goes back to the live page. */
+  app.delete('/pages/:slug/draft', may('site:update'), async (c) => {
+    const [updated] = await db.update(page).set({ draft: null })
+      .where(and(eq(page.companyId, c.get('user').companyId), eq(page.slug, c.req.param('slug')))).returning()
+    return updated ? one(c, withDraft(updated)) : fail(c, 404, 'Page not found')
   })
 
   app.delete('/pages/:slug', may('site:delete'), async (c) => {
@@ -244,7 +309,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   })
 
   // ── The website's settings ──────────────────────────────────────────────
-  app.get('/settings', may('site:read'), async (c) => one(c, await siteRow(c.get('user').companyId)))
+  app.get('/settings', may('site:read'), async (c) => one(c, withDraft(await siteRow(c.get('user').companyId))))
 
   /** The looks the site can wear; `isDefault` is the vertical's, which an empty site.design means. */
   app.get('/designs', may('site:read'), (c) => {
@@ -277,8 +342,31 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     }
     if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
     const row = await siteRow(c.get('user').companyId)
-    const [updated] = await db.update(website).set({ ...patch, updatedAt: new Date() }).where(eq(website.id, row.id)).returning()
-    return one(c, updated)
+    // What the site shows goes into the draft settings (site/drafts.ts); the "Finish your site" list is the owner's own.
+    const content: Record<string, unknown> = {}
+    const set: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(patch)) ((SETTINGS_DRAFT as readonly string[]).includes(k) ? content : set)[k] = v
+    if (Object.keys(set).length) set.updatedAt = new Date()
+    if (Object.keys(content).length) set.draft = nextDraft(row, SETTINGS_DRAFT, content)
+    const [updated] = await db.update(website).set(set).where(eq(website.id, row.id)).returning()
+    return one(c, withDraft(updated))
+  })
+
+  /** Publish the draft settings: the site's look, menu, words and tracking change for visitors. */
+  app.post('/settings/publish', may('site:settings'), async (c) => {
+    const row = await siteRow(c.get('user').companyId)
+    if (!draftOf(row)) return fail(c, 409, 'There are no unpublished changes to the settings.', 'nothing_to_publish')
+    const [updated] = await db.update(website)
+      .set({ ...publishSet(website, SETTINGS_DRAFT, new Set(['nav', 'serviceAreas']), new Set(['nav', 'serviceAreas', 'contactCtaLabel'])), updatedAt: new Date() })
+      .where(eq(website.id, row.id)).returning()
+    return one(c, withDraft(updated))
+  })
+
+  /** Discard the draft settings: the editor goes back to what the site shows. */
+  app.delete('/settings/draft', may('site:settings'), async (c) => {
+    const row = await siteRow(c.get('user').companyId)
+    const [updated] = await db.update(website).set({ draft: null }).where(eq(website.id, row.id)).returning()
+    return one(c, withDraft(updated))
   })
 
   /**
@@ -340,14 +428,14 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
 
   // ── Blog ─────────────────────────────────────────────────────────────────
   app.get('/posts', may('site:read'), async (c) => {
-    const rows = await db.select({ id: post.id, slug: post.slug, title: post.title, excerpt: post.excerpt, status: post.status, coverImageUrl: post.coverImageUrl, publishedAt: post.publishedAt, updatedAt: post.updatedAt })
+    const rows = await db.select({ id: post.id, slug: post.slug, title: post.title, excerpt: post.excerpt, status: post.status, coverImageUrl: post.coverImageUrl, publishedAt: post.publishedAt, updatedAt: post.updatedAt, draft: post.draft })
       .from(post).where(eq(post.companyId, c.get('user').companyId)).orderBy(desc(post.createdAt))
-    return listAll(c, rows)
+    return listAll(c, flagDrafts(rows))
   })
 
   app.get('/posts/:slug', may('site:read'), async (c) => {
     const [p] = await db.select().from(post).where(and(eq(post.companyId, c.get('user').companyId), eq(post.slug, c.req.param('slug')))).limit(1)
-    return p ? one(c, p) : fail(c, 404, 'Post not found')
+    return p ? one(c, withDraft(p)) : fail(c, 404, 'Post not found')
   })
 
   app.post('/posts', may('site:update'), async (c) => {
@@ -368,29 +456,56 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       status: published ? 'published' : 'draft',
       publishedAt: published ? new Date() : null,
     }).returning()
-    return one(c, created, 201)
+    return one(c, withDraft(created), 201)
   })
 
+  /**
+   * Saving a post: its words and pictures go into the draft (site/drafts.ts). `status` — on the site or not — is the
+   * post's "Show on site" switch and changes at once.
+   */
   app.patch('/posts/:slug', may('site:update'), async (c) => {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
     const where = and(eq(post.companyId, c.get('user').companyId), eq(post.slug, c.req.param('slug')))
-    const patch: Record<string, any> = {}
-    if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 200)
+    const content: Record<string, any> = {}
+    if (typeof body.title === 'string' && body.title.trim()) content.title = body.title.trim().slice(0, 200)
     for (const [k, max] of [['excerpt', 600], ['coverImageUrl', 2000], ['metaTitle', 200], ['metaDescription', 400]] as const) {
       const v = optText(body[k], max)
-      if (v !== undefined) patch[k] = v
+      if (v !== undefined) content[k] = v
     }
-    if (typeof body.body === 'string') patch.body = body.body
+    if (typeof body.body === 'string') content.body = body.body
+    const [before] = await db.select().from(post).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Post not found')
+    const set: Record<string, any> = {}
     if (body.status === 'draft' || body.status === 'published') {
-      patch.status = body.status
-      if (body.status === 'published') {
-        const [existing] = await db.select({ publishedAt: post.publishedAt }).from(post).where(where).limit(1)
-        if (existing && !existing.publishedAt) patch.publishedAt = new Date()
-      }
+      set.status = body.status
+      if (body.status === 'published' && !before.publishedAt) set.publishedAt = new Date()
+      set.updatedAt = new Date()
     }
-    if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
-    const [updated] = await db.update(post).set({ ...patch, updatedAt: new Date() }).where(where).returning()
-    return updated ? one(c, updated) : fail(c, 404, 'Post not found')
+    if (Object.keys(content).length) set.draft = nextDraft(before, POST_DRAFT, content)
+    if (!Object.keys(set).length) return fail(c, 400, 'Nothing to change')
+    const [updated] = await db.update(post).set(set).where(where).returning()
+    return updated ? one(c, withDraft(updated)) : fail(c, 404, 'Post not found')
+  })
+
+  /** Publish the post's draft; `show: true` also puts a post that is off the site on it. */
+  app.post('/posts/:slug/publish', may('site:update'), async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    const where = and(eq(post.companyId, c.get('user').companyId), eq(post.slug, c.req.param('slug')))
+    const [before] = await db.select().from(post).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Post not found')
+    const show = body.show === true && before.status !== 'published'
+    if (!draftOf(before) && !show) return fail(c, 409, 'There are no unpublished changes on this post.', 'nothing_to_publish')
+    const set: Record<string, unknown> = { ...publishSet(post, POST_DRAFT, new Set(), new Set(['title', 'body'])), updatedAt: new Date() }
+    if (show) { set.status = 'published'; if (!before.publishedAt) set.publishedAt = new Date() }
+    const [updated] = await db.update(post).set(set).where(where).returning()
+    return updated ? one(c, withDraft(updated)) : fail(c, 404, 'Post not found')
+  })
+
+  /** Discard the post's unpublished changes. */
+  app.delete('/posts/:slug/draft', may('site:update'), async (c) => {
+    const [updated] = await db.update(post).set({ draft: null })
+      .where(and(eq(post.companyId, c.get('user').companyId), eq(post.slug, c.req.param('slug')))).returning()
+    return updated ? one(c, withDraft(updated)) : fail(c, 404, 'Post not found')
   })
 
   app.delete('/posts/:slug', may('site:delete'), async (c) => {
@@ -405,19 +520,20 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   async function ensurePortfolioInNav(companyId: string) {
     const s = await siteRow(companyId)
     const nav = Array.isArray(s.nav) ? s.nav as Array<{ label: string; href: string }> : []
-    if (nav.some((n) => /^\/?projects\/?$/.test(String(n?.href || '')))) return
-    await db.update(website).set({ nav: [...nav, { label: 'Projects', href: '/projects' }], updatedAt: new Date() }).where(eq(website.id, s.id))
+    const isProjects = (n: any) => /^\/?projects\/?$/.test(String(n?.href || ''))
+    if (nav.some(isProjects)) return
+    await addToNav(s, { label: 'Projects', href: '/projects' }, isProjects)
   }
 
   app.get('/portfolio', may('site:read'), async (c) => {
-    const rows = await db.select({ id: portfolioItem.id, slug: portfolioItem.slug, title: portfolioItem.title, location: portfolioItem.location, status: portfolioItem.status, coverImageUrl: portfolioItem.coverImageUrl, sortOrder: portfolioItem.sortOrder, updatedAt: portfolioItem.updatedAt })
+    const rows = await db.select({ id: portfolioItem.id, slug: portfolioItem.slug, title: portfolioItem.title, location: portfolioItem.location, status: portfolioItem.status, coverImageUrl: portfolioItem.coverImageUrl, sortOrder: portfolioItem.sortOrder, updatedAt: portfolioItem.updatedAt, draft: portfolioItem.draft })
       .from(portfolioItem).where(eq(portfolioItem.companyId, c.get('user').companyId)).orderBy(asc(portfolioItem.sortOrder), desc(portfolioItem.createdAt))
-    return listAll(c, rows)
+    return listAll(c, flagDrafts(rows))
   })
 
   app.get('/portfolio/:slug', may('site:read'), async (c) => {
     const [p] = await db.select().from(portfolioItem).where(and(eq(portfolioItem.companyId, c.get('user').companyId), eq(portfolioItem.slug, c.req.param('slug')))).limit(1)
-    return p ? one(c, p) : fail(c, 404, 'Not found')
+    return p ? one(c, withDraft(p)) : fail(c, 404, 'Not found')
   })
 
   app.post('/portfolio', may('site:update'), async (c) => {
@@ -441,41 +557,136 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       publishedAt: published ? new Date() : null,
     }).returning()
     if (published) await ensurePortfolioInNav(companyId)
-    return one(c, created, 201)
+    return one(c, withDraft(created), 201)
   })
 
+  /** Saving a piece of work: its words and photos into the draft; its status (shown or not) and its order at once. */
   app.patch('/portfolio/:slug', may('site:update'), async (c) => {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
     const companyId = c.get('user').companyId
     const where = and(eq(portfolioItem.companyId, companyId), eq(portfolioItem.slug, c.req.param('slug')))
-    const patch: Record<string, any> = {}
-    if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 200)
+    const content: Record<string, any> = {}
+    if (typeof body.title === 'string' && body.title.trim()) content.title = body.title.trim().slice(0, 200)
     for (const [k, max] of [['location', 200], ['summary', 600], ['coverImageUrl', 2000], ['metaTitle', 200], ['metaDescription', 400]] as const) {
       const v = optText(body[k], max)
-      if (v !== undefined) patch[k] = v
+      if (v !== undefined) content[k] = v
     }
-    if (typeof body.body === 'string') patch.body = body.body
-    if ('photos' in body) patch.photos = photoList(body.photos)
-    if (typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder)) patch.sortOrder = Math.trunc(body.sortOrder)
-    let publishing = false
+    if (typeof body.body === 'string') content.body = body.body
+    if ('photos' in body) content.photos = photoList(body.photos)
+    const [before] = await db.select().from(portfolioItem).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Not found')
+    const set: Record<string, any> = {}
+    if (typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder)) set.sortOrder = Math.trunc(body.sortOrder)
+    let showing = false
     if (body.status === 'draft' || body.status === 'published') {
-      patch.status = body.status
+      set.status = body.status
       if (body.status === 'published') {
-        publishing = true
-        const [existing] = await db.select({ publishedAt: portfolioItem.publishedAt }).from(portfolioItem).where(where).limit(1)
-        if (existing && !existing.publishedAt) patch.publishedAt = new Date()
+        showing = true
+        if (!before.publishedAt) set.publishedAt = new Date()
       }
     }
-    if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
-    const [updated] = await db.update(portfolioItem).set({ ...patch, updatedAt: new Date() }).where(where).returning()
+    if (Object.keys(set).length) set.updatedAt = new Date()
+    if (Object.keys(content).length) set.draft = nextDraft(before, PORTFOLIO_DRAFT, content)
+    if (!Object.keys(set).length) return fail(c, 400, 'Nothing to change')
+    const [updated] = await db.update(portfolioItem).set(set).where(where).returning()
     if (!updated) return fail(c, 404, 'Not found')
-    if (publishing) await ensurePortfolioInNav(companyId)
-    return one(c, updated)
+    if (showing) await ensurePortfolioInNav(companyId)
+    return one(c, withDraft(updated))
+  })
+
+  /** Publish the work's draft; `show: true` also puts work that is off the site on it (and Projects in the menu). */
+  app.post('/portfolio/:slug/publish', may('site:update'), async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    const companyId = c.get('user').companyId
+    const where = and(eq(portfolioItem.companyId, companyId), eq(portfolioItem.slug, c.req.param('slug')))
+    const [before] = await db.select().from(portfolioItem).where(where).limit(1)
+    if (!before) return fail(c, 404, 'Not found')
+    const show = body.show === true && before.status !== 'published'
+    if (!draftOf(before) && !show) return fail(c, 409, 'There are no unpublished changes on this project.', 'nothing_to_publish')
+    const set: Record<string, unknown> = { ...publishSet(portfolioItem, PORTFOLIO_DRAFT, new Set(['photos']), new Set(['title', 'body', 'photos'])), updatedAt: new Date() }
+    if (show) { set.status = 'published'; if (!before.publishedAt) set.publishedAt = new Date() }
+    const [updated] = await db.update(portfolioItem).set(set).where(where).returning()
+    if (!updated) return fail(c, 404, 'Not found')
+    if (show) await ensurePortfolioInNav(companyId)
+    return one(c, withDraft(updated))
+  })
+
+  /** Discard the work's unpublished changes. */
+  app.delete('/portfolio/:slug/draft', may('site:update'), async (c) => {
+    const [updated] = await db.update(portfolioItem).set({ draft: null })
+      .where(and(eq(portfolioItem.companyId, c.get('user').companyId), eq(portfolioItem.slug, c.req.param('slug')))).returning()
+    return updated ? one(c, withDraft(updated)) : fail(c, 404, 'Not found')
   })
 
   app.delete('/portfolio/:slug', may('site:delete'), async (c) => {
     const gone = await db.delete(portfolioItem).where(and(eq(portfolioItem.companyId, c.get('user').companyId), eq(portfolioItem.slug, c.req.param('slug')))).returning({ id: portfolioItem.id })
     return gone.length ? done(c) : fail(c, 404, 'Not found')
+  })
+
+  // ── Everything unpublished, and Publish all (owner 2026-10-23, as Wix and Webflow do it) ───────────
+  /** The kinds a draft can be on: the table, its draft fields, its json and NOT NULL columns, and who may publish it. */
+  const DRAFT_KINDS = [
+    { kind: 'page', table: page, fields: PAGE_DRAFT, json: new Set(['sections']), notNull: new Set(['title', 'sections']), permission: 'site:update' },
+    { kind: 'post', table: post, fields: POST_DRAFT, json: new Set<string>(), notNull: new Set(['title', 'body']), permission: 'site:update' },
+    { kind: 'portfolio', table: portfolioItem, fields: PORTFOLIO_DRAFT, json: new Set(['photos']), notNull: new Set(['title', 'body', 'photos']), permission: 'site:update' },
+    { kind: 'settings', table: website, fields: SETTINGS_DRAFT, json: new Set(['nav', 'serviceAreas']), notNull: new Set(['nav', 'serviceAreas', 'contactCtaLabel']), permission: 'site:settings' },
+  ] as const
+
+  /**
+   * Every record with unpublished changes: pages, posts, portfolio work and the settings, each with its name, when it
+   * was saved, and whether this person may publish it (site:update for content, site:settings for the settings).
+   */
+  async function unpublished(c: any) {
+    const companyId = c.get('user').companyId
+    const out: Array<{ kind: string; slug: string; title: string; savedAt: string | null; mayPublish: boolean }> = []
+    for (const k of DRAFT_KINDS) {
+      const t = k.table as any
+      const rows = await db.select({ slug: k.kind === 'settings' ? t.id : t.slug, title: k.kind === 'settings' ? t.id : t.title, draft: t.draft })
+        .from(t).where(and(eq(t.companyId, companyId), isNotNull(t.draft)))
+      const may = await hasPermission(c, k.permission)
+      for (const r of rows) {
+        const d = draftOf(r)
+        if (!d) continue
+        out.push({
+          kind: k.kind, slug: k.kind === 'settings' ? 'site' : r.slug,
+          title: k.kind === 'settings' ? 'Website settings' : String(d.title || r.title),
+          savedAt: typeof d.savedAt === 'string' ? d.savedAt : null, mayPublish: may,
+        })
+      }
+    }
+    return out
+  }
+
+  app.get('/drafts', may('site:read'), async (c) => listAll(c, await unpublished(c)))
+
+  /**
+   * Publish all: every unpublished change this person may publish goes live together, in one transaction — all of them
+   * or none. `items` ([{ kind, slug }]) is the list the screen showed, so nothing saved after it was read is published
+   * unseen; without it, everything there is. What they may not publish (a manager and the settings) stays a draft and
+   * is named in `skipped`. Showing or hiding is not touched: a hidden page published here stays hidden.
+   */
+  app.post('/drafts/publish', may('site:update'), async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { items?: Array<{ kind?: unknown; slug?: unknown }> }
+    const companyId = c.get('user').companyId
+    const wanted = Array.isArray(body.items) ? new Set(body.items.map((i) => String(i?.kind) + '|' + String(i?.slug))) : null
+    const all = await unpublished(c)
+    const chosen = all.filter((i) => !wanted || wanted.has(i.kind + '|' + i.slug))
+    const go = chosen.filter((i) => i.mayPublish)
+    const skipped = chosen.filter((i) => !i.mayPublish).map(({ kind, slug, title }) => ({ kind, slug, title }))
+    if (!go.length) return fail(c, 409, skipped.length ? 'You may not publish these changes.' : 'There are no unpublished changes.', 'nothing_to_publish')
+    const published: Array<{ kind: string; slug: string; title: string }> = []
+    await db.transaction(async (tx: any) => {
+      for (const i of go) {
+        const k = DRAFT_KINDS.find((x) => x.kind === i.kind)!
+        const t = k.table as any
+        const where = i.kind === 'settings'
+          ? and(eq(t.companyId, companyId), isNotNull(t.draft))
+          : and(eq(t.companyId, companyId), eq(t.slug, i.slug), isNotNull(t.draft))
+        const done = await tx.update(t).set({ ...publishSet(t, k.fields, k.json, k.notNull), updatedAt: new Date() }).where(where).returning({ id: t.id })
+        if (done.length) published.push({ kind: i.kind, slug: i.slug, title: i.title })
+      }
+    })
+    return one(c, { published, skipped })
   })
 
   // ── Visits and enquiries, last 30 days against the 30 before ─────────────

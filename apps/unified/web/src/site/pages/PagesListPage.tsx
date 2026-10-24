@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Edit3, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
-import { NewItemDialog, StatusPill, useShortDate } from '../components/ui'
+import { DraftPill, NewItemDialog, StatusPill, useShortDate } from '../components/ui'
 
 interface PageRow {
   id: string
@@ -12,6 +12,8 @@ interface PageRow {
   isPublished: boolean
   navOrder: number
   updatedAt: string
+  /** Saved edits not yet published (site/drafts.ts). */
+  hasDraft?: boolean
 }
 
 export function PagesListPage() {
@@ -121,7 +123,7 @@ export function PagesListPage() {
                       <div className="font-semibold text-ink">{p.title}</div>
                       <div className="text-xs text-muted mt-0.5">/{isHome ? '' : p.slug}</div>
                     </td>
-                    <td className="px-5 py-4"><StatusPill on={p.isPublished} offLabel="Hidden" /></td>
+                    <td className="px-5 py-4"><div className="flex flex-wrap gap-1.5"><StatusPill on={p.isPublished} offLabel="Hidden" /><DraftPill on={p.hasDraft} /></div></td>
                     <td className="px-5 py-4 text-muted text-xs whitespace-nowrap">{shortDate(p.updatedAt)}</td>
                     <td className="px-5 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
@@ -157,7 +159,8 @@ export function PagesListPage() {
           duplicateMessage="A page with that address already exists."
           onClose={() => setShowNew(false)}
           create={async (title, slug) => {
-            const created: PageRow = await api.post('/api/site/pages', { slug, title, sections: [], isPublished: true })
+            // A new page starts off the site, with nothing on it: its first Publish shows it (PageEditPage).
+            const created: PageRow = await api.post('/api/site/pages', { slug, title, sections: [], isPublished: false })
             navigate(`/crm/website/pages/${created.slug}`)
           }}
         />

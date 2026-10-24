@@ -15,7 +15,7 @@ interface Gap { id: string; label: string; unlocks: string; done?: boolean }
 // offers (sectionSchema.ts) — no pricing or badge sections exist here.
 const HOW: Record<string, { text: string; to: string }> = {
   description: { text: 'Open any page and rewrite the copy in your own words.', to: '/crm/website/pages' },
-  photos: { text: 'Upload them in Photos, add a Gallery section to the page, switch the page to Published, then add it under Website settings → Navigation.', to: '/crm/website/photos' },
+  photos: { text: 'Upload them in Photos, add a Gallery section to a page and press Publish, with Show on site on. A page you show joins the menu.', to: '/crm/website/photos' },
   ownerPhoto: { text: 'Upload it in Photos, then set it as the portrait in the About page\'s story section.', to: '/crm/website/photos' },
   testimonials: { text: 'Open the Home page and add a Testimonials section with the review and the customer\'s name.', to: '/crm/website/pages/home' },
   yearFounded: { text: 'Add it to your About story, or as a figure in a Stats section.', to: '/crm/website/pages/about' },

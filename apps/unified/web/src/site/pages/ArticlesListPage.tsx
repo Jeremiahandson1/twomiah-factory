@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Edit3, Plus, Trash2 } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
-import { NewItemDialog, StatusPill, useShortDate } from '../components/ui'
+import { DraftPill, NewItemDialog, StatusPill, useShortDate } from '../components/ui'
 
 interface Row {
   id: string
@@ -14,6 +14,8 @@ interface Row {
   location?: string | null
   status: 'draft' | 'published'
   updatedAt: string
+  /** Saved edits not yet published (site/drafts.ts). */
+  hasDraft?: boolean
 }
 
 interface Kind {
@@ -119,7 +121,7 @@ export function ArticlesListPage({ kind }: { kind: Kind }) {
                     <div className="font-semibold text-ink">{r.title}</div>
                     <div className="text-xs text-muted mt-0.5">{kind.publicPrefix}{r.slug}{r.location ? ' · ' + r.location : ''}</div>
                   </td>
-                  <td className="px-5 py-4"><StatusPill on={r.status === 'published'} offLabel="Draft" /></td>
+                  <td className="px-5 py-4"><div className="flex flex-wrap gap-1.5"><StatusPill on={r.status === 'published'} offLabel="Off the site" /><DraftPill on={r.hasDraft} /></div></td>
                   <td className="px-5 py-4 text-muted text-xs whitespace-nowrap">{shortDate(r.updatedAt)}</td>
                   <td className="px-5 py-4 text-right">
                     <div className="inline-flex items-center gap-2">
@@ -148,7 +150,7 @@ export function ArticlesListPage({ kind }: { kind: Kind }) {
           pattern="[a-z0-9]([a-z0-9\-]{0,80}[a-z0-9])?"
           hint="Lowercase letters, numbers and hyphens. Keep it once it's published — links to it use it."
           titlePlaceholder={kind.titlePlaceholder}
-          submitLabel="Create draft"
+          submitLabel="Create"
           existingSlugs={rows.map((r) => r.slug)}
           duplicateMessage={`A ${kind.noun} with that address already exists.`}
           onClose={() => setShowNew(false)}
