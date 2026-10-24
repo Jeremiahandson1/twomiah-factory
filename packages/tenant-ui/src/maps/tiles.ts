@@ -5,7 +5,8 @@
 // (apps/unified/web/src/crm/pages/roof/lib/MapProvider.tsx):
 //   · with the browser's Maps key served with the page (#vertical-screens mapsBrowserKey, GOOGLE_MAPS_BROWSER_KEY): the
 //     Map Tiles API — a session made once per key and kind, then tile.googleapis.com/v1/2dtiles with that session;
-//   · with no key, or a key the Map Tiles API refuses: the same Google tile host the roof editor draws.
+//   · with no key, or a key the Map Tiles API refuses: NO tiles and a plain notice. Google's plain tile host
+//     (mt*.google.com) is not a licensed API, so it is never used as a fallback (owner rule: best, never cheap).
 // A map removed before its session arrived is left alone.
 
 export type TileKind = 'roadmap' | 'hybrid'
@@ -39,10 +40,9 @@ function tileSession(key: string, kind: TileKind): Promise<string | null> {
   return made
 }
 
-/** The tile URL Leaflet asks for: the session's, or Google's plain tile host when there is no session. */
-export function tileUrl(kind: TileKind, key = '', session: string | null = null): string {
-  if (key && session) return `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(session)}&key=${encodeURIComponent(key)}`
-  return `https://mt{s}.google.com/vt/lyrs=${kind === 'hybrid' ? 'y' : 'm'}&x={x}&y={y}&z={z}`
+/** The licensed Map Tiles API URL for a session. */
+export function tileUrl(key: string, session: string): string {
+  return `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(session)}&key=${encodeURIComponent(key)}`
 }
 
 /** Puts Google's tiles under a Leaflet map. `L` is the Leaflet module the caller loaded. */
@@ -53,7 +53,15 @@ export function addMapTiles(L: any, map: any, kind: TileKind = 'roadmap'): void 
       L.tileLayer(url, { subdomains: '0123', maxZoom: 20, attribution: ATTRIBUTION }).addTo(map)
     } catch { /* the map was removed first */ }
   }
+  const notice = () => {
+    try {
+      if (!map || !map.getContainer?.()) return
+      const box = L.control({ position: 'topright' })
+      box.onAdd = () => { const d = document.createElement('div'); d.className = 'map-tiles-missing'; d.style.cssText = 'background:#fff;color:#111;padding:6px 10px;border-radius:6px;font:13px system-ui;box-shadow:0 1px 3px rgba(0,0,0,.3)'; d.textContent = 'Map background unavailable — pins and the list still work.'; return d }
+      box.addTo(map)
+    } catch { /* the map was removed first */ }
+  }
   const key = browserMapsKey()
-  if (!key) { draw(tileUrl(kind)); return }
-  tileSession(key, kind).then((session) => draw(tileUrl(kind, key, session)))
+  if (!key) { notice(); return }
+  tileSession(key, kind).then((session) => (session ? draw(tileUrl(key, session)) : notice()))
 }

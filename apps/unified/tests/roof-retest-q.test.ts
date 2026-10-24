@@ -73,9 +73,10 @@ describe('1. canvassing: a door with no name', () => {
 })
 
 describe('2. map tiles', () => {
-  test('Google tiles, the session URL with a key; no map in the app draws OpenStreetMap\'s tile servers', () => {
-    expect(tileUrl('hybrid')).toBe('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}')
-    expect(tileUrl('roadmap', 'K', 'S')).toBe('https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=S&key=K')
+  test('only the licensed Map Tiles API; no map draws OpenStreetMap\'s servers or Google\'s unlicensed tile host', () => {
+    expect(tileUrl('K', 'S')).toBe('https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=S&key=K')
+    const helper = fs.readFileSync(path.join(import.meta.dir, '../../../packages/tenant-ui/src/maps/tiles.ts'), 'utf8')
+    expect(helper.includes('mt{s}.google.com')).toBe(false)
     const roots = [path.join(import.meta.dir, '../web/src'), path.join(import.meta.dir, '../../../packages/tenant-ui/src')]
     const hits: string[] = []
     const walk = (d: string) => {
