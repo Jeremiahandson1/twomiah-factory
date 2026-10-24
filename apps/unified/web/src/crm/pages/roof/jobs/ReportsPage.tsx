@@ -15,15 +15,30 @@
 //     only of a seat holding what that route asks (invoices:read and revenue:read); the template's
 //     /api/invoices/summary is gone;
 //   · rep names from GET /api/company/users (the template's /api/users), asked of a seat the server answers
-//     (team:read or users:read); crews are GET /api/crews' { data }; the stages are the server's (./model.ts).
+//     (team:read or users:read); crews are GET /api/crews' { data }; the stages are the server's (./model.ts);
+//   · every table exports as CSV through the shared helper (@twomiah/tenant-ui reporting/csv.ts), as the other verticals'
+//     Reports do (roofing retest 2026-10-24: roofing's had none). A table a seat is not shown is not exported either.
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Users, Briefcase, Download } from 'lucide-react'
 import { api } from '../../../../api'
 import { useAuth, useKnownPermission, usePermissions, useToast } from '../../../../shared'
 import { displayName } from '../lib/user'
 import { PIPELINE_STATUSES, TERMINAL_STATUSES, jobValue, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { downloadCsv, csvName, type CsvCell } from '@twomiah/tenant-ui/src/reporting/csv'
+
+/** A report table's CSV button — the shared Reports page's look (packages/tenant-ui reporting/ReportsPage.tsx CardHead). */
+function CsvButton({ title, head, rows }: { title: string; head: string[]; rows: () => CsvCell[][] }) {
+  return (
+    <button type="button" onClick={() => downloadCsv(csvName(title), head, rows())} aria-label={`Download ${title} as CSV`}
+      className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+      <Download className="w-3.5 h-3.5" />CSV
+    </button>
+  )
+}
+/** A money figure as a CSV cell: a plain number to two places, so a spreadsheet can add it up. */
+const csvMoney = (n: number) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2)
 
 /** The chart's shorter labels for the pipeline stages. */
 const STAGE_LABELS: Record<string, string> = {
@@ -231,7 +246,18 @@ export default function ReportsPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 dark:text-slate-100">Reports</h1>
+        <div className="flex items-start justify-between gap-3 mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Reports</h1>
+          {/* The headline figures — each only where this seat is shown it. */}
+          <CsvButton title="Report summary" head={['Measure', 'Value']} rows={() => [
+            ['Total Jobs', jobs.length],
+            ['Close Rate (%)', closeRate],
+            ['Signed', signed],
+            ['Proposals Sent', proposalsSent],
+            ...(maySeeJobValue ? [['Avg Job Value', csvMoney(avgJobValue)], ['Pipeline Value', csvMoney(jobs.reduce((s, j) => s + valueOf(j), 0))]] as CsvCell[][] : []),
+            ...(money ? [['Invoiced', csvMoney(money.totalAmount)], ['Collected', csvMoney(money.paidAmount)], ['Outstanding', csvMoney(money.outstanding)]] as CsvCell[][] : []),
+          ]} />
+        </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -311,7 +337,11 @@ export default function ReportsPage() {
           {/* Pipeline Value by Stage — the bars are money, so they go with the tiles. (T42) */}
           {maySeeJobValue && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Pipeline Value by Stage</h2>
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Pipeline Value by Stage</h2>
+                <CsvButton title="Pipeline Value by Stage" head={['Stage', 'Jobs', 'Value']}
+                  rows={() => pipelineFor(hasFeature, jobs).map((stage) => [STAGE_LABELS[stage] || stage, pipelineCountByStage[stage] || 0, csvMoney(pipelineByStage[stage] || 0)])} />
+              </div>
               {/* What the bars below add up to, and what they leave out. (T41) */}
               <p className="text-xs text-gray-500 mb-4 mt-1 dark:text-slate-400">
                 {`${inPipeline} of ${jobs.length} job${jobs.length === 1 ? '' : 's'} in the pipeline`}
@@ -335,7 +365,12 @@ export default function ReportsPage() {
 
           {/* Jobs by Type */}
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Jobs by Type</h2>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Jobs by Type</h2>
+              <CsvButton title="Jobs by Type" head={['Type', 'Jobs', 'Share (%)']}
+                rows={() => Object.entries(jobsByType).sort(([, a], [, b]) => b - a)
+                  .map(([type, count]) => [type.replace(/_/g, ' '), count, jobs.length > 0 ? ((count / jobs.length) * 100).toFixed(1) : '0'])} />
+            </div>
             <div className="space-y-3">
               {Object.entries(jobsByType)
                 .sort(([, a], [, b]) => b - a)
@@ -363,9 +398,13 @@ export default function ReportsPage() {
           {/* Revenue by Sales Rep / by Crew — what the per-job money is aggregated into, so they go with it. (T42) */}
           {maySeeJobValue && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-                <Users className="w-4 h-4 text-gray-400" /> Revenue by Sales Rep
-              </h2>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+                  <Users className="w-4 h-4 text-gray-400" /> Revenue by Sales Rep
+                </h2>
+                <CsvButton title="Revenue by Sales Rep" head={['Sales Rep', 'Value']}
+                  rows={() => Object.entries(revByRep).sort(([, a], [, b]) => b - a).map(([name, value]) => [name, csvMoney(value)])} />
+              </div>
               <div className="space-y-2">
                 {Object.entries(revByRep)
                   .sort(([, a], [, b]) => b - a)
@@ -381,9 +420,13 @@ export default function ReportsPage() {
 
           {maySeeJobValue && hasFeature('crews') && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-                <Users className="w-4 h-4 text-gray-400" /> Revenue by Crew
-              </h2>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+                  <Users className="w-4 h-4 text-gray-400" /> Revenue by Crew
+                </h2>
+                <CsvButton title="Revenue by Crew" head={['Crew', 'Value']}
+                  rows={() => Object.entries(revByCrew).sort(([, a], [, b]) => b - a).map(([name, value]) => [name, csvMoney(value)])} />
+              </div>
               <div className="space-y-2">
                 {Object.entries(revByCrew)
                   .sort(([, a], [, b]) => b - a)

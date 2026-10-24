@@ -20,6 +20,15 @@ export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/c
  */
 export const HOMECARE_PAGES = ['/portal', '/family', '/family/*', '/pay/*', '/payment-success', '/onboarding/*', '/careers', '/careers/*']
 
+/**
+ * The browser tab's words. A customer's portal (/portal/<token>) is the customer's, not the admin's: it read "Admin"
+ * (roofing retest 2026-10-24) and now reads "<Business> — Customer portal". Everything else is the admin's.
+ */
+export function tabTitle(pathname: string, name: string): string {
+  if (pathname === '/portal' || pathname.startsWith('/portal/')) return name ? `${name} — Customer portal` : 'Customer portal'
+  return name ? `${name} · Admin` : 'Admin'
+}
+
 const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.json': 'application/json', '.map': 'application/json',
@@ -53,7 +62,7 @@ export function createAdminScreens(deps: {
     const screens = JSON.stringify(deps.screens()).replace(/</g, '\\u003c')
     const colours = (await deps.brand?.()) ?? null
     const hex = (v?: string | null) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '')
-    const head = `<title>${escHtml(name ? name + ' · Admin' : 'Admin')}</title><meta name="company-name" content="${escHtml(name)}">` +
+    const head = `<title>${escHtml(tabTitle(c.req.path, name))}</title><meta name="company-name" content="${escHtml(name)}">` +
       `<meta name="brand-primary" content="${hex(colours?.primaryColor)}"><meta name="brand-secondary" content="${hex(colours?.secondaryColor)}">` +
       `<meta name="company-email" content="${escHtml(colours?.email ?? '')}">` +
       `<script type="application/json" id="vertical-screens">${screens}</script>`

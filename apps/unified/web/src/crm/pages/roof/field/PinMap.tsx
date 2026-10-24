@@ -1,11 +1,12 @@
-// A Leaflet map of coloured pins on OpenStreetMap tiles — what roofing's canvassing and storm-lead screens drew
+// A Leaflet map of coloured pins on Google's satellite tiles with road labels (@twomiah/tenant-ui maps/tiles) — what roofing's canvassing and storm-lead screens drew
 // (templates/crm-roof: CanvassingView, CanvassingDashboard, StormLeadsPage). The template read Leaflet off `window.L`, put
 // there by a <script> from unpkg in its index.html; here Leaflet is the app's own dependency, imported on first use so
-// the map code and its stylesheet load only when a map is opened. No key: the tiles are OpenStreetMap's.
+// the map code and its stylesheet load only when a map is opened. OpenStreetMap's tile servers refused the app's traffic.
 //
 // A popup's words are set as text, never as HTML (the template interpolated the address into its popup markup).
 import { useEffect, useRef, useState } from 'react'
 import type * as Leaflet from 'leaflet'
+import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 
 type L = typeof Leaflet
 
@@ -87,7 +88,7 @@ export default function PinMap({ pins, center, zoom = 15, circleMiles, fit = tru
       if (cancelled || !divRef.current) return
       const at: [number, number] = lat !== null && lng !== null ? [lat, lng] : FALLBACK_CENTER
       made = L.map(divRef.current).setView(at, zoom)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(made)
+      addMapTiles(L, made, 'hybrid')
       if (circleMiles && circleMiles > 0) {
         L.circle(at, { radius: circleMiles * 1609.34, color: '#3B82F6', fillOpacity: 0.05, weight: 1 }).addTo(made)
       }

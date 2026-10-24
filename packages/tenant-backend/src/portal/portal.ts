@@ -287,6 +287,24 @@ export function createPortalRoutes(deps: PortalDeps) {
   // Every route below that issues, reads, mails or withdraws the link asks portal:share — owners, admins and
   // managers. contacts:update is the right to edit a client's card, which salon stylists and vet staff hold;
   // it is not the right to hold the client's key. (T62; owner's decision 2026-10-09)
+  /**
+   * THE INVITE. Mails the customer their portal link; null when it went, else the reason in words. Switching the portal
+   * on sends it (the roofing retest: the link showed on the contact and no email ever arrived — /enable issued the
+   * token and mailed nothing), and Resend Portal Invite (/send-link) sends it again.
+   */
+  const mailInvite = async (found: any, companyId: string, portalUrl: string): Promise<string | null> => {
+    const [companyInfo] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1)
+    try {
+      await sendEmail(found.email, 'portalInvite', { contactName: found.name, companyName: companyInfo?.name, portalUrl, role: found.type || 'client' })
+      return null
+    } catch (err) {
+      // The link is still valid — only the mail failed. Say so in words rather than in the provider's own reply,
+      // which named a mailbox table. (T14 L4)
+      log.warn('[portal] invite email failed', { to: found.email, error: (err as Error).message })
+      return `Could not send the portal invite. ${mailFailureReason(err)} The link itself is still valid.`
+    }
+  }
+
   app.post('/contacts/:contactId/enable', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
@@ -295,7 +313,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found.email) return c.json({ error: 'Contact must have an email to enable portal access' }, 400)
     const issued = await issueToken(found.id)
     logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, 'Client Portal switched on', { portalEnabled: { old: !!found.portalEnabled, new: true } })
-    return c.json(issued)
+    // Portal on, then the one invite. A failed mail does not undo the switch: the reply says so and Resend tries again.
+    const mailError = await mailInvite(found, user.companyId, issued.portalUrl)
+    return c.json({ ...issued, invited: !mailError, ...(mailError ? { inviteError: mailError } : { sentTo: found.email }) })
   })
 
   app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('portal:share'), async (c) => {
@@ -327,15 +347,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     if (!found.email) return c.json({ error: 'Contact has no email address' }, 400)
     if (!found.portalEnabled || !found.portalToken) return c.json({ error: 'Portal access not enabled for this contact' }, 400)
-    const [companyInfo] = await db.select().from(t.company).where(eq(t.company.id, user.companyId)).limit(1)
-    try {
-      await sendEmail(found.email, 'portalInvite', { contactName: found.name, companyName: companyInfo?.name, portalUrl: portalUrlFor(found.portalToken), role: found.type || 'client' })
-    } catch (err) {
-      // The link is still valid — only the mail failed. Say so instead of a bare 500, and in words rather
-      // than in the provider's own reply, which named a mailbox table. (T14 L4)
-      log.warn('[portal] invite email failed', { to: found.email, error: (err as Error).message })
-      return c.json({ error: `Could not send the portal invite. ${mailFailureReason(err)} The link itself is still valid.` }, 502)
-    }
+    const mailError = await mailInvite(found, user.companyId, portalUrlFor(found.portalToken))
+    if (mailError) return c.json({ error: mailError }, 502)
     return c.json({ success: true, sentTo: found.email })
   })
 
@@ -1018,6 +1031,10 @@ export function createPortalRoutes(deps: PortalDeps) {
       const { contact } = P(c)
       const cols: Record<string, any> = { id: t.job.id, number: t.job.number, title: t.job.title, description: t.job.description, status: t.job.status, priority: t.job.priority, scheduledDate: t.job.scheduledDate, scheduledTime: t.job.scheduledTime, address: t.job.address, city: t.job.city, state: t.job.state, zip: t.job.zip, completedAt: t.job.completedAt }
       if (t.job.scheduledEndDate) cols.scheduledEndDate = t.job.scheduledEndDate
+      // A roofing job's dates are its inspection and its install (roofing retest: the homeowner's Jobs tab). Dates and
+      // the stage only — no money.
+      if (t.job.inspectionDate) cols.inspectionDate = t.job.inspectionDate
+      if (t.job.installDate) cols.installDate = t.job.installDate
       // notes / estimates are the office's; a customer only sees them when they are a collaborator on the job
       if (isCollaborator(contact)) { cols.notes = t.job.notes; if (t.job.estimatedHours) cols.estimatedHours = t.job.estimatedHours; if (t.job.estimatedValue) cols.estimatedValue = t.job.estimatedValue }
       if (t.project) { cols.projectId = t.job.projectId; cols.projectName = t.project.name; cols.projectNumber = t.project.number }

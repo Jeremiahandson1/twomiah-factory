@@ -9,6 +9,7 @@
 // session is the app's.
 import { useEffect, useRef, useState } from 'react'
 import type * as Leaflet from 'leaflet'
+import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 
@@ -96,7 +97,7 @@ export default function VisitGpsMap({ timeEntryId, clientLat, clientLng, clientN
         const center = trail[0] || home!
         mapInstance = L.map(mapDivRef.current).setView([center.lat, center.lng], 15)
         mapRef.current = mapInstance
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapInstance)
+        addMapTiles(L, mapInstance, 'roadmap')
 
         // The markers sit on the map's own (light) tiles in both themes: white on a fixed dark colour.
         const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))

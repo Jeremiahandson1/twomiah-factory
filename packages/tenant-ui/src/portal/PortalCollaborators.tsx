@@ -6,7 +6,7 @@ import { Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, inputCls,
 import { codeLabel } from '../labels/codes'
 
 // ---------------------------------------------------------------- My Jobs
-interface SubJob { id: string; number: string; title: string; description?: string | null; status: string; priority?: string; scheduledDate?: string | null; scheduledTime?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; notes?: string | null; completedAt?: string | null; projectName?: string | null; projectNumber?: string | null }
+interface SubJob { id: string; number: string; title: string; description?: string | null; status: string; inspectionDate?: string | null; installDate?: string | null; priority?: string; scheduledDate?: string | null; scheduledTime?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; notes?: string | null; completedAt?: string | null; projectName?: string | null; projectNumber?: string | null }
 const JOB_STYLES: Record<string, string> = { scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', in_progress: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', cancelled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 
 export function PortalMyJobs() {
@@ -50,13 +50,15 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
             {job.description && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap dark:text-slate-400">{job.description}</p>}
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">
               {job.scheduledDate && <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{formatDate(job.scheduledDate)}{job.scheduledTime ? ` · ${job.scheduledTime}` : ''}</span>}
+              {job.inspectionDate && <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />Inspection {formatDate(job.inspectionDate)}</span>}
+              {job.installDate && <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />Install {formatDate(job.installDate)}</span>}
               {addr && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{addr}</span>}
             </div>
             {job.notes && <p className="text-xs text-gray-500 mt-2 italic whitespace-pre-wrap dark:text-slate-400">{job.notes}</p>}
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className={pill(JOB_STYLES[job.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{job.status.replace('_', ' ')}</span>
+          <span className={pill(JOB_STYLES[job.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{codeLabel(job.status)}</span>
           {onComplete && <button onClick={onComplete} disabled={busy} className="mt-2 flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50"><CheckCircle2 className="w-3.5 h-3.5" />{busy ? 'Saving…' : 'Mark Complete'}</button>}
         </div>
       </div>

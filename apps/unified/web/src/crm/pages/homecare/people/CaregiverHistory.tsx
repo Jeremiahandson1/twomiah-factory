@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
+import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 import { api, rows } from '../lib/http'
 import { toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
@@ -72,9 +73,7 @@ function GPSRouteMap({ timeEntryId, onClose }: { timeEntryId: string; onClose: (
     const map = L.map(mapRef.current)
     mapInstanceRef.current = map
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-    }).addTo(map)
+    addMapTiles(L, map, 'roadmap')
 
     const latlngs: L.LatLngTuple[] = points.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)])
 
