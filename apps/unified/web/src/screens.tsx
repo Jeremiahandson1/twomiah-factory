@@ -13,6 +13,8 @@ import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { useLiveConnection, subscribeLive } from './live'
 import { MessageSquare, BellRing } from 'lucide-react'
 import { isHomecare } from './crm/verticals/homecare'
+import { ViewAsUserButton, roleWord } from './crm/viewAs'
+import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
 const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read' }
 /**
@@ -46,10 +48,20 @@ export const Login = () => <LoginPage companyName={companyName()} home={HOME} />
 export const ForgotPassword = () => <ForgotPasswordPage api={api} />
 export const ResetPassword = () => <ResetPasswordPage api={api} />
 
+/**
+ * The role picker and the Users list in this vertical's words — the server's (VerticalSettings.roleLabels, served as
+ * screens.roleLabels), so the list, the picker, the server's refusals and the View As banner say one word per rung (roofing
+ * live re-test 3: "Staff" in Users, "Field" in the brief). A vertical's own picker keeps its descriptions.
+ */
+const settingsRoles = () => {
+  const own = (verticalScreens().settings as { roles?: typeof DEFAULT_ROLES }).roles
+  return (own && own.length ? own : DEFAULT_ROLES).map((r) => ({ ...r, label: roleWord(r.value) || r.label }))
+}
 export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA], timeZone: true }} />
+  // userActions: "View as <person>" on each row (crm/viewAs.tsx), every vertical.
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA], timeZone: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

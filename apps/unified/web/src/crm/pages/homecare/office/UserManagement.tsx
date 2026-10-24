@@ -10,9 +10,12 @@
 //     template used window.prompt and window.confirm.
 //   · "Signed in as" is user.id (the shared session's user), so your own row has no Deactivate, as before.
 //   · Both themes: the grey sentences take the frame's muted token.
+//   · The seat in the agency's words — Caregiver, Office Manager — the server's (crm/viewAs.tsx roleWord), never the stored
+//     id ("caregiver", "manager"); and "View as <person>" on each row, as on Settings › Users (live re-test 3, 2026-10-24).
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth, useConfirm, usePermissions, usePrompt, useToast } from '../../../../shared';
 import { api, errorMessage, rows } from '../lib/http';
+import { ViewAsUserButton, roleWord } from '../../../viewAs';
 
 interface Login {
   id: string;
@@ -100,13 +103,14 @@ export default function UserManagement() {
         <td><strong>{name || '—'}</strong></td>
         <td>{u.email}</td>
         <td>{u.phone || '—'}</td>
-        <td><span className="hc-badge hc-badge-info">{(u.role || 'caregiver')}</span></td>
+        <td><span className="hc-badge hc-badge-info">{roleWord(u.role || 'caregiver')}</span></td>
         <td>
           {active
             ? <span className="hc-badge hc-badge-success">Active</span>
             : <span className="hc-badge hc-badge-danger">Deactivated</span>}
         </td>
         <td style={{ whiteSpace: 'nowrap' }}>
+          {!isSelf && <ViewAsUserButton person={u} />}
           {mayChange && mayResetOrPromote && (
             <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => resetPassword(u.id, name)}>Reset Password</button>
           )}

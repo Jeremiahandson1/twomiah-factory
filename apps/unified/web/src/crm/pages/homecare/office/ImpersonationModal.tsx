@@ -52,7 +52,8 @@ const roleChip = (role?: string | null) => (isOffice(role)
 export default function ImpersonationModal({ onStaff, onPortal, onClose }: Props) {
   const { can } = usePermissions();
   const { user: me } = useAuth();
-  const mayStaff = can('users:read');
+  // Starting one asks users:view-as; the staff list behind it, users:read (server/core/viewAs.ts, office/signIn.ts).
+  const mayStaff = can('users:view-as') && can('users:read');
   const mayPortal = can('care-portal:update');
   const [users, setUsers] = useState<StaffRow[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -77,7 +78,8 @@ export default function ImpersonationModal({ onStaff, onPortal, onClose }: Props
 
   const q = search.toLowerCase();
   // Not the person asking: a View As of yourself shows nothing new and only locks you out of your own changes.
-  const filtered = users.filter((u) => u.id !== me?.id).filter((u) =>
+  // Nor the owner: nobody views as the owner's account (server/core/viewAs.ts).
+  const filtered = users.filter((u) => u.id !== me?.id && u.role !== 'owner').filter((u) =>
     u.firstName?.toLowerCase().includes(q) ||
     u.lastName?.toLowerCase().includes(q) ||
     u.email?.toLowerCase().includes(q) ||
@@ -113,7 +115,7 @@ export default function ImpersonationModal({ onStaff, onPortal, onClose }: Props
   });
 
   const tabs = [
-    ...(mayStaff ? [{ key: 'staff' as const, label: 'Staff', icon: '👤', count: users.filter((u) => u.id !== me?.id).length }] : []),
+    ...(mayStaff ? [{ key: 'staff' as const, label: 'Staff', icon: '👤', count: users.filter((u) => u.id !== me?.id && u.role !== 'owner').length }] : []),
     ...(mayPortal ? [{ key: 'clients' as const, label: 'Client Portal', icon: '🏠', count: clients.length }] : []),
   ];
 

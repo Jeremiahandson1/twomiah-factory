@@ -232,6 +232,10 @@ export const auditLog = pgTable('audit_log', {
   userId: text('user_id'),
   userName: text('user_name'),
   userEmail: text('user_email'),
+  // Inside a View As (core/viewAs.ts) the row's user is the person being viewed as, and this is the real user who
+  // opened it — every action taken while viewing carries both. Null outside a View As.
+  impersonatorId: text('impersonator_id'),
+  impersonatorEmail: text('impersonator_email'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [

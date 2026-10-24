@@ -61,6 +61,11 @@ const roof: VerticalSettings = {
   mfaIssuer: 'Twomiah Roofing',
   featureSet: 'crm-roof',
   starter: STARTER,
+  // A roofer's people on the roof and the doors are "Field" — the word its own screens use (the Field app, field work,
+  // canvassing in the field) and the roofing brief's. One word everywhere: the server's refusals and Users rows
+  // (permissions.roleLabel), and through the screens' roleLabels the role picker and the View As banner. Live re-test 3
+  // (2026-10-24): "Staff shows as 'Staff' in Users, not 'Field'."
+  roleLabels: { field: 'Field' },
   // templates/crm-roof middleware/permissions.ts. Door-knocking is the crew's job after a storm: they start a session,
   // log a stop and correct the one they just logged (T41) — not delete one, and not the shop's scripts. The read-only
   // seat sees the team's canvassing and writes none of it (owner's decision, 2026-10-11).

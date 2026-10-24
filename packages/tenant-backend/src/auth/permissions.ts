@@ -49,6 +49,15 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
      */
     'users:read',
     /**
+     * "View As" — opening the app as one of the people on the account, to see exactly what they see. (Owner's live
+     * re-test 3, 2026-10-24: the testers could not check a manager, staff, admin or viewer login without their
+     * passwords.) Its own permission, not users:read: users:read is the one grant an owner can hand anybody by name
+     * (Settings › Users "can view user list"), and seeing the list is not acting as the people on it. The owner holds it
+     * through '*'; an admin here; nobody else, and it is not grantable. The unified app's server/core/viewAs.ts also
+     * refuses anybody whose access is wider than the opener's, so this never escalates.
+     */
+    'users:view-as',
+    /**
      * Operational modules. Writes are gated in their routes; reads are open, because a technician
      * needs the parts list, the customer's equipment and the service agreement to do the work, and
      * refusing those costs more than it protects.

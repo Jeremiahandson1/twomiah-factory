@@ -40,7 +40,8 @@ import { createLive, LIVE_SOCKET_PATH } from './http/live.ts'
 import { createDownloadLinks, DOWNLOAD_PATH } from './http/downloads.ts'
 import { createPhonePush } from './core/phonePush.ts'
 import { createPhoneRules } from './crm/notify/phoneRules.ts'
-import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
+import { withHomecareSessions, viewAsCareTrail } from './crm/homecare/office/signIn.ts'
+import { createViewAs } from './core/viewAs.ts'
 import { hasConsent } from './site/smsConsent.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
@@ -68,10 +69,6 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
-  const sharedAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
-  // Home care: View As is read-only, and signing out ends every session (crm/homecare/office/signIn.ts).
-  const realAuth = vertical.crm?.homecare ? withHomecareSessions(sharedAuth, { db, logger }) : sharedAuth
-  const authenticate = deps.testing?.authenticate ? deps.testing.authenticate(realAuth) : realAuth
   const permissions = createPermissions({
     db, tables: { user },
     roleLabels: vertical.roleLabels,
@@ -79,6 +76,13 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     withheldRolePermissions: vertical.withheldRolePermissions,
     roleMapping: vertical.roleMapping,
   })
+  const sharedAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
+  // View As, every vertical (core/viewAs.ts): the owner or an admin opens the app as one of their people. Home care
+  // keeps its own on top — viewing as a caregiver is read-only, and signing out ends every session
+  // (crm/homecare/office/signIn.ts) — inside, so Return from a View As is answered before it.
+  const viewAs = createViewAs({ db, permissions, careTrail: vertical.crm?.homecare ? viewAsCareTrail(db) : undefined })
+  const realAuth = viewAs.wrap(vertical.crm?.homecare ? withHomecareSessions(sharedAuth, { db, logger }) : sharedAuth)
+  const authenticate = deps.testing?.authenticate ? deps.testing.authenticate(realAuth) : realAuth
   const features = createEnabledFeatureGate({ db, tables: { company } })
   email.register(enquiryTemplates)
   const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled, to: vertical.crm?.websiteEnquiries, forms: vertical.crm?.websiteForms })
@@ -167,6 +171,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     { path: '/api/downloads', access: 'user', router: downloads.linkRoutes },
     { path: DOWNLOAD_PATH, access: 'public', router: downloads.downloadRoutes },
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
+    // View As (core/viewAs.ts): start one, and the banner's "is this a View As?". Return is POST /api/auth/logout.
+    { path: '/api/auth/impersonate', access: 'user', router: viewAs.routes },
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
     // Bookings: the owner's book, the public booking API, the scheduled messages.
@@ -190,7 +196,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // restricted that way and which the templates baked into every page (CUTOVER_LEDGER, Roofing). Absent: the
         // address box is a plain box.
         // And the switch the call log rides (CrmSettings.callTrackingSwitch), for the AI Receptionist page.
-        screens: () => ({ ...vertical.screens, mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
+        // roleLabels: what this vertical calls each rung — the one vocabulary the server's refusals and Users rows answer in
+        // (VerticalSettings.roleLabels through permissions.roleLabel), handed to the screens so the Users list, the role
+        // picker and the View As banner say the same word (roofing live re-test 3: "Staff" in Users, "Field" in the brief).
+        screens: () => ({ ...vertical.screens, roleLabels: Object.fromEntries((permissions.ROLE_HIERARCHY as string[]).map((r) => [r, permissions.roleLabel(r)])), mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
         extraPages: vertical.crm?.homecare ? HOMECARE_PAGES : [],
         brand: async () => (await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1))[0] ?? null,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,

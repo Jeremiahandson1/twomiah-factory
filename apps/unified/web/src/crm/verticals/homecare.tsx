@@ -102,8 +102,8 @@ const SHARED_IN_MENU: NavItem[] = [
   { to: '/crm/contacts', icon: Users, label: 'Contacts', features: ['contacts'], permission: 'contacts:read' },
 ]
 
-/** The shell's header button and strip for View As (crm/pages/homecare/office/ViewAs.tsx): an agency's only. */
-export { ViewAsBanner as banner, ViewAsButton as headerActions } from '../pages/homecare/office/ViewAs'
+/** The shell's header View As button (crm/pages/homecare/office/ViewAs.tsx: staff and the client-portal preview): an agency's only. The strip under the header is every vertical's (crm/viewAs.tsx). */
+export { ViewAsButton as headerActions } from '../pages/homecare/office/ViewAs'
 
 /** Menu items, ordered and headed as MENU says. Empty everywhere but home care. */
 export const nav: NavItem[] = isHomecare ? (() => {

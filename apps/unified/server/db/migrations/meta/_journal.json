@@ -211,6 +211,13 @@
       "when": 1792833324262,
       "tag": "0029_invoice_reminders_qb_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792847592532,
+      "tag": "0030_view_as_commission_void",
+      "breakpoints": true
     }
   ]
 }

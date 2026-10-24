@@ -71,8 +71,13 @@ export const asInstant = (value: unknown): Date | null => {
  * null and `entity_name` holds the account that signed in — naming it is strictly better than
  * calling a person "System".
  */
-export const who = (log: any): string =>
-  field(log, 'userName') || field(log, 'userEmail') || field(log, 'entityName') || 'System'
+export const who = (log: any): string => {
+  const person = field(log, 'userName') || field(log, 'userEmail') || field(log, 'entityName') || 'System'
+  // Inside a View As the row names both: the real user, viewing as the person (the unified app's impersonator columns;
+  // absent everywhere else, so every other row reads as before).
+  const real = field(log, 'impersonatorEmail')
+  return real ? `${real}, viewing as ${person}` : person
+}
 
 /**
  * WHAT CHANGED — the column that was always "—".

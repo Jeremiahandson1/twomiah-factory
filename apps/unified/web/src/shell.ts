@@ -19,7 +19,8 @@ import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
 import { nav as roofNav, routePermissions as roofRoutePermissions, isRoofing, roofingMenu } from './crm/verticals/roof'
 import { nav as storeNav, routePermissions as storeRoutePermissions, isStore, storeMenu } from './crm/verticals/store'
-import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SETTINGS_HIDDEN, banner as homecareBanner, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
+import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SETTINGS_HIDDEN, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
+import { ViewAsBanner } from './crm/viewAs'
 
 const SHARED_NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
@@ -156,8 +157,10 @@ export const SHELL: ShellConfig = {
   },
   // The New Leads list the dashboard tile opens (GET /api/dashboard/new-leads asks leads:read) — no menu entry of its own.
   routePermissions: { '/crm/new-leads': 'leads:read', ...barRoutePermissions, ...homecareRoutePermissions, ...roofRoutePermissions, ...storeRoutePermissions },
-  // An agency's View As: the header's button and, while one is open, the strip that says whose app this is.
-  ...(isHomecare ? { headerActions: homecareHeaderActions, banner: homecareBanner } : {}),
+  // View As, every vertical (crm/viewAs.tsx): while one is open, the strip under the header that says whose app this is
+  // and offers "Return to my account". An agency also has the header's View As button (staff and client-portal preview).
+  banner: ViewAsBanner,
+  ...(isHomecare ? { headerActions: homecareHeaderActions } : {}),
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

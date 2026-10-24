@@ -181,6 +181,11 @@ export interface SettingsConfig {
    * default: a CRM template keeps its zone in settings and its PUT has no such field.
    */
   timeZone?: boolean
+  /**
+   * The app's own control on a row of Settings › Users, before the shared ones (the unified app's "View as <person>").
+   * Not called for your own row. Absent: nothing extra, as before.
+   */
+  userActions?: (user: any) => import('react').ReactNode
 }
 
 export interface SettingsAuth {

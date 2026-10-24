@@ -570,6 +570,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         {/* "Active" for someone who has not yet opened their invite was not true (invite re-test, 10/14). */}
                         <td className="px-4 py-3">{!u.isActive ? <span className="text-gray-500 dark:text-slate-400">Deactivated</span> : u.invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-300">Active</span>}</td>
                         <td className="px-4 py-3 text-right">
+                          {u.id !== myId && config?.userActions?.(u)}
                           {u.id === myId ? (
                             <>
                               {/* An admin recovering an ownerless company is usually claiming it for

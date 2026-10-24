@@ -891,6 +891,12 @@ export const commission = pgTable('commission', {
   // earning already paid out, when the invoice was refunded in full).
   source: text('source').default('manual').notNull(),
   reversalOf: text('reversal_of'),
+  // A commission recorded in error is VOIDED, not deleted (status 'void'): the row stays, with why, when and by whom, so
+  // the history of what was owed is never rewritten (contractor live re-test 3, 2026-10-24). packages/tenant-backend
+  // commissions.ts POST /:id/void.
+  voidReason: text('void_reason'),
+  voidedAt: timestamp('voided_at'),
+  voidedById: text('voided_by_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

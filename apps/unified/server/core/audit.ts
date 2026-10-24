@@ -85,12 +85,17 @@ function resolveActor(req: any) {
     const fromScope = typeof scoped?.req?.header === 'function' ? scoped.req.header(name) : null
     return (fromScope as string) || null
   }
+  // Inside a View As (core/viewAs.ts) the request carries the real user behind it; the row names both.
+  const scoped: any = requestScope.getStore()?.c
+  const viewAs = (typeof req?.get === 'function' ? req.get('viewAs') : null) || (typeof scoped?.get === 'function' ? scoped.get('viewAs') : null)
   return {
     userId: (user?.userId || user?.id || null) as string | null,
     email: (user?.email || null) as string | null,
     companyId: (user?.companyId || null) as string | null,
     ip: clientIp(req, header),
     userAgent: header('user-agent'),
+    impersonatorId: (viewAs?.impersonatorId || null) as string | null,
+    impersonatorEmail: (viewAs?.impersonatorEmail || null) as string | null,
   }
 }
 
@@ -123,6 +128,8 @@ export function createAudit(deps: { db: any }) {
         companyId: forCompany,
         ipAddress: actor.ip,
         userAgent: actor.userAgent,
+        impersonatorId: actor.impersonatorId,
+        impersonatorEmail: actor.impersonatorEmail,
       })
     } catch (error: unknown) {
       console.error('Audit log error:', (error as Error).message)

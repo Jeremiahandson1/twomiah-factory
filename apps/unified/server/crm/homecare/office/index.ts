@@ -6,7 +6,7 @@
 //   /api/compliance         the compliance dashboard, login activity    (compliance.ts)
 //   /api/audit-logs         the clinical audit trail (and audit.ts's list) (auditLogs.ts)
 //   /api/auth/users         the View As picker                          (signIn.ts)
-//   /api/auth/impersonate   View As                                     (signIn.ts)
+//   (View As itself, /api/auth/impersonate, is every vertical's: server/core/viewAs.ts, mounted in server/app.ts.)
 // The rest are the app's shared modules, which home care uses as every vertical does: sign-in and MFA (/api/auth,
 // /api/auth/mfa-devices — with home care's View As and server-side sign-out wired into the app's authenticate,
 // server/app.ts), the company (/api/company — home care's own columns through office/companyFields.ts), billing,
@@ -22,7 +22,7 @@ import type { HomecareCore } from '../core/index.ts'
 import { createIncidentRoutes } from './incidents.ts'
 import { createComplianceRoutes } from './compliance.ts'
 import { createAuditLogRoutes } from './auditLogs.ts'
-import { createStaffPickerRoutes, createViewAsRoutes } from './signIn.ts'
+import { createStaffPickerRoutes } from './signIn.ts'
 
 export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   return [
@@ -30,6 +30,5 @@ export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/compliance', access: 'user', router: createComplianceRoutes(d) },
     { path: '/api/audit-logs', access: 'user', router: createAuditLogRoutes(d) },
     { path: '/api/auth/users', access: 'user', router: createStaffPickerRoutes(d) },
-    { path: '/api/auth/impersonate', access: 'user', router: createViewAsRoutes(d) },
   ]
 }

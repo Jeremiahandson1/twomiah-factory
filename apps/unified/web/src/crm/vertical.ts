@@ -68,6 +68,11 @@ export interface VerticalScreens {
    */
   mapsBrowserKey?: string
   /**
+   * What this vertical calls each rung (owner, admin, manager, field, viewer) — the server's own words
+   * (VerticalSettings.roleLabels through permissions.roleLabel), served at run time. Read through crm/viewAs.tsx roleWord.
+   */
+  roleLabels?: Record<string, string>
+  /**
    * The switch the call log and the CallRail key ride (server CrmSettings.callTrackingSwitch, served at run time):
    * 'ai_receptionist' puts the CallRail key in the AI Receptionist page's Settings tab, there being no Call Tracking page.
    */

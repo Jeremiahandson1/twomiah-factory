@@ -2,38 +2,34 @@
 // middleware/{auth,viewAsReadOnly}.ts.
 //
 // The shared sign-in (packages/tenant-backend auth.ts, mounted at /api/auth by server/app.ts) serves login, the MFA
-// step, refresh, logout, /me, the password routes. What home care had on top of it is here:
+// step, refresh, logout, /me, the password routes. View As — which began here as the template's admin impersonation — is
+// now every vertical's (server/core/viewAs.ts: POST/GET /api/auth/impersonate, Return, the rules, the audit). What home
+// care keeps on top of it is here:
 //
-//   · withHomecareSessions — wraps the app's authenticate for the home-care vertical only (server/app.ts):
-//       – View As is read-only: any write made with a View As token is refused 403 before any route runs, the one
-//         exception being signing out (core/viewAsReadOnly.ts). The template mounted it on /api/*; every signed-in
-//         path passes through authenticate here, so it stands in the same place;
+//   · withHomecareSessions — wraps the app's authenticate for the home-care vertical only (server/app.ts), inside the
+//     View As wrapper:
+//       – viewing as a CAREGIVER is read-only: any write made with a View As token for a caregiver seat is refused 403
+//         before any route runs, Return being the one exception (core/viewAsReadOnly.ts says why). The template mounted
+//         it on /api/*; every signed-in path passes through authenticate here, so it stands in the same place;
 //       – signing out is server-side: a staff token issued before the person's last sign-out is refused on every
-//         device (core/tokenRevocation.ts), and a successful POST /api/auth/logout stamps user.last_logout_at — except
-//         from a View As session, which ends only itself, never the viewed person's own sessions.
-//   · GET /api/auth/users — the staff list the View As picker offers;
-//   · POST /api/auth/impersonate/:userId — View As: a 2-hour token for that person, marked `impersonation`, with no
-//     refresh token, audited in the clinical trail (ADMIN_IMPERSONATE). No audit row, no token. A cookie-session
-//     browser (the unified app's screens) gets it as the View As cookie (tenant-backend auth/cookieSession.ts), never
-//     in the reply, so no script on the page ever holds it; the office's own session stays beneath it. Exit is
-//     POST /api/auth/logout, which in a View As ends only the View As;
-//   · GET /api/auth/impersonate — is this a View As, whose, by whom, until when (the screens' banner).
+//         device (core/tokenRevocation.ts) — a View As of that person included, which then ends — and a successful
+//         POST /api/auth/logout stamps user.last_logout_at. Return from a View As never gets here (core/viewAs.ts
+//         answers it), so it never ends the viewed person's own sessions.
+//   · GET /api/auth/users — the staff list the header's View As picker offers (office/ImpersonationModal.tsx);
+//   · the clinical trail's ADMIN_IMPERSONATE row when a View As starts (viewAsCareTrail, handed to core/viewAs.ts).
 //
-// Permissions: both were requireAdmin (owner or admin) → users:read, which exactly those two seats hold (the people
-// list is theirs). A View As token carries the viewed person's role, so nobody may view as a person on a higher rung
-// than their own (the template's "an admin may not view as an owner", for every rung).
+// Permissions: the picker is users:read, which the owner and admins hold (the people list is theirs).
 import { Hono, type MiddlewareHandler } from 'hono'
 import { and, asc, eq } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
-import { clearViewAsCookie, requestToken, setViewAsCookie, wantsCookieSession } from '@twomiah/tenant-backend'
+import { clearViewAsCookie, requestToken } from '@twomiah/tenant-backend'
 import { auditLogs, user } from '../../../db/schema/index.ts'
-import { fail, one, listAll } from '../../../http/reply.ts'
+import { fail, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createTokenRevocation } from '../core/tokenRevocation.ts'
 import { refuseViewAsWrites } from '../core/viewAsReadOnly.ts'
 
-export const IMPERSONATION_HOURS = 2
 export const SESSION_ENDED = 'Invalid or expired token'
 const LOGOUT = '/api/auth/logout'
 
@@ -49,16 +45,15 @@ function verifiedToken(c: any): any | null {
 const onViewAsCookie = (c: any): boolean => { const p: any = requestToken(c); return !!p && p.via === 'view-as' }
 
 /**
- * The app's sign-in check for a home-care tenant: View As is read-only, a token from before the person's last
- * sign-out is refused, and signing out ends every session. `real` is the shared authenticate.
+ * The app's sign-in check for a home-care tenant: viewing as a caregiver is read-only, a token from before the person's
+ * last sign-out is refused, and signing out ends every session. `real` is the shared authenticate.
  */
 export function withHomecareSessions(real: MiddlewareHandler, deps: Pick<CrmDeps, 'db' | 'logger'>): MiddlewareHandler {
   const tokens = createTokenRevocation(deps as CrmDeps)
   return async (c, next) => {
     const decoded = verifiedToken(c)
-    // A View As cookie that no longer holds a live View As (run out, or ended by the viewed person signing out) is
-    // dropped, and the request refused as signed out: the screens' client then refreshes the office's own session and
-    // asks again — as the office.
+    // A View As of someone who has since signed out everywhere has ended: the cookie is dropped and the request refused
+    // as signed out, so the screens' client refreshes the office's own session and asks again — as the office.
     if (onViewAsCookie(c) && (!decoded?.impersonation || await tokens.isStaffTokenRevoked(decoded))) {
       clearViewAsCookie(c)
       return fail(c, 401, SESSION_ENDED)
@@ -67,17 +62,11 @@ export function withHomecareSessions(real: MiddlewareHandler, deps: Pick<CrmDeps
       let through = false
       const refused = await refuseViewAsWrites(c, async () => { through = true })
       if (!through) return refused as Response
-      // Signing out of View As ends only the View As token (the screen drops it). It never reaches the shared
-      // sign-out, which would revoke the viewed person's own refresh tokens.
-      if (c.req.method === 'POST' && c.req.path.replace(/\/+$/, '') === LOGOUT) {
-        if (onViewAsCookie(c)) clearViewAsCookie(c)
-        return one(c, { message: 'Logged out' })
-      }
     }
     if (decoded && await tokens.isStaffTokenRevoked(decoded)) return fail(c, 401, SESSION_ENDED)
     return real(c, async () => {
       await next()
-      if (c.req.method === 'POST' && c.req.path.replace(/\/+$/, '') === LOGOUT && c.res.status === 200 && decoded) {
+      if (c.req.method === 'POST' && c.req.path.replace(/\/+$/, '') === LOGOUT && c.res.status === 200 && decoded && !decoded.impersonation) {
         const signedIn = c.get('user' as never) as any
         if (signedIn?.userId) await tokens.markUserLoggedOut(signedIn.userId)
       }
@@ -98,62 +87,13 @@ export function createStaffPickerRoutes(d: CrmDeps) {
   return app
 }
 
-/** POST /api/auth/impersonate/:userId — View As (ported to the template from CVHC authRoutes.js). */
-export function createViewAsRoutes(d: CrmDeps) {
-  const app = new Hono<AppEnv>()
-  const { requirePermission, normalizeRole, ROLE_HIERARCHY } = d.permissions
-  const rung = (role: string) => (ROLE_HIERARCHY as string[]).indexOf(normalizeRole(role))
-
-  // GET / — the banner's question: is this session a View As? Any signed-in person may ask about their own session.
-  app.get('/', async (c) => {
-    const decoded = verifiedToken(c)
-    if (!decoded?.impersonation) return one(c, { active: false })
-    const viewed = c.get('user')
-    const [row] = await d.db.select({ firstName: user.firstName, lastName: user.lastName, role: user.role })
-      .from(user).where(and(eq(user.id, viewed.userId), eq(user.companyId, viewed.companyId))).limit(1)
-    return one(c, {
-      active: true,
-      name: `${row?.firstName || ''} ${row?.lastName || ''}`.trim() || decoded.name || '',
-      role: row?.role ?? viewed.role,
-      impersonatedBy: decoded.impersonatedBy ?? null,
-      expiresAt: typeof decoded.exp === 'number' ? new Date(decoded.exp * 1000).toISOString() : null,
-    })
-  })
-
-  app.post('/:userId', requirePermission('users:read'), async (c) => {
-    const actor = c.get('user')
-    const [target] = await d.db.select({
-      id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName, isActive: user.isActive,
-    }).from(user).where(and(eq(user.id, c.req.param('userId')), eq(user.companyId, actor.companyId))).limit(1)
-    if (!target) return fail(c, 404, 'User not found')
-    if (target.isActive === false) return fail(c, 400, 'This user is deactivated.')
-    // The token would carry the target's role: never more than the person asking has.
-    if (rung(target.role) > rung(actor.role)) {
-      return fail(c, 403, normalizeRole(target.role) === 'owner' ? 'Only an owner can view as an owner.' : 'You can only view as someone at or below your own role.')
-    }
-
-    const name = `${target.firstName || ''} ${target.lastName || ''}`.trim()
-    try {
-      await d.db.insert(auditLogs).values({
-        companyId: actor.companyId, userId: actor.userId, action: 'ADMIN_IMPERSONATE', tableName: 'users', recordId: target.id,
-        newData: { impersonating: target.email, impersonatedBy: actor.email } as any,
-      } as any)
-    } catch {
-      // The audit row is the point of this route: no row, no token.
-      return fail(c, 500, 'Could not record the View As in the audit log — try again.')
-    }
-    const token = jwt.sign(
-      { userId: target.id, email: target.email, role: target.role, companyId: actor.companyId, name, impersonatedBy: actor.email, impersonation: true },
-      process.env.JWT_SECRET!,
-      { expiresIn: `${IMPERSONATION_HOURS}h` },
-    )
-    const viewed = { id: target.id, email: target.email, name, firstName: target.firstName, lastName: target.lastName, role: target.role, impersonatedBy: actor.email }
-    if (wantsCookieSession(c)) {
-      // A minute inside the token's life, so the browser drops the cookie before the server would refuse the token.
-      setViewAsCookie(c, token, IMPERSONATION_HOURS * 3600 - 60)
-      return one(c, { user: viewed })
-    }
-    return one(c, { token, user: viewed })
-  })
-  return app
+/**
+ * The clinical trail's row for a View As (audit_logs ADMIN_IMPERSONATE — the template's, kept beside the app's own
+ * view_as_start row). core/viewAs.ts writes it before the View As opens: no row, no View As.
+ */
+export const viewAsCareTrail = (db: any) => async (r: { companyId: string; actorId: string; actorEmail: string; targetId: string; targetEmail: string }) => {
+  await db.insert(auditLogs).values({
+    companyId: r.companyId, userId: r.actorId, action: 'ADMIN_IMPERSONATE', tableName: 'users', recordId: r.targetId,
+    newData: { impersonating: r.targetEmail, impersonatedBy: r.actorEmail } as any,
+  } as any)
 }
