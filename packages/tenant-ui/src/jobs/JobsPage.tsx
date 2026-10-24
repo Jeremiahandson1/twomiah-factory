@@ -10,6 +10,7 @@ import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
+import { isTravelWarning } from '../schedule/crew'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
@@ -73,6 +74,14 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const statuses = config?.statuses && config.statuses.length ? cfg.statuses : (serverStatuses || cfg.statuses)
   const [form, setForm] = useState<JobForm>(emptyForm(cfg.statuses[0], 'normal'))
   const [saving, setSaving] = useState(false)
+  /**
+   * The other people on the job, beside "Assigned To" — its lead (2026-10-24: several people per job, as Jobber and
+   * Housecall Pro book a crew). Sent as otherAssigneeIds only when the roster could be read: a seat that cannot see the
+   * team cannot pick, so its save leaves the crew as it is.
+   */
+  const [otherIds, setOtherIds] = useState<string[]>([])
+  /** A save the server warned about (no time to drive between two jobs): asked about, then sent again with bookAnyway. */
+  const [travelAsk, setTravelAsk] = useState<string | null>(null)
   const [repeat, setRepeat] = useState<RepeatForm>(NO_REPEAT)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [toDelete, setToDelete] = useState<JobRow | null>(null)
@@ -175,6 +184,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     // Arrived from a project's Quick Action: that project is already the answer (T51), and so is its customer.
     if (projectId) f = withProject(f, projectId)
     setForm(f)
+    setOtherIds([])
     setRepeat(NO_REPEAT)
     setModalOpen(true)
   }
@@ -190,6 +200,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       // and saving the form would then have unassigned them for real. (T21 M12)
       projectId: item.projectId || '', contactId: item.contactId || '', assignedToId: item.assignedToId || item.assignedToMemberId || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '', notes: item.notes || '', locationId: (item as any).locationId || '',
     })
+    setOtherIds((item.assignees || []).filter((a) => !a.lead).map((a) => a.id))
     setUseAddressOnFile(false)
     loadForContact(item.contactId || '')
     setModalOpen(true)
@@ -218,13 +229,15 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     return () => { cancelled = true }
   }, [searchParams, contacts.length, projectFilter, projectsLoaded, contactsLoaded, mayCreate, mayUpdate]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = async () => {
+  const save = async (bookAnyway = false) => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
     const repeating = !editing && cfg.repeat && repeat.choice !== 'none'
     if (repeating && !form.scheduledDate) { toast.error('Pick the scheduled date — the first visit — to make it repeat'); return }
     setSaving(true)
     try {
       const payload: any = { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined }
+      if (cfg.assignee && team.length > 0) payload.otherAssigneeIds = otherIds.filter((id) => id !== form.assignedToId)
+      if (bookAnyway) payload.bookAnyway = true
       if (!cfg.equipment) delete payload.equipmentId
       if (!cfg.sites) delete payload.siteId
       if (!tenantHasBranches) delete payload.locationId
@@ -238,7 +251,10 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       }
       else { await api.post('/api/jobs', payload); toast.success(`${cfg.labels.singular} created`) }
       setModalOpen(false); load()
-    } catch (err) { toast.error(errMsg(err, 'Failed to save')) } finally { setSaving(false) }
+    } catch (err) {
+      if (isTravelWarning(err)) setTravelAsk(errMsg(err, 'There is not enough time to get there.'))
+      else toast.error(errMsg(err, 'Failed to save'))
+    } finally { setSaving(false) }
   }
   const remove = async () => {
     if (!toDelete) return
@@ -325,6 +341,23 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}{form.locationId && !branches.some((b) => b.id === form.locationId) && <option value={form.locationId}>Inactive branch</option>}</select></Field>}
           {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={(e) => setForm(withProject(form, e.target.value))} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           {cfg.assignee && <Field label="Assigned To"><select value={form.assignedToId} onChange={set('assignedToId')} className={inputCls}><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed'}</option>)}</select></Field>}
+          {cfg.assignee && team.length > 1 && (
+            <fieldset className="md:col-span-2" data-testid="also-on-job">
+              <legend className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Also on this {cfg.labels.singular.toLowerCase()}</legend>
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto rounded-lg border border-gray-300 p-2 dark:border-slate-600">
+                {team.filter((u) => u.id !== form.assignedToId).map((u) => {
+                  const on = otherIds.includes(u.id)
+                  return (
+                    <label key={u.id} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm cursor-pointer ${on ? 'border-orange-600 bg-orange-50 text-orange-900 dark:border-orange-400 dark:bg-orange-950/40 dark:text-orange-100' : 'border-gray-300 text-gray-800 dark:border-slate-600 dark:text-slate-200'}`}>
+                      <input type="checkbox" checked={on} onChange={() => setOtherIds((xs) => (on ? xs.filter((x) => x !== u.id) : [...xs, u.id]))} className="h-4 w-4" />
+                      {u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed'}
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Everyone ticked is booked, checked for clashes and told — "Assigned To" leads.</p>
+            </fieldset>
+          )}
           <Field label="Contact">
             <select value={form.contactId} onChange={(e) => { setForm(applyContact(form, e.target.value)); loadForContact(e.target.value) }} className={inputCls}>
               <option value="">Select...</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -397,10 +430,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+          <Button onClick={() => save()} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
         </div>
       </Modal>
 
+      <ConfirmModal isOpen={!!travelAsk} onClose={() => setTravelAsk(null)} onConfirm={() => { setTravelAsk(null); return save(true) }} danger={false}
+        title="Not enough time to get there" message={travelAsk || ''} confirmText="Book anyway" />
       <ConfirmModal isOpen={deleteOpen} onClose={() => { setDeleteOpen(false); setToDelete(null) }} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${toDelete?.title || ''}"?`} confirmText="Delete" />
     </div>
   )

@@ -5,12 +5,13 @@
 // Dates: a job's scheduledDate is a calendar date stored at UTC midnight — compare on its date portion,
 // never through local time (fs / events / salon / RV drew jobs a day early). Bookings and appointments
 // hold real instants and are placed in local time.
-import { useState, useEffect, useCallback, type DragEvent, type MouseEvent } from 'react'
+import { useState, useEffect, useCallback, Fragment, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Calendar, Plus, Move, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Plus, Move, X, Route, Users } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
-import { useMayWrite } from '../auth/PermissionsContext'
+import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext'
+import { UNASSIGNED, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, RouteOptimiser, type Lane } from './crew'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
 import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart, companyMoment, companyHHMM } from '../time/companyClock'
@@ -52,6 +53,10 @@ function spanOf(view: View, d: Date): { start: Date; end: Date } {
 }
 const VIEW_KEY = 'twomiah.schedule.view'
 const savedView = (): View => { try { const v = localStorage.getItem(VIEW_KEY); return v === 'day' || v === 'month' ? v : 'week' } catch { return 'week' } }
+const BY_PERSON_KEY = 'twomiah.schedule.byPerson'
+const savedByPerson = () => { try { return localStorage.getItem(BY_PERSON_KEY) === '1' } catch { return false } }
+/** A lane's drop key: the person (or '' for Unassigned) and the hour or day within it. */
+const cellKey = (lane: string, at: string) => `${lane}|${at}`
 
 export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const cfg = resolveScheduleConfig(config)
@@ -87,6 +92,30 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [newFor, setNewFor] = useState<Date | null>(null)
   const [editEvent, setEditEvent] = useState<ScheduleEvent | null>(null)
+  /**
+   * A LANE PER PERSON (2026-10-24, cfg.lanes — Jobber's and Housecall Pro's dispatch calendar). The Day view gives each
+   * person a column and "Unassigned" one more; the Week view can be laid out by person. A job is in the lane of everyone
+   * on it (the lead and the others). Dropping it in another person's lane moves it from the lane it was picked up in to
+   * that person (crew.tsx laneMoveBody) — same PUT, same checks, as every other move here.
+   * The roster is team:read, asked for only once the answer is known (T64); without it the lanes are the people the
+   * day's jobs name.
+   */
+  const maySeeTeam = useKnownPermission('team:read')
+  const mayReadAll = useMayWrite('jobs:read-all')
+  const [roster, setRoster] = useState<Lane[]>([])
+  const [byPerson, setByPersonState] = useState(savedByPerson)
+  const setByPerson = (v: boolean) => { setByPersonState(v); try { localStorage.setItem(BY_PERSON_KEY, v ? '1' : '0') } catch { /* a private window keeps the default */ } }
+  /** The lane a job was picked up from (drag or Move); null outside the lanes. */
+  const [dragFrom, setDragFrom] = useState<string | null>(null)
+  /** A move the server warned about (no time to drive between two jobs): asked about, then sent again with bookAnyway. */
+  const [override, setOverride] = useState<{ job: ScheduleJob; change: Record<string, unknown>; said: string; message: string } | null>(null)
+  const [routeFor, setRouteFor] = useState<Lane | null>(null)
+  useEffect(() => {
+    if (!cfg.lanes || !maySeeTeam) return
+    api.get('/api/team/assignable')
+      .then((r: any) => setRoster((r?.data || []).map((p: any) => ({ id: String(p.id), name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unnamed' }))))
+      .catch(() => setRoster([]))
+  }, [cfg.lanes, maySeeTeam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { start, end } = spanOf(view, currentDate)
   const spanDays = Math.round((dayStart(end).getTime() - start.getTime()) / 86_400_000) + 1
@@ -165,10 +194,24 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   }
   const openDay = (d: Date) => { setCurrentDate(d); setView('day') }
 
-  /** A move, saved: optimistic, then the server's answer (a clash is refused with its reason), then the real board. */
-  const move = async (job: ScheduleJob, change: { scheduledDate?: string; scheduledTime?: string }, said: string) => {
+  /**
+   * A move, saved: optimistic, then the server's answer (a clash is refused with its reason), then the real board. Too
+   * little time to drive there is the one refusal the office may book past: it is asked (never a browser pop-up), and a
+   * yes sends the same move with bookAnyway, which the server records.
+   */
+  const move = async (job: ScheduleJob, change: Record<string, unknown>, said: string) => {
     setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, ...change } : j)))
     try { await api.put(`/api/jobs/${job.id}`, change); toast.success(said) }
+    catch (err) {
+      if (isTravelWarning(err)) setOverride({ job, change, said, message: errMsg(err, 'There is not enough time to get there.') })
+      else toast.error(errMsg(err, 'Could not reschedule'))
+    }
+    load()
+  }
+  const bookAnyway = async () => {
+    const o = override; setOverride(null)
+    if (!o) return
+    try { await api.put(`/api/jobs/${o.job.id}`, { ...o.change, bookAnyway: true }); toast.success(o.said) }
     catch (err) { toast.error(errMsg(err, 'Could not reschedule')) }
     load()
   }
@@ -189,6 +232,43 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     if (sameDay && (job.scheduledTime || '') === hhmm) return
     await move(job, { ...(sameDay ? {} : { scheduledDate: day }), scheduledTime: hhmm }, hhmm ? `Moved to ${hourLabel(Number(hhmm.slice(0, 2)))}` : 'Time taken off — no time set')
   }
+  // ── Lanes ────────────────────────────────────────────────────────────────────────────────────────────
+  const lanes: Lane[] = cfg.lanes ? [...lanesFor(roster, jobs), { id: UNASSIGNED, name: 'Unassigned' }] : []
+  const jobsIn = (list: ScheduleJob[], lane: string) => list.filter((j) => { const ids = crewIdsOf(j); return lane === UNASSIGNED ? ids.length === 0 : ids.includes(lane) })
+  const laneName = (lane: string) => lanes.find((l) => l.id === lane)?.name || 'Unassigned'
+  /** Optimise route on a lane: anyone's with jobs:read-all, else only the signed-in person's own (the server's rule). */
+  const mayRoute = (lane: string) => cfg.routes && lane !== UNASSIGNED && (mayReadAll || (!!cfg.meId && lane === cfg.meId))
+  const pickedUp = () => {
+    const job = dragJob || moving, from = dragFrom ?? UNASSIGNED
+    setDragJob(null); setDragOverKey(null); setMoving(null); setDragFrom(null)
+    return { job, from }
+  }
+  // Drop in a person's hour (day view): who and when, in one save.
+  const dropOnLaneHour = async (lane: string, hhmm: string) => {
+    const { job, from } = pickedUp()
+    if (!job) return
+    const day = localKey(currentDate)
+    const sameDay = String(job.scheduledDate || '').slice(0, 10) === day
+    const when = sameDay && (job.scheduledTime || '') === hhmm ? {} : { ...(sameDay ? {} : { scheduledDate: day }), scheduledTime: hhmm }
+    const who = laneMoveBody(job, from, lane)
+    if (!who && Object.keys(when).length === 0) return
+    const at = hhmm ? hourLabel(Number(hhmm.slice(0, 2))) : 'no set time'
+    const said = who ? `${lane === UNASSIGNED ? `Taken off ${laneName(from)}'s day` : `Moved to ${laneName(lane)}`}${Object.keys(when).length ? `, ${at}` : ''}` : hhmm ? `Moved to ${at}` : 'Time taken off — no time set'
+    await move(job, { ...when, ...(who || {}) }, said)
+  }
+  // Drop in a person's day (week by person): who and which day.
+  const dropOnLaneDay = async (lane: string, day: Date) => {
+    const { job, from } = pickedUp()
+    if (!job) return
+    const target = localKey(day)
+    const when = String(job.scheduledDate || '').slice(0, 10) === target ? {} : { scheduledDate: target }
+    const who = laneMoveBody(job, from, lane)
+    if (!who && Object.keys(when).length === 0) return
+    const dayText = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    const said = who ? `${lane === UNASSIGNED ? `Taken off ${laneName(from)}'s day` : `Moved to ${laneName(lane)}`}${Object.keys(when).length ? `, ${dayText}` : ''}` : `Moved to ${dayText}`
+    await move(job, { ...when, ...(who || {}) }, said)
+  }
+
   const dropProps = (key: string, onDrop: () => void) => dragDrop ? {
     onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) },
     onDragLeave: () => { if (dragOverKey === key) setDragOverKey(null) },
@@ -199,12 +279,13 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   /** A day's own buttons (open the day, "+N more") put a picked-up job on that day instead of opening it. */
   const dayButton = (day: Date) => (e: MouseEvent) => { e.stopPropagation(); if (moving) dropOnDay(day); else openDay(day) }
 
-  const jobCard = (job: ScheduleJob, compact = false) => (
+  const jobCard = (job: ScheduleJob, compact = false, lane?: string) => (
     <div
       key={job.id}
       data-job-id={job.id}
+      {...(lane !== undefined ? { 'data-lane': lane } : {})}
       draggable={dragDrop}
-      onDragStart={dragDrop ? (e) => { setDragJob(job); try { e.dataTransfer.setData('text/plain', job.id) } catch { /* older engines */ } e.dataTransfer.effectAllowed = 'move' } : undefined}
+      onDragStart={dragDrop ? (e) => { setDragJob(job); setDragFrom(lane ?? null); try { e.dataTransfer.setData('text/plain', job.id) } catch { /* older engines */ } e.dataTransfer.effectAllowed = 'move' } : undefined}
       onDragEnd={dragDrop ? () => { setDragJob(null); setDragOverKey(null) } : undefined}
       // While a job is picked up, a tap on a card is a tap on its day or hour (it bubbles to the target); the picked
       // job itself puts it down.
@@ -216,7 +297,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         <p className="font-medium truncate flex-1 min-w-0">{compact && job.scheduledTime ? `${job.scheduledTime} ` : ''}{job.title}</p>
         {dragDrop && !moving && (
           <button type="button" aria-label={`Move ${job.title}`} title="Move — then tap a day or an hour" data-move-job={job.id}
-            onClick={(e) => { e.stopPropagation(); setMoving(job) }}
+            onClick={(e) => { e.stopPropagation(); setMoving(job); setDragFrom(lane ?? null) }}
             className={`shrink-0 rounded text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white ${compact ? 'p-0.5' : 'p-1 -m-0.5'}`}>
             <Move className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
           </button>
@@ -273,7 +354,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       : `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   const unit = view === 'day' ? 'day' : view === 'week' ? 'week' : 'month'
   // Drag with a mouse; on a phone (no drag there) the Move button on a job, then a tap where it goes.
-  const hint = view === 'day' ? `Drag a ${cfg.jobLabel.toLowerCase()} to another hour, or tap its Move button and then an hour, to change its time.` : `Drag a ${cfg.jobLabel.toLowerCase()} to another day, or tap its Move button and then a day, to reschedule it.`
+  const lanesShowing = cfg.lanes && (view === 'day' || (view === 'week' && byPerson))
+  const hint = view === 'day' ? `Drag a ${cfg.jobLabel.toLowerCase()} to another hour${cfg.lanes ? ' or person' : ''}, or tap its Move button and then ${cfg.lanes ? "a person's hour" : 'an hour'}, to change it.` : `Drag a ${cfg.jobLabel.toLowerCase()} to another day${lanesShowing ? ' or person' : ''}, or tap its Move button and then ${lanesShowing ? "a person's day" : 'a day'}, to reschedule it.`
 
   // ── Day: the hours down the page ─────────────────────────────────────────────────────────────────
   const dayBody = () => {
@@ -351,6 +433,93 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     </div>
   )
 
+  // ── Day by person: a column per person (and Unassigned), the hours down the side ──────────────────────
+  const dayLanesBody = () => {
+    const today = jobsFor(currentDate)
+    const inHour = (h: number) => today.filter((j) => {
+      const m = MINUTES(j.scheduledTime); if (m === Number.MAX_SAFE_INTEGER) return false
+      const jh = Math.floor(m / 60)
+      return h === FIRST_HOUR ? jh <= FIRST_HOUR : h === LAST_HOUR ? jh >= LAST_HOUR : jh === h
+    })
+    const rows = [
+      { key: '', label: 'No time set', list: today.filter((j) => MINUTES(j.scheduledTime) === Number.MAX_SAFE_INTEGER) },
+      ...Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => FIRST_HOUR + i).map((h) => ({ key: hourKey(h), label: hourLabel(h), list: inHour(h) })),
+    ]
+    const others = [...bookingsFor(currentDate).map((b) => bookingCard(b, true)), ...eventsFor(currentDate).map((e) => eventCard(e, true))]
+    return (
+      <div className="space-y-3 min-w-0" data-view="day" data-lanes="" data-day={localKey(currentDate)}>
+        {others.length > 0 && (
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-2">
+            <p className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Bookings and appointments</p>
+            <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">{others}</div>
+          </div>
+        )}
+        <div className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-x-auto max-w-full ${isToday(currentDate) ? 'ring-2 ring-orange-500' : ''}`} data-testid="day-lanes">
+          <div className="grid min-w-max" style={{ gridTemplateColumns: `4.5rem repeat(${lanes.length}, minmax(9.5rem, 1fr))` }}>
+            <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800" />
+            {lanes.map((l) => {
+              const n = jobsIn(today, l.id).length
+              return (
+                <div key={l.id || 'unassigned'} data-lane-head={l.id} className="border-b border-l dark:border-slate-800 px-2 py-2 min-w-0">
+                  <p className="text-sm font-semibold truncate text-gray-900 dark:text-slate-100">{l.name}</p>
+                  <p className="text-[11px] text-gray-600 dark:text-slate-400">{n} {cfg.jobLabel.toLowerCase()}{n === 1 ? '' : 's'}</p>
+                  {mayRoute(l.id) && n > 1 && (
+                    <button type="button" data-route-lane={l.id} onClick={() => setRouteFor(l)} className="mt-1 inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] font-medium text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+                      <Route className="w-3 h-3" />Optimise route
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            {rows.map((row) => (
+              <Fragment key={row.key || 'untimed'}>
+                <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-2 text-xs font-medium text-gray-600 dark:text-slate-400">{row.label}</div>
+                {lanes.map((l) => {
+                  const k = cellKey(l.id, row.key)
+                  return (
+                    <div key={k} data-cell={k} {...dropProps(k, () => dropOnLaneHour(l.id, row.key))}
+                      className={`border-b border-l dark:border-slate-800 p-1 space-y-1 min-h-[44px] transition ${dragOverKey === k ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400 dark:bg-orange-950/30' : ''}`}>
+                      {jobsIn(row.list, l.id).map((j) => jobCard(j, false, l.id))}
+                    </div>
+                  )
+                })}
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Week by person: a row per person (and Unassigned), the seven days across ─────────────────────────
+  const weekLanesBody = () => (
+    <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-x-auto max-w-full" data-view="week" data-lanes="" data-testid="week-lanes">
+      <div className="grid min-w-max" style={{ gridTemplateColumns: `7.5rem repeat(${days.length}, minmax(8.5rem, 1fr))` }}>
+        <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800" />
+        {days.map((day) => (
+          <button key={localKey(day)} type="button" onClick={dayButton(day)} title={moving ? 'Pick a person’s day below' : 'Open this day'}
+            className={`border-b border-l dark:border-slate-800 px-2 py-1.5 text-center text-xs font-medium ${isToday(day) ? 'bg-orange-600 text-white' : 'text-gray-900 hover:bg-gray-50 dark:text-slate-100 dark:hover:bg-slate-800'}`}>
+            {WEEKDAYS[day.getDay()]} {day.getDate()}
+          </button>
+        ))}
+        {lanes.map((l) => (
+          <Fragment key={l.id || 'unassigned'}>
+            <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-2 text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{l.name}</div>
+            {days.map((day) => {
+              const k = cellKey(l.id, localKey(day))
+              return (
+                <div key={k} data-cell={k} {...dropProps(k, () => dropOnLaneDay(l.id, day))}
+                  className={`border-b border-l dark:border-slate-800 p-1 space-y-1 min-h-[52px] transition ${dragOverKey === k ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400 dark:bg-orange-950/30' : ''}`}>
+                  {jobsIn(jobsFor(day), l.id).map((j) => jobCard(j, true, l.id))}
+                </div>
+              )
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  )
+
   // ── Month: the weeks covering it, a few lines a day ───────────────────────────────────────────────
   const MONTH_LINES = 3
   const monthBody = () => (
@@ -394,6 +563,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {cfg.events && mayBook && <Button onClick={() => setNewFor(companyToday())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
+          {cfg.lanes && view === 'week' && (
+            <button type="button" aria-pressed={byPerson} onClick={() => setByPerson(!byPerson)} data-testid="by-person"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${byPerson ? 'border-orange-600 bg-orange-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
+              <Users className="w-4 h-4" />By person
+            </button>
+          )}
           <div role="group" aria-label="Calendar view" className="inline-flex rounded-lg border border-gray-300 dark:border-slate-700 overflow-hidden">
             {VIEWS.map((v) => (
               <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)} className={`px-3 py-1.5 text-sm ${view === v.id ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}>{v.label}</button>
@@ -414,14 +589,19 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
 
       {moving && (
         <div role="status" data-testid="move-banner" className="sticky top-0 z-20 mb-3 flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/60 dark:text-orange-100">
-          <span className="min-w-0"><span className="font-semibold">Moving “{moving.title}”</span> — tap {view === 'day' ? 'an hour' : 'a day'} to put it there{view === 'day' ? ' (or "No time set")' : ''}.</span>
+          <span className="min-w-0"><span className="font-semibold">Moving “{moving.title}”</span> — tap {view === 'day' ? (lanesShowing ? 'a person’s hour' : 'an hour') : lanesShowing ? 'a person’s day' : 'a day'} to put it there{view === 'day' ? ' (or "No time set")' : ''}.</span>
           <button type="button" onClick={() => setMoving(null)} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
         </div>
       )}
       {loading ? (
         <div className="flex justify-center py-12" aria-busy="true"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
-      ) : view === 'day' ? dayBody() : view === 'month' ? monthBody() : weekBody()}
+      ) : view === 'day' ? (cfg.lanes ? dayLanesBody() : dayBody()) : view === 'month' ? monthBody() : lanesShowing ? weekLanesBody() : weekBody()}
 
+      <ConfirmModal isOpen={!!override} onClose={() => { setOverride(null); load() }} onConfirm={bookAnyway} danger={false}
+        title="Not enough time to get there"
+        message={override?.message || ''}
+        confirmText="Book anyway" />
+      {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayMoveJobs} onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); load() }} />}
       {cfg.events && newFor && <AppointmentModal api={api} toast={toast} date={newFor} types={cfg.eventTypes} onClose={() => setNewFor(null)} onSaved={() => { setNewFor(null); load() }} />}
       {cfg.events && editEvent && <AppointmentModal api={api} toast={toast} date={new Date(editEvent.start)} event={editEvent} types={cfg.eventTypes} onClose={() => setEditEvent(null)} onSaved={() => { setEditEvent(null); load() }} />}
     </div>

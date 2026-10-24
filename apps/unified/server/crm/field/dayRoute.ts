@@ -13,9 +13,9 @@
 // Gated as the jobs are: the `jobs` feature, jobs:read to look, jobs:update to locate (it writes the job's point). A seat
 // that reads only its own jobs (no jobs:read-all) asks only for its own day.
 import { Hono } from 'hono'
-import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
-import { companyTimeZone, jobLocalDay, onJob } from '@twomiah/tenant-backend'
-import { job, jobAssignee, user, teamMember } from '../../db/schema/index.ts'
+import { and, eq, isNull } from 'drizzle-orm'
+import { job, user, teamMember } from '../../db/schema/index.ts'
+import { openJobsOnDay } from '../../data/dayJobs.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
@@ -45,17 +45,8 @@ export function createDayRouteRoutes(d: CrmDeps) {
     if (asked === u.userId) return asked
     return (await canSee(u.role, 'jobs:read-all', u.userId)) ? asked : null
   }
-  /** The open jobs on a company day, for one person or (null) everyone this seat reads. */
-  const dayJobs = async (companyId: string, date: string, person: string | null, extra: any[] = []) => {
-    const tz = await companyTimeZone(db, companyId)
-    return db.select().from(job).where(and(
-      eq(job.companyId, companyId),
-      sql`${jobLocalDay(job.scheduledDate, job.source, tz)} = ${date}::date`,
-      notInArray(job.status, ['cancelled', 'completed']),
-      ...(person ? [onJob(db, { job, jobAssignee }, person)] : []),
-      ...extra,
-    ))
-  }
+  /** The open jobs on a company day, for one person or (null) everyone this seat reads (data/dayJobs.ts). */
+  const dayJobs = (companyId: string, date: string, person: string | null, extra: any[] = []) => openJobsOnDay(db, companyId, date, person, extra)
   const nameOf = async (companyId: string, id: string) => {
     const [u] = await db.select({ firstName: user.firstName, lastName: user.lastName }).from(user).where(and(eq(user.id, id), eq(user.companyId, companyId))).limit(1)
     if (u) return `${u.firstName || ''} ${u.lastName || ''}`.trim()
