@@ -10,17 +10,18 @@ import { and, eq } from 'drizzle-orm'
 import { bootStore, paidSession } from './storeKit.ts'
 import { createStoreCore } from '../server/crm/store/core.ts'
 import { createCheckoutService } from '../server/crm/store/checkout/checkoutService.ts'
-import { cardShare, cardShareOfRefund } from '../server/crm/store/giftCards.ts'
+import { cardShare, cardShareOfRefund, createStoreGiftCards } from '../server/crm/store/giftCards.ts'
 
 let k: Awaited<ReturnType<typeof bootStore>>
 let svc: ReturnType<typeof createCheckoutService>
+let deps: any
 beforeAll(async () => {
   k = await bootStore()
   await (k.t.db as any).insert(k.S.storeSettings).values({ companyId: k.companyId, currency: 'usd', flatShippingCents: 500, taxRateBps: 0 })
   await k.connectStripe()
   await k.product({ slug: 'gift-card', name: 'Gift card', sku: 'GIFT-25', priceCents: 2500, kind: 'gift_card', qty: null })
   await k.product({ slug: 'mug', name: 'Mug', sku: 'MUG-1', priceCents: 2000 })
-  const deps: any = { db: k.t.db, audit: k.t.services.audit, logger: { info() {}, warn() {}, error() {} }, permissions: k.t.services.permissions, services: k.t.services.crm }
+  deps = { db: k.t.db, audit: k.t.services.audit, logger: { info() {}, warn() {}, error() {} }, permissions: k.t.services.permissions, services: k.t.services.crm }
   svc = createCheckoutService(deps, createStoreCore(deps))
 }, 120_000)
 afterAll(() => k.restore())
@@ -133,6 +134,12 @@ describe('paying with a gift card', () => {
     expect((await k.order(o2.id)).status).toBe('cancelled')
     expect((await card(code)).balanceCents).toBe(2500)
     expect((await ledger((await card(code)).id)).filter((m: any) => m.kind === 'release').length).toBe(2)
+    // Two passes at once (two instances during a deploy) give one hold back once.
+    const r3 = await k.pub('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: 2 }], customerEmail: 'ada@example.com', giftCardCode: code })
+    const o3 = await k.orderBySession(sid(r3.json.url))
+    const gc = createStoreGiftCards(deps, createStoreCore(deps))
+    expect(await Promise.all([gc.release(o3, 'one'), gc.release(o3, 'two')])).toContain(false)
+    expect((await card(code)).balanceCents).toBe(2500)
   })
 
   test('a card that covers the order pays it outright (and a refund goes back on it); one that would leave a sliver leaves 50¢', async () => {
