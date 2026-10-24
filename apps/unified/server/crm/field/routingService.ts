@@ -7,10 +7,8 @@
 // Routes API answers, from the server — one computeRouteMatrix call for a whole day's stops, computeRoutes for one leg;
 // without it, or when Google does not answer, the straight-line distance at 30 mph (tenant-backend jobs/travel.ts, the
 // estimate the clash check uses). No public router is ever called.
-import { and, eq, inArray, sql } from 'drizzle-orm'
-import { companyTimeZone, jobLocalDay, metresBetween, storeDateString } from '@twomiah/tenant-backend'
-import { ownJobsWhere } from '../ownWork.ts'
-import { job, contact } from '../../db/schema/index.ts'
+import { routableJobsOnDay } from '../../data/dayJobs.ts'
+import { companyTimeZone, metresBetween, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 
 interface Point {
@@ -261,22 +259,12 @@ export function createRoutingService(d: CrmDeps) {
 
   /**
    * A person's scheduled and in-progress jobs for a day, in the best order. The day is the COMPANY'S (YYYY-MM-DD, or its
-   * today), each job's day read by tenant-backend jobLocalDay — it was the server's local midnight (2026-10-24).
+   * today), each job's day read by tenant-backend jobLocalDay (data/dayJobs.ts) — it was the server's local midnight
+   * (2026-10-24).
    */
   async function optimizeDayRoute(companyId: string, userId: string, date?: string | null) {
-    const tz = await companyTimeZone(db, companyId)
-    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : storeDateString(new Date(), tz)
-
-    const jobs = await db
-      .select({ job, contactAddress: contact.address })
-      .from(job)
-      .leftJoin(contact, eq(job.contactId, contact.id))
-      .where(and(
-        eq(job.companyId, companyId),
-        ownJobsWhere(db, userId),
-        sql`${jobLocalDay(job.scheduledDate, job.source, tz)} = ${day}::date`,
-        inArray(job.status, ['scheduled', 'in_progress']),
-      ))
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : storeDateString(new Date(), await companyTimeZone(db, companyId))
+    const jobs = await routableJobsOnDay(db, companyId, day, userId)
 
     const stops = jobs
       .filter((j: any) => j.job.lat && j.job.lng)

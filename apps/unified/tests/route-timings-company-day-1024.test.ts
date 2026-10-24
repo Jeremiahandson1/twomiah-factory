@@ -75,16 +75,17 @@ describe('1. route timings: Google\'s Routes API or the straight line, never a p
 
 describe('2. /api/jobs?date= is the company\'s day, on a server clock that is not', () => {
   let t: Awaited<ReturnType<typeof bootTenant>>
-  let token = '', co = ''
+  let token = '', co = '', ownerId = ''
   const ids: Record<string, string> = {}
   beforeAll(async () => {
     t = await bootTenant({ vertical: 'fieldservice' })
     const s = await seedOwner(t)
     co = s.company.id
-    await t.db.update(t.schema.company).set({ timezone: 'America/Chicago', enabledFeatures: ['contacts', 'jobs', 'dispatch_board'] } as any).where(eq(t.schema.company.id, co))
+    await t.db.update(t.schema.company).set({ timezone: 'America/Chicago', enabledFeatures: ['contacts', 'jobs', 'dispatch_board', 'route_optimization'] } as any).where(eq(t.schema.company.id, co))
     token = ((await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()) as any).accessToken
+    ownerId = s.owner.id
     const add = async (key: string, number: string, scheduledDate: Date, source?: string) => {
-      const [j] = await t.db.insert(t.schema.job).values({ companyId: co, number, title: key, status: 'scheduled', scheduledDate, ...(source ? { source } : {}) } as any).returning()
+      const [j] = await t.db.insert(t.schema.job).values({ companyId: co, number, title: key, status: 'scheduled', scheduledDate, assignedToId: ownerId, lat: 41.8 + Number(number.slice(4)) / 50, lng: -87.6, ...(source ? { source } : {}) } as any).returning()
       ids[key] = j.id
     }
     // Day markers (a job booked in the CRM) for 2 Nov, 3 Nov and 4 Nov.
@@ -112,5 +113,14 @@ describe('2. /api/jobs?date= is the company\'s day, on a server clock that is no
     expect(((await r.json()) as any).data.map((j: any) => j.title)).toEqual(['marker-4th'])
     const all = await t.call('/api/jobs?date=2026-13-45x&limit=100', { headers: { Authorization: `Bearer ${token}` } })
     expect(((await all.json()) as any).data.length).toBe(5)
+  })
+
+  test('a person\'s day route (/api/routing/optimize-day?date=2026-11-03) is the company\'s day too', async () => {
+    const r = await t.call(`/api/routing/optimize-day?date=2026-11-03`, { headers: { Authorization: `Bearer ${token}` } })
+    expect(r.status).toBe(200)
+    const body = (await r.json()) as any
+    expect(body.date).toBe('2026-11-03')
+    expect(body.jobs.map((j: any) => j.title).sort()).toEqual(['booked-3rd-evening', 'marker-3rd'])
+    expect(body.optimizedRoute.source).toBe('straight_line')
   })
 })
