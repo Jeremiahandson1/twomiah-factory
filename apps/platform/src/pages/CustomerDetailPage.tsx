@@ -12,6 +12,7 @@ import A2pRegistration from '../components/factory/A2pRegistration'
 import MessagingBilling from '../components/factory/MessagingBilling'
 import SubscriptionControls from '../components/factory/SubscriptionControls'
 import DomainBilling from '../components/factory/DomainBilling'
+import { crmSignInUrl } from '../components/factory/crmSignIn'
 
 const V2_PLAN_IDS = ['website', 'starter10', 'team25', 'business50']
 
@@ -27,6 +28,7 @@ type Tenant = {
   stripe_customer_id?: string; stripe_subscription_id?: string
   render_frontend_url?: string; render_backend_url?: string; website_url?: string
   domain?: string
+  engine?: string | null
   twomiah_subdomain?: string | null
   offboard_started_at?: string | null; offboard_grace_ends_at?: string | null
 }
@@ -682,8 +684,15 @@ export default function CustomerDetailPage() {
             {/* URLs */}
             <div className="space-y-3 mb-5">
               {(['render_frontend_url', 'render_backend_url', 'website_url'] as const).map(field => {
-                const label = field === 'render_frontend_url' ? 'CRM URL' : field === 'render_backend_url' ? 'API URL' : 'Website URL'
+                // A unified business is ONE service: its Render address serves the website at "/" and the CRM at /crm, so
+                // linking the bare address as "CRM" opened the website (Higgs, 10/24). The CRM link goes to the sign-in
+                // page, on app.<domain> once the business has its own domain (http/adminHost.ts), and the second row is
+                // the server itself rather than a separate API.
+                const unified = tenant.engine === 'unified'
+                const label = field === 'render_frontend_url' ? (unified ? 'CRM sign-in' : 'CRM URL')
+                  : field === 'render_backend_url' ? (unified ? 'Server (Render)' : 'API URL') : 'Website URL'
                 const val = form[field] as string
+                const link = unified && field === 'render_frontend_url' && val ? crmSignInUrl(val, form.website_url as string) : val
                 return (
                   <div key={field}>
                     <label className="text-xs text-gray-500 block mb-1">{label}</label>
@@ -692,10 +701,10 @@ export default function CustomerDetailPage() {
                         placeholder="https://..." className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600" />
                     ) : val ? (
                       <div className="flex items-center gap-2">
-                        <a href={val} target="_blank" rel="noreferrer" className="text-blue-400 text-sm hover:text-blue-300 flex items-center gap-1 truncate">
-                          {val.replace('https://', '')} <ExternalLink size={12} />
+                        <a href={link} target="_blank" rel="noreferrer" className="text-blue-400 text-sm hover:text-blue-300 flex items-center gap-1 truncate">
+                          {link.replace('https://', '')} <ExternalLink size={12} />
                         </a>
-                        <CopyButton value={val} />
+                        <CopyButton value={link} />
                       </div>
                     ) : (
                       <p className="text-sm text-gray-600">Not set</p>
