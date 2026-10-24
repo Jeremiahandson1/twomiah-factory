@@ -10,6 +10,7 @@
  * template whose schema doesn't carry those columns/tables.
  */
 import { Hono } from 'hono'
+import { createCostShaping, type CanSee } from '../auth/costShaping'
 import { eq, and, ne, lte, gte, count, countDistinct, asc, desc, ilike, or, sql } from 'drizzle-orm'
 import { businessToday } from '../invoicing/money'
 import { companyTimeZone } from '../time/businessDay'
@@ -36,6 +37,8 @@ export interface EquipmentRoutesDeps {
   service: EquipmentService
   authenticate: any
   requirePermission: (permission: string) => any
+  /** Who may see what a service visit COST (auth/costShaping.ts); absent, everyone does, as before. */
+  canSee?: CanSee
 }
 
 /**
@@ -491,7 +494,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   }
 
   async function deleteEquipment(id: string, companyId: string) {
-    return db.delete(equipment).where(and(eq(equipment.id, id), eq(equipment.companyId, companyId)))
+    return db.delete(equipment).where(and(eq(equipment.id, id), eq(equipment.companyId, companyId))).returning({ id: equipment.id })
   }
 
   return {
@@ -544,10 +547,14 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   app.get('/warranty-expiring', async (c: any) => c.json(await service.getWarrantyExpiring((c.get('user')).companyId, { days: parseInt(c.req.query('days')) || 60 })))
   app.get('/aging', async (c: any) => c.json(await service.getAgingEquipment((c.get('user')).companyId, { minAgeYears: parseInt(c.req.query('minAge')) || 10 })))
 
+  // A service record's cost is what the business paid for the work (auth/costShaping.ts, margin:read): the unit, its
+  // history and what was done stay open to the technician; the money does not (live role check, 2026-10-23).
+  const { costed } = createCostShaping(deps.canSee, ['cost', 'totalCost'])
+
   app.get('/:id', async (c: any) => {
     const item = await service.getEquipmentDetails(c.req.param('id'), (c.get('user')).companyId)
     if (!item) return c.json({ error: 'Equipment not found' }, 404)
-    return c.json(item)
+    return costed(c, item)
   })
 
   app.post('/', requirePermission('equipment:create'), async (c: any) => {
@@ -582,7 +589,7 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   app.get('/:id/history', async (c: any) => {
     const rows = await service.getServiceHistory(c.req.param('id'), c.get('user').companyId)
     if (rows === null) return c.json({ error: 'Equipment not found' }, 404)
-    return c.json(rows)
+    return costed(c, rows)
   })
   app.post('/:id/history', requirePermission('equipment:update'), async (c: any) => {
     const user = c.get('user')
@@ -600,7 +607,9 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   })
 
   app.delete('/:id', requirePermission('equipment:delete'), async (c: any) => {
-    await service.deleteEquipment(c.req.param('id'), (c.get('user')).companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await service.deleteEquipment(c.req.param('id'), (c.get('user')).companyId)
+    if (!gone?.length) return c.json({ error: 'Equipment not found' }, 404)
     return c.json({ success: true })
   })
 

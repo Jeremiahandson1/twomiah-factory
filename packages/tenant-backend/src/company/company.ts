@@ -257,9 +257,15 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   // Every answer that hands the company back goes through here (the GET and every save), so what a vertical adds to it
   // (deps.describe: home care's effectiveTimezone) is redacted by the same rule as the rest.
   const forReader = async (c: any, row: any) => {
-    const safe = deps.describe ? { ...row, ...deps.describe(row) } : row
+    let safe = deps.describe ? { ...row, ...deps.describe(row) } : row
     const u = c.get('user') as any
     if (!canSee) return safe
+    // What the business pays per measurement report is its cost (margin:read), which /api/measurements/credits/info
+    // already withholds — the company row handed it to every seat (live role check sweep, 2026-10-23).
+    if ('reportPricePerReport' in safe && !(await canSee(u?.role, 'margin:read', u?.userId))) {
+      const { reportPricePerReport: _price, ...rest } = safe
+      safe = rest
+    }
     if (!(await canSee(u?.role, 'company:update', u?.userId))) return redactCompanyCommercial(safe)
     if (!(await canSee(u?.role, 'billing:manage', u?.userId))) { const { integrations: _connected, ...rest } = safe; return rest }
     return safe
@@ -735,8 +741,8 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Enter a password of at least 8 characters.' }, 400)
     const target = await findTarget(c.req.param('id'), currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
-    if (target.role === 'owner') return c.json({ error: "The owner's password is the owner's own. They change it under Settings › Security, or use Forgot password.", code: 'owner_account' }, 409)
-    if (target.id === currentUser.userId) return c.json({ error: 'Change your own password under Settings › Security.', code: 'own_account' }, 409)
+    if (target.role === 'owner') return c.json({ error: "The owner's password is the owner's own. They change it under Profile & Security (the menu under their name), or use Forgot password.", code: 'owner_account' }, 409)
+    if (target.id === currentUser.userId) return c.json({ error: 'Change your own password under Profile & Security, in the menu under your name.', code: 'own_account' }, 409)
     if (!target.isActive) return c.json({ error: 'Turn their login back on first — a switched-off login cannot sign in.', code: 'inactive' }, 409)
     if (target.lastLogin) return c.json({ error: 'They have already signed in, so the password is theirs now. If they have lost it, Forgot password on the sign-in page sends them a new link.', code: 'already_signed_in' }, 409)
     const passwordHash = await Bun.password.hash(parsed.data.password, 'bcrypt')

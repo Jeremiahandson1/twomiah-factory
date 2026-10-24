@@ -212,9 +212,9 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const [gone] = await db.delete(recurringRoute)
       .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId)))
       .returning()
-    if (gone) {
-      audit.log({ req: c, action: audit.ACTIONS.DELETE, entity: 'recurring_route', entityId: gone.id, entityName: gone.name || 'route', userId: u.userId, companyId: u.companyId })
-    }
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    if (!gone) return fail(c, 404, 'Route not found')
+    audit.log({ req: c, action: audit.ACTIONS.DELETE, entity: 'recurring_route', entityId: gone.id, entityName: gone.name || 'route', userId: u.userId, companyId: u.companyId })
     return c.body(null, 204)
   })
 

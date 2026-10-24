@@ -26,6 +26,8 @@ export default function AiaFormsPage() {
   const projectsOn = hasFeature('projects')
   // The writes below are aia-forms:update on the server (aiaForms.ts).
   const mayUpdate = can('aia-forms:update')
+  // New Pay App is POST /api/aia-forms, aia-forms:create (live role check sweep, 2026-10-23).
+  const mayCreate = can('aia-forms:create')
   const [forms, setForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -93,7 +95,7 @@ export default function AiaFormsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-orange-500 dark:text-orange-200" />AIA G702/G703 Forms</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Application and Certificate for Payment — standard AIA forms</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Pay App</button>
+        {mayCreate && <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Pay App</button>}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">

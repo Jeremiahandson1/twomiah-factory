@@ -1659,12 +1659,12 @@ const CaregiverDashboard = () => {
           {location ? <>GPS Active (±{location.accuracy?.toFixed(0)}m)</> : <>{locationError || 'Location unavailable'} - Clock in still works</>}
         </div>
       </div>
-      {/* Their own two-factor sign-in (a caregiver's account opens clients' care plans and medications too): the app's
-          own page. */}
+      {/* Their own name, phone, password and two-factor sign-in (a caregiver's account opens clients' care plans and
+          medications too): the app's own Profile & Security page, every role's (live role check, 2026-10-23). */}
       <div className="hc-card">
-        <div className="hc-card-title">Sign-in & Security</div>
-        <p style={{ marginBottom: '0.75rem', color: 'var(--hc-ink-soft)' }}>Turn on two-factor sign-in and manage your password.</p>
-        <Link to="/crm/account" className="hc-btn hc-btn-secondary">Open sign-in &amp; security</Link>
+        <div className="hc-card-title">Profile &amp; Security</div>
+        <p style={{ marginBottom: '0.75rem', color: 'var(--hc-ink-soft)' }}>Change your name or phone, turn on two-factor sign-in and manage your password.</p>
+        <Link to="/crm/account" className="hc-btn hc-btn-secondary">Open Profile &amp; Security</Link>
       </div>
       <button className="hc-btn hc-btn-danger hc-btn-block" onClick={() => { logout() }}>Log Out</button>
     </>

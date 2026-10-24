@@ -151,6 +151,13 @@ export default function InventoryPage({ api, hasFeature }: InventoryPageProps) {
   /** PUT /api/inventory/locations/:id asks inventory:update. */
   const mayEditLocation = useMayWrite('inventory:update');
   const mayUpdate = useMayWrite('inventory:update');
+  /**
+   * The Purchase Orders tab asks what its read asks: GET /api/inventory/purchase-orders is inventory:read (inventory.ts),
+   * which the field and viewer rungs do not hold. The tab was offered to every seat and the read answered every seat,
+   * each order's total included (live role check, 2026-10-23). Hidden only once we KNOW the seat lacks it — the two
+   * templates that mount no permissions provider still show it, and the server refuses there.
+   */
+  const mayReadOrders = useMayWrite('inventory:read');
 
   useEffect(() => {
     loadData();
@@ -240,7 +247,7 @@ export default function InventoryPage({ api, hasFeature }: InventoryPageProps) {
         {[
           { id: 'items', label: 'Items', icon: Package },
           { id: 'locations', label: 'Locations', icon: Warehouse },
-          { id: 'orders', label: 'Purchase Orders', icon: ShoppingCart },
+          ...(mayReadOrders ? [{ id: 'orders', label: 'Purchase Orders', icon: ShoppingCart }] : []),
         ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
@@ -390,7 +397,7 @@ export default function InventoryPage({ api, hasFeature }: InventoryPageProps) {
       )}
 
       {/* Purchase Orders Tab */}
-      {tab === 'orders' && (
+      {tab === 'orders' && mayReadOrders && (
         <PurchaseOrdersTab locations={locations} />
       )}
 
@@ -586,9 +593,9 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
     <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-medium text-gray-900 dark:text-slate-100">Purchase Orders</h3>
-        <button className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">
-          + New Order
-        </button>
+        {/* A "+ New Order" button sat here with no handler at all: it did nothing for anyone, the owner included (found
+            in the live role check, 2026-10-23). Removed rather than left as a dead control; orders arriving here are
+            listed as before. */}
       </div>
       {orders.length === 0 ? (
         <div className="p-8 text-center text-gray-500 dark:text-slate-400">

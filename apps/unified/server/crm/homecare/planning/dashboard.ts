@@ -95,20 +95,26 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
     })
   })
 
-  // GET /summary — the admin dashboard's tiles and "Today" panel.
-  app.get('/summary', requirePermission('care-billing:read'), async (c) => {
-    const { companyId } = c.get('user')
+  // GET /summary — the admin dashboard's tiles and "Today" panel. The read-only office seat (care-office:read) gets the
+  // counts and not the money: pendingInvoices and thisMonthRevenue are care-billing:read's, and ABSENT for anyone else,
+  // so no tile prints "$0.00" for a figure it was not given (live role check, 2026-10-23: the viewer's dashboard was
+  // blank — every tile sat on the billing permission).
+  app.get('/summary', d.permissions.requireAnyPermission(['care-billing:read', 'care-office:read']), async (c) => {
+    const { companyId, role, userId } = c.get('user') as any
     const tz = await core.time.timezone(companyId)
     const today = await core.time.today(companyId, tz)
     const s = await dashboardSummary(d.db, companyId, today, tz)
+    const money = d.permissions.hasPermission(role, 'care-billing:read', await d.permissions.getExtraPermissions(userId))
     return one(c, {
       totalClients: int(s.totalClients),
       activeCaregivers: int(s.activeCaregivers),
-      pendingInvoices: {
-        count: int(s.pendingCount), amount: dec(s.pendingAmount),
-        draftCount: int(s.draftCount), draftAmount: dec(s.draftAmount),
-      },
-      thisMonthRevenue: dec(s.thisMonthRevenue),
+      ...(money ? {
+        pendingInvoices: {
+          count: int(s.pendingCount), amount: dec(s.pendingAmount),
+          draftCount: int(s.draftCount), draftAmount: dec(s.draftAmount),
+        },
+        thisMonthRevenue: dec(s.thisMonthRevenue),
+      } : {}),
       clockedInNow: int(s.clockedInNow),
       todayShifts: int(s.todayShifts),
       remainingShifts: int(s.remainingShifts),

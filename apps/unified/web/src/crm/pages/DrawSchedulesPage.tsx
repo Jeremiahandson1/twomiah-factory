@@ -26,7 +26,12 @@ const REQ_STATUS_COLORS: Record<string, string> = {
 
 export default function DrawSchedulesPage() {
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
-  const projectsOn = useAuth().hasFeature('projects')
+  const { hasFeature, can } = useAuth()
+  const projectsOn = hasFeature('projects')
+  // Each control asks what its route asks (server/crm/projects/drawSchedules.ts): a new schedule or draw is
+  // draw-schedules:create; submit, approve, reject and mark paid are draw-schedules:update (live role check sweep, 2026-10-23).
+  const mayCreate = can('draw-schedules:create')
+  const mayUpdate = can('draw-schedules:update')
   const prompt = usePrompt()
   const toast = useToast()
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -97,7 +102,7 @@ export default function DrawSchedulesPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500 dark:text-orange-200" />Draw Schedules</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track construction loan draws against project milestones</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Schedule</button>
+        {mayCreate && <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Schedule</button>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -124,7 +129,7 @@ export default function DrawSchedulesPage() {
             <div className="bg-white rounded-lg border dark:bg-slate-900">
               <div className="p-4 border-b flex items-center justify-between">
                 <div><h2 className="font-bold">{selected.name}</h2><div className="text-sm text-gray-500 dark:text-slate-400">{selected.lenderName}</div></div>
-                <button onClick={() => setShowDraw(true)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><Plus className="w-3 h-3" />Draw</button>
+                {mayCreate && <button onClick={() => setShowDraw(true)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><Plus className="w-3 h-3" />Draw</button>}
               </div>
               <table className="w-full">
                 <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">#</th><th className="px-4 py-3">Gross</th><th className="px-4 py-3">Retainage</th><th className="px-4 py-3">Net</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
@@ -141,10 +146,10 @@ export default function DrawSchedulesPage() {
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{codeLabel(r.status)}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            {(r.status === 'draft' || r.status === 'rejected') && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}
-                            {r.status === 'submitted' && <button aria-label="Approve" onClick={() => drawAction(r.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
-                            {r.status === 'submitted' && <button aria-label="Reject" onClick={() => drawAction(r.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400 dark:hover:bg-red-950/40"><X className="w-4 h-4" /></button>}
-                            {r.status === 'approved' && <button onClick={() => drawAction(r.id, 'mark-paid')} className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 p-1 rounded text-xs">Mark Paid</button>}
+                            {mayUpdate && (r.status === 'draft' || r.status === 'rejected') && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}
+                            {mayUpdate && r.status === 'submitted' && <button aria-label="Approve" onClick={() => drawAction(r.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
+                            {mayUpdate && r.status === 'submitted' && <button aria-label="Reject" onClick={() => drawAction(r.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400 dark:hover:bg-red-950/40"><X className="w-4 h-4" /></button>}
+                            {mayUpdate && r.status === 'approved' && <button onClick={() => drawAction(r.id, 'mark-paid')} className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 p-1 rounded text-xs">Mark Paid</button>}
                           </div>
                         </td>
                       </tr>

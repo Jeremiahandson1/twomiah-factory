@@ -66,8 +66,10 @@ export function createGeofencingService(d: CrmDeps) {
     return updated ?? null
   }
 
-  async function deleteGeofence(geofenceId: string, companyId: string) {
-    await db.delete(geofence).where(and(eq(geofence.id, geofenceId), eq(geofence.companyId, companyId)))
+  /** Whether a geofence of this company's was there to delete. */
+  async function deleteGeofence(geofenceId: string, companyId: string): Promise<boolean> {
+    const gone = await db.delete(geofence).where(and(eq(geofence.id, geofenceId), eq(geofence.companyId, companyId))).returning({ id: geofence.id })
+    return gone.length > 0
   }
 
   /** A geofence for a job that has coordinates and none yet. */

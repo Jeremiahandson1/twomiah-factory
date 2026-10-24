@@ -180,7 +180,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return updated
   }
   async function deletePlan(id: string, companyId: string) {
-    return db.delete(agreementPlan).where(and(eq(agreementPlan.id, id), eq(agreementPlan.companyId, companyId)))
+    return db.delete(agreementPlan).where(and(eq(agreementPlan.id, id), eq(agreementPlan.companyId, companyId))).returning({ id: agreementPlan.id })
   }
 
   /** Each company's zone, read once per run (an agreement's dates are its business's days). */
@@ -1304,7 +1304,9 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   }
 
   app.delete('/plans/:id', requirePermission('agreements:delete'), async (c: any) => {
-    await service.deletePlan(c.req.param('id'), (c.get('user')).companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await service.deletePlan(c.req.param('id'), (c.get('user')).companyId)
+    if (!gone?.length) return c.json({ error: 'Plan not found' }, 404)
     return c.json({ success: true })
   })
 

@@ -382,9 +382,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     } as any) },
     { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
-    { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission } as any) },
+    { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
-    { path: '/api/fleet', access: 'user', feature: 'fleet', router: createFleetRoutes({ service: s.fleet, authenticate, requirePermission } as any) },
+    { path: '/api/fleet', access: 'user', feature: 'fleet', router: createFleetRoutes({ service: s.fleet, authenticate, requirePermission, canSee } as any) },
     { path: '/api/warranties', access: 'user', feature: 'warranties', router: createWarrantiesRoutes({ service: s.warranties, authenticate, requirePermission } as any) },
     { path: '/api/agreements', access: 'user', feature: ['service_agreements', 'maintenance_contracts'], router: createAgreementsRoutes({ service: s.agreements, authenticate, requirePermission, canSee, recurrence: !!v.agreements?.recurrence } as any) },
 

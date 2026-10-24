@@ -10,7 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
-import { meetsRole, maySeeRoute } from './types'
+import { meetsRole, maySeeRoute, allowsPermission } from './types'
 
 import { blockedRoute } from './routeGate'
 
@@ -64,7 +64,9 @@ const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-
 export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const { user, company, logout, hasFeature } = auth
   // A template that has not been rewired hands us no `can`, and its whole menu must still render.
-  const can = auth.can || (() => true)
+  const canOne = auth.can || (() => true)
+  // A nav item or route may name a LIST of permissions, any one of which opens it (types.ts NavItem.permission).
+  const can = useMemo(() => (permission: string | string[]) => allowsPermission(canOne, permission), [canOne])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { setTheme, isDark } = useTheme()
@@ -327,9 +329,9 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
                         <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
-                        {/* Every role: two-factor and your own password are yours, not the shop's. (T60) */}
+                        {/* Every role: your own name, phone, password and two-factor are yours, not the shop's. (T60; live role check 2026-10-23) */}
                         <RouterLink to="/crm/account" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
-                          <User className="w-4 h-4" aria-hidden="true" />My account
+                          <User className="w-4 h-4" aria-hidden="true" />Profile &amp; Security
                         </RouterLink>
                         {maySeeRoute(config, '/crm/settings', user?.role, can) && (
                           <RouterLink to="/crm/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
@@ -364,7 +366,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                   {gatedItem.reason !== 'feature'
-                    ? `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
+                    ? `${WHO_CAN_OPEN[String([(gatedItem as any).needs].flat()[0] || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
                     : switchable
                       ? (canSwitch
                         ? 'It is part of this CRM and can be turned on whenever you want it — Settings → Features.'

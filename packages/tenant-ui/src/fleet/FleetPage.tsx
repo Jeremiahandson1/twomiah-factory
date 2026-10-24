@@ -193,7 +193,9 @@ export default function FleetPage({ api, config }: FleetPageProps) {
           <StatCard icon={Truck} label="Vehicles" value={stats.totalVehicles} />
           <StatCard icon={Navigation} label="Trips (30d)" value={stats.tripsThisMonth} color="blue" />
           <StatCard icon={TrendingUp} label="Miles (30d)" value={`${Math.round(stats.milesThisMonth)}`} color="green" />
-          <StatCard icon={Fuel} label="Fuel Cost" value={money(stats.fuelCostThisMonth, 0)} color="purple" />
+          {/* Absent for a seat without margin:read (the server takes it out, fleet.ts): no tile, rather than a $0 that reads as
+              "no fuel bought". */}
+          {stats.fuelCostThisMonth !== undefined && <StatCard icon={Fuel} label="Fuel Cost" value={money(stats.fuelCostThisMonth, 0)} color="purple" />}
           <StatCard icon={DollarSign} label="Gallons" value={stats.gallonsThisMonth?.toFixed(0) || 0} color="cyan" />
         </div>
       )}

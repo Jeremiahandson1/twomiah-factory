@@ -68,8 +68,9 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
-  // GET /api/leads/sources asks contacts:read: the item asks the same, so no seat is offered a page that refuses it.
-  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], permission: 'contacts:read' },
+  // GET /api/leads/sources asks leads:read (the inbox's own permission — admin and manager; a technician, a stylist and a
+  // viewer held contacts:read and were offered the business's leads; live role check, 2026-10-23): the item asks the same.
+  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], permission: 'leads:read' },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'], permission: 'selections:read' },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   // Field service's own screens (templates/crm-fieldservice/frontend/src/shellConfig.ts). The registry offers these
@@ -107,7 +108,7 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/bookings/waitlist', icon: Hourglass, label: 'Waitlist', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/insights', icon: BarChart3, label: 'Insights', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/settings', icon: SlidersHorizontal, label: 'Booking settings', features: ['online_booking'], permission: 'bookings:update' },
-  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'contacts:read' },
+  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'leads:read' },
   // Who changed what — owners and admins (audit:read, the permission /api/audit asks for).
   { to: '/crm/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit:read' },
   // Ungated in the template and on the server (/api/support's knowledge base and AI chat, /api/platform-support):
@@ -153,7 +154,8 @@ export const SHELL: ShellConfig = {
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
   },
-  routePermissions: { ...barRoutePermissions, ...homecareRoutePermissions, ...roofRoutePermissions, ...storeRoutePermissions },
+  // The New Leads list the dashboard tile opens (GET /api/dashboard/new-leads asks leads:read) — no menu entry of its own.
+  routePermissions: { '/crm/new-leads': 'leads:read', ...barRoutePermissions, ...homecareRoutePermissions, ...roofRoutePermissions, ...storeRoutePermissions },
   // An agency's View As: the header's button and, while one is open, the strip that says whose app this is.
   ...(isHomecare ? { headerActions: homecareHeaderActions, banner: homecareBanner } : {}),
   routeRoles: {

@@ -9,6 +9,7 @@
  * stub shapes the crm build always returned (no location_log/vehicle_trip dependency executed).
  */
 import { Hono } from 'hono'
+import { createCostShaping, type CanSee } from '../auth/costShaping'
 import { eq, and, desc, count, gte, lte, sql, asc } from 'drizzle-orm'
 
 const METERS_PER_MILE = 1609.344
@@ -29,6 +30,8 @@ export interface FleetRoutesDeps {
   service: FleetService
   authenticate: any
   requirePermission: (permission: string) => any
+  /** Who may see what the vehicles COST to run (auth/costShaping.ts); absent, everyone does, as before. */
+  canSee?: CanSee
 }
 
 export function createFleetService(deps: FleetServiceDeps) {
@@ -285,7 +288,7 @@ export function createFleetService(deps: FleetServiceDeps) {
   }
 
   async function deleteVehicle(id: string, companyId: string) {
-    return db.delete(vehicle).where(and(eq(vehicle.id, id), eq(vehicle.companyId, companyId)))
+    return db.delete(vehicle).where(and(eq(vehicle.id, id), eq(vehicle.companyId, companyId))).returning({ id: vehicle.id })
   }
 
   return {
@@ -302,12 +305,15 @@ export function createFleetRoutes(deps: FleetRoutesDeps) {
   const { service, authenticate, requirePermission } = deps
   const app = new Hono()
   app.use('*', authenticate)
+  // Fuel spend and maintenance bills are what the business PAID: the vehicle list, the trips and what is due stay open to
+  // the crew who drive them; the money is margin:read's (auth/costShaping.ts; live role check, 2026-10-23).
+  const { costed } = createCostShaping(deps.canSee, ['cost', 'totalCost', 'pricePerGallon', 'fuelCostThisMonth', 'fuelCost', 'maintenanceCost'])
 
-  app.get('/vehicles', async (c: any) => c.json(await service.getVehicles((c.get('user')).companyId, c.req.query())))
+  app.get('/vehicles', async (c: any) => costed(c, await service.getVehicles((c.get('user')).companyId, c.req.query())))
   app.get('/vehicles/:id', async (c: any) => {
     const v = await service.getVehicle(c.req.param('id'), (c.get('user')).companyId)
     if (!v) return c.json({ error: 'Vehicle not found' }, 404)
-    return c.json(v)
+    return costed(c, v)
   })
   app.post('/vehicles', requirePermission('fleet:create'), async (c: any) => c.json(await service.createVehicle((c.get('user')).companyId, await c.req.json()), 201))
   app.put('/vehicles/:id', requirePermission('fleet:update'), async (c: any) => {
@@ -339,16 +345,18 @@ export function createFleetRoutes(deps: FleetRoutesDeps) {
   })
   app.post('/trips/:id/end', requirePermission('fleet:update'), async (c: any) => c.json(await service.endTrip(c.req.param('id'), (c.get('user')).companyId, await c.req.json())))
 
-  app.get('/maintenance-due', async (c: any) => c.json(await service.getMaintenanceDue((c.get('user')).companyId)))
+  app.get('/maintenance-due', async (c: any) => costed(c, await service.getMaintenanceDue((c.get('user')).companyId)))
   app.post('/vehicles/:id/maintenance', requirePermission('fleet:update'), async (c: any) => c.json(await service.addMaintenance(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
 
   app.post('/vehicles/:id/fuel', requirePermission('fleet:update'), async (c: any) => c.json(await service.addFuelEntry(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
-  app.get('/vehicles/:id/fuel-stats', async (c: any) => c.json(await service.getFuelStats(c.req.param('id'), (c.get('user')).companyId, c.req.query())))
+  app.get('/vehicles/:id/fuel-stats', async (c: any) => costed(c, await service.getFuelStats(c.req.param('id'), (c.get('user')).companyId, c.req.query())))
 
-  app.get('/stats', async (c: any) => c.json(await service.getFleetStats((c.get('user')).companyId)))
+  app.get('/stats', async (c: any) => costed(c, await service.getFleetStats((c.get('user')).companyId)))
 
   app.delete('/vehicles/:id', requirePermission('fleet:delete'), async (c: any) => {
-    await service.deleteVehicle(c.req.param('id'), (c.get('user')).companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await service.deleteVehicle(c.req.param('id'), (c.get('user')).companyId)
+    if (!gone?.length) return c.json({ error: 'Vehicle not found' }, 404)
     return c.json({ success: true })
   })
 

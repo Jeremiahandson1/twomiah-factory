@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { ClipboardCheck, Loader2, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { api } from '../../../api'
-import { errorText } from '../../../shared'
+import { errorText, useMayWrite } from '../../../shared'
 import type { InboxLead, InboxReply } from './deal'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
@@ -19,6 +19,9 @@ const money = (n: number) => formatMoney((Number(n) || 0));
 // Title & registration is filed for a sold deal (the server refuses others), and the fee shown is the title & reg
 // fee desked on the deal. Nothing reads as a success unless the DMV rail actually accepted it. (RV T19 L1)
 export default function TitleRegPage() {
+  // Submitting is POST /api/title-reg/submit (contacts:update); the page opens on contacts:read (live role check sweep,
+  // 2026-10-23: a technician and a viewer were offered it and refused).
+  const maySubmit = useMayWrite('contacts:update')
   const [leads, setLeads] = useState<InboxLead[]>([]);
   const [leadId, setLeadId] = useState('');
   const [state, setState] = useState('WI');
@@ -69,7 +72,7 @@ export default function TitleRegPage() {
           <div className="flex items-end gap-3">
             <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">State</label>
               <select value={state} onChange={(e) => setState(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm">{STATES.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
-            <button onClick={submit} disabled={submitting || !sold} className="px-5 py-2 rounded-lg bg-teal-700 text-white font-medium hover:bg-teal-800 disabled:opacity-50 inline-flex items-center gap-2">{submitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}{submitting ? 'Submitting…' : 'Submit to DMV'}</button>
+            {maySubmit && <button onClick={submit} disabled={submitting || !sold} className="px-5 py-2 rounded-lg bg-teal-700 text-white font-medium hover:bg-teal-800 disabled:opacity-50 inline-flex items-center gap-2">{submitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}{submitting ? 'Submitting…' : 'Submit to DMV'}</button>}
           </div>
         </>}
       </div>

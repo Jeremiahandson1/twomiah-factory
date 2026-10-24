@@ -13,7 +13,7 @@ import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
 import { auditLogs, user } from '../../../db/schema/index.ts'
 import { fail, list, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith, type CrmDeps } from '../../deps.ts'
 
 const ROW = {
   id: auditLogs.id,
@@ -40,6 +40,17 @@ const dateOf = (v: unknown): Date | null | undefined => {
 export function createAuditLogRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const read = d.permissions.requirePermission('care-compliance:read')
+  /**
+   * The address a change was made from is the owner's and the admins' (audit:read; owner's decision 2026-10-09: sign-ins
+   * and IP addresses are not a manager's). The trail itself — who changed which record, from what to what — is the
+   * office's compliance work and stays on care-compliance:read; the address is blanked for a seat without audit:read,
+   * the same seats Login Activity now refuses (live role check, 2026-10-23). The screen already prints a missing one.
+   */
+  const canSee = canSeeWith(d.permissions)
+  const shaped = async (c: any, rows: any[]) => {
+    const u = c.get('user')
+    return (await canSee(u.role, 'audit:read', u.userId)) ? rows : rows.map((r) => ({ ...r, ipAddress: null }))
+  }
 
   function filters(companyId: string, f: { startDate?: unknown; endDate?: unknown; userId?: unknown; tableName?: unknown }) {
     const start = dateOf(f.startDate), end = dateOf(f.endDate)
@@ -63,7 +74,7 @@ export function createAuditLogRoutes(d: CrmDeps) {
         .orderBy(desc(auditLogs.timestamp)).limit(limit).offset((page - 1) * limit),
       d.db.select({ total: count() }).from(auditLogs).where(where),
     ])
-    return list(c, rows, { page, limit, total: Number(total) })
+    return list(c, await shaped(c, rows), { page, limit, total: Number(total) })
   })
 
   // POST /export — the same query, every matching row.
@@ -72,7 +83,7 @@ export function createAuditLogRoutes(d: CrmDeps) {
     if (!where) return fail(c, 400, 'Dates must be valid dates')
     const rows = await d.db.select(ROW).from(auditLogs).leftJoin(user, eq(auditLogs.userId, user.id)).where(where)
       .orderBy(desc(auditLogs.timestamp))
-    return listAll(c, rows)
+    return listAll(c, await shaped(c, rows))
   })
 
   // POST /compliance-report — counts by action.

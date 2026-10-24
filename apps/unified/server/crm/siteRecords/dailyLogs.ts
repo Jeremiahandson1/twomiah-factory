@@ -47,7 +47,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
    * of the day, so it is added or removed only while the log itself can be changed — rule 2's window.
    */
   const photos = recordPhotos(d, {
-    table: dailyLog, base: '/api/daily-logs', folder: 'daily-logs', read: 'daily-logs:read', write: 'daily-logs:update', notFound: 'Daily log not found',
+    table: dailyLog, base: '/api/daily-logs', folder: 'daily-logs', read: 'daily-logs:read', write: 'daily-logs:update', add: 'daily-logs:create', notFound: 'Daily log not found',
     editable: async (c, log) => {
       const tz = await companyTimeZone(db, log.companyId)
       const logDay = markerDay(new Date(log.date))

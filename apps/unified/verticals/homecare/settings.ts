@@ -405,11 +405,42 @@ const homecare: VerticalSettings = {
   // shifts (core/caregiverAccess.ts, core/selfService.ts), as the template's role checks did.
   extraRolePermissions: {
     field: ['care-schedule:read', 'care-clients:read', 'evv:read', 'evv:create', 'evv:update', 'care-portal:read', 'my-pay:read', 'my-pay:create'],
+    /**
+     * THE VIEWER IS A READ-ONLY OFFICE SEAT. (Live role check, 2026-10-23: its dashboard was blank and its menu held
+     * Contacts and the Lead Inbox — the agency's sales leads — and nothing of the care.)
+     *
+     * One permission, care-office:read, and NOT the areas' own reads, because each of those opens more than an office
+     * reader may see (the read was traced route by route before choosing):
+     *   · care-clients:read opens the clinical record — medications, the MAR, vitals, care plans, ADLs, assessments,
+     *     documents, diagnosis codes, allergies, medical notes — and the client row's insurance, Medicaid ids, private-pay
+     *     rate and each assignment's pay rate;
+     *   · care-schedule:read opens open shifts' hourly rate and bonus, absence and time-off reasons, and self-service
+     *     writes (a time-off request, an absence, claiming a shift);
+     *   · evv:read opens every visit's GPS trail, photos and free-text notes;
+     *   · care-hr:read opens caregivers' files, background checks and applications.
+     * care-office:read is asked by exactly these reads, each shaped for a seat without the area's own permission:
+     *   GET /api/clients and /api/clients/:id — the directory entry (name, phone, email, address, status, service type,
+     *     start date) and who is assigned; no DOB, insurance, ids, diagnosis, medical notes, rates, billing notes,
+     *     authorizations or geofence (clients/clients.ts);
+     *   GET /api/scheduling/week-view — the week's visits: caregiver, client, day, times, the schedule's note
+     *     (scheduling/schedulingHub.ts);
+     *   GET /api/users/caregivers — the roster: name, email, phone, active; never pay (hr/caregivers.ts);
+     *   GET /api/time-tracking — each visit's clock-in/out, duration and EVV status, without GPS, notes, billable minutes
+     *     or the client's address (visits/timeTracking.ts);
+     *   GET /api/dashboard/summary — the counts (active clients and caregivers, today's shifts, clocked in, remaining,
+     *     coverage gaps), never the invoice or revenue figures (planning/dashboard.ts).
+     * Every write in home care asks a create/update/delete verb this seat does not hold, so it writes nothing.
+     */
+    viewer: ['care-office:read'],
   },
   // The field rung reads contacts for a contractor's crew; an agency's contacts are its sales leads — prospective
   // clients' details, the office's (a caregiver was offered the Lead Inbox, 2026-10-19). The template's caregivers had
   // no such page.
-  withheldRolePermissions: { field: ['contacts:read'] },
+  // The viewer likewise (live role check, 2026-10-23): contacts are the agency's prospects, and the base viewer's
+  // invoices/quotes/revenue/expenses reads are the contractor CRM's books — an agency's read-only office seat has no
+  // billing (its billing is care-billing, which it does not hold either). The Lead Inbox asks leads:read, which no
+  // viewer holds.
+  withheldRolePermissions: { field: ['contacts:read'], viewer: ['contacts:read', 'invoices:read', 'quotes:read', 'revenue:read', 'expenses:read'] },
   // The home-care add-on on; the CRM's shared modules as the base CRM has them.
   crm: {
     ...BASE_CRM, homecare: true,

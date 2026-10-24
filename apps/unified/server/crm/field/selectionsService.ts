@@ -202,9 +202,13 @@ export function createSelectionsService(d: CrmDeps) {
           ? await q.optionsByIds(db, availableOptions)
           : await q.activeOptionsInCategory(db, sel.categoryId)
       }
+      // The CUSTOMER reads this (the portal): an option's price, never what the builder pays for it. `cost` went out on
+      // every offered option and on the chosen one (live role check sweep, 2026-10-23).
+      const { cost: _chosenCost, ...selectedOption } = (sel.selectedOption || {}) as any
       return {
         ...sel,
-        availableOptionsList: options.map((opt: any) => ({
+        selectedOption: sel.selectedOption ? selectedOption : sel.selectedOption,
+        availableOptionsList: options.map(({ cost: _cost, ...opt }: any) => ({
           ...opt,
           totalPrice: Number(opt.price) * Number(sel.quantity),
           priceDiff: Number(opt.price) * Number(sel.quantity) - (Number(sel.allowance) || 0),

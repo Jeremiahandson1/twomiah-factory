@@ -1012,7 +1012,7 @@ async function getLowStockItems(companyId: string) {
 }
 
 async function deleteInventoryItem(id: string, companyId: string) {
-  return db.delete(inventoryItem).where(and(eq(inventoryItem.id, id), eq(inventoryItem.companyId, companyId)))
+  return db.delete(inventoryItem).where(and(eq(inventoryItem.id, id), eq(inventoryItem.companyId, companyId))).returning({ id: inventoryItem.id })
 }
 
   return {
@@ -1073,12 +1073,20 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
    * The one read that IS gated is /reports/value: it is nothing but money (totalCost, totalRetail,
    * cost and retail per location), so there would be nothing left of it after stripping.
    */
-  const COST_KEYS = new Set(['unitCost', 'totalCost', 'totalValue', 'totalRetail', 'cost', 'retail', 'costValue'])
+  /**
+   * `total` is a purchase order's: what the business pays the supplier, the sum of its lines' totalCost. It was not in
+   * this list, and GET /purchase-orders was not costed at all, so every seat read it (live role check, 2026-10-23).
+   * A list's `pagination` is counts, never money, and passes through untouched — its `total` is how many rows.
+   */
+  const COST_KEYS = new Set(['unitCost', 'totalCost', 'totalValue', 'totalRetail', 'cost', 'retail', 'costValue', 'total'])
   const stripCost = (v: any): any => {
     if (Array.isArray(v)) return v.map(stripCost)
     if (v && typeof v === 'object' && !(v instanceof Date)) {
       const out: Record<string, any> = {}
-      for (const [k, val] of Object.entries(v)) if (!COST_KEYS.has(k)) out[k] = stripCost(val)
+      for (const [k, val] of Object.entries(v)) {
+        if (k === 'pagination') out[k] = val
+        else if (!COST_KEYS.has(k)) out[k] = stripCost(val)
+      }
       return out
     }
     return v
@@ -1093,7 +1101,8 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const u = c.get('user') as any
     // 'margin:read' since T42 — see the note on the admin row of auth/permissions.ts. Unchanged
     // for every role: the rungs holding inventory:* are the rungs holding margin:read.
-    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return true }
+    // A check that throws withholds: cost shown by accident is the leak this guards (live role check sweep, 2026-10-23).
+    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return false }
   }
   /** Answer a read, minus the cost figures when this seat may not see them. */
   const costed = async (c: any, data: any) => c.json(await maySeeCost(c) ? data : stripCost(data))
@@ -1344,8 +1353,14 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   // PURCHASE ORDERS
   // ============================================
 
-  // Get purchase orders
-  app.get('/purchase-orders', async (c) => {
+  /**
+   * Purchase orders are the buying, not the parts bin: a supplier, what was ordered and what it costs. Gated on
+   * inventory:read, the permission the cost report (/reports/value) asks; creating one asks inventory:create and
+   * receiving one inventory:update, and the field and viewer rungs hold none of the three. It answered every seat,
+   * each order's `total` included. Costed as well, so a seat granted inventory:read without margin:read sees the
+   * orders and not what they cost. (Live role check, 2026-10-23)
+   */
+  app.get('/purchase-orders', requirePermission('inventory:read'), async (c) => {
     const user = c.get('user') as any
     const status = c.req.query('status')
     const page = c.req.query('page')
@@ -1355,7 +1370,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
       page: parseInt(page || '0') || 1,
       limit: parseInt(limit || '0') || 20,
     })
-    return c.json(orders)
+    return costed(c, orders)
   })
 
   // Create purchase order
@@ -1418,7 +1433,9 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
 
   app.delete('/items/:id', requirePermission('inventory:delete'), async (c) => {
     const user = c.get('user') as any
-    await service.deleteInventoryItem(c.req.param('id'), user.companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await service.deleteInventoryItem(c.req.param('id'), user.companyId)
+    if (!gone?.length) return c.json({ error: 'Item not found' }, 404)
     return c.json({ success: true })
   })
 

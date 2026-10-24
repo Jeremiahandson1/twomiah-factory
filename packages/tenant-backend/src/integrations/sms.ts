@@ -287,7 +287,7 @@ export function createSmsService(deps: SmsServiceDeps) {
     return db.update(t.smsTemplate).set(updateData).where(and(eq(t.smsTemplate.id, templateId), eq(t.smsTemplate.companyId, companyId)))
   }
   const deleteTemplate = (templateId: string, companyId: string) =>
-    db.update(t.smsTemplate).set({ active: false }).where(and(eq(t.smsTemplate.id, templateId), eq(t.smsTemplate.companyId, companyId)))
+    db.update(t.smsTemplate).set({ active: false }).where(and(eq(t.smsTemplate.id, templateId), eq(t.smsTemplate.companyId, companyId))).returning({ id: t.smsTemplate.id })
 
   function applyTemplateVariables(template: string, variables: Record<string, string>): string {
     const replacements: Record<string, string> = {
@@ -572,7 +572,12 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, body)
     return c.json({ success: true })
   })
-  app.delete('/templates/:id', writesTheScript, async (c) => { await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
+  // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+  app.delete('/templates/:id', writesTheScript, async (c) => {
+    const gone = await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId)
+    if (!gone?.length) return c.json({ error: 'Template not found' }, 404)
+    return c.json({ success: true })
+  })
 
   app.get('/auto-responders', async (c) => c.json(await sms.getAutoResponders(((c as any).get('user')).companyId)))
   app.post('/auto-responders', writesTheScript, async (c) => {

@@ -666,7 +666,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <legend className="text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">How will they sign in? *</legend>
                         <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-2 text-sm text-gray-700 dark:border-slate-700 dark:text-slate-200">
                           <input type="radio" name="sign-in-way" className="mt-0.5" checked={newUser.way === 'password'} onChange={() => setNewUser((prev) => ({ ...prev, way: 'password' }))} />
-                          <span>Set a password for them now<span className="block text-xs text-gray-500 dark:text-slate-400">They can sign in straight away. Tell them the password; they can change it under Settings › Security.</span></span>
+                          <span>Set a password for them now<span className="block text-xs text-gray-500 dark:text-slate-400">They can sign in straight away. Tell them the password; they can change it under Profile &amp; Security, in the menu under their name.</span></span>
                         </label>
                         <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-2 text-sm text-gray-700 dark:border-slate-700 dark:text-slate-200">
                           <input type="radio" name="sign-in-way" className="mt-0.5" checked={newUser.way === 'invite'} onChange={() => setNewUser((prev) => ({ ...prev, way: 'invite', password: '' }))} />

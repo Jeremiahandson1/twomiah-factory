@@ -31,8 +31,11 @@
 //
 //   bun scripts/check-write-controls-ask-permission.ts
 import { readdirSync, statSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+// fileURLToPath, not URL.pathname: a checkout under a folder with a space ("ALL TWOMIAH PRODUCTS") kept %20 in the
+// path and the walk failed with ENOENT before checking anything.
+const ROOT = fileURLToPath(new URL('../', import.meta.url)).replace(/\\/g, '/')
 const UI = `${ROOT}packages/tenant-ui/src`
 
 /** A CRM permission is the wrong question on these. */
@@ -53,9 +56,7 @@ const EXEMPT: Record<string, string> = {
 const NOT_SWEPT: Record<string, string> = {
   'ads/AdsPage.tsx': 'three permissions, not one — ads:update (experiments, pause, dismiss), ads:settings (connect, mode, profile) and ads:spend (launch, resume, apply a recommendation). Worth doing as one careful pass, because spending money and changing a setting are not the same control',
   'booking/BookingSettingsTab.tsx': 'PUT /api/booking/settings is gated by `configuresBooking`; the screen should ask the same permission that const resolves to',
-  'marketing/MarketingPage.tsx': 'fourteen controls across campaigns, sequences and templates — marketing:create, marketing:update and the send/schedule pair. The biggest single page left',
   'marketing/MessagesPage.tsx': 'sms:send for Send and Reply (the `textsACustomer` gate); Archive asks contacts:read, which anybody who can open the inbox already holds',
-  'recurring/RecurringForm.tsx': 'invoices:create on the new form and invoices:update on the edit form — the list beside it is done',
   'settings/AccountOffboardPage.tsx': 'account closure. Admin-only by route; the page is reached from Settings, which already gates its tabs',
   'settings/BillingPage.tsx': 'the subscription. Admin-only by route; same note as above',
   'settings/EmailAliasesPage.tsx': 'admin-only by route',

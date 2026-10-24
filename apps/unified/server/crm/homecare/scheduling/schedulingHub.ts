@@ -49,8 +49,9 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
   }
 
   // GET /week-view?weekOf — each active caregiver × the 7 days, occurrences resolved. The office sees every caregiver's
-  // week; a caregiver sees only their own.
-  app.get('/week-view', perm('care-schedule:read'), async (c) => {
+  // week; a caregiver sees only their own. The read-only office seat (care-office:read) reads it too: names, days, times
+  // and the schedule's note — no rate, nothing clinical (live role check, 2026-10-23).
+  app.get('/week-view', d.permissions.requireAnyPermission(['care-schedule:read', 'care-office:read']), async (c) => {
     const { user, companyId, me } = who(c)
     const only = isCaregiver(d, user) ? me : null
     const { ws, we } = await weekOfParam(companyId, c.req.query('weekOf'))

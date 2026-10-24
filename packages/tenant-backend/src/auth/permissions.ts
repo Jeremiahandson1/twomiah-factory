@@ -238,6 +238,12 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     //                    them. Not care-payroll, which opens everyone's pay; a caregiver holds this one
     //                    (verticals/homecare/settings.ts), and an owner can take it away from one person.
     'my-pay:*',
+    //   care-office      the office's READ-ONLY view (live role check, 2026-10-23): every client's directory entry, the
+    //                    week's schedule, the caregiver roster, each visit's EVV status and the dashboard's counts —
+    //                    no medical record, no billing, no pay, no HR file. Home care's viewer seat holds care-office:read
+    //                    (verticals/homecare/settings.ts); an admin and a manager already read all of it through the
+    //                    areas' own permissions, and hold this so the matrix carries the resource every gate names.
+    'care-office:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -315,6 +321,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // owner grants them to one person. (Home care had no manager rung; this is its first, least-privilege.)
     'care-clients:*', 'care-schedule:*', 'evv:*', 'care-portal:*', 'care-compliance:*', 'care-billing:read',
     'my-pay:*',
+    // The office's read-only view (note on the admin row).
+    'care-office:read',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

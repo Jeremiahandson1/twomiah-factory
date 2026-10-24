@@ -139,7 +139,7 @@ export const SHARED_HIDDEN = [
 export const SETTINGS_HIDDEN = ['/crm/settings/migration', '/crm/settings/import']
 
 /** The permission each agency page asks for, for a URL typed in (the shell's routePermissions). */
-export const routePermissions: Record<string, string> = isHomecare
+export const routePermissions: Record<string, string | string[]> = isHomecare
   ? Object.assign({}, ...GROUPS.map((g) => g.routePermissions))
   : {}
 

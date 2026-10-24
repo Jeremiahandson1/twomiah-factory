@@ -335,6 +335,9 @@ function ItemModal({ api, toast, item, categories, itemWord, namePlaceholder, on
 }
 
 function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: PricebookApi; toast: PricebookToast; categories: Category[]; onClose: () => void; onChanged: () => void }) {
+  // Adding a category is POST /api/pricebook/categories, pricebook:create; the modal opens on pricebook:update (rename,
+  // hide). The add row is offered to whoever may add (live role check sweep, 2026-10-23).
+  const mayAdd = useMayWrite('pricebook:create')
   const ask = usePrompt()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -363,10 +366,10 @@ function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: 
           </div>
         ))}
       </div>
-      <div className="flex gap-2">
+      {mayAdd && <div className="flex gap-2">
         <input className={inputCls} maxLength={120} value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} />
         <Button onClick={add} disabled={saving || !name.trim()}>Add</Button>
-      </div>
+      </div>}
     </Modal>
   )
 }
