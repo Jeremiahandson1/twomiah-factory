@@ -163,8 +163,13 @@ describe('the owner\'s book', () => {
     expect(moved.status).toBe(200)
     const early = await as('manager', `/api/booking/bookings/${b.id}`, { method: 'PATCH', json: { status: 'completed' } })
     expect(early.status).toBe(400)
-    const list = await (await as('staff', `/api/booking/bookings?from=${day}`)).json()
+    const list = await (await as('manager', `/api/booking/bookings?from=${day}`)).json()
     expect(list.pagination.total).toBeGreaterThan(0)
+    // The field seat reads its own bookings only (crew scope: every job trade withholds bookings:read-all, 2026-10-24):
+    // the desk booking is nobody's, so not on its list.
+    const staffList = await as('staff', `/api/booking/bookings?from=${day}`)
+    expect(staffList.status).toBe(200)
+    expect((await staffList.json()).data.map((x: any) => x.id)).not.toContain(b.id)
   })
 
   test('the calendar feed is private and rotates', async () => {
