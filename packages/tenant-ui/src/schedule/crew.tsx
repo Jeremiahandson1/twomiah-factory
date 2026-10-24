@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { MapPin, Navigation, Route } from 'lucide-react'
 import { Button, Modal, ConfirmModal, errMsg } from '../invoicing/ui'
 import type { ScheduleApi, ScheduleToast } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 export interface CrewPerson { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; kind?: 'user' | 'member'; lead?: boolean }
 export interface CrewJob { id: string; assignedToId?: string | null; assignedToMemberId?: string | null; assignedTo?: CrewPerson | null; assignees?: CrewPerson[] }
@@ -63,6 +64,9 @@ interface DayRoute {
 export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate, onClose, onApplied }: {
   api: ScheduleApi; toast: ScheduleToast; date: string; person: Lane; mayRetime: boolean; mayLocate: boolean; onClose: () => void; onApplied: () => void
 }) {
+  // Both writes here — re-timing (POST /api/jobs/retime) and putting jobs on the map (POST /api/day-route/locate) — ask
+  // jobs:update on the server; the screen asks it too, beside what the page that opened this decided.
+  const mayUpdateJobs = useMayWrite('jobs:update')
   const [route, setRoute] = useState<DayRoute | null>(null)
   const [loading, setLoading] = useState(true)
   const [asking, setAsking] = useState(false)
@@ -129,7 +133,7 @@ export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate,
               </p>
             )}
             {route.googleMapsUrl && (
-              <a href={route.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">
+              <a href={route.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-700 hover:underline dark:text-orange-200">
                 <Navigation className="h-4 w-4" />Open directions in Google Maps
               </a>
             )}
@@ -139,12 +143,12 @@ export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate,
                 <ul className="mt-1 list-disc pl-5 text-xs text-gray-700 dark:text-slate-300">
                   {route.unplaced.map((u) => <li key={u.id}>{u.title}{u.number ? ` (${u.number})` : ''}{u.address ? ` — ${u.address}` : ' — no address'}</li>)}
                 </ul>
-                {mayLocate && <Button variant="secondary" onClick={locate} disabled={locating}>{locating ? 'Finding them…' : 'Put them on the map'}</Button>}
+                {mayLocate && mayUpdateJobs && <Button variant="secondary" onClick={locate} disabled={locating}>{locating ? 'Finding them…' : 'Put them on the map'}</Button>}
               </div>
             )}
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={onClose}>Close</Button>
-              {mayRetime && changes.length > 0 && <Button onClick={() => setAsking(true)}><Route className="mr-1 inline h-4 w-4" />Re-time {changes.length} job{changes.length === 1 ? '' : 's'}</Button>}
+              {mayRetime && mayUpdateJobs && changes.length > 0 && <Button onClick={() => setAsking(true)}><Route className="mr-1 inline h-4 w-4" />Re-time {changes.length} job{changes.length === 1 ? '' : 's'}</Button>}
             </div>
           </div>
         )}
