@@ -110,7 +110,9 @@ describe("2. a job's quotes and invoices, and what it is worth", () => {
 
   test('a seat without quotes:update may not attach a quote, and never sees the job’s money on the list', async () => {
     const hash = await Bun.password.hash('Correct-horse-1', 'bcrypt')
-    await t.db.insert(t.schema.user).values({ email: 'crew@test.example', passwordHash: hash, firstName: 'Cal', lastName: 'Crew', role: 'field', companyId } as any)
+    const [cal] = await t.db.insert(t.schema.user).values({ email: 'crew@test.example', passwordHash: hash, firstName: 'Cal', lastName: 'Crew', role: 'field', companyId } as any).returning()
+    // Cal sells this job (crew scope, 2026-10-24: a field seat reads only its own work), so it is on his list.
+    await t.db.update(t.schema.job).set({ assignedSalesRepId: cal.id } as any).where(eq(t.schema.job.id, ids.job))
     const crewToken = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'crew@test.example', password: 'Correct-horse-1' } })).json()).accessToken
     const crew = (p: string, init: any = {}) => t.call(p, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${crewToken}` } })
     const r = await crew(`/api/jobs/${ids.job}/attach`, { method: 'POST', json: { quoteId: ids.q } })

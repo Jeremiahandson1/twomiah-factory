@@ -313,6 +313,8 @@ describe('crews', () => {
     expect(made.status).toBe(201)
     ids.crew = made.body.id
     await t.db.update(t.schema.job).set({ assignedCrewId: ids.crew } as any).where(eq(t.schema.job.number, 'ROOF-0101'))
+    // The rep is on the crew (crew_login): a field seat reads its crews' jobs, not the business's (crew scope, 2026-10-24).
+    await t.db.insert(t.schema.crewLogin).values({ companyId, userId: ids.rep, crewId: ids.crew } as any)
     const listed = await call('rep', 'GET', '/api/crews')
     expect(listed.body.pagination.total).toBe(1)
     const one = await call('rep', 'GET', `/api/crews/${ids.crew}`)
