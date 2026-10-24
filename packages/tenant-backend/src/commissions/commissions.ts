@@ -397,7 +397,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     try { deps.audit?.log({ action: 'update', entity: 'commission', entityId: row.id, entityName: `${row.commissionAmount}`, changes, metadata: { description }, req: c }) } catch { /* the audit never fails the change */ }
   }
   app.post('/:id/void', requirePermission('commissions:update'), async (c) => {
-    const currentUser = c.get('user') as any
+    const currentUser = (c as any).get('user')
     const body = await c.req.json().catch(() => ({})) as { reason?: unknown }
     const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : ''
     if (!reason) return c.json({ error: 'Say why it is void — the reason is kept on the record.', code: 'reason_required' }, 400)
@@ -418,7 +418,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   })
 
   app.post('/:id/reassign', requirePermission('commissions:update'), async (c) => {
-    const currentUser = c.get('user') as any
+    const currentUser = (c as any).get('user')
     const body = await c.req.json().catch(() => ({})) as { userId?: unknown }
     const userId = typeof body.userId === 'string' ? body.userId : ''
     if (!userId) return c.json({ error: 'Choose who earned it', code: 'user_required' }, 400)
