@@ -176,13 +176,19 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     setPortalLoading(true)
     try {
       if (portalStatus?.enabled) { await api.post(`/api/portal/contacts/${id}/disable`); toast.success('Portal access disabled') }
-      else { await api.post(`/api/portal/contacts/${id}/enable`); toast.success('Portal access enabled') }
+      else {
+        // Switching it on mails the one invite (packages/tenant-backend portal.ts /enable); a failed mail keeps the portal on.
+        const on = await api.post(`/api/portal/contacts/${id}/enable`)
+        if (on?.invited) toast.success(`Portal access enabled — invite emailed to ${on.sentTo}`)
+        else if (on?.inviteError) toast.error(`Portal access enabled, but ${String(on.inviteError).charAt(0).toLowerCase()}${String(on.inviteError).slice(1)} Use Resend Portal Invite to try again.`)
+        else toast.success('Portal access enabled')
+      }
       await loadPortalStatus()
     } catch (err) { toast.error(errMsg(err, 'Failed to update portal access')) } finally { setPortalLoading(false) }
   }
   const resendPortalInvite = async () => {
     setPortalLoading(true)
-    try { await api.post(`/api/portal/contacts/${id}/send-link`); toast.success('Portal invite sent') }
+    try { const sent = await api.post(`/api/portal/contacts/${id}/send-link`); toast.success(sent?.sentTo ? `Portal invite sent again to ${sent.sentTo}` : 'Portal invite sent again') }
     catch (err) { toast.error(errMsg(err, 'Failed to send invite')) } finally { setPortalLoading(false) }
   }
   // The link was in the payload all along and nothing showed it, so the only way to get it was out of the API.

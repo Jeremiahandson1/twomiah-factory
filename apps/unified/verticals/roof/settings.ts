@@ -91,6 +91,16 @@ const roof: VerticalSettings = {
   screens: {
     // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).
     home: 'roofing',
+    // The homeowner's portal tabs. The default list (projects, change orders, selections) is the contractor's, none of
+    // which a roofer mounts, so the portal had no Jobs tab (roofing retest 2026-10-24): their job, its stage and its
+    // inspection and install dates, read-only — packages/tenant-backend portal.ts /my-jobs carries no money.
+    portal: {
+      providerNoun: 'roofing team',
+      clientNav: ['myJobs', 'quotes', 'invoices', 'paymentMethods', 'serviceRequest', 'messages'],
+      collaboratorNav: ['messages'],
+      reviewerNav: ['messages'],
+      labels: { myJobs: 'Jobs' },
+    },
     // A roofing job's stages in the pipeline board's words (web/src/crm/pages/roof/jobs/model.ts STAGE_LABELS), wherever a
     // stage is shown — a badge, a filter, the job's timeline ("Status changed: Invoiced → Collected"). Live test
     // 2026-10-22: "in_production", "final_inspection" and "invoiced → collected" were printed as stored.

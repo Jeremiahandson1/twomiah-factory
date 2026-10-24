@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { addMapTiles } from '../maps/tiles';
 import {
   Truck, Plus, MapPin, Navigation, Fuel, Wrench,
   Clock, User, AlertTriangle, Loader2, Calendar,
@@ -423,11 +424,11 @@ function FleetMap({ vehicles }: FleetMapProps) {
     (v: Vehicle) => v.currentLocation && Number.isFinite(v.currentLocation.lat) && Number.isFinite(v.currentLocation.lng)
   );
 
-  // Init the Leaflet map once (gps only). Tiles from OpenStreetMap (no API key).
+  // Init the Leaflet map once (gps only). Tiles: Google's (../maps/tiles) — OpenStreetMap's servers refuse app traffic.
   useEffect(() => {
     if (!gps || !mapEl.current || mapRef.current) return;
     const map = L.map(mapEl.current, { zoomControl: true }).setView([39.5, -98.35], 4); // US center
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+    addMapTiles(L, map, 'roadmap');
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     setTimeout(() => map.invalidateSize(), 0);

@@ -10,8 +10,8 @@
 //
 // Changes from the template:
 //   · lists are { data, pagination }: GET /sessions, a session's /stops and /map, /scripts (were bare arrays);
-//   · a door that wants an inspection makes a homeowner with one `name` (decision 3) — the name given, trimmed, or
-//     "Unknown" — and a roofing job made as roofing's job module makes one (./roofJob.ts): ROOF-nnnn from the shared
+//   · a door that wants an inspection makes a homeowner with one `name` (decision 3) — the name given, trimmed, or "Homeowner at <address>" (was
+//     "Unknown") — and a roofing job made as roofing's job module makes one (./roofJob.ts): ROOF-nnnn from the shared
 //     nextNumber (the template counted the company's jobs + 1, which reissued a number after any delete), titled by its
 //     address, the canvasser as its creator; the homeowner, the job, the door and the session's counts are written together;
 //   · an edited door's outcome is one of the outcomes, as a logged door's is (T17/N3: "banana" was refused on POST and
@@ -21,7 +21,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
 import { canvassingScript, canvassingSession, canvassingStop } from '../../../db/schema/index.ts'
-import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -71,16 +70,49 @@ export function scriptInputError(input: any, partial = false): { error: string }
 
 // N3: the outcome drives the pin colour and the leaderboard's lead count, so an unrecognised one is a door that silently
 // stops counting — and it is the one field a rep touches on every door.
+//
+// Every other field is optional, and the door form sends an empty box as null — so null, '' and absent all read as "not
+// given" (the roofing retest: a door logged with no name was refused "homeownerName: Expected string, received null";
+// the steps never ask for one).
+const optText = optional(z.string())
+const optNumber = optional(z.number())
 const stopSchema = z.object({
   outcome: canvassingOutcome,
-  homeownerName: z.string().optional(),
+  homeownerName: optText,
   phone: optional(phoneField),
   email: optional(emailField),
-  address: z.string().optional(),
-  notes: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  address: optText,
+  city: optText,
+  state: optText,
+  zip: optText,
+  notes: optText,
+  lat: optNumber,
+  lng: optNumber,
 }).passthrough()
+
+/** The field's plain name, for a refusal the rep reads — never a raw schema path. */
+const STOP_FIELD_WORDS: Record<string, string> = {
+  homeownerName: "The homeowner's name", phone: 'The phone number', email: 'The email', address: 'The address',
+  city: 'The city', state: 'The state', zip: 'The zip', notes: 'The notes', lat: 'The GPS location', lng: 'The GPS location',
+}
+/** A refused door in plain words: what to fix, one sentence per field. */
+export function stopRefusal(issues: readonly { path: readonly PropertyKey[] }[]): string {
+  const said = new Set<string>()
+  for (const i of issues) {
+    const field = String(i.path[0] ?? '')
+    const words = STOP_FIELD_WORDS[field]
+    if (field === 'outcome') said.add('Pick how the door went.')
+    else if (words) said.add(`${words} does not look right — check it or leave it blank.`)
+    else said.add('Something on the door form could not be read — check it and try again.')
+  }
+  return [...said].join(' ') || 'Something on the door form could not be read — check it and try again.'
+}
+
+/** Who a door's appointment or lead is for: the name given, or "Homeowner at <address>" for the office to edit. */
+export const doorHomeowner = (name: unknown, address: unknown): string => {
+  const at = String(address ?? '').trim().replace(/\s+/g, ' ')
+  return homeownerName(name, at ? `Homeowner at ${at}` : 'Homeowner')
+}
 
 export function createCanvassingRoutes(d: CrmDeps) {
   const { db } = d
@@ -190,7 +222,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const { companyId, userId } = c.get('user')
     const sessionId = c.req.param('sessionId')
     const parsed = stopSchema.safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) return invalid(c, parsed.error)
+    if (!parsed.success) return fail(c, 400, stopRefusal(parsed.error.issues), 'validation_failed')
     const b = parsed.data as any
     const tz = await companyTimeZone(db, companyId)
     const appointment = when('appointmentDate', b.appointmentDate, tz)
@@ -203,9 +235,11 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const stop = await db.transaction(async (tx: any) => {
       let contactId: string | null = null
       let jobId: string | null = null
-      if ((b.outcome === 'interested' || b.outcome === 'appointment_set') && (b.phone || b.email)) {
+      // An appointment always gets its homeowner and job — the job carries the inspection date, which was otherwise kept
+      // nowhere; an interested door becomes a lead when it left a phone or an email.
+      if (b.outcome === 'appointment_set' || (b.outcome === 'interested' && (b.phone || b.email))) {
         const homeowner = await insertHomeowner(tx, companyId, {
-          name: homeownerName(b.homeownerName, 'Unknown'), phone: b.phone, email: b.email,
+          name: doorHomeowner(b.homeownerName, b.address), phone: b.phone, email: b.email,
           address: b.address, city: b.city, state: b.state, zip: b.zip, source: 'canvassing',
         })
         contactId = homeowner.id
@@ -252,7 +286,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const updates: any = {}
     if (b.outcome !== undefined) {
       const outcome = canvassingOutcome.safeParse(b.outcome)
-      if (!outcome.success) return invalid(c, { issues: outcome.error.issues.map((i) => ({ ...i, path: ['outcome'] })) })
+      if (!outcome.success) return fail(c, 400, stopRefusal([{ path: ['outcome'] }]), 'validation_failed')
       updates.outcome = outcome.data
     }
     if (b.notes !== undefined) updates.notes = b.notes

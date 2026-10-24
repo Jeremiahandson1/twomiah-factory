@@ -70,6 +70,8 @@ function CanvassingView() {
   const [showEndConfirm, setShowEndConfirm] = useState(false)
   const [showSummary, setShowSummary] = useState<Session | null>(null)
   const [showAllSessions, setShowAllSessions] = useState(false)
+  // A dialog over the map: the legend and the log button (z-[1000], over Leaflet) step aside for it.
+  const overlayOpen = showLogModal || showStartModal || showEndConfirm || !!showSummary
 
   // Start session form
   const [newName, setNewName] = useState('')
@@ -569,18 +571,19 @@ function CanvassingView() {
               className="h-full w-full"
             />
 
-            {/* Legend */}
-            <div className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000] text-gray-900 dark:text-slate-100 dark:bg-slate-900">
+            {/* Legend — z-[1000] to sit over Leaflet's panes, so it is not drawn while the log flow or another dialog (z-50) is open: it
+                floated over the Log Door Knock screens (roofing retest). */}
+            {!overlayOpen && <div data-testid="canvass-legend" className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000] text-gray-900 dark:text-slate-100 dark:bg-slate-900">
               {Object.entries(PIN_COLORS).map(([k, c]) => (
                 <div key={k} className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c }} />
                   <span>{OUTCOME_CONFIG[k]?.label}</span>
                 </div>
               ))}
-            </div>
+            </div>}
 
             {/* FAB */}
-            {mayCanvass && (<button aria-label="Log a door" onClick={openLogModal}
+            {mayCanvass && !overlayOpen && (<button aria-label="Log a door" onClick={openLogModal}
               className="absolute bottom-6 right-6 w-16 h-16 bg-orange-600 text-white rounded-full shadow-xl flex items-center justify-center active:bg-orange-700 z-[1000]">
               <DoorOpen size={28} />
             </button>)}
@@ -827,7 +830,7 @@ function CanvassingView() {
                 {(logOutcome === 'interested' || logOutcome === 'appointment_set') && (
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3 border dark:bg-slate-900">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Homeowner Name *</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Homeowner Name (optional)</label>
                       <input value={logName} onChange={(e) => setLogName(e.target.value)}
                         className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="Full name" />
                     </div>
