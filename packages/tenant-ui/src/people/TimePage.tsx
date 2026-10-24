@@ -50,6 +50,8 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const [editing, setEditing] = useState<Entry | null>(null)
   const [form, setForm] = useState(empty())
   const [formError, setFormError] = useState('')
+  // A refusal clears once the entry is changed — never left over a start and end time now given.
+  useEffect(() => { setFormError('') }, [form])
   const [saving, setSaving] = useState(false)
   const [toDelete, setToDelete] = useState<Entry | null>(null)
 

@@ -34,6 +34,8 @@ export default function DiscountsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [form, setForm] = useState({ ...BLANK })
   const [formError, setFormError] = useState<string | null>(null)
+  // A refusal clears once the form is changed — never left standing over a code now typed.
+  useEffect(() => { setFormError(null) }, [form])
   const [saving, setSaving] = useState(false)
   // A code is money off, so writing one is the manager's; staff read them to answer a shopper.
   const mayCreate = useMayWrite('discounts:create')

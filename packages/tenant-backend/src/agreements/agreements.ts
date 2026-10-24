@@ -478,6 +478,38 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     audit?.log({ action: 'schedule', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId, metadata: { visits: todo } })
     return { made: todo.length, dates: todo }
   }
+  /**
+   * CONTRACTS SOLD BEFORE THE TERM'S VISITS WERE MADE. (live re-test 2026-10-23: "0 booked · 0 done of 2", no next
+   * service, on a contract made the day before scheduleTermVisits existed; "Schedule this term's visits" was a button
+   * an owner had to find.) At boot: every ACTIVE agreement whose plan includes visits, and which has no visit at all in
+   * its current term — none booked, none done, none cancelled — gets its term's visits, once. A term that has any visit
+   * job is somebody's (made here, by hand, or cancelled on purpose) and is left as it is, so running it again makes
+   * nothing. Returns what it made, for the log. Never throws: an agreement that fails is left for the next boot.
+   */
+  async function scheduleMissingTermVisits(): Promise<Array<{ agreementId: string; made: number }>> {
+    const out: Array<{ agreementId: string; made: number }> = []
+    if (!job || !('serviceAgreementId' in (job as any))) return out
+    try {
+      const rows = await db.select({ id: serviceAgreement.id, companyId: serviceAgreement.companyId, startDate: serviceAgreement.startDate })
+        .from(serviceAgreement)
+        .innerJoin(agreementPlan, eq(agreementPlan.id, serviceAgreement.planId))
+        .where(and(eq(serviceAgreement.status, 'active'), sql`${agreementPlan.visitsIncluded} > 0`))
+      for (const agr of rows as Array<{ id: string; companyId: string; startDate: any }>) {
+        const termStart = new Date(markerDay(new Date(agr.startDate)))
+        const [any] = await db.select({ id: job.id }).from(job)
+          .where(and(eq(job.companyId, agr.companyId), eq(job.serviceAgreementId, agr.id), gte(job.scheduledDate, termStart))).limit(1)
+        if (any) continue
+        try {
+          // From the company's today when the term began before it: a visit made now is never booked in the past.
+          const today = markerDay(await todayMarker(agr.companyId))
+          const r = await scheduleTermVisits(agr.id, agr.companyId, { firstVisitDate: today })
+          if (r.made) out.push({ agreementId: agr.id, made: r.made })
+        } catch (err) { console.error('[agreements] term visits not scheduled:', agr.id, (err as Error).message) }
+      }
+    } catch (err) { console.error('[agreements] missing-visits sweep failed:', (err as Error).message) }
+    return out
+  }
+
   /** Does this agreement's plan set a visit allowance? Then its visits are the term's (scheduleTermVisits), not the recurrence engine's. */
   async function planOwnsVisits(agr: any): Promise<boolean> {
     if (!agr?.planId) return false
@@ -1089,7 +1121,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     scheduleVisit, completeVisit, getUpcomingVisits,
     getAgreementsDueForBilling, setAgreementAutopay, processAgreementBilling, processDueAgreements, startBillingProcessor,
     getAgreementStats, getExpiringAgreements,
-    setRecurrence, generateNextJob, scanAndGenerateJobs, scheduleTermVisits,
+    setRecurrence, generateNextJob, scanAndGenerateJobs, scheduleTermVisits, scheduleMissingTermVisits,
   }
 }
 

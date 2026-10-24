@@ -64,7 +64,7 @@ describe('salon', () => {
     const from = new Date(day - 3600000).toISOString(), to = new Date(day + 86400000).toISOString()
     const win = await (await as(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)).json()
     expect(win.data.length).toBe(3)
-    expect(win.pagination).toEqual({ page: 1, limit: 3, total: 3, pages: 1 })
+    expect(win.pagination).toEqual({ page: 1, limit: 50, total: 3, pages: 1 })
   }, 30_000)
 
   test('a visit that has been paid for is not deleted, and the refusal names the invoice and the money (salon-orphan-invoice)', async () => {

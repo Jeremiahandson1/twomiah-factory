@@ -1,5 +1,5 @@
 // Moved from templates/crm-rv/frontend/src/pages/rv/AITradeAppraisalPage.tsx.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calculator, Loader2, Info } from 'lucide-react'
 import { api } from '../../../api'
 import { errorText } from '../../../shared'
@@ -26,6 +26,8 @@ export default function AITradeAppraisalPage() {
   const [res, setRes] = useState<Appraisal | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A refusal clears once the form is changed — never left over a make and model now typed.
+  useEffect(() => { setError(null); }, [f]);
   const set = (k: keyof TradeForm, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   async function appraise() {

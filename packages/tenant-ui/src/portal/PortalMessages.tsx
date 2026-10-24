@@ -91,6 +91,8 @@ function ComposeMessage({ onBack, onSent }: { onBack: () => void; onSent: () => 
   const [sending, setSending] = useState(false)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [error, setError] = useState('')
+  // A refusal clears once the message is typed — never left over a message now written.
+  useEffect(() => { setError('') }, [body])
   const send = async () => {
     // The note below was not enough: the button stayed disabled, so the click never landed and this line
     // never ran. T23 diagnosed exactly that and then kept the button disabled; T26 filed it again. Let the

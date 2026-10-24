@@ -17,14 +17,18 @@ export function list<T>(c: Context, data: T[], page: { page: number; limit: numb
   return c.json({ data, pagination: { page: page.page, limit: page.limit, total: page.total, pages } })
 }
 
+/** The page size a list serves when the caller names none — the paged lists' own default (`q.limit || '50'`). */
+export const DEFAULT_PAGE_LIMIT = 50
+
 /**
- * A whole list (no paging on the server): every row, on page 1. Its `limit` is the limit the caller asked for, or the
- * number returned if that is more — never a made-up 1 for an empty list (live test 2026-10-22: an empty list said
- * limit 1; others said 0, each route spelling it its own way). Nothing asked and nothing found: 0.
+ * A whole list (no paging on the server): every row, on page 1. Its `limit` is the limit the caller asked for, else the
+ * server's default page size (DEFAULT_PAGE_LIMIT), or the number returned if that is more — never a made-up 1 for an
+ * empty list (live test 2026-10-22), and never the row count passed off as a limit (HVAC re-test T25 L5: services with
+ * 2 rows said limit 2; an empty list said 0).
  */
 export function listAll<T>(c: Context, data: T[]) {
   const asked = Number(c.req.query('limit'))
-  const limit = Math.max(Number.isInteger(asked) && asked > 0 ? asked : 0, data.length)
+  const limit = Math.max(Number.isInteger(asked) && asked > 0 ? asked : DEFAULT_PAGE_LIMIT, data.length)
   return list(c, data, { page: 1, limit, total: data.length })
 }
 

@@ -35,7 +35,12 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
   })
   const [lines, setLines] = useState<Line[]>([blankLine()])
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  // What is wrong is worked out from the form as it stands, shown once Save has been pressed: a message stored at Save
+  // stayed ("Enter the job.") after the job was chosen (live re-test 2026-10-23). The server's refusal is kept until the
+  // next edit.
+  const [tried, setTried] = useState(false)
+  const [serverError, setServerError] = useState('')
+  useEffect(() => { setServerError('') }, [form, lines])
 
   useEffect(() => {
     if (jobId) return
@@ -47,14 +52,21 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
   const filled = lines.filter((l) => l.description.trim() || l.qty || l.unitPrice)
   const total = filled.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0), 0)
 
-  const save = async () => {
-    // What the server refuses, said first in the form's own words.
+  // What the server refuses, said first in the form's own words.
+  const problem = (() => {
     const missing = [!form.jobId && 'the job', !form.supplier.trim() && 'the supplier'].filter(Boolean) as string[]
-    if (missing.length) { setError(`Enter ${missing.join(' and ')}.`); return }
-    if (!filled.length) { setError('Add at least one material line.'); return }
+    if (missing.length) return `Enter ${missing.join(' and ')}.`
+    if (!filled.length) return 'Add at least one material line.'
     const bad = filled.findIndex((l) => !l.description.trim() || !(Number(l.qty) > 0))
-    if (bad >= 0) { setError(`Line ${bad + 1}: enter what it is and how many.`); return }
-    setError(''); setSaving(true)
+    if (bad >= 0) return `Line ${bad + 1}: enter what it is and how many.`
+    return ''
+  })()
+  const error = serverError || (tried ? problem : '')
+
+  const save = async () => {
+    setTried(true)
+    if (problem) return
+    setServerError(''); setSaving(true)
     try {
       await api.post('/api/materials', {
         jobId: form.jobId, supplier: form.supplier.trim(), orderStatus: form.orderStatus,
@@ -68,7 +80,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
       onSaved()
       onClose()
     } catch (err) {
-      setError(errorText(err, 'Could not save the material order'))
+      setServerError(errorText(err, 'Could not save the material order'))
     } finally {
       setSaving(false)
     }

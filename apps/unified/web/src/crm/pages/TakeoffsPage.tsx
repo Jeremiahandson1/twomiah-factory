@@ -77,7 +77,10 @@ interface TotalsData {
   totals: {
     materialCount: number;
     totalCost: number;
+    /** The materials as measured (5.61 sheets) at their selling price. */
     totalPrice: number;
+    /** What a quote from this sheet charges: whole sellable units (6 sheets) at their selling price. */
+    quotePrice?: number;
   };
 }
 
@@ -651,7 +654,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
                   <th className="text-left px-3 py-2">Material</th>
                   <th className="text-right px-3 py-2">Base Qty</th>
                   <th className="text-right px-3 py-2">Waste</th>
-                  <th className="text-right px-3 py-2">Total Qty</th>
+                  <th className="text-right px-3 py-2" title="As measured, with waste — a quote sells it in whole units">Measured Qty</th>
                   <th className="text-right px-3 py-2">Unit Cost</th>
                   <th className="text-right px-3 py-2">Total Cost</th>
                 </tr>
@@ -738,10 +741,20 @@ function TotalsFooter({ sheetId, onExport, onQuote }: TotalsFooterProps) {
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
             <p className="text-lg font-bold text-green-700 dark:text-green-400">{money((totals.totals.totalCost || 0))}</p>
           </div>
+          {/* The price as MEASURED (5.61 sheets) and what a quote charges in whole units (6 sheets), each named — one
+              "Total Price" beside a quote rounded up read as a rounding bug (contractor re-test 2026-10-23). */}
           <div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Total Price</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Price as measured</p>
             <p className="text-lg font-bold">{money((totals.totals.totalPrice || 0))}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">exact quantities, before rounding</p>
           </div>
+          {totals.totals.quotePrice !== undefined && (
+            <div>
+              <p className="text-sm text-gray-500 dark:text-slate-400">On a quote</p>
+              <p className="text-lg font-bold">{money(totals.totals.quotePrice)}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">whole units, as you sell them</p>
+            </div>
+          )}
         </div>
         {/* Wired. This had no onClick at all — a dead button on the one screen whose purpose is
             turning quantities into an order. (T32 M4)
@@ -1117,38 +1130,67 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
  * What each material costs and what it is SOLD at, assembly by assembly — PUT /api/takeoffs/assemblies/:id { materials }
  * (takeoffs:update). The selling price is what "Add to quote" charges; nothing on any screen could set it, so every quote
  * line came out at $0.00 (live test 2026-10-22). Saving works the sheets out again at the new prices.
+ *
+ * The company's default markup on cost (PUT /api/takeoffs/settings): a material whose own selling price is left empty
+ * is quoted at its cost plus the markup, and the box shows that suggested price — the standard assemblies come with a
+ * cost and no selling price, so a takeoff quoted $0.00 until every price was typed (contractor re-test 2026-10-23).
  */
 function MaterialPricesModal({ assemblies, onClose, onSaved }: { assemblies: AssemblyItem[]; onClose: () => void; onSaved: () => void }) {
+  // An empty selling price is "none of its own" (0 on the server): the markup prices it.
   const [draft, setDraft] = useState<Record<string, { unitCost: string; unitPrice: string }>>(() => {
     const d: Record<string, { unitCost: string; unitPrice: string }> = {};
-    for (const a of assemblies) for (const m of a.materials || []) d[m.id] = { unitCost: String(Number(m.unitCost || 0)), unitPrice: String(Number(m.unitPrice || 0)) };
+    for (const a of assemblies) for (const m of a.materials || []) d[m.id] = { unitCost: String(Number(m.unitCost || 0)), unitPrice: Number(m.unitPrice || 0) > 0 ? String(Number(m.unitPrice)) : '' };
     return d;
   });
+  const [markup, setMarkup] = useState<string>('');
+  const [savedMarkup, setSavedMarkup] = useState<string>('');
+  useEffect(() => {
+    api.get('/api/takeoffs/settings')
+      .then((s: { markupPercent?: number | null }) => { const v = s?.markupPercent == null ? '' : String(s.markupPercent); setMarkup(v); setSavedMarkup(v); })
+      .catch(() => { /* no markup shown; the prices still save */ });
+  }, []);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  // A refusal clears once the prices are changed.
+  useEffect(() => { setError(''); }, [draft, markup]);
   const bad = (v: string) => v.trim() === '' || !Number.isFinite(Number(v)) || Number(v) < 0;
+  const badPrice = (v: string) => v.trim() !== '' && bad(v);
+  const markupBad = markup.trim() !== '' && (bad(markup) || Number(markup) > 1000);
+  /** What a material with no selling price of its own is quoted at: its cost plus the markup (the server's sellingPrice). */
+  const suggested = (cost: string): number | null => {
+    if (markup.trim() === '' || markupBad || bad(cost) || !(Number(cost) > 0)) return null;
+    return Math.round(Number(cost) * (1 + Number(markup) / 100) * 100) / 100;
+  };
   const save = async () => {
-    const wrong = Object.values(draft).some((m) => bad(m.unitCost) || bad(m.unitPrice));
-    if (wrong) { setError('Every cost and selling price must be a number, 0 or more.'); return; }
+    const wrong = Object.values(draft).some((m) => bad(m.unitCost) || badPrice(m.unitPrice));
+    if (wrong) { setError('Every cost must be a number, 0 or more; a selling price is a number, or empty to use the markup.'); return; }
+    if (markupBad) { setError('The markup is a percent of the cost: a number from 0 to 1000, or empty for none.'); return; }
     setSaving(true); setError('');
     try {
+      if (markup.trim() !== savedMarkup.trim()) await api.put('/api/takeoffs/settings', { markupPercent: markup.trim() === '' ? null : Number(markup) });
       for (const a of assemblies) {
-        const changed = (a.materials || []).filter((m) => draft[m.id] && (Number(draft[m.id].unitCost) !== Number(m.unitCost || 0) || Number(draft[m.id].unitPrice) !== Number(m.unitPrice || 0)));
+        const changed = (a.materials || []).filter((m) => draft[m.id] && (Number(draft[m.id].unitCost) !== Number(m.unitCost || 0) || Number(draft[m.id].unitPrice || 0) !== Number(m.unitPrice || 0)));
         if (!changed.length) continue;
-        await api.put(`/api/takeoffs/assemblies/${a.id}`, { materials: changed.map((m) => ({ id: m.id, unitCost: Number(draft[m.id].unitCost), unitPrice: Number(draft[m.id].unitPrice) })) });
+        await api.put(`/api/takeoffs/assemblies/${a.id}`, { materials: changed.map((m) => ({ id: m.id, unitCost: Number(draft[m.id].unitCost), unitPrice: Number(draft[m.id].unitPrice || 0) })) });
       }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The prices could not be saved');
     } finally { setSaving(false); }
   };
-  const cell = 'w-24 px-2 py-1 border border-gray-300 rounded text-right bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
+  const cell = 'w-24 px-2 py-1 border border-gray-300 rounded text-right bg-white text-gray-900 placeholder:text-gray-500 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:placeholder:text-slate-400';
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label="Material prices" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 pb-3">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Material prices</h3>
           <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">The cost is what a unit costs you; the selling price is what a quote charges for it.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <label htmlFor="takeoff-markup" className="text-sm font-medium text-gray-800 dark:text-slate-100">Default markup on cost</label>
+            <input id="takeoff-markup" type="number" min="0" max="1000" step="0.1" inputMode="decimal" value={markup} placeholder="none" onChange={(e) => setMarkup(e.target.value)} className={cell + ' w-20'} aria-invalid={markupBad} />
+            <span className="text-sm text-gray-700 dark:text-slate-300">%</span>
+            <p className="w-full text-xs text-gray-600 dark:text-slate-400">A material with no selling price of its own is quoted at its cost plus this — 25% turns a $12.00 sheet into $15.00. Type a selling price to set one yourself.</p>
+          </div>
         </div>
         <div className="px-6 overflow-y-auto flex-1">
           {assemblies.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No assemblies yet — add a measurement to start with the standard ones.</p>}
@@ -1158,13 +1200,24 @@ function MaterialPricesModal({ assemblies, onClose, onSaved }: { assemblies: Ass
               <table className="w-full text-sm">
                 <thead><tr className="text-gray-500 dark:text-slate-400"><th className="text-left font-normal py-1">Material</th><th className="text-right font-normal py-1">Cost / unit</th><th className="text-right font-normal py-1">Selling price / unit</th></tr></thead>
                 <tbody>
-                  {(a.materials || []).map((m) => (
-                    <tr key={m.id} className="border-t border-gray-100 dark:border-slate-800">
-                      <td className="py-1.5 text-gray-800 dark:text-slate-200">{m.name}{m.unit ? <span className="text-gray-500 dark:text-slate-400"> ({m.unit})</span> : null}</td>
-                      <td className="py-1.5 text-right"><input aria-label={`${m.name} cost per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={draft[m.id]?.unitCost ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitCost: e.target.value } }))} className={cell} /></td>
-                      <td className="py-1.5 text-right"><input aria-label={`${m.name} selling price per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={draft[m.id]?.unitPrice ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitPrice: e.target.value } }))} className={cell} /></td>
-                    </tr>
-                  ))}
+                  {(a.materials || []).map((m) => {
+                    const own = draft[m.id]?.unitPrice ?? '';
+                    const hint = own.trim() === '' ? suggested(draft[m.id]?.unitCost ?? '') : null;
+                    return (
+                      <tr key={m.id} className="border-t border-gray-100 dark:border-slate-800">
+                        <td className="py-1.5 text-gray-800 dark:text-slate-200">{m.name}{m.unit ? <span className="text-gray-500 dark:text-slate-400"> ({m.unit})</span> : null}</td>
+                        <td className="py-1.5 text-right"><input aria-label={`${m.name} cost per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={draft[m.id]?.unitCost ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitCost: e.target.value } }))} className={cell} /></td>
+                        <td className="py-1.5 text-right">
+                          <input aria-label={`${m.name} selling price per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={own} placeholder={hint !== null ? hint.toFixed(2) : 'not set'} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitPrice: e.target.value } }))} className={cell} />
+                          {own.trim() === '' && (
+                            <span data-suggested={m.id} className={`block text-xs mt-0.5 ${hint !== null ? 'text-gray-600 dark:text-slate-400' : 'text-amber-800 dark:text-amber-300'}`}>
+                              {hint !== null ? `suggested ${money(hint)} at ${Number(markup)}% markup` : 'no price — set a markup or a price'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

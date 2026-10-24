@@ -72,6 +72,13 @@ export interface CompanyDeps {
   fields?: Record<string, z.ZodTypeAny>
   /** What GET / and PUT / add to the company they answer with, worked out from the row (home care's effectiveTimezone). */
   describe?: (row: any) => Record<string, unknown>
+  /**
+   * What a login still holds — the jobs assigned to it, its commissions, its shifts — as words ('1 job'), read on the
+   * delete's own transaction `tx` with the user row locked. Anything held and DELETE /users/:id refuses (409) and says to
+   * deactivate instead: a hard delete took JOB-00001's crew off it through ON DELETE SET NULL and left a commission
+   * naming nobody (live re-test 2026-10-23). Not wired → the delete is as it was.
+   */
+  heldBy?: (tx: any, userId: string) => Promise<string[]>
 }
 
 /** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
@@ -949,6 +956,25 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       }, 403)
     }
     if (target.isActive && (await isLastAdmin(target, currentUser.companyId))) return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
+    if (deps.heldBy) {
+      const heldBy = deps.heldBy
+      const held = await db.transaction(async (tx: any) => {
+        await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).for('update')
+        const what = await heldBy(tx, id)
+        if (what.length) return what
+        await tx.delete(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId)))
+        return null
+      })
+      if (held) {
+        const who = [target.firstName, target.lastName].filter(Boolean).join(' ') || target.email
+        return c.json({
+          error: `${who} still has ${held.join(', ')}. Deleting the login would take them off it. Deactivate them instead: they can't sign in, their seat is freed, and their work keeps their name.`,
+          code: 'user_holds_records',
+          held,
+        }, 409)
+      }
+      return c.body(null, 204)
+    }
     await db.delete(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId)))
     return c.body(null, 204)
   })

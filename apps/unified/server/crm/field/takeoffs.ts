@@ -19,6 +19,14 @@ const assemblyUpdateBody = z.object({
   materials: z.array(z.object({ id: z.string().min(1), unitCost: price.optional(), unitPrice: price.optional() })).optional(),
 }).passthrough()
 
+/** The default markup: a percent of the cost, 0 to 1000, to two places; null takes it away. */
+const settingsBody = z.object({
+  markupPercent: z.union([
+    z.null(),
+    z.coerce.number({ invalid_type_error: 'The markup must be a number' }).finite().min(0, 'The markup cannot be negative').max(1000, 'The markup is a percent of the cost, at most 1000').transform((n) => Math.round(n * 100) / 100),
+  ]),
+})
+
 const all = <T,>(c: any, rows: T[]) => listAll(c, rows)
 
 export function createTakeoffsRoutes(d: CrmDeps) {
@@ -67,6 +75,18 @@ export function createTakeoffsRoutes(d: CrmDeps) {
     const user = c.get('user')
     await takeoffs.seedDefaultAssemblies(user.companyId)
     return done(c)
+  })
+
+  // ── settings ───────────────────────────────────────────────────────────────────────────────────
+
+  // The company's default markup on a material's cost: a material with no selling price of its own is quoted at its
+  // cost plus this (takeoffsService.sellingPrice). null: none.
+  app.get('/settings', async (c) => one(c, await takeoffs.getSettings(c.get('user').companyId)))
+
+  app.put('/settings', requirePermission('takeoffs:update'), async (c) => {
+    const parsed = settingsBody.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+    return one(c, await takeoffs.setSettings(c.get('user').companyId, { markupPercent: parsed.data.markupPercent }))
   })
 
   // ── sheets ─────────────────────────────────────────────────────────────────────────────────────

@@ -193,6 +193,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
       reviews.startReviewProcessor()
       marketing.startMarketingProcessor()
       agreements.startBillingProcessor()
+      // A contract sold before its plan's visits were made has none: its term's visits go on the calendar, once, at boot
+      // (agreements.scheduleMissingTermVisits — a term with any visit job is left alone). Never delays startup.
+      void agreements.scheduleMissingTermVisits().then((made) => {
+        for (const m of made) logger.info('[agreements] term visits made for an older contract', m)
+      })
       recurring.startRecurringProcessor()
       commissionEarner.startCommissionEarner()
       // Recurring service agreements make their next visits: at boot, then every 6 hours (the field-service CRMs' index.ts).

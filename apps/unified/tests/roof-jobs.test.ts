@@ -129,7 +129,7 @@ describe('roofing jobs', () => {
     expect(found.body.pagination.total).toBe(3)
     expect((await json(await as('owner')('/api/jobs?search=nobody'))).body.data).toEqual([])
     const types = await json(await as('owner')('/api/jobs/types'))
-    expect(types.body).toEqual({ data: ['insurance'], pagination: { page: 1, limit: 1, total: 1, pages: 1 } })
+    expect(types.body).toEqual({ data: ['insurance'], pagination: { page: 1, limit: 50, total: 1, pages: 1 } })
   })
 
   test("an appointment from a form is that time on the company's clock; the date of loss is a calendar day", async () => {

@@ -1,7 +1,7 @@
 // Moved from templates/crm-homecare/frontend/src/components/admin/AddCaregiverModal.tsx.
 // POST /api/caregivers (care-hr:create) reads firstName, lastName, email, phone, defaultPayRate and password; a plan's
 // seat limit is refused with its sentence (403 seat_limit), shown here as the form's error.
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
 import { PasswordInput } from '../../../../shared'
@@ -21,6 +21,8 @@ export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props)
   const [formData, setFormData] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // A refusal clears once the form is changed — never left over a pay rate now typed.
+  useEffect(() => { setError('') }, [formData])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
