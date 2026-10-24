@@ -13,6 +13,7 @@ import { createTakeoffsRoutes } from './takeoffs.ts'
 import { createSelectionsRoutes } from './selections.ts'
 import { createJobCostingRoutes } from './jobCosting.ts'
 import { createRoutingRoutes } from './routing.ts'
+import { createDayRouteRoutes } from './dayRoute.ts'
 import { createMapsRoutes, createMapCenterRoutes } from './maps.ts'
 import { createGeofencingRoutes } from './geofencing.ts'
 import { createWeatherRoutes } from './weather.ts'
@@ -26,6 +27,9 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/selections', access: 'user', feature: 'selections', router: createSelectionsRoutes(d) },
     { path: '/api/job-costing', access: 'user', feature: 'job_costing', router: createJobCostingRoutes(d) },
     { path: '/api/routing', access: 'user', feature: 'route_optimization', router: createRoutingRoutes(d) },
+    // One person's day in the best order, for the Schedule's lanes and the Dispatch Board: every vertical with jobs
+    // (dayRoute.ts), gated as the jobs are.
+    { path: '/api/day-route', access: 'user', feature: 'jobs', router: createDayRouteRoutes(d) },
     { path: '/api/maps', access: 'user', feature: 'map_view', router: createMapsRoutes(d) },
     // Where a new map opens (the business's address or service area): every map screen's, so no one map's feature.
     { path: '/api/map-center', access: 'user', router: createMapCenterRoutes(d) },

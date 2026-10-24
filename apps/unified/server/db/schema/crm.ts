@@ -278,6 +278,28 @@ export const job = pgTable('job', {
 ])
 
 /**
+ * The OTHER people on a job (2026-10-24: several people per job, as Jobber, Housecall Pro and ServiceTitan book a crew).
+ * The job's own assigned_to_id / assigned_to_member_id stays the LEAD, so every reader of it keeps working; a row here is
+ * one more person on the work — a login user or a roster-only crew member, exactly one of the two. The lead is never
+ * also a row here (jobs.ts keeps them apart).
+ */
+export const jobAssignee = pgTable('job_assignee', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').references((): AnyPgColumn => teamMember.id, { onDelete: 'cascade' }),
+  /** Their place in the crew as the office listed them (1, 2, …): one save writes them all at once, so not by time. */
+  position: integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_assignee_job_id_idx').on(t.jobId),
+  index('job_assignee_user_id_idx').on(t.userId),
+  uniqueIndex('job_assignee_job_user_idx').on(t.jobId, t.userId),
+  uniqueIndex('job_assignee_job_member_idx').on(t.jobId, t.memberId),
+])
+
+/**
  * What each job was last announced to its person as — who it is assigned to and when it is scheduled (crm/notify/
  * jobAssignments.ts). A job that differs from its row here has been assigned or rescheduled since, by whichever screen or
  * route, and its person gets a phone notification. Filled from the jobs that existed when it was made (migration 0015),
@@ -287,6 +309,7 @@ export const jobPushState = pgTable('job_push_state', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   /** One row per job. */
   jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  /** Everyone on the job who can sign in, comma-separated — the lead first (data/phonePush.ts ASSIGNEES). */
   assigneeId: text('assignee_id'),
   /** 'YYYY-MM-DD HH:MM' (or the day alone) — data/phonePush.ts SCHEDULED_FOR, the one place it is computed. */
   scheduledFor: text('scheduled_for'),
@@ -605,6 +628,25 @@ export const teamMember = pgTable('team_member', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('team_member_company_id_idx').on(t.companyId),
+])
+
+/**
+ * A login on a crew: a roofing crew (`crew`) or a roster crew (`team_member`), exactly one per row. A seat without
+ * jobs:read-all reads the jobs assigned to its crews as its own (server/crm/ownWork.ts). Crews carried a foreman's name
+ * and no login, so a crew's work could not reach anyone's phone (crew scope, 2026-10-24).
+ */
+export const crewLogin = pgTable('crew_login', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  crewId: text('crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'cascade' }),
+  teamMemberId: text('team_member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('crew_login_company_id_idx').on(t.companyId),
+  index('crew_login_user_id_idx').on(t.userId),
+  uniqueIndex('crew_login_crew_user_idx').on(t.crewId, t.userId),
+  uniqueIndex('crew_login_member_user_idx').on(t.teamMemberId, t.userId),
 ])
 
 export const userSettings = pgTable('user_settings', {

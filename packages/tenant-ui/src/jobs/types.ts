@@ -114,6 +114,8 @@ export interface JobRow {
   /** set when the job is assigned to a roster-only crew member instead of a login user (T21 M12) */
   assignedToMemberId?: string | null
   assignedTo?: { id?: string; firstName: string; lastName: string; name?: string; kind?: 'user' | 'member' } | null
+  /** Everyone on the job, lead first (GET /api/jobs, 2026-10-24: several people per job). */
+  assignees?: Array<{ id: string; name?: string; firstName?: string; lastName?: string; kind?: 'user' | 'member'; lead?: boolean }>
   equipment?: { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null } | null
   isOverdue?: boolean
   createdAt?: string

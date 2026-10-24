@@ -3,6 +3,15 @@
 // words and switches, never code paths.
 import type { StarterContent } from './starter.ts'
 
+/**
+ * CREW SCOPE — Jobber's rule for a job trade's field seat: it reads the jobs assigned to it and to its crews
+ * (server/crm/ownWork.ts), the customers on those jobs and its own bookings, not the whole business. Each job vertical
+ * withholds these from `field` (withheldRolePermissions); managers and up keep them. Landscaping first (live retest,
+ * 2026-10-24), then every job trade (contractor, field service, roofing, basic). RV's field seat is the sales floor,
+ * which works the whole customer book, so it keeps them.
+ */
+export const CREW_SCOPE_WITHHELD = ['jobs:read-all', 'contacts:read-all', 'bookings:read-all']
+
 export interface VerticalSettings {
   /** Stable id, reported to the screens and the mobile app as company.vertical. */
   id: string

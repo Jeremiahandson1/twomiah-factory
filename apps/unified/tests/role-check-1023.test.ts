@@ -132,7 +132,7 @@ describe('1. the cost sweep: what the business paid stays with margin:read (and 
   })
 
   test("the crew's hourly rates on a job: a technician and a viewer read the time lines without them", async () => {
-    const [job] = await fs.db.insert(fs.schema.job).values({ companyId: fsCo, title: 'Install', number: 'JOB-1' } as any).returning()
+    const [job] = await fs.db.insert(fs.schema.job).values({ companyId: fsCo, title: 'Install', number: 'JOB-1', assignedToId: fsIds.staff } as any).returning()  // the technician's own job (crew scope)
     await fs.db.insert(fs.schema.timeEntry).values({ companyId: fsCo, userId: fsIds.manager, jobId: job.id, date: new Date(), hours: '2', hourlyRate: '45.00' } as any)
     for (const who of ['staff', 'viewer']) {
       const r = await fsAs(who, `/api/jobs/${job.id}`)

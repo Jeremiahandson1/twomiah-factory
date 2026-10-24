@@ -2,7 +2,7 @@
 // jobs, quotes and invoices; roofing's own parts — insurance claims and supplements, measurements and roof reports,
 // storms and canvassing, crews and materials — are its add-on (server/crm/roof, web/src/crm/pages/roof).
 import type { StarterContent } from '../../server/core/starter.ts'
-import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 // What a roofer files (templates/crm-roof/frontend/src/docsConfig.ts): a document hangs off a JOB, never a project.
 const DOC_TYPES = ['general', 'contract', 'permit', 'warranty', 'insurance', 'scope', 'inspection', 'photo', 'invoice', 'receipt', 'other']
@@ -73,6 +73,9 @@ const roof: VerticalSettings = {
     field: ['canvassing:create', 'canvassing:update'],
     viewer: ['canvassing:read'],
   },
+  // Crew scope: a Field login reads the jobs it is on (assigned, the rep, or its crew's) and their homeowners
+  // (server/core/vertical.ts).
+  withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     roof: true,
     // The roofer's own /api/dashboard (server/crm/roof/field/dashboard.ts).

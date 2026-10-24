@@ -26,9 +26,12 @@ beforeAll(async () => {
   const hash = await Bun.password.hash('Seat-pass-1', 'bcrypt')
   await t.db.insert(t.schema.user).values({ email: 'crew@test.example', passwordHash: hash, firstName: 'Cy', lastName: 'Crew', role: 'field', companyId } as any)
   tokens.crew = await login('crew@test.example', 'Seat-pass-1')
+  const [cy] = await t.db.select().from(t.schema.user).where(eq(t.schema.user.email, 'crew@test.example'))
   const [casey] = await t.db.insert(t.schema.contact).values({ companyId, name: 'Casey Customer' } as any).returning()
   const job = await json(await as('owner')('/api/jobs', { method: 'POST', json: { contactId: casey.id, jobType: 'insurance', propertyAddress: '12 Pine St', city: 'Eau Claire', state: 'WI', zip: '54701' } }))
   ids.job = job.body.id
+  // The crew seat's own job: it sells it (crew scope, 2026-10-24 — a field seat reads its own work).
+  await t.db.update(t.schema.job).set({ assignedSalesRepId: cy.id } as any).where(eq(t.schema.job.id, ids.job))
   const claim = await json(await as('owner')('/api/insurance/claims', { method: 'POST', json: {
     jobId: ids.job, claimNumber: 'CLM-TEST-0001', insuranceCompany: 'Test Mutual Insurance', adjusterName: 'Adam Adjuster',
     adjusterPhone: '715-555-0199', dateOfLoss: '2026-10-01', deductible: '1000',

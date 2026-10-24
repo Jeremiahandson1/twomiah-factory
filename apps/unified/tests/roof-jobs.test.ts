@@ -52,6 +52,8 @@ describe('roofing jobs', () => {
     expect(b.body.number).toBe('ROOF-0002')
     ids.job = a.body.id
     ids.job2 = b.body.id
+    // The rep sells the first (crew scope, 2026-10-24: a field seat reads its own work), so it opens it below.
+    await t.db.update(t.schema.job).set({ assignedSalesRepId: ids.rep } as any).where(eq(t.schema.job.id, ids.job))
     expect((await as('owner')('/api/jobs', { method: 'POST', json: newJob({ contactId: ids.stranger }) })).status).toBe(404)
     // A field seat holds no jobs:create (the shared matrix).
     expect((await as('rep')('/api/jobs', { method: 'POST', json: newJob() })).status).toBe(403)
@@ -77,7 +79,8 @@ describe('roofing jobs', () => {
     expect(shown(books.body)).toEqual(['estimatedValue', 'finalRevenue', 'deductible', 'rcv', 'acv', 'approvedScope'])
     // The list the same — Reports built revenue by rep from it in the browser (T41).
     const list = await json(await as('rep')('/api/jobs'))
-    expect(list.body.pagination).toMatchObject({ page: 1, total: 3 })
+    // The rep's own job only (crew scope): the other two are not its work.
+    expect(list.body.pagination).toMatchObject({ page: 1, total: 1 })
     expect(list.body.data.flatMap(shown)).toEqual([])
   })
 

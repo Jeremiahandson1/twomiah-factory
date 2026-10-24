@@ -131,15 +131,19 @@ describe('contractor (shared jobs, photos as documents)', () => {
   })
 
   test('contacts list: { data }, the type chips are real filters, a word the CRM lacks is a 400', async () => {
+    // The field seat reads the customers on its own jobs (crew scope, 2026-10-24): give it one with this lead on it, for
+    // this read only (the job form below books the contact's real job).
+    const [visit] = await b.t.db.insert(b.t.schema.job).values({ companyId: b.companyId, number: 'JOB-09901', title: 'Field seat visit', status: 'scheduled', contactId: ids.contact, assignedToId: b.logins.field.user.id } as any).returning()
     const list = await call('field', 'GET', '/api/contacts?page=1&limit=25&type=lead')
     expect(list.status).toBe(200)
     expect(clone(list.body.data[0])).toMatchObject({ id: expect.any(String), name: expect.any(String), type: 'lead' })
+    await b.t.db.delete(b.t.schema.job).where(eq(b.t.schema.job.id, visit.id))
     for (const ty of ['lead', 'client', 'subcontractor', 'vendor']) expect((await call('owner', 'GET', `/api/contacts?type=${ty}`)).status).toBe(200)
     expect((await call('owner', 'GET', '/api/contacts?type=customer')).status).toBe(400)
   })
 
   test('job form (shared): a calendar day + HH:MM; the schedule finds it by ?date=; detail carries what the screen reads', async () => {
-    const made = await call('owner', 'POST', '/api/jobs', { title: 'Deck repair', description: 'Rotten boards', contactId: ids.contact, address: '12 Oak St', city: 'Madison', state: 'WI', zip: '53703', scheduledDate: today, scheduledTime: '14:30', notes: 'Gate code 1234' })
+    const made = await call('owner', 'POST', '/api/jobs', { title: 'Deck repair', description: 'Rotten boards', contactId: ids.contact, address: '12 Oak St', city: 'Madison', state: 'WI', zip: '53703', scheduledDate: today, scheduledTime: '14:30', notes: 'Gate code 1234', assignedToId: b.logins.field.user.id })
     expect(made.status).toBe(201)
     ids.job = made.body.id
     const day = await call('field', 'GET', `/api/jobs?date=${today}&limit=100`)
@@ -290,7 +294,8 @@ describe('field service (shared jobs, photos on the job)', () => {
     b = await boot('fieldservice', ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'])
     call = caller(b)
     ids.contact = (await call('owner', 'POST', '/api/contacts', { name: 'Pat Furnace', phone: '555-300-4000', type: 'client' })).body.id
-    ids.job = (await call('owner', 'POST', '/api/jobs', { title: 'No heat', contactId: ids.contact, scheduledDate: today, scheduledTime: '09:00' })).body.id
+    // The field seat's own call (crew scope: it reads the jobs assigned to it).
+    ids.job = (await call('owner', 'POST', '/api/jobs', { title: 'No heat', contactId: ids.contact, scheduledDate: today, scheduledTime: '09:00', assignedToId: b.logins.field.user.id })).body.id
   }, 120_000)
 
   test('the contact types this CRM takes are the ones the form offers (lead, client, vendor)', async () => {
@@ -339,7 +344,7 @@ describe('roofing (its own jobs: pipeline, notes rows, canvassing)', () => {
     expect(who.status).toBe(201)
     expect(who.body.state).toBe('OH')
     ids.contact = who.body.id
-    const job = await call('owner', 'POST', '/api/jobs', { contactId: ids.contact, jobType: 'retail', propertyAddress: '9 Elm Ave', city: 'Akron', state: 'OH', zip: '44301', source: 'Door Knock', notes: 'Hail', estimatedRevenue: 14000 })
+    const job = await call('owner', 'POST', '/api/jobs', { contactId: ids.contact, jobType: 'retail', propertyAddress: '9 Elm Ave', city: 'Akron', state: 'OH', zip: '44301', source: 'Door Knock', notes: 'Hail', estimatedRevenue: 14000, assignedSalesRepId: b.logins.field.user.id })
     expect(job.status).toBe(201)
     expect(clone(job.body)).toMatchObject({ status: 'lead', title: '9 Elm Ave', address: '9 Elm Ave', jobType: 'retail', number: expect.stringMatching(/^ROOF-/), contact: { id: ids.contact, name: 'Robin Shingle' } })
     ids.job = job.body.id

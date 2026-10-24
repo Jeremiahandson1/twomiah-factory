@@ -1,11 +1,13 @@
 // General contractor (templates/crm, the base CRM). Its role names and permissions are the shared defaults.
-import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 const contractor: VerticalSettings = {
   id: 'contractor',
   label: 'Contractor',
   mfaIssuer: 'Twomiah Contractor',
   featureSet: 'crm',
+  // Crew scope: a crew login reads its own and its crews' jobs and their customers (server/core/vertical.ts).
+  withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
   // templates/crm/frontend/src/*Config.ts
@@ -48,7 +50,8 @@ const contractor: VerticalSettings = {
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: { jobLabel: 'Job' },
     expenses: { jobLabel: 'Job' },
-    team: {},
+    // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
+    team: { crewLogins: true },
     commissions: { roleWords: { technician: 'Crew', sales_rep: 'Sales', manager: 'Project managers', all: 'Everyone' }, planExample: 'Standard sales plan' },
     portal: {},
     leads: {},

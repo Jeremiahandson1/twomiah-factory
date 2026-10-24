@@ -45,7 +45,15 @@ if ((jobs.match(/if \(who\.error\) return c\.json\(\{ error: who\.error \}, 400\
   if (!/db\.select\(\{ id: t\.user\.id \}\)\.from\(t\.user\)/.test(resolver)) fail('the resolver must look the person up among the login users')
   if (!/db\.select\(\{ id: t\.teamMember\.id, active: t\.teamMember\.active \}\)\.from\(t\.teamMember\)/.test(resolver)) fail('…and then among the roster')
 }
-if (!/assignedToId \? eq\(t\.job\.assignedToId, assignedToId\) : eq\(t\.job\.assignedToMemberId, memberId as string\)/.test(jobs)) fail('double-booking must be checked for a roster member too')
+// Double-booking checks every person on the job (2026-10-24: several people per job) through the one "on this job" rule,
+// jobs/onJob.ts, which matches a roster member on assigned_to_member_id and on job_assignee.member_id.
+{
+  const onJob = read('packages/tenant-backend/src/jobs/onJob.ts')
+  const sameDay = jobs.slice(jobs.indexOf('const sameDayFor'), jobs.indexOf('const assigneeConflict'))
+  if (!/onJob\(exec, t, personId\(p\)\)/.test(sameDay)) fail('double-booking must ask the one rule (onJob) for each person on the job')
+  if (!/const personId = \(p: Person\) => \(p\.userId \|\| p\.memberId\)/.test(jobs)) fail('a person may be a roster member (memberId) as well as a login')
+  if (!/eq\(j\.assignedToMemberId, id\)/.test(onJob) || !/eq\(a\.memberId, id\)/.test(onJob)) fail('double-booking must be checked for a roster member too')
+}
 // The four links must stay in the list; a template's branch (locationId, multi_location) may follow them.
 if (!/for \(const k of \['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'(?:, \.\.\.\(branches \? \['locationId'\] as const : \[\]\))?\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it, including a roster assignee (Unassign did nothing)")
 const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')

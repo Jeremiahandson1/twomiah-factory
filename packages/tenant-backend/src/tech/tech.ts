@@ -34,11 +34,12 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, asc, desc, inArray } from 'drizzle-orm'
 import type { JobHook } from '../jobs/jobs'
+import { onJob } from '../jobs/onJob'
 import { companyTimeZone } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { JOB_MONEY, jobMoneyWithheld, withoutJobMoney, type CanSee } from '../jobs/jobMoney'
 
-export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any }
+export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any; /** the other people on a job (jobs/onJob.ts): a helper sees the job on their day too */ jobAssignee?: any; /** the logins on each crew (jobs/onJob.ts): a crew member sees the crew's jobs */ crewLogin?: any }
 export interface TechHooks { onDispatch?: JobHook; onStart?: JobHook; onComplete?: JobHook }
 export interface TechRoutesDeps {
   db: any
@@ -96,9 +97,11 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   const shapeJobMoney = async <T,>(c: any, rows: T): Promise<T> =>
     withoutJobMoney(rows, deps.canSee ? await jobMoneyWithheld(deps.canSee, c.get('user')) : ALL_JOB_MONEY)
 
+  /** This login's jobs: led, an assignee, the sales rep, or its crew's (../jobs/onJob.ts, the one rule). */
+  const mine = (userId: string) => onJob(db, t, String(userId))
   const myJob = async (id: string, currentUser: any) => {
     const [row] = await db.select().from(t.job)
-      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId))).limit(1)
+      .where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), mine(currentUser.userId))).limit(1)
     return row || null
   }
   /** The company's checklist form template — found by its category, made once if it does not exist yet. */
@@ -122,7 +125,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   app.get('/my-jobs', async (c) => {
     const currentUser = c.get('user') as any
     const jobs = await db.select().from(t.job)
-      .where(and(eq(t.job.companyId, currentUser.companyId), eq(t.job.assignedToId, currentUser.userId)))
+      .where(and(eq(t.job.companyId, currentUser.companyId), mine(currentUser.userId)))
       .orderBy(asc(t.job.scheduledDate), asc(t.job.scheduledTime))
 
     // Only the contacts and equipment these jobs name — the copies fetched the company's whole contact book.

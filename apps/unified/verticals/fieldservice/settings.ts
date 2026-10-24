@@ -1,7 +1,7 @@
 // Field service: HVAC, plumbing, electrical, cleaning, pest, handyman (templates/crm-fieldservice). Jobs are service
 // calls at a customer's service site, often on a piece of their equipment; techs are texted on their way.
 import type { StarterContent } from '../../server/core/starter.ts'
-import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other']
 
@@ -40,6 +40,8 @@ const fieldservice: VerticalSettings = {
   // A technician on the way to an address texts the customer from the contact record (templates/crm-fieldservice
   // middleware/permissions.ts, T30 L-RB).
   extraRolePermissions: { field: ['sms:send'] },
+  // Crew scope: a technician reads its own and its crews' jobs and their customers (server/core/vertical.ts).
+  withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
     jobs: { defaultType: 'repair', photos: true, billing: { prefix: 'INV', pad: 5, termsDays: 30 }, textArrival: true },
@@ -91,7 +93,8 @@ const fieldservice: VerticalSettings = {
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },
     time: { jobLabel: 'Service Call' },
     expenses: { jobLabel: 'Service Call' },
-    team: { rolePlaceholder: 'e.g. Lead Technician' },
+    // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
+    team: { rolePlaceholder: 'e.g. Lead Technician', crewLogins: true },
     agreements: { recurrence: true, planNamePlaceholder: 'e.g., HVAC Maintenance Plan' },
     fleet: { gps: true },
     portal: {

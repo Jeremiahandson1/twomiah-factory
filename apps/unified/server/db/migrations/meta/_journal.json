@@ -218,6 +218,20 @@
       "when": 1792847592532,
       "tag": "0030_view_as_commission_void",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792865775736,
+      "tag": "0031_crew_login",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792871781123,
+      "tag": "0032_job_assignee",
+      "breakpoints": true
     }
   ]
 }

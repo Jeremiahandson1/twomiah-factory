@@ -19,13 +19,13 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath,
 } from '@twomiah/tenant-backend'
-import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { asc, desc } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries,
+  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries, jobAssignee, crewLogin,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -63,6 +63,8 @@ import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
+import { ownContactsWhere } from '../crm/ownWork.ts'
+import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
@@ -132,8 +134,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
-    // A seat without contacts:read-all (a landscaping crew login) reads the customers on the jobs assigned to it.
-    ownContacts: (userId: string) => inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(eq(job.assignedToId, userId), isNotNull(job.contactId)))),
+    // A seat without contacts:read-all (every job vertical's field seat) reads the customers on its own jobs — led, an
+    // assignee, the sales rep or its crew's (crm/ownWork.ts over tenant-backend jobs/onJob.ts, the one rule).
+    ownContacts: (userId: string) => ownContactsWhere(db, userId),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
@@ -192,10 +195,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const jobs = createJobRoutes({
     db,
     tables: {
-      job, project, contact, user, timeEntry, teamMember, location, jobSeries,
+      job, project, contact, user, timeEntry, teamMember, location, jobSeries, jobAssignee, crewLogin,
       ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
-    authenticate, requirePermission, canSee, ...live, cleanText, cleanLines,
+    // jobAssignee + crewLogin: a seat without jobs:read-all reads the jobs it leads, is on, sells or crews (onJob).
+    authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
     options: {
       // a job also points at a piece of equipment and a service site
       ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),
@@ -337,7 +341,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
-    { path: '/api/team', access: 'user', feature: 'team', router: createTeamRoutes({
+    // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
+    { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
       // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).
       // The unified job table carries assigned_to_member_id for every vertical, so jobs are counted too (the salon copy's
@@ -346,7 +351,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         { table: appointment, field: 'stylistMemberId', one: 'appointment', many: 'appointments' },
         { table: job, field: 'assignedToMemberId', one: 'job', many: 'jobs' },
       ] } } : {}),
-    } as any) },
+    } as any)) },
     { path: '/api/dashboard', access: 'user', feature: 'dashboard', router: v.dashboard === 'events'
       // The private-events dashboard (CrmSettings.dashboard; templates/crm-restaurant and crm-bar routes/dashboard.ts).
       ? createEventsDashboardRoutes(own)
@@ -379,7 +384,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: createTechRoutes({
       // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
-      db, tables: { job, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
+      // The phone's day is the login's own jobs — led, an assignee, the sales rep or its crew's (tenant-backend onJob).
+      db, tables: { job, jobAssignee, crewLogin, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit } as any) },
