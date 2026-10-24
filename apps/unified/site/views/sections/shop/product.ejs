@@ -29,6 +29,12 @@
     },
   )
   const selected = (v) => defaultVariant && v.id === defaultVariant.id
+  // The upsells (server/crm/store/checkout/catalogue.ts productUpsells): the owner's picks, else the same category.
+  const ups = data.upsells || {}
+  const together = Array.isArray(ups.together) ? ups.together : []
+  const alsoLike = Array.isArray(ups.alsoLike) ? ups.alsoLike : []
+  const firstImage = (x) => { const im = Array.isArray(x && x.images) ? x.images : []; return im.find((i) => i.isPrimary) || im[0] || null }
+  const buyable = (x) => (Array.isArray(x && x.variants) ? x.variants : []).find((v) => v.inventoryQty === null || typeof v.inventoryQty === 'undefined' || v.inventoryQty > 0) || null
 %>
 <div class="store-page product-page">
   <div class="container">
@@ -109,5 +115,40 @@
       </div>
     </div>
   </div>
+  <% if (together.length) { %>
+    <section class="container product-upsell" aria-labelledby="fbt-title">
+      <h2 id="fbt-title" class="product-upsell__title">Frequently bought together</h2>
+      <div class="product-upsell__row">
+        <% together.forEach(function (x) { const img = firstImage(x); const v = buyable(x) %>
+          <div class="product-upsell__item">
+            <a href="/product/<%= encodeURIComponent(x.slug) %>" class="product-upsell__link">
+              <% if (img) { %><img src="<%= img.url %>" alt="<%= img.alt || x.name %>" loading="lazy" width="96" height="96"><% } else { %><span class="product-upsell__noimg" aria-hidden="true"></span><% } %>
+              <span class="product-upsell__name"><%= x.name %></span>
+            </a>
+            <% if (v) { %>
+              <span class="product-upsell__price"><%= money(v.priceCents) %></span>
+              <button type="button" class="btn btn--secondary btn--sm" data-add-to-cart data-sku="<%= v.sku %>" data-name="<%= x.name %>" data-variant="<%= x.variants.length > 1 ? v.name : '' %>"
+                data-price="<%= v.priceCents %>" data-image="<%= img ? img.url : '' %>" data-max="<%= inv(v) %>"><span data-add-label>Add</span></button>
+            <% } else { %><span class="product-upsell__price">Sold out</span><% } %>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+  <% if (alsoLike.length) { %>
+    <section class="container product-upsell" aria-labelledby="ymal-title">
+      <h2 id="ymal-title" class="product-upsell__title">You may also like</h2>
+      <div class="product-grid product-grid--compact">
+        <% alsoLike.forEach(function (x) { const img = firstImage(x); const v = buyable(x) || (x.variants || [])[0] %>
+          <a href="/product/<%= encodeURIComponent(x.slug) %>" class="product-card product-card__link">
+            <div class="product-card__media">
+              <% if (img) { %><img src="<%= img.url %>" alt="<%= img.alt || x.name %>" loading="lazy" width="400" height="400"><% } else { %><div class="product-card__noimg" aria-hidden="true"></div><% } %>
+            </div>
+            <div class="product-card__body"><span class="product-card__name"><%= x.name %></span><% if (v) { %><span class="product-card__price"><%= money(v.priceCents) %></span><% } %></div>
+          </a>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
   <script type="application/ld+json"><%- ld(structured) %></script>
 </div>

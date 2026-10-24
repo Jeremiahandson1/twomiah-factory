@@ -22,6 +22,8 @@ import { createOrderRoutes, repairFulfilmentStamps } from './orders.ts'
 import { createShippingRoutes } from './shipping.ts'
 import { createSupplierRoutes } from './suppliers.ts'
 import { mayMove } from './rules.ts'
+import { createDraftOrderRoutes } from './draftOrders.ts'
+import { createDisputeRoutes } from './disputes.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -58,5 +60,8 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/orders', access: 'user', router: createOrderRoutes(d, core, refunds) },
     { path: '/api/admin/shipping', access: 'user', router: createShippingRoutes(d, core) },
     { path: '/api/admin/suppliers', access: 'user', router: createSupplierRoutes(d, core) },
+    // 2026-10-24, the store upgrade: orders made for a customer (orders:create), chargebacks (orders:refund).
+    { path: '/api/admin/draft-orders', access: 'user', router: createDraftOrderRoutes(d, core) },
+    { path: '/api/admin/disputes', access: 'user', router: createDisputeRoutes(d) },
   ]
 }

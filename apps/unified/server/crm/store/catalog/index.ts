@@ -14,6 +14,8 @@ import { createDiscountRoutes } from './discounts.ts'
 import { createReviewRoutes } from './reviews.ts'
 import { createLoyaltyAdminRoutes } from './loyalty.ts'
 import { createStoreSettingsRoutes } from './settings.ts'
+import { createCustomerGroupRoutes } from './groups.ts'
+import { createGiftCardRoutes } from './giftCardRoutes.ts'
 
 export function catalogMounts(d: CrmDeps, core: StoreCore): Mount[] {
   return [
@@ -22,5 +24,8 @@ export function catalogMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/reviews', access: 'user', router: createReviewRoutes(d) },
     { path: '/api/admin/loyalty', access: 'user', router: createLoyaltyAdminRoutes(d, core) },
     { path: '/api/admin/settings', access: 'user', router: createStoreSettingsRoutes(d, core) },
+    // 2026-10-24, the store upgrade: wholesale customer groups (discounts:*), gift cards (orders:refund).
+    { path: '/api/admin/customer-groups', access: 'user', router: createCustomerGroupRoutes(d) },
+    { path: '/api/admin/gift-cards', access: 'user', router: createGiftCardRoutes(d, core) },
   ]
 }

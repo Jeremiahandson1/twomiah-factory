@@ -135,7 +135,7 @@ export async function releaseLineUnits(tx: any, orderItemId: string, orderId: st
 /** Nothing left to send back: the order is refunded, as a whole refund would have left it. True when this closed it. */
 export async function closeFullyRefunded(tx: any, orderId: string, extra: Record<string, unknown>): Promise<boolean> {
   const closed = await tx.update(storeOrder).set({ status: 'refunded', updatedAt: new Date(), ...extra } as any)
-    .where(and(eq(storeOrder.id, orderId), sql`${storeOrder.refundedCents} >= ${storeOrder.totalCents}`, sql`${storeOrder.status} in ('paid','fulfilled','shipped','delivered')`))
+    .where(and(eq(storeOrder.id, orderId), sql`${storeOrder.refundedCents} >= ${storeOrder.totalCents}`, sql`${storeOrder.status} in ('paid','fulfilled','shipped','delivered','ready_for_pickup','picked_up')`))
     .returning({ id: storeOrder.id })
   return closed.length > 0
 }

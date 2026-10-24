@@ -35,6 +35,13 @@ export interface Order {
   refundedCents?: number
   supplierOrderId?: string | null; supplierStatus?: string | null; supplierCostCents?: number | null; supplierError?: string | null
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
+  /** ship | pickup | digital (gift cards only); storefront | draft (made for a customer); Stripe Tax worked the tax out. */
+  fulfillment?: string; source?: string; taxAutomatic?: boolean
+  /** What a gift card paid, and what has gone back on it. */
+  giftCardCents?: number; giftCardRefundedCents?: number
+  /** A chargeback's status at the provider, when there is one. */
+  disputeStatus?: string | null
+  readyForPickupAt?: string | null; pickedUpAt?: string | null
   /** GET /:id and the part-refund replies carry them; the status, fulfilment and label replies do not. */
   items?: OrderItem[]; refunds?: OrderRefund[]
 }
@@ -67,6 +74,8 @@ const STATUS_BADGE: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   // amber, not orange: orange-* is the shop's brand colour, and a status must not change hue with the brand.
   refunded: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  ready_for_pickup: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300',
+  picked_up: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
 }
 export const statusBadge = (status: string) => STATUS_BADGE[status] || 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300'
 

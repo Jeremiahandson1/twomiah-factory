@@ -33,20 +33,22 @@
 import { Hono } from 'hono'
 import type { Context, MiddlewareHandler } from 'hono'
 import { z } from 'zod'
-import { createId } from '@paralleldrive/cuid2'
-import { and, eq, inArray } from 'drizzle-orm'
-import {
-  discountCode, paymentConfig, productReview, storeOrder, storeOrderItem, storeProduct, storeProductImage, storeProductVariant,
-  type ShippingZone, type TaxRate,
-} from '../../../db/schema/store.ts'
+import { and, eq } from 'drizzle-orm'
+import { paymentConfig, productReview, storeOrder } from '../../../db/schema/store.ts'
 import { ratingSummaries, verifyingOrderId } from '../../../data/storeCheckout.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import type { WebhookResult } from '../payments/types.ts'
-import { activeProductRow, storefrontCatalogue, storefrontProduct } from './catalogue.ts'
-import { NO_EMAIL_YET, orderNumberFor, requestOrigin, successUrlFor, type CheckoutService } from './checkoutService.ts'
+import { activeProductRow, cartUpsell, storefrontCatalogue, storefrontProduct } from './catalogue.ts'
+import { requestOrigin, type CheckoutService } from './checkoutService.ts'
+import { createOrderStarter, usesStripeTax } from './placeOrder.ts'
+import { createFeedRoutes } from './feeds.ts'
+import { createStoreGiftCards } from '../giftCards.ts'
+import { createStoreDisputes } from '../orders/disputes.ts'
+
+export { computeShipping, computeTaxBps, checkoutImageUrl } from './placeOrder.ts'
 
 /** What the orders group lends the webhooks (server/crm/store/orders): the lifecycle, and a provider's refund notice applied. */
 export interface OrderHooks {
@@ -65,55 +67,7 @@ export const EMPTY_QUOTE = {
   rewards: [] as unknown[],
 }
 
-// ── Checkout: prices are ALWAYS computed server-side from the DB ──────────────
-// Shipping: first matching zone (by the buyer's ship-to region) wins, else the flat rate. Free-shipping thresholds
-// apply per-zone or via the flat threshold.
-export function computeShipping(settings: any, subtotalCents: number, shipTo?: { country?: string; state?: string }): number {
-  const zones: ShippingZone[] = settings?.shippingZones || []
-  if (shipTo && zones.length) {
-    const c = (shipTo.country || '').toUpperCase()
-    const s = (shipTo.state || '').toUpperCase()
-    const zone = zones.find((z) =>
-      (!z.countries?.length || z.countries.map((x) => x.toUpperCase()).includes(c)) &&
-      (!z.states?.length || z.states.map((x) => x.toUpperCase()).includes(s)))
-    if (zone) {
-      if (zone.freeThresholdCents != null && subtotalCents >= zone.freeThresholdCents) return 0
-      return Math.max(0, zone.rateCents || 0)
-    }
-  }
-  const threshold = settings?.freeShippingThresholdCents ?? null
-  return threshold !== null && subtotalCents >= threshold ? 0 : (settings?.flatShippingCents ?? 0)
-}
-
-// Tax: first matching region rate wins, else the flat taxRateBps.
-export function computeTaxBps(settings: any, shipTo?: { country?: string; state?: string }): number {
-  const rates: TaxRate[] = settings?.taxRates || []
-  if (shipTo && rates.length) {
-    const c = (shipTo.country || '').toUpperCase()
-    const s = (shipTo.state || '').toUpperCase()
-    const r = rates.find((r) =>
-      (!r.country || r.country.toUpperCase() === c) &&
-      (!r.state || r.state.toUpperCase() === s))
-    if (r) return Math.max(0, r.rateBps || 0)
-  }
-  return settings?.taxRateBps ?? 0
-}
-
-/**
- * THE PICTURE A PAYMENT PAGE MAY SHOW. (Live, Stripe test mode, 10/12: the first checkout on the test store answered
- * 502 'Could not start checkout'; Stripe's reason, from the log, was 'Not a valid URL'.)
- *
- * Stripe takes a product image only as a public https address (pasted images are held to https already). The sample
- * products every new store is seeded with carry their placeholder picture as a data: URI, so the very first test order
- * a new owner placed — on the products the store came with — failed, and the order never existed. An image is
- * decoration on the payment page, never a reason to refuse the payment: a picture Stripe cannot fetch is left off, and
- * the shopper still pays.
- */
-export const checkoutImageUrl = (url: string | null | undefined): string | undefined => {
-  if (!url) return undefined
-  try { const u = new URL(url); return u.protocol === 'https:' ? u.href : undefined } catch { return undefined }
-}
-
+// ── Checkout: prices are ALWAYS computed server-side from the DB (./placeOrder.ts) ──────────────
 const checkoutSchema = z.object({
   items: z.array(z.object({
     sku: z.string().min(1),
@@ -127,6 +81,10 @@ const checkoutSchema = z.object({
   // cart, exactly like the discount code above, because the client is not a trustworthy source of how much money to
   // take off.
   loyaltyRewardId: z.string().min(1).max(64).optional(),
+  // A gift card the shopper pays part or all of the order with; its balance is held when the order is written.
+  giftCardCode: z.string().trim().min(4).max(40).optional(),
+  // Ship it, or collect it from the shop (offered when the store has pickup on). A cart of gift cards needs neither.
+  delivery: z.enum(['ship', 'pickup']).optional(),
 })
 
 const reviewSchema = z.object({
@@ -151,6 +109,9 @@ const headersOf = (c: Context): Record<string, string> => {
 
 export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: CheckoutService, orders?: OrderHooks) {
   const { db, logger } = d
+  const giftCards = createStoreGiftCards(d, core)
+  const starter = createOrderStarter(d, core, checkout, giftCards)
+  const disputes = createStoreDisputes(d, core)
   const pub = new Hono()
   const isProd = process.env.NODE_ENV === 'production'
 
@@ -179,6 +140,9 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   // ('/products/*' also matches /products itself.)
   pub.use('/products/*', createRateLimiter(15 * 60 * 1000, isProd ? 600 : 5000))
   pub.use('/checkout', createRateLimiter(15 * 60 * 1000, isProd ? 60 : 1000))
+  // A gift card's balance by its number: few tries an address, so numbers cannot be guessed by trying them.
+  pub.use('/gift-cards/*', createRateLimiter(15 * 60 * 1000, isProd ? 20 : 1000))
+  pub.use('/upsells', createRateLimiter(15 * 60 * 1000, isProd ? 600 : 5000))
 
   pub.get('/status', async (c) => {
     const co = await core.shop()
@@ -214,8 +178,32 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       freeShippingThresholdCents: settings.freeShippingThresholdCents,
       taxRateBps: settings.taxRateBps,
       checkoutEnabled: !!cfg,
+      // Tax by the shopper's address at the payment page (Stripe Tax), so the cart says so instead of a rate.
+      automaticTax: usesStripeTax(settings, cfg ? await core.getActiveProvider(s.co.id) : null),
+      // Local pickup: offered at checkout, with where and when.
+      pickup: settings.pickupEnabled ? { address: settings.pickupAddress || '', hours: settings.pickupHours || '' } : null,
     })
   })
+
+  // What a gift card number has left (the cart's "Apply"). Only the balance — never who bought it or for whom.
+  pub.get('/gift-cards/balance', shopperDoor, async (c) => {
+    const s = await theShop(c); if (s.reply) return s.reply
+    const code = String(c.req.query('code') || '').trim().slice(0, 40)
+    if (!code) return fail(c, 400, 'Enter the gift card number.', 'validation_failed', { code: 'Enter the gift card number' })
+    const r = await giftCards.balanceOf(s.co.id, code)
+    if (!r.ok) return fail(c, 404, r.error, 'gift_card')
+    return one(c, { code: r.code, balanceCents: r.balanceCents })
+  })
+
+  // The cart's one upsell line: a product bought with what is in the cart, not already in it.
+  pub.get('/upsells', shopperDoor, async (c) => {
+    const s = await theShop(c); if (s.reply) return s.reply
+    const skus = String(c.req.query('skus') || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 50)
+    return one(c, { product: skus.length ? await cartUpsell(d, s.co.id, skus) : null })
+  })
+
+  // The product feeds (Google Merchant Center, Meta) at their private addresses.
+  pub.route('/', createFeedRoutes(d, core, shopperDoor))
 
   /**
    * What this shopper can claim against the cart they are holding.
@@ -254,180 +242,10 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return fail(c, 400, 'Invalid cart', 'validation_failed', fieldsOf(parsed.error))
     const s = await theShop(c); if (s.reply) return s.reply
-    const companyId = s.co.id
-
-    const provider = await core.getActiveProvider(companyId)
-    if (!provider) return fail(c, 503, 'This store is not accepting orders yet')
-
-    const settings = await core.settings(companyId)
-    const currency = settings.currency ?? 'usd'
-
-    // Collapse duplicate SKUs, then load the real variants (trusted prices) — of this company's products.
-    const wanted = new Map<string, number>()
-    for (const it of parsed.data.items) wanted.set(it.sku, (wanted.get(it.sku) ?? 0) + it.quantity)
-    const skus = [...wanted.keys()]
-
-    const found: Array<{ v: typeof storeProductVariant.$inferSelect; p: typeof storeProduct.$inferSelect }> = await db
-      .select({ v: storeProductVariant, p: storeProduct })
-      .from(storeProductVariant)
-      .innerJoin(storeProduct, eq(storeProduct.id, storeProductVariant.productId))
-      .where(and(inArray(storeProductVariant.sku, skus), eq(storeProduct.companyId, companyId)))
-    if (found.length === 0) return fail(c, 400, 'None of these items are available')
-    const prodIds = [...new Set(found.map((r) => r.p.id))]
-
-    const lineItems: {
-      sku: string; name: string; description?: string; imageUrl?: string
-      unitPriceCents: number; quantity: number
-      productId: string; variantId: string; variantName: string; productName: string
-    }[] = []
-
-    // Only sell variants whose product is active.
-    for (const { v, p } of found) {
-      if (p.status !== 'active') continue
-      const qty = wanted.get(v.sku)!
-      if (v.inventoryQty !== null && v.inventoryQty < qty) {
-        return fail(c, 409, `Only ${v.inventoryQty} of ${p.name} left`)
-      }
-      lineItems.push({
-        sku: v.sku,
-        name: v.name && v.name !== p.name ? `${p.name} — ${v.name}` : p.name,
-        description: p.tagline ?? undefined,
-        unitPriceCents: v.priceCents,
-        quantity: qty,
-        productId: p.id,
-        variantId: v.id,
-        variantName: v.name,
-        productName: p.name,
-      })
-    }
-    if (lineItems.length === 0) return fail(c, 400, 'None of these items are available')
-
-    // Attach a primary image per product for the checkout display.
-    const imgs: Array<typeof storeProductImage.$inferSelect> = await db.select().from(storeProductImage).where(inArray(storeProductImage.productId, prodIds))
-    for (const li of lineItems) {
-      const img = imgs.find((i) => i.productId === li.productId && i.isPrimary)
-        ?? imgs.find((i) => i.productId === li.productId)
-      const shown = checkoutImageUrl(img?.url)
-      if (shown) li.imageUrl = shown
-    }
-
-    // ── Server-computed totals (never trust the client) ──
-    const subtotalCents = lineItems.reduce((a, li) => a + li.unitPriceCents * li.quantity, 0)
-
-    // Validate + apply a discount code server-side (never trust the client).
-    let discountCents = 0
-    let appliedCode: string | null = null
-    if (parsed.data.discountCode) {
-      const code = parsed.data.discountCode.trim().toUpperCase()
-      const [dc] = await db.select().from(discountCode).where(and(eq(discountCode.companyId, companyId), eq(discountCode.code, code))).limit(1)
-      if (dc && dc.active
-          && (!dc.expiresAt || dc.expiresAt > new Date())
-          && (dc.maxUses == null || dc.usedCount < dc.maxUses)
-          && subtotalCents >= dc.minSubtotalCents) {
-        discountCents = dc.type === 'percent'
-          ? Math.min(subtotalCents, Math.round(subtotalCents * dc.value / 100))
-          : Math.min(subtotalCents, dc.value)
-        appliedCode = dc.code
-      }
-    }
-
-    // A loyalty reward, priced by the server against this cart. The points are NOT spent here — that happens at
-    // finalizeOrder, so an abandoned checkout costs the shopper nothing. Kept apart from the code discount so the books
-    // can still say which was which, and the two together are capped at the subtotal rather than being allowed to make
-    // an order pay the customer.
-    let loyaltyDiscountCents = 0
-    let loyaltyRewardId: string | null = null
-    if (parsed.data.loyaltyRewardId && parsed.data.customerEmail) {
-      try {
-        const quoted = await core.quoteRewardForCheckout(companyId, parsed.data.customerEmail, parsed.data.loyaltyRewardId, subtotalCents)
-        loyaltyDiscountCents = Math.max(0, Math.min(quoted, subtotalCents - discountCents))
-        if (loyaltyDiscountCents > 0) loyaltyRewardId = parsed.data.loyaltyRewardId
-      } catch { /* a loyalty problem must not stop a customer paying */ }
-    }
-    const totalDiscountCents = Math.min(subtotalCents, discountCents + loyaltyDiscountCents)
-
-    const shippingCents = computeShipping(settings, subtotalCents, parsed.data.shipTo)
-    const taxCents = Math.round(Math.max(0, subtotalCents - totalDiscountCents) * (computeTaxBps(settings, parsed.data.shipTo) / 10000))
-    const totalCents = Math.max(0, subtotalCents - totalDiscountCents) + shippingCents + taxCents
-
     // The origin the shopper is actually on — from the request, never the body (see the header).
-    const storefront = requestOrigin(c).replace(/\/+$/, '')
-
-    // The shopper is a customer (decision 2), found by email or made now.
-    let contactId: string | null = null
-    if (parsed.data.customerEmail) {
-      try { contactId = await core.shopperFor(companyId, { email: parsed.data.customerEmail }) } catch (e: any) {
-        logger.warn('[store] shopper contact not made at checkout', { error: e?.message })
-      }
-    }
-
-    // Create a pending order FIRST so a webhook (or the success page) can reconcile by provider session id. Idempotency
-    // is guaranteed by the unique (provider, provider_session_id) index; abandoned checkouts stay 'pending'. Assign the
-    // order number at CREATION, not at payment — an abandoned/pending order should still be traceable by number. It's
-    // deterministic from the id, so finalizeOrder keeps the identical value (no conflict).
-    const orderId = createId()
-    const [order] = await db.insert(storeOrder).values({
-      id: orderId,
-      companyId,
-      contactId,
-      orderNumber: orderNumberFor(orderId),
-      provider: provider.name,
-      providerSessionId: `pending_${createId()}`, // replaced with real id below
-      status: 'pending',
-      customerEmail: parsed.data.customerEmail ?? NO_EMAIL_YET,
-      subtotalCents, shippingCents, taxCents,
-      // discountCents stays the TOTAL taken off, so every existing reader (totals, exports, refunds) keeps working;
-      // the loyalty share is recorded alongside it rather than hidden inside it.
-      discountCents: totalDiscountCents, discountCode: appliedCode,
-      loyaltyRewardId, loyaltyDiscountCents,
-      totalCents, currency,
-    }).returning()
-
-    try {
-      const session = await provider.createCheckout({
-        lineItems: lineItems.map((li) => ({
-          name: li.name, description: li.description, imageUrl: li.imageUrl,
-          unitPriceCents: li.unitPriceCents, quantity: li.quantity, sku: li.sku,
-        })),
-        currency,
-        shippingCents,
-        taxCents,
-        // EVERYTHING taken off — the code AND the loyalty reward. This passed `discountCents` (the code alone), so a
-        // shopper who redeemed a reward was charged full price while the order said otherwise, and their points were
-        // spent at payment anyway. The amount the provider charges must be the order's totalCents.
-        discountCents: totalDiscountCents,
-        customerEmail: parsed.data.customerEmail,
-        collectShippingAddress: true,
-        successUrl: successUrlFor(provider.name, storefront, order.id),
-        cancelUrl: `${storefront}/cart`,
-        clientReferenceId: order.id,
-        metadata: { orderId: order.id },
-      })
-
-      await db.update(storeOrder)
-        .set({ providerSessionId: session.providerSessionId, updatedAt: new Date() })
-        .where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId)))
-
-      await db.insert(storeOrderItem).values(lineItems.map((li) => ({
-        orderId: order.id,
-        productId: li.productId,
-        variantId: li.variantId,
-        productName: li.productName,
-        variantName: li.variantName,
-        sku: li.sku,
-        imageUrl: li.imageUrl ?? null,
-        unitPriceCents: li.unitPriceCents,
-        quantity: li.quantity,
-        lineTotalCents: li.unitPriceCents * li.quantity,
-      })))
-
-      return one(c, { url: session.redirectUrl })
-    } catch (err: any) {
-      // Roll back the pending order so a failed provider call leaves no orphan.
-      await db.delete(storeOrder).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId)))
-      logger.error('[store] checkout failed', { error: err?.message })
-      return fail(c, 502, 'Could not start checkout')
-    }
+    const r = await starter.start({ ...parsed.data, companyId: s.co.id, origin: requestOrigin(c) })
+    if (!r.ok) return fail(c, r.status, r.error, r.code)
+    return one(c, { url: r.url, ...(r.paidByGiftCard ? { paidByGiftCard: true } : {}) })
   })
 
   // ── Webhooks: signature-verified, idempotent ─────────────────────────────────
@@ -512,6 +330,12 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       const ours = result.providerRefundId ? await orders.applyRefundUpdate(companyId, provider.name, result.providerRefundId, 'completed') : 'unknown'
       const outcome = ours !== 'unknown' ? ours : await orders.applyProviderRefund(companyId, provider.name, result.providerPaymentId!, result.amountRefundedCents ?? 0, result.amountTotalCents ?? 0)
       logger.info('[store] refund notification', { outcome })
+      return done(c)
+    }
+    // A chargeback: the order is marked disputed and the owner told (orders/disputes.ts).
+    if (result.type === 'dispute' && result.dispute) {
+      const outcome = await disputes.apply(companyId, provider.name, result.dispute, requestOrigin(c))
+      logger.info('[store] dispute notification', { outcome })
       return done(c)
     }
     if (result.type !== 'paid' || !result.providerSessionId) return done(c)

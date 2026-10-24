@@ -18,8 +18,8 @@ import { fail } from '../../../http/reply.ts'
  * Everything else changes whether the order was paid for (cancel, refund, mark paid or pending, reopen a
  * cancelled one, ship one nobody paid for) and is orders:refund, the manager's and the owner's.
  */
-export const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
-const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
+export const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up']
+const FULFILMENT = ['fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up']
 export const isFulfilment = (from: string, to: string) => COUNTED.includes(from) && FULFILMENT.includes(to)
 /**
  * WHERE AN ORDER MAY GO NEXT. (Store QA T1, M1)
@@ -39,12 +39,33 @@ export const isFulfilment = (from: string, to: string) => COUNTED.includes(from)
 export const NEXT_STATUS: Record<string, string[]> = {
   // an order taken offline is marked paid by the owner or a manager; one never paid for is cancelled
   pending: ['paid', 'cancelled'],
-  paid: ['fulfilled', 'shipped', 'cancelled', 'refunded'],
+  paid: ['fulfilled', 'shipped', 'ready_for_pickup', 'cancelled', 'refunded'],
   fulfilled: ['shipped', 'refunded'],
   shipped: ['delivered', 'refunded'],
   delivered: ['refunded'],
+  // Local pickup (2026-10-24): packed and waiting at the counter (the customer is emailed), then collected. Not handed
+  // over yet, it can still be cancelled with the money back.
+  ready_for_pickup: ['picked_up', 'cancelled', 'refunded'],
+  picked_up: ['refunded'],
 }
 export const mayMove = (from: string, to: string) => from === to || (NEXT_STATUS[from] || []).includes(to)
+/**
+ * HOW THE ORDER REACHES THE CUSTOMER DECIDES ITS FLOOR MOVES. A pickup order is never packed for the post or shipped —
+ * it is made ready at the counter and picked up; an order going by post is never "ready for pickup"; a gift-card-only
+ * order (digital) has nothing to send at all. Asked beside mayMove by every status change and "mark shipped".
+ */
+const POST_MOVES = ['fulfilled', 'shipped', 'delivered']
+const PICKUP_MOVES = ['ready_for_pickup', 'picked_up']
+export const fitsFulfillment = (fulfillment: string | null | undefined, to: string) =>
+  fulfillment === 'pickup' ? !POST_MOVES.includes(to) : fulfillment === 'digital' ? ![...POST_MOVES, ...PICKUP_MOVES].includes(to) : !PICKUP_MOVES.includes(to)
+export const fulfillmentRefusal = (c: Context, fulfillment: string | null | undefined, to: string) => fail(c, 409,
+  fulfillment === 'pickup'
+    ? 'This is a pickup order: mark it ready for pickup, then picked up — it is never shipped.'
+    : fulfillment === 'digital'
+      ? 'This order is gift cards only: they were emailed when it was paid, so there is nothing to ship or pick up.'
+      : `This order is being shipped, so it cannot be marked ${to === 'picked_up' ? 'picked up' : 'ready for pickup'}.`,
+  'wrong_fulfillment')
+
 export const moveRefusal = (c: Context, from: string, to: string) => fail(c, 409,
   (NEXT_STATUS[from] || []).length
     ? `An order that is ${from} can be marked ${NEXT_STATUS[from].join(', ')} — not ${to}.`

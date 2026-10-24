@@ -15,6 +15,8 @@ export type CheckoutLineItem = {
   unitPriceCents: number
   quantity: number
   sku: string
+  /** Stripe Tax's product tax code for this line (a gift card is 'txcd_00000000', not taxable); absent = the account's default. */
+  taxCode?: string
 }
 
 export type CreateCheckoutInput = {
@@ -29,6 +31,13 @@ export type CreateCheckoutInput = {
   successUrl: string
   cancelUrl: string
   collectShippingAddress: boolean
+  /**
+   * Sales tax worked out by the provider from the shopper's address (Stripe Tax: automatic_tax). taxCents is then 0 and
+   * the paid session says what was charged (WebhookResult.taxCents). Only Stripe is ever asked for it.
+   */
+  automaticTax?: boolean
+  /** Ask for the billing address (automatic tax on an order with no shipping address: a pickup, a gift card). */
+  collectBillingAddress?: boolean
   // Correlates the provider session back to our pending order row.
   clientReferenceId: string
   metadata?: Record<string, string>
@@ -53,7 +62,11 @@ export type WebhookResult = {
   // 'refunded': money sent back from the provider's own dashboard (routes/orders.ts applyProviderRefund), or the
   // provider's notice of a refund the store made (matched by providerRefundId, never counted twice).
   // 'refund_failed': a refund the provider had accepted as pending did not go through (PayPal PAYMENT.REFUND.FAILED).
-  type: 'paid' | 'refunded' | 'refund_failed' | 'ignored'
+  // 'dispute': a chargeback opened, changed or closed (Stripe charge.dispute.*), described in `dispute`.
+  type: 'paid' | 'refunded' | 'refund_failed' | 'dispute' | 'ignored'
+  // For 'paid': the tax the provider worked out (automatic tax), in the smallest unit.
+  taxCents?: number
+  dispute?: DisputeNotice
   // For 'refunded': how much of the charge has gone back so far, and the charge itself.
   amountRefundedCents?: number
   // For 'refunded' / 'refund_failed': the provider's id for this one refund, and (failed) why.
@@ -68,6 +81,20 @@ export type WebhookResult = {
   customerPhone?: string
   shippingAddress?: Address | null
   billingAddress?: Address | null
+}
+
+/** A chargeback as the provider describes it (Stripe's Dispute object). */
+export type DisputeNotice = {
+  providerDisputeId: string
+  providerPaymentId: string | null
+  amountCents: number
+  currency: string
+  reason: string | null
+  status: string
+  livemode: boolean
+  evidenceDueBy: Date | null
+  /** charge.dispute.created: the owner is told by email. */
+  opened: boolean
 }
 
 // The merchant's OWN provider credentials, decrypted just-in-time from
@@ -129,4 +156,7 @@ export interface PaymentProvider {
   // Where a refund the provider is holding (awaiting) stands now: completed → status 'succeeded'; still pending →
   // awaiting; failed → RefundRefused; anything else thrown → unknown, ask again later. Only PayPal holds refunds.
   refundStatus?(refundId: string): Promise<RefundResult>
+  // Whether the account can work out sales tax itself (Stripe Tax's settings status): 'active' once the business has set
+  // its origin address and registrations in Stripe. Only Stripe has it.
+  taxStatus?(): Promise<'active' | 'pending'>
 }

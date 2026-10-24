@@ -167,6 +167,8 @@ export const barGiftCard = pgTable('bar_gift_card', {
   message: text('message'),
   providerPaymentId: text('provider_payment_id'),
   idempotencyKey: text('idempotency_key'),
+  /** Sold online by the store: the order that paid for it (the store's gift-card product). */
+  orderId: text('order_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
@@ -185,10 +187,15 @@ export const barGiftCardLedger = pgTable('bar_gift_card_ledger', {
   paymentId: text('payment_id'),
   byName: text('by_name'),
   note: text('note'),
+  /** The store's order this movement was for: spent at its checkout, put back when it was refunded or abandoned. */
+  orderId: text('order_id'),
+  /** One movement per key: a retried refund or release puts the money back once. */
+  idempotencyKey: text('idempotency_key'),
   at: timestamp('at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_gift_card_ledger_card_idx').on(t.cardId, t.at),
+  uniqueIndex('bar_gift_card_ledger_company_key_key').on(t.companyId, t.idempotencyKey),
 ])
 
 // One ticket per fire. The items are a snapshot of what the cook was asked for, with the prep time pacing used.

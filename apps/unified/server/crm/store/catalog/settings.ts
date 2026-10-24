@@ -23,9 +23,10 @@
 //   · replies (RULEBOOK §3): the settings are the record (was { settings }); the field refusal keeps its sentence and
 //     code, its `fields` list now the rulebook's fields map ({ taxRateBps: 'Only the store owner can change this' });
 //     a validation failure names each box (was 'Invalid settings' with zod's flatten() as `details`).
+import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { storeSettings } from '../../../db/schema/store.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -58,6 +59,13 @@ const settingsSchema = z.object({
   abandonedCartDelayMinutes: z.number().int().min(1).max(60 * 24 * 7).optional(),
   reviewsEnabled: z.boolean().optional(),
   reviewRequestDays: z.number().int().min(0).max(365).optional(),
+  // Sales tax by the shopper's address, worked out by Stripe Tax (2026-10-24). Switched on only while the connected
+  // Stripe account's tax settings are active (see stripeTaxRefusal).
+  stripeTaxEnabled: z.boolean().optional(),
+  // Local pickup: offered at checkout with no shipping charge. An address is needed to switch it on.
+  pickupEnabled: z.boolean().optional(),
+  pickupAddress: z.string().trim().max(500).optional().nullable(),
+  pickupHours: z.string().trim().max(500).optional().nullable(),
 })
 
 /** The business's own fields, which the template's row held and the company row holds here. */
@@ -77,7 +85,7 @@ const COMPANY_FIELDS: Record<string, string> = {
  * changed, so a manager editing a zone sends only shipping fields and is let through, and one that also touched the
  * tax rate is refused, naming it, with nothing saved.
  */
-const SHIPPING_FIELDS = ['flatShippingCents', 'freeShippingThresholdCents', 'shippingZones'] as const
+const SHIPPING_FIELDS = ['flatShippingCents', 'freeShippingThresholdCents', 'shippingZones', 'pickupEnabled', 'pickupAddress', 'pickupHours'] as const
 export const permissionForField = (key: string) => (SHIPPING_FIELDS as readonly string[]).includes(key) ? 'shipping:configure' : 'settings:update'
 
 /**
@@ -100,6 +108,10 @@ const sayFor = (currency: string): Record<string, (o: unknown, n: unknown) => st
     abandonedCartDelayMinutes: (o, n) => `Abandoned-cart reminder after ${o} → ${n} minutes`,
     reviewsEnabled: (o, n) => `Review requests ${onOff(o)} → ${onOff(n)}`,
     reviewRequestDays: (o, n) => `Review request ${o} → ${n} days after shipping`,
+    stripeTaxEnabled: (o, n) => `Stripe Tax ${onOff(o)} → ${onOff(n)}`,
+    pickupEnabled: (o, n) => `Local pickup ${onOff(o)} → ${onOff(n)}`,
+    pickupAddress: () => 'Pickup address edited',
+    pickupHours: () => 'Pickup hours edited',
   }
 }
 export const describeSettings = (changes: Record<string, { old: unknown; new: unknown }> | null, currency = 'usd') => {
@@ -108,12 +120,61 @@ export const describeSettings = (changes: Record<string, { old: unknown; new: un
   return Object.entries(changes).map(([k, v]) => (say[k] ? say[k](v.old, v.new) : k)).join('; ')
 }
 
+/** A new private part for the product feeds' addresses. */
+export const newFeedToken = () => randomBytes(18).toString('base64url')
+
+/**
+ * STRIPE TAX IS SWITCHED ON ONLY WHERE IT CAN WORK. Every checkout of a store with it on asks Stripe for automatic_tax;
+ * an account whose tax settings are not active (no origin address, nothing registered) makes Stripe refuse the payment
+ * page, and every shopper would meet "Could not start checkout". So switching it on asks Stripe first. Null: it may.
+ */
+export function stripeTaxRefusal(provider: string | null, status: 'active' | 'pending' | 'unknown'): string | null {
+  if (provider !== 'stripe') return 'Stripe Tax works with Stripe payments. Connect Stripe on the Payments page first — the store\'s own tax rates apply until then.'
+  if (status !== 'active') return 'Stripe Tax is not set up in your Stripe account yet. In Stripe, open Settings › Tax, add your business address and where you are registered to collect tax, then switch it on here.'
+  return null
+}
+
 export function createStoreSettingsRoutes(d: CrmDeps, core: StoreCore) {
   const { db, audit, permissions } = d
   const app = new Hono<AppEnv>()
+  const mayOwn = async (c: any) => {
+    const u = c.get('user')
+    return permissions.hasPermission(u.role, 'settings:update', (await permissions.getExtraPermissions(u.userId)) || [])
+  }
+  /** Stripe's word on its tax settings, for the connected account; 'unknown' when it cannot be asked. */
+  const stripeTax = async (companyId: string): Promise<{ provider: string | null; status: 'active' | 'pending' | 'unknown' }> => {
+    const p = await core.getActiveProvider(companyId).catch(() => null)
+    if (!p) return { provider: null, status: 'unknown' }
+    if (p.name !== 'stripe' || !p.taxStatus) return { provider: p.name, status: 'unknown' }
+    try { return { provider: p.name, status: await p.taxStatus() } } catch { return { provider: p.name, status: 'unknown' } }
+  }
 
-  // Every seat reads the settings (the template's GET asked for a session alone): checkout's rates, the currency.
-  app.get('/', async (c) => one(c, await core.settings(c.get('user').companyId)))
+  // Every seat reads the settings (the template's GET asked for a session alone): checkout's rates, the currency. The
+  // feeds' private token is the owner's (settings:update): made on first read, never sent to a seat that may not.
+  app.get('/', async (c) => {
+    const companyId = c.get('user').companyId
+    let s = await core.settings(companyId)
+    if (!(await mayOwn(c))) { const { feedToken: _t, ...rest } = s; return one(c, rest) }
+    if (!s.feedToken) {
+      ;[s] = await db.update(storeSettings).set({ feedToken: newFeedToken() })
+        .where(and(eq(storeSettings.id, s.id), eq(storeSettings.companyId, companyId), isNull(storeSettings.feedToken))).returning()
+      if (!s) s = await core.settings(companyId)
+    }
+    return one(c, s)
+  })
+
+  // Where Stripe Tax stands for this store: the connected provider and Stripe's own status.
+  app.get('/stripe-tax', permissions.requirePermission('settings:update'), async (c) => one(c, await stripeTax(c.get('user').companyId)))
+
+  // A new feed address: the old ones stop answering at once (a URL that leaked is retired).
+  app.post('/feed-token', permissions.requirePermission('settings:update'), async (c) => {
+    const u = c.get('user')
+    const s = await core.settings(u.companyId)
+    const [updated] = await db.update(storeSettings).set({ feedToken: newFeedToken(), updatedAt: new Date() })
+      .where(and(eq(storeSettings.id, s.id), eq(storeSettings.companyId, u.companyId))).returning()
+    await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'store_settings', entityId: updated.id, entityName: 'Store settings', metadata: { description: 'Product feed addresses replaced — the old ones no longer work' }, req: c })
+    return one(c, { feedToken: updated.feedToken })
+  })
 
   app.patch('/', permissions.requireAnyPermission(['settings:update', 'shipping:configure']), async (c) => {
     const u = c.get('user')
@@ -139,6 +200,16 @@ export function createStoreSettingsRoutes(d: CrmDeps, core: StoreCore) {
     const parsed = settingsSchema.safeParse(raw)
     if (!parsed.success) return invalid(c, parsed.error)
     const existing = await core.settings(u.companyId)
+    if (parsed.data.stripeTaxEnabled === true && !existing.stripeTaxEnabled) {
+      const t = await stripeTax(u.companyId)
+      const why = stripeTaxRefusal(t.provider, t.status)
+      if (why) return fail(c, 409, `${why} Nothing was saved.`, 'stripe_tax_not_ready', { stripeTaxEnabled: why })
+    }
+    const pickupOn = parsed.data.pickupEnabled ?? existing.pickupEnabled
+    const pickupAt = parsed.data.pickupAddress !== undefined ? parsed.data.pickupAddress : existing.pickupAddress
+    if (pickupOn && !String(pickupAt || '').trim()) {
+      return fail(c, 400, 'Pickup needs the address customers collect from. Nothing was saved.', 'validation_failed', { pickupAddress: 'Enter the pickup address' })
+    }
     const [updated] = await db.update(storeSettings).set({ ...parsed.data, updatedAt: new Date() })
       .where(and(eq(storeSettings.id, existing.id), eq(storeSettings.companyId, u.companyId))).returning()
     const changes = changedKeys(existing, updated, Object.keys(parsed.data))

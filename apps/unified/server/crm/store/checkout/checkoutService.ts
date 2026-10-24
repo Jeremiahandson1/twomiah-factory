@@ -24,7 +24,7 @@
 //     skipped (there is nobody to remind);
 //   · a reminder and a review request are claimed with a conditional update (still unclaimed AT the update) before
 //     sending, so two passes at once (two instances during a deploy) send one message, not two.
-import { and, desc, eq, inArray, isNotNull, isNull, lt, ne } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne } from 'drizzle-orm'
 import { randomBytes } from 'node:crypto'
 import type { Context } from 'hono'
 import { productReview, storeOrder, storeOrderItem, storeProduct } from '../../../db/schema/store.ts'
@@ -32,6 +32,7 @@ import { countDiscountUse, decrementStock } from '../../../data/storeCheckout.ts
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { emailItems, emailOrder } from '../emails.ts'
+import { createStoreGiftCards, GIFT_CARD_TAX_CODE, HOLD_EXPIRY_MS } from '../giftCards.ts'
 import type { PaymentProvider, WebhookResult } from '../payments/types.ts'
 
 /** Cancel only well after the reminder has had a chance to work (the abandoned-cart reminder needs room). */
@@ -89,11 +90,19 @@ export interface OrderSummary {
   totalCents: number
   refundedCents: number
   currency: string
+  /** What a gift card paid of the total (the rest was charged to the card on the payment page). */
+  giftCardCents: number
+  /** ship | pickup | digital, and for a pickup where and when. */
+  fulfillment: string
+  pickup: { address: string; hours: string } | null
+  /** Stripe Tax worked the tax out from the shopper's address. */
+  taxAutomatic: boolean
   items: Array<{ productName: string; variantName: string; quantity: number; lineTotalCents: number; imageUrl: string | null }>
 }
 
 export function createCheckoutService(d: CrmDeps, core: StoreCore) {
   const { db, logger } = d
+  const giftCards = createStoreGiftCards(d, core)
 
   /**
    * Flip a pending order to paid, populate customer/shipping from the provider result, and decrement tracked
@@ -113,6 +122,11 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
       customerPhone: result.customerPhone ?? null,
       shippingAddress: result.shippingAddress ?? null,
       billingAddress: result.billingAddress ?? null,
+      // Stripe Tax worked the tax out at the payment page: the order takes what was charged - the tax, and the total
+      // (what the provider took, plus what the gift card paid).
+      ...(order.taxAutomatic && result.amountTotalCents != null
+        ? { taxCents: Math.max(0, result.taxCents ?? 0), totalCents: result.amountTotalCents + (order.giftCardCents || 0) }
+        : {}),
       updatedAt: new Date(),
     }).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId), eq(storeOrder.status, 'pending'))).returning()
 
@@ -142,6 +156,9 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
     // are keyed to the order id, so the webhook and the success page racing each other cannot pay or charge twice.
     // Never blocks a payment that already went through (core's settle never throws).
     void core.settleLoyaltyForPaidOrder(companyId, order.id)
+
+    // Gift cards bought on this order are issued and emailed now (each keyed to its line, so never twice).
+    try { await giftCards.issueForOrder(paid) } catch (e: any) { logger.error('[store] gift cards not issued', { order: order.id, error: e?.message }) }
 
     // Dropship: forward the paid order to the connected supplier. Fire-and-forget — supplier problems must never
     // block payment finalization; the sweep retries.
@@ -203,6 +220,7 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
       quantity: storeOrderItem.quantity, lineTotalCents: storeOrderItem.lineTotalCents, imageUrl: storeOrderItem.imageUrl,
     }).from(storeOrderItem).where(eq(storeOrderItem.orderId, order!.id))
     const o = order!
+    const settings = o.fulfillment === 'pickup' ? await core.settings(companyId) : null
     return {
       orderNumber: o.orderNumber,
       status: o.status,
@@ -218,6 +236,10 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
       // Sent back so far — a part refund shows as its own line under the total.
       refundedCents: o.refundedCents,
       currency: o.currency,
+      giftCardCents: o.giftCardCents,
+      fulfillment: o.fulfillment,
+      pickup: settings ? { address: settings.pickupAddress || '', hours: settings.pickupHours || '' } : null,
+      taxAutomatic: o.taxAutomatic,
       items,
     }
   }
@@ -240,6 +262,12 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
 
     const items: Array<typeof storeOrderItem.$inferSelect> = await db.select().from(storeOrderItem).where(eq(storeOrderItem.orderId, order.id))
     if (!items.length) return null
+    const pids = [...new Set(items.map((i) => i.productId).filter((x): x is string => !!x))]
+    const cardsSold = new Set(pids.length ? (await db.select({ id: storeProduct.id, kind: storeProduct.kind }).from(storeProduct)
+      .where(and(inArray(storeProduct.id, pids), eq(storeProduct.companyId, companyId)))).filter((p: any) => p.kind === 'gift_card').map((p: any) => p.id) : [])
+    // Taxed as it was started: the store's rates kept on the order, or Stripe Tax again at the payment page (only while
+    // the store still takes Stripe).
+    const automaticTax = order.taxAutomatic && provider.name === 'stripe'
 
     const checkout = await provider.createCheckout({
       lineItems: items.map((i) => ({
@@ -248,13 +276,17 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
         imageUrl: i.imageUrl ?? undefined,
         unitPriceCents: i.unitPriceCents,
         quantity: i.quantity,
+        ...(i.productId && cardsSold.has(i.productId) ? { taxCode: GIFT_CARD_TAX_CODE } : {}),
       })),
       currency: order.currency,
       shippingCents: order.shippingCents,
       taxCents: order.taxCents,
-      discountCents: order.discountCents,
+      // What the gift card holds for this order is taken off too: the provider charges the rest.
+      discountCents: order.discountCents + (order.giftCardCents || 0),
       customerEmail: order.customerEmail === NO_EMAIL_YET ? undefined : order.customerEmail,
-      collectShippingAddress: true,
+      collectShippingAddress: order.fulfillment === 'ship',
+      automaticTax,
+      collectBillingAddress: automaticTax && order.fulfillment !== 'ship',
       successUrl: successUrlFor(provider.name, storefront, order.id),
       cancelUrl: `${storefront}/cart`,
       clientReferenceId: order.id,
@@ -281,13 +313,30 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
       const cutoff = new Date(Date.now() - STALE_PENDING_MS)
       const rows = await db.update(storeOrder)
         .set({ status: 'cancelled', updatedAt: new Date() })
-        .where(and(eq(storeOrder.companyId, co.id), eq(storeOrder.status, 'pending'), lt(storeOrder.createdAt, cutoff)))
-        .returning({ id: storeOrder.id })
-      return rows.length
+        // A draft order is the owner's to cancel: its customer may pay from the emailed link at any time.
+        .where(and(eq(storeOrder.companyId, co.id), eq(storeOrder.status, 'pending'), ne(storeOrder.source, 'draft'), lt(storeOrder.createdAt, cutoff)))
+        .returning()
+      for (const o of rows) await giftCards.release(o, 'Checkout never paid')
+      return rows.length + await releaseExpiredHolds(co.id)
     } catch (e: any) {
       logger.warn('[store] stale-cart sweep failed', { error: e?.message })
       return 0
     }
+  }
+
+  /**
+   * A checkout holding a gift card's money is written off once its payment page can no longer be paid (Stripe's session
+   * lasts 24 hours; HOLD_EXPIRY_MS is a little more), and the hold goes back on the card - the shopper would otherwise
+   * find the balance gone for a week. Cancelled conditionally (still pending AT the update), released once per order.
+   */
+  async function releaseExpiredHolds(companyId: string): Promise<number> {
+    const rows = await db.update(storeOrder)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(storeOrder.companyId, companyId), eq(storeOrder.status, 'pending'), ne(storeOrder.source, 'draft'),
+        gt(storeOrder.giftCardCents, 0), lt(storeOrder.createdAt, new Date(Date.now() - HOLD_EXPIRY_MS))))
+      .returning()
+    for (const o of rows) await giftCards.release(o, 'Checkout never paid')
+    return rows.length
   }
 
   /**
@@ -311,6 +360,8 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
         isNull(storeOrder.abandonedEmailSentAt),
         isNotNull(storeOrder.customerEmail),
         ne(storeOrder.customerEmail, NO_EMAIL_YET),
+        // A draft order was emailed its own link (the invoice); it is not a cart someone left.
+        ne(storeOrder.source, 'draft'),
       ))
 
       for (const order of stale) {
@@ -343,10 +394,11 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
     const cancelCutoff = new Date(Date.now() - STALE_PENDING_MS)
     const cancelled = await db.update(storeOrder)
       .set({ status: 'cancelled', updatedAt: new Date() })
-      .where(and(eq(storeOrder.companyId, co.id), eq(storeOrder.status, 'pending'), lt(storeOrder.createdAt, cancelCutoff)))
-      .returning({ id: storeOrder.id })
+      .where(and(eq(storeOrder.companyId, co.id), eq(storeOrder.status, 'pending'), ne(storeOrder.source, 'draft'), lt(storeOrder.createdAt, cancelCutoff)))
+      .returning()
+    for (const o of cancelled) await giftCards.release(o, 'Checkout never paid')
 
-    return { emailed, cancelled: cancelled.length }
+    return { emailed, cancelled: cancelled.length + await releaseExpiredHolds(co.id) }
   }
 
   /** Approved reviews for one of the company's products, newest first. */

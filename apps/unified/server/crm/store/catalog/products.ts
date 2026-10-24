@@ -61,6 +61,15 @@ const productSchema = z.object({
   seoTitle: z.string().optional().nullable(),
   seoDescription: z.string().optional().nullable(),
   position: z.number().int().optional(),
+  // A gift card is sold like any product; paid, it is emailed as a code (../giftCards.ts).
+  kind: z.enum(['physical', 'gift_card']).optional(),
+  // The product feeds' fields (../checkout/feeds.ts) and the upsells' fallback (category).
+  brand: z.string().trim().max(120).optional().nullable(),
+  condition: z.enum(['new', 'refurbished', 'used']).optional(),
+  category: z.string().trim().max(120).optional().nullable(),
+  // The owner's picks for "Frequently bought together" and "You may also like": this company's product ids.
+  boughtTogetherIds: z.array(z.string().min(1).max(64)).max(12).optional().nullable(),
+  alsoLikeIds: z.array(z.string().min(1).max(64)).max(12).optional().nullable(),
 })
 
 const variantSchema = z.object({
@@ -75,6 +84,9 @@ const variantSchema = z.object({
   inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string()).optional().nullable(),
   position: z.number().int().optional(),
+  // The feeds' identifiers: a barcode (GTIN: UPC, EAN or ISBN, 8 to 14 digits) and the maker's part number.
+  gtin: z.string().trim().regex(/^(\d{8}|\d{12,14})$/, 'A GTIN is 8, 12, 13 or 14 digits').optional().nullable().or(z.literal('').transform(() => null)),
+  mpn: z.string().trim().max(70).optional().nullable(),
 })
 
 /**

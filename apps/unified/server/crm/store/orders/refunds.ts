@@ -31,6 +31,7 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { RefundRefused } from '../payments/types.ts'
+import { cardShareOfRefund, createStoreGiftCards } from '../giftCards.ts'
 import { COUNTED } from './rules.ts'
 
 type Order = typeof storeOrder.$inferSelect
@@ -120,6 +121,7 @@ export function quoteRefund(
 export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
   const { db, audit, logger } = d
   const actorName = createActorName({ db, tables: { user } })
+  const giftCards = createStoreGiftCards(d, core)
   /** One audit row; a row written with no request in hand (the resume, a webhook) names the company itself. */
   const log = (companyId: string, row: Record<string, unknown>, c?: Context | null) => audit.log({ ...row, companyId, ...(c ? { req: c } : {}) })
 
@@ -140,6 +142,21 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
    * dashboard). A part names its amount and its own idempotency key (refund-<order_refunds.id>).
    */
   async function returnPayment(order: Order, part?: { amountCents: number; idempotencyKey: string; reason?: string | null }): Promise<MoneyBack> {
+    /**
+     * PAID PARTLY (OR WHOLLY) BY GIFT CARD: the money goes back the way it came. A part refund gives the card its share
+     * in proportion to what it paid (giftCards.cardShareOfRefund) and the provider the rest; a whole refund gives each
+     * what it has not had back. The provider is asked first — a refusal sends nothing back anywhere — and the card's
+     * share is put back once per refund key, so a retry or the 5-minute resume never pays the card twice.
+     */
+    const onCard = order.giftCardId && order.giftCardCents > 0
+    const cardLeft = onCard ? Math.max(0, order.giftCardCents - order.giftCardRefundedCents) : 0
+    const wholeKey = order.refundedCents > 0 ? `order-refund-${order.id}-${order.refundedCents}${retryAfter(order)}` : `order-refund-${order.id}${retryAfter(order)}`
+    const cardCents = !onCard ? 0 : part ? cardShareOfRefund(order, part.amountCents) : cardLeft
+    const toCard = async (): Promise<number> => (cardCents > 0 ? giftCards.refundToCard(order, cardCents, part ? part.idempotencyKey : wholeKey, 'Refund') : 0)
+    if (onCard && !order.providerPaymentId && order.giftCardCents >= order.totalCents) {
+      const back = await toCard()
+      return { kind: 'refunded', refundId: null, status: 'succeeded', amountCents: back }
+    }
     if (!order.providerPaymentId) {
       return { kind: 'none_on_file', note: 'No card payment is on record for this order, so no money was sent back here. Return it the way it was paid.' }
     }
@@ -148,17 +165,25 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
     if (!provider || provider.name !== order.provider) {
       return { kind: 'manual', note: `This order was paid through ${label}. Refund it in your ${label} dashboard — here it is only recorded as refunded.` }
     }
+    // What goes back through the provider: the part less the card's share, or for the whole all the provider has not
+    // sent back (its own "the rest" when nothing has gone back yet).
+    const viaProvider = part ? part.amountCents - cardCents : order.totalCents - order.refundedCents - cardLeft
+    if (onCard && viaProvider <= 0) {
+      const back = await toCard()
+      return { kind: 'refunded', refundId: null, status: 'succeeded', amountCents: back }
+    }
     try {
       const r = await provider.refund(part
-        ? { providerPaymentId: order.providerPaymentId, idempotencyKey: part.idempotencyKey, amountCents: part.amountCents, currency: order.currency, ...(part.reason ? { reason: part.reason } : {}) }
+        ? { providerPaymentId: order.providerPaymentId, idempotencyKey: part.idempotencyKey, amountCents: viaProvider, currency: order.currency, ...(part.reason ? { reason: part.reason } : {}) }
         // After part refunds the key names how much had gone back, so it is a different request from a refund of the whole
         // tried (and refused) earlier — a provider refuses a key reused with a different amount.
         // A whole refund the provider HELD and then failed (refundId kept beside refundError) is a new request too: the old
         // key would only hand back the failed refund.
         : order.refundedCents > 0
-          ? { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}-${order.refundedCents}${retryAfter(order)}`, amountCents: order.totalCents - order.refundedCents, currency: order.currency }
-          : { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}${retryAfter(order)}`, currency: order.currency })
-      return { kind: 'refunded', ...r }
+          ? { providerPaymentId: order.providerPaymentId, idempotencyKey: wholeKey, amountCents: viaProvider, currency: order.currency }
+          : { providerPaymentId: order.providerPaymentId, idempotencyKey: wholeKey, currency: order.currency })
+      const back = await toCard()
+      return { kind: 'refunded', ...r, ...(back > 0 && r.amountCents != null ? { amountCents: r.amountCents + back } : {}) }
     } catch (e: any) {
       return { kind: 'failed', reason: `${label} said: ${String(e?.message || 'no reason given').slice(0, 300)}`, refused: e instanceof RefundRefused }
     }

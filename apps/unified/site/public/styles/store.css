@@ -601,3 +601,32 @@
   color: var(--ink);
 }
 .order-confirm__actions { margin-top: 8px; }
+
+/* The store upgrade (2026-10-24): the product page's upsells, the cart's pickup choice, gift card and upsell line,
+   and the order received's pickup card. Same tokens as above: --ink on the page's white, --muted for notes. */
+.product-upsell { padding-top: 40px; }
+.product-upsell__title { font-size: 1.25rem; color: var(--ink); margin: 0 0 16px; }
+.product-upsell__row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.product-upsell__item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.product-upsell__link { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; flex: 1 1 140px; min-width: 0; }
+.product-upsell__link img, .product-upsell__noimg { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; background: #f1f5f9; flex: none; }
+.product-upsell__name { font-weight: 700; overflow-wrap: anywhere; }
+.product-upsell__price { font-weight: 700; color: var(--ink); }
+.product-grid--compact { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 820px) { .product-grid--compact { grid-template-columns: repeat(2, 1fr); } }
+.cart-summary__choice { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.cart-summary__choice label { flex: 1 1 120px; display: flex; gap: 8px; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 11px; font-size: 0.9rem; color: var(--ink); cursor: pointer; }
+.cart-summary__choice input { accent-color: var(--brand); }
+.cart-summary__pickup { font-size: 0.85rem; color: var(--ink-soft); white-space: pre-line; margin: 0 0 10px; }
+.cart-summary__gift { display: flex; gap: 8px; }
+.cart-summary__gift .btn { flex: none; }
+.cart-summary__giftmsg { font-size: 0.85rem; margin: 6px 0 0; color: var(--ink-soft); }
+.cart-summary__giftmsg--bad { color: #b91c1c; }
+.cart-upsell { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--line); border-radius: 12px; padding: 12px; margin-top: 16px; flex-wrap: wrap; }
+.cart-upsell img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; }
+.cart-upsell__text { flex: 1 1 160px; min-width: 0; color: var(--ink); }
+.cart-upsell__text strong { overflow-wrap: anywhere; }
+.order-pickup { padding: 18px 20px; margin-bottom: 16px; }
+.order-pickup__title { font-size: 1rem; margin: 0 0 6px; color: var(--ink); }
+.order-pickup__where, .order-pickup__when { margin: 0 0 4px; color: var(--ink); white-space: pre-line; }
+.order-pickup__note { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }

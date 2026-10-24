@@ -11,7 +11,7 @@ import type { CrmDeps } from '../deps.ts'
 import { createStoreCore, type StoreCore } from './core.ts'
 import { checkoutMounts } from './checkout/index.ts'
 import { createCheckoutService, type OrderSummary } from './checkout/checkoutService.ts'
-import { storefrontCatalogue, storefrontProduct, type StorefrontProduct } from './checkout/catalogue.ts'
+import { productUpsells, storefrontCatalogue, storefrontProduct, type StorefrontProduct } from './checkout/catalogue.ts'
 import { ordersMounts, createOrderHooks } from './orders/index.ts'
 import { catalogMounts } from './catalog/index.ts'
 
@@ -43,6 +43,8 @@ export interface Storefront {
   product(companyId: string, slug: string): Promise<StorefrontProduct | null>
   /** The order summary by the provider's return (?session_id= or ?ref=), finishing an order whose payment notice is late. */
   orderSummary(companyId: string, q: { ref?: string | null; sessionId?: string | null }): Promise<OrderSummary | null>
+  /** A product page's "Frequently bought together" and "You may also like". */
+  upsells(companyId: string, product: StorefrontProduct): Promise<{ together: StorefrontProduct[]; alsoLike: StorefrontProduct[] }>
 }
 export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>): Storefront {
   const core = coreFor(d)
@@ -53,5 +55,6 @@ export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>)
     catalogue: (companyId) => storefrontCatalogue(d, companyId),
     product: (companyId, slug) => storefrontProduct(d, companyId, slug),
     orderSummary: (companyId, q) => checkout.orderSummary(companyId, q),
+    upsells: (companyId, product) => productUpsells(d, companyId, product),
   }
 }

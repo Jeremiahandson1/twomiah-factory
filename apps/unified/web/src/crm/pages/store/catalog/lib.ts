@@ -13,11 +13,15 @@ export interface ProductVariant {
   id: string; productId: string; sku: string; name: string; priceCents: number
   compareAtPriceCents: number | null; weightOz: number | null
   inventoryQty: number | null; options: Record<string, string> | null; position: number
+  gtin?: string | null; mpn?: string | null
 }
 export interface Product {
   id: string; slug: string; name: string; tagline: string | null; description: string | null
   status: 'draft' | 'active' | 'archived'; featured: boolean; leadTimeDays: number | null
   seoTitle: string | null; seoDescription: string | null; position: number
+  /** physical | gift_card; the feeds' brand and condition; the upsells' category and the owner's picks. */
+  kind?: 'physical' | 'gift_card'; brand?: string | null; condition?: 'new' | 'refurbished' | 'used'; category?: string | null
+  boughtTogetherIds?: string[] | null; alsoLikeIds?: string[] | null
   images: ProductImage[]; variants: ProductVariant[]
 }
 export interface DiscountCode {
@@ -36,6 +40,9 @@ export interface StoreSettings {
   id: string; currency: string; flatShippingCents: number; freeShippingThresholdCents: number | null; taxRateBps: number
   shippingZones: ShippingZone[] | null; taxRates: TaxRate[] | null
   abandonedCartEnabled: boolean; abandonedCartDelayMinutes: number; reviewsEnabled: boolean; reviewRequestDays: number
+  stripeTaxEnabled?: boolean; pickupEnabled?: boolean; pickupAddress?: string | null; pickupHours?: string | null
+  /** The product feeds' private token: sent only to the owner (settings:update). */
+  feedToken?: string | null
 }
 
 /** A list reply's rows (RULEBOOK §3: { data, pagination }); anything else is no rows. */

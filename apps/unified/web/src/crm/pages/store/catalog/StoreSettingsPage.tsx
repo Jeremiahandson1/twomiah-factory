@@ -22,12 +22,16 @@
 //   · the zone and tax-rate rows stack at phone width (twelve-column grids that were 30px a box on a phone), each with a
 //     labelled Remove button (was a bare ✕);
 //   · the team, two-factor, password and email links are the shared screens (Team, My account, Settings) — not here;
-//   · every ink has its dark partner.
+//   · every ink has its dark partner;
+//   · (2026-10-24, the store upgrade) Stripe Tax (the owner's: tax by the shopper's address, with what it costs and what
+//     the business must do — the server refuses it until Stripe says its tax settings are active), local pickup (the
+//     manager's too, as shipping is: the address and hours shown at checkout and in the ready-for-pickup email), and
+//     the product feeds' private addresses with the steps for Google Merchant Center and Meta (the owner's).
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useAuth, useMayWrite, useToast } from '../../../../shared'
+import { PageError, errorText, useAuth, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { bpsToPercent, fromHundredths, refusalOf, toHundredths, toWhole, type StoreSettings } from './lib'
 
 interface ZoneRow { name: string; countries: string; states: string; rate: string; free: string }
@@ -36,6 +40,7 @@ interface Form {
   name: string; email: string; currency: string; taxRatePct: string
   flatShipping: string; freeShippingThreshold: string; zones: ZoneRow[]; taxes: TaxRow[]
   abandonedCartEnabled: boolean; abandonedCartDelayMinutes: string; reviewsEnabled: boolean; reviewRequestDays: string
+  stripeTaxEnabled: boolean; pickupEnabled: boolean; pickupAddress: string; pickupHours: string
 }
 
 const listText = (a: string[] | null | undefined) => (a || []).join(', ')
@@ -54,6 +59,10 @@ const formOf = (s: StoreSettings | null, company: { name?: string | null; email?
   abandonedCartDelayMinutes: String(s?.abandonedCartDelayMinutes ?? 60),
   reviewsEnabled: s?.reviewsEnabled ?? true,
   reviewRequestDays: String(s?.reviewRequestDays ?? 7),
+  stripeTaxEnabled: !!s?.stripeTaxEnabled,
+  pickupEnabled: !!s?.pickupEnabled,
+  pickupAddress: s?.pickupAddress || '',
+  pickupHours: s?.pickupHours || '',
 })
 
 /** The commerce settings as the server takes them, or the first box that is wrong. */
@@ -83,6 +92,7 @@ function settingsOf(f: Form): { body: Record<string, unknown> } | { error: strin
   }
   const delay = toWhole(f.abandonedCartDelayMinutes)
   if (delay === null || Number.isNaN(delay) || delay < 1 || delay > 10080) return { error: 'The abandoned-cart reminder goes out 1 to 10080 minutes (a week) after the cart is left.' }
+  if (f.pickupEnabled && !f.pickupAddress.trim()) return { error: 'Pickup needs the address customers collect from.' }
   const days = toWhole(f.reviewRequestDays)
   if (days === null || Number.isNaN(days) || days > 365) return { error: 'The review request goes out 0 to 365 days after shipping.' }
   return {
@@ -97,12 +107,17 @@ function settingsOf(f: Form): { body: Record<string, unknown> } | { error: strin
       abandonedCartDelayMinutes: delay,
       reviewsEnabled: f.reviewsEnabled,
       reviewRequestDays: days,
+      stripeTaxEnabled: f.stripeTaxEnabled,
+      pickupEnabled: f.pickupEnabled,
+      pickupAddress: f.pickupAddress.trim() || null,
+      pickupHours: f.pickupHours.trim() || null,
     },
   }
 }
 
 export default function StoreSettingsPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { updateCompany } = useAuth()
   const [form, setForm] = useState<Form>(() => formOf(null, null))
   const [loading, setLoading] = useState(true)
@@ -111,6 +126,9 @@ export default function StoreSettingsPage() {
   const [saving, setSaving] = useState(false)
   // What the page was filled from: the settings as the server would take them, and the company's two fields.
   const loaded = useRef<{ settings: Record<string, unknown>; name: string; email: string } | null>(null)
+  // The product feeds' token (the owner's only) and Stripe's word on its tax settings.
+  const [feedToken, setFeedToken] = useState<string | null>(null)
+  const [taxState, setTaxState] = useState<{ provider: string | null; status: string } | null>(null)
 
   // Each section asks the permission its fields ask on the server.
   const maySaveSettings = useMayWrite('settings:update')
@@ -123,12 +141,27 @@ export default function StoreSettingsPage() {
       .then(([s, co]: [StoreSettings, { name?: string; email?: string }]) => {
         const f = formOf(s, co)
         setForm(f)
+        setFeedToken(s.feedToken || null)
         const d = settingsOf(f)
         loaded.current = { settings: 'body' in d ? d.body : {}, name: f.name, email: f.email }
       })
       .catch((e: unknown) => setLoadError(errorText(e, 'Could not load the store settings')))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!maySaveSettings) return
+    api.get('/api/admin/settings/stripe-tax').then((t: { provider: string | null; status: string }) => setTaxState(t)).catch(() => setTaxState(null))
+  }, [maySaveSettings])
+
+  const newFeedAddress = async () => {
+    if (!(await confirm('Make new feed addresses? The old ones stop working at once — paste the new ones into Google Merchant Center and Meta.', { title: 'New feed addresses', confirmText: 'Make new ones' }))) return
+    try { const r = await api.post('/api/admin/settings/feed-token') as { feedToken: string }; setFeedToken(r.feedToken); toast.success('New feed addresses made') }
+    catch (e) { toast.error(errorText(e, 'Could not make new addresses')) }
+  }
+  const copy = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); toast.success('Copied') } catch { toast.error('Copy did not work here — select the address and copy it') }
+  }
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const addZone = () => set('zones', [...form.zones, { name: '', countries: '', states: '', rate: '', free: '' }])
@@ -204,6 +237,27 @@ export default function StoreSettingsPage() {
         </div>
       </fieldset>
 
+      {/* Stripe Tax: the owner's (settings:update), as the tax rate is. */}
+      <fieldset disabled={!maySaveSettings} className="card p-5 space-y-3 min-w-0">
+        <h2 className={h2}>Sales tax by address (Stripe Tax)</h2>
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+          <input disabled={!maySaveSettings} type="checkbox" checked={form.stripeTaxEnabled} onChange={(e) => set('stripeTaxEnabled', e.target.checked)} />
+          Work out sales tax from each shopper's address at checkout
+        </label>
+        <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1 dark:text-slate-300">
+          <li>Stripe works out the right rate for the address on the payment page and shows it there; the order and the receipt show what was charged.</li>
+          <li>Stripe charges 0.5% of each transaction where it calculates tax, on top of its card fees. That fee is Stripe's, billed to your Stripe account.</li>
+          <li>You must register to collect tax in each state (or country) where you owe it, and add those registrations in Stripe (Settings › Tax › Registrations). Stripe only collects where you are registered — it does not register or file for you.</li>
+          <li>Works with Stripe payments only. Off — or with Square or PayPal — the tax rates below are used.</li>
+        </ul>
+        {taxState && (
+          <p className={note}>{taxState.provider !== 'stripe'
+            ? 'Stripe is not your connected payment provider, so Stripe Tax cannot be switched on.'
+            : taxState.status === 'active' ? 'Your Stripe account’s tax settings are active.'
+              : 'Your Stripe account’s tax settings are not finished: in Stripe, open Settings › Tax, add your business address and registrations, then switch this on.'}</p>
+        )}
+      </fieldset>
+
       <fieldset disabled={!mayShipping} className="card p-5 space-y-4 min-w-0">
         <h2 className={h2}>Shipping</h2>
         {!mayShipping && <p className={note}>Shipping rates are set by a manager or the owner.</p>}
@@ -247,6 +301,58 @@ export default function StoreSettingsPage() {
           </div>
         ))}
       </fieldset>
+
+      {/* Local pickup: the shop's day-to-day, as shipping is (shipping:configure). */}
+      <fieldset disabled={!mayShipping} className="card p-5 space-y-3 min-w-0">
+        <h2 className={h2}>Local pickup</h2>
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+          <input disabled={!mayShipping} type="checkbox" checked={form.pickupEnabled} onChange={(e) => set('pickupEnabled', e.target.checked)} />
+          Let shoppers pick up their order (no shipping charge)
+        </label>
+        <div><label className="label" htmlFor="st-pu-addr">Pickup address</label><textarea disabled={!mayShipping} id="st-pu-addr" className="input min-h-[64px]" value={form.pickupAddress} onChange={(e) => set('pickupAddress', e.target.value)} placeholder={'123 Main St\nMadison, WI 53703'} /></div>
+        <div><label className="label" htmlFor="st-pu-hours">Pickup hours</label><textarea disabled={!mayShipping} id="st-pu-hours" className="input min-h-[64px]" value={form.pickupHours} onChange={(e) => set('pickupHours', e.target.value)} placeholder="Mon–Fri 9am–5pm" /></div>
+        <p className={note}>Shown at checkout and on the receipt. Mark a pickup order “Ready for pickup” to email the customer; “Picked up” when they collect it.</p>
+      </fieldset>
+
+      {/* Product feeds: private addresses, the owner's. */}
+      {maySaveSettings && feedToken && (
+        <div className="card p-5 space-y-3 min-w-0">
+          <h2 className={h2}>Product feeds</h2>
+          <p className={note}>Private addresses that list every product on sale, kept up to date. Anyone with an address can read your catalogue, so share them only with Google and Meta.</p>
+          {([
+            ['Google Merchant Center (XML)', 'google.xml'], ['Google Merchant Center (tab-separated)', 'google.tsv'], ['Meta catalog (CSV)', 'meta.csv'],
+          ] as const).map(([label, file]) => {
+            const url = `${window.location.origin}/api/public/feeds/${feedToken}/${file}`
+            return (
+              <div key={file} className="space-y-1">
+                <span className="text-sm font-medium text-gray-800 dark:text-slate-200">{label}</span>
+                <div className="flex flex-wrap gap-2"><input readOnly className="input flex-1 min-w-0 font-mono text-xs" value={url} aria-label={`${label} address`} onFocus={(e) => e.currentTarget.select()} /><button type="button" className="btn btn-secondary text-xs px-3 py-1.5" onClick={() => copy(url)}>Copy</button></div>
+              </div>
+            )
+          })}
+          <details className="rounded-lg border border-gray-200 p-3 dark:border-slate-700">
+            <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-slate-200">How to add them</summary>
+            <div className="mt-2 space-y-3 text-sm text-gray-700 dark:text-slate-300">
+              <div><strong>Google Merchant Center</strong>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>In Merchant Center, open Settings › Data sources › Add product source › Add products from a file.</li>
+                  <li>Choose “Enter a link to your file” and paste the XML address above (or the tab-separated one).</li>
+                  <li>Set it to fetch daily, then save. Google checks the products; fix anything it flags (a missing photo, a barcode) on the product's page here.</li>
+                </ol>
+              </div>
+              <div><strong>Meta (Facebook and Instagram shops)</strong>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>In Commerce Manager, open your catalog, then Catalog › Data sources › Add items › Data feed.</li>
+                  <li>Choose “Scheduled feed”, paste the Meta CSV address above, and set it to update daily.</li>
+                  <li>Choose your currency, then upload. Meta lists any items it could not take.</li>
+                </ol>
+              </div>
+              <p className={note}>Each product option is one item: its SKU is the id, with the title, description, link, photo, price (and sale price), stock, brand, condition, and the barcode and part number when you have added them.</p>
+            </div>
+          </details>
+          <button type="button" className="btn btn-secondary text-sm" onClick={newFeedAddress}>Make new addresses</button>
+        </div>
+      )}
 
       <fieldset disabled={!maySaveSettings} className="card p-5 space-y-4 min-w-0">
         <h2 className={h2}>Emails to shoppers</h2>

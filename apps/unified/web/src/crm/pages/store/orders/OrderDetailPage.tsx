@@ -43,17 +43,25 @@ import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 // The SERVER's table (server/crm/store/orders/rules.ts NEXT_STATUS): only these moves are offered.
 const NEXT_STATUS: Record<string, string[]> = {
   pending: ['paid', 'cancelled'],
-  paid: ['fulfilled', 'shipped', 'cancelled', 'refunded'],
+  paid: ['fulfilled', 'shipped', 'ready_for_pickup', 'cancelled', 'refunded'],
   fulfilled: ['shipped', 'refunded'],
   shipped: ['delivered', 'refunded'],
   delivered: ['refunded'],
+  ready_for_pickup: ['picked_up', 'cancelled', 'refunded'],
+  picked_up: ['refunded'],
 }
+// The server's fitsFulfillment: a pickup order is made ready and picked up, never shipped; a posted one is never
+// "ready for pickup"; a gift-card-only order has nothing to send.
+const POST_MOVES = ['fulfilled', 'shipped', 'delivered']
+const PICKUP_MOVES = ['ready_for_pickup', 'picked_up']
+const fits = (fulfillment: string | undefined, to: string) =>
+  fulfillment === 'pickup' ? !POST_MOVES.includes(to) : fulfillment === 'digital' ? ![...POST_MOVES, ...PICKUP_MOVES].includes(to) : !PICKUP_MOVES.includes(to)
 
 // The server's rule (rules.ts isFulfilment), so the buttons offered are the ones it accepts: moving a PAID order along
 // the floor is orders:update, which staff hold; anything that changes whether it was paid for — cancel, refund, shipping
 // an unpaid order — is orders:refund.
-const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
-const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
+const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up']
+const FULFILMENT = ['fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up']
 // Shipping is a move like any other: offered only where the table allows it (a cancelled or refunded order is closed).
 const canShip = (from: string) => from === 'shipped' || (NEXT_STATUS[from] || []).includes('shipped')
 // The server's hasParcel: tracking belongs to an order going out or gone out — never to one pending, cancelled, or
@@ -62,7 +70,7 @@ const hasParcel = (o: Order) => COUNTED.includes(o.status) || (o.status === 'ref
 // What the button does, in its own words: from a paid order, refunding and cancelling send money back.
 const statusAction = (from: string, to: string, partlyRefunded = false) =>
   COUNTED.includes(from) && to === 'refunded' ? (partlyRefunded ? 'Refund the rest' : 'Refund everything')
-    : COUNTED.includes(from) && to === 'cancelled' ? 'Cancel and refund' : `Mark ${to}`
+    : COUNTED.includes(from) && to === 'cancelled' ? 'Cancel and refund' : `Mark ${codeLabel(to).toLowerCase()}`
 const moveNeeds = (from: string, to: string) => (COUNTED.includes(from) && FULFILMENT.includes(to)) ? 'orders:update' : 'orders:refund'
 /** The refusals after which the order on screen is no longer the order: read it again. */
 const RELOAD_ON = ['order_changed', 'no_parcel', 'refund_failed', 'refund_unconfirmed', 'refund_in_progress', 'label_in_progress']
@@ -185,6 +193,16 @@ export default function OrderDetailPage() {
     } catch (e) { failed(e, "Couldn't save the fulfilment") } finally { setBusy(false) }
   }
 
+  // An order made for a customer: email them the link to pay it again.
+  const resend = async () => {
+    if (!order) return
+    setBusy(true)
+    try {
+      await api.post(`/api/admin/draft-orders/${encodeURIComponent(order.id)}/send`)
+      toast.success(`The link to pay was emailed to ${order.customerEmail}`)
+    } catch (e) { failed(e, 'Could not email the link') } finally { setBusy(false) }
+  }
+
   const forward = async () => {
     if (!order) return
     setBusy(true)
@@ -214,7 +232,9 @@ export default function OrderDetailPage() {
   }
 
   const refunded = order.refundedCents || 0
-  const moves = (NEXT_STATUS[order.status] || []).filter((s) => may(moveNeeds(order.status, s)))
+  const moves = (NEXT_STATUS[order.status] || []).filter((s) => fits(order.fulfillment, s) && may(moveNeeds(order.status, s)))
+  const ships = (order.fulfillment || 'ship') === 'ship'
+  const giftPaid = order.giftCardCents || 0
   const mayPartRefund = COUNTED.includes(order.status) && !order.refundPendingAt && refunded < order.totalCents && may('orders:refund')
   const mayOpenContact = !known || can('contacts:read')
 
@@ -231,6 +251,20 @@ export default function OrderDetailPage() {
       </div>
 
       <PageError message={loadError} onDismiss={() => setLoadError('')} />
+
+      {/* A chargeback on this order (Stripe's word on it); the Disputes screen has the deadline and the link to answer. */}
+      {order.disputeStatus && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          The customer's bank opened a chargeback on this order — {codeLabel(order.disputeStatus).toLowerCase()}.
+          {may('orders:refund') && <> <Link to="/crm/disputes" className="font-medium underline">See the dispute</Link></>}
+        </div>
+      )}
+      {order.source === 'draft' && order.status === 'pending' && (
+        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-700 dark:text-slate-200">
+          <span>Made for this customer — waiting for them to pay from the emailed link.</span>
+          {may('orders:create') && <button onClick={resend} disabled={busy} className="btn btn-secondary px-3 py-1.5 text-xs">Email the link again</button>}
+        </div>
+      )}
 
       {/* Where the shopper's money stands, once a refund has been asked for. */}
       {order.refundPendingAt && (
@@ -281,10 +315,13 @@ export default function OrderDetailPage() {
         </div>
         <div className="px-5 py-3 border-t border-gray-200 space-y-1 text-sm dark:border-slate-800">
           <Row label="Subtotal" value={cents(order.subtotalCents, order.currency)} />
-          <Row label="Shipping" value={cents(order.shippingCents, order.currency)} />
-          <Row label="Tax" value={cents(order.taxCents, order.currency)} />
+          {order.fulfillment === 'pickup' ? <Row label="Pickup" value="Free" /> : order.fulfillment === 'digital' ? null : <Row label="Shipping" value={cents(order.shippingCents, order.currency)} />}
+          <Row label={order.taxAutomatic ? 'Sales tax (Stripe Tax)' : 'Tax'} value={cents(order.taxCents, order.currency)} />
           {order.discountCents > 0 && <Row label="Discount" value={`−${cents(order.discountCents, order.currency)}`} />}
           <Row label="Total" value={cents(order.totalCents, order.currency)} bold />
+          {giftPaid > 0 && <Row label="Paid by gift card" value={cents(giftPaid, order.currency)} />}
+          {giftPaid > 0 && <Row label={`Paid through ${order.provider === 'giftcard' ? 'the card' : 'the payment provider'}`} value={cents(Math.max(0, order.totalCents - giftPaid), order.currency)} />}
+          {(order.giftCardRefundedCents || 0) > 0 && <Row label="Back on the gift card" value={cents(order.giftCardRefundedCents || 0, order.currency)} />}
           {refunded > 0 && <Row label="Refunded" value={`−${cents(refunded, order.currency)}`} />}
           {refunded > 0 && <Row label="Net" value={cents(order.totalCents - refunded, order.currency)} bold />}
         </div>
@@ -326,8 +363,12 @@ export default function OrderDetailPage() {
         )}
 
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Ship to</h2>
-          {order.shippingAddress ? (
+          <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">{ships ? 'Ship to' : order.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}</h2>
+          {!ships ? (
+            <p className="text-sm text-gray-600 dark:text-slate-300">{order.fulfillment === 'pickup'
+              ? (order.pickedUpAt ? `Picked up ${formatDate(order.pickedUpAt)}.` : order.readyForPickupAt ? `Ready since ${formatDate(order.readyForPickupAt)} — the customer was emailed.` : 'The customer collects it from the shop. Mark it ready for pickup to email them.')
+              : 'Gift cards only — emailed to the customer when the order was paid.'}</p>
+          ) : order.shippingAddress ? (
             <address className="not-italic text-sm text-gray-600 leading-relaxed dark:text-slate-300">
               {order.shippingAddress.line1}<br />
               {order.shippingAddress.line2 && <>{order.shippingAddress.line2}<br /></>}
@@ -343,19 +384,19 @@ export default function OrderDetailPage() {
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Fulfillment</h2>
         {/* Tracking only where there is a parcel (hasParcel). An order that never went out shows the boxes only while
             they hold something, so a value saved before the rule can still be cleared. */}
-        {hasParcel(order) || order.trackingCarrier || order.trackingNumber ? (
+        {ships && (hasParcel(order) || order.trackingCarrier || order.trackingNumber) ? (
           <div className="grid sm:grid-cols-2 gap-3">
             <div><label className="label" htmlFor="ord-carrier">Carrier</label><input id="ord-carrier" className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS, UPS, FedEx…" readOnly={!may('orders:update')} /></div>
             <div><label className="label" htmlFor="ord-tracking">Tracking number</label><input id="ord-tracking" className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} readOnly={!may('orders:update')} /></div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 dark:text-slate-400">This order is {codeLabel(order.status)} and never went out, so it has no tracking.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{ships ? <>This order is {codeLabel(order.status)} and never went out, so it has no tracking.</> : 'Nothing is posted for this order, so it has no tracking.'}</p>
         )}
         <div><label className="label" htmlFor="ord-note">Internal note</label><textarea id="ord-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} readOnly={!may('orders:update')} /></div>
         {may('orders:update') && (
           <div className="flex flex-wrap gap-2">
             <button onClick={() => saveFulfillment(false)} disabled={busy} className="btn btn-secondary">Save</button>
-            {canShip(order.status) && may(moveNeeds(order.status, 'shipped')) && (
+            {ships && canShip(order.status) && may(moveNeeds(order.status, 'shipped')) && (
               <button onClick={() => saveFulfillment(true)} disabled={busy} className="btn btn-primary">Save & mark shipped</button>
             )}
           </div>
@@ -363,7 +404,7 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Shipping label */}
-      <LabelPanel order={order} onBought={(o) => { if (o) merge(o); void load() }} />
+      {ships && <LabelPanel order={order} onBought={(o) => { if (o) merge(o); void load() }} />}
     </div>
   )
 }

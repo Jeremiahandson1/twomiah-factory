@@ -24,6 +24,9 @@ export type EmailOrder = {
   shippingAddress: Address | null
   trackingCarrier?: string | null
   trackingNumber?: string | null
+  /** What a gift card paid of the total, and how the order reaches the shopper (ship | pickup | digital). */
+  giftCardCents?: number
+  fulfillment?: string
 }
 export type EmailItem = { productName: string; variantName: string; quantity: number; lineTotalCents: number }
 
@@ -71,9 +74,10 @@ function totalsTable(o: EmailOrder): string {
   return `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:12px;">
     ${row('Subtotal', formatCents(o.subtotalCents, o.currency))}
     ${discountLines(o).map((l) => row(esc(l.label), '−' + formatCents(l.cents, o.currency))).join('')}
-    ${row('Shipping', o.shippingCents > 0 ? formatCents(o.shippingCents, o.currency) : 'Free')}
+    ${o.fulfillment === 'pickup' ? row('Pickup', 'Free') : o.fulfillment === 'digital' ? '' : row('Shipping', o.shippingCents > 0 ? formatCents(o.shippingCents, o.currency) : 'Free')}
     ${o.taxCents > 0 ? row('Tax', formatCents(o.taxCents, o.currency)) : ''}
     ${row('Total', formatCents(o.totalCents, o.currency), true)}
+    ${(o.giftCardCents || 0) > 0 ? row('Paid by gift card', '−' + formatCents(o.giftCardCents!, o.currency)) + row('Paid by card', formatCents(Math.max(0, o.totalCents - o.giftCardCents!), o.currency)) : ''}
   </table>`
 }
 
@@ -154,6 +158,44 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
         <p style="color:#666;font-size:13px;margin-top:24px;">${p.supportEmail ? 'Questions? Reply to this email.' : 'Thanks for shopping with us.'}</p>`),
     )
   },
+  /** The codes a paid order bought, one per card. */
+  storeGiftCard: (p: { orderNumber: string | null; currency: string; cards: { code: string; cents: number }[]; supportEmail?: string | null }, b) => done(
+    p.cards.length === 1 ? `Your ${b.companyName} gift card` : `Your ${p.cards.length} ${b.companyName} gift cards`,
+    wrap(b.companyName, p.cards.length === 1 ? 'Your gift card' : 'Your gift cards', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Thanks for your order${num(p)}. ${p.cards.length === 1 ? 'Here is your gift card' : 'Here are your gift cards'} — enter the number at checkout to spend it. It never expires.</p>
+      ${p.cards.map((c) => `<p style="margin:16px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;color:#111;"><strong style="font-family:Consolas,Menlo,monospace;letter-spacing:1px;">${esc(c.code)}</strong><span style="float:right;">${formatCents(c.cents, p.currency)}</span></p>`).join('')}
+      <p style="color:#666;font-size:13px;margin-top:24px;">Keep this email: the number is the card.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  /** A pickup order is ready: where and when. */
+  storeReadyForPickup: ({ order, items, supportEmail, pickupAddress, pickupHours }: OrderMail & { pickupAddress?: string | null; pickupHours?: string | null }, b) => done(
+    `Your ${b.companyName} order${numPlain(order)} is ready for pickup`,
+    wrap(b.companyName, 'Ready for pickup', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Good news${firstName(order.customerName)} — your order${num(order)} is ready to collect.</p>
+      ${pickupAddress ? `<h3 style="font-size:14px;color:#111;margin:20px 0 0;">Where</h3><p style="color:#444;font-size:14px;line-height:1.5;margin:6px 0 0;white-space:pre-line;">${esc(pickupAddress)}</p>` : ''}
+      ${pickupHours ? `<h3 style="font-size:14px;color:#111;margin:16px 0 0;">When</h3><p style="color:#444;font-size:14px;line-height:1.5;margin:6px 0 0;white-space:pre-line;">${esc(pickupHours)}</p>` : ''}
+      <h3 style="font-size:14px;color:#111;margin:20px 0 8px;">Items</h3>
+      ${itemsTable(items, order.currency)}
+      <p style="color:#666;font-size:13px;margin-top:24px;">Bring this email or your order number.${supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  /** To the shop: a chargeback was opened, with the deadline to answer it. */
+  storeDisputeOpened: (p: { orderNumber: string | null; amount: string; reason: string; dueBy: string | null; respondUrl: string; disputesUrl: string }, b) => done(
+    `Chargeback opened${p.orderNumber ? ' on ' + p.orderNumber : ''} — ${p.amount}`,
+    wrap(b.companyName, 'A customer disputed a payment', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">A chargeback for <strong>${esc(p.amount)}</strong>${p.orderNumber ? ` on order <strong>${esc(p.orderNumber)}</strong>` : ''} was opened with the card's bank. Reason given: <strong>${esc(p.reason)}</strong>.</p>
+      ${p.dueBy ? `<p style="color:#444;font-size:15px;line-height:1.6;">Send your evidence by <strong>${esc(p.dueBy)}</strong>, or the bank decides without it.</p>` : ''}
+      ${button(p.respondUrl, 'Respond in Stripe')}
+      <p style="color:#666;font-size:13px;margin-top:22px;">Every dispute is on the Disputes screen: ${esc(p.disputesUrl)}</p>`),
+  ),
+  /** An order the shop made for a customer (a wholesale order), with the link to pay it. */
+  storeInvoice: ({ order, items, supportEmail, payUrl }: OrderMail & { payUrl: string }, b) => done(
+    `Your ${b.companyName} order${numPlain(order)} — ${formatCents(order.totalCents, order.currency)}`,
+    wrap(b.companyName, 'Your order is ready to pay', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(order.customerName)} — here is the order${num(order)} we put together for you.</p>
+      ${itemsTable(items, order.currency)}
+      ${totalsTable(order)}
+      ${button(payUrl, 'Pay now')}
+      <p style="color:#666;font-size:13px;margin-top:22px;">The link stays good until the order is paid or cancelled.${supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
   storeAbandonedCart: ({ order, items, supportEmail, recoverUrl }: OrderMail & { recoverUrl: string }, b) => done(
     `You left ${items.length === 1 ? 'an item' : 'items'} in your ${b.companyName} cart`,
     wrap(b.companyName, 'Still interested?', `
@@ -181,6 +223,7 @@ export function emailOrder(o: any): EmailOrder {
     discountCents: o.discountCents, loyaltyDiscountCents: o.loyaltyDiscountCents, discountCode: o.discountCode,
     totalCents: o.totalCents, currency: o.currency, shippingAddress: o.shippingAddress ?? null,
     trackingCarrier: o.trackingCarrier ?? null, trackingNumber: o.trackingNumber ?? null,
+    giftCardCents: o.giftCardCents ?? 0, fulfillment: o.fulfillment ?? 'ship',
   }
 }
 export const emailItems = (rows: any[]): EmailItem[] =>

@@ -52,3 +52,63 @@ export async function storefrontProduct(d: Pick<CrmDeps, 'db'>, companyId: strin
   const [full] = await hydrateProducts(d.db, [row])
   return full
 }
+
+// ── Upsells (2026-10-24, the store upgrade) ──────────────────────────────────
+/**
+ * "Frequently bought together" and "You may also like" for one product: the owner's own picks (boughtTogetherIds,
+ * alsoLikeIds — those still on sale, in the owner's order), else products in the same category, the shop's order. The
+ * two lists never repeat a product, nor show the product itself. A gift card is never offered by category.
+ */
+export function pickUpsells(product: Pick<Product, 'id' | 'category' | 'boughtTogetherIds' | 'alsoLikeIds'>, onSale: Array<Pick<Product, 'id' | 'category' | 'kind'>>, max = { together: 3, alsoLike: 4 }): { together: string[]; alsoLike: string[] } {
+  const live = new Map(onSale.map((p) => [p.id, p]))
+  const sameCategory = product.category
+    ? onSale.filter((p) => p.id !== product.id && p.kind !== 'gift_card' && p.category === product.category).map((p) => p.id)
+    : []
+  const owned = (ids: string[] | null | undefined) => (ids || []).filter((id) => id !== product.id && live.has(id))
+  const pickedTogether = owned(product.boughtTogetherIds)
+  const together = (pickedTogether.length ? pickedTogether : sameCategory).slice(0, max.together)
+  const pickedAlso = owned(product.alsoLikeIds).filter((id) => !together.includes(id))
+  const alsoLike = (pickedAlso.length ? pickedAlso : sameCategory.filter((id) => !together.includes(id))).slice(0, max.alsoLike)
+  return { together, alsoLike }
+}
+
+/** The company's products on sale, the columns the upsells read. */
+const onSaleOf = (db: any, companyId: string): Promise<Product[]> => db.select().from(storeProduct)
+  .where(and(eq(storeProduct.companyId, companyId), eq(storeProduct.status, 'active'))).orderBy(asc(storeProduct.position), asc(storeProduct.createdAt))
+
+/** One product's two upsell lists, each product with its images and variants. */
+export async function productUpsells(d: Pick<CrmDeps, 'db'>, companyId: string, product: Pick<Product, 'id' | 'category' | 'boughtTogetherIds' | 'alsoLikeIds'>): Promise<{ together: StorefrontProduct[]; alsoLike: StorefrontProduct[] }> {
+  const rows = await onSaleOf(d.db, companyId)
+  const picked = pickUpsells(product, rows)
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const full = await hydrateProducts(d.db, [...picked.together, ...picked.alsoLike].map((id) => byId.get(id)!).filter(Boolean))
+  const of = (ids: string[]) => ids.map((id) => full.find((p) => p.id === id)).filter((p): p is StorefrontProduct => !!p)
+  return { together: of(picked.together), alsoLike: of(picked.alsoLike) }
+}
+
+/**
+ * The cart's upsell line: the first product bought together with something in the cart (by the same rule as the product
+ * page) that is not in the cart already and has a variant in stock — that variant, ready to add. Null when there is none.
+ */
+export async function cartUpsell(d: Pick<CrmDeps, 'db'>, companyId: string, skus: string[]): Promise<{ slug: string; name: string; sku: string; variantName: string; priceCents: number; imageUrl: string | null } | null> {
+  const rows = await onSaleOf(d.db, companyId)
+  if (!rows.length) return null
+  const inCart: Array<{ productId: string }> = await d.db.select({ productId: storeProductVariant.productId }).from(storeProductVariant)
+    .innerJoin(storeProduct, eq(storeProduct.id, storeProductVariant.productId))
+    .where(and(eq(storeProduct.companyId, companyId), inArray(storeProductVariant.sku, skus)))
+  const held = new Set(inCart.map((r) => r.productId))
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  for (const pid of held) {
+    const p = byId.get(pid)
+    if (!p) continue
+    for (const id of pickUpsells(p, rows).together) {
+      if (held.has(id)) continue
+      const [full] = await hydrateProducts(d.db, [byId.get(id)!])
+      const v = full?.variants.find((x) => x.inventoryQty === null || x.inventoryQty > 0)
+      if (!full || !v) continue
+      const img = full.images.find((i) => i.isPrimary) ?? full.images[0]
+      return { slug: full.slug, name: full.name, sku: v.sku, variantName: v.name, priceCents: v.priceCents, imageUrl: img?.url ?? null }
+    }
+  }
+  return null
+}

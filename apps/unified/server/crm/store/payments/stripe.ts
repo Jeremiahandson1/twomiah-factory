@@ -2,7 +2,7 @@
 import Stripe from 'stripe'
 import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
-  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult,
+  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult, DisputeNotice,
 } from './types.ts'
 import { RefundRefused } from './types.ts'
 import type { StoreAddress as Address } from '../../../db/schema/store.ts'
@@ -24,24 +24,30 @@ export class StripeProvider implements PaymentProvider {
 
   async createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
     const currency = input.currency.toLowerCase()
+    // Stripe Tax (automatic_tax): every price says its tax is added on top (US-style, 'exclusive'), so Stripe never
+    // has to fall back on an account default that may not be set; a line with a tax code (a gift card) carries it.
+    const auto = !!input.automaticTax
+    const taxed = auto ? { tax_behavior: 'exclusive' as const } : {}
 
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = input.lineItems.map((li) => ({
       quantity: li.quantity,
       price_data: {
         currency,
         unit_amount: li.unitPriceCents,
+        ...taxed,
         product_data: {
           name: li.name,
           ...(li.description ? { description: li.description } : {}),
           ...(li.imageUrl ? { images: [li.imageUrl] } : {}),
+          ...(auto && li.taxCode ? { tax_code: li.taxCode } : {}),
           metadata: { sku: li.sku },
         },
       },
     }))
 
-    // Tax as an explicit line item keeps totals exact without requiring the
-    // merchant to configure Stripe Tax.
-    if (input.taxCents > 0) {
+    // The store's own (flat or regional) tax as an explicit line item keeps totals exact without Stripe Tax. With Stripe
+    // Tax on, Stripe works it out from the address on the payment page instead, and shows it there as its own line.
+    if (!auto && input.taxCents > 0) {
       line_items.push({
         quantity: 1,
         price_data: {
@@ -60,6 +66,8 @@ export class StripeProvider implements PaymentProvider {
       client_reference_id: input.clientReferenceId,
       metadata: input.metadata,
       phone_number_collection: { enabled: true },
+      ...(auto ? { automatic_tax: { enabled: true } } : {}),
+      ...(input.collectBillingAddress ? { billing_address_collection: 'required' as const } : {}),
       ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       ...(input.collectShippingAddress
         ? { shipping_address_collection: { allowed_countries: ['US'] } }
@@ -71,6 +79,7 @@ export class StripeProvider implements PaymentProvider {
                 type: 'fixed_amount',
                 display_name: 'Shipping',
                 fixed_amount: { amount: input.shippingCents, currency },
+                ...taxed,
               },
             }],
           }
@@ -107,6 +116,10 @@ export class StripeProvider implements PaymentProvider {
       if (!pi) return { type: 'ignored' }
       return { type: 'refunded', providerPaymentId: pi, amountRefundedCents: ch.amount_refunded, amountTotalCents: ch.amount, currency: ch.currency }
     }
+    // A chargeback opened, changed (evidence submitted, under review, funds withdrawn) or closed (won, lost).
+    if (event.type.startsWith('charge.dispute.')) {
+      return { type: 'dispute', dispute: parseDispute(event.data.object as Stripe.Dispute, event.type === 'charge.dispute.created') }
+    }
     if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
     return parseSession(event.data.object as Stripe.Checkout.Session)
   }
@@ -117,6 +130,12 @@ export class StripeProvider implements PaymentProvider {
   async retrieveSession(sessionId: string): Promise<WebhookResult> {
     const session = await this.stripe.checkout.sessions.retrieve(sessionId)
     return parseSession(session)
+  }
+
+  // Stripe Tax's settings: 'active' once the business has its origin address (and a registration) set in Stripe.
+  async taxStatus(): Promise<'active' | 'pending'> {
+    const s = await this.stripe.tax.settings.retrieve()
+    return s.status === 'active' ? 'active' : 'pending'
   }
 
   // Part of the payment (amountCents), or with no amount whatever of it has not gone back yet, to the card it came
@@ -158,12 +177,23 @@ function parseSession(session: Stripe.Checkout.Session): WebhookResult {
       ? session.payment_intent
       : session.payment_intent?.id,
     amountTotalCents: session.amount_total ?? undefined,
+    // What Stripe Tax charged (0 when the store's own tax line was sent instead — that line is part of the total).
+    taxCents: session.total_details?.amount_tax ?? undefined,
     currency: session.currency ?? undefined,
     customerEmail: cd?.email ?? undefined,
     customerName: shipping?.name ?? cd?.name ?? undefined,
     customerPhone: cd?.phone ?? undefined,
     shippingAddress: toAddress(shipping?.address),
     billingAddress: toAddress(cd?.address),
+  }
+}
+
+function parseDispute(dp: Stripe.Dispute, opened: boolean): DisputeNotice {
+  const pi = typeof dp.payment_intent === 'string' ? dp.payment_intent : dp.payment_intent?.id ?? null
+  const due = dp.evidence_details?.due_by
+  return {
+    providerDisputeId: dp.id, providerPaymentId: pi, amountCents: dp.amount, currency: dp.currency, reason: dp.reason ?? null,
+    status: dp.status, livemode: !!dp.livemode, evidenceDueBy: typeof due === 'number' ? new Date(due * 1000) : null, opened,
   }
 }
 

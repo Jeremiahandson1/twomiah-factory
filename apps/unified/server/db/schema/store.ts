@@ -36,11 +36,23 @@ export const storeProduct = pgTable('products', {
   seoTitle: text('seo_title'),
   seoDescription: text('seo_description'),
   position: integer('position').notNull().default(0),
+  /** physical | gift_card — a gift card is sold as a product and emailed as a code when the order is paid. */
+  kind: text('kind').notNull().default('physical'),
+  /** The product feeds' brand and condition (Google Merchant Center, Meta); the store's name stands in for no brand. */
+  brand: text('brand'),
+  condition: text('condition').notNull().default('new'), // new | refurbished | used
+  /** Groups the shop's products: "You may also like" falls back to the same category. */
+  category: text('category'),
+  /** The owner's own picks for "Frequently bought together" and "You may also like" (product ids, in order). */
+  boughtTogetherIds: json('bought_together_ids').$type<string[]>(),
+  alsoLikeIds: json('also_like_ids').$type<string[]>(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('products_company_slug_unique').on(t.companyId, t.slug),
   index('products_company_id_idx').on(t.companyId),
+  // The storefront's catalogue: the company's active products, in the shop's order.
+  index('products_company_status_position_idx').on(t.companyId, t.status, t.position),
 ])
 
 export const storeProductImage = pgTable('product_images', {
@@ -61,6 +73,9 @@ export const storeProductVariant = pgTable('product_variants', {
   compareAtPriceCents: integer('compare_at_price_cents'),
   weightOz: integer('weight_oz'),
   inventoryQty: integer('inventory_qty'), // null = not tracked
+  /** The feeds' identifiers, sent when present. */
+  gtin: text('gtin'),
+  mpn: text('mpn'),
   options: json('options').$type<Record<string, string>>(),
   position: integer('position').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -117,6 +132,22 @@ export const storeOrder = pgTable('orders', {
   labelUrl: text('label_url'),
   labelCostCents: integer('label_cost_cents'),
   labelPurchasedAt: timestamp('label_purchased_at'),
+  /** ship | pickup | digital (gift cards only: nothing to send). A pickup order is never shipped, nor a shipped one picked up. */
+  fulfillment: text('fulfillment').notNull().default('ship'),
+  /** storefront | draft (made by the owner for a customer, paid from the emailed link). */
+  source: text('source').notNull().default('storefront'),
+  /** Tax worked out by Stripe Tax at checkout (filled from the paid session), not the store's flat rate. */
+  taxAutomatic: boolean('tax_automatic').notNull().default(false),
+  /** A gift card the shopper paid part (or all) of this order with: what was taken off it, and what has gone back. */
+  giftCardId: text('gift_card_id'),
+  giftCardCents: integer('gift_card_cents').notNull().default(0),
+  giftCardRefundedCents: integer('gift_card_refunded_cents').notNull().default(0),
+  /** The customer group whose prices this order was made at (a wholesale customer's draft order). */
+  customerGroupId: text('customer_group_id'),
+  /** A chargeback's state at the provider (needs_response, under_review, won, lost ...); null when there is none. */
+  disputeStatus: text('dispute_status'),
+  readyForPickupAt: timestamp('ready_for_pickup_at'),
+  pickedUpAt: timestamp('picked_up_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -127,6 +158,8 @@ export const storeOrder = pgTable('orders', {
   index('orders_contact_id_idx').on(t.contactId),
   index('orders_status_idx').on(t.status),
   index('orders_created_idx').on(t.createdAt),
+  // A refund or dispute notice finds its order by the payment's id.
+  index('orders_provider_payment_idx').on(t.providerPaymentId),
 ])
 
 /** A line, with the product as it was when bought: a later catalogue edit never rewrites an order. */
@@ -224,6 +257,14 @@ export const storeSettings = pgTable('store_settings', {
   abandonedCartDelayMinutes: integer('abandoned_cart_delay_minutes').notNull().default(60),
   reviewsEnabled: boolean('reviews_enabled').notNull().default(true),
   reviewRequestDays: integer('review_request_days').notNull().default(7),
+  /** Sales tax by the shopper's address, worked out by Stripe Tax at checkout (Stripe only). Off: the rates above. */
+  stripeTaxEnabled: boolean('stripe_tax_enabled').notNull().default(false),
+  /** Local pickup: offered at checkout with no shipping charge, at this address and these hours. */
+  pickupEnabled: boolean('pickup_enabled').notNull().default(false),
+  pickupAddress: text('pickup_address'),
+  pickupHours: text('pickup_hours'),
+  /** The private part of the product feeds' addresses (Google Merchant Center, Meta); a new one retires the old. */
+  feedToken: text('feed_token'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_settings_company_unique').on(t.companyId)])
 
@@ -276,3 +317,56 @@ export const variantSupplierMap = pgTable('variant_supplier_map', {
   supplierItemName: text('supplier_item_name'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('variant_supplier_map_variant_unique').on(t.variantId)])
+
+// -- Wholesale: customer groups ------------------------------------------------
+/** A group of customers with their own prices: a percent off the whole catalogue, and/or a price per variant. */
+export const storeCustomerGroup = pgTable('store_customer_groups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  percentOff: integer('percent_off').notNull().default(0), // 0-100, on any variant without its own group price
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_customer_groups_company_name_unique').on(t.companyId, t.name)])
+
+/** A customer (contact) in a group. One group per customer. */
+export const storeCustomerGroupMember = pgTable('store_customer_group_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  groupId: text('group_id').notNull().references(() => storeCustomerGroup.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_customer_group_members_contact_unique').on(t.contactId),
+  index('store_customer_group_members_group_idx').on(t.groupId),
+])
+
+/** A group's own price for one variant: wins over the group's percent off. */
+export const storeGroupPrice = pgTable('store_group_prices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  groupId: text('group_id').notNull().references(() => storeCustomerGroup.id, { onDelete: 'cascade' }),
+  variantId: text('variant_id').notNull().references(() => storeProductVariant.id, { onDelete: 'cascade' }),
+  priceCents: integer('price_cents').notNull(),
+}, (t) => [uniqueIndex('store_group_prices_group_variant_unique').on(t.groupId, t.variantId)])
+
+// -- Disputes (chargebacks) ----------------------------------------------------
+/** A chargeback the provider told us about (Stripe's charge.dispute.*), kept as the provider last described it. */
+export const storeDispute = pgTable('store_disputes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  orderId: text('order_id').references(() => storeOrder.id, { onDelete: 'set null' }),
+  provider: text('provider').notNull(),
+  providerDisputeId: text('provider_dispute_id').notNull(),
+  providerPaymentId: text('provider_payment_id'),
+  amountCents: integer('amount_cents').notNull(),
+  currency: text('currency').notNull().default('usd'),
+  reason: text('reason'),
+  status: text('status').notNull(),
+  livemode: boolean('livemode').notNull().default(false),
+  evidenceDueBy: timestamp('evidence_due_by'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_disputes_provider_dispute_unique').on(t.provider, t.providerDisputeId),
+  index('store_disputes_company_idx').on(t.companyId),
+])
