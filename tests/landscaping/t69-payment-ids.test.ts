@@ -43,7 +43,10 @@ const [client] = await db.insert(contact).values({
 const [onlyCus] = await db.insert(contact).values({
   companyId: co.id, name: 'Ines Park', email: 'ines-t69@test.local', customFields: { stripeCustomerId: CUS + 'b' },
 } as any).returning()
-const [jb] = await db.insert(job).values({ number: 'JOB-T69-1', title: 'Spring cleanup', status: 'scheduled', contactId: client.id, companyId: co.id } as any).returning()
+// Assigned to the staff seat: a landscaping crew login reads only its own jobs and the customers on them (unified,
+// Jobber's rule, 2026-10-24), so the staff seat's reads here are of its own work — still the payloads this file checks.
+const [jb] = await db.insert(job).values({ number: 'JOB-T69-1', title: 'Spring cleanup', status: 'scheduled', contactId: client.id, companyId: co.id, assignedToId: seats[2][0].id } as any).returning()
+await db.insert(job).values({ number: 'JOB-T69-2', title: 'Edging', status: 'scheduled', contactId: onlyCus.id, companyId: co.id, assignedToId: seats[2][0].id } as any)
 const [qt] = await db.insert(quote).values({ number: 'Q-T69-1', name: 'Mulch', status: 'draft', contactId: client.id, total: '400.00', subtotal: '400.00', companyId: co.id } as any).returning()
 const [inv] = await db.insert(invoice).values({ number: 'INV-T69-1', status: 'sent', contactId: client.id, total: '400.00', subtotal: '400.00', companyId: co.id } as any).returning()
 const [ri] = await db.insert(recurringInvoice).values({ companyId: co.id, contactId: client.id, frequency: 'monthly', startDate: new Date('2026-10-01T00:00:00Z'), nextRunDate: new Date('2026-11-01T00:00:00Z') } as any).returning()
