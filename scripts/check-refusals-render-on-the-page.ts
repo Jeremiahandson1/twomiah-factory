@@ -55,7 +55,7 @@ const CEILING: Record<string, number> = {
   // warranties/WarrantiesPage.tsx (4) and inventory/InventoryPage.tsx (4), mounted by every
   // vertical that sells those modules. Counting per directory is what made that legible; chasing it
   // inside crm-rv would have found nothing and I would have reported it as not reproducing.
-  'packages/tenant-ui/src': 21, // ships into EVERY vertical — the most valuable to remove next
+  'packages/tenant-ui/src': 18, // 21 → 18 (10/24): the fleet screen's three alert()s became toasts // ships into EVERY vertical — the most valuable to remove next
   'templates/crm-vet': 27,
   'templates/crm-homecare': 11, // parked — 21 → 11: the visits screens (open shifts, swaps, approvals, portal visits) say it on the page
   'templates/crm-automotive': 16, // parked

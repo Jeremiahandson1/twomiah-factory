@@ -398,7 +398,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance, onHistory }: Vehi
       )}
 
       {/* Its service and fuel record, open to every seat that may open the page (costs only to seats that see them). */}
-      <button type="button" onClick={onHistory} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+      <button type="button" onClick={onHistory} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-100">
         <Clock className="w-4 h-4" />Service history
       </button>
 
@@ -916,7 +916,7 @@ function VehicleHistoryModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
                   <ul className="divide-y divide-gray-100 dark:divide-slate-800">
                     {services.map((m: any) => (
                       <li key={m.id} className="py-2 flex items-start justify-between gap-3 text-sm">
-                        <div><p className="font-medium text-gray-900 dark:text-slate-100">{serviceLabel(m.type)}</p>{m.description && <p className="text-gray-500 dark:text-slate-400">{m.description}</p>}<p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(m.performedAt)}{m.mileage != null ? ` · ${Number(m.mileage).toLocaleString()} mi` : ''}</p></div>
+                        <div><p className="font-medium text-gray-900 dark:text-slate-100">{serviceLabel(m.type)}</p>{m.description && <p className="text-gray-500 dark:text-slate-400">{m.description}</p>}<p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(m.performedAt)}{m.mileage != null ? ` · ${Number(m.mileage).toLocaleString('en-US', { maximumFractionDigits: 0 })} mi` : ''}</p></div>
                         {m.cost != null && <span className="font-medium text-gray-900 dark:text-slate-100">{money(m.cost)}</span>}
                       </li>
                     ))}
@@ -929,7 +929,7 @@ function VehicleHistoryModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
                   <ul className="divide-y divide-gray-100 dark:divide-slate-800">
                     {fuel.map((f: any) => (
                       <li key={f.id} className="py-2 flex items-start justify-between gap-3 text-sm">
-                        <div><p className="text-gray-900 dark:text-slate-100">{Number(f.gallons)} gal</p><p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(f.createdAt)}{f.mileage != null ? ` · ${Number(f.mileage).toLocaleString()} mi` : ''}</p></div>
+                        <div><p className="text-gray-900 dark:text-slate-100">{Number(f.gallons)} gal</p><p className="text-xs text-gray-500 dark:text-slate-400">{whenDate(f.createdAt)}{f.mileage != null ? ` · ${Number(f.mileage).toLocaleString('en-US', { maximumFractionDigits: 0 })} mi` : ''}</p></div>
                         {f.totalCost != null && <span className="font-medium text-gray-900 dark:text-slate-100">{money(f.totalCost)}</span>}
                       </li>
                     ))}
