@@ -374,7 +374,9 @@ describe('roofing (its own jobs: pipeline, notes rows, canvassing)', () => {
   })
 
   test('job detail: inspection on the company clock, notes as rows ({ body }), advance, close with a reason, reopen — all the field seat\'s', async () => {
-    expect((await call('field', 'PUT', `/api/jobs/${ids.job}`, { inspectionDate: `${today}T10:00` })).status).toBe(200)
+    expect((await call('owner', 'PUT', `/api/jobs/${ids.job}`, { inspectionDate: `${today}T10:00` })).status).toBe(200)
+    // Scheduling is the office's (jobs:dispatch, 10/24): the field seat can't move its own job's date.
+    expect((await call('field', 'PUT', `/api/jobs/${ids.job}`, { inspectionDate: `${today}T11:00` })).status).toBe(403)
     const note = await call('field', 'POST', `/api/jobs/${ids.job}/notes`, { body: 'Hail on north slope' })
     expect(note.status).toBe(201)
     expect(clone(note.body)).toMatchObject({ body: 'Hail on north slope' })

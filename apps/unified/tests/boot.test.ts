@@ -34,7 +34,7 @@ describe('boot', () => {
     // applied to a financing application (0026, financing_event), and what was sent on the company's clock and QuickBooks'
     // sync record (0029: reminder_log, qb_sync_run, qb_sync_failure), the logins on a crew (0031, crew_login) and the
     // other people on a job (0032, job_assignee).
-    expect(declared.length).toBe(387)
+    expect(declared.length).toBe(391)
     for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure', 'crew_login', 'job_assignee']) expect(declared).toContain(name)
   })
 
