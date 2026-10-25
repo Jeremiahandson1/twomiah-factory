@@ -165,7 +165,8 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
   app.get('/customers', async (c) => {
     const page = Math.max(1, Number(c.req.query('page')) || 1)
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 50))
-    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit)
+    const q = String(c.req.query('q') || '').slice(0, 80)
+    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q)
     return list(c, rows, { page, limit, total })
   })
 

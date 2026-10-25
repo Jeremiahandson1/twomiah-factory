@@ -10,13 +10,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../../../api'
 import { PageError, errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { formatMoney, listOf, refusalOf, toHundredths, toWhole, useStoreCurrency, type Product } from './lib'
+import { CustomerPicker, type PickedCustomer } from '../orders/CustomerPicker'
 
 interface Group {
   id: string; name: string; percentOff: number
   members: { contactId: string; name: string; email: string | null }[]
   prices: { variantId: string; sku: string; productName: string; variantName: string; priceCents: number; catalogueCents: number }[]
 }
-interface Customer { id: string; name: string; email: string | null }
 
 export default function CustomerGroupsPage() {
   const toast = useToast()
@@ -26,7 +26,6 @@ export default function CustomerGroupsPage() {
   const mayUpdate = useMayWrite('discounts:update')
   const mayDelete = useMayWrite('discounts:delete')
   const [groups, setGroups] = useState<Group[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
   const [variants, setVariants] = useState<{ id: string; label: string; priceCents: number }[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', percent: '' })
@@ -38,8 +37,7 @@ export default function CustomerGroupsPage() {
   }, [])
   useEffect(() => {
     void load()
-    // The pickers: the store's customers and its product options (each a list this seat may read; empty if not).
-    api.get('/api/admin/orders/customers', { limit: '500' }).then((r) => setCustomers(listOf<Customer>(r))).catch(() => setCustomers([]))
+    // The product options for a group's own prices (customers are searched as they are added: CustomerPicker).
     api.get('/api/admin/products').then((r) => setVariants(listOf<Product>(r).flatMap((p) => p.variants.map((v) => ({
       id: v.id, label: `${p.name}${v.name && v.name !== p.name && v.name !== 'Default' ? ' — ' + v.name : ''} (${v.sku})`, priceCents: v.priceCents,
     }))))).catch(() => setVariants([]))
@@ -87,20 +85,20 @@ export default function CustomerGroupsPage() {
 
       {groups.length === 0 && !loadError && <p className="text-sm text-gray-600 dark:text-slate-400">No customer groups yet.</p>}
       {groups.map((g) => (
-        <GroupCard key={g.id} g={g} customers={customers} variants={variants} currency={currency} busy={busy}
+        <GroupCard key={g.id} g={g} variants={variants} currency={currency} busy={busy}
           mayUpdate={mayUpdate} mayDelete={mayDelete} run={run} confirm={confirm} />
       ))}
     </div>
   )
 }
 
-function GroupCard({ g, customers, variants, currency, busy, mayUpdate, mayDelete, run, confirm }: {
-  g: Group; customers: Customer[]; variants: { id: string; label: string; priceCents: number }[]; currency: string; busy: boolean
+function GroupCard({ g, variants, currency, busy, mayUpdate, mayDelete, run, confirm }: {
+  g: Group; variants: { id: string; label: string; priceCents: number }[]; currency: string; busy: boolean
   mayUpdate: boolean; mayDelete: boolean; run: (what: () => Promise<unknown>, ok: string, fallback: string) => Promise<void>
   confirm: (m: string, o?: { title?: string; confirmText?: string }) => Promise<boolean>
 }) {
   const [pct, setPct] = useState(String(g.percentOff))
-  const [member, setMember] = useState('')
+  const [member, setMember] = useState<PickedCustomer | null>(null)
   const [variant, setVariant] = useState('')
   const [price, setPrice] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -149,11 +147,8 @@ function GroupCard({ g, customers, variants, currency, busy, mayUpdate, mayDelet
         </ul>
         {mayUpdate && (
           <div className="flex flex-wrap gap-2">
-            <select className="input max-w-sm" aria-label={`Add a customer to ${g.name}`} value={member} onChange={(e) => setMember(e.target.value)}>
-              <option value="">Add a customer…</option>
-              {customers.filter((c) => !inGroup.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ''}</option>)}
-            </select>
-            <button type="button" className="btn btn-secondary" disabled={busy || !member} onClick={async () => { await run(() => api.put(`${base}/members/${encodeURIComponent(member)}`), 'Added to the group', 'Could not add them'); setMember('') }}>Add</button>
+            <div className="flex-1 min-w-[14rem] max-w-sm"><CustomerPicker id={`add-${g.id}`} label={`Add a customer to ${g.name}`} value={member} onPick={setMember} exclude={[...inGroup]} /></div>
+            <button type="button" className="btn btn-secondary self-start" disabled={busy || !member} onClick={async () => { if (!member) return; await run(() => api.put(`${base}/members/${encodeURIComponent(member.id)}`), 'Added to the group', 'Could not add them'); setMember(null) }}>Add</button>
           </div>
         )}
       </div>

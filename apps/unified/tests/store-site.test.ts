@@ -124,5 +124,5 @@ describe('another vertical has no shop', () => {
     for (const p of ['/shop', '/cart', '/scripts/cart.js']) expect([p, (await other.call(p)).status]).toEqual([p, 404])
     expect(await (await other.call('/styles/main.css')).text()).not.toContain('.product-grid')
     expect(await (await other.call('/')).text()).not.toContain('header-cart')
-  })
+  }, 60_000) // it boots a second tenant (every migration), which alone takes about the default 5 seconds
 })

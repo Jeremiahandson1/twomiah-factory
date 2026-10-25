@@ -121,4 +121,6 @@ CREATE INDEX IF NOT EXISTS "store_disputes_company_idx" ON "store_disputes" USIN
 CREATE UNIQUE INDEX IF NOT EXISTS "store_group_prices_group_variant_unique" ON "store_group_prices" USING btree ("group_id","variant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "bar_gift_card_ledger_company_key_key" ON "bar_gift_card_ledger" USING btree ("company_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "orders_provider_payment_idx" ON "orders" USING btree ("provider_payment_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "products_company_status_position_idx" ON "products" USING btree ("company_id","status","position");
+CREATE INDEX IF NOT EXISTS "products_company_status_position_idx" ON "products" USING btree ("company_id","status","position");--> statement-breakpoint
+-- Checkout finds a shopper by lower(email) within the company (server/data/storeCore.ts contactByEmail), twice per order; without this it read every contact of the company. An expression index, written here because the schema files may not hold SQL (RULEBOOK §2).
+CREATE INDEX IF NOT EXISTS "contact_company_email_lower_idx" ON "contact" USING btree ("company_id",lower("email"));

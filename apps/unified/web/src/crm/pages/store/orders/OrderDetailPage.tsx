@@ -150,14 +150,14 @@ export default function OrderDetailPage() {
       merge(r.order)
       const refund = r.refund
       if (refund?.kind === 'refunded') {
-        toast.success(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded`
-          : refund.awaiting ? `Marked ${status} — the payment provider is holding the refund, so nothing is restocked until it confirms it`
+        toast.success(refund.alreadyRefunded ? `Marked ${codeLabel(status).toLowerCase()} — the payment had already been refunded`
+          : refund.awaiting ? `Marked ${codeLabel(status).toLowerCase()} — the payment provider is holding the refund, so nothing is restocked until it confirms it`
           : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${cents(refund.amountCents ?? (order.totalCents - (order.refundedCents || 0)), order.currency)} to the customer's card`)
-      } else if (refund && 'note' in refund) toast.warning(`Marked ${status}. ${refund.note}`)
-      else toast.success(`Marked ${status}`)
+      } else if (refund && 'note' in refund) toast.warning(`Marked ${codeLabel(status).toLowerCase()}. ${refund.note}`)
+      else toast.success(`Marked ${codeLabel(status).toLowerCase()}`)
       // The refund history and the lines' refunded counts changed: read the order whole.
       if (refund) await load()
-    } catch (e) { failed(e, `Couldn't mark the order ${status}`) } finally { setBusy(false) }
+    } catch (e) { failed(e, `Couldn't mark the order ${codeLabel(status).toLowerCase()}`) } finally { setBusy(false) }
   }
 
   const retryRefund = async () => {

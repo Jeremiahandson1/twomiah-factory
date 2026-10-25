@@ -63,7 +63,7 @@ export function signedEvent(type: string, object: unknown, secret = WEBHOOK_SECR
   return { payload, signature: `t=${ts},v1=${createHmac('sha256', secret).update(`${ts}.${payload}`).digest('hex')}` }
 }
 
-export async function bootStore() {
+export async function bootStore(opts: { adminDist?: string } = {}) {
   const stripe = stripeMock()
   const realFetch = globalThis.fetch
   globalThis.fetch = (async (input: any, init?: any) => {
@@ -71,7 +71,7 @@ export async function bootStore() {
     if (url.startsWith('https://api.stripe.com/')) return stripe.handle(url, init)
     return realFetch(input, init)
   }) as any
-  const t = await bootTenant({ vertical: 'store' })
+  const t = await bootTenant({ vertical: 'store', ...(opts.adminDist ? { adminDist: opts.adminDist } : {}) })
   const S = t.schema as any
   const s = await seedOwner(t)
   const companyId = s.company.id

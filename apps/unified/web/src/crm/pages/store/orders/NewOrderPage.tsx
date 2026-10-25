@@ -9,8 +9,8 @@ import { ArrowLeft, Trash2 } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite, useToast } from '../../../../shared'
 import { cents, listOf } from './lib'
+import { CustomerPicker, type PickedCustomer } from './CustomerPicker'
 
-interface Customer { id: string; name: string; email: string | null }
 interface Option { sku: string; label: string; priceCents: number }
 interface Line { sku: string; quantity: string }
 
@@ -18,10 +18,9 @@ export default function NewOrderPage() {
   const toast = useToast()
   const navigate = useNavigate()
   const mayCreate = useMayWrite('orders:create')
-  const [customers, setCustomers] = useState<Customer[]>([])
   const [options, setOptions] = useState<Option[]>([])
   const [pickup, setPickup] = useState(false)
-  const [contactId, setContactId] = useState('')
+  const [chosen, setChosen] = useState<PickedCustomer | null>(null)
   const [lines, setLines] = useState<Line[]>([{ sku: '', quantity: '1' }])
   const [delivery, setDelivery] = useState<'ship' | 'pickup'>('ship')
   const [country, setCountry] = useState('US')
@@ -31,14 +30,12 @@ export default function NewOrderPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/admin/orders/customers', { limit: '500' }).then((r) => setCustomers(listOf<Customer>(r))).catch(() => setCustomers([]))
     api.get('/api/admin/products').then((r) => setOptions(listOf<any>(r).filter((p) => p.status === 'active').flatMap((p: any) => (p.variants || []).map((v: any) => ({
       sku: v.sku, label: `${p.name}${v.name && v.name !== p.name && v.name !== 'Default' ? ' — ' + v.name : ''} (${v.sku})`, priceCents: v.priceCents,
     }))))).catch(() => setOptions([]))
     api.get('/api/admin/settings').then((s: any) => setPickup(!!s?.pickupEnabled)).catch(() => setPickup(false))
   }, [])
 
-  const chosen = customers.find((c) => c.id === contactId) || null
   const listTotal = useMemo(() => lines.reduce((a, l) => a + (options.find((o) => o.sku === l.sku)?.priceCents || 0) * (Number(l.quantity) || 0), 0), [lines, options])
   const setLine = (i: number, k: keyof Line, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
 
@@ -71,10 +68,7 @@ export default function NewOrderPage() {
         <div className="card p-5 space-y-4">
           <div>
             <label className="label" htmlFor="no-cust">Customer</label>
-            <select id="no-cust" className="input" value={contactId} onChange={(e) => setContactId(e.target.value)}>
-              <option value="">Choose a customer…</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ' (no email)'}</option>)}
-            </select>
+            <CustomerPicker id="no-cust" label="Customer" value={chosen} onPick={setChosen} />
           </div>
           <div className="space-y-2">
             <span className="label">Items</span>

@@ -46,6 +46,10 @@ describe('customer groups', () => {
     expect(list.status).toBe(200)
     expect(list.json.data[0].members.map((m: any) => m.contactId)).toEqual([member])
     expect(list.json.data[0].prices[0]).toMatchObject({ sku: 'MUG-1', priceCents: 1500, catalogueCents: 2000 })
+    // The pickers find a customer by name or email, not from a list of every customer.
+    const found = await k.M('GET', '/api/admin/orders/customers?q=CAFE')
+    expect(found.json.data.map((c: any) => c.id)).toEqual([member])
+    expect((await k.M('GET', '/api/admin/orders/customers?q=%25')).json.data.length).toBe(0)
   })
 })
 

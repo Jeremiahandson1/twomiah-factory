@@ -4,7 +4,7 @@
 // standing where it was read, so two people (or a person and the 5-minute resume) can never refund or restock twice.
 // Every function takes the database (or the open transaction) first and answers camelCase (Drizzle's .returning() and
 // select shapes); an order is always the company's (company_id), its lines and refunds reached through it.
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeOrderRefund, storeProductVariant } from '../db/schema/store.ts'
 
@@ -38,8 +38,10 @@ export async function orderStats(db: any, companyId: string): Promise<{ paidCoun
  * have ordered — orders other than pending ones counted, spend counted from paid ones (not pending or cancelled), as the
  * template's derived list counted them — most recent buyer first. A page of them and how many there are.
  */
-export async function storeCustomers(db: any, companyId: string, customerType: string, page: number, limit: number): Promise<{ rows: { id: string; name: string; email: string | null; phone: string | null; orderCount: number; totalSpentCents: number; lastOrderAt: Date | null }[]; total: number }> {
-  const mine = and(eq(contact.companyId, companyId), eq(contact.type, customerType))
+export async function storeCustomers(db: any, companyId: string, customerType: string, page: number, limit: number, q = ''): Promise<{ rows: { id: string; name: string; email: string | null; phone: string | null; orderCount: number; totalSpentCents: number; lastOrderAt: Date | null }[]; total: number }> {
+  // ?q= finds a customer by name or email (a shop of thousands cannot pick one from a list) — 2026-10-24.
+  const needle = q.trim() ? `%${q.trim().replace(/[\\%_]/g, (ch) => '\\' + ch)}%` : ''
+  const mine = and(eq(contact.companyId, companyId), eq(contact.type, customerType), ...(needle ? [or(ilike(contact.name, needle), ilike(contact.email, needle))] : []))
   const orders = db.select({
     contactId: storeOrder.contactId,
     orderCount: sql<number>`count(*) filter (where ${storeOrder.status} <> 'pending')`.as('order_count'),
