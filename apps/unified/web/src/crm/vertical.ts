@@ -62,8 +62,18 @@ export interface VerticalScreens {
    * `typeof … === 'string'`: an absent setting reads as an empty object here.
    */
   home?: string
-  /** The bar's food screens as another vertical has them: speakeasy false leaves the bar's door game off its settings page (restaurant). */
-  foodService?: { speakeasy?: boolean }
+  /**
+   * The bar's food screens as another vertical has them: speakeasy false leaves the bar's door game off its settings page
+   * (restaurant); bar false is a business with no bar of its own (a restaurant or a food truck) — no Bar hours column and no
+   * Bar card on Tonight, the kitchen alone.
+   */
+  foodService?: { speakeasy?: boolean; bar?: boolean }
+  /**
+   * The Website admin in the vertical's words: the finish-your-site items by id (site/components/FinishYourSiteCard.tsx —
+   * stored at signup in the Factory's words, so the vertical's own replace them here, for every tenant already signed
+   * up), and the Portfolio card's line. Absent: the stored words, the shared line.
+   */
+  website?: { gaps?: Record<string, { label: string; unlocks?: string }>; portfolioText?: string }
   /**
    * The browser's Google Maps key (address search, satellite tiles), served at run time by the server
    * (GOOGLE_MAPS_BROWSER_KEY, restricted to the tenant's web addresses). Empty: no key — the screens fall back.

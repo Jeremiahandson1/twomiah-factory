@@ -2,7 +2,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Loader2, Flame, Beer, Users, MessageSquare, Star, Search, RefreshCw } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useAuth, useMayWrite } from '../../../shared'
+import { SHELL_HERE } from '../../../shell'
+import { verticalScreens } from '../../vertical'
 import FormError, { errorText } from '../../ui/FormError'
 import { zoneMoment, zoneWall } from '@twomiah/tenant-ui/src/time/companyClock'
 
@@ -14,6 +16,12 @@ import { zoneMoment, zoneWall } from '@twomiah/tenant-ui/src/time/companyClock'
  * themselves (routes/bar.ts), so a Friday "kitchen closed" never leaves Saturday's board wrong.
  *
  * Who sees what: everyone signed in reads it (bar:read); the controls need bar:console (staff and up).
+ *
+ * BUILT FROM WHAT THE BUSINESS HAS (2026-10-25). The page asked for the menu and the taps whatever was switched on, so a
+ * restaurant without Draft Taps got the server's 403 for /api/bar/taps as a red "This module is not enabled" on its
+ * opening page, every role. The 86 list rides the menu feature; the taps card rides what the Taps page itself needs
+ * in this vertical's menu (SHELL_HERE: 'draft_taps' on a restaurant, the menu on a bar), so the two never disagree;
+ * the Bar card shows only where the business has a bar (screens.foodService.bar).
  */
 
 type Dept = { isOpen: boolean; line: string; short: string; source: string };
@@ -58,8 +66,15 @@ function localTimeToday(hhmm: string, tz: string): string | null {
   return at.toISOString();
 }
 
+/** The features the Taps page needs in this vertical's menu (any one of them), as the shell gates it. */
+const TAPS_FEATURES: string[] = SHELL_HERE.nav.find((i) => i.to === '/crm/taps')?.features || ['bar_menu'];
+
 export default function TonightPage() {
   const mayConsole = useMayWrite('bar:console');
+  const { hasFeature } = useAuth();
+  const hasMenu = hasFeature('bar_menu');
+  const hasTaps = hasMenu && TAPS_FEATURES.some((f) => hasFeature(f));
+  const hasBar = verticalScreens().foodService?.bar !== false;
   const [live, setLive] = useState<Live | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -76,7 +91,8 @@ export default function TonightPage() {
   const load = useCallback(async () => {
     try {
       const [t, m, tp, sp] = await Promise.all([
-        api.get('/api/bar/tonight'), api.get('/api/bar/menu'), api.get('/api/bar/taps'), api.get('/api/bar/specials'),
+        api.get('/api/bar/tonight'), hasMenu ? api.get('/api/bar/menu') : { sections: [] },
+        hasTaps ? api.get('/api/bar/taps') : { data: [] }, api.get('/api/bar/specials'),
       ]);
       setLive(t.live); setStatus(t.status); setNote(t.status?.note || '');
       // The taps and the specials are list replies ({ data, pagination }).
@@ -87,7 +103,7 @@ export default function TonightPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hasMenu, hasTaps]);
   useEffect(() => { load(); }, [load]);
 
   // Every console action: one request, then the board re-reads. The refusal stays on the page.
@@ -168,7 +184,7 @@ export default function TonightPage() {
       <FormError message={err} onDismiss={() => setErr('')} />
 
       {deptControls('kitchen')}
-      {deptControls('bar')}
+      {hasBar && deptControls('bar')}
 
       <div className={CARD}>
         <p className={`${LABEL} mb-3 flex items-center gap-1`}><Users className="w-4 h-4" /> How busy</p>
@@ -212,7 +228,7 @@ export default function TonightPage() {
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">Comes down by itself at 4 AM.</p>
       </div>
 
-      <div className={CARD}>
+      {hasMenu && <div className={CARD}>
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className={LABEL}>86 — out of it</p>
           <span className="text-xs text-gray-500 dark:text-slate-400">{items.filter((i) => i.is86ed).length} out</span>
@@ -239,9 +255,9 @@ export default function TonightPage() {
             ))}
           </ul>
         )}
-      </div>
+      </div>}
 
-      <div className={CARD}>
+      {hasTaps && <div className={CARD}>
         <p className={`${LABEL} mb-2 flex items-center gap-1`}><Beer className="w-4 h-4" /> Taps</p>
         {taps.filter((t) => t.isActive).length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400 py-2">No taps yet. Add the lines on the Taps page.</p> : (
           <ul className="space-y-3">
@@ -258,7 +274,7 @@ export default function TonightPage() {
             ))}
           </ul>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -7,16 +7,18 @@
 // service as the Reports page, so the two can't disagree. Both replies are one record each, as in the template.
 import { Hono } from 'hono'
 import { eq, and, gte, lte, lt, count, desc, asc, inArray, notInArray } from 'drizzle-orm'
-import { createReportingService } from '@twomiah/tenant-backend'
+import { companyTimeZone, createReportingService, storeDayStart } from '@twomiah/tenant-backend'
 import { contact, event, eventSpace, eventMenuItem, eventPayment, user, invoice, payment, job, project, quote, timeEntry } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { one } from '../../http/reply.ts'
 import { installmentStates } from './eventLedger.ts'
-import { EXIT_STATUSES } from './eventBooking.ts'
+import { EXIT_STATUSES, venueToday } from './eventBooking.ts'
 
 const HELD = ['tentative', 'confirmed']
-const day = (d: Date) => d.toISOString().slice(0, 10)
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+/** A calendar day n days on (the arithmetic on the day itself, so no clock can shift it). */
+const dayPlus = (dayKey: string, n: number) => new Date(Date.parse(`${dayKey}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
 export function createEventsDashboardRoutes(d: CrmDeps) {
   const { db } = d
@@ -37,13 +39,23 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
   app.get('/stats', async (c) => {
     const user_ = c.get('user') as any
     const companyId = user_.companyId
-    const now = new Date()
-    const today = day(now)
-    const in30 = day(new Date(now.getTime() + 30 * 86400000))
-    const startOfMonth = day(new Date(now.getFullYear(), now.getMonth(), 1))
-    const startOfNextMonth = day(new Date(now.getFullYear(), now.getMonth() + 1, 1))
+    // Today, this month and the next 30 days on the venue's clock: these read the server's UTC day, so an evening in
+    // the States counted tomorrow's events as today's.
+    const today = await venueToday(db, companyId)
+    const in30 = dayPlus(today, 30)
+    const startOfMonth = `${today.slice(0, 8)}01`
+    const nm = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 1))
+    const startOfNextMonth = nm.toISOString().slice(0, 10)
+    /**
+     * THE REPORTS PAGE'S PERIOD (?startDate=&endDate=, its picker's days on the company clock): the enquiries that came
+     * in during it. The Enquiries tile read "in the next 30 days" whatever period was chosen (live test 2026-10-25).
+     */
+    const qs = c.req.query('startDate'), qe = c.req.query('endDate')
+    const period = qs && qe && DAY_RE.test(qs) && DAY_RE.test(qe) && qs <= qe ? { from: qs, to: qe } : null
+    const tz = period ? await companyTimeZone(db, companyId) : null
+    const periodRange = period && tz ? { start: storeDayStart(period.from, tz), end: storeDayStart(dayPlus(period.to, 1), tz) } : null
 
-    const [clientRows, byStatus, upcoming30Rows, confirmedThisMonth, revenue, bookedValueRows, byTypeRows, spaceRows] = await Promise.all([
+    const [clientRows, byStatus, upcoming30Rows, confirmedThisMonth, revenue, bookedValueRows, byTypeRows, spaceRows, aheadRows, periodRows] = await Promise.all([
       safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }] as any[]),
       safe(() => db.select({ status: event.status, c: count() }).from(event).where(eq(event.companyId, companyId)).groupBy(event.status), [] as { status: string; c: number }[]),
       safe(() => db.select({ value: count() }).from(event).where(and(eq(event.companyId, companyId), gte(event.eventDate, today), lte(event.eventDate, in30), inArray(event.status, HELD))), [{ value: 0 }] as any[]),
@@ -61,7 +73,16 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
         .from(event).leftJoin(eventSpace, eq(event.spaceId, eventSpace.id))
         .where(and(eq(event.companyId, companyId), gte(event.eventDate, today), inArray(event.status, HELD)))
         .groupBy(event.spaceId, eventSpace.name), [] as any[]),
+      // The book ahead, by stage: what "booked ahead" counts (a tentative event holds its room, so it is in the figure),
+      // so the Reports tile beside it can say how many of each it is rather than "Confirmed events 0" beside $1,575.
+      safe(() => db.select({ status: event.status, c: count() }).from(event)
+        .where(and(eq(event.companyId, companyId), gte(event.eventDate, today), inArray(event.status, HELD))).groupBy(event.status), [] as { status: string; c: number }[]),
+      periodRange
+        ? safe(() => db.select({ value: count() }).from(event)
+          .where(and(eq(event.companyId, companyId), gte(event.createdAt, periodRange.start), lt(event.createdAt, periodRange.end))), [{ value: 0 }] as any[])
+        : Promise.resolve(null),
     ])
+    const ahead: Record<string, number> = Object.fromEntries((aheadRows as any[]).map((s) => [s.status, Number(s.c)]))
 
     const bookedValue = (bookedValueRows as any[]).reduce((s, l) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0)
     const statusMap: Record<string, number> = Object.fromEntries((byStatus as any[]).map((s) => [s.status, Number(s.c)]))
@@ -80,6 +101,10 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
       events: {
         upcoming30: upcoming30Rows[0]?.value ?? 0,
         thisMonth: confirmedThisMonth[0]?.value ?? 0,
+        // Held and still to come — the events bookedValue is the menu of.
+        ahead: { confirmed: ahead.confirmed ?? 0, tentative: ahead.tentative ?? 0 },
+        // Enquiries received in the asked period (absent when no period was asked).
+        ...(periodRows ? { enquiriesInPeriod: Number((periodRows as any[])[0]?.value ?? 0) } : {}),
         ...(money ? { bookedValue } : {}),
       },
       ...(money
@@ -94,7 +119,7 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
   app.get('/recent-activity', async (c) => {
     const user_ = c.get('user') as any
     const companyId = user_.companyId
-    const today = day(new Date())
+    const today = await venueToday(db, user_.companyId)
 
     const [newEnquiries, upcomingEvents, scheduleRows] = await Promise.all([
       safe(() => db.select({ id: event.id, name: event.name, eventDate: event.eventDate, eventType: event.eventType, guestCount: event.guestCount, clientName: contact.name, createdAt: event.createdAt })

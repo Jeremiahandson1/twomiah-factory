@@ -98,7 +98,8 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       api.get('/api/reports/revenue/monthly', { months }),
       api.get('/api/reports/revenue/customers', { limit: 5, ...q }),
       cfg.team ? api.get('/api/reports/team', q).catch(() => []) : Promise.resolve([]),
-      cfg.eventsPipeline ? api.get('/api/dashboard/stats').catch(() => null) : Promise.resolve(null),
+      // The period too: the enquiries that came in during it (the Enquiries tile).
+      cfg.eventsPipeline ? api.get('/api/dashboard/stats', q).catch(() => null) : Promise.resolve(null),
       cfg.dealership ? api.get('/api/dashboard/sales-report', q).catch(() => null) : Promise.resolve(null),
       showBranches ? api.get('/api/reports/revenue/locations', q).catch(() => []) : Promise.resolve([]),
     ]).then(([summary, m, c, tm, ev, dl, br]) => {
@@ -175,8 +176,17 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               <Metric title="Outstanding now" value={money(revenue.outstanding)} subtitle={`${money(revenue.overdue)} overdue · ${revenue.overdueCount} invoice${revenue.overdueCount === 1 ? '' : 's'}`} icon={AlertCircle} color="orange" alert={revenue.overdueCount > 0} />
               {cfg.eventsPipeline ? (
                 <>
-                  <Metric title="Confirmed events" value={events?.pipeline?.confirmed ?? 0} subtitle={`${money(events?.events?.bookedValue ?? 0)} booked ahead`} icon={CheckCircle} color="blue" />
-                  <Metric title="Enquiries" value={events?.pipeline?.enquiry ?? 0} subtitle={`${events?.events?.upcoming30 ?? 0} events in the next 30 days`} icon={Calendar} color="purple" />
+                  {/* The book ahead: the held events (confirmed and tentative — a tentative one holds its room) that "booked
+                      ahead" is the menu of, so the count and the money agree. It had read "Confirmed events 0" beside a
+                      tentative event's $1,575. (Live test 2026-10-25.) */}
+                  {(() => {
+                    const ahead = events?.events?.ahead || { confirmed: events?.pipeline?.confirmed ?? 0, tentative: 0 }
+                    const held = Number(ahead.confirmed || 0) + Number(ahead.tentative || 0)
+                    const booked = events?.events?.bookedValue
+                    return <Metric title="Events booked ahead" value={held} subtitle={`${ahead.confirmed} confirmed · ${ahead.tentative} tentative${booked === undefined ? '' : ` · ${money(booked)}`}`} icon={CheckCircle} color="blue" />
+                  })()}
+                  {/* Enquiries received in the chosen period; the label follows the picker (it read "in the next 30 days" on any period). */}
+                  <Metric title="Enquiries" value={events?.events?.enquiriesInPeriod ?? events?.pipeline?.enquiry ?? 0} subtitle={events?.events?.enquiriesInPeriod === undefined ? 'Open now' : `Received · ${rangeLabel.toLowerCase()} · ${events?.pipeline?.enquiry ?? 0} open now`} icon={Calendar} color="purple" />
                 </>
               ) : cfg.dealership ? (
                 <>

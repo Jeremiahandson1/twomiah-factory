@@ -566,7 +566,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
     const page = (title: string, html: string) => c.html(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1.5rem;color:#111827;text-align:center;"><h1 style="font-size:1.4rem;margin-bottom:.5rem;">${title}</h1>${html}</body></html>`)
     try {
       const r = await m.handleUnsubscribe(c.req.param('recipientId'), c.req.param('contactId'))
-      return page('You have been unsubscribed', `<p style="color:#4b5563;">${r.email ? escapeHtml(r.email) + ' will' : 'You will'} no longer receive marketing emails from us.</p><p style="color:#6b7280;font-size:.85rem;">Messages about your jobs, quotes and invoices are not affected.</p>`)
+      return page('You have been unsubscribed', `<p style="color:#4b5563;">${r.email ? escapeHtml(r.email) + ' will' : 'You will'} no longer receive marketing emails from us.</p><p style="color:#6b7280;font-size:.85rem;">Messages about business you do with us, such as receipts, invoices and reminders, are not affected.</p>`)
     } catch (error) { console.error('Unsubscribe error:', error); return page('Something went wrong', '<p style="color:#4b5563;">We could not process that request. Please contact us and we will remove you manually.</p>') }
   })
 

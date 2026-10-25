@@ -284,7 +284,7 @@ function PickDialog({ item, onClose, onAdd }: { item: Item; onClose: () => void;
           <div className="grid gap-2 mb-3">
             {(item.modifiers || []).map((m) => {
               const on = mods.includes(m.id)
-              return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex justify-between`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>
+              return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex items-center justify-between gap-3 py-2 text-left`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>
             })}
           </div>
         </>
@@ -312,6 +312,7 @@ function KioskPin({ mode, onClose, onOk }: { mode: 'start' | 'stop'; onClose: ()
       }}>
         <label className={LABEL} htmlFor="kiosk-pin">Manager's till PIN</label>
         <input id="kiosk-pin" className={`${INPUT} mt-1 text-2xl tracking-[0.4em]`} type="password" inputMode="numeric" autoComplete="off" autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
+        <p className={`text-sm mt-2 ${MUTED}`}>No PIN yet? The owner or a manager sets one on the Register with Set my till PIN.</p>
         <FormError message={err} className="mt-3" />
         <div className="flex justify-end gap-2 mt-4">
           <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>

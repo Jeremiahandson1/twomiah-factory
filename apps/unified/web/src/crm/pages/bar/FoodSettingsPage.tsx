@@ -8,6 +8,12 @@ import { api } from '../../../api'
 import { useConfirm, useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED } from './registerUi'
+import { SHELL_HERE } from '../../../shell'
+import { verticalScreens } from '../../vertical'
+
+// The hours page in this vertical's menu words (a restaurant's 'Hours & Settings', the bar's 'Bar Settings'), and whether
+// the business has a bar of its own (screens.foodService.bar).
+const HOURS_PAGE = SHELL_HERE.nav.find((i) => i.to === '/crm/bar-settings')?.label || 'Bar Settings'
 
 interface Reader { id: string; label: string; deviceType: string | null; serialNumber: string | null; simulated: boolean; status: string | null }
 interface Settings {
@@ -106,7 +112,7 @@ export default function FoodSettingsPage() {
               </div>
               <div>
                 <label className={LABEL} htmlFor="fs-label">Name</label>
-                <input id="fs-label" className={`${INPUT} mt-1`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Front bar" />
+                <input id="fs-label" className={`${INPUT} mt-1`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={verticalScreens().foodService?.bar === false ? 'Front counter' : 'Front bar'} />
               </div>
               <button type="submit" className={`${BTN} ${ON} inline-flex items-center gap-2`} disabled={!!busy || !code.trim()}><Plus className="w-4 h-4" />Add reader</button>
               <p className={`text-xs sm:col-span-3 ${MUTED}`}>On the reader: swipe from the left, Settings, Generate pairing code. Your business address must be in Settings › Company (Stripe needs it).</p>
@@ -130,7 +136,7 @@ export default function FoodSettingsPage() {
       {a.features.kiosk && (
         <section className={`${CARD} space-y-4`} aria-labelledby="fs-kiosk">
           <h2 id="fs-kiosk" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Kiosk</h2>
-          <p className={`text-sm ${MUTED}`}>Open <Link className="underline" to="/crm/kiosk">the kiosk</Link> on a tablet. A manager's till PIN starts it and stops it.</p>
+          <p className={`text-sm ${MUTED}`}>Open <Link className="underline" to="/crm/kiosk">the kiosk</Link> on a tablet. A manager's till PIN starts it and stops it: the owner and each manager set their own on the <Link className="underline" to="/crm/register">Register</Link> with <strong>Set my till PIN</strong> (top of the page).</p>
           <Toggle id="fs-counter" label="Pay at the counter" help={a.readers.length ? 'Guests may also order and pay at the counter.' : 'With no card reader, guests order here and pay at the counter.'} on={s.kiosk.payAtCounter} disabled={!mayEdit || !!busy}
             onChange={(v) => save('counter', { kiosk: { payAtCounter: v } }, 'Saved.')} />
           <Toggle id="fs-table" label="Ask for a table number" on={s.kiosk.askTable} disabled={!mayEdit || !!busy} onChange={(v) => save('table', { kiosk: { askTable: v } }, 'Saved.')} />
@@ -147,7 +153,7 @@ export default function FoodSettingsPage() {
       {a.features.onlineOrdering && (
         <section className={`${CARD} space-y-4`} aria-labelledby="fs-online">
           <h2 id="fs-online" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Online ordering</h2>
-          <p className={`text-sm ${MUTED}`}>Pickup orders from your website's Order page, paid by card on your Stripe account, taken while the kitchen is open (Bar Settings hours, and the Tonight switch). Each becomes a grill ticket; the <Link className="underline" to="/crm/orders">Orders</Link> screen marks it ready and tells the guest.</p>
+          <p className={`text-sm ${MUTED}`}>Pickup orders from your website's Order page, paid by card on your Stripe account, taken while the kitchen is open ({HOURS_PAGE} hours, and the Tonight switch). Each becomes a grill ticket; the <Link className="underline" to="/crm/orders">Orders</Link> screen marks it ready and tells the guest.</p>
           {!a.stripe.connected && <p className="text-sm text-gray-900 dark:text-slate-100">Connect Stripe in <Link className="underline" to="/crm/settings/integrations">Settings › Integrations</Link> before your website takes orders.</p>}
           <Toggle id="fs-pause" label="Pause online orders" help="The website says it is not taking orders right now, until you switch this off." on={s.ordering.paused} disabled={!mayEdit || !!busy}
             onChange={(v) => save('pause', { ordering: { paused: v } }, v ? 'Online orders are paused.' : 'Online orders are back on.')} />

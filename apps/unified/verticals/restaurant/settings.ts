@@ -78,8 +78,9 @@ const restaurant: VerticalSettings = {
     nav: { '/crm/bar-settings': 'Hours & Settings' },
     navSections: { 'The Bar': 'Kitchen & Counter' },
     navFeatures: { '/crm/taps': ['draft_taps'] },
-    // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx).
-    foodService: { speakeasy: false },
+    // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx), and no bar of its own: the
+    // kitchen's hours alone there and on Tonight (TonightPage.tsx).
+    foodService: { speakeasy: false, bar: false },
     // The events dashboard (crm/pages/restaurant/DashboardPage.tsx) in place of the jobs one, as /api/dashboard is.
     home: 'events',
     contacts: {
@@ -151,8 +152,26 @@ const restaurant: VerticalSettings = {
     marketing: {},
     messages: {},
     reviews: { manualHelp: "on a customer's contact page", subjectLabel: 'Event', subtitle: 'Automate Google review requests after an event or job', autoRequestHelp: 'Automatically request reviews after a completed job', emptyHelp: 'Requests are created automatically when jobs are completed' },
-    // No trade licence for a venue (settingsConfig.ts).
-    settings: { licenseNumber: false },
+    settings: {
+      // The Website admin in a restaurant's words, not a contractor's ("Photos of your real work", "Licenses, insurance and
+    // certifications", "Finished work" — live test 2026-10-25).
+    website: {
+      gaps: {
+        photos: { label: 'Photos of your food, your room and your events — three or more' },
+        credentials: { label: 'Awards, press mentions or your food-safety rating', unlocks: 'A line guests read before they book or come in' },
+      },
+      portfolioText: 'Your dishes, your room and past events, with photos.',
+    },
+      licenseNumber: false,
+      // The four rungs, described as what each does in a restaurant (the shared list said "view jobs, log time", live test
+      // 2026-10-25). This replaces the shared list, so Viewer is repeated.
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
+        { value: 'field', label: 'Staff', description: 'the register, the grill and Tonight, and reading the events book; not settings, the team or billing' },
+        { value: 'manager', label: 'Manager', description: 'events, deposits and invoices, the menu and register settings; not company settings or billing' },
+        { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },
+      ],
+    },
     // Jobber import and Angi / Thumbtack / Local Services lead sources are field-service concepts (OnboardingWizard.tsx,
     // FIT-01/F14).
     onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },

@@ -184,6 +184,14 @@ const bar: VerticalSettings = {
     marketing: {},
     messages: {},
     reviews: {},
+    // The Website admin in a bar's words, not a contractor's (the restaurant's live test, 2026-10-25).
+    website: {
+      gaps: {
+        photos: { label: 'Photos of your bar, your food and your nights — three or more' },
+        credentials: { label: 'Awards or press mentions', unlocks: 'A line guests read before they come in' },
+      },
+      portfolioText: 'Your room, your food and your nights, with photos.',
+    },
     settings: {
       // No trade licence behind a bar (settingsConfig.ts, T41).
       licenseNumber: false,

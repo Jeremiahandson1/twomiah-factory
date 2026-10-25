@@ -27,6 +27,8 @@ export default function BarSettingsPage() {
   const mayEdit = useMayWrite('bar:update');
   // The speakeasy door is the bar's own game; a restaurant's or a truck's page is just its hours (screens.foodService).
   const speakeasyOn = verticalScreens().foodService?.speakeasy !== false;
+  // No bar of its own (a restaurant, a truck): the kitchen's hours alone, and no taps in the import's words.
+  const hasBar = verticalScreens().foodService?.bar !== false;
   const { user } = useAuth() as { user?: { role?: string } };
   const mayImport = mayEdit && ['owner', 'admin'].includes(String(user?.role || ''));
   const [hours, setHours] = useState<Hours>({ bar: {}, kitchen: {}, holidays: [] });
@@ -112,8 +114,8 @@ export default function BarSettingsPage() {
 
       <section className={CARD}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Hours</h2>
-        <p className="text-sm text-gray-500 dark:text-slate-400">The bar and the kitchen keep their own hours. A close earlier than the open runs past midnight (11:00 to 02:00 closes at 2 AM).</p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">{deptTable('bar')}{deptTable('kitchen')}</div>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{hasBar ? 'The bar and the kitchen keep their own hours.' : "Your kitchen's hours."} A close earlier than the open runs past midnight (11:00 to 02:00 closes at 2 AM).</p>
+        <div className={`grid grid-cols-1 ${hasBar ? 'lg:grid-cols-2' : ''} gap-6`}>{hasBar && deptTable('bar')}{deptTable('kitchen')}</div>
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-slate-100 mb-2">Holidays and one-off days</h3>
           {(hours.holidays || []).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">None. Christmas, New Year's Eve, a private event — add the day and whether you're closed.</p>}
@@ -154,7 +156,7 @@ export default function BarSettingsPage() {
       {mayImport && (
         <section className={CARD}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2"><Upload className="w-5 h-5" /> Import a whole menu</h2>
-          <p className="text-sm text-gray-500 dark:text-slate-400">For moving onto Twomiah: paste the menu, taps, hours and events as JSON. Running it again updates what's there instead of adding copies.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">For moving onto Twomiah: paste the menu, {hasBar ? 'taps, ' : ''}hours and events as JSON. Running it again updates what's there instead of adding copies.</p>
           <label htmlFor="bar-import" className="sr-only">Menu JSON</label>
           <textarea id="bar-import" className={`${INPUT} w-full font-mono text-xs`} rows={8} value={importText} onChange={(e) => setImportText(e.target.value)} placeholder='{ "menu": { "sections": [ { "name": "Burgers", "items": [ { "name": "Hamburger", "priceCents": 579 } ] } ] } }' />
           <button disabled={!importText.trim() || saving === 'import'} onClick={runImport} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">{saving === 'import' ? 'Importing…' : 'Import'}</button>

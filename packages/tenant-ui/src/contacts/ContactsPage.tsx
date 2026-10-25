@@ -20,6 +20,14 @@ const emptyForm = (type: string): ContactForm => ({ type, name: '', company: '',
 
 export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const cfg = resolveContactsConfig(config)
+  /**
+   * What starts from a contact, in the vertical's words and from what the business has (cfg.shows): a restaurant's
+   * empty list said "every job, quote and invoice starts from a contact" (live test 2026-10-25).
+   */
+  const starts = [cfg.shows('jobs') && cfg.jobLabels.singular.toLowerCase(), cfg.shows('quotes') && 'quote', cfg.shows('events') && 'event', cfg.shows('invoices') && 'invoice'].filter(Boolean) as string[]
+  const startsHere = starts.length
+    ? `Add your customers and leads here — every ${starts.length > 1 ? `${starts.slice(0, -1).join(', ')} and ${starts[starts.length - 1]}` : starts[0]} starts from a contact.`
+    : 'Add your customers and leads here.'
   const mayCreate = cfg.can('contacts:create')
   // The row menu asks each route's question: Edit and Convert are PUT/POST on contacts:update (so is the vendor
   // invite), Delete is contacts:delete. T62 closed the detail page; the list's menu still offered both. (T63)
@@ -302,7 +310,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         // A search or a type filter that matches nothing is a different empty from a new company's: only the
         // second is told how to start. (E2E run 1)
         emptyMessage={search || typeFilter ? 'No contacts match' : 'No contacts yet'}
-        emptyHint={search || typeFilter ? 'Try a different search or clear the filter.' : 'Add your customers and leads here — every job, quote and invoice starts from a contact.'}
+        emptyHint={search || typeFilter ? 'Try a different search or clear the filter.' : startsHere}
         emptyAction={!search && !typeFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add {cfg.addLabel}</Button> : undefined}
       />
 

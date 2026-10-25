@@ -55,7 +55,12 @@ export const ResetPassword = () => <ResetPasswordPage api={api} />
  */
 const settingsRoles = () => {
   const own = (verticalScreens().settings as { roles?: typeof DEFAULT_ROLES }).roles
-  return (own && own.length ? own : DEFAULT_ROLES).map((r) => ({ ...r, label: roleWord(r.value) || r.label }))
+  // A vertical that runs no jobs (reporting.jobs false) and has no list of its own does not describe Staff by jobs.
+  const noJobs = (verticalScreens().reporting as { jobs?: boolean }).jobs === false
+  const shared = noJobs
+    ? DEFAULT_ROLES.map((r) => (r.value === 'field' ? { ...r, description: 'day-to-day work on the everyday pages; not settings, the team or billing' } : r))
+    : DEFAULT_ROLES
+  return (own && own.length ? own : shared).map((r) => ({ ...r, label: roleWord(r.value) || r.label }))
 }
 export function Settings() {
   const auth = useAuth()

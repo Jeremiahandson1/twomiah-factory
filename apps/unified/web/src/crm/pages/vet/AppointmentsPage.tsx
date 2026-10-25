@@ -1,5 +1,6 @@
 // Moved from templates/crm-vet/frontend/src/pages/vet/AppointmentsPage.tsx.
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, DoorOpen } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite, useToast } from '../../../shared'
@@ -76,6 +77,16 @@ export default function AppointmentsPage() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
+  // An owner's "Book Appointment" quick action (verticals/vet/settings.ts: ?ownerId=<contact>) opens the form for them;
+  // it had linked to the bare day view, where the desk picked the owner again.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [presetOwner, setPresetOwner] = useState<string>('');
+  useEffect(() => {
+    const owner = searchParams.get('ownerId');
+    if (!owner || !mayBook) return;
+    setPresetOwner(owner); setShowForm(true);
+    const next = new URLSearchParams(searchParams); next.delete('ownerId'); setSearchParams(next, { replace: true });
+  }, [searchParams, mayBook]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -191,8 +202,9 @@ export default function AppointmentsPage() {
       {showForm && (
         <NewAppointmentModal
           defaultDay={day}
-          onSave={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
+          defaultOwner={presetOwner}
+          onSave={() => { setShowForm(false); setPresetOwner(''); load(); }}
+          onClose={() => { setShowForm(false); setPresetOwner(''); }}
         />
       )}
     </div>
@@ -205,13 +217,13 @@ interface PatientOption { id: string; name?: string; ownerId?: string; ownerName
 
 interface AppointmentForm { patientId: string; providerId: string; type: string; date: string; startTime: string; endTime: string; room: string; reason: string; notes: string }
 
-function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
+function NewAppointmentModal({ defaultDay, defaultOwner = '', onSave, onClose }: { defaultDay: string; defaultOwner?: string; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [providers, setProviders] = useState<StaffMember[]>([]);
-  const [ownerId, setOwnerId] = useState<string>('');
+  const [ownerId, setOwnerId] = useState<string>(defaultOwner);
   const [form, setForm] = useState<AppointmentForm>({
     patientId: '', providerId: '', type: 'wellness',
     date: defaultDay, startTime: '09:00', endTime: '09:30',
@@ -222,7 +234,13 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
   // Separately: a refused provider list took the patient list down with it (Promise.all), and the desk could not book.
   const mayPickStaff = useMayPickStaff();
   useEffect(() => {
-    api.get('/api/patients?limit=500').then((r: { data?: PatientOption[] }) => setPatients(r?.data || [])).catch(() => setPatients([]));
+    api.get('/api/patients?limit=500').then((r: { data?: PatientOption[] }) => {
+      const rows = r?.data || [];
+      setPatients(rows);
+      // Booked from an owner with one patient: that patient.
+      const theirs = defaultOwner ? rows.filter((p) => p.ownerId === defaultOwner) : [];
+      if (theirs.length === 1) setForm((f) => (f.patientId ? f : { ...f, patientId: theirs[0].id }));
+    }).catch(() => setPatients([]));
   }, []);
   useEffect(() => {
     if (mayPickStaff) fetchStaff().then(setProviders).catch(() => setProviders([]));
