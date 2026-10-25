@@ -65,6 +65,8 @@ export interface Service {
 
 export interface BookingSettings {
   enabled: boolean
+  /** The address rule as it stands (the owner's choice, else the business type's): the business goes to its customers. */
+  goesToCustomer?: boolean
   timezone: string
   leadTimeMinutes: number
   maxDaysOut: number

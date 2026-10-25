@@ -372,7 +372,7 @@ function SettingsTab({ config, mayConfigure, saving, onSave }: {
       <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
         <input type="checkbox" checked={config.loyaltyEnabled}
           onChange={(e) => void onSave({ loyaltyEnabled: e.target.checked }, e.target.checked ? 'Loyalty program switched on' : 'Loyalty program switched off')} />
-        Run a loyalty programme
+        Run a loyalty program
       </label>
 
       <PageError message={error} />

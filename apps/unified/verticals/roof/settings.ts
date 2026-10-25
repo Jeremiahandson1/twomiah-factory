@@ -93,6 +93,8 @@ const roof: VerticalSettings = {
   },
   // The screens' settings are filled as roofing's screens land (plan step 4).
   screens: {
+    // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
+    onboarding: { integrations: ['dns', 'quickbooks', 'jobber', 'angi', 'thumbtack', 'google_lsa', 'stripe', 'twilio'] },
     // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).
     home: 'roofing',
     // The homeowner's portal tabs. The default list (projects, change orders, selections) is the contractor's, none of

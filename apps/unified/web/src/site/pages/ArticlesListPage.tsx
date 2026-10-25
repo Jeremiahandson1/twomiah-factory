@@ -36,7 +36,7 @@ interface Kind {
 
 export const BLOG: Kind = {
   heading: 'Blog',
-  intro: 'Write posts to bring in search traffic, share project updates, or show how you work.',
+  intro: 'Write posts to bring in search traffic, share news, or show how you work.',
   collection: 'posts', route: 'blog', publicPrefix: '/blog/',
   noun: 'post', newLabel: 'New post',
   emptyText: 'No posts yet.',

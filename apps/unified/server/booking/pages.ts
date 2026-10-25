@@ -77,7 +77,9 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   })
 
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
-  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false) {
+  // askZip: only where somebody covers named ZIP codes (Settings › Service areas) — the ZIP picks who is offered. A salon
+  // that has none asked every client for one (salon live test, 2026-10-25).
+  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
     // The waitlist's dates are held to the booking window like a booking's (engine.customerRules).
     const win = engine.window(settings)
@@ -117,7 +119,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       </ol>
       <div class="book-step book-step--date">
         <h2>Pick a date</h2>
-        ${moving ? '' : `<div class="book-zip"><label>Your ZIP code (optional)<input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" id="book-zip" name="zip" autocomplete="postal-code"></label></div>`}
+        ${moving || !askZip ? '' : `<div class="book-zip"><label>Your ZIP code (optional)<input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" id="book-zip" name="zip" autocomplete="postal-code"></label></div>`}
         <div class="book-dates" id="book-dates"><p class="book-loading">Finding open days…</p></div>
       </div>
       <div class="book-step book-step--slot" hidden>
@@ -179,7 +181,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
       <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + price(svc.price) : ''}</p>
-      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c))}
+      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0))}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
   })

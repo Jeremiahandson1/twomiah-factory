@@ -294,7 +294,7 @@ export default function LoyaltyPage() {
           {members.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-8 text-center">
               <p className="text-gray-600 dark:text-slate-400">
-                Nobody is on the programme yet. Clients join automatically the first time a visit is completed.
+                Nobody is on the program yet. Clients join automatically the first time a visit is completed.
               </p>
             </div>
           ) : (
@@ -522,7 +522,7 @@ function SettingsPanel({ config, services, onSaved }: { config: LoyaltyConfig | 
 
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
           <input type="checkbox" checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />
-          Run the loyalty programme
+          Run the loyalty program
         </label>
         <p className="text-xs text-gray-500 dark:text-slate-400">
           Switched off, completed visits stop earning. Balances already earned stay where they are, and a

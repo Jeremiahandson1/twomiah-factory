@@ -390,7 +390,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
-              An enquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
+              An inquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
             </p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How did they find you?</label>

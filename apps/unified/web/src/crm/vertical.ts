@@ -52,7 +52,7 @@ export interface VerticalScreens {
   parts: { categories?: string[]; namePlaceholder?: string }
   /** The first-run wizard: the integrations its second step offers, by id (absent: all of them). */
   onboarding: {
-    integrations?: string[]
+    integrations: string[]
     /** The vertical's own entries for that step (id, label, description, category, guideSteps), e.g. RV's marketplaces. */
     extra?: Array<{ id: string; label: string; description: string; category: string; guideSteps: string[]; open?: { to: string; label: string } }>
     /** Whose suggested addresses the branded-email step offers (packages/tenant-ui config/emailDefaults.ts); absent, 'crm'. */

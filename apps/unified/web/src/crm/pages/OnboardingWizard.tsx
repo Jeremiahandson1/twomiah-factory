@@ -127,7 +127,7 @@ const INTEGRATIONS: Integration[] = [
 ];
 
 /**
- * The ones this vertical offers (screens.onboarding.integrations; absent, all). A gym or a food truck has no Jobber
+ * The ones this vertical offers (screens.onboarding.integrations, which every vertical names). A gym or a food truck has no Jobber
  * export and no Angi account, so templates/crm-basic offered only the domain, QuickBooks, Stripe and texting (T41).
  * A category left with none is not shown.
  */
@@ -136,7 +136,7 @@ const offeredIntegrations = (): Integration[] => {
   // A vertical's own entries, as plain data (screens.onboarding.extra): a dealership's DMS import and its marketplaces
   // (templates/crm-rv OnboardingWizard.tsx), in place of Jobber, Angi, Thumbtack and Google LSA.
   const all = [...INTEGRATIONS, ...(Array.isArray(extra) ? (extra as Integration[]) : [])]
-  return ids ? all.filter((i) => ids.includes(i.id)) : all
+  return all.filter((i) => (ids || []).includes(i.id))
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

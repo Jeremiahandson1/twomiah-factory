@@ -276,7 +276,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Rebook (days)</label>
-                <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="42" />
+                <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Blank: no reminder" />
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">

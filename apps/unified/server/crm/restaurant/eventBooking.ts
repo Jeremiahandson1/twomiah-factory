@@ -8,6 +8,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { event, eventSpace, eventMenuItem, user } from '../../db/schema/index.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
+import { calendarDayWords } from '../../core/dayWords.ts'
 
 // The lists the screens offer (crm/pages/restaurant/EventsPage.tsx STATUSES / EVENT_TYPES), so a status or type is
 // one vocabulary end to end.
@@ -156,11 +157,7 @@ export async function findClash(exec: any, companyId: string, spaceId: string, e
  * An event's date in words — "Friday, November 20, 2026". The event date is a calendar day (the day the event is on,
  * not a moment), so it is read as the day it names; printed raw it read "held on 2026-11-20" (live test 2026-10-25).
  */
-export const eventDayWords = (day: unknown): string => {
-  const s = String(day ?? '').slice(0, 10)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return String(day ?? '')
-  return new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-}
+export const eventDayWords = calendarDayWords
 /** A stored code in words, for a printed page: 'private_dining' → "Private dining", 'tentative' → "Tentative". */
 export const eventCodeWords = (code: unknown): string => {
   const s = String(code ?? '').replace(/_/g, ' ').trim()

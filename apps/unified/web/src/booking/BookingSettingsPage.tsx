@@ -45,7 +45,7 @@ export function BookingSettingsPage() {
       <Services services={services} mayEdit={owner} onChange={reload} />
       <fieldset disabled={!runs} className="min-w-0"><Hours people={people} /></fieldset>
       <fieldset disabled={!runs} className="min-w-0"><DaysOff people={people} /></fieldset>
-      {people.length > 1 && <fieldset disabled={!owner} className="min-w-0"><Zones people={people} /></fieldset>}
+      {people.length > 1 && settings.goesToCustomer !== false && <fieldset disabled={!owner} className="min-w-0"><Zones people={people} /></fieldset>}
       <fieldset disabled={!owner} className="min-w-0"><Words settings={settings} onSaved={reload} /></fieldset>
       {owner && <Feed settings={settings} onSaved={reload} />}
       {owner && <Embed services={services} />}
@@ -89,7 +89,8 @@ function General({ settings, onSaved }: { settings: BookingSettings; onSaved: ()
           <div><span className="label">Time zone</span><div id="bs-tz" className="text-sm text-ink py-2"><p>{zoneWords(settings.timezone)} — your business&rsquo;s time zone.</p><Link to="/crm/settings" className="inline-block whitespace-nowrap text-brand-700 hover:underline dark:text-brand-200">Change it in Settings › Company</Link></div></div>
           <div><label htmlFor="bs-lead" className="label">Notice needed (minutes)</label><input id="bs-lead" type="number" min={0} className="input" value={f.leadTimeMinutes} onChange={set('leadTimeMinutes')} /><p className="text-xs text-muted mt-1">{Number(f.leadTimeMinutes) ? `Nothing sooner than ${minutesWords(Number(f.leadTimeMinutes))} from now.` : 'Right up to the start.'}</p></div>
           <div><label htmlFor="bs-max" className="label">How far ahead (days)</label><input id="bs-max" type="number" min={1} max={365} className="input" value={f.maxDaysOut} onChange={set('maxDaysOut')} /></div>
-          <div><label htmlFor="bs-drive" className="label">Travel between jobs (minutes)</label><input id="bs-drive" type="number" min={0} className="input" value={f.driveTimeMinutes} onChange={set('driveTimeMinutes')} /></div>
+          {/* Travel time and ZIP service areas are the road's: a salon's clients come to it (salon live test, 2026-10-25). */}
+          {settings.goesToCustomer !== false && <div><label htmlFor="bs-drive" className="label">Travel between visits (minutes)</label><input id="bs-drive" type="number" min={0} className="input" value={f.driveTimeMinutes} onChange={set('driveTimeMinutes')} /></div>}
           <div><label htmlFor="bs-cut" className="label">Customers can change it until (minutes before)</label><input id="bs-cut" type="number" min={0} className="input" value={f.selfServiceCutoffMinutes} onChange={set('selfServiceCutoffMinutes')} /></div>
           <div><label htmlFor="bs-addr" className="label">Ask for the address</label><select id="bs-addr" className="input" value={f.requireAddress} onChange={set('requireAddress')}><option value="">Your business type's default</option><option value="true">Yes — we go to them</option><option value="false">No — they come to us</option></select></div>
         </div>

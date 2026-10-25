@@ -22,6 +22,15 @@ const walk = (dir: string): string[] => readdirSync(join(ROOT, dir)).flatMap((na
 let files: string[] = []
 try { files = walk(SRC) } catch { fail(SRC + ' is missing — fix this guard\'s walk') }
 if (files.length < 50) fail(`only ${files.length} files under ${SRC} — fix this guard's walk`)
+// The public site's own scripts and pages too: the booking page's cancel used the browser's confirm (salon run, 10/25).
+const SITE = 'apps/unified/site'
+const siteWalk = (dir: string): string[] => readdirSync(join(ROOT, dir)).flatMap((name) => {
+  const rel = dir + '/' + name
+  return statSync(join(ROOT, rel)).isDirectory() ? siteWalk(rel) : /\.(ts|js|ejs)$/.test(name) ? [rel] : []
+})
+const siteFiles = (() => { try { return siteWalk(SITE) } catch { fail(SITE + ' is missing — fix this guard\'s walk'); return [] } })()
+if (siteFiles.length < 30) fail(`only ${siteFiles.length} files under ${SITE} — fix this guard's walk`)
+files = [...files, ...siteFiles]
 
 for (const rel of files) {
   const src = readFileSync(join(ROOT, rel), 'utf8')

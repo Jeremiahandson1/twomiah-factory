@@ -58,6 +58,8 @@ const fieldservice: VerticalSettings = {
   },
   // templates/crm-fieldservice/frontend/src/*Config.ts
   screens: {
+    // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
+    onboarding: { integrations: ['dns', 'quickbooks', 'jobber', 'angi', 'thumbtack', 'google_lsa', 'stripe', 'twilio'] },
     // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
     warranties: { namePlaceholder: 'e.g., Parts and labor — one year', categoryPlaceholder: 'e.g., parts', claimTitlePlaceholder: 'e.g., AC not cooling after repair', claimLocationPlaceholder: 'e.g., Attic air handler' },
     // The menu in this trade's words, by page address.

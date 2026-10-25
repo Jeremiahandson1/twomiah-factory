@@ -17,9 +17,31 @@
     setTimeout(post, 50)
   }
 
-  // A form that asks first (the manage page's cancel).
+  // A form that asks first (the manage page's cancel), on the page: the browser's own confirm froze the page with a box
+  // in the browser's words (salon live test, 2026-10-25). The first press shows the question and two buttons; "Yes"
+  // sends the form, "No" puts the page back.
   document.querySelectorAll('form[data-confirm]').forEach(function (f) {
-    f.addEventListener('submit', function (e) { if (!window.confirm(f.getAttribute('data-confirm'))) e.preventDefault() })
+    var asked = false
+    f.addEventListener('submit', function (e) {
+      if (asked) return
+      e.preventDefault()
+      var button = f.querySelector('button[type="submit"]')
+      if (button) button.hidden = true
+      var box = document.createElement('div')
+      box.className = 'book-confirm'
+      box.setAttribute('role', 'alert')
+      var q = document.createElement('p')
+      q.textContent = f.getAttribute('data-confirm') || 'Are you sure?'
+      var yes = document.createElement('button')
+      yes.type = 'button'; yes.className = 'book-submit book-submit--danger'; yes.textContent = 'Yes, cancel it'
+      var no = document.createElement('button')
+      no.type = 'button'; no.className = 'book-submit'; no.textContent = 'No, keep it'
+      yes.addEventListener('click', function () { asked = true; yes.disabled = true; no.disabled = true; f.submit() })
+      no.addEventListener('click', function () { box.remove(); if (button) { button.hidden = false; button.focus() } })
+      box.appendChild(q); box.appendChild(yes); box.appendChild(no)
+      f.appendChild(box)
+      no.focus()
+    })
   })
 
   var root = document.getElementById('book-flow')

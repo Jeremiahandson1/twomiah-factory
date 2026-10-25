@@ -13,6 +13,8 @@ import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
+import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
+import { useAuth } from '../../../shared'
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -136,6 +138,7 @@ export default function ClientDetailPage() {
   const [showProfile, setShowProfile] = useState<boolean>(false);
   const [busyFormula, setBusyFormula] = useState<string>('');
   const toast = useToast();
+  const { hasFeature } = useAuth();
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -233,9 +236,14 @@ export default function ClientDetailPage() {
               </p>
             </div>
           </div>
-          {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
-            <Edit2 className="w-4 h-4" /> Edit Profile
-          </button>}
+          <div className="flex items-center gap-2">
+            {/* Ask this client for a Google review — the Reviews page sends the desk to "a client's page", and the salon's
+                client page is this one; the button was only on the contact page (salon live test, 2026-10-25). */}
+            <ReviewRequestButton api={api as any} toast={toast} contactId={ct.id} hasFeature={hasFeature} />
+            {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+              <Edit2 className="w-4 h-4" /> Edit Profile
+            </button>}
+          </div>
         </div>
 
         {profile.allergies && (

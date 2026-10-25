@@ -220,27 +220,29 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       companyId: currentUser.companyId,
     }).returning()
 
-    if (created.appointmentId) {
-      await db.update(appointment).set({ status: 'completed', updatedAt: new Date() })
-        .where(and(eq(appointment.id, created.appointmentId), eq(appointment.companyId, currentUser.companyId)))
-    }
-
-    // Logging the service closes the visit: the sale (once per appointment) and the review request. Neither may fail the
-    // record write. (SALON-H4 / H2)
+    // Logging the service closes the visit. Against an appointment, the one way every visit closes (visit.ts): the sale,
+    // loyalty and the review request — this route's own copy never awarded loyalty (salon live test, 2026-10-25).
+    // A walk-in logged with no appointment raises its sale and review here; loyalty is keyed to an appointment.
     let invoiceId: string | null = null
-    try {
-      let serviceName: string | null = null
-      if (created.serviceId) {
-        const [svc] = await db.select({ name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, created.serviceId)).limit(1)
-        serviceName = svc?.name || null
-      }
-      const inv = await checkout.ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: created.appointmentId, serviceName, price: Number(created.priceCharged), actor: currentUser })
-      invoiceId = inv?.id || null
-      // Which sale this visit raised, so deleting the visit can answer for it. (T20 H3)
-      if (invoiceId) await db.update(serviceRecord).set({ invoiceId, updatedAt: new Date() } as any).where(eq(serviceRecord.id, created.id))
-    } catch (e: any) { logger.warn('[service-records] sale not created', { error: e?.message || String(e) }) }
-    d.services.reviews.scheduleReviewRequestForVisit({ companyId: currentUser.companyId, contactId: created.contactId })
-      .catch((e: any) => logger.warn('[service-records] review schedule failed', { error: e?.message || String(e) }))
+    if (created.appointmentId) {
+      const [row] = await db.update(appointment).set({ status: 'completed', updatedAt: new Date() })
+        .where(and(eq(appointment.id, created.appointmentId), eq(appointment.companyId, currentUser.companyId))).returning()
+      if (row) invoiceId = await salon.visits.closeVisit(row, currentUser, Number(created.priceCharged) || null)
+    } else {
+      try {
+        let serviceName: string | null = null
+        if (created.serviceId) {
+          const [svc] = await db.select({ name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, created.serviceId)).limit(1)
+          serviceName = svc?.name || null
+        }
+        const inv = await checkout.ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: null, serviceName, price: Number(created.priceCharged), actor: currentUser })
+        invoiceId = inv?.id || null
+      } catch (e: any) { logger.warn('[service-records] sale not created', { error: e?.message || String(e) }) }
+      d.services.reviews.scheduleReviewRequestForVisit({ companyId: currentUser.companyId, contactId: created.contactId })
+        .catch((e: any) => logger.warn('[service-records] review schedule failed', { error: e?.message || String(e) }))
+    }
+    // Which sale this visit raised, so deleting the visit can answer for it. (T20 H3)
+    if (invoiceId) await db.update(serviceRecord).set({ invoiceId, updatedAt: new Date() } as any).where(eq(serviceRecord.id, created.id))
 
     await audit.log({ action: 'create', entity: 'service_record', entityId: created.id, metadata: created, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')

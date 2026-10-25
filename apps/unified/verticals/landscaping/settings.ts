@@ -62,6 +62,8 @@ const landscaping: VerticalSettings = {
   },
   // templates/crm-landscaping/frontend/src/*Config.ts and the page wrappers' configs
   screens: {
+    // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
+    onboarding: { integrations: ['dns', 'quickbooks', 'jobber', 'angi', 'thumbtack', 'google_lsa', 'stripe', 'twilio'] },
     // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
     warranties: { namePlaceholder: 'e.g., Plantings — one-year replacement', categoryPlaceholder: 'e.g., plantings', claimTitlePlaceholder: 'e.g., Shrub died after planting', claimLocationPlaceholder: 'e.g., Front bed, left of the driveway' },
     // The menu in this trade's words, by page address (shellConfig.ts). Field service's own items sit under

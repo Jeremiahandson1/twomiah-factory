@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check } from 'lucide-react'
-import { PageError } from '../../shared'
+import { PageError, useAuth } from '../../shared'
 import { api } from '../../api'
 import { verticalScreens } from '../../crm/vertical'
 
@@ -21,7 +21,7 @@ const HOW: Record<string, { text: string; to: string }> = {
   testimonials: { text: 'Open the Home page and add a Testimonials section with the review and the customer\'s name.', to: '/crm/website/pages/home' },
   yearFounded: { text: 'Add it to your About story, or as a figure in a Stats section.', to: '/crm/website/pages/about' },
   credentials: { text: 'Add a Stats section or a line in your About story listing them.', to: '/crm/website/pages/about' },
-  hours: { text: 'Open your contact page and fill in the hours on its contact section.', to: '/crm/website/pages' },
+  hours: { text: 'Set your opening hours in Settings — your contact page shows them.', to: '/crm/settings' },
   pricing: { text: 'Add prices to the service descriptions, or answer "what does it cost" in an FAQ section.', to: '/crm/website/pages' },
 }
 
@@ -37,6 +37,11 @@ export function FinishYourSiteCard() {
   const [gaps, setGaps] = useState<Gap[]>([])
   const [error, setError] = useState<string | null>(null)
   const [measured, setMeasured] = useState<Measured>({})
+  // The hours are the company's (Settings › Business hours, company.settings.businessHours), which the contact page
+  // prints when its own are left empty (server/site/context.ts): they were set and the item stayed open (salon run, 10/25).
+  const { company } = useAuth() as { company?: { settings?: { businessHours?: Record<string, { closed?: boolean } | null> } } }
+  const week = company?.settings?.businessHours
+  const hoursSet = !!week && Object.values(week).some((d) => d && !d.closed)
 
   useEffect(() => {
     api.get('/api/site/settings')
@@ -52,7 +57,8 @@ export function FinishYourSiteCard() {
   }, [])
 
   // A measured item is open until the site really has it, whatever its tick says; the rest follow the owner's tick.
-  const open = gaps.filter(g => (measured[g.id] ? !measured[g.id].met : !g.done))
+  const live: Measured = { ...measured, hours: { met: hoursSet, progress: hoursSet ? 'Hours set' : 'No opening hours yet' } }
+  const open = gaps.filter(g => (live[g.id] ? !live[g.id].met : !g.done))
   if (open.length === 0) return null
 
   const markDone = async (id: string) => {
@@ -86,7 +92,7 @@ export function FinishYourSiteCard() {
               <div className="flex-1">
                 <div className="text-sm text-ink font-semibold">{own?.label || g.label}</div>
                 <div className="text-sm text-ink-soft">{own?.unlocks || g.unlocks}</div>
-                {measured[g.id] && <div className="text-xs font-semibold text-ink mt-1">{measured[g.id].progress}</div>}
+                {live[g.id] && <div className="text-xs font-semibold text-ink mt-1">{live[g.id].progress}</div>}
                 {how && (
                   <div className="text-xs text-muted mt-1">
                     {how.text} <Link to={how.to} className="underline text-ink">Go there</Link>
@@ -94,7 +100,7 @@ export function FinishYourSiteCard() {
                 )}
               </div>
               {/* "Mark done", not "Done": a bare "Done" beside an item read as its status. A measured item has no tick. */}
-              {!measured[g.id] && (
+              {!live[g.id] && (
                 <button onClick={() => markDone(g.id)} className="btn-secondary btn-sm inline-flex items-center gap-1 flex-shrink-0">
                   <Check className="w-3.5 h-3.5" />
                   Mark done

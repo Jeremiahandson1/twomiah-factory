@@ -66,7 +66,9 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   const admin = new Hono<AppEnv>()
   const co = (c: Context<AppEnv>) => c.get('user').companyId
 
-  admin.get('/settings', may('bookings:read'), async (c) => one(c, await engine.settingsOf(co(c))))
+  // goesToCustomer: the address rule as it stands (the owner's choice, else the business type's), for the screens that
+  // only make sense on the road — travel time, ZIP service areas (salon live test, 2026-10-25).
+  admin.get('/settings', may('bookings:read'), async (c) => { const s = await engine.settingsOf(co(c)); return one(c, { ...s, goesToCustomer: engine.requireAddress(s) }) })
   admin.patch('/settings', may('bookings:settings'), (c) => guard(c, async () => one(c, await engine.updateSettings(co(c), await body(c)))))
   admin.post('/settings/feed-token', may('bookings:settings'), async (c) => one(c, await engine.rotateFeedToken(co(c))))
 

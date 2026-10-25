@@ -112,6 +112,8 @@ const salon: VerticalSettings = {
   },
   // templates/crm-salon/frontend/src/*Config.ts
   screens: {
+    // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
+    onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
     // The salon's own dashboard at /crm/dashboard (crm/verticals/salon.tsx), reading /api/dashboard as crm.dashboard says.
     home: 'salon',
     nav: {},
@@ -168,7 +170,8 @@ const salon: VerticalSettings = {
     booking: { calendarLabel: 'Appointment', calendarPath: '/crm/appointments', serviceMenuPath: '/crm/service-menu', concurrentLabel: 'Chairs bookable at once', concurrentHelp: 'Online bookings per time slot — the number of stylists taking online clients. Desk bookings count too.' },
     settings: {
       roles: [
-        { value: 'viewer', label: 'Viewer', description: 'read-only: can open the book and records but change nothing' },
+        // Front Desk holds loyalty:enroll and loyalty:redeem (extraRolePermissions): "change nothing" was untrue (salon run 10/25).
+        { value: 'viewer', label: 'Viewer', description: 'the front desk: opens the book and records, signs clients up for loyalty and redeems their rewards; changes nothing else' },
         { value: 'field', label: 'Stylist', description: 'the book, clients and service records; no invoices or settings' },
         { value: 'manager', label: 'Manager', description: 'everything staff can do plus invoices, reports and the team; not company settings' },
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },

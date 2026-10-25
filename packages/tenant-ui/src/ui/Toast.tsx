@@ -39,7 +39,11 @@ const iconColors: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
-  const addToast = useCallback((message: string, type: ToastType = 'info', duration = 4000): number => {
+  // Long enough to read: four seconds for every message was gone before a refusal could be read (salon live test,
+  // 2026-10-25: "the red message disappears within about a second"). A refusal or warning stays at least 8s, any message
+  // ~20 characters a second longer; the close button is always there. A caller's own duration still wins.
+  const addToast = useCallback((message: string, type: ToastType = 'info', duration?: number): number => {
+    if (duration === undefined) duration = Math.max(type === 'error' || type === 'warning' ? 8000 : 4000, String(message).length * 50)
     const id = Date.now() + Math.random()
     setToasts((prev) => [...prev, { id, message, type }])
     if (duration > 0) setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration)

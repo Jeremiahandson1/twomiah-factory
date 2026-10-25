@@ -17,10 +17,11 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn } from './days.ts'
-import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './formulas.ts'
+import { CANCELLED_VISIT_LABEL } from './formulas.ts'
 import { VOIDED_ON_CANCEL } from './checkout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { calendarDayWords } from '../../core/dayWords.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -87,50 +88,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     return rows.find((r) => !CANCELLED.includes(r.status) && r.status !== 'completed' && (r.station || '').trim().toLowerCase() === wanted && overlaps(r, start, end))
   }
 
-  /**
-   * Closing a visit: the sale (once), the visit record, loyalty, the review request. Never throws — the status change
-   * must succeed even if one of these hiccups (SALON-H4 / H2). One price for the visit, resolved once: what was quoted,
-   * else what the menu charges, so the sale and the visit agree (RR0929 N8).
-   */
-  async function onVisitCompleted(row: AppointmentRow, actor?: any): Promise<string | null> {
-    if (!row.contactId) return null
-    let invoiceId: string | null = null
-    let price = Number(row.quotedPrice)
-    let serviceName: string | null = null
-    try {
-      if (row.serviceId) {
-        const [svc] = await db.select({ name: serviceMenu.name, price: serviceMenu.price }).from(serviceMenu).where(eq(serviceMenu.id, row.serviceId)).limit(1)
-        serviceName = svc?.name || null
-        if (!(price > 0)) price = Number(svc?.price)
-      }
-    } catch (e) { warn('service menu not read', e) }
-
-    try {
-      const inv = await checkout.ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price, actor })
-      invoiceId = inv?.id || null
-    } catch (e) { warn('sale not created', e) }
-    // A completed appointment IS a visit: write the service record once.
-    try {
-      const [rec] = await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
-      if (!rec) {
-        await db.insert(serviceRecord).values({
-          id: createId(), contactId: row.contactId, appointmentId: row.id,
-          stylistId: row.stylistId || null, stylistMemberId: row.stylistMemberId || null,
-          serviceId: row.serviceId || null,
-          performedAt: new Date(row.startTime), formula: [], priceCharged: price > 0 ? String(price) : null,
-          notes: AUTO_VISIT_NOTE, companyId: row.companyId,
-        } as any)
-      }
-    } catch (e) { warn('visit record not created', e) }
-    // Loyalty rides on the same event; idempotent on the appointment.
-    try {
-      const earnOn = await loyalty.priceForVisit(row.companyId, row.serviceId, row.quotedPrice)
-      await loyalty.awardForCompletedVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceId: row.serviceId, price: earnOn, invoiceId })
-    } catch (e) { warn('loyalty not awarded', e) }
-
-    d.services.reviews.scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e: any) => warn('review schedule failed', e))
-    return invoiceId
-  }
+  /** Closing a visit — the sale, the visit record, loyalty, the review request — one way, wherever it closes (visit.ts). */
+  const onVisitCompleted = (row: AppointmentRow, actor?: any) => salon.visits.closeVisit(row, actor)
 
   /**
    * Reopening a visit gives back what it earned (LY0928 M1), voids the bill it raised unless money was taken (LYR N5),
@@ -388,7 +347,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       const tz = await clock.salonTimezone(currentUser.companyId)
       const apptDay = calendarDateIn(new Date(existing.startTime), tz)
       if (apptDay > calendarDateIn(new Date(), tz)) {
-        return fail(c, 409, `That appointment is on ${apptDay}, not today — check the client in when they arrive.`, 'APPOINTMENT_NOT_TODAY')
+        return fail(c, 409, `That appointment is on ${calendarDayWords(apptDay)}, not today — check the client in when they arrive.`, 'APPOINTMENT_NOT_TODAY')
       }
     }
 
