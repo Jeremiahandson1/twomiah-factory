@@ -42,6 +42,12 @@ export type FeatureDef = {
    * stays switchable (getFeaturesForPlan); only getDefaultFeaturesForTemplate leaves it out.
    */
   optIn?: string[]
+  /**
+   * The name and description a template's businesses see, where the shared one is another trade's: a restaurant's menu
+   * is not "Menu & Taps" (taps are Draft Taps, its own switch — restaurant live test, 2026-10-25).
+   * getFeaturesForTemplate applies it, so every list read for a template says it.
+   */
+  as?: Record<string, { name?: string; description?: string; category?: string }>
 }
 
 export const FEATURE_REGISTRY: FeatureDef[] = [
@@ -135,8 +141,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages that burn down per redeem', category: 'Salon & Barber', core: false, templates: ['crm-salon'] },
 
   // Bar (crm-bar) — what a bar changes every night and its website shows live (routes/bar.ts, barPublic.ts).
-  { id: 'bar_menu', name: 'Menu & Taps', description: 'The menu with real prices and one-tap 86, and the tap list — shown live on your website', category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'] },
-  { id: 'bar_register', name: 'Register & Grill', description: "Tabs, tables and walk-ups; send food to the grill screen, which paces it; take cash or card; split; voids a manager OKs; the night's close-out with the drawer count", category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'] },
+  { id: 'bar_menu', name: 'Menu & Taps', description: 'The menu with real prices and one-tap 86, and the tap list — shown live on your website', category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'],
+    as: { 'crm-restaurant': { name: 'Menu', description: 'The menu with real prices, photos and one-tap 86 — shown live on your website', category: 'Register & Ordering' } } },
+  { id: 'bar_register', name: 'Register & Grill', description: "Tabs, tables and walk-ups; send food to the grill screen, which paces it; take cash or card; split; voids a manager OKs; the night's close-out with the drawer count", category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'],
+    as: { 'crm-restaurant': { category: 'Register & Ordering' } } },
   { id: 'bar_stock', name: 'Stock & Costing', description: 'Stock by the case and the keg, recipes, the count, what each plate and pour costs, what to reorder and the order to the rep', category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'bar_schedule', name: 'Schedule', description: 'Build the week, see the gaps and the labor cost before you publish it, time off asked for and decided — and clock in on the bar tablet by PIN', category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'gift_cards', name: 'Gift Cards', description: 'Your own gift cards: sold on the register, spent like cash, balance looked up by number — no expiry, no fees, every change on a ledger', category: 'Bar', core: true, templates: ['crm-bar'] },
@@ -145,7 +153,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'order_kiosk', name: 'Order Kiosk', description: 'A self-serve tablet: guests browse the menu with sizes and add-ons, order under their name or table, and pay on the card reader or at the counter; paid orders go to the grill marked KIOSK', category: 'Register & Ordering', core: false, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-bar', 'crm-restaurant'] },
   { id: 'online_ordering', name: 'Online Ordering', description: 'Pickup orders from your website: your menu with a cart, paid by card on your own Stripe account, taken while the kitchen is open with your lead time and a pause switch; each order is a grill ticket, and the guest is told when it is received and ready', category: 'Register & Ordering', core: false, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-bar', 'crm-restaurant'] },
   { id: 'draft_taps', name: 'Draft Taps', description: 'A tap list for the beer you pour, with pour sizes, rung on the register and shown on your website', category: 'Register & Ordering', core: false, templates: ['crm-restaurant'], optIn: ['crm-restaurant'] },
-  { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'] },
+  { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar', 'crm-restaurant'], optIn: ['crm-restaurant'],
+    as: { 'crm-restaurant': { description: "Kitchen open or closed, how busy, the note, today's special and events — from a phone, live on your website", category: 'Register & Ordering' } } },
 
   // Private Events & Catering (crm-restaurant) — enquiry -> booking -> deposit
   // -> banquet event order. Scoped to the private-events side of a restaurant,
@@ -393,7 +402,7 @@ export function getCategories(): string[] {
 }
 
 export function getFeaturesForTemplate(template: string): FeatureDef[] {
-  return FEATURE_REGISTRY.filter(f => f.templates.includes(template))
+  return FEATURE_REGISTRY.filter(f => f.templates.includes(template)).map((f) => (f.as?.[template] ? { ...f, ...f.as[template] } : f))
 }
 
 /**

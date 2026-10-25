@@ -105,7 +105,9 @@ export function createBarOrders(deps: {
         lines: priced.lines, subtotalCents: priced.subtotalCents, taxCents: priced.taxCents, totalCents: priced.totalCents, taxRateBps: priced.rate,
       }).returning({ id: barOrder.id })
       if (pay === 'counter') {
-        const c = await register.checkFromOrderInTx(tx, kiosk, { kind: 'kiosk', label: kioskLabel(name, table), spot: table ? `Table ${table}` : null, note: 'Pay at the counter', lines: priced.lines }, null)
+        // No "Pay at the counter" note: a check's note rides onto its grill ticket, and a kiosk order only reaches the
+        // grill once it is paid, so the ticket read "Pay at the counter" in red after the money was taken (bistro, 10/25).
+        const c = await register.checkFromOrderInTx(tx, kiosk, { kind: 'kiosk', label: kioskLabel(name, table), spot: table ? `Table ${table}` : null, note: null, lines: priced.lines }, null)
         await tx.update(barOrder).set({ checkId: c.checkId, number: c.number, updatedAt: new Date() }).where(eq(barOrder.id, o.id))
       }
       return o.id as string
