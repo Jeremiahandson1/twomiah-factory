@@ -21,6 +21,7 @@ import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './formulas.ts'
 import { VOIDED_ON_CANCEL } from './checkout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { isOwnVisitPhoto, removeVisitPhotoFiles } from './visitPhotos.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -159,6 +160,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         const kept = await formulas.keepFromRecord(row.companyId, rec, CANCELLED_VISIT_LABEL)
         if (kept) logger.warn('[appointments] formula kept on the client before the visit record was removed', { recordId: rec.id, contactId: rec.contactId })
         await db.delete(serviceRecord).where(eq(serviceRecord.id, rec.id))
+        // Its before / after photos go with it (./visitPhotos.ts): nothing points at them any more.
+        removeVisitPhotoFiles(d, [rec.photoBefore, rec.photoAfter].filter((k) => isOwnVisitPhoto(k, row.companyId, rec.id)))
         live.emitToCompany(row.companyId, live.EVENTS.REFRESH, { entity: 'service_record' })
         if (kept) live.emitToCompany(row.companyId, live.EVENTS.REFRESH, { entity: 'client_profile' })
       }

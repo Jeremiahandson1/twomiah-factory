@@ -2,7 +2,8 @@
 //
 // The salon's clinical record: it makes a colour repeatable by any stylist in the shop, and its performedAt with the
 // service's rebookIntervalDays is what the recall list reads. Logging a visit against an appointment completes it and
-// raises the sale; deleting one answers for the sale it raised.
+// raises the sale; deleting one answers for the sale it raised. Its before / after photos are uploaded to it, never
+// named in a write (./visitPhotos.ts; salon live test, 2026-10-25).
 import { Hono } from 'hono'
 import { and, desc, eq, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -18,9 +19,13 @@ import type { CrmDeps } from '../deps.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK, normaliseFormula } from './formulas.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { PHOTO_COLUMN, isOwnVisitPhoto, isVisitPhotoSlot, photoFieldsOf, removeVisitPhotoFiles, unknownSlot, visitPhotoFolder, withVisitPhotos } from './visitPhotos.ts'
+import { encodedPhoto, photoResponse } from '../siteRecords/recordPhotos.ts'
+import { uploadedForm } from '../office/upload.ts'
 
-const EDITABLE = ['appointmentId', 'stylistId', 'serviceId', 'performedAt', 'formula', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes'] as const
-const MERGEABLE = ['serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes'] as const
+// The photo columns are not here: a photo is uploaded to the visit, and a write may only clear one (./visitPhotos.ts).
+const EDITABLE = ['appointmentId', 'stylistId', 'serviceId', 'performedAt', 'formula', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'priceCharged', 'notes'] as const
+const MERGEABLE = ['serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'priceCharged', 'notes'] as const
 
 /** A date-only value is a calendar date: stored at noon UTC so it renders as that date in any US zone. (SALON-H9) */
 const visitDate = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? new Date(`${v}T12:00:00.000Z`) : new Date(v as string))
@@ -62,7 +67,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     const rows = data.map((r) => {
       const parts = String(r.stylistMemberName || '').trim().split(/\s+/)
       return {
-        ...r.record,
+        ...withVisitPhotos(r.record),
         stylistId: stylistIdOf(r.record),
         clientName: r.clientName, serviceName: r.serviceName,
         stylistFirstName: r.stylistFirstName ?? (parts[0] || null),
@@ -155,7 +160,64 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     const [row] = await db.select().from(serviceRecord)
       .where(and(eq(serviceRecord.id, c.req.param('id')), eq(serviceRecord.companyId, currentUser.companyId))).limit(1)
     if (!row) return fail(c, 404, 'Service record not found')
-    return one(c, { ...row, stylistId: stylistIdOf(row) })
+    return one(c, { ...withVisitPhotos(row), stylistId: stylistIdOf(row) })
+  })
+
+  // ─── The visit's before and after photos (./visitPhotos.ts) ───────────────────────────────────────────────────
+
+  const ownRecord = async (companyId: string, id: string) => {
+    const [row] = await db.select().from(serviceRecord).where(and(eq(serviceRecord.id, id), eq(serviceRecord.companyId, companyId))).limit(1)
+    return (row || null) as (typeof serviceRecord.$inferSelect) | null
+  }
+
+  /** Upload (or replace) the visit's before or after photo. Editing the visit, so the permission its edit asks. */
+  app.post('/:id/photos/:slot', requirePermission('schedule:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const slot = c.req.param('slot')
+    if (!isVisitPhotoSlot(slot)) return unknownSlot(c)
+    const row = await ownRecord(currentUser.companyId, c.req.param('id'))
+    if (!row) return fail(c, 404, 'Service record not found')
+    const got = await encodedPhoto(c, d, await uploadedForm(c))
+    if (got instanceof Response) return got
+    const column = PHOTO_COLUMN[slot]
+    const key = `${visitPhotoFolder(currentUser.companyId, row.id)}${crypto.randomUUID()}.jpg`
+    await d.services.storage.put(key, got.jpeg, 'image/jpeg')
+    const [updated] = await db.update(serviceRecord).set({ [column]: key, updatedAt: new Date() } as any)
+      .where(and(eq(serviceRecord.id, row.id), eq(serviceRecord.companyId, currentUser.companyId))).returning()
+    // The photo it replaced, if it was one of this visit's uploads.
+    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d, [row[column]])
+    await audit.log({ action: 'update', entity: 'service_record', entityId: row.id, metadata: { photo: slot, name: got.name }, req: { user: currentUser } })
+    refresh(currentUser.companyId, 'service_record')
+    return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) }, 201)
+  })
+
+  /** The picture, to whoever may read the visit. Only a file this visit's upload wrote is ever served. */
+  app.get('/:id/photos/:slot/file', requirePermission('contacts:read'), async (c) => {
+    const currentUser = c.get('user') as any
+    const slot = c.req.param('slot')
+    if (!isVisitPhotoSlot(slot)) return unknownSlot(c)
+    const row = await ownRecord(currentUser.companyId, c.req.param('id'))
+    const key = row?.[PHOTO_COLUMN[slot]]
+    if (!row || !isOwnVisitPhoto(key, currentUser.companyId, row.id)) return fail(c, 404, 'Photo not found')
+    const obj = await d.services.storage.getObject(key)
+    if (!obj) return fail(c, 404, 'Photo not found')
+    return photoResponse(obj)
+  })
+
+  app.delete('/:id/photos/:slot', requirePermission('schedule:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const slot = c.req.param('slot')
+    if (!isVisitPhotoSlot(slot)) return unknownSlot(c)
+    const row = await ownRecord(currentUser.companyId, c.req.param('id'))
+    if (!row) return fail(c, 404, 'Service record not found')
+    const column = PHOTO_COLUMN[slot]
+    if (!row[column]) return fail(c, 404, 'Photo not found')
+    const [updated] = await db.update(serviceRecord).set({ [column]: null, updatedAt: new Date() } as any)
+      .where(and(eq(serviceRecord.id, row.id), eq(serviceRecord.companyId, currentUser.companyId))).returning()
+    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d, [row[column]])
+    await audit.log({ action: 'update', entity: 'service_record', entityId: row.id, metadata: { photoRemoved: slot }, req: { user: currentUser } })
+    refresh(currentUser.companyId, 'service_record')
+    return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) })
   })
 
   // POST — writing a record completes its appointment, so the front desk never closes the ticket twice.
@@ -188,18 +250,24 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if (body.appointmentId) {
       const [auto] = await db.select().from(serviceRecord).where(and(eq(serviceRecord.appointmentId, body.appointmentId), eq(serviceRecord.companyId, currentUser.companyId))).limit(1)
       if (auto) {
-        const upd: Record<string, unknown> = { updatedAt: new Date() }
+        const photos = photoFieldsOf(body, auto)
+        if ('refusal' in photos) return fail(c, 400, photos.refusal, 'PHOTO_NOT_UPLOADED')
+        const upd: Record<string, unknown> = { updatedAt: new Date(), ...photos.set }
         for (const k of MERGEABLE) if (k in body) upd[k] = body[k] === '' ? null : body[k]
         if ('stylistId' in body) { upd.stylistId = stylist.stylistId; upd.stylistMemberId = stylist.stylistMemberId }
         if ('formula' in body) upd.formula = normaliseFormula(body.formula)
         if (body.performedAt) upd.performedAt = visitDate(body.performedAt)
         const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
+        removeVisitPhotoFiles(d, photos.drop)
         refresh(currentUser.companyId, 'service_record')
         // The bill this visit already has, not null. (Salon RR8)
         const billed = merged.invoiceId || await checkout.invoiceIdForVisit(currentUser.companyId, body.appointmentId)
-        return one(c, { ...merged, stylistId: stylistIdOf(merged), invoiceId: billed, merged: true })
+        return one(c, { ...withVisitPhotos(merged), stylistId: stylistIdOf(merged), invoiceId: billed, merged: true })
       }
     }
+    // A visit not yet written holds no upload: its photos are added once it exists.
+    const photos = photoFieldsOf(body, null)
+    if ('refusal' in photos) return fail(c, 400, photos.refusal, 'PHOTO_NOT_UPLOADED')
     const [created] = await db.insert(serviceRecord).values({
       id: createId(),
       contactId: body.contactId,
@@ -213,8 +281,6 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       processingMin: body.processingMin ?? null,
       productsUsed: body.productsUsed || null,
       result: body.result || null,
-      photoBefore: body.photoBefore || null,
-      photoAfter: body.photoAfter || null,
       priceCharged: body.priceCharged ?? null,
       notes: body.notes || null,
       companyId: currentUser.companyId,
@@ -244,7 +310,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
 
     await audit.log({ action: 'create', entity: 'service_record', entityId: created.id, metadata: created, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
-    return one(c, { ...created, stylistId: stylistIdOf(created), invoiceId }, 201)
+    return one(c, { ...withVisitPhotos(created), stylistId: stylistIdOf(created), invoiceId }, 201)
   })
 
   app.put('/:id', requirePermission('schedule:update'), async (c) => {
@@ -255,7 +321,9 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     const [existing] = await db.select().from(serviceRecord).where(and(eq(serviceRecord.id, id), eq(serviceRecord.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Service record not found')
 
-    const updates: Record<string, any> = { updatedAt: new Date() }
+    const photos = photoFieldsOf(body, existing)
+    if ('refusal' in photos) return fail(c, 400, photos.refusal, 'PHOTO_NOT_UPLOADED')
+    const updates: Record<string, any> = { updatedAt: new Date(), ...photos.set }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
     // A whitelist says which keys may be written, not that the values are the right shape. (RR2 R1)
     if ('formula' in body) updates.formula = normaliseFormula(body.formula)
@@ -272,9 +340,10 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if (updates.performedAt) updates.performedAt = new Date(updates.performedAt)
 
     const [updated] = await db.update(serviceRecord).set(updates).where(eq(serviceRecord.id, id)).returning()
+    removeVisitPhotoFiles(d, photos.drop)
     await audit.log({ action: 'update', entity: 'service_record', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
-    return one(c, { ...updated, stylistId: stylistIdOf(updated) })
+    return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) })
   })
 
   /**
@@ -323,6 +392,8 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       }
       await tx.delete(serviceRecord).where(eq(serviceRecord.id, id))
     })
+    // The visit's photos go with it: nothing points at them any more.
+    removeVisitPhotoFiles(d, [existing.photoBefore, existing.photoAfter].filter((k) => isOwnVisitPhoto(k, currentUser.companyId, id)))
 
     await audit.log({ action: 'delete', entity: 'service_record', entityId: id, metadata: { ...existing, voidedInvoice }, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')

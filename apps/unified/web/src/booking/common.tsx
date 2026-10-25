@@ -138,13 +138,8 @@ export function onClock(timezone: string) {
   }
 }
 
-/** A calendar date (YYYY-MM-DD) as words, without any clock shifting it. */
-export const dateWords = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => {
-  const [y, m, day] = d.split('-').map(Number)
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', ...opts }).format(new Date(Date.UTC(y, m - 1, day)))
-}
-export const addDays = (d: string, n: number) => { const [y, m, day] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, day + n)).toISOString().slice(0, 10) }
-export const weekdayOf = (d: string) => { const [y, m, day] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, day)).getUTCDay() }
+// Calendar-day arithmetic (YYYY-MM-DD), in a plain module of its own so the salon book's week shares it.
+export { dateWords, addDays, weekdayOf } from './days'
 
 export const STATUS_LABEL: Record<Booking['status'], string> = { pending: 'Deposit due', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled', no_show: 'No-show' }
 const STATUS_STYLE: Record<Booking['status'], string> = {

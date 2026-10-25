@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Loader2, User, AlertTriangle, X } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useAuth, useMayWrite } from '../../../shared'
 import { useToast } from '../../../shared'
 
 /**
@@ -33,6 +33,9 @@ interface Client {
 export default function ClientsPage() {
   // A new client is POST /api/contacts (contacts:create). (T43 viewer round, T68)
   const mayAdd = useMayWrite('contacts:create');
+  // All Contacts is the shared list: its menu item's gates (shell.ts — the contacts feature, contacts:read).
+  const { hasFeature, can } = useAuth();
+  const mayOpenContacts = hasFeature('contacts') && can('contacts:read');
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -67,7 +70,12 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Clients</h1>
-          <p className="text-gray-500 dark:text-slate-400">Everyone who sits in your chairs</p>
+          {/* What this list holds beside All Contacts (salon live test, 2026-10-25: two lists, and nobody could say why
+              they differ). Leads and suppliers have no chart, so they are kept there; a seat that may open it is sent. */}
+          <p className="text-gray-500 dark:text-slate-400">
+            Everyone who sits in your chairs.
+            {mayOpenContacts && <> Leads and suppliers are in <Link to="/crm/contacts" className="text-teal-700 hover:underline dark:text-teal-300">All Contacts</Link>.</>}
+          </p>
         </div>
         {mayAdd && <button
           onClick={() => setShowForm(true)}

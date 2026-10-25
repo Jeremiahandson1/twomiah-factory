@@ -5,7 +5,7 @@
 // ID. The profile row is created on demand (upsert on PUT). The chart also carries the formulas the client is kept on,
 // and the money they hold on account.
 import { Hono } from 'hono'
-import { and, count, desc, eq, ilike, or } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, isNotNull, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { createAccountBalanceStore, balanceFrom, describeBalance, withoutPortalCredential } from '@twomiah/tenant-backend'
 import {
@@ -19,6 +19,7 @@ import { calendarDateIn } from './days.ts'
 import { hasSubstance } from './formulas.ts'
 import { isClient } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { withVisitPhotos } from './visitPhotos.ts'
 
 const PROFILE_EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
 // Hair type is a short label on a client card; the longer free-text fields keep their own ceilings. (Salon T28 L4)
@@ -105,9 +106,27 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
       .orderBy(desc(serviceRecord.performedAt))
       .limit(50)
     const serviceRecords = recordRows.map((r) => ({
-      ...r.record, serviceName: r.serviceName, rebookIntervalDays: r.rebookIntervalDays,
+      ...withVisitPhotos(r.record), serviceName: r.serviceName, rebookIntervalDays: r.rebookIntervalDays,
       stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName, stylistMemberName: r.stylistMemberName,
     }))
+
+    // The client's photo history: every visit's before and after, newest first — read on its own, not from the 50
+    // visits above, so an old colour's photos stay on the chart. Only the visit's own uploads (./visitPhotos.ts).
+    // (Salon live test, 2026-10-25: the record had photo columns and nowhere to see them.)
+    const photoRows: any[] = await db.select({ record: serviceRecord, serviceName: serviceMenu.name })
+      .from(serviceRecord)
+      .leftJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
+      .where(and(eq(serviceRecord.contactId, contactId), eq(serviceRecord.companyId, companyId), or(isNotNull(serviceRecord.photoBefore), isNotNull(serviceRecord.photoAfter))))
+      .orderBy(desc(serviceRecord.performedAt))
+      .limit(200)
+    const photos = photoRows.flatMap((r) => {
+      const v = withVisitPhotos(r.record)
+      const at = { recordId: v.id, performedAt: v.performedAt, serviceName: r.serviceName ?? null }
+      return [
+        ...(v.photoBeforeUrl ? [{ ...at, slot: 'before' as const, url: v.photoBeforeUrl }] : []),
+        ...(v.photoAfterUrl ? [{ ...at, slot: 'after' as const, url: v.photoAfterUrl }] : []),
+      ]
+    })
 
     const apptRows: any[] = await db.select({
       appointment, serviceName: serviceMenu.name, stylistFirstName: user.firstName, stylistMemberName: teamMember.name, stylistLastName: user.lastName,
@@ -146,6 +165,7 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
       contact: withoutPortalCredential(ct),
       profile: profile || null,
       serviceRecords,
+      photos,
       appointments,
       memberships,
       stats: {

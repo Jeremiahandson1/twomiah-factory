@@ -3,16 +3,19 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   Loader2, User, AlertTriangle, Phone, Mail, Plus, Scissors, CalendarDays,
-  CreditCard, ArrowLeft, X, Clock, Edit2,
+  CreditCard, ArrowLeft, X, Clock, Edit2, Camera,
 } from 'lucide-react';
 import { api } from '../../../api'
 import ServiceRecordEditorModal, { formulaSteps, type ServiceRecord } from './ServiceRecordEditorModal'
 import { fetchStaff, staffName, type StaffMember } from './staff';
-import { money, useMayWrite } from '../../../shared'
+import { money, useAuth, useMayWrite } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
+import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
+import { SLOT_LABEL, VISIT_PHOTO_SLOTS, urlOf, type VisitPhotoSlot } from './VisitPhotos'
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -83,10 +86,19 @@ interface Stats {
   accountBalance?: number;
   accountBalanceLabel?: string;
 }
+/** One photo of the client's history: a visit's before or after (crm/salon/clients.ts `photos`, newest visit first). */
+interface HistoryPhoto {
+  recordId: string;
+  slot: VisitPhotoSlot;
+  url: string;
+  performedAt?: string;
+  serviceName?: string | null;
+}
 interface Detail {
   contact?: Contact;
   profile?: Profile | null;
   serviceRecords?: ServiceRecord[];
+  photos?: HistoryPhoto[];
   appointments?: Appointment[];
   memberships?: Membership[];
   stats?: Stats;
@@ -118,7 +130,7 @@ function isPast(dateStr?: string | null): boolean {
 }
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
-type Tab = 'formula' | 'appointments' | 'memberships';
+type Tab = 'formula' | 'photos' | 'appointments' | 'memberships';
 
 export default function ClientDetailPage() {
   // Edit Profile and Keep on card are contacts:update (clients.ts); Remove a formula is contacts:delete; a service
@@ -127,6 +139,9 @@ export default function ClientDetailPage() {
   const mayForget = useMayWrite('contacts:delete');
   const mayRecord = useMayWrite('schedule:create');
   const mayEditRecord = useMayWrite('schedule:update');
+  // The contact record is All Contacts' page: its menu item's gates (shell.ts — the contacts feature, contacts:read).
+  const { hasFeature, can } = useAuth();
+  const mayOpenContacts = hasFeature('contacts') && can('contacts:read');
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
@@ -135,6 +150,8 @@ export default function ClientDetailPage() {
   const [editRecord, setEditRecord] = useState<ServiceRecord | null>(null);
   const [showProfile, setShowProfile] = useState<boolean>(false);
   const [busyFormula, setBusyFormula] = useState<string>('');
+  // The photo history open full size (the shared viewer), by its place in `photos`.
+  const [viewing, setViewing] = useState<number | null>(null);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -206,9 +223,17 @@ export default function ClientDetailPage() {
   const appointments = detail.appointments || [];
   const memberships = detail.memberships || [];
   const stats = detail.stats || {};
+  const photos = detail.photos || [];
+  // A photo's caption in the viewer and the grid: which, and the visit it was taken at.
+  const photoCaption = (p: HistoryPhoto) => `${SLOT_LABEL[p.slot]} — ${fmtDate(p.performedAt)}${p.serviceName ? ` · ${p.serviceName}` : ''}`;
+  const openPhoto = (recordId: string, slot: VisitPhotoSlot) => {
+    const i = photos.findIndex((p) => p.recordId === recordId && p.slot === slot);
+    if (i >= 0) setViewing(i);
+  };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
     { id: 'formula', label: 'Formula History', icon: <Scissors className="w-4 h-4" />, count: records.length },
+    { id: 'photos', label: 'Photos', icon: <Camera className="w-4 h-4" />, count: photos.length },
     { id: 'appointments', label: 'Appointments', icon: <CalendarDays className="w-4 h-4" />, count: appointments.length },
     { id: 'memberships', label: 'Memberships', icon: <CreditCard className="w-4 h-4" />, count: memberships.length },
   ];
@@ -233,9 +258,16 @@ export default function ClientDetailPage() {
               </p>
             </div>
           </div>
-          {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
-            <Edit2 className="w-4 h-4" /> Edit Profile
-          </button>}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* The client's contact record — portal access, messages, merge, delete — which a link to the contact
+                no longer opens for a client (it lands here: ContactsConfig.chart, salon live test 2026-10-25). */}
+            {mayOpenContacts && <Link to={`/crm/contacts/${ct.id}?${RECORD_VIEW_PARAM}=1`} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+              Contact record
+            </Link>}
+            {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+              <Edit2 className="w-4 h-4" /> Edit Profile
+            </button>}
+          </div>
         </div>
 
         {profile.allergies && (
@@ -455,12 +487,54 @@ export default function ClientDetailPage() {
                   {r.productsUsed && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">{r.productsUsed}</p>}
                   {r.result && <p className="mt-1 text-sm text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-500 dark:text-slate-400">Result:</span> {r.result}</p>}
                   {r.notes && <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{r.notes}</p>}
+                  {(r.photoBeforeUrl || r.photoAfterUrl) && (
+                    <div className="mt-3 flex gap-2">
+                      {VISIT_PHOTO_SLOTS.map((slot) => {
+                        const url = urlOf(r, slot);
+                        return url ? (
+                          <button key={slot} type="button" onClick={() => r.id && openPhoto(r.id, slot)} aria-label={`Open the ${slot} photo full size`} className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
+                            <img src={url} alt={`${SLOT_LABEL[slot]} photo`} className="w-full h-full object-cover" />
+                            <span className="absolute bottom-0 inset-x-0 text-[10px] font-medium text-center bg-black/60 text-white">{SLOT_LABEL[slot]}</span>
+                          </button>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
+
+      {/* Photos — the client's before / after history, newest visit first: what a stylist looks back at before a
+          colour, as much as the formula. Added on a visit (New / Edit Service Record). (Salon live test, 2026-10-25) */}
+      {tab === 'photos' && (
+        photos.length === 0 ? (
+          <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
+            No photos yet. Add a before and after photo on a visit's service record.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {photos.map((p, i) => (
+              <button key={`${p.recordId}-${p.slot}`} type="button" onClick={() => setViewing(i)} className="text-left bg-white rounded-xl border overflow-hidden hover:shadow-md dark:bg-slate-900" aria-label={`Open ${photoCaption(p)} full size`}>
+                <img src={p.url} alt={photoCaption(p)} className="w-full aspect-square object-cover bg-gray-100 dark:bg-slate-800" />
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{SLOT_LABEL[p.slot]}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(p.performedAt)}{p.serviceName ? ` · ${p.serviceName}` : ''}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )
+      )}
+      <PhotoViewer
+        photos={photos.map((p) => ({ id: `${p.recordId}-${p.slot}`, src: p.url, caption: photoCaption(p) }))}
+        index={viewing}
+        onIndex={setViewing}
+        onClose={() => setViewing(null)}
+        label="Client photos"
+      />
 
       {/* Appointments */}
       {tab === 'appointments' && (
@@ -538,7 +612,8 @@ export default function ClientDetailPage() {
           contactId={ct.id}
           record={editRecord}
           onSave={() => { setShowRecord(false); setEditRecord(null); load(); }}
-          onClose={() => { setShowRecord(false); setEditRecord(null); }}
+          // A photo removed in the form is gone already, Cancel or not: read the chart again.
+          onClose={() => { setShowRecord(false); setEditRecord(null); load(); }}
         />
       )}
       {showProfile && (

@@ -85,7 +85,23 @@ export interface ContactsConfig {
    * bookings (each in the name its booker typed). Absent: nothing extra, as before.
    */
   panels?: (contactId: string) => ReactNode
+  /** A sentence under the list's title saying what it holds. Absent: none, as before. */
+  intro?: string
+  /**
+   * WHERE A CONTACT OF A GIVEN TYPE HAS ITS OWN PAGE (salon live test, 2026-10-25: "two lists of people"). A salon
+   * client's page is their chart — hair, formulas, visits — not this generic record; leads and suppliers have no chart.
+   * Every type but `exceptTypes` opens at `path` (`:id` replaced) while `feature` is on: the list opens it, and a link
+   * to /crm/contacts/:id anywhere lands there. The record itself stays reachable at /crm/contacts/:id?record=1 (the
+   * chart links to it: portal access, merge, delete). Declarative, because a vertical's screen settings are JSON.
+   * Absent: every contact opens here, as before. The server's search sends a contact to the same place.
+   */
+  chart?: { path: string; feature?: string; exceptTypes?: string[]; label?: string }
+  /** Fields the add / edit form leaves out for a type — a salon client is a person: no Company, no street address. */
+  hiddenFields?: Record<string, Array<'company' | 'address'>>
 }
+
+/** The query that opens a contact's own record even where its type has a page elsewhere (ContactsConfig.chart). */
+export const RECORD_VIEW_PARAM = 'record'
 
 /** A customer's service site, in the trade's words (contacts, quotes, jobs). */
 export interface SiteLabels { singular: string; plural: string; /** The Add form's example name. */ namePlaceholder?: string }
@@ -163,6 +179,18 @@ export function resolveContactsConfig(c?: ContactsConfig) {
     hasFeature,
     can: cfg.can || (() => true),
     panels: cfg.panels,
+    intro: cfg.intro || '',
+    /** The page a contact opens on when its type has one of its own (ContactsConfig.chart); null: this one. */
+    pageFor: (c: { id: string; type?: string | null }): string | null => {
+      const chart = cfg.chart
+      if (!chart?.path || !c?.id) return null
+      if (chart.feature && !hasFeature(chart.feature)) return null
+      if ((chart.exceptTypes || []).includes(String(c.type || ''))) return null
+      return chart.path.replace(':id', encodeURIComponent(c.id))
+    },
+    chartLabel: cfg.chart?.label || 'chart',
+    /** Does the form leave this field out for this type? */
+    hides: (type: string, field: 'company' | 'address'): boolean => !!cfg.hiddenFields?.[type]?.includes(field),
   }
 }
 

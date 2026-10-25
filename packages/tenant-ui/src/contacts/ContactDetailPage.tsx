@@ -2,7 +2,7 @@
 // related lists (projects, quotes, events, patients, equipment, locations, SMS thread — whichever the
 // vertical enables), summary counts, activity, quick actions and customer-portal access.
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, FileText, Briefcase, Receipt, MessageSquare,
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, instantDay, dateTime, isPastDay, errMsg } from '../invoicing/ui'
 
-import { resolveContactsConfig } from './types'
+import { resolveContactsConfig, RECORD_VIEW_PARAM } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 import { quickActionPermission } from './types'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
@@ -61,6 +61,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const { hasFeature, sections } = cfg
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [contact, setContact] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -172,6 +173,17 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     if (sections.sms && cfg.can('sms:send') && textingOn) loadSms()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * A CONTACT WHOSE TYPE HAS A PAGE OF ITS OWN OPENS THERE (ContactsConfig.chart; salon live test, 2026-10-25). Every
+   * link to a person — an invoice's client, a converted lead, a booking, the list — is /crm/contacts/:id, so the rule is
+   * kept here, once: a salon client lands on their chart. ?record=1 is the record itself (the chart links to it).
+   */
+  const recordView = searchParams.get(RECORD_VIEW_PARAM) === '1'
+  const ownPage = contact ? cfg.pageFor(contact) : null
+  useEffect(() => {
+    if (ownPage && !recordView) navigate(ownPage, { replace: true })
+  }, [ownPage, recordView]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const togglePortal = async () => {
     setPortalLoading(true)
     try {
@@ -271,7 +283,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'Failed to update opt-out')) }
   }
 
-  if (loading) {
+  // Loading, or on the way to the contact's own page: the skeleton, not a flash of the record.
+  if (loading || (ownPage && !recordView)) {
     return (
       <div className="space-y-6 animate-pulse" aria-busy="true">
         <div className="h-8 w-64 bg-gray-200 dark:bg-slate-800 rounded" />
@@ -331,6 +344,13 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   return (
     <div className="space-y-6">
+      {/* The record of a contact whose page is elsewhere (a salon client's chart): said so, and the way back. */}
+      {ownPage && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100">
+          <span>This is {contact.name}&apos;s contact record: details, portal access and messages. Everything else about them is on their {cfg.chartLabel}.</span>
+          <NavLink to={ownPage} className="font-medium underline text-teal-900 dark:text-teal-100">Open {cfg.chartLabel}</NavLink>
+        </div>
+      )}
       {/* THE DELETE BUTTON WAS OFF THE SIDE OF THE SCREEN. (T41)
           "the contact header's Delete button sits off-screen at 520px"
           Measured: at 520px the action row is 326px wide with its right edge at 541, and at 390px
@@ -361,7 +381,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             necessarily leaves the record — but it should not leave you there afterwards. On a company
             with 204 contacts, being dropped at the top of the list is losing your place.
           */}
-          {mayEdit && <NavLink to={`/crm/contacts?edit=${id}&returnTo=${encodeURIComponent(`/crm/contacts/${id}`)}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
+          {mayEdit && <NavLink to={`/crm/contacts?edit=${id}&returnTo=${encodeURIComponent(`/crm/contacts/${id}${recordView ? `?${RECORD_VIEW_PARAM}=1` : ''}`)}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" />Edit
           </NavLink>}
           {mayMerge && (
