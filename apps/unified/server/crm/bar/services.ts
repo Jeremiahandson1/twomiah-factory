@@ -16,6 +16,7 @@ import { createBarStock } from './barStock.ts'
 import { createFoodSettings, foodDefaults } from './foodSettings.ts'
 import { createBarTerminal, terminalStripe } from './barTerminal.ts'
 import { createBarReceipts } from './barReceipts.ts'
+import { createBarOrders } from './barOrders.ts'
 
 export function createBarServices(d: CrmDeps) {
   const db = d.db as BarDb
@@ -36,7 +37,11 @@ export function createBarServices(d: CrmDeps) {
     db, register, loyalty, food,
     connectedAccountFor: (companyId) => d.services.stripeService.connectedAccountFor(companyId),
     stripe: () => terminalStripe(d.services.testStripeClient),
+    // A kiosk order paid on the reader becomes its paid check (and its grill ticket) in the same transaction.
+    onOrderPaid: (tx, order, payment) => orders.paidInTx(tx, order, { tender: 'card_terminal', ...payment }),
+    afterOrderPaid: (companyId, orderId, fired) => orders.afterPaid(companyId, orderId, fired),
   })
+  const orders = createBarOrders({ db, register, food })
   const sendText = async (companyId: string, to: string, message: string): Promise<{ sent: boolean; why?: string }> => {
     try {
       const r: any = await d.services.sms.sendSMS(companyId, { toPhone: to, message })
@@ -48,6 +53,6 @@ export function createBarServices(d: CrmDeps) {
   }
   const sendEmail = (m: { to: string; subject: string; html: string; fromName?: string }) => d.services.emailService.sendRaw(m)
   const receipts = createBarReceipts({ db, register, timezone: (companyId) => reports.barTimezone(companyId), sendEmail, sendText })
-  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, stock, food, terminal, receipts }
+  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, stock, food, terminal, receipts, orders }
 }
 export type BarServices = ReturnType<typeof createBarServices>

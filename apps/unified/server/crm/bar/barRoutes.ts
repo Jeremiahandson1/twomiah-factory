@@ -20,6 +20,7 @@ import { endOfBusinessDay, ROOM_STATUSES, TAP_STATUSES } from './barLive.ts'
 import { isHoursConfig, type HoursConfig } from './barHours.ts'
 import { slugify, sizesFromLabel } from './barMenuSizes.ts'
 import { tapSizesInput } from './barTapSizes.ts'
+import { modifiersInput } from './barModifiers.ts'
 import type { BarServices } from './services.ts'
 
 type Ctx = any
@@ -237,6 +238,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
         out.push({ id: slugify(nm), name: nm, priceCents: pc })
       }
       v.variations = out
+    }
+    // Add-ons and changes ("Add bacon" +$2, "No onions"): the register, the kiosk and the website price them (barModifiers.ts).
+    if (body.modifiers !== undefined) {
+      const mods = modifiersInput(body.modifiers)
+      if (mods === 'bad') return { ok: false, error: 'Each add-on needs a name and a price from $0 to $100 (20 at most).' }
+      v.modifiers = mods
     }
     for (const k of ['isSignature', 'is86ed', 'isActive'] as const) if (body[k] !== undefined) v[k] = bool(body[k], false)
     if (body.sortOrder !== undefined) v.sortOrder = Math.max(0, Math.min(10000, Number(body.sortOrder) || 0))

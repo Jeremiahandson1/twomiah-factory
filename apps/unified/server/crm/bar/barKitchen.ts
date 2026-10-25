@@ -19,7 +19,7 @@ import { ageState, allDay, cueFor, effectivePrep, learn, lessonFromBump, paceTic
 type Tx = any
 
 export interface FireLine { menuItemId: string | null; name: string; variation?: string | null; qty: number; note?: string | null; seat?: number | null }
-export interface FireInput { label: string; source: 'bar' | 'table' | 'web'; note?: string | null; firedByName?: string | null; checkId?: string | null; lines: FireLine[] }
+export interface FireInput { label: string; source: 'bar' | 'table' | 'web' | 'kiosk'; note?: string | null; firedByName?: string | null; checkId?: string | null; lines: FireLine[] }
 
 export interface KitchenTicketView {
   id: string; label: string; source: string; note: string | null; firedAt: number; recalled: boolean

@@ -91,6 +91,7 @@ export default function App() {
                 {/* Every form's "required" message in the app's words, under its field, never the browser's bubble (live test 2026-10-22). */}
                 <InlineValidity />
                 <PhotoPickerProvider>
+                  <barScreens.KioskLock />
                   <Routes>
                     <Route path="/login" element={<PublicRoute home={HOME}><Login /></PublicRoute>} />
                     <Route path="/forgot-password" element={<PublicRoute home={HOME}><ForgotPassword /></PublicRoute>} />
@@ -101,6 +102,8 @@ export default function App() {
                     <Route path="/crm/onboarding" element={<ProtectedRoute><Crm.Onboarding /></ProtectedRoute>} />
                     {/* Roofing's canvasser view: full screen, outside the shell, for a roofer only (crm/verticals/roof.tsx). */}
                     {roofScreens.isRoofing && <Route path="/crm/canvass" element={<ProtectedRoute><roofScreens.CanvassView /></ProtectedRoute>} />}
+                    {/* The order kiosk: full screen, outside the shell, locked by a manager's PIN (crm/verticals/bar.tsx). */}
+                    <Route path="/crm/kiosk" element={<ProtectedRoute><barScreens.KioskPage /></ProtectedRoute>} />
 
                     <Route path="/crm" element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                       <Route index element={<Home />} />

@@ -17,7 +17,8 @@ import { ChargeWaiting, RefundDialog, ReceiptPanel, useCharge, type Charge, type
  */
 
 interface Size { id: string; name: string; priceCents: number | null }
-interface MenuItem { id: string; name: string; is86ed: boolean; sizes: Size[] }
+interface Mod { id: string; name: string; priceCents: number }
+interface MenuItem { id: string; name: string; is86ed: boolean; sizes: Size[]; modifiers?: Mod[] }
 interface Section { id: string; name: string; kind: string; items: MenuItem[] }
 interface OpenRow { id: string; number: number; kind: string; label: string; spot: string | null; totalCents: number; balanceCents: number; itemCount: number; heldCount: number; foodUpAt: string | null; onGrill: number }
 interface Recent { id: string; number: number; label: string; status: string; totalCents: number | null; closedAt: string }
@@ -46,7 +47,7 @@ export default function RegisterPage() {
   const [seat, setSeat] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' } | { kind: 'refund'; payment: Payment }>(null);
+  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'options'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' } | { kind: 'refund'; payment: Payment }>(null);
   const [showRecent, setShowRecent] = useState(false);
   const [paid, setPaid] = useState<{ changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null>(null);
   const { guarded, dialog: managerDialog } = useManagerPin();
@@ -83,7 +84,7 @@ export default function RegisterPage() {
     return r?.check as Check | undefined;
   };
 
-  const ring = async (item: MenuItem, size: Size | null, priceCents?: number) => {
+  const ring = async (item: MenuItem, size: Size | null, priceCents?: number, modifierIds?: string[]) => {
     let id = checkId;
     if (!id || check?.status !== 'open') {
       // Ringing with no check open is a walk-up: one tap, no naming.
@@ -91,10 +92,12 @@ export default function RegisterPage() {
       if (!c) return;
       id = c.id;
     }
-    await act('ring', () => api.post(`/api/register/check/${id}/items`, { menuItemId: item.id, sizeId: size?.id ?? null, seat, priceCents }));
+    await act('ring', () => api.post(`/api/register/check/${id}/items`, { menuItemId: item.id, sizeId: size?.id ?? null, seat, priceCents, ...(modifierIds?.length ? { modifierIds } : {}) }));
   };
   const pick = (item: MenuItem) => {
     if (item.is86ed) return;
+    // Add-ons on a priced item: one dialog for its size and its add-ons.
+    if (item.modifiers?.length && item.sizes.length && item.sizes.every((s) => s.priceCents !== null)) { setDialog({ kind: 'options', item }); return; }
     if (item.sizes.length > 1) { setDialog({ kind: 'size', item }); return; }
     const size = item.sizes[0] || null;
     if (!size || size.priceCents === null) { setDialog({ kind: 'price', item, size }); return; }
@@ -323,6 +326,7 @@ export default function RegisterPage() {
           </div>
         </Dialog>
       )}
+      {dialog?.kind === 'options' && <OptionsDialog item={dialog.item} onClose={() => setDialog(null)} onRing={(size, mods) => { const item = dialog.item; setDialog(null); ring(item, size, undefined, mods); }} />}
       {dialog?.kind === 'price' && <PriceDialog item={dialog.item} onClose={() => setDialog(null)} onRing={(cents) => { const d = dialog; setDialog(null); ring(d.item, d.size, cents); }} />}
       {dialog?.kind === 'pay' && check && (
         <PayDialog check={check} result={paid} onClose={() => { setDialog(null); setPaid(null); }}
@@ -388,6 +392,32 @@ function OpenDialog({ as, onClose, onOpen }: { as: 'tab' | 'table'; onClose: () 
           <button type="submit" className={`${BTN} ${ON}`} disabled={busy || !name.trim()}>Open</button>
         </div>
       </form>
+    </Dialog>
+  );
+}
+
+/** A size and the add-ons for one item ("Burger · Add bacon · No onions"); the server prices it. */
+function OptionsDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () => void; onRing: (size: Size, modifierIds: string[]) => void }) {
+  const [size, setSize] = useState<Size>(item.sizes[0]);
+  const [mods, setMods] = useState<string[]>([]);
+  const each = (size.priceCents || 0) + (item.modifiers || []).filter((m) => mods.includes(m.id)).reduce((n, m) => n + m.priceCents, 0);
+  return (
+    <Dialog title={item.name} onClose={onClose}>
+      {item.sizes.length > 1 && (
+        <div className="grid grid-cols-2 gap-2 mb-3" role="radiogroup" aria-label="Size">
+          {item.sizes.map((s) => <button key={s.id} type="button" role="radio" aria-checked={size.id === s.id} className={`${BTN} ${size.id === s.id ? ON : OFF}`} onClick={() => setSize(s)}>{s.name} · {money(s.priceCents)}</button>)}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-2">
+        {(item.modifiers || []).map((m) => {
+          const on = mods.includes(m.id);
+          return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex justify-between`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>;
+        })}
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
+        <button type="button" className={`${BTN} ${ON}`} onClick={() => onRing(size, mods)}>Ring {money(each)}</button>
+      </div>
     </Dialog>
   );
 }

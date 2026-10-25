@@ -13,10 +13,16 @@
 //   POST   /payment/:id/refund             { amountCents?, reason }   back to the card through Stripe       bar:manage
 //   GET    /check/:id/receipt              the receipt link (opened in a new tab to print)                  bar:register · bar_register
 //   POST   /check/:id/receipt              { email?, phone? }   email or text the receipt link              bar:register · bar_register
+//   POST   /kiosk/unlock                   { pin }   a manager's till PIN, always typed: starts / stops the kiosk  bar:register · order_kiosk
+//   GET    /kiosk/state                    the kiosk's menu (sizes, add-ons), its settings, a reader or not  bar:register · order_kiosk
+//   POST   /kiosk/order                    { lines, name, table, pay: reader | counter }                    bar:register · order_kiosk
+//   GET    /kiosk/order/:id  ·  POST /kiosk/order/:id/cancel                                                 bar:register · order_kiosk
 //
 // Ringing and taking payment are bar:register (bartenders and up); refunds are bar:manage and settings bar:update
 // (managers, admins and the owner) — permissions, never rank (packages/tenant-backend/src/auth/permissions.ts).
 import { Hono } from 'hono'
+import { and, eq } from 'drizzle-orm'
+import { barTerminalCharge, company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, one } from '../../http/reply.ts'
 import { siteOrigin } from '../../site/render.ts'
@@ -150,6 +156,61 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
   app.post('/check/:id/receipt', requireEnabledFeature('bar_register'), requirePermission('bar:register'), async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     return act(c, async () => ({ sent: await receipts.send(actor.companyId, c.req.param('id'), { email: b.email, phone: b.phone }, siteOrigin(c)) }))
+  })
+
+  // ── The kiosk ──
+  const kiosk = [requireEnabledFeature('order_kiosk'), requirePermission('bar:register')] as const
+  /** The reader the kiosk pays on: the first registered, where the card reader is on and Stripe connected. */
+  async function kioskReader(companyId: string): Promise<string | null> {
+    if (!(await isFeatureEnabled(companyId, 'card_reader')) || !(await d.services.stripeService.connectedAccountFor(companyId))) return null
+    return (await terminal.listReaders(companyId))[0]?.id ?? null
+  }
+  app.post('/kiosk/unlock', ...kiosk, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    const m = await bar.managers.verifyManagerPin(actor, b.pin)
+    if (!m.ok) return fail(c, 403, m.error, 'NEEDS_MANAGER')
+    audit.log({ req: c, action: 'update', entity: 'bar_settings', entityName: 'Kiosk', changes: { [b.mode === 'stop' ? 'stopped' : 'started']: m.byName } })
+    return one(c, { ok: true, by: m.byName })
+  })
+  app.get('/kiosk/state', ...kiosk, async (c) => {
+    const actor = await actorOf(c)
+    const [menu, s, reader, rate, co] = await Promise.all([
+      bar.orders.kioskMenu(actor.companyId), food.read(actor.companyId), kioskReader(actor.companyId),
+      bar.register.taxRateBps(actor.companyId), d.db.select({ name: company.name }).from(company).where(eq(company.id, actor.companyId)).limit(1),
+    ])
+    c.header('Cache-Control', 'no-store')
+    const simulated = reader ? (await terminal.listReaders(actor.companyId)).find((r) => r.id === reader)?.simulated ?? false : false
+    return one(c, { menu, kiosk: s.kiosk, reader: !!reader, readerSimulated: simulated, payAtCounter: s.kiosk.payAtCounter || !reader, taxRateBps: rate, businessName: co[0]?.name || '' })
+  })
+  app.post('/kiosk/order', ...kiosk, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return act(c, async () => {
+      const readerId = await kioskReader(actor.companyId)
+      const order = await bar.orders.placeKiosk(actor, { lines: b.lines, name: b.name, table: b.table, pay: b.pay, haveReader: !!readerId })
+      if (order.status !== 'awaiting_payment') return { order, charge: null }
+      try {
+        const charge = await terminal.startCharge({ ...actor, name: 'Kiosk' }, { orderId: order.id, readerId: readerId! })
+        return { order, charge }
+      } catch (e) {
+        await bar.orders.cancelKiosk(actor.companyId, order.id)
+        throw e
+      }
+    })
+  })
+  app.get('/kiosk/order/:id', ...kiosk, async (c) => {
+    const actor = await actorOf(c)
+    const o = await bar.orders.one(actor.companyId, c.req.param('id'))
+    c.header('Cache-Control', 'no-store')
+    return o ? one(c, { order: bar.orders.orderView(o) }) : fail(c, 404, 'That order is gone.')
+  })
+  app.post('/kiosk/order/:id/cancel', ...kiosk, async (c) => {
+    const actor = await actorOf(c); const id = c.req.param('id')
+    return act(c, async () => {
+      // The card on the reader first: if Stripe says it already went through, the order is paid, not cancelled.
+      const [pending] = await d.db.select({ id: barTerminalCharge.id }).from(barTerminalCharge).where(and(eq(barTerminalCharge.companyId, actor.companyId), eq(barTerminalCharge.orderId, id), eq(barTerminalCharge.status, 'pending'))).limit(1)
+      if (pending) await terminal.cancelCharge({ ...actor, name: 'Kiosk' }, pending.id)
+      return { order: await bar.orders.cancelKiosk(actor.companyId, id) }
+    })
   })
 
   return app

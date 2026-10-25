@@ -135,6 +135,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'gift_cards', name: 'Gift Cards', description: 'Your own gift cards: sold on the register, spent like cash, balance looked up by number — no expiry, no fees, every change on a ledger', category: 'Bar', core: true, templates: ['crm-bar'] },
   // Food service on the register (apps/unified server/crm/bar barTerminal.ts, barOrders.ts): the business's own Stripe.
   { id: 'card_reader', name: 'Card Reader', description: 'Take cards on a Stripe card reader at the register: the amount goes to the reader, the payment is recorded when Stripe confirms it, tips on the reader, refunds back to the card', category: 'Register & Ordering', core: false, templates: ['crm-bar'] },
+  { id: 'order_kiosk', name: 'Order Kiosk', description: 'A self-serve tablet: guests browse the menu with sizes and add-ons, order under their name or table, and pay on the card reader or at the counter; paid orders go to the grill marked KIOSK', category: 'Register & Ordering', core: false, templates: ['crm-bar'] },
   { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar'] },
 
   // Private Events & Catering (crm-restaurant) — enquiry -> booking -> deposit

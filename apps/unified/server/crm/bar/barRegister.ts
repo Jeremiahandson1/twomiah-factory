@@ -20,6 +20,7 @@ import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem,
 import { nextCheckNumber, rewardUseTakenBack, rewardUsedOnce } from '../../data/bar.ts'
 import type { BarKitchen } from './barKitchen.ts'
 import { sizesOf } from './barMenuSizes.ts'
+import { modifierNote, modifiersOf, pickModifiers } from './barModifiers.ts'
 import { changeDue, checkTotals, quickCash, taxRateBpsFrom, type CheckTotals } from './barCheckMoney.ts'
 import type { Actor } from './barManagers.ts'
 import { BAR_WORDS, LoyaltyError, type BarLoyalty } from './barLoyalty.ts'
@@ -46,6 +47,9 @@ export interface CheckView {
 export interface OpenCheckRow { id: string; number: number; kind: string; label: string; spot: string | null; openedAt: string; openedByName: string | null; totalCents: number; balanceCents: number; itemCount: number; heldCount: number; foodUpAt: string | null; onGrill: number }
 
 export const TENDERS = ['cash', 'card_external'] as const
+
+/** One priced line of a kiosk or website order (bar_order.lines). */
+export interface OrderLine { menuItemId: string; name: string; size: string | null; qty: number; unitPriceCents: number; note: string | null; toKitchen: boolean }
 
 const clean = (v: unknown, max: number) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s ? s.slice(0, max) : null }
 const seatOf = (v: unknown): number | null => {
@@ -179,11 +183,12 @@ async function menuForRegister(companyId: string) {
     // Its pour sizes (a pint, a pitcher); more than one and the register asks which, as it does for a menu item.
     sizes: tapSizes(t).map(s => ({ id: s.id, name: s.name, priceCents: s.priceCents })),
   }))
-  const menu: Array<{ id: string; name: string; kind: string; items: Array<{ id: string; name: string; is86ed: boolean; sizes: Array<{ id: string; name: string; priceCents: number | null }> }> }> = sections.map(s => ({
+  const menu: Array<{ id: string; name: string; kind: string; items: Array<{ id: string; name: string; is86ed: boolean; description?: string | null; imageUrl?: string | null; sizes: Array<{ id: string; name: string; priceCents: number | null }>; modifiers?: Array<{ id: string; name: string; priceCents: number }> }> }> = sections.map(s => ({
     id: s.id, name: s.name, kind: s.kind,
     items: items.filter(i => i.sectionId === s.id).map(i => ({
-      id: i.id, name: i.name, is86ed: i.is86ed,
+      id: i.id, name: i.name, is86ed: i.is86ed, description: i.description, imageUrl: i.imageUrl,
       sizes: sizesOf(i, s.description).map(v => ({ id: v.id, name: v.name, priceCents: v.priceCents })),
+      modifiers: modifiersOf(i),
     })),
   })).filter(s => s.items.length)
   // Food first (the grill is the bar's first job); the taps lead the drinks.
@@ -211,7 +216,7 @@ async function openCheck(actor: Actor, input: { kind?: string; label?: string; s
   return getCheck(actor.companyId, id)
 }
 
-async function addItem(actor: Actor, checkId: string, input: { menuItemId?: string; sizeId?: string | null; qty?: number; note?: string | null; seat?: number | null; priceCents?: number | null }): Promise<CheckView> {
+async function addItem(actor: Actor, checkId: string, input: { menuItemId?: string; sizeId?: string | null; modifierIds?: unknown; qty?: number; note?: string | null; seat?: number | null; priceCents?: number | null }): Promise<CheckView> {
   const companyId = actor.companyId
   await db.transaction(async (tx: Tx) => {
     await lockOpen(tx, companyId, checkId)
@@ -237,10 +242,15 @@ async function addItem(actor: Actor, checkId: string, input: { menuItemId?: stri
       const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
       if (!size) throw new CheckError(`Which size of ${row.item.name}?`)
       // Open price: the item has no price on file yet, so the bartender types one.
-      const price = size.priceCents ?? typedPrice(input.priceCents, row.item.name)
+      const base = size.priceCents ?? typedPrice(input.priceCents, row.item.name)
+      // Add-ons and changes, priced from the item as it is now; their names ride on the note for the grill.
+      const mods = pickModifiers(row.item, input.modifierIds)
+      if (mods === 'unknown') throw new CheckError(`That add-on is not on ${row.item.name} any more.`)
+      const price = base + mods.reduce((n, m) => n + m.priceCents, 0)
+      const note = clean([modifierNote(mods), clean(input.note, 140)].filter(Boolean).join(' · '), 140)
       await tx.insert(barCheckItem).values({
         checkId, menuItemId: row.item.id, name: row.item.name, size: size.name === 'Regular' ? null : size.name,
-        qty: qtyOf(input.qty), unitPriceCents: price, note: clean(input.note, 140), seat: seatOf(input.seat),
+        qty: qtyOf(input.qty), unitPriceCents: price, note, seat: seatOf(input.seat),
         toKitchen: row.item.toKitchen ?? (row.section?.kind !== 'drink'), addedById: actor.id, addedByName: actor.name, companyId,
       })
     }
@@ -315,7 +325,12 @@ async function voidItem(actor: Actor, itemId: string, reason: string, byName: st
 /** Fire held food to the grill as one ticket; held drinks just become sent. `onlyItemIds` = coursing (apps now). */
 async function sendCheck(actor: Actor, checkId: string, onlyItemIds?: string[]): Promise<CheckView> {
   const companyId = actor.companyId
-  const fired = await db.transaction(async (tx: Tx) => sendInTx(tx, companyId, checkId, actor.name, onlyItemIds))
+  const fired = await db.transaction(async (tx: Tx) => {
+    // A kiosk order goes to the grill once it is PAID (closeIfPaid fires it then): not before, from the register.
+    const c = await lockOpen(tx, companyId, checkId)
+    if (c.kind === 'kiosk' && (await getCheck(companyId, checkId, tx)).totals.balanceCents > 0) throw new CheckError('A kiosk order goes to the grill once it is paid. Take the payment and it fires.', 409)
+    return sendInTx(tx, companyId, checkId, actor.name, onlyItemIds)
+  })
   if (fired) notifyKitchen(companyId)
   notifyRegister(companyId)
   return getCheck(companyId, checkId)
@@ -331,7 +346,7 @@ async function sendInTx(tx: Tx, companyId: string, checkId: string, byName: stri
   if (food.length) {
     const label = c.spot && c.spot !== c.label ? `${c.spot} · ${c.label}` : c.label
     const t = await fireTicket(tx, companyId, {
-      label, source: c.kind === 'table' ? 'table' : 'bar', note: c.note, firedByName: byName, checkId,
+      label, source: c.kind === 'table' ? 'table' : c.kind === 'kiosk' ? 'kiosk' : c.kind === 'online' ? 'web' : 'bar', note: c.note, firedByName: byName, checkId,
       lines: food.map((i: any) => ({ menuItemId: i.menuItemId, name: i.name, variation: i.size, qty: i.qty, note: i.note, seat: i.seat })),
     })
     ticketId = t?.id || null
@@ -356,7 +371,7 @@ async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Ac
   const fired = view.items.some(i => i.state === 'held') ? await sendInTx(tx, companyId, checkId, actor.name, undefined, true) : false
   const t = view.totals
   await tx.update(barCheck).set({
-    status: 'paid', closedAt: new Date(), closedById: actor.id, closedByName: actor.name, taxRateBps: view.taxRateBps,
+    status: 'paid', closedAt: new Date(), closedById: actor.id || null, closedByName: actor.name, taxRateBps: view.taxRateBps,
     subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, tipCents: t.tipCents, updatedAt: new Date(),
   }).where(eq(barCheck.id, checkId))
   // Gift cards sold on this check come to life now that they are paid for — in this same transaction, so a card
@@ -449,6 +464,48 @@ async function recordCardInTx(tx: Tx, actor: Actor, checkId: string, p: { tender
     takenById: actor.id || null, takenByName: actor.name, companyId,
   }).returning({ id: barCheckPayment.id })
   return { paymentId: row.id as string, fired: await closeIfPaid(tx, companyId, checkId, actor, earn) }
+}
+
+/**
+ * A kiosk or website order as a check (barOrders.ts), inside the caller's transaction: its priced lines go on held, and
+ * with a CONFIRMED payment the check closes and its food fires to the grill as one ticket (closeIfPaid) — only then.
+ * Without one (the kiosk's pay at the counter) it is an open check on the register, and the food goes when it is paid.
+ */
+async function checkFromOrderInTx(tx: Tx, by: Actor, o: { kind: 'kiosk' | 'online'; label: string; spot: string | null; note: string | null; lines: OrderLine[] }, payment: { tender: 'card_terminal' | 'card_online'; amountCents: number; tipCents: number; providerPaymentId: string; stripeAccount: string | null } | null): Promise<{ checkId: string; number: number; fired: boolean }> {
+  const companyId = by.companyId
+  const number = await nextCheckNumber(tx, companyId)
+  const [row] = await tx.insert(barCheck).values({ number, kind: o.kind, label: o.label.slice(0, 40), spot: o.spot, note: o.note, openedById: by.id || null, openedByName: by.name, companyId }).returning({ id: barCheck.id })
+  for (const l of o.lines) {
+    await tx.insert(barCheckItem).values({ checkId: row.id, menuItemId: l.menuItemId, name: l.name, size: l.size, qty: l.qty, unitPriceCents: l.unitPriceCents, note: l.note, toKitchen: l.toKitchen, addedById: by.id || null, addedByName: by.name, companyId })
+  }
+  const fired = payment ? (await recordCardInTx(tx, by, row.id, payment, false)).fired : false
+  return { checkId: row.id as string, number, fired }
+}
+
+/**
+ * Price one line of a guest's order from the menu as it is now: the item active and not 86'd, a size with a price on
+ * file (a guest never types a price), the add-ons this item has. The kiosk and the website both order through this.
+ */
+async function priceOrderLine(tx: Tx, companyId: string, input: { menuItemId?: unknown; sizeId?: unknown; modifierIds?: unknown; qty?: unknown; note?: unknown }): Promise<OrderLine> {
+  const [row] = await tx.select({ item: barMenuItem, section: barMenuSection }).from(barMenuItem)
+    .leftJoin(barMenuSection, eq(barMenuSection.id, barMenuItem.sectionId))
+    .where(and(eq(barMenuItem.id, String(input.menuItemId || '')), eq(barMenuItem.companyId, companyId))).limit(1)
+  if (!row || !row.item.isActive || (row.section && !row.section.isActive)) throw new CheckError('Something in the order is off the menu now. Take it out and try again.', 409)
+  if (row.item.is86ed) throw new CheckError(`Sorry, ${row.item.name} just sold out.`, 409)
+  const sizes = sizesOf(row.item, row.section?.description)
+  const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
+  if (!size) throw new CheckError(`Pick a size for ${row.item.name}.`)
+  if (size.priceCents === null) throw new CheckError(`${row.item.name} is ordered at the counter.`, 409)
+  const mods = pickModifiers(row.item, input.modifierIds)
+  if (mods === 'unknown') throw new CheckError(`That add-on is not on ${row.item.name} any more.`, 409)
+  const q = Math.floor(Number(input.qty ?? 1))
+  if (!Number.isFinite(q) || q < 1 || q > 20) throw new CheckError('Check the quantity.')
+  return {
+    menuItemId: row.item.id, name: row.item.name, size: size.name === 'Regular' ? null : size.name, qty: q,
+    unitPriceCents: size.priceCents + mods.reduce((n, m) => n + m.priceCents, 0),
+    note: clean([modifierNote(mods), clean(input.note, 100)].filter(Boolean).join(' · '), 140),
+    toKitchen: row.item.toKitchen ?? (row.section?.kind !== 'drink'),
+  }
 }
 
 /** After a confirmed card payment: tell the grill (when food fired) and the registers. */
@@ -650,7 +707,7 @@ async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem
 return {
   notifyRegister, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
   voidItem, sendCheck, addPayment, addGiftCardLine, voidPayment, splitItems, splitBySeat, checkNeedsManager, voidCheck, renameCheck,
-  attachGuest, redeemReward, recordCardInTx, afterCardPayment,
+  attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine,
 }
 }
 export type BarRegister = ReturnType<typeof createBarRegister>
