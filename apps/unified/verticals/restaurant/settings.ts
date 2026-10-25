@@ -161,6 +161,9 @@ const restaurant: VerticalSettings = {
   // (templates/website-premium-showcase: its contact section and its empty-message reply).
   site: {
     design: 'showcase',
+    // The menu entered on Menu, live on the website (server/crm/bar/barSite.ts createMenuSite): its own /menu page and
+    // nav item while it has items, whether or not online ordering is on. Not the bar's taps or Tonight board.
+    facts: 'menu',
     words: {
       contactAddressLabel: 'Address',
       contactMessageLabel: 'Your message',

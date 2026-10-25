@@ -7,7 +7,7 @@
   'use strict'
   type Size = { id: string; name: string; priceCents: number | null }
   type Mod = { id: string; name: string; priceCents: number }
-  type Item = { id: string; name: string; is86ed: boolean; description?: string | null; sizes: Size[]; modifiers?: Mod[] }
+  type Item = { id: string; name: string; is86ed: boolean; description?: string | null; imageUrl?: string | null; sizes: Size[]; modifiers?: Mod[] }
   type Section = { id: string; name: string; items: Item[] }
   type Line = { itemId: string; sizeId: string; modIds: string[]; qty: number; name: string; detail: string; eachCents: number }
   type Answer = { offered: boolean; open: boolean; reason: string | null; slots: Array<{ at: string; label: string }>; delivery: Array<{ company: string; name: string; url: string }>; menu: Section[]; taxRateBps: number; business: { name: string; phone: string | null } }
@@ -70,7 +70,7 @@
       const tabs = a.menu.map((s) => `<button type="button" class="order-tab" role="tab" aria-selected="${s.id === section}" data-tab="${esc(s.id)}">${esc(s.name)}</button>`).join('')
       const grid = (sec?.items || []).map((i) => {
         const from = Math.min(...i.sizes.map((z) => z.priceCents || 0))
-        return `<button type="button" class="order-item" data-item="${esc(i.id)}" ${i.is86ed || !a.open ? 'disabled' : ''}><span class="order-item__name">${esc(i.name)}</span>${i.description ? `<span class="order-item__desc">${esc(i.description)}</span>` : ''}<span>${i.is86ed ? 'Sold out' : (i.sizes.length > 1 ? 'from ' : '') + money(from)}</span></button>`
+        return `<button type="button" class="order-item" data-item="${esc(i.id)}" ${i.is86ed || !a.open ? 'disabled' : ''}>${i.imageUrl ? `<img class="order-item__img" src="${esc(i.imageUrl)}" alt="" loading="lazy">` : ''}<span class="order-item__name">${esc(i.name)}</span>${i.description ? `<span class="order-item__desc">${esc(i.description)}</span>` : ''}<span>${i.is86ed ? 'Sold out' : (i.sizes.length > 1 ? 'from ' : '') + money(from)}</span></button>`
       }).join('')
       const lines = cart.map((l, n) => `<li><div class="order-line"><span>${esc(l.name)}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</span><span>${money(l.qty * l.eachCents)}</span></div><div class="order-qty"><button type="button" data-less="${n}" aria-label="One fewer ${esc(l.name)}">−</button><span>${l.qty}</span><button type="button" data-more="${n}" aria-label="One more ${esc(l.name)}">+</button></div></li>`).join('')
       const consent = (document.getElementById('order-consent') as HTMLTemplateElement | null)?.innerHTML || ''

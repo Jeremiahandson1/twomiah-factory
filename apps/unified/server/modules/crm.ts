@@ -82,6 +82,7 @@ import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
 import { cardPaymentsFor } from '../crm/cardPayments.ts'
+import type { PhotoStore } from '../site/admin.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -97,6 +98,8 @@ export interface CrmModuleDeps {
   adsConnector: ReturnType<typeof createAdsConnector>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** The website's photo store (served at /media): a menu item's photo goes into the site's library. */
+  store?: PhotoStore
 }
 
 /** Google Business Profile's tokens, sealed at rest with the tenant's own key — as people's calendar tokens are. */
@@ -117,7 +120,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await next()
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
-  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v }
+  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, store: deps.store }
   // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
   // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
   // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).

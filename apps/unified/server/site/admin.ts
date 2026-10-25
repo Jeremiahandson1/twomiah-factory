@@ -56,8 +56,8 @@ export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'pr
  * On any other site they would draw an empty board or post a form nothing is waiting for. Every other section is the
  * whole library's (tests/site-section-fields.test.ts holds every view that reads `site`/`live` to an entry here).
  */
-export const ADDON_SECTIONS: Record<string, { facts?: 'bar'; websiteForms?: 'bar' }> = {
-  'tonight/board': { facts: 'bar' }, 'taps/wall': { facts: 'bar' }, 'menu/sections': { facts: 'bar' }, 'hours/table': { facts: 'bar' },
+export const ADDON_SECTIONS: Record<string, { facts?: 'bar' | Array<'bar' | 'menu'>; websiteForms?: 'bar' }> = {
+  'tonight/board': { facts: 'bar' }, 'taps/wall': { facts: 'bar' }, 'menu/sections': { facts: ['bar', 'menu'] }, 'hours/table': { facts: 'bar' },
   'events/list': { facts: 'bar' }, 'speakeasy/door': { facts: 'bar' },
   'timeline/eras': { facts: 'bar' }, 'timeline/era': { facts: 'bar' }, 'timeline/book': { facts: 'bar' },
   'regulars/signup': { facts: 'bar', websiteForms: 'bar' }, 'parties/inquiry-form': { websiteForms: 'bar' },
@@ -68,11 +68,12 @@ export function offersSection(key: string, vertical: VerticalSettings): boolean 
   if (SERVER_BUILT_SECTIONS.has(key)) return false
   const needs = ADDON_SECTIONS[key]
   if (!needs) return true
-  return (!needs.facts || vertical.site.facts === needs.facts) && (!needs.websiteForms || vertical.crm?.websiteForms === needs.websiteForms)
+  const factsOk = !needs.facts || (Array.isArray(needs.facts) ? needs.facts.includes(vertical.site.facts as any) : vertical.site.facts === needs.facts)
+  return factsOk && (!needs.websiteForms || vertical.crm?.websiteForms === needs.websiteForms)
 }
 const POST_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+export const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const optText = (v: unknown, max: number) => (typeof v === 'string' ? (v.trim() ? v.slice(0, max) : null) : v === null ? null : undefined)
 
 /** The website's own settings a person may change (the company's facts live in /api/company). */

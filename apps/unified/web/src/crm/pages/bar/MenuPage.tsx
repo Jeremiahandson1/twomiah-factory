@@ -1,6 +1,6 @@
 // Moved from templates/crm-bar/frontend/src/pages/bar/MenuPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Loader2, X, Utensils, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Loader2, X, Utensils, Edit2, Trash2, ImagePlus } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
@@ -10,13 +10,16 @@ import { money } from '@twomiah/tenant-ui/src/money'
  * MENU — the bar's menu, as its website shows it: real prices, sizes, signature items with their own page,
  * and the 86. One place to change a price; the website reads it live (GET /api/public/bar/menu).
  *
- * Editing the menu is a manager's (bar:update); 86 is anyone's who works the console (bar:console).
+ * Editing the menu is a manager's (bar:update); 86 is anyone's who works the console (bar:console). An item's photo is
+ * part of editing it (POST /api/bar/menu/items/:id/photo, bar:update): it goes into the website's photo library and
+ * shows on the website's menu, the /order page and the kiosk.
  */
 
 interface Item {
   id: string; sectionId: string | null; name: string; slug: string; description: string | null; priceCents: number | null;
   priceLabel: string | null; isSignature: boolean; is86ed: boolean; isActive: boolean; dietary: string[]; story: string | null;
   variations: Array<{ name: string; priceCents: number }>;
+  imageUrl: string | null;
   toKitchen: boolean | null; prepSeconds: number | null;
   modifiers?: Array<{ id: string; name: string; priceCents: number }>;
 }
@@ -38,6 +41,8 @@ export default function MenuPage() {
   const [sectionForm, setSectionForm] = useState<Partial<Section> | null>(null);
   const [itemForm, setItemForm] = useState<(Partial<Item> & { price?: string; prepMin?: string; mods?: ModRow[] }) | null>(null);
   const [formErr, setFormErr] = useState('');
+  // The photo picked in the item form, uploaded once the item itself has saved (a new item has no id before then).
+  const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string>('');
 
@@ -72,10 +77,21 @@ export default function MenuPage() {
       // The price box is dollars ("9.50"); blank means no single price (the label says it).
       if (itemForm.price !== undefined) body.price = itemForm.price.trim() === '' ? null : itemForm.price;
       // Add-ons and changes the register, the kiosk and the website offer: a name and a price ($0 for "No onions").
+      // "Remove photo" clears it; a new photo is uploaded below.
+      if (itemForm.id && itemForm.imageUrl === null) body.imageUrl = null;
       if (itemForm.mods) body.modifiers = itemForm.mods.filter((m) => m.name.trim()).map((m) => ({ ...(m.id ? { id: m.id } : {}), name: m.name.trim(), priceCents: Math.round((Number(m.price.replace(/[$,\s]/g, '')) || 0) * 100) }));
-      if (itemForm.id) await api.put(`/api/bar/menu/items/${itemForm.id}`, body);
-      else await api.post('/api/bar/menu/items', body);
-      setItemForm(null); await load();
+      const saved = itemForm.id ? await api.put(`/api/bar/menu/items/${itemForm.id}`, body) : await api.post('/api/bar/menu/items', body);
+      const id = itemForm.id || saved?.id;
+      if (photo && id) {
+        const fd = new FormData(); fd.append('file', photo);
+        try { await api.upload(`/api/bar/menu/items/${id}/photo`, fd) }
+        catch (e) {
+          // The item saved; keep the form open on it so the photo can be tried again.
+          setItemForm({ ...itemForm, id }); await load();
+          setFormErr(errorText(e, 'The item saved, but the photo did not upload.')); return;
+        }
+      }
+      setItemForm(null); setPhoto(null); await load();
     } catch (e) { setFormErr(errorText(e, 'The item did not save.')) } finally { setSaving(false) }
   };
 
@@ -101,7 +117,7 @@ export default function MenuPage() {
         {mayEdit && (
           <div className="flex gap-2">
             <button onClick={() => { setFormErr(''); setSectionForm({ kind: 'food', isActive: true }) }} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"><Plus className="w-4 h-4" /> Section</button>
-            <button onClick={() => { setFormErr(''); setItemForm({ isActive: true, sectionId: sections[0]?.id || null, price: '' }) }} disabled={!sections.length} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"><Plus className="w-4 h-4" /> Item</button>
+            <button onClick={() => { setFormErr(''); setPhoto(null); setItemForm({ isActive: true, sectionId: sections[0]?.id || null, price: '' }) }} disabled={!sections.length} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"><Plus className="w-4 h-4" /> Item</button>
           </div>
         )}
       </div>
@@ -133,7 +149,8 @@ export default function MenuPage() {
               <ul className="divide-y divide-gray-100 dark:divide-slate-800">
                 {s.items.map((i) => (
                   <li key={i.id} className={`flex items-start justify-between gap-3 p-4 ${i.isActive ? '' : 'opacity-60'}`}>
-                    <div className="min-w-0">
+                    {i.imageUrl && <img src={i.imageUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />}
+                    <div className="min-w-0 flex-1">
                       <p className={`font-medium ${i.is86ed ? 'line-through text-gray-500 dark:text-slate-400' : 'text-gray-900 dark:text-slate-100'}`}>
                         {i.name}
                         {i.isSignature && <span className="ml-2 text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">Signature</span>}
@@ -145,7 +162,7 @@ export default function MenuPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {may86 && <button onClick={() => toggle86(i)} aria-pressed={i.is86ed} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${i.is86ed ? 'bg-orange-600 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-500' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{i.is86ed ? 'Back on' : '86'}</button>}
-                      {mayEdit && <button onClick={() => { setFormErr(''); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '', mods: (i.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: (m.priceCents / 100).toFixed(2) })) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
+                      {mayEdit && <button onClick={() => { setFormErr(''); setPhoto(null); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '', mods: (i.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: (m.priceCents / 100).toFixed(2) })) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
                       {mayEdit && (confirmDelete === i.id
                         ? <><button onClick={() => remove('items', i.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Delete</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
                         : <button onClick={() => setConfirmDelete(i.id)} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Delete ${i.name}`}><Trash2 className="w-4 h-4" /></button>)}
@@ -196,6 +213,18 @@ export default function MenuPage() {
               ))}
               <button type="button" className="text-sm underline text-gray-800 dark:text-slate-200" onClick={() => setItemForm({ ...itemForm, mods: [...(itemForm.mods || []), { name: '', price: '' }] })}>Add an add-on</button>
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">The register, the kiosk and online orders offer these; $0 for a change like "No onions". The grill ticket says them.</p>
+            </div>
+            <div>
+              <p className={LBL}>Photo</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                {photo ? <span className="text-sm text-gray-700 dark:text-slate-200 truncate max-w-[12rem]">{photo.name}</span>
+                  : itemForm.imageUrl ? <img src={itemForm.imageUrl} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                  : <span className="text-sm text-gray-500 dark:text-slate-400">No photo</span>}
+                <label htmlFor="item-photo" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 cursor-pointer hover:bg-gray-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"><ImagePlus className="w-4 h-4" />{itemForm.imageUrl || photo ? 'Change photo' : 'Add a photo'}</label>
+                <input id="item-photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0] || null)} />
+                {(photo || itemForm.imageUrl) && <button type="button" className="text-sm underline text-gray-800 dark:text-slate-200" onClick={() => { setPhoto(null); setItemForm({ ...itemForm, imageUrl: null }) }}>Remove photo</button>}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Shown on your website's menu, online ordering and the kiosk. JPG, PNG, WebP or GIF, up to 8 MB.</p>
             </div>
             <div><label htmlFor="item-desc" className={LBL}>Description</label><textarea id="item-desc" className={INPUT} rows={2} value={itemForm.description || ''} onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })} /></div>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={!!itemForm.isSignature} onChange={(e) => setItemForm({ ...itemForm, isSignature: e.target.checked })} /> Signature item — gets its own page on the website</label>

@@ -35,4 +35,10 @@ export interface SiteFacts {
   nestedPage(facts: PageFacts, a: string, b: string, companyName: string): FactsPage | null
   /** Paths the sitemap lists besides the pages (signature items, the story's eras); `pages` is the published slugs. */
   sitemapPaths(facts: PageFacts, pages: Set<string>): string[]
+  /**
+   * The facts make the site's /menu page (the menu section over `site.menu`) and its "Menu" nav item while the menu has
+   * items and the owner has no published page of that slug (a restaurant's menu, createMenuSite). The bar's site has
+   * its own menu page.
+   */
+  menuPage?: boolean
 }

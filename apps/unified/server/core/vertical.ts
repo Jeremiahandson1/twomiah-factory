@@ -338,9 +338,11 @@ export interface SiteSettings {
    * The live facts the site's own sections read, from the vertical's add-on in the same database: 'bar' is the bar's
    * night — the Tonight board, the taps, the menu, the hours, what's on, the speakeasy door — read through
    * server/crm/bar/barSite.ts (templates/website-premium-bar lib/bar.ts fetched them from the bar CRM over HTTP).
-   * Absent: the sections have only their own data.
+   * 'menu' is the food side's menu alone (a restaurant or a food truck): the sections, items, sizes, prices and photos
+   * entered on Menu, 86'd items left off, and a /menu page with its nav item while the menu has items (barSite.ts
+   * createMenuSite) — no taps, no Tonight board. Absent: the sections have only their own data.
    */
-  facts?: 'bar'
+  facts?: 'bar' | 'menu'
 }
 
 /**

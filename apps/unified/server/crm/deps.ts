@@ -5,6 +5,7 @@ import type { Realtime } from '../core/realtime.ts'
 import type { PhonePush } from '../core/phonePush.ts'
 import type { CrmServices } from './services.ts'
 import type { CrmSettings } from '../core/vertical.ts'
+import type { PhotoStore } from '../site/admin.ts'
 
 export interface CrmDeps {
   db: any
@@ -21,6 +22,8 @@ export interface CrmDeps {
   services: CrmServices
   /** The vertical's switches (VerticalSettings.crm), for a module whose words or behaviour differ by vertical. */
   settings?: CrmSettings
+  /** The website's photo store (served at /media), for a picture the public site shows (a menu item's photo). */
+  store?: PhotoStore
 }
 
 /** May this person see `permission`, counting the grants the owner gave them by name? */

@@ -129,8 +129,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return null
   }
   /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer, a store's Shop. */
-  function toolNav(ctx: SiteContext, visualizer: boolean, ordering = false) {
+  function toolNav(ctx: SiteContext, visualizer: boolean, ordering = false, menu = false) {
     const items: Array<{ label: string; href: string }> = []
+    if (menu) items.push({ label: 'Menu', href: '/menu' })
     if (ordering) items.push({ label: 'Order online', href: '/order' })
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
     if (visualizer) items.push({ label: 'Visualizer', href: '/visualize' })
@@ -173,11 +174,14 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   }
   /** This page's live facts, when the vertical's sections read them. */
   const factsOf = async (ctx: SiteContext) => (facts ? { page: await facts.load(ctx.companyId, ctx.settings), source: facts } : null)
+  /** The facts' own /menu page (SiteFacts.menuPage: a restaurant's menu) is there while the menu has items. */
+  const menuMade = (f: { page: PageFacts; source: SiteFacts } | null) =>
+    !!(f && f.source.menuPage && Array.isArray(f.page.site.menu) && (f.page.site.menu as any[]).some((s) => Array.isArray(s?.items) && s.items.length))
   /** Render, count the visit, answer. A page the facts made passes the facts it was made from. */
   async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta, pageFacts?: { page: PageFacts; source: SiteFacts; about?: unknown }) {
     count(c, ctx, pathname)
     const f = pageFacts ?? await factsOf(ctx)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId)), facts: f }))
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
@@ -376,6 +380,20 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       return page200(c, ctx, '/order/done', [{ type: 'order', variant: 'done', data: { sessionId } }], { title: 'Your order', metaDescription: 'Your pickup order.' })
     })
   }
+  // ── The menu the facts make (SiteFacts.menuPage: a restaurant's or a food truck's, crm/bar/barSite.ts) ─────
+  // Built from the menu entered in the CRM, whether or not online ordering is on. The owner's own published 'menu'
+  // page wins (the slug route below), and an empty menu is no page at all.
+  if (facts?.menuPage) app.get('/menu', async (c, next) => {
+    const ctx = await ctxOf()
+    if (!ctx) return next()
+    const own = await loadPage(ctx.companyId, 'menu')
+    if (own && own.isPublished) return next()
+    const f = await factsOf(ctx)
+    if (!f || !menuMade(f)) return next()
+    const name = ctx.settings.companyName
+    return page200(c, ctx, '/menu', [{ type: 'menu', variant: 'sections', data: { heading: 'Menu', asHeading: true, showSignatureLinks: false } }],
+      { title: 'Menu', metaTitle: 'Menu' + (name ? ' — ' + name : ''), metaDescription: `The menu at ${name}, with prices.` }, f)
+  })
   app.get('/scripts/order.js', (c) => foodSite ? c.body(ORDER_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }) : c.notFound())
 
   // ── Dealer inventory ─────────────────────────────────────────────────────

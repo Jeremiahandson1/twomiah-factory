@@ -25,7 +25,7 @@ import { createRealtime } from './core/realtime.ts'
 import { createSiteAdmin, createSeedPhotosRoute, sharedPhotoStore, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes, siteStylesheet } from './site/routes.ts'
 import { createStorefront } from './crm/store/index.ts'
-import { createBarSite } from './crm/bar/barSite.ts'
+import { createBarSite, createMenuSite } from './crm/bar/barSite.ts'
 import { createBarLive } from './crm/bar/barLive.ts'
 import { loadSiteContext } from './site/context.ts'
 import { createBookingPages } from './booking/pages.ts'
@@ -180,7 +180,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // The CRM: contacts, jobs, quotes, invoices and every module the shared code carries.
     // This phone's push token, for every vertical (core/phonePush.ts) — before any module's own /api/push.
     { path: '/api/push/expo-token', access: 'user', router: phonePush.tokenRoutes },
-    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM }),
+    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM, store }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits — and the editor's preview, which draws a draft
     // through the website's own routes (site/preview.ts).
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical, preview: { fetchApp: (req) => app.fetch(req), stylesheet: siteStylesheet } }) },
@@ -218,7 +218,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // its night through the bar add-on (crm/bar/barSite.ts, SiteSettings.facts).
         .route('/', createSiteRoutes({
           db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm }) : null,
-          facts: vertical.site.facts === 'bar' ? createBarSite({ db, live: createBarLive(db) }) : null,
+          facts: vertical.site.facts === 'bar' ? createBarSite({ db, live: createBarLive(db) })
+            : vertical.site.facts === 'menu' ? createMenuSite({ db, live: createBarLive(db) }) : null,
         })),
     },
   ]

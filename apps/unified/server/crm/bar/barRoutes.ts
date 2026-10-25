@@ -22,6 +22,7 @@ import { slugify, sizesFromLabel } from './barMenuSizes.ts'
 import { tapSizesInput } from './barTapSizes.ts'
 import { modifiersInput } from './barModifiers.ts'
 import type { BarServices } from './services.ts'
+import { savePublicPhoto, IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../site/admin.ts'
 
 type Ctx = any
 type Status = 400 | 403 | 404 | 409
@@ -391,6 +392,29 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     if (!row) return bad(c, 'Menu item not found', 404)
     audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: v.value })
     return one(c, row)
+  })
+
+  // The item's photo, as the menu editor uploads it: into the website's own photo library (site/admin.ts savePublicPhoto
+  // — re-encoded and turned upright like every site photo, served at /media), and its address written to the item, which
+  // the website's menu, the /order page and the kiosk all read. Editing the menu's (bar:update), as the item itself is.
+  // Taking the photo off is the item's PUT with imageUrl: null.
+  app.post('/menu/items/:id/photo', requireEnabledFeature('bar_menu'), requirePermission('bar:update'), async (c) => {
+    const { companyId, userId } = me(c)
+    const id = c.req.param('id')
+    if (!d.store) return bad(c, 'Photos cannot be stored here.', 409)
+    const [cur] = await db.select({ id: barMenuItem.id }).from(barMenuItem).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).limit(1)
+    if (!cur) return bad(c, 'Menu item not found', 404)
+    const body = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
+    const file = (body as Record<string, unknown>).file as File | undefined
+    if (!file || typeof (file as any).arrayBuffer !== 'function') return bad(c, 'Choose a photo to upload.')
+    if (file.size > MAX_IMAGE_BYTES) return bad(c, 'That photo is too large (8 MB at most).')
+    if (file.type && !IMAGE_TYPES.has(file.type)) return bad(c, 'Use a JPG, PNG, WebP or GIF.')
+    const saved = await savePublicPhoto({ db, store: d.store }, Buffer.from(await file.arrayBuffer()), { companyId, userId, originalName: file.name || null, tag: 'menu-item' })
+    if (!saved) return bad(c, "That file isn't an image we can read.")
+    const [row] = await db.update(barMenuItem).set({ imageUrl: saved.publicUrl, updatedAt: new Date() }).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).returning()
+    if (!row) return bad(c, 'Menu item not found', 404)
+    audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: { imageUrl: row.imageUrl } })
+    return one(c, row, 201)
   })
 
   // 86 — the bartender's control: out of it now, back on later. Reaches the website on its next read.
