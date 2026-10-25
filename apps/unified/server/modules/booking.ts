@@ -48,7 +48,8 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   const may = permissions.requirePermission as (p: string) => any
   email.register(bookingTemplates)
   const webhooks = createBookingWebhooks({ db, logger })
-  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts })
+  // The engine's own rule for what is offered (read when a message goes, after the engine below is made).
+  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts, offered: (svc) => engine.offered(svc) })
   const engine = createBookingEngine({
     // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
@@ -79,8 +80,11 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.delete('/services/:id', may('bookings:settings'), (c) => guard(c, async () => (await engine.deleteService(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Service not found')))
 
   // Hours and days off are the day-to-day running of the book: anyone who may change bookings may set them.
-  admin.get('/hours', may('bookings:read'), async (c) => { const rows = await engine.getHours(co(c)); return listAll(c, rows) })
-  admin.put('/hours', may('bookings:update'), (c) => guard(c, async () => { const b = await body(c); const rows = await engine.setHours(co(c), b.hours); return listAll(c, rows) }))
+  // The week and whose it is (engine.weekOf): { data: windows, from: 'own' | 'business' | 'starting' }, so the screen
+  // says when bookings are following the opening hours rather than hours of their own.
+  admin.get('/hours', may('bookings:read'), async (c) => { const w = await engine.getHours(co(c)); return one(c, { data: w.windows, from: w.from }) })
+  admin.put('/hours', may('bookings:update'), (c) => guard(c, async () => { const b = await body(c); const w = await engine.setHours(co(c), b.hours); return one(c, { data: w.windows, from: w.from }) }))
+  admin.delete('/hours', may('bookings:update'), async (c) => { const w = await engine.followOpeningHours(co(c)); return one(c, { data: w.windows, from: w.from }) })
   admin.get('/days-off', may('bookings:read'), async (c) => { const rows = await engine.listDaysOff(co(c), c.req.query('from')); return listAll(c, rows) })
   admin.post('/days-off', may('bookings:update'), (c) => guard(c, async () => one(c, await engine.addDayOff(co(c), await body(c)), 201)))
   admin.delete('/days-off/:id', may('bookings:update'), async (c) => (await engine.removeDayOff(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))

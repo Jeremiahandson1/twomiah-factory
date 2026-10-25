@@ -1,6 +1,8 @@
-// "We take bookings" at signup reaches the first setup (live test 2026-10-22): the business starts with weekday hours
-// and a 30-minute Consultation on its own clock, so /book offers times on day one; a business that didn't say so starts
-// with nothing switched into the book. And a booking settings row made later takes the company's zone, not Chicago.
+// "We take bookings" at signup reaches the first setup (live test 2026-10-22): the business starts with a 30-minute
+// Consultation on its own clock, bookable on weekdays 9–5 until it has opening hours (no hours rows are seeded — salon
+// live test, 2026-10-25), so /book offers times on day one; a business that didn't say so starts with nothing switched
+// into the book. And a booking settings row made later takes the company's zone, not Chicago. A salon's Consultation is
+// on its Service Menu (salon-online-booking.test.ts).
 import { describe, test, expect } from 'bun:test'
 import { bootTenant } from './harness.ts'
 
@@ -29,14 +31,15 @@ async function settingsZone(t: any): Promise<string> {
 }
 
 describe('provisioning a business that takes bookings', () => {
-  test('weekday hours 9–5, one 30-minute Consultation, on the business’s own clock — and /book offers days', async () => {
+  test('one 30-minute Consultation, weekdays 9–5 until it has opening hours, on the business’s own clock — and /book offers days', async () => {
     const t = await provisioned(true)
     const [s] = await t.db.select().from(t.schema.bookingSettings)
-    expect(s).toMatchObject({ enabled: true })
+    expect(s).toMatchObject({ enabled: true, hoursSetAt: null })
     // On the business's own clock: the one the company was provisioned with, which Bookings reads (one clock).
     expect(await settingsZone(t)).toBe('America/New_York')
-    const hours = (await t.db.select().from(t.schema.bookingHours)).map((h: any) => [h.dayOfWeek, h.startMinute, h.endMinute, h.userId])
-    expect(hours.sort()).toEqual([1, 2, 3, 4, 5].map((d) => [d, 540, 1020, null]))
+    // No hours rows are seeded (salon live test, 2026-10-25: seeded Mon–Fri rows outvoted the opening hours set later):
+    // the week follows the opening hours, and weekdays 9–5 until there are any (booking/engine.ts weekOf 'starting').
+    expect(await t.db.select().from(t.schema.bookingHours)).toEqual([])
     const svc = await t.db.select().from(t.schema.bookingService)
     expect(svc.map((x: any) => [x.slug, x.name, x.durationMinutes, x.active])).toEqual([['consultation', 'Consultation', 30, true]])
     const list = await (await t.call('/api/book/services')).json()

@@ -17,6 +17,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact } from './crm.ts'
 import { appointment } from './appointments.ts'
+import { serviceMenu } from './salon.ts'
 
 const money = (name: string) => numeric(name, { precision: 12, scale: 2 })
 
@@ -54,6 +55,13 @@ export const bookingSettings = pgTable('booking_settings', {
   reviewLink: text('review_link'),
   /** The private address of the business's bookings calendar feed; rotating it cuts off old subscribers. */
   icalFeedToken: text('ical_feed_token'),
+  /**
+   * When the owner set booking hours of their own (booking_hours). Null: bookings follow the business's opening hours
+   * (company.settings.businessHours, Settings › Company) — booking/engine.ts weekOf. Provisioning seeded weekday 9–5
+   * rows that then disagreed with the opening hours the owner set (salon live test, 2026-10-25: open Tue–Sat, booked
+   * Mon–Fri); a saved empty week is the owner's too, so the rows alone can't say whose they are.
+   */
+  hoursSetAt: timestamp('hours_set_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -85,10 +93,20 @@ export const bookingService = pgTable('booking_service', {
   rebookIntervalDays: integer('rebook_interval_days'),
   active: boolean('active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
+  /**
+   * The salon's Service Menu item this row offers online (VerticalSettings.booking.calendar 'chair'). For such a
+   * business the menu is the ONE list behind online booking: the menu's own writes keep this row (crm/salon/
+   * onlineBooking.ts keepOnlineService), only a linked row is offered, and its booking lands in The Book carrying the
+   * menu item (salon live test, 2026-10-25: "Bookable online" was read by nothing and /book listed a stray
+   * Consultation). A row, not a second engine: every booking, buffer, deposit and reminder already hangs off
+   * booking_service, so the menu item is linked into it rather than read around it.
+   */
+  serviceMenuId: text('service_menu_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('booking_service_company_id_slug_key').on(t.companyId, t.slug),
+  uniqueIndex('booking_service_service_menu_id_key').on(t.serviceMenuId),
 ])
 
 /** Weekly opening hours. user_id null = anyone (a business that doesn't book by person); several windows a day. */

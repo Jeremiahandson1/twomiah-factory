@@ -432,6 +432,9 @@ function bookingSteps(has: (table: string, column?: string) => boolean): MoveSte
               await write(`INSERT INTO booking_hours (id, company_id, user_id, day_of_week, start_minute, end_minute) VALUES ($1, $2, NULL, $3, $4, $5)`, [`bh_${r.id}_${dow}`, r.company_id, dow, start, end])
               hours++
             }
+            // The widget's week is the owner's own booking hours — closed days and all — not the opening hours
+            // (booking/engine.ts weekOf 'own').
+            await write(`UPDATE booking_settings SET hours_set_at = now() WHERE company_id = $1`, [r.company_id])
           }
           const brand: string[] = []
           if (r.logo?.trim()) {

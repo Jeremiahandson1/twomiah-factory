@@ -4,8 +4,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, Download, Calendar, Clock, MapPin, X, Repeat } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useMayWrite } from '../shared'
-import { useBookingBasics, onClock, StatusPill, type Booking } from './common'
+import { useBookingBasics, onClock, StatusPill, bookable, type Booking } from './common'
 import { TimePicker, type PickedTime } from './TimePicker'
+import { verticalScreens } from '../crm/vertical'
+
+/** The vertical's own book, when its online bookings land there beside the desk's (VerticalScreens.booking). */
+const OWN_BOOK = verticalScreens().booking.calendarPath
 
 type View = 'upcoming' | 'past' | 'all'
 
@@ -67,13 +71,17 @@ export function BookingsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-ink">Bookings</h1>
-          <p className="text-muted text-sm mt-1">Every appointment, online and made at the desk.{clock ? ` Times are ${clock.zone()}.` : ''}</p>
+          {/* A vertical whose online bookings land in its own book (a salon's The Book) keeps the desk's appointments
+              there, not here: said, with the way to the one place both are seen (salon live test, 2026-10-25). */}
+          {typeof OWN_BOOK === 'string'
+            ? <p className="text-muted text-sm mt-1">Every online booking. Each is also in <Link to={OWN_BOOK} className="underline">your book</Link>, with the appointments made at the desk.{clock ? ` Times are ${clock.zone()}.` : ''}</p>
+            : <p className="text-muted text-sm mt-1">Every appointment, online and made at the desk.{clock ? ` Times are ${clock.zone()}.` : ''}</p>}
         </div>
-        {mayCreate && <button type="button" onClick={() => setCreating(true)} className="btn-primary btn-md" disabled={!services.length}><Plus className="w-4 h-4" />New booking</button>}
+        {mayCreate && <button type="button" onClick={() => setCreating(true)} className="btn-primary btn-md" disabled={!services.some(bookable)}><Plus className="w-4 h-4" />New booking</button>}
       </div>
 
       <PageError message={basicsError || error} className="mb-4" />
-      {settings && <NotBookableYet enabled={settings.enabled} services={services.filter((s) => s.active).length} hours={hoursCount} />}
+      {settings && <NotBookableYet enabled={settings.enabled} services={services.filter(bookable).length} hours={hoursCount} />}
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <div role="group" aria-label="Show" className="flex gap-2">
@@ -124,7 +132,7 @@ export function BookingsPage() {
         </ul>
       )}
 
-      {creating && settings && <NewBookingDialog services={services.filter((s) => s.active)} people={people} zone={onClock(settings.timezone).zone()} requirePhone={settings.requirePhone} onClose={() => setCreating(false)} onDone={() => { setCreating(false); load() }} />}
+      {creating && settings && <NewBookingDialog services={services.filter(bookable)} people={people} zone={onClock(settings.timezone).zone()} requirePhone={settings.requirePhone} onClose={() => setCreating(false)} onDone={() => { setCreating(false); load() }} />}
     </div>
   )
 }
@@ -137,7 +145,9 @@ export function BookingsPage() {
 function NotBookableYet({ enabled, services, hours }: { enabled: boolean; services: number; hours: number | null }) {
   const todo = [
     ...(!enabled ? ['switch online booking on'] : []),
-    ...(!services ? ['add a service customers can book (for example a 30-minute consultation)'] : []),
+    ...(!services ? [typeof verticalScreens().booking.serviceMenuPath === 'string'
+      ? 'tick “Bookable online” on a service on your Service Menu'
+      : 'add a service customers can book (for example a 30-minute consultation)'] : []),
     ...(hours === 0 ? ['set your opening hours — with none, every day shows as closed'] : []),
   ]
   if (!todo.length) return null

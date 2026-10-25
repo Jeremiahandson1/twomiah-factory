@@ -8,6 +8,7 @@ import { api } from '../api'
 import { useKnownPermission } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
+import { verticalScreens } from '../crm/vertical'
 
 export interface Booking {
   id: string
@@ -42,6 +43,8 @@ export interface Booking {
   overrideAt?: string | null
   /** The job it was converted into, if it was. */
   job?: { id: string; number: string; status?: string } | null
+  /** The appointment it is in the vertical's own book (a salon's The Book, a practice's appointments), if it lands there. */
+  appointmentId?: string | null
 }
 
 export interface Service {
@@ -61,7 +64,16 @@ export interface Service {
   rebookIntervalDays: number | null
   active: boolean
   sortOrder: number
+  /** The Service Menu item it offers online (a salon's): that menu owns its name, length, price and whether it's offered. */
+  serviceMenuId: string | null
 }
+
+/**
+ * Can a new booking be made for this service: switched on and, where the vertical keeps the list customers book from
+ * (a salon's Service Menu — VerticalScreens.booking.serviceMenuPath), on that list. The screens' copy of the server's
+ * rule (booking/engine.ts offered), so they never offer what the server refuses.
+ */
+export const bookable = (s: Service) => s.active && (typeof verticalScreens().booking.serviceMenuPath !== 'string' || !!s.serviceMenuId)
 
 export interface BookingSettings {
   enabled: boolean

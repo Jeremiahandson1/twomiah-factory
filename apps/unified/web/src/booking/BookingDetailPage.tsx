@@ -3,11 +3,15 @@
 // once the visit has started).
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Repeat, FileText, User, Briefcase, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Repeat, FileText, User, Briefcase, ShieldAlert, CalendarDays } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useAuth, useConfirm, useMayWrite, useToast } from '../shared'
 import { useBookingBasics, onClock, StatusPill, dollars, type Booking } from './common'
 import { TimePicker, type PickedTime } from './TimePicker'
+import { verticalScreens } from '../crm/vertical'
+
+/** The vertical's own book, when its online bookings land there (VerticalScreens.booking). */
+const ownBook = verticalScreens().booking
 
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -124,6 +128,15 @@ export function BookingDetailPage() {
                 <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={convert}>Convert to job</button>
               </div>
             )}
+        </section>
+      )}
+
+      {/* Where the vertical's own book has it (a salon's The Book): the desk's appointments and the online ones are seen
+          together there, and moving or cancelling the booking moves or cancels it there (salon live test, 2026-10-25). */}
+      {b.appointmentId && typeof ownBook.calendarPath === 'string' && (
+        <section className="card card-padding mb-4">
+          <h2 className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-muted" aria-hidden="true" />{ownBook.calendarLabel || 'Appointment'}</h2>
+          <p className="text-sm text-ink">This booking is an {(ownBook.calendarLabel || 'appointment').toLowerCase()} in your book, beside the ones made at the desk. {can('contacts:read') ? <Link to={ownBook.calendarPath} className="underline font-semibold">Open the book</Link> : null}</p>
         </section>
       )}
 

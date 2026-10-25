@@ -22,16 +22,26 @@ async function bookingTenant(vertical: string) {
   const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken as string
   const as = (path: string, init: any = {}) => t.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
   // The owner's own switch, for every vertical: the registry offers online_booking to crm-vet (the live vet CRM had it on).
-  const features = vertical === 'vet' ? ['online_booking', 'appointment_scheduling', 'patient_records'] : ['online_booking']
+  const features = vertical === 'vet' ? ['online_booking', 'appointment_scheduling', 'patient_records'] : vertical === 'salon' ? ['online_booking', 'service_menu'] : ['online_booking']
   expect((await as('/api/company/features', { method: 'PUT', json: { features } })).status).toBe(200)
   // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
   await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, seeded.company.id))
   expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 30 } })).status).toBe(200)
-  const svc = await as('/api/booking/services', { method: 'POST', json: { name: 'Wellness exam', durationMinutes: 30, price: 65, slotStepMinutes: 30 } })
-  expect(svc.status).toBe(201)
+  // A salon's online services are its Service Menu's (salon live test, 2026-10-25: crm/salon/onlineBooking.ts); every
+  // other vertical makes them in Booking settings.
+  let slug: string
+  if (vertical === 'salon') {
+    const item = await as('/api/service-menu', { method: 'POST', json: { name: 'Wellness exam', durationMin: 30, price: 65, bookableOnline: true } })
+    expect(item.status).toBe(201)
+    slug = ((await (await as('/api/booking/services')).json()).data as any[])[0].slug
+  } else {
+    const svc = await as('/api/booking/services', { method: 'POST', json: { name: 'Wellness exam', durationMinutes: 30, price: 65, slotStepMinutes: 30 } })
+    expect(svc.status).toBe(201)
+    slug = (await svc.json()).slug
+  }
   const hours = [1, 2, 3, 4, 5].map((d) => ({ dayOfWeek: d, start: '08:00', end: '16:00' }))
   expect((await as('/api/booking/hours', { method: 'PUT', json: { hours } })).status).toBe(200)
-  return { t, as, companyId: seeded.company.id as string, ownerId: seeded.owner.id as string, slug: (await svc.json()).slug as string }
+  return { t, as, companyId: seeded.company.id as string, ownerId: seeded.owner.id as string, slug }
 }
 
 describe('vet: a public booking becomes the owner, the pet and the appointment', () => {
@@ -232,6 +242,10 @@ describe('every other vertical: no pet', () => {
         expect(appts[0].patientId).toBeNull()
         expect(appts[0].contactId).toBe(b.contactId)
         expect(b.appointmentId).toBe(appts[0].id)
+        // The menu item booked, at its price (salon live test, 2026-10-25).
+        const [menu] = await v.t.db.select().from(v.t.schema.serviceMenu)
+        expect(appts[0].serviceId).toBe(menu.id)
+        expect(Number(appts[0].quotedPrice)).toBe(65)
       } else expect(appts).toHaveLength(0)
     }, 60_000)
   }

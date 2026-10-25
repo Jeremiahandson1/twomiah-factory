@@ -13,8 +13,8 @@
 // set up, or the provider refused) leaves the booking CONFIRMED — the CRMs' engine left it pending, and its own hold
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
-import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
-import { addDays, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
+import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, isNotNull, notExists } from 'drizzle-orm'
+import { addDays, businessHoursOf, businessHoursWindows, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
@@ -74,6 +74,14 @@ export interface BookingAddOn {
    * userId null takes the time from everybody. Never what a booking made itself: that is the booking's own time.
    */
   busy?(exec: any, companyId: string, from: Date, to: Date): Promise<Array<{ userId: string | null; start: Date; end: Date }>>
+  /**
+   * The vertical keeps the list of what customers book, by name (the salon's 'Service Menu'). Then a service is offered
+   * and booked only while it is linked to that list (booking_service.service_menu_id, kept by the list's own writes);
+   * what it is — name, description, length, price, whether it is offered — is the list's to change, and Booking
+   * settings adds no services of its own. Salon live test, 2026-10-25: the menu's "Bookable online" box was read by
+   * nothing, and /book offered a separate list the menu never saw, so a booking carried no menu item, price or rebook.
+   */
+  serviceList?: { name: string }
 }
 
 export interface EngineDeps {
@@ -242,8 +250,21 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   // ── Services ──────────────────────────────────────────────────────────────
+  /** The vertical's own list of what customers book, when it keeps one (BookingAddOn.serviceList): its name. */
+  const listName = deps.addOn?.serviceList?.name ?? null
+  /** On the vertical's list, when it keeps one; every service is, when it doesn't. */
+  const listed = (svc: ServiceRow) => !listName || !!svc.serviceMenuId
+  /** ONE rule for "can a customer book this now": the public list, its page, its times, the waitlist, the emails' links. */
+  const offered = (svc: ServiceRow | null | undefined): svc is ServiceRow => !!svc && svc.active && listed(svc)
+  /** A new booking — a customer's or the desk's — is for a service on the vertical's list (an old one keeps its own). */
+  function assertListed(svc: ServiceRow) {
+    if (!listed(svc)) throw new BookingError(`"${svc.name}" isn't on your ${listName}, so it can't be booked. Book a service from your ${listName}.`, 409, 'not_listed')
+  }
+
   async function listServices(companyId: string, opts: { activeOnly?: boolean } = {}): Promise<ServiceRow[]> {
-    const where = opts.activeOnly ? and(eq(bookingService.companyId, companyId), eq(bookingService.active, true)) : eq(bookingService.companyId, companyId)
+    const where = opts.activeOnly
+      ? and(eq(bookingService.companyId, companyId), eq(bookingService.active, true), ...(listName ? [isNotNull(bookingService.serviceMenuId)] : []))
+      : eq(bookingService.companyId, companyId)
     return db.select().from(bookingService).where(where).orderBy(asc(bookingService.sortOrder), asc(bookingService.name))
   }
   async function serviceBySlug(companyId: string, slug: string, exec: any = db): Promise<ServiceRow | null> {
@@ -290,7 +311,16 @@ export function createBookingEngine(deps: EngineDeps) {
     return v
   }
 
+  /**
+   * What a service on the vertical's list takes from that list, never from here (BookingAddOn.serviceList). The rest —
+   * buffers, the start-time step, people per time, deposit, tips, order, its address — is how it is booked online, and
+   * stays Booking settings'. Its rebook interval is the list's too: the salon's own Rebooking reads the menu's, and a
+   * second one here would ask the same client twice.
+   */
+  const LIST_OWNED: Array<[keyof ServiceRow, string]> = [['name', 'name'], ['description', 'description'], ['durationMinutes', 'length'], ['price', 'price'], ['active', 'whether it is offered'], ['rebookIntervalDays', 'rebook interval']]
+
   async function createService(companyId: string, body: Record<string, unknown>): Promise<ServiceRow> {
+    if (listName) throw new BookingError(`What customers can book comes from your ${listName}: add the service there and tick “Bookable online”.`, 409, 'service_list')
     const v = serviceValues(body, null)
     if (await serviceBySlug(companyId, String(v.slug))) throw new BookingError('Another service already uses that address.', 409)
     const [row] = await db.insert(bookingService).values({ companyId, ...v }).returning()
@@ -299,7 +329,16 @@ export function createBookingEngine(deps: EngineDeps) {
   async function updateService(companyId: string, id: string, body: Record<string, unknown>): Promise<ServiceRow | null> {
     const existing = await serviceById(companyId, id)
     if (!existing) return null
+    if (listName && !existing.serviceMenuId) throw new BookingError(`"${existing.name}" isn't on your ${listName}, so it isn't offered online. Delete it here, or add it to your ${listName}.`, 409, 'service_list')
     const v = serviceValues(body, existing)
+    if (listName) {
+      // A form that sends back what it was shown is fine; a change to what the list owns is refused in words, never
+      // saved where the next menu save would overwrite it.
+      const same = (a: unknown, b: unknown) => (a == null ? null : String(a)) === (b == null ? null : String(b))
+      const changed = LIST_OWNED.filter(([k]) => k in v && !same(v[k as string], existing[k]))
+      if (changed.length) throw new BookingError(`The ${changed.map(([, w]) => w).join(', ')} of "${existing.name}" come from your ${listName} — change ${changed.length > 1 ? 'them' : 'it'} there.`, 409, 'service_list')
+      for (const [k] of LIST_OWNED) delete v[k as string]
+    }
     if (!Object.keys(v).length) throw new BookingError('Nothing to change.')
     if (v.slug && v.slug !== existing.slug && await serviceBySlug(companyId, String(v.slug))) throw new BookingError('Another service already uses that address.', 409)
     const [row] = await db.update(bookingService).set({ ...v, updatedAt: new Date() }).where(and(eq(bookingService.id, id), eq(bookingService.companyId, companyId))).returning()
@@ -307,11 +346,17 @@ export function createBookingEngine(deps: EngineDeps) {
   }
   /** Past bookings keep their own rows (the link is cleared). A service with a repeating booking is switched off, not deleted. */
   async function deleteService(companyId: string, id: string): Promise<boolean> {
+    if (listName) {
+      const existing = await serviceById(companyId, id)
+      if (existing?.serviceMenuId) throw new BookingError(`"${existing.name}" is on your ${listName}. Untick “Bookable online” there to take it off your booking page.`, 409, 'service_list')
+    }
     try {
       const gone = await db.delete(bookingService).where(and(eq(bookingService.id, id), eq(bookingService.companyId, companyId))).returning({ id: bookingService.id })
       return gone.length > 0
     } catch {
-      throw new BookingError('This service has repeating bookings. Switch it off instead, so nobody new can book it.', 409)
+      throw new BookingError(listName
+        ? `This service has repeating bookings, so it stays for them. It isn't on your ${listName}, so nobody new can book it.`
+        : 'This service has repeating bookings. Switch it off instead, so nobody new can book it.', 409)
     }
   }
 
@@ -326,9 +371,46 @@ export function createBookingEngine(deps: EngineDeps) {
     const rows = await exec.select({ id: user.id, role: user.role, isActive: user.isActive }).from(user).where(eq(user.companyId, companyId))
     return new Set(rows.filter(mayBeGivenWork).map((r: any) => r.id))
   }
-  const getHours = (companyId: string) => db.select().from(bookingHours).where(eq(bookingHours.companyId, companyId)).orderBy(asc(bookingHours.dayOfWeek), asc(bookingHours.startMinute))
+  /**
+   * The week bookings can start in, and whose it is — ONE rule, for every vertical (salon live test, 2026-10-25: the
+   * owner set the shop's hours Tue–Sat in Settings › Company and bookings stayed on the Mon–Fri rows provisioning had
+   * seeded, so the two disagreed):
+   *   'own'      — the owner set booking hours of their own (booking_settings.hours_set_at): the booking_hours rows,
+   *                per person or for anyone, an empty week included;
+   *   'business' — otherwise the business's opening hours (company.settings.businessHours), for anyone;
+   *   'starting' — neither said yet: weekdays 9–5 for anyone, so a new business that takes bookings is bookable on day
+   *                one (live test 2026-10-22). The settings screen says which one is in force — never a silent default.
+   */
+  type HoursFrom = 'own' | 'business' | 'starting'
+  type HourWindow = { userId: string | null; dayOfWeek: number; startMinute: number; endMinute: number }
+  const STARTING_WEEK: HourWindow[] = [1, 2, 3, 4, 5].map((dayOfWeek) => ({ userId: null, dayOfWeek, startMinute: 9 * 60, endMinute: 17 * 60 }))
+  async function weekOf(companyId: string, exec: any = db): Promise<{ from: HoursFrom; windows: HourWindow[] }> {
+    const [s] = await exec.select({ hoursSetAt: bookingSettings.hoursSetAt }).from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
+    if (s?.hoursSetAt) {
+      const rows = await exec.select().from(bookingHours).where(eq(bookingHours.companyId, companyId)).orderBy(asc(bookingHours.dayOfWeek), asc(bookingHours.startMinute))
+      return { from: 'own', windows: rows }
+    }
+    const [co] = await exec.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    const opening = businessHoursWindows(businessHoursOf(co?.settings))
+    if (opening) return { from: 'business', windows: opening.map((w) => ({ userId: null, ...w })) }
+    return { from: 'starting', windows: STARTING_WEEK }
+  }
+  const getHours = (companyId: string) => weekOf(companyId)
 
-  /** Replace the whole week (the site's PUT). Each window: { userId|null, dayOfWeek 0–6, start "HH:MM", end "HH:MM" }. */
+  /** Back to following the business's opening hours: the owner's own booking hours are cleared. */
+  async function followOpeningHours(companyId: string) {
+    await settingsOf(companyId)
+    await db.transaction(async (tx: any) => {
+      await tx.delete(bookingHours).where(eq(bookingHours.companyId, companyId))
+      await tx.update(bookingSettings).set({ hoursSetAt: null, updatedAt: new Date(now()) }).where(eq(bookingSettings.companyId, companyId))
+    })
+    return weekOf(companyId)
+  }
+
+  /**
+   * Replace the whole week (the site's PUT). Each window: { userId|null, dayOfWeek 0–6, start "HH:MM", end "HH:MM" }.
+   * Saved, the week is the owner's own (weekOf 'own') — opening hours changed later no longer move it.
+   */
   async function setHours(companyId: string, windows: unknown) {
     if (!Array.isArray(windows) || windows.length > 500) throw new BookingError('Hours must be a list of opening times.')
     // Saving the week sends every window back, a view-only seat's old ones too: those are kept as they were (they never
@@ -345,11 +427,13 @@ export function createBookingEngine(deps: EngineDeps) {
       if (userId && !people.has(userId)) throw new BookingError('That person is not on this account.')
       return { companyId, userId, dayOfWeek: day, startMinute, endMinute }
     })
+    await settingsOf(companyId)
     await db.transaction(async (tx: any) => {
       await tx.delete(bookingHours).where(eq(bookingHours.companyId, companyId))
       if (rows.length) await tx.insert(bookingHours).values(rows)
+      await tx.update(bookingSettings).set({ hoursSetAt: new Date(now()), updatedAt: new Date(now()) }).where(eq(bookingSettings.companyId, companyId))
     })
-    return getHours(companyId)
+    return weekOf(companyId)
   }
 
   const listDaysOff = (companyId: string, fromDate?: string) => db.select().from(bookingBlackout)
@@ -498,8 +582,8 @@ export function createBookingEngine(deps: EngineDeps) {
   async function loadRange(companyId: string, s: SettingsRow, firstDate: string, lastDate: string, exec: any, exceptBookingId?: string, externalBusy?: Awaited<ReturnType<typeof externalFor>>) {
     const tz = tzOf(s)
     const from = zonedWallTimeToUtc(firstDate, '00:00', tz), to = zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)
-    const [allHours, bookable, daysOff, zones, rows] = await Promise.all([
-      exec.select().from(bookingHours).where(eq(bookingHours.companyId, companyId)),
+    const [week, bookable, daysOff, zones, rows] = await Promise.all([
+      weekOf(companyId, exec),
       companyUserIds(companyId, exec),
       exec.select().from(bookingBlackout).where(and(eq(bookingBlackout.companyId, companyId), gt(bookingBlackout.date, addDays(firstDate, -1)), lt(bookingBlackout.date, addDays(lastDate, 1)))),
       exec.select().from(bookingZone).where(eq(bookingZone.companyId, companyId)),
@@ -509,7 +593,7 @@ export function createBookingEngine(deps: EngineDeps) {
     ])
     // A person's own hours count only while they can be given work: hours left on a seat since made view-only (or
     // switched off) never make that person the one a booking goes to.
-    const hours = allHours.filter((h: any) => !h.userId || bookable.has(h.userId))
+    const hours = week.windows.filter((h: any) => !h.userId || bookable.has(h.userId))
     const ours = new Set(rows.map((r: any) => r.b.externalEventId).filter(Boolean))
     // Inside a transaction the caller hands it in (claim); otherwise it is read here.
     const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
@@ -557,10 +641,14 @@ export function createBookingEngine(deps: EngineDeps) {
 
   const slotOut = (date: string, tz: string) => (x: Slot) => ({ time: hm(x.startMinute), label: label(x.startMinute), startAt: zonedWallTimeToUtc(date, hm(x.startMinute), tz).toISOString() })
 
-  async function activeService(companyId: string, slug: string, exec: any = db) {
+  /**
+   * The service a customer books (offered), or — `moving` an existing booking — the one it already has while it is
+   * switched on: a booking made before its service left the vertical's list keeps working.
+   */
+  async function activeService(companyId: string, slug: string, exec: any = db, moving = false) {
     const svc = await serviceBySlug(companyId, slug, exec)
-    if (!svc || !svc.active) throw new BookingError('That service is not available to book.', 404)
-    return svc
+    if (!(moving ? svc?.active : offered(svc))) throw new BookingError('That service is not available to book.', 404)
+    return svc!
   }
 
   /** The days in the window with at least one bookable time (a full day isn't offered). */
@@ -583,7 +671,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const s = await settingsOf(companyId)
     if (!s.enabled) return []
     await expireHolds(companyId, s)
-    const svc = await activeService(companyId, slug)
+    const svc = await activeService(companyId, slug, db, !!except)
     const w = window(s)
     if (date < w.first || date > w.last) return []
     const range = await loadRange(companyId, s, date, date, db, except)
@@ -647,6 +735,7 @@ export function createBookingEngine(deps: EngineDeps) {
     await expireHolds(companyId, s)
     const svc = customer ? await activeService(companyId, input.service) : await serviceById(companyId, input.service) ?? await serviceBySlug(companyId, input.service)
     if (!svc) throw new BookingError('Choose a service.', 404)
+    assertListed(svc)
     if (!isIsoDate(input.date) || !isRealDate(input.date)) throw new BookingError('Choose a real date (YYYY-MM-DD).')
     if (!HM_RE.test(String(input.time))) throw new BookingError('Time must be HH:MM.')
     const name = String(input.name || '').trim().slice(0, 200)
@@ -1005,8 +1094,8 @@ export function createBookingEngine(deps: EngineDeps) {
 
   return {
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
-    listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
-    getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
+    listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
+    getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,
     book, depositPaid, depositRefunded, depositPage, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,

@@ -7,8 +7,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw, CalendarCheck } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useConfirm, useKnownPermission, useMayWrite, useToast } from '../shared'
-import { useBookingBasics, dollars, minutesWords, dateWords, type BookingSettings, type Service, type Person } from './common'
+import { useBookingBasics, dollars, minutesWords, dateWords, bookable, type BookingSettings, type Service, type Person } from './common'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
+import { verticalScreens } from '../crm/vertical'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
@@ -102,7 +103,69 @@ function General({ settings, onSaved }: { settings: BookingSettings; onSaved: ()
   )
 }
 
+/**
+ * The list customers book from, when it is the vertical's own (a salon's Service Menu — VerticalScreens.booking
+ * serviceMenuPath; the server's BookingAddOn.serviceList enforces the same): Booking settings shows those services
+ * and how each is booked online, and links to the list for what they are. No second list is kept here (salon live
+ * test, 2026-10-25: the menu's "Bookable online" box fed nothing, and this screen offered a separate list).
+ */
+const MENU_PATH = verticalScreens().booking.serviceMenuPath
+
 function Services({ services, mayEdit, onChange }: { services: Service[]; mayEdit: boolean; onChange: () => void }) {
+  if (typeof MENU_PATH === 'string') return <MenuServices menuPath={MENU_PATH} services={services} mayEdit={mayEdit} onChange={onChange} />
+  return <OwnServices services={services} mayEdit={mayEdit} onChange={onChange} />
+}
+
+/** What the services line says about a service: its address, length, price, people per time and deposit. */
+const serviceLine = (s: Service) => `/book/${s.slug} · ${minutesWords(s.durationMinutes)}${s.price != null ? ` · ${dollars(s.price)}` : ''}${s.capacity > 1 ? ` · up to ${s.capacity} at a time` : ''}${s.depositAmount || s.depositPercent ? ` · deposit ${s.depositAmount ? dollars(s.depositAmount) : s.depositPercent + '%'}` : ''}`
+
+function MenuServices({ menuPath, services, mayEdit, onChange }: { menuPath: string; services: Service[]; mayEdit: boolean; onChange: () => void }) {
+  const confirm = useConfirm()
+  const toast = useToast()
+  const [editing, setEditing] = useState<Service | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const onMenu = services.filter((s) => s.serviceMenuId)
+  const offline = services.filter((s) => !s.serviceMenuId)
+  const remove = async (s: Service) => {
+    if (!(await confirm(`Past bookings keep their details. "${s.name}" isn't on your Service Menu, so customers can't book it already.`, { title: 'Delete this service?', confirmText: 'Delete' }))) return
+    try { await api.delete(`/api/booking/services/${s.id}`); toast.success('Deleted.'); onChange() } catch (e: any) { setError(e.message) }
+  }
+  return (
+    <Section title="Services" intro="What clients can book is your Service Menu: tick “Bookable online” on a service there, and it is on your booking page with its length and price. Here you set how each one is booked online.">
+      <PageError message={error} className="mb-3" />
+      {!onMenu.some((s) => s.active) && <p className="text-sm text-muted mb-3">Nothing on your Service Menu is bookable online yet, so your booking page has nothing to book.</p>}
+      <ul className="divide-y divide-line">
+        {onMenu.map((s) => (
+          <li key={s.id} className="py-3 flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-ink">{s.name}{!s.active && <span className="ml-2 text-xs font-normal text-muted">(not bookable online — ticked off on the Service Menu)</span>}</div>
+              <div className="text-xs text-muted">{serviceLine(s)}</div>
+            </div>
+            {mayEdit && <button type="button" onClick={() => setEditing(s)} className="btn-secondary btn-sm"><Edit3 className="w-3.5 h-3.5" />Booking rules</button>}
+          </li>
+        ))}
+      </ul>
+      <Link to={menuPath} className="btn-secondary btn-sm mt-3 inline-flex"><ExternalLink className="w-3.5 h-3.5" />Open the Service Menu</Link>
+      {offline.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-line">
+          <h3 className="text-sm font-semibold text-ink">Not on your Service Menu</h3>
+          <p className="text-xs text-muted mb-2">Made before your Service Menu was your booking list. Customers can't book these; bookings already made keep them.</p>
+          <ul className="divide-y divide-line">
+            {offline.map((s) => (
+              <li key={s.id} className="py-2 flex flex-wrap items-center gap-3">
+                <div className="flex-1 min-w-0 text-sm text-ink">{s.name} <span className="text-xs text-muted">{serviceLine(s)}</span></div>
+                {mayEdit && <button type="button" onClick={() => remove(s)} className="btn-secondary btn-sm text-red-700 dark:text-red-300" aria-label={`Delete ${s.name}`}><Trash2 className="w-3.5 h-3.5" /></button>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {editing && <ServiceDialog initial={editing} fromMenu onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChange() }} />}
+    </Section>
+  )
+}
+
+function OwnServices({ services, mayEdit, onChange }: { services: Service[]; mayEdit: boolean; onChange: () => void }) {
   const confirm = useConfirm()
   const toast = useToast()
   const [editing, setEditing] = useState<Service | 'new' | null>(null)
@@ -120,7 +183,7 @@ function Services({ services, mayEdit, onChange }: { services: Service[]; mayEdi
           <li key={s.id} className="py-3 flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-ink">{s.name}{!s.active && <span className="ml-2 text-xs font-normal text-muted">(switched off)</span>}</div>
-              <div className="text-xs text-muted">/book/{s.slug} · {minutesWords(s.durationMinutes)}{s.price != null ? ` · ${dollars(s.price)}` : ''}{s.capacity > 1 ? ` · up to ${s.capacity} at a time` : ''}{s.depositAmount || s.depositPercent ? ` · deposit ${s.depositAmount ? dollars(s.depositAmount) : s.depositPercent + '%'}` : ''}</div>
+              <div className="text-xs text-muted">{serviceLine(s)}</div>
             </div>
             {mayEdit && <button type="button" onClick={() => setEditing(s)} className="btn-secondary btn-sm"><Edit3 className="w-3.5 h-3.5" />Edit</button>}
             {mayEdit && <button type="button" onClick={() => remove(s)} className="btn-secondary btn-sm text-red-700 dark:text-red-300" aria-label={`Delete ${s.name}`}><Trash2 className="w-3.5 h-3.5" /></button>}
@@ -133,7 +196,11 @@ function Services({ services, mayEdit, onChange }: { services: Service[]; mayEdi
   )
 }
 
-function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null; onClose: () => void; onSaved: () => void }) {
+/**
+ * A service's settings. `fromMenu`: a Service Menu item's online booking — its name, description, length, price, rebook
+ * interval and whether it is offered are the menu's (shown, not edited, and never sent); the rest is how it is booked.
+ */
+function ServiceDialog({ initial, fromMenu = false, onClose, onSaved }: { initial: Service | null; fromMenu?: boolean; onClose: () => void; onSaved: () => void }) {
   const toast = useToast()
   const [f, setF] = useState(() => ({
     name: initial?.name || '', slug: initial?.slug || '', description: initial?.description || '',
@@ -149,11 +216,15 @@ function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null;
     e.preventDefault()
     setBusy(true); setError(null)
     const tips = f.tips.split(/[\s,%]+/).filter(Boolean).map(Number)
-    const body = {
-      name: f.name, ...(f.slug ? { slug: f.slug } : {}), description: f.description || null, durationMinutes: f.durationMinutes, price: f.price === '' ? null : f.price,
+    const rules = {
+      ...(f.slug ? { slug: f.slug } : {}),
       slotStepMinutes: f.slotStepMinutes, bufferBeforeMinutes: f.bufferBeforeMinutes, bufferAfterMinutes: f.bufferAfterMinutes, capacity: f.capacity,
       depositAmount: f.depositKind === 'amount' && f.deposit !== '' ? f.deposit : null, depositPercent: f.depositKind === 'percent' && f.deposit !== '' ? f.deposit : null,
-      tipPresets: tips.length ? tips : null, rebookIntervalDays: f.rebookIntervalDays === '' ? null : f.rebookIntervalDays, active: f.active,
+      tipPresets: tips.length ? tips : null,
+    }
+    const body = fromMenu ? rules : {
+      ...rules, name: f.name, description: f.description || null, durationMinutes: f.durationMinutes, price: f.price === '' ? null : f.price,
+      rebookIntervalDays: f.rebookIntervalDays === '' ? null : f.rebookIntervalDays, active: f.active,
     }
     try {
       if (initial) await api.patch(`/api/booking/services/${initial.id}`, body); else await api.post('/api/booking/services', body)
@@ -167,16 +238,19 @@ function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null;
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-labelledby="sv-title" className="card card-padding w-full max-w-xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
-          <h2 id="sv-title" className="text-xl font-semibold text-ink">{initial ? 'Edit service' : 'New service'}</h2>
+          <h2 id="sv-title" className="text-xl font-semibold text-ink">{fromMenu ? `Booking “${initial?.name}” online` : initial ? 'Edit service' : 'New service'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink" aria-label="Close"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={submit} className="space-y-3">
-          {field('name', 'Name', { required: true })}
+          {fromMenu && initial && (
+            <p className="text-sm text-ink-soft">{minutesWords(initial.durationMinutes)}{initial.price != null ? ` · ${dollars(initial.price)}` : ''} — its name, description, length and price come from your <Link to={MENU_PATH || ''} className="underline">Service Menu</Link>; change them there.</p>
+          )}
+          {!fromMenu && field('name', 'Name', { required: true })}
           {field('slug', 'Address (/book/…)', { placeholder: 'Made from the name' })}
-          <div><label htmlFor="sv-description" className="label">Description</label><textarea id="sv-description" rows={2} className="input" value={f.description} onChange={set('description')} /></div>
+          {!fromMenu && <div><label htmlFor="sv-description" className="label">Description</label><textarea id="sv-description" rows={2} className="input" value={f.description} onChange={set('description')} /></div>}
           <div className="grid grid-cols-2 gap-3">
-            {field('durationMinutes', 'Length (minutes)', { type: 'number', min: 5, required: true })}
-            {field('price', 'Price ($)', { type: 'number', min: 0, step: '0.01' })}
+            {!fromMenu && field('durationMinutes', 'Length (minutes)', { type: 'number', min: 5, required: true })}
+            {!fromMenu && field('price', 'Price ($)', { type: 'number', min: 0, step: '0.01' })}
             {field('slotStepMinutes', 'Start times every (minutes)', { type: 'number', min: 5 })}
             {field('capacity', 'Customers per time', { type: 'number', min: 1 })}
             {field('bufferBeforeMinutes', 'Setup before (minutes)', { type: 'number', min: 0 })}
@@ -188,8 +262,8 @@ function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null;
           </div>
           {f.depositKind !== 'none' && <p className="text-xs text-muted">The customer pays it by card on Stripe's page, into your own Stripe account — connect it under <a className="underline" href="/crm/settings/integrations">Settings › Integrations</a>. Until it is connected, bookings are made without a deposit.</p>}
           {field('tips', 'Tip choices (percent)', { placeholder: 'e.g. 15, 20, 25 — leave empty for none' })}
-          {field('rebookIntervalDays', 'Ask to book again after (days)', { type: 'number', min: 1, placeholder: 'Never' })}
-          <label className="flex items-center gap-2 text-sm text-ink"><input type="checkbox" checked={f.active} onChange={(e) => setF((x) => ({ ...x, active: e.target.checked }))} />Customers can book it</label>
+          {!fromMenu && field('rebookIntervalDays', 'Ask to book again after (days)', { type: 'number', min: 1, placeholder: 'Never' })}
+          {!fromMenu && <label className="flex items-center gap-2 text-sm text-ink"><input type="checkbox" checked={f.active} onChange={(e) => setF((x) => ({ ...x, active: e.target.checked }))} />Customers can book it</label>}
           <PageError message={error} />
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary btn-md">Cancel</button>
@@ -203,28 +277,52 @@ function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null;
 
 interface Window { userId: string | null; dayOfWeek: number; start: string; end: string }
 
+/**
+ * Whose week bookings are on (the server's weekOf): the owner's own booking hours, the business's opening hours from
+ * Settings › Company, or — neither set yet — weekdays 9–5. Said on the screen, so a week that follows the opening hours
+ * is never mistaken for one of its own (salon live test, 2026-10-25).
+ */
+type HoursFrom = 'own' | 'business' | 'starting'
+type WeekAnswer = { data: Array<{ userId: string | null; dayOfWeek: number; startMinute: number; endMinute: number }>; from: HoursFrom }
+const toWindows = (r: WeekAnswer): Window[] => r.data.map((h) => ({ userId: h.userId, dayOfWeek: h.dayOfWeek, start: hm(h.startMinute), end: h.endMinute === 1440 ? '24:00' : hm(h.endMinute) }))
+
 function Hours({ people }: { people: Person[] }) {
   const toast = useToast()
   const [rows, setRows] = useState<Window[] | null>(null)
+  const [from, setFrom] = useState<HoursFrom>('own')
   const [who, setWho] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const take = (r: WeekAnswer) => { setRows(toWindows(r)); setFrom(r.from) }
   useEffect(() => {
-    api.get('/api/booking/hours').then((r: { data: Array<{ userId: string | null; dayOfWeek: number; startMinute: number; endMinute: number }> }) =>
-      setRows(r.data.map((h) => ({ userId: h.userId, dayOfWeek: h.dayOfWeek, start: hm(h.startMinute), end: h.endMinute === 1440 ? '24:00' : hm(h.endMinute) })))).catch((e: Error) => setError(e.message))
+    api.get('/api/booking/hours').then(take).catch((e: Error) => setError(e.message))
   }, [])
-  if (!rows) return <Section title="Opening hours"><PageError message={error} />{!error && <p className="text-sm text-muted">Loading…</p>}</Section>
+  if (!rows) return <Section title="Booking hours"><PageError message={error} />{!error && <p className="text-sm text-muted">Loading…</p>}</Section>
   const owner = who || null
   const mine = rows.map((r, i) => ({ ...r, i })).filter((r) => r.userId === owner)
   const update = (i: number, patch: Partial<Window>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const save = async () => {
     setBusy(true); setError(null)
-    try { await api.put('/api/booking/hours', { hours: rows }); toast.success('Hours saved.') } catch (e: any) { setError(e.message) } finally { setBusy(false) }
+    try { take(await api.put('/api/booking/hours', { hours: rows })); toast.success('Booking hours saved — they are your own now.') } catch (e: any) { setError(e.message) } finally { setBusy(false) }
+  }
+  const follow = async () => {
+    setBusy(true); setError(null)
+    try { take(await api.delete('/api/booking/hours')); setWho(''); toast.success('Bookings follow your opening hours again.') } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
   const people2 = [{ id: '', name: 'Anyone (the business)' }, ...people]
   const hasOwn = (id: string) => rows.some((r) => r.userId === (id || null))
   return (
-    <Section title="Opening hours" intro="When bookings can start. Several windows a day (a lunch break) are fine. Set hours for a person if bookings go to someone in particular; otherwise the business's hours are for anyone.">
+    <Section title="Booking hours" intro="When bookings can start. Several windows a day (a lunch break) are fine. Set hours for a person if bookings go to someone in particular; otherwise the business's hours are for anyone.">
+      <div role="status" className="mb-4 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink">
+        {from === 'business' && <>Following your opening hours from <Link to="/crm/settings" className="underline">Settings › Company</Link> — change them there and bookings follow. Saving hours here makes them your own instead.</>}
+        {from === 'starting' && <>Weekdays 9–5 until you set your opening hours in <Link to="/crm/settings" className="underline">Settings › Company</Link> — bookings then follow them. Saving hours here makes them your own instead.</>}
+        {from === 'own' && (
+          <span className="flex flex-wrap items-center gap-3">
+            <span className="flex-1 min-w-[12rem]">Your own booking hours. Opening hours changed in Settings › Company don&rsquo;t move them.</span>
+            <button type="button" onClick={follow} className="btn-secondary btn-sm" disabled={busy}>Follow my opening hours instead</button>
+          </span>
+        )}
+      </div>
       {people.length > 0 && (
         <div className="mb-4">
           <label htmlFor="hr-who" className="label">Hours for</label>
@@ -470,7 +568,7 @@ function Embed({ services }: { services: Service[] }) {
           <label htmlFor="embed-service" className="label">Show</label>
           <select id="embed-service" className="input" value={service} onChange={(e) => setService(e.target.value)}>
             <option value="">Every service</option>
-            {services.filter((x) => x.active).map((x) => <option key={x.id} value={x.slug}>{x.name} only</option>)}
+            {services.filter(bookable).map((x) => <option key={x.id} value={x.slug}>{x.name} only</option>)}
           </select>
         </div>
         <button type="button" className="btn-secondary btn-md" onClick={() => { navigator.clipboard?.writeText(code).then(() => toast.success('Copied.')).catch(() => {}) }}><Copy className="w-4 h-4" />Copy</button>

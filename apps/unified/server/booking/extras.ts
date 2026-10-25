@@ -30,6 +30,8 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
   async function createSeries(companyId: string, body: Record<string, any>, userId: string | null = null) {
     const svc = await engine.serviceById(companyId, String(body.serviceId || ''))
     if (!svc) throw new BookingError('Choose a service.')
+    // Refused once, before any visit, rather than every visit listed back as refused.
+    engine.assertListed(svc)
     const frequency: Frequency = body.frequency === 'monthly' ? 'monthly' : 'weekly'
     const intervalCount = body.frequency === 'biweekly' ? 2 : Math.max(1, Math.min(12, Math.trunc(n(body.intervalCount) || 1)))
     if (!isRealDate(body.date) || !/^\d{2}:\d{2}$/.test(String(body.time))) throw new BookingError('Choose the first visit\'s date and time.')
@@ -90,7 +92,7 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
   // ── Waitlist ──────────────────────────────────────────────────────────────
   async function joinWaitlist(companyId: string, slug: string, body: Record<string, any>) {
     const svc = await engine.serviceBySlug(companyId, slug)
-    if (!svc || !svc.active) throw new BookingError('That service is not available.', 404)
+    if (!engine.offered(svc)) throw new BookingError('That service is not available.', 404)
     const name = String(body.name || '').trim().slice(0, 200), mail = String(body.email || '').trim().toLowerCase()
     if (!name) throw new BookingError('Please enter your name.')
     if (!EMAIL_RE.test(mail)) throw new BookingError('Please enter a valid email address.')

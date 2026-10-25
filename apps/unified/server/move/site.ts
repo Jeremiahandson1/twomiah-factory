@@ -522,6 +522,8 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
               [await idFor(write, 'booking_hours', r.id), companyId, userFor(r.user_id), r.day_of_week, r.start_minute, r.end_minute, ts(r.created_at)])
           }
           gain('booking_hours', active.length)
+          // The site's hours are the owner's own booking hours (booking/engine.ts weekOf 'own'), not the opening hours.
+          await write(`UPDATE booking_settings SET hours_set_at = now() WHERE company_id = $1`, [companyId])
         }
         tally('booking_availability_rules', rules.length, active.length)
         if (rules.length > active.length) out.push(`${rules.length - active.length} switched-off hour rule(s) not moved (the unified hours have no off switch)`)

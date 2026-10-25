@@ -105,7 +105,10 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/domain', icon: Globe, label: 'Domain', permission: 'settings:update' },
   // Bookings: the online_booking feature, behind the same permissions as /api/booking.
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Bookings', section: 'Bookings', features: ['online_booking'], permission: 'bookings:read', exact: true },
-  { to: '/crm/bookings/calendar', icon: CalendarDays, label: 'Calendar', features: ['online_booking'], permission: 'bookings:read' },
+  // A vertical whose online bookings land in its own book (a salon's The Book) sees them there with the desk's
+  // appointments; Bookings' own calendar would show the online half alone (salon live test, 2026-10-25), so it has no
+  // item of its own and its address goes to that book (App.tsx).
+  ...(typeof verticalScreens().booking.calendarPath === 'string' ? [] : [{ to: '/crm/bookings/calendar', icon: CalendarDays, label: 'Calendar', features: ['online_booking'], permission: 'bookings:read' }]),
   { to: '/crm/bookings/waitlist', icon: Hourglass, label: 'Waitlist', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/insights', icon: BarChart3, label: 'Insights', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/settings', icon: SlidersHorizontal, label: 'Booking settings', features: ['online_booking'], permission: 'bookings:update' },

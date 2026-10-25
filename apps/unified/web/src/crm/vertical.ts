@@ -116,6 +116,15 @@ export interface VerticalScreens {
    * registered once at startup (main.tsx). Absent: the shared words, then the code made readable.
    */
   codeLabels?: Record<string, string>
+  /**
+   * Bookings, for a vertical whose online bookings land in its own book (server VerticalSettings.booking.calendar):
+   * `calendarPath` is that book — where the desk's appointments and the online ones are seen together, so Bookings'
+   * own calendar hands over to it — and `calendarLabel` what one entry there is called. `serviceMenuPath` is the list
+   * customers book from (the salon's Service Menu: server BookingAddOn.serviceList), which Booking settings shows and
+   * links to instead of keeping a list of its own (salon live test, 2026-10-25). Absent: Bookings' own calendar and
+   * services. Read each with `typeof … === 'string'`: an absent setting reads as an empty object here.
+   */
+  booking: { calendarLabel?: string; calendarPath?: string; serviceMenuPath?: string }
   /** The Schedule screen: `events` shows calendar appointments (/api/schedule-events) with "New Appointment" (RV). */
   schedule: { events?: boolean }
   /** Settings › Integrations: the vertical's words for its cards and which extra panels it shows (RV's call tracking). */

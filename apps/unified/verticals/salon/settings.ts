@@ -165,7 +165,11 @@ const salon: VerticalSettings = {
     marketing: { contactTypes: CONTACT_TYPES },
     messages: {},
     reviews: {},
-    booking: { calendarLabel: 'Appointment', calendarPath: '/crm/appointments', serviceMenuPath: '/crm/service-menu', concurrentLabel: 'Chairs bookable at once', concurrentHelp: 'Online bookings per time slot — the number of stylists taking online clients. Desk bookings count too.' },
+    // Bookings in the salon's words and places (web/src/crm/vertical.ts VerticalScreens.booking): online bookings land in
+    // The Book with the desk's (booking.calendar 'chair'), and what clients book is the Service Menu. The template's
+    // "chairs bookable at once" labels went with its concurrency setting, which the unified engine doesn't have (the
+    // stylists' own hours decide how many can be booked at once — move/steps/trades.ts).
+    booking: { calendarLabel: 'Appointment', calendarPath: '/crm/appointments', serviceMenuPath: '/crm/service-menu' },
     settings: {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: can open the book and records but change nothing' },
