@@ -13,6 +13,7 @@ const RemindersPage = page(() => import('../pages/salon/RemindersPage'))
 const ServiceMenuPage = page(() => import('../pages/salon/ServiceMenuPage'))
 const MembershipsPage = page(() => import('../pages/salon/MembershipsPage'))
 const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
+const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
 
 /**
  * The salon's own dashboard (the book today, the month by chair, who is due back), shown at /crm/dashboard in place of
@@ -29,6 +30,16 @@ export const routes: ReactElement[] = [
   <Route key="salon-service-menu" path="service-menu" element={<ServiceMenuPage />} />,
   <Route key="salon-memberships" path="memberships" element={<MembershipsPage />} />,
   <Route key="salon-loyalty" path="loyalty" element={<LoyaltyPage />} />,
+  <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
+]
+
+/**
+ * The salon's own Settings card (screens.tsx extraSubPages): The Book's "Stylists see only their own appointments"
+ * switch (owner's decision 2026-10-25) — for whoever may change the company (PUT /api/appointments/book-settings asks
+ * company:update), where the business has The Book.
+ */
+export const SETTINGS_EXTRA = [
+  { to: '/crm/settings/book', label: 'The Book', icon: Calendar, permission: 'company:update', feature: 'salon_booking' },
 ]
 
 /**

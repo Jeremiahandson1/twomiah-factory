@@ -68,9 +68,14 @@ const salon: VerticalSettings = {
   roleLabels: { field: 'Stylist', viewer: 'Front Desk' },
   // A stylist's day: take a booking, move it, check the client in, log the visit, add the client and keep their card up
   // to date; they check their own client out, so they enrol and redeem loyalty. The front desk is the till.
+  //
+  // schedule:read-all is the whole book whatever the owner's "Stylists see only their own appointments" switch says
+  // (server/crm/salon/bookScope.ts; owner's decision 2026-10-25). The front desk runs every chair, so it keeps the whole
+  // book; managers and admins hold it through schedule:*, the owner through '*'. The stylist never holds it, so the
+  // switch, when on, narrows exactly the stylist seat — and off (the default), it narrows nobody.
   extraRolePermissions: {
     field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send', 'loyalty:enroll', 'loyalty:redeem'],
-    viewer: ['loyalty:enroll', 'loyalty:redeem'],
+    viewer: ['loyalty:enroll', 'loyalty:redeem', 'schedule:read-all'],
   },
   // An online booking is at the salon: no address asked unless the owner says so, and it lands in The Book as an
   // appointment (templates/crm-salon routes/booking.ts: appointmentCalendar; server/crm/salon/onlineBooking.ts).

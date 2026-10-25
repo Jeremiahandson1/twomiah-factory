@@ -19,6 +19,7 @@ import type { CrmDeps } from '../deps.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK, normaliseFormula } from './formulas.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { isOwnChair } from './bookScope.ts'
 import { PHOTO_COLUMN, isOwnVisitPhoto, isVisitPhotoSlot, photoFieldsOf, removeVisitPhotoFiles, unknownSlot, visitPhotoFilesOf, visitPhotoFolder, withVisitPhotos } from './visitPhotos.ts'
 import { encodedPhoto, photoResponse } from '../siteRecords/recordPhotos.ts'
 import { uploadedForm } from '../office/upload.ts'
@@ -37,6 +38,15 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
   const { checkout, formulas } = salon
   const refresh = (companyId: string, entity: string) => live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity })
   const app = new Hono<AppEnv>()
+
+  /** Is this appointment in the seat's book — any of the company's, or only its own chair's where the owner says so. */
+  async function appointmentInBook(u: any, appointmentId: string): Promise<boolean> {
+    const own = await salon.book.ownChairOf(u)
+    if (!own) return true
+    const [row] = await db.select({ stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId }).from(appointment)
+      .where(and(eq(appointment.id, appointmentId), eq(appointment.companyId, u.companyId))).limit(1)
+    return !!row && isOwnChair(own, row)
+  }
 
   // GET /service-records — ?contactId=, ?stylistId= (either column — the caller knows one id, T20 H1)
   app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -248,6 +258,9 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
 
     const stylist = await resolveStylist(db, currentUser.companyId, body.stylistId)
     if (!stylist) return unknownStylist(c, body.stylistId)
+    // Logging against an appointment COMPLETES it: a seat narrowed to its own chair (./bookScope.ts, owner's decision
+    // 2026-10-25) cannot close another stylist's appointment this way any more than with the book's Complete.
+    if (body.appointmentId && !(await appointmentInBook(currentUser, String(body.appointmentId)))) return fail(c, 404, 'Appointment not found')
 
     // Reuse the record Complete wrote for this appointment rather than logging a second visit. (SALON-H4)
     if (body.appointmentId) {
@@ -330,6 +343,8 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if ('refusal' in photos) return fail(c, 400, photos.refusal, 'PHOTO_NOT_UPLOADED')
     const updates: Record<string, any> = { updatedAt: new Date(), ...photos.set }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    // Filing a visit against an appointment is the narrowed seat's only for its own chair, as on POST.
+    if (updates.appointmentId && !(await appointmentInBook(currentUser, String(updates.appointmentId)))) return fail(c, 404, 'Appointment not found')
     // A whitelist says which keys may be written, not that the values are the right shape. (RR2 R1)
     if ('formula' in body) updates.formula = normaliseFormula(body.formula)
     if ('stylistId' in updates) {

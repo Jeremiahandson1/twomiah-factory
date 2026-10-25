@@ -13,6 +13,7 @@ import { useConfirm, useMayWrite } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
+import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -132,6 +133,10 @@ export default function AppointmentsPage() {
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
+  // Whose chairs this seat sees (./bookScope.ts): narrowed by the owner's switch, the book is this stylist's own chair
+  // — the server sends nothing else — so the "All stylists" picker gives way to saying so.
+  const [scope, setScope] = useState<BookScope>(WHOLE_BOOK);
+  useEffect(() => { fetchBookScope().then(setScope); }, []);
 
   // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
   const offerCheckout = async (invoiceId?: string | null) => {
@@ -278,10 +283,14 @@ export default function AppointmentsPage() {
           <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, 7))} aria-label="Next week" className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
         )}
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
-        <select value={stylistFilter} onChange={(e) => setStylistFilter(e.target.value)} aria-label="Stylist" className="px-3 py-2 border rounded-lg text-sm">
-          <option value="">All stylists</option>
-          {stylists.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
+        {scope.ownOnly ? (
+          <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200"><User className="w-4 h-4" /> Your appointments</span>
+        ) : (
+          <select value={stylistFilter} onChange={(e) => setStylistFilter(e.target.value)} aria-label="Stylist" className="px-3 py-2 border rounded-lg text-sm">
+            <option value="">All stylists</option>
+            {stylists.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        )}
         <span className="text-sm text-gray-500 dark:text-slate-400">
           {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled / no-show` : ''}
         </span>
@@ -382,6 +391,7 @@ export default function AppointmentsPage() {
       {showForm && (
         <NewAppointmentModal
           defaultDay={day}
+          scope={scope}
           onSave={() => { setShowForm(false); load(); }}
           onClose={() => setShowForm(false)}
         />
@@ -496,7 +506,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 
 /* ---------------- New Appointment Modal ---------------- */
 
-function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
+function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDay: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -518,7 +528,15 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
           fetchStaff(),
         ]);
         setServices(svcRes.data || []);
-        setStylists(staff);
+        // Narrowed to its own chair, a stylist books into it and nobody else's (the server refuses another chair and
+        // books "nobody" into theirs): the picker offers only them, already chosen.
+        if (scope.ownOnly) {
+          const mine = staff.filter((u) => scope.ownStylistIds.includes(u.id));
+          setStylists(mine);
+          if (mine[0]) setForm((f) => (f.stylistId ? f : { ...f, stylistId: mine[0].id }));
+        } else {
+          setStylists(staff);
+        }
       } catch {
         /* degrade gracefully */
       }
@@ -612,7 +630,8 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stylist</label>
                 <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
-                  <option value="">Unassigned</option>
+                  {/* Narrowed, "nobody" is not a choice: the server books it into the stylist's own chair, so it says so. */}
+                  {scope.ownOnly ? (stylists.length === 0 && <option value="">You</option>) : <option value="">Unassigned</option>}
                   {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
