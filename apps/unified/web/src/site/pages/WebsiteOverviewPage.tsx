@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { ExternalLink, FileText, Image, Newspaper, Briefcase, Settings as SettingsIcon } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../../crm/vertical'
 import { FinishYourSiteCard } from '../components/FinishYourSiteCard'
 import { UnpublishedList, useSiteDrafts } from '../components/Drafts'
 
@@ -26,7 +27,8 @@ const PARTS = [
   { to: '/crm/website/pages', icon: FileText, label: 'Pages', text: 'Change the words, photos and sections.' },
   { to: '/crm/website/photos', icon: Image, label: 'Photos', text: 'Upload and tag your pictures.' },
   { to: '/crm/website/blog', icon: Newspaper, label: 'Blog', text: 'Posts that bring in search traffic.' },
-  { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', text: 'Finished work, with photos.' },
+  // In the vertical's words where it has them (a restaurant's is not "finished work").
+  { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', text: verticalScreens().website?.portfolioText || 'Finished work, with photos.' },
 ]
 
 export function WebsiteOverviewPage() {

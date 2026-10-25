@@ -1,6 +1,8 @@
 // Moved from templates/crm-bar/frontend/src/pages/bar/RegisterPage.tsx.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { verticalScreens } from '../../vertical'
 import { Loader2, Flame, LayoutGrid, Clock, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
@@ -119,7 +121,7 @@ export default function RegisterPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Register</h1>
-          <p className={`text-sm ${MUTED}`}>{state.me.name} · the night of {state.businessDay}</p>
+          <p className={`text-sm ${MUTED}`}>{state.me.name} · the night of {whenDate(state.businessDay, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/crm/floor" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><LayoutGrid className="w-4 h-4" />Floor</Link>
@@ -411,7 +413,7 @@ function OptionsDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () 
       <div className="grid grid-cols-1 gap-2">
         {(item.modifiers || []).map((m) => {
           const on = mods.includes(m.id);
-          return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex justify-between`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>;
+          return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex items-center justify-between gap-3 py-2 text-left`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>;
         })}
       </div>
       <div className="flex justify-end gap-2 mt-4">
@@ -699,7 +701,7 @@ function RenameDialog({ check, onClose, onSave }: { check: Check; onClose: () =>
     <Dialog title={`Check #${check.number}`} onClose={onClose}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); onSave({ label, spot, note }); }}>
         <div><label className={LABEL} htmlFor="rn-label">Name</label><input id="rn-label" className={`${INPUT} mt-1`} value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} /></div>
-        <div><label className={LABEL} htmlFor="rn-spot">Where (bar seat, booth, table)</label><input id="rn-spot" className={`${INPUT} mt-1`} value={spot} onChange={(e) => setSpot(e.target.value)} maxLength={40} /></div>
+        <div><label className={LABEL} htmlFor="rn-spot">Where ({verticalScreens().foodService?.bar === false ? 'booth, table' : 'bar seat, booth, table'})</label><input id="rn-spot" className={`${INPUT} mt-1`} value={spot} onChange={(e) => setSpot(e.target.value)} maxLength={40} /></div>
         <div><label className={LABEL} htmlFor="rn-note">Note for the grill</label><input id="rn-note" className={`${INPUT} mt-1`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} /></div>
         <div className="flex justify-end gap-2">
           <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>

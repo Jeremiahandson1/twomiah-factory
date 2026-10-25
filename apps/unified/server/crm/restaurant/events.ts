@@ -30,7 +30,7 @@ import { fail, one, done, listAll } from '../../http/reply.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
-  EXIT_STATUSES, HELD, DATE_RE, SpaceClash, findClash, clashMessage, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
+  EXIT_STATUSES, HELD, DATE_RE, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
   coordinatorRefusal, eventWarnings, moneyRefusal, quantityRefusal, auditName,
 } from './eventBooking.ts'
 
@@ -662,7 +662,8 @@ export function createEventRoutes(d: CrmDeps) {
   table{width:100%;border-collapse:collapse;font-size:14px;}
   td.l{width:34%;color:#666;padding:5px 8px 5px 0;vertical-align:top;}
   td.v{font-weight:600;padding:5px 0;}
-  table.grid td,table.grid th{border-bottom:1px solid #eee;padding:6px 4px;text-align:left;}
+  table.grid td,table.grid th{border-bottom:1px solid #eee;padding:6px 4px;text-align:left;vertical-align:top;}
+  .detail{display:block;font-size:13px;color:#444;font-weight:400;}
   table.grid th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#888;font-weight:600;}
   td.num{text-align:right;}
   .dept{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;}
@@ -678,13 +679,13 @@ export function createEventRoutes(d: CrmDeps) {
   <h2>Event</h2>
   <table>
     ${row('Event', ev.name)}
-    ${row('Date', ev.eventDate)}
+    ${row('Date', eventDayWords(ev.eventDate))}
     ${row('Time', [ev.startTime, ev.endTime].filter(Boolean).join(' – '))}
     ${row('Space', space?.name || '')}
-    ${row('Type', String(ev.eventType || '').replace(/_/g, ' '))}
+    ${row('Type', eventCodeWords(ev.eventType))}
     ${row('Guests', heads ? String(heads) + (ev.guestCountFinal ? ' (guaranteed)' : ' (estimated)') : '')}
     ${row('Coordinator', [coordinator?.firstName, coordinator?.lastName].filter(Boolean).join(' '))}
-    ${row('Status', String(ev.status || ''))}
+    ${row('Status', eventCodeWords(ev.status))}
   </table>
 
   <h2>Client</h2>
@@ -711,7 +712,7 @@ export function createEventRoutes(d: CrmDeps) {
   <h2>Run of Show</h2>
   ${timeline.length ? `<table class="grid">
     <tr><th style="width:80px">Time</th><th>What</th><th style="width:90px">Dept</th></tr>
-    ${timeline.map((t) => `<tr><td>${esc(t.time)}</td><td><strong>${esc(t.title)}</strong>${t.details ? `<br>${esc(t.details)}` : ''}</td><td class="dept">${esc(t.department)}</td></tr>`).join('')}
+    ${timeline.map((t) => `<tr><td>${esc(t.time)}</td><td><strong>${esc(t.title)}</strong>${t.details ? `<span class="detail">${esc(t.details)}</span>` : ''}</td><td class="dept">${esc(eventCodeWords(t.department))}</td></tr>`).join('')}
   </table>` : '<p style="color:#888;font-size:13px;">No run of show recorded.</p>'}
 
   ${ev.setupNotes ? `<h2>Setup</h2><p style="font-size:14px;white-space:pre-wrap;">${esc(ev.setupNotes)}</p>` : ''}
@@ -719,7 +720,7 @@ export function createEventRoutes(d: CrmDeps) {
   ${beoMoney ? `<h2>Payments</h2>
   ${payments.length ? `<table class="grid">
     <tr><th>Stage</th><th>Due</th><th>Status</th><th class="num">Amount</th></tr>
-    ${payments.map((p) => `<tr><td>${esc(p.label)}</td><td>${esc(p.dueDate || '—')}</td><td>${esc(STATE_LABEL[p.state] || p.state)}${p.state === 'part_paid' ? ` (${cash(p.paidAmount)})` : ''}</td><td class="num">${cash(p.amount)}</td></tr>`).join('')}
+    ${payments.map((p) => `<tr><td>${esc(p.label)}</td><td>${esc(p.dueDate ? eventDayWords(p.dueDate) : '—')}</td><td>${esc(STATE_LABEL[p.state] || p.state)}${p.state === 'part_paid' ? ` (${cash(p.paidAmount)})` : ''}</td><td class="num">${cash(p.amount)}</td></tr>`).join('')}
     <tr><td colspan="3" class="num"><strong>Paid to date</strong></td><td class="num"><strong>${cash(paid)}</strong></td></tr>
     <tr><td colspan="3" class="num"><strong>Outstanding</strong></td><td class="num"><strong>${cash(outstanding)}</strong></td></tr>
   </table>` : '<p style="color:#888;font-size:13px;">No payment schedule recorded.</p>'}` : ''}

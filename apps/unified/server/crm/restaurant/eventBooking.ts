@@ -152,7 +152,22 @@ export async function findClash(exec: any, companyId: string, spaceId: string, e
   return rows[0]
 }
 
-export const clashMessage = (eventDate: string, clash: { name: string }) => `That space is already held on ${eventDate} by "${clash.name}"`
+/**
+ * An event's date in words — "Friday, November 20, 2026". The event date is a calendar day (the day the event is on,
+ * not a moment), so it is read as the day it names; printed raw it read "held on 2026-11-20" (live test 2026-10-25).
+ */
+export const eventDayWords = (day: unknown): string => {
+  const s = String(day ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return String(day ?? '')
+  return new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+/** A stored code in words, for a printed page: 'private_dining' → "Private dining", 'tentative' → "Tentative". */
+export const eventCodeWords = (code: unknown): string => {
+  const s = String(code ?? '').replace(/_/g, ' ').trim()
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+}
+
+export const clashMessage = (eventDate: string, clash: { name: string }) => `That space is already held on ${eventDayWords(eventDate)} by "${clash.name}"`
 
 // A room's hire fee is charged as its own menu line (spaceId set), priced when the room is booked. Moving rooms swaps
 // the line; hand-typed lines are never touched. Runs inside the booking transaction.
@@ -218,7 +233,7 @@ export async function bookOnDeposit(tx: any, companyId: string, eventId: string 
   await lockEventBook(tx, companyId)
   if (ev.spaceId) {
     const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id)
-    if (clash) return `"${ev.name}" is still an enquiry and its room is already held on ${ev.eventDate} by "${clash.name}" — move the date or the room before taking money.`
+    if (clash) return `"${ev.name}" is still an enquiry and its room is already held on ${eventDayWords(ev.eventDate)} by "${clash.name}" — move the date or the room before taking money.`
   }
   await tx.update(event).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(event.id, ev.id))
   return null

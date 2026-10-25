@@ -266,7 +266,9 @@ export function firstWorkStep(industry: string | null | undefined): string {
     case 'bar':        return 'Build your menu and taps, then ring up a test check on the Register'
     case 'salon':      return 'Add your service menu and book your first appointment'
     case 'veterinary': return 'Add your first client and their pet, and book an appointment'
-    case 'events':     return 'Add your spaces and take your first party enquiry'
+    // A restaurant runs its counter here too (unifiedFeaturePreset: the menu, the Register and the grill), so it is
+    // pointed at them as well as its rooms (restaurant live test, 2026-10-25).
+    case 'events':     return 'Build your menu and ring up a test order on the Register, then add your spaces and take your first party enquiry'
     case 'foodtruck':  return 'Build your menu, then ring up a test order on the Register'
     case 'rv':         return 'Add a unit to your inventory and your first lead'
     case 'dispensary': return 'Add your products and your first customer'

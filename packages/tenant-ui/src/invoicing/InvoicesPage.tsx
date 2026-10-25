@@ -108,7 +108,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
   }, [page, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
-  const openCreate = () => { setEditing(null); setForm({ contactId: '', projectId: '', dueDate: defaultDueDate(), taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [blankLine()] }); setModalOpen(true) }
+  const openCreate = (contactId = '') => { setEditing(null); setForm({ contactId, projectId: '', dueDate: defaultDueDate(), taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [blankLine()] }); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
     setForm({ contactId: item.contactId || '', projectId: item.projectId || '', dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [blankLine()] })
@@ -123,6 +123,18 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
     api.get(`/api/invoices/${editId}`).then((item: any) => { if (cancelled || !item) return; openEdit(item); searchParams.delete('edit'); setSearchParams(searchParams, { replace: true }) }).catch(() => {})
     return () => { cancelled = true }
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * A contact's "Create Invoice" quick action (contacts/types.ts quickActions: /crm/invoices?contactId=<id>) and
+   * ?new=1: open a new invoice for that contact. Nothing read the link, so the button landed on the invoice list.
+   */
+  useEffect(() => {
+    const contactId = searchParams.get('contactId') || ''
+    if ((!contactId && searchParams.get('new') !== '1') || !mayCreate) return
+    openCreate(contactId)
+    searchParams.delete('contactId'); searchParams.delete('new')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, mayCreate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totals = calcTotals(form.lineItems, form.taxRate, form.discount)
   const linesForSave = form.lineItems.filter(li => li.description.trim())
@@ -203,7 +215,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
         * do not mount PermissionsProvider, and hiding buttons from everybody there would be a worse
         * bug than the one being fixed.
         */}
-      <PageHeader title="Invoices" action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined} />
+      <PageHeader title="Invoices" action={mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined} />
       <div className="mb-4">
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
@@ -213,7 +225,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/invoices/${row.id}`)}
         emptyMessage={statusFilter ? 'No invoices match' : 'No invoices yet'}
         emptyHint={statusFilter ? 'Try a different status or clear the filter.' : 'Bill a customer here, or turn an accepted quote into an invoice. Payments are recorded against it.'}
-        emptyAction={!statusFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined}
+        emptyAction={!statusFilter && mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined}
         actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
         { label: 'Send', icon: Send, onClick: handleSend, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },

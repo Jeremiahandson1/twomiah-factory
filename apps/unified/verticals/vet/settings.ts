@@ -91,7 +91,8 @@ const vet: VerticalSettings = {
       quickActions: [
         { label: 'Patients', to: '/crm/patients', icon: 'patients' },
         // Booking is a write: POST /api/appointments asks contacts:create (T68).
-        { label: 'Book Appointment', to: '/crm/appointments', icon: 'appointment', permission: 'contacts:create' },
+        // ?ownerId= opens New Appointment for this owner (crm/pages/vet/AppointmentsPage.tsx).
+        { label: 'Book Appointment', to: '/crm/appointments?ownerId=:id', icon: 'appointment', permission: 'contacts:create' },
         { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice' },
       ],
     },

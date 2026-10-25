@@ -24,8 +24,24 @@ export const HOMECARE_PAGES = ['/portal', '/family', '/family/*', '/pay/*', '/pa
  * The browser tab's words. A customer's portal (/portal/<token>) is the customer's, not the admin's: it read "Admin"
  * (roofing retest 2026-10-24) and now reads "<Business> — Customer portal". Everything else is the admin's.
  */
+/**
+ * Every public page the app serves is titled for its visitor (restaurant live test 2026-10-25: the emailed invoice link
+ * read "<Business> · Admin"). The /d/ page names the quote or invoice itself once it has loaded (packages/tenant-ui
+ * portal/PortalDocumentLink.tsx).
+ */
+const PUBLIC_TITLES: Array<[RegExp, string]> = [
+  [/^\/portal(\/|$)/, 'Customer portal'],
+  [/^\/d\//, 'Your quote or invoice'],
+  [/^\/vendor\//, 'Vendor portal'],
+  [/^\/family(\/|$)/, 'Family portal'],
+  [/^\/pay\//, 'Pay your invoice'],
+  [/^\/payment-success$/, 'Payment received'],
+  [/^\/onboarding\//, 'New hire paperwork'],
+  [/^\/careers(\/|$)/, 'Careers'],
+]
 export function tabTitle(pathname: string, name: string): string {
-  if (pathname === '/portal' || pathname.startsWith('/portal/')) return name ? `${name} — Customer portal` : 'Customer portal'
+  const own = PUBLIC_TITLES.find(([re]) => re.test(pathname))?.[1]
+  if (own) return name ? `${name} — ${own}` : own
   return name ? `${name} · Admin` : 'Admin'
 }
 

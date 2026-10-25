@@ -118,7 +118,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (searchParams.get('new') !== '1' || !mayCreate) return
+    // ?new=1 (a job's "Create Quote"), or a contact's quick action, which sends ?contactId= alone.
+    if ((searchParams.get('new') !== '1' && !searchParams.get('contactId')) || !mayCreate) return
     const contactId = searchParams.get('contactId') || ''
     const jobId = cfg.quoteJobs ? searchParams.get('jobId') || '' : ''
     setEditing(null); setForm({ ...emptyForm(), contactId, jobId }); setSites([]); setEquipment([]); loadCustomerExtras(contactId); setModalOpen(true)

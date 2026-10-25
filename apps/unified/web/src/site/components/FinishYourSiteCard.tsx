@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Check } from 'lucide-react'
 import { PageError } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../../crm/vertical'
 
 // What the factory's composer left off this site because the owner hadn't
 // supplied it — it states only facts the owner gave (no invented prices,
@@ -78,11 +79,13 @@ export function FinishYourSiteCard() {
       <ul className="divide-y divide-line">
         {open.map(g => {
           const how = HOW[g.id]
+          // The vertical's own words for the item, over the words stored at signup (crm/vertical.ts website.gaps).
+          const own = verticalScreens().website?.gaps?.[g.id]
           return (
             <li key={g.id} className="py-3 flex items-start gap-4">
               <div className="flex-1">
-                <div className="text-sm text-ink font-semibold">{g.label}</div>
-                <div className="text-sm text-ink-soft">{g.unlocks}</div>
+                <div className="text-sm text-ink font-semibold">{own?.label || g.label}</div>
+                <div className="text-sm text-ink-soft">{own?.unlocks || g.unlocks}</div>
                 {measured[g.id] && <div className="text-xs font-semibold text-ink mt-1">{measured[g.id].progress}</div>}
                 {how && (
                   <div className="text-xs text-muted mt-1">

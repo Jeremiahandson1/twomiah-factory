@@ -13,6 +13,10 @@ function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote'
   const { company, loading, error, link } = usePortal()
   const { token } = useParams<{ token: string }>()
   useTheme()
+  // The tab names the document for the customer — "<Business> — Invoice" — not the admin's "<Business> · Admin".
+  React.useEffect(() => {
+    if (link && company?.name) document.title = `${company.name} — ${link.kind === 'quote' ? 'Quote' : 'Invoice'}`
+  }, [link?.kind, company?.name]) // eslint-disable-line react-hooks/exhaustive-deps
   if (loading) return <div className="min-h-screen bg-gray-50 dark:bg-slate-900"><Spinner className="py-24" /></div>
   if (error || !link) {
     return (

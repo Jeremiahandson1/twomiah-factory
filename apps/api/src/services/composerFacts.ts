@@ -23,6 +23,7 @@
  * email and in the site admin.
  */
 import type { ComposerInput, Section } from './sectionComposer'
+import { verticalFor } from '../config/industryRouting'
 
 /** Facts the owner can give at intake. Every one is optional. */
 export interface IntakeFacts {
@@ -681,6 +682,10 @@ function contentGaps(
   const f: IntakeFacts = input.facts || {}
   const gaps: ContentGap[] = []
   const heldFor = (types: string[]) => heldPages.filter(slug => types.some(t => droppedByPage[slug]?.has(t)))
+  // A kitchen's site is not asked for "your real work" or a contractor's licences (the restaurant's live test,
+  // 2026-10-25): a restaurant, a venue, a bar or a food truck is asked in its own words.
+  const v = verticalFor(input.businessType)
+  const food = v === 'events' || v === 'bar' || v === 'foodtruck'
   const pagesLine = (slugs: string[]) =>
     'Your ' + joinNames(slugs.map(PAGE_NAME)) + ' page' + (slugs.length > 1 ? 's go' : ' goes') + ' live'
 
@@ -689,7 +694,7 @@ function contentGaps(
   }
   if (c.workPhotos.size === 0 && (allowed.has('gallery') || allowed.has('before_after'))) {
     const held = heldFor(['gallery', 'before_after'])
-    gaps.push({ id: 'photos', label: 'Photos of your real work — three or more', unlocks: held.length ? pagesLine(held) + ', with a gallery of your work' : 'A gallery of your work on the site' })
+    gaps.push({ id: 'photos', label: food ? 'Photos of your food, your place and your events — three or more' : 'Photos of your real work — three or more', unlocks: held.length ? pagesLine(held) + ', with a gallery of your work' : 'A gallery of your work on the site' })
   }
   if (portraitRemoved || (c.workPhotos.size === 0 && allowed.has('about'))) {
     gaps.push({ id: 'ownerPhoto', label: 'A photo of you (and your team, if you have one)', unlocks: 'Real faces on your About page' })
@@ -704,7 +709,9 @@ function contentGaps(
   }
   if (!(f.credentials && f.credentials.length) && !/\blicen[cs]ed\b|\binsured\b|\bbonded\b|\bcertified\b|\bcertification/.test(c.text) &&
       (allowed.has('trust') || allowed.has('stats'))) {
-    gaps.push({ id: 'credentials', label: 'Licenses, insurance and certifications you hold', unlocks: 'A credentials section customers check before they call' })
+    gaps.push(food
+      ? { id: 'credentials', label: 'Awards, press mentions or your food-safety rating', unlocks: 'A line guests read before they book or come in' }
+      : { id: 'credentials', label: 'Licenses, insurance and certifications you hold', unlocks: 'A credentials section customers check before they call' })
   }
   if (!f.hours) {
     gaps.push({ id: 'hours', label: 'Your business hours', unlocks: 'Hours on your contact page' })

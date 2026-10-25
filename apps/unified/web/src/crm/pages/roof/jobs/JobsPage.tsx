@@ -15,7 +15,7 @@
 //   · people from GET /api/company/users (the template's /api/users), asked of a seat the server answers (team:read or
 //     users:read, its own gate); contacts for the picker from the CRM's GET /api/contacts.
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react'
 import { api } from '../../../../api'
 import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
@@ -142,8 +142,8 @@ export default function JobsPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly])
 
-  const openCreate = async () => {
-    setForm(EMPTY_FORM)
+  const openCreate = async (contactId = '') => {
+    setForm({ ...EMPTY_FORM, contactId })
     setMissing([])
     try {
       // The homeowner: customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
@@ -151,6 +151,16 @@ export default function JobsPage() {
     } catch { setContacts([]) }
     setModalOpen(true)
   }
+
+  // A contact's "Schedule Job" quick action (contacts/types.ts: /crm/jobs?contactId=<id>) opens New Job for that
+  // homeowner; nothing read the link, so it landed on the job list.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const contactId = searchParams.get('contactId')
+    if (!contactId || !mayCreateJob) return
+    openCreate(contactId)
+    const next = new URLSearchParams(searchParams); next.delete('contactId'); setSearchParams(next, { replace: true })
+  }, [searchParams, mayCreateJob]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     if (!form.contactId) { toast.error('Select a contact'); return }
@@ -196,7 +206,7 @@ export default function JobsPage() {
           </div>
           {mayCreateJob && (
             <button
-              onClick={openCreate}
+              onClick={() => openCreate()}
               className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" /> New Job

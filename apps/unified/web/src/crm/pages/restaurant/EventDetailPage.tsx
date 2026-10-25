@@ -577,6 +577,10 @@ export default function EventDetailPage() {
           // What's still unscheduled: the invoice (or estimate) total less the installments already planned.
           // what is not yet scheduled, and never more than is still owed — $700 already paid used to be ignored (T16 L14)
           suggested={Math.max(0, Math.min(Number(totals.total || 0) - payments.reduce((s, p) => s + Number(p.amount || 0), 0), Number(totals.outstanding ?? totals.total ?? 0)))}
+          // The first stage is the event's own deposit where one is set: "Deposit" had pre-filled the whole total ($1,575
+          // against a $400 deposit). Every later stage is the balance.
+          first={payments.length === 0}
+          deposit={payments.length === 0 && Number(ev.depositRequired) > 0 ? Number(ev.depositRequired) : null}
           onSave={() => { setShowPayment(false); load(); }}
           onClose={() => setShowPayment(false)}
         />
@@ -984,14 +988,14 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
 /* ---------------- Payment ---------------- */
 
 // Schedule an installment (what is due, and when). The first one raises the event's invoice.
-function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string; suggested: number; onSave: () => void; onClose: () => void }) {
+function PaymentModal({ eventId, suggested, first, deposit, onSave, onClose }: { eventId: string; suggested: number; first: boolean; deposit: number | null; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   // The refusal this form is about, shown ON this form. The owner's report was specifically here:
   // a refused Schedule Payment produced a pop-up, and then nothing visible at all. (T58 follow-up)
   const [err, setErr] = useState('');
   const [form, setForm] = useState({
-    label: 'Deposit',
-    amount: suggested > 0 ? suggested.toFixed(2) : '',
+    label: first ? 'Deposit' : 'Balance',
+    amount: deposit !== null ? Math.min(deposit, suggested > 0 ? suggested : deposit).toFixed(2) : suggested > 0 ? suggested.toFixed(2) : '',
     dueDate: '',
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
