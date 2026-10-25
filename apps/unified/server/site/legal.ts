@@ -61,7 +61,7 @@ export function privacyHtml(s: LegalSettings): string {
 <p>If you tick “Text me” on one of our forms, or text us first, we may text you about your booking, enquiry or service. ${SMS_TERMS.frequency} ${SMS_TERMS.rates} ${SMS_TERMS.stopHelp} Agreeing to texts is never a condition of buying anything.</p>
 <p><strong>No mobile information will be shared with third parties or affiliates for marketing or promotional purposes.</strong> Text-messaging originator opt-in data and consent are not shared with any third parties, except the service providers that deliver our texts.</p>
 <h2>Who we share it with</h2>
-<p>Only the service providers that run this website and our customer system for us (hosting, email and text-message delivery, payments) — each only for that purpose. We do not sell your information.</p>
+<p>Only the service providers that run this website and our records for us (hosting, email and text-message delivery, payments) — each only for that purpose. We do not sell your information.</p>
 <h2>Your choices</h2>
 <p>You can ask us what we hold about you, ask us to correct or delete it, or stop texts at any time by replying STOP. Contact us below.</p>
 <h2>Contact</h2>

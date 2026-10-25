@@ -9,6 +9,7 @@ import type { SettingsPageProps, RoleOption } from './types'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { TwoFactorCard } from '../auth/TwoFactorCard'
 import { PasswordInput } from '../ui/PasswordInput'
+import { vocabulary } from '../labels/vocabulary'
 
 interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
 /** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
@@ -405,7 +406,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   The colour also paints this CRM's own screens now: the shell sets the brand palette from it at
                   runtime (useBrandPalette), so this line no longer says "the portal and invoices only". */}
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Branding</h3>
-              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">Your colour across this CRM — its buttons, links and menus — and on what your customers see: the portal header, the payment form and your invoices.</p>
+              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">Your colour across this CRM — its buttons, links and menus — and on what your {vocabulary().customer.many} see: the portal header, the payment form and your invoices.</p>
               {api.upload && (
                 <Field label="Logo" hint="PNG, JPG, WebP, GIF or SVG, up to 5 MB.">
                   <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">

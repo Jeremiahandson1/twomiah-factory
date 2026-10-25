@@ -116,7 +116,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             body={<HowTo steps={['Open the Domain page.', 'Buy a new address there — you see the first-year price and the yearly renewal before you pay, and we set it up for you.', 'Or type in one you already own: the page shows the nameservers to set where you bought it, and checks until it is live (usually within an hour, sometimes a day).']} />}
             actions={<button type="button" onClick={() => navigate(config.domainPage!)} className="bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-800">Open Domain</button>} />
         ) : (
-          <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
+          <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description={`Point your domain to your CRM so ${w.customer.many} see your brand.`} expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
             steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to the address in your browser bar while you are signed in', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
         )}
 
@@ -131,7 +131,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             // on the page. Say it first, and offer the remedy the 503 names. (Salon T27 N15)
             <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
           ) : !status.quickbooks.connected ? (
-            <HowTo steps={['Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported).', 'Pick your company and allow the connection.', 'Back here, press Sync Now, or turn on Auto-sync so each new invoice and customer is sent across for you.']} />
+            <HowTo steps={['Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported).', 'Pick your company and allow the connection.', `Back here, press Sync Now, or turn on Auto-sync so each new invoice and ${w.customer.one} is sent across for you.`]} />
           ) : (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
@@ -155,7 +155,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
         <SectionLabel label="Payments" />
         {/* What it does and how to connect it, in the owner's words — the card said only "Accept credit card payments from
             customers." and nothing about what to do (live test 10/22). */}
-        <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description="Let customers pay your invoices by card, from the link in the invoice email. The money goes into your own Stripe account, and Stripe takes its card fee."
+        <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description={`Let ${w.customer.many} pay your invoices by card, from the link in the invoice email. The money goes into your own Stripe account, and Stripe takes its card fee.`}
           body={status.stripe.configured === false ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
           ) : status.stripe.connected ? (
@@ -179,9 +179,9 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0"><Phone className="w-6 h-6 text-red-600 dark:text-red-400" /></div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <div><h3 className="font-semibold text-gray-900 dark:text-white">{config?.textingPage ? 'Your own Twilio account (optional)' : 'Twilio (Two-Way Texting)'}</h3><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Send and receive SMS with customers directly from your CRM.</p>
+                <div><h3 className="font-semibold text-gray-900 dark:text-white">{config?.textingPage ? 'Your own Twilio account (optional)' : 'Twilio (Two-Way Texting)'}</h3><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Send and receive SMS with {w.customer.many} directly from your CRM.</p>
                   {config?.textingPage && !status.twilio.ownAccount && (
-                    <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">Most businesses don&rsquo;t need this. <button type="button" onClick={() => navigate(config.textingPage!)} className="font-medium text-orange-700 hover:underline dark:text-orange-200">Turn on texting</button> instead and we register a local number in your business&rsquo;s name with the phone carriers. Fill this in only if you already text customers from a Twilio account of your own.</p>
+                    <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">Most businesses don&rsquo;t need this. <button type="button" onClick={() => navigate(config.textingPage!)} className="font-medium text-orange-700 hover:underline dark:text-orange-200">Turn on texting</button> instead and we register a local number in your business&rsquo;s name with the phone carriers. Fill this in only if you already text {w.customer.many} from a Twilio account of your own.</p>
                   )}
                 </div>
                 {status.twilio.configured && <span className="text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full whitespace-nowrap">{status.twilio.ownAccount ? 'Your account' : 'Platform number'}</span>}

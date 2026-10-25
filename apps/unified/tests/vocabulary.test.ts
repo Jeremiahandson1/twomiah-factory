@@ -89,6 +89,8 @@ const SHARED_SCREENS = [
   'apps/unified/server/site/legal.ts',
 ]
 const TRADE = /\b(jobs?|crews?|quotes?|contractors?|subcontractors?)\b/i
+/** Who the business serves comes from the vocabulary too: a bar's Integrations still said "customers" four times (bar recheck). */
+const SERVED = /\b(customers?|clients?|guests?)\b/i
 /** A word that only shows behind its feature: `hasFeature('quotes') ? 'quotes and ' : ''`. */
 const GATED = /hasFeature\(\s*'(quotes|jobs)'\s*\)/
 
@@ -112,7 +114,7 @@ describe('shared screens carry no trade words of their own', () => {
   for (const file of SHARED_SCREENS) {
     test(file, () => {
       const src = fs.readFileSync(path.join(REPO, file), 'utf8')
-      const found = readableStrings(src).filter((s) => TRADE.test(s.text)).map((s) => `${s.line}: ${s.text.trim().slice(0, 100)}`)
+      const found = readableStrings(src).filter((s) => TRADE.test(s.text) || SERVED.test(s.text)).map((s) => `${s.line}: ${s.text.trim().slice(0, 100)}`)
       expect(found).toEqual([])
     })
   }
