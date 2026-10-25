@@ -68,6 +68,55 @@ async function guardCount(db: any, g: ContactGuard, id: string): Promise<number>
   return Number(value)
 }
 
+/** One contact's delete: done, or refused with the status and the body the single DELETE answers. */
+export type ContactDeleteOutcome =
+  | { deleted: true; contact: any }
+  | { deleted: false; status: 404 | 409; body: { error: string; [k: string]: unknown } }
+
+/**
+ * THE ONE CONTACT-DELETE RULE, for every door that deletes a contact — the contact's own DELETE and the unified app's
+ * bulk delete (salon live test, 2026-10-25: the bulk door deleted a salon client with appointments, visits and a
+ * membership, which the single delete refuses, because it ran no guard at all). In order: the contact must be this
+ * company's; every guard is counted and a hit refuses, naming what is attached (or in the guard's own words); then
+ * `beforeDelete`, the delete, and what `beforeDelete` answered. A foreign-key refusal is the fallback 409.
+ */
+export function createContactDeleter(o: { db: any; contact: any; guards?: ContactGuard[]; beforeDelete?: ContactOptions['beforeDelete'] }) {
+  const { db, contact } = o
+  const guards = o.guards || []
+  async function remove(companyId: string, id: string): Promise<ContactDeleteOutcome> {
+    const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, companyId))).limit(1)
+    if (!existing) return { deleted: false, status: 404, body: { error: 'Contact not found' } }
+
+    // Never let a delete silently orphan financial / work records or destroy history. Count what is
+    // attached and name it so the user can reassign first.
+    const counts = await Promise.all(guards.map((g) => guardCount(db, g, id)))
+    const hit = guards.map((g, i) => ({ g, n: counts[i] })).filter((x) => x.n > 0)
+    if (hit.length) {
+      const custom = hit.find((x) => x.g.message)
+      if (custom) return { deleted: false, status: 409, body: { error: custom.g.message!(custom.n), [`${custom.g.label}Count`]: custom.n } }
+      const attached = hit.map(({ g, n }) => `${n} ${n === 1 ? g.label : (g.plural || g.label + 's')}`)
+      return { deleted: false, status: 409, body: { error: `This contact still has ${attached.join(', ')} attached. Reassign or remove them before deleting the contact.` } }
+    }
+
+    // What the cascade takes that lives outside the database (ContactOptions.beforeDelete): read now, cleared after.
+    const afterDelete = o.beforeDelete ? await o.beforeDelete(companyId, id) : undefined
+    try {
+      await db.delete(contact).where(and(eq(contact.id, id), eq(contact.companyId, companyId)))
+    } catch (e: any) {
+      const blob = [e?.code, e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(' ')
+      if (/23503|foreign key|violates foreign/i.test(blob)) {
+        return { deleted: false, status: 409, body: { error: 'Cannot delete a contact with linked records. Remove or reassign those first.' } }
+      }
+      throw e
+    }
+    afterDelete?.()
+    return { deleted: true, contact: existing }
+  }
+  return { remove }
+}
+export type ContactDeleter = ReturnType<typeof createContactDeleter>
+
+
 export interface ContactOptions {
   /** Accepted `type` values. Default lead/client/subcontractor/vendor. */
   types?: string[]
@@ -87,6 +136,18 @@ export interface ContactOptions {
   sites?: ContactSitesTables
   /** Hard page-size cap. Default 500 (matches the templates' global pagination guard). */
   maxLimit?: number
+  /**
+   * Run once the guards have passed and just before a contact is deleted; the function it answers runs after the delete
+   * has gone through. For what the database's cascade takes with the contact that leaves something outside the
+   * database — the unified app's salon visit photo files (crm/salon/visitPhotos.ts; salon live test, 2026-10-25).
+   * Absent: nothing, as before.
+   */
+  beforeDelete?: (companyId: string, contactId: string) => Promise<(() => void) | void>
+  /**
+   * The contact-delete rule to use (createContactDeleter), when the app deletes contacts at another door too and both
+   * must run the same guards. Given, it replaces `guards` and `beforeDelete` for the delete. Absent: built from them.
+   */
+  deleter?: { remove: (companyId: string, id: string) => Promise<ContactDeleteOutcome> }
 }
 
 export interface ContactDeps {
@@ -204,7 +265,9 @@ export function createContactRoutes(deps: ContactDeps) {
   const defaultType = o.defaultType || 'lead'
   const convertTo = o.convertTo || 'client'
   const relations = o.relations || []
-  const guards = o.guards || []
+  // A caller that also deletes contacts elsewhere (the unified app's bulk door) passes its deleter, built from these same
+  // guards; otherwise one is built here.
+  const deleter = o.deleter || createContactDeleter({ db, contact: t.contact, guards: o.guards, beforeDelete: o.beforeDelete })
   const duplicateCheck = o.duplicateCheck !== false
   const maxLimit = o.maxLimit || 500
 
@@ -537,29 +600,10 @@ export function createContactRoutes(deps: ContactDeps) {
   app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const existing = await findOwned(id, currentUser.companyId)
-    if (!existing) return c.json({ error: 'Contact not found' }, 404)
-
-    // Never let a delete silently orphan financial / work records or destroy history. Count what is
-    // attached and name it so the user can reassign first.
-    const counts = await Promise.all(guards.map((g) => guardCount(db, g, id)))
-    const hit = guards.map((g, i) => ({ g, n: counts[i] })).filter((x) => x.n > 0)
-    if (hit.length) {
-      const custom = hit.find((x) => x.g.message)
-      if (custom) return c.json({ error: custom.g.message!(custom.n), [`${custom.g.label}Count`]: custom.n }, 409)
-      const attached = hit.map(({ g, n }) => `${n} ${n === 1 ? g.label : (g.plural || g.label + 's')}`)
-      return c.json({ error: `This contact still has ${attached.join(', ')} attached. Reassign or remove them before deleting the contact.` }, 409)
-    }
-
-    try {
-      await db.delete(t.contact).where(eq(t.contact.id, id))
-    } catch (e: any) {
-      const blob = [e?.code, e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(' ')
-      if (/23503|foreign key|violates foreign/i.test(blob)) {
-        return c.json({ error: 'Cannot delete a contact with linked records. Remove or reassign those first.' }, 409)
-      }
-      throw e
-    }
+    // The one contact-delete rule (createContactDeleter): the bulk door runs the same.
+    const out = await deleter.remove(currentUser.companyId, id)
+    if (!out.deleted) return c.json(out.body, out.status)
+    const existing = out.contact
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })
     audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c })
     return c.body(null, 204)

@@ -271,6 +271,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         subtitle={stats ? `${stats.total} total` : undefined}
         action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add {cfg.addLabel}</Button> : undefined}
       />
+      {/* What this list holds, where a vertical keeps a second list of the same people (ContactsConfig.intro). */}
+      {cfg.intro && <p className="-mt-2 mb-4 text-sm text-gray-600 dark:text-slate-300">{cfg.intro}</p>}
 
       {stats && (
         <div className={`grid grid-cols-2 gap-4 mb-6 ${typeCards.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
@@ -305,7 +307,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         loading={loading}
         pagination={pagination}
         onPageChange={setPage}
-        onRowClick={(row) => navigate(`/crm/contacts/${row.id}`)}
+        // A type with a page of its own opens there (a salon client's chart, ContactsConfig.chart); every other here.
+        onRowClick={(row) => navigate(cfg.pageFor(row) || `/crm/contacts/${row.id}`)}
         actions={actions}
         // A search or a type filter that matches nothing is a different empty from a new company's: only the
         // second is told how to start. (E2E run 1)
@@ -326,18 +329,22 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
             </Field>
           </div>
           <Field label="Name *"><input ref={nameRef} type="text" aria-required="true" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'contact-name-error' : undefined} value={form.name} onChange={set('name')} className={inputCls} placeholder="John Smith" />{fieldErrors.name && <p id="contact-name-error" role="alert" className={errorCls}>{fieldErrors.name}</p>}</Field>
-          <Field label="Company"><input type="text" value={form.company} onChange={set('company')} className={inputCls} /></Field>
+          {/* Left out for a type that is a person, not a business (ContactsConfig.hiddenFields); a value already on the
+              record is kept, as the form still sends it. */}
+          {!cfg.hides(form.type, 'company') && <Field label="Company"><input type="text" value={form.company} onChange={set('company')} className={inputCls} /></Field>}
           <Field label="Email"><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></Field>
           <Field label="Phone"><input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} aria-invalid={!!fieldErrors.phone && !isValidPhone(form.phone)} />{fieldErrors.phone && !isValidPhone(form.phone) && <p role="alert" className={errorCls}>{fieldErrors.phone}</p>}</Field>
           <Field label="Mobile"><input type="tel" value={form.mobile} onChange={set('mobile')} className={inputCls} aria-invalid={!!fieldErrors.phone && !isValidPhone(form.mobile)} />{fieldErrors.phone && !isValidPhone(form.mobile) && <p role="alert" className={errorCls}>{fieldErrors.phone}</p>}</Field>
           {/* The company's source choices, plus Other for one-offs; managers and up edit the list. (T63) */}
           <SourceField api={api as any} value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} toast={toast} />
-          <div className="md:col-span-2"><Field label="Address"><input type="text" value={form.address} onChange={set('address')} className={inputCls} /></Field></div>
-          <Field label="City"><input type="text" value={form.city} onChange={set('city')} className={inputCls} /></Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="State"><input type="text" value={form.state} onChange={set('state')} className={inputCls} /></Field>
-            <Field label="ZIP"><input type="text" value={form.zip} onChange={set('zip')} className={inputCls} /></Field>
-          </div>
+          {!cfg.hides(form.type, 'address') && <>
+            <div className="md:col-span-2"><Field label="Address"><input type="text" value={form.address} onChange={set('address')} className={inputCls} /></Field></div>
+            <Field label="City"><input type="text" value={form.city} onChange={set('city')} className={inputCls} /></Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="State"><input type="text" value={form.state} onChange={set('state')} className={inputCls} /></Field>
+              <Field label="ZIP"><input type="text" value={form.zip} onChange={set('zip')} className={inputCls} /></Field>
+            </div>
+          </>}
           <div className="md:col-span-2"><Field label="Notes"><textarea value={form.notes} onChange={set('notes')} rows={3} className={inputCls} /></Field></div>
         </div>
 

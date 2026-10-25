@@ -6,6 +6,8 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { JOB_DISPATCH_PERMISSION } from '@twomiah/tenant-backend'
+import { and, eq } from 'drizzle-orm'
+import { contact } from '../../db/schema/index.ts'
 
 /** Only the named fields of `updates`, the ones a bulk change may set. */
 const pick = (updates: Record<string, any>, allowedFields: string[]) => {
@@ -34,10 +36,30 @@ export function createBulkRoutes(d: CrmDeps) {
   app.post('/contacts/delete', requirePermission('contacts:delete'), async (c) => {
     const user = c.get('user') as any
     const { ids } = await c.req.json()
-    if (!ids?.length) return noIds(c)
-    const count = await bulk.bulkDeleteContacts(user.companyId, ids)
-    d.audit.log({ req: c, action: 'BULK_DELETE', entity: 'contacts', metadata: { count }, userId: user.userId, companyId: user.companyId })
-    return one(c, { deleted: count })
+    if (!Array.isArray(ids) || !ids.length) return noIds(c)
+    /**
+     * EACH CONTACT BY THE ONE CONTACT-DELETE RULE (CrmDeps.contactDeleter — tenant-backend createContactDeleter, with the
+     * vertical's guards, built in modules/crm.ts). This door used to delete the lot with no guard at all: a salon client
+     * with appointments, visits and a membership went, which the contact's own Delete refuses (salon live test,
+     * 2026-10-25). Now one by one: those that pass are deleted (their visits' photo files with them — the deleter's
+     * beforeDelete), the rest are refused, each with the single Delete's own sentence.
+     */
+    const deleter = d.contactDeleter
+    if (!deleter) throw new Error('The contact-delete rule is not wired (CrmDeps.contactDeleter).')
+    const deletedIds: string[] = []
+    const refused: Array<{ id: string; name: string | null; error: string }> = []
+    for (const id of [...new Set(ids.map(String))]) {
+      const out = await deleter.remove(user.companyId, id)
+      if (out.deleted) {
+        deletedIds.push(id)
+        d.realtime.emitToCompany(user.companyId, d.realtime.EVENTS.CONTACT_DELETED, { id })
+      } else {
+        const [row] = out.status === 404 ? [] : await d.db.select({ name: contact.name }).from(contact).where(and(eq(contact.id, id), eq(contact.companyId, user.companyId))).limit(1)
+        refused.push({ id, name: row?.name ?? null, error: out.body.error })
+      }
+    }
+    d.audit.log({ req: c, action: 'BULK_DELETE', entity: 'contacts', metadata: { count: deletedIds.length, deletedIds, refused: refused.map((r) => r.id) }, userId: user.userId, companyId: user.companyId })
+    return one(c, { deleted: deletedIds.length, deletedIds, refused })
   })
 
   // Projects

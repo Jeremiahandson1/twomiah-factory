@@ -3,6 +3,7 @@
 // this file holds what the shared ones are switched to for a salon.
 import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
+import { NON_CLIENT_TYPES } from '../../server/crm/salon/people.ts'
 
 const DOC_TYPES = ['general', 'consent_form', 'photo', 'invoice', 'receipt', 'contract', 'other']
 
@@ -116,13 +117,24 @@ const salon: VerticalSettings = {
     onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
     // The salon's own dashboard at /crm/dashboard (crm/verticals/salon.tsx), reading /api/dashboard as crm.dashboard says.
     home: 'salon',
-    nav: {},
+    // Two lists of people (salon live test, 2026-10-25: Contacts and Clients side by side, and nobody could say why they
+    // differ). Clients is everyone who sits in the chair, each opening on their chart; the shared list is everyone on
+    // file — clients, leads and suppliers — and says so. Leads and suppliers have no chart and live only there.
+    nav: { '/crm/contacts': 'All Contacts' },
     // The bar's Regulars (crm/verticals/bar.tsx) shows on loyalty_rewards, which the salon's own Loyalty shares; a
     // salon's programme is its Loyalty page, so the bar's is left out — as the bar leaves out this one (2026-10-21).
     navHidden: ['/crm/regulars'],
     searchPlaceholder: 'Search clients, services, invoices...',
     contacts: {
       types: CONTACT_TYPES,
+      title: 'All Contacts',
+      intro: 'Everyone on file: clients, leads and suppliers. A client opens on their chart — hair, formulas, visits and photos — and is listed under Clients too.',
+      // A client's page is their chart, by the rule the server's search already follows (crm/comms/searchService.ts):
+      // every type but the ones that are not a client (people.ts NON_CLIENT_TYPES — one list, not a copy).
+      chart: { path: '/crm/clients/:id', feature: 'client_profiles', exceptTypes: [...NON_CLIENT_TYPES], label: 'client chart' },
+      // A client (and a lead, a client to be) is a person in the chair: no Company, no street address on the form.
+      // A supplier keeps both.
+      hiddenFields: { client: ['company', 'address'], lead: ['company', 'address'] },
       gateByFeature: true,
       // Projects, quotes and jobs are not offered to a salon (featureRegistry): no list, count or button for them.
       sections: { projects: false, quotes: false, portal: true },

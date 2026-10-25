@@ -7,6 +7,7 @@ import { todayKey as todayStr } from '../../../shared'
 import { companyDayKey as toDayString, companyMoment, companyHHMM, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useConfirm, useMayWrite } from '../../../shared'
 import { useToast } from '../../../shared'
+import { VisitPhotosField, uploadVisitPhotos, releaseVisitPhotos, type PendingVisitPhotos, type VisitPhotoUrls } from './VisitPhotos'
 
 /**
  * The steps of a formula, whatever shape the row is in.
@@ -54,6 +55,9 @@ export interface ServiceRecord {
   serviceName?: string;
   stylistFirstName?: string;
   stylistLastName?: string;
+  /** Where the visit's before / after photos are served (crm/salon/visitPhotos.ts); null when it has none. */
+  photoBeforeUrl?: string | null;
+  photoAfterUrl?: string | null;
 }
 
 interface ServiceOption { id: string; name?: string; price?: string | number; requiresPatchTest?: boolean }
@@ -94,6 +98,11 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
   // Deleting a visit is DELETE /api/service-records/:id, which asks invoices:update (a visit is what the client is billed
   // for): a stylist edits the record (schedule:update) but was offered Delete and refused (live role check sweep, 2026-10-23).
   const mayDelete = useMayWrite('invoices:update');
+  // A visit's photo is added or removed on schedule:update — editing the visit (serviceRecords.ts photo routes).
+  const mayPhoto = useMayWrite('schedule:update');
+  const [savedPhotos, setSavedPhotos] = useState<VisitPhotoUrls>({ photoBeforeUrl: record?.photoBeforeUrl ?? null, photoAfterUrl: record?.photoAfterUrl ?? null });
+  const [pendingPhotos, setPendingPhotos] = useState<PendingVisitPhotos>({});
+  const close = () => { releaseVisitPhotos(pendingPhotos); onClose(); };
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
@@ -192,6 +201,13 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
       if (form.notes) payload.notes = form.notes;
 
       const saved = record?.id ? await api.put(`/api/service-records/${record.id}`, payload) : await api.post('/api/service-records', payload);
+      // The photos picked go up once the visit has an id; one that does not is named, and the record stays saved.
+      const savedId = (saved as { id?: string } | null)?.id || record?.id;
+      if (savedId && Object.keys(pendingPhotos).length) {
+        const failed = await uploadVisitPhotos(savedId, pendingPhotos);
+        setPendingPhotos({});
+        if (failed.length) toast.error(`The record was saved, but ${failed.length === 1 ? 'a photo was' : 'photos were'} not added — ${failed.join('; ')}`);
+      }
       onSave(saved as Record<string, unknown>);
     } catch (err) {
       toast.error((err as Error).message || 'Failed to save service record');
@@ -215,14 +231,14 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50" onClick={close} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Scissors className="w-5 h-5 text-teal-700 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
             </h2>
-            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={close} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
@@ -321,11 +337,22 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
+            {(mayPhoto || savedPhotos.photoBeforeUrl || savedPhotos.photoAfterUrl) && (
+              <VisitPhotosField
+                recordId={record?.id}
+                saved={savedPhotos}
+                onSavedChange={setSavedPhotos}
+                pending={pendingPhotos}
+                onPendingChange={setPendingPhotos}
+                canEdit={mayPhoto}
+              />
+            )}
+
             <div className="flex gap-3 pt-2">
               {record?.id && mayDelete && (
                 <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:text-red-400">Delete</button>
               )}
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="button" onClick={close} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Record'}
               </button>
