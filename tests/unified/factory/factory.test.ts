@@ -7,9 +7,10 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import {
   unifiedSignupsMode, engineForSignup, isOwnerTestEmail, unifiedVerticalFor, deployUnifiedTenant, updateUnifiedTenantCode,
-  unifiedIntegrationEnv, provisionBody, type UnifiedDeps,
+  unifiedIntegrationEnv, provisionBody, unifiedFeatures, type UnifiedDeps,
 } from '../../../apps/api/src/unified/factory'
 import { resolveCrmFeatures } from '../../../apps/api/src/services/generator'
+import { crmTemplateFor, crmServiceSuffixFor, startingFeaturesFor } from '../../../apps/api/src/config/industryRouting'
 import * as deploySvc from '../../../apps/api/src/services/deploy'
 import { quickbooksTenantEnv } from '../../../apps/api/src/services/quickbooksEnv'
 import { fakeStore } from './fakeStore'
@@ -54,7 +55,40 @@ describe('UNIFIED_SIGNUPS', () => {
     expect(engineForSignup({ industry: 'dispensary', email: 'twomiah14@gmail.com' }, 'all')).toBe('templates')
     expect(unifiedVerticalFor('veterinary')).toBe('vet')
     expect(unifiedVerticalFor('restaurant')).toBe('restaurant')
-    expect(unifiedVerticalFor('food_truck')).toBe('basic')
+    // Food trucks run the restaurant CRM's food side (2026-10-24).
+    expect(unifiedVerticalFor('food_truck')).toBe('restaurant')
+  })
+})
+
+describe('the food side: restaurants and food trucks', () => {
+  test('a food truck routes to the restaurant CRM, its services named -events', () => {
+    expect(crmTemplateFor('food_truck')).toBe('crm-restaurant')
+    expect(crmServiceSuffixFor('food_truck')).toBe('events')
+    expect(crmTemplateFor('restaurant')).toBe('crm-restaurant')
+  })
+
+  test('the unified app starts a restaurant with the food side, a truck without event rooms; the reader, kiosk, online ordering and taps stay off', () => {
+    const restaurant = startingFeaturesFor('restaurant', { unified: true })
+    const truck = startingFeaturesFor('food_truck', { unified: true })
+    for (const f of ['bar_menu', 'bar_register', 'bar_tonight', 'event_bookings', 'catering_menus']) { expect(restaurant).toContain(f); expect(truck).toContain(f) }
+    expect(restaurant).toContain('event_spaces')
+    expect(truck).not.toContain('event_spaces')
+    for (const f of ['card_reader', 'order_kiosk', 'online_ordering', 'draft_taps']) { expect(restaurant).not.toContain(f); expect(truck).not.toContain(f) }
+    // The template-built restaurant CRM has no food screens: its starting set is as it was.
+    const template = startingFeaturesFor('restaurant', { unified: false })
+    for (const f of ['bar_menu', 'bar_register', 'bar_tonight', 'card_reader']) expect(template).not.toContain(f)
+    // A bar starts as before: the new food-service features are switched on by the owner.
+    const bar = startingFeaturesFor('bar', { unified: true })
+    expect(bar).toContain('bar_register')
+    for (const f of ['card_reader', 'order_kiosk', 'online_ordering']) expect(bar).not.toContain(f)
+  })
+
+  test('the provision body for a unified food truck carries the preset', () => {
+    const seed = unifiedFeatures({ industry: 'food_truck', features: [] }, {})
+    expect(seed).toContain('bar_register')
+    expect(seed).not.toContain('event_spaces')
+    // What a signup picked is kept as picked.
+    expect(unifiedFeatures({ industry: 'food_truck', features: ['contacts', 'bar_menu'] }, {}).sort()).toEqual(['bar_menu', 'contacts'])
   })
 })
 

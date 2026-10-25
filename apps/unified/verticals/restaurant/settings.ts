@@ -1,7 +1,12 @@
-// Restaurant: restaurants, caterers and event venues (templates/crm-restaurant), scoped to PRIVATE EVENTS — an enquiry
-// becomes a booking, the booking gets a menu and a banquet event order, deposits are scheduled against the event's one
-// invoice. Not table service or covers. Its events, rooms and catering packages are the events module
-// (server/crm/restaurant), which the bar shares.
+// Restaurant: restaurants, caterers, event venues and food trucks (templates/crm-restaurant; industryRouting.ts sends food
+// trucks here with their own starting features). Two sides:
+//   · PRIVATE EVENTS — an enquiry becomes a booking, the booking gets a menu and a banquet event order, deposits are
+//     scheduled against the event's one invoice. Its events, rooms and catering packages are the events module
+//     (server/crm/restaurant), which the bar shares.
+//   · THE FOOD SIDE (2026-10-24) — the bar's menu, register and grill, Tonight's kitchen hours, and where switched on the
+//     card reader, the order kiosk and online ordering for pickup (server/crm/bar), so a restaurant or a truck can run its
+//     counter on Twomiah. The bar-only parts stay out unless switched on: long tabs (Register Settings) and draft taps
+//     (the 'draft_taps' feature). Not table service or covers.
 import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
@@ -25,6 +30,10 @@ const STARTER: StarterContent = {
       content: "Build per-head packages on the Catering Menus page (New Package), with the price per person, minimum guests and courses. On an event's Food & Beverage tab, click Add Line and pick a package. A per-person line starts at the event's guest count, and you can change the quantity." },
     { title: "Run of Show & BEO", category: "Events", isFaq: false,
       content: "On an event's Run of Show tab, click Add Step for each timed step (time, department, what happens). Print BEO opens the Banquet Event Order for the kitchen and the floor team to print." },
+    { title: "The Register & the Grill", category: "Kitchen & Counter", isFaq: false,
+      content: "Add your dishes on Menu (prices, sizes and add-ons like Add bacon). On the Register, tap New table or Walk-up, ring the items, and Send fires the food to the Grill screen as one ticket. Take cash or card. Set your kitchen hours under Hours & Settings, and close the kitchen for a night from Tonight." },
+    { title: "Kiosk, Online Orders and Card Readers", category: "Kitchen & Counter", isFaq: false,
+      content: "Each is switched on in Settings › Features. Register Settings adds a Stripe card reader by its pairing code (your Stripe account must be connected in Settings › Integrations), sets up the kiosk and online ordering for pickup, and takes your DoorDash and Uber Eats links for your website." },
     { title: "Deposits & Payments", category: "Billing", isFaq: false,
       content: "On an event's Payments tab, click Schedule Payment for each deposit or installment, with its amount and due date. The first one raises the event's invoice. Use Record payment as money comes in, and the tab shows what is still owed. If the space has a minimum spend, the event warns while food & beverage is below it." },
   ],
@@ -44,6 +53,9 @@ const restaurant: VerticalSettings = {
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.
     dashboard: 'events',
     events: true,
+    // The food side: a restaurant's register rings walk-ups and tables until the owner turns long tabs on, and its tap
+    // list needs 'draft_taps' as well as the menu (server/crm/bar barRegisterRoutes.ts, barRoutes.ts).
+    foodService: { tabs: false, tapsFeature: 'draft_taps' },
     // No drawings to mark up (the template passed no plan-markup table).
     documents: { markup: false, types: DOC_TYPES },
     // A venue's enquiries come from wedding marketplaces, Google, Meta and its own site (routes/leads.ts); the same ids
@@ -61,7 +73,13 @@ const restaurant: VerticalSettings = {
   // templates/crm-restaurant/frontend/src/*Config.ts
   screens: {
     // shellConfig.ts: the menu keeps the base CRM's words; the events items are crm/verticals/restaurant.tsx's.
-    searchPlaceholder: 'Search events, contacts, invoices...',
+    searchPlaceholder: 'Search events, contacts, the menu...',
+    // The bar's food screens (crm/verticals/bar.tsx) in a restaurant's words; the tap list only with draft taps on.
+    nav: { '/crm/bar-settings': 'Hours & Settings' },
+    navSections: { 'The Bar': 'Kitchen & Counter' },
+    navFeatures: { '/crm/taps': ['draft_taps'] },
+    // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx).
+    foodService: { speakeasy: false },
     // The events dashboard (crm/pages/restaurant/DashboardPage.tsx) in place of the jobs one, as /api/dashboard is.
     home: 'events',
     contacts: {

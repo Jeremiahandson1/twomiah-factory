@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import { useAuth } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { verticalScreens } from '../../vertical'
 
 /**
  * BAR SETTINGS — bar hours and kitchen hours (never the same thing: the website shows both, everywhere),
@@ -24,6 +25,8 @@ const CARD = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:
 
 export default function BarSettingsPage() {
   const mayEdit = useMayWrite('bar:update');
+  // The speakeasy door is the bar's own game; a restaurant's or a truck's page is just its hours (screens.foodService).
+  const speakeasyOn = verticalScreens().foodService?.speakeasy !== false;
   const { user } = useAuth() as { user?: { role?: string } };
   const mayImport = mayEdit && ['owner', 'admin'].includes(String(user?.role || ''));
   const [hours, setHours] = useState<Hours>({ bar: {}, kitchen: {}, holidays: [] });
@@ -101,8 +104,8 @@ export default function BarSettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Clock className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Bar settings</h1>
-        <p className="text-gray-500 dark:text-slate-400">Hours, holidays and the speakeasy door — your website reads them live</p>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Clock className="w-6 h-6 text-orange-600 dark:text-orange-200" /> {speakeasyOn ? 'Bar settings' : 'Hours & settings'}</h1>
+        <p className="text-gray-500 dark:text-slate-400">{speakeasyOn ? 'Hours, holidays and the speakeasy door — your website reads them live' : 'Your hours and holidays — your website and online ordering read them live'}</p>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
       {ok && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200">{ok}</div>}
@@ -131,7 +134,7 @@ export default function BarSettingsPage() {
         {mayEdit && <button disabled={saving === 'hours'} onClick={() => put('hours', { hours: { ...hours, holidays: (hours.holidays || []).filter((h) => h.date) } }, 'Hours saved.')} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">{saving === 'hours' ? 'Saving…' : 'Save hours'}</button>}
       </section>
 
-      <section className={CARD}>
+      {speakeasyOn && <section className={CARD}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2"><KeyRound className="w-5 h-5" /> The speakeasy door</h2>
         <p className="text-sm text-gray-500 dark:text-slate-400">A hidden door on your website asks for a password. Tell regulars the password; whoever gets it right sees what it's good for. {speakeasy.enabled ? 'The door is on.' : 'The door is off until you set a password.'}</p>
         {mayEdit && (
@@ -146,7 +149,7 @@ export default function BarSettingsPage() {
             {speakeasy.enabled && <button disabled={!!saving} onClick={() => put('speak-off', { speakeasyPassword: null }, 'The door is off.')} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100">Turn the door off</button>}
           </div>
         )}
-      </section>
+      </section>}
 
       {mayImport && (
         <section className={CARD}>

@@ -26,6 +26,10 @@ const CRM_PRESETS: { id: string; name: string; icon: string; description: string
   { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, general contracting', templates: ['crm'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','documents','client_portal','google_reviews','lead_inbox'] },
   { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','documents','client_portal','google_reviews','lead_inbox','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen'] },
   { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', templates: ['crm', 'crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
+  // The restaurant CRM's food side (industryRouting.ts unifiedFeaturePreset): the menu, the register and grill and the
+  // kitchen's hours; a truck without event rooms. The reader, kiosk and online ordering are the owner's to switch on.
+  { id: 'restaurant-food', name: 'Restaurant', icon: '🍽️', description: 'Menu, register and grill, plus private events', templates: ['crm-restaurant'], features: ['contacts','invoices','team','dashboard','event_bookings','catering_menus','banquet_orders','event_deposits','online_payments','two_way_texting','google_reviews','lead_inbox','bar_menu','bar_register','bar_tonight','event_spaces'] },
+  { id: 'food-truck', name: 'Food Truck', icon: '🚚', description: 'Menu, register and grill, catering gigs — no event rooms', templates: ['crm-restaurant'], features: ['contacts','invoices','team','dashboard','event_bookings','catering_menus','banquet_orders','event_deposits','online_payments','two_way_texting','google_reviews','lead_inbox','bar_menu','bar_register','bar_tonight'] },
   { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' },
 ]
 
@@ -81,6 +85,16 @@ const CRM_REGISTRY = [
     { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with courses, choices and guest minimums', core: true },
     { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Printable banquet event order for the kitchen and floor', core: true },
     { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule with overdue tracking', core: true },
+  ]},
+  // The bar's food side, offered to restaurants and food trucks too (featureRegistry: bar_menu … online_ordering).
+  { category: 'Food & Drink Service', features: [
+    { id: 'bar_menu', name: 'Menu', description: 'The menu with real prices, sizes and add-ons, and one-tap 86 — live on your website', core: true },
+    { id: 'bar_register', name: 'Register & Grill', description: 'Ring walk-ups and tables, send food to the grill screen, take cash or card, split, close the night', core: true },
+    { id: 'bar_tonight', name: 'Tonight & Hours', description: 'Kitchen hours and the open/closed switch your website and online ordering read', core: true },
+    { id: 'card_reader', name: 'Card Reader', description: 'A Stripe card reader on the register, tips on the reader, refunds to the card', core: false },
+    { id: 'order_kiosk', name: 'Order Kiosk', description: 'A self-serve tablet; paid orders go to the grill marked KIOSK', core: false },
+    { id: 'online_ordering', name: 'Online Ordering', description: 'Pickup orders from your website, paid on your Stripe account', core: false },
+    { id: 'draft_taps', name: 'Draft Taps', description: 'A tap list for the beer you pour (restaurants)', core: false },
   ]},
   { category: 'Construction', features: [
     { id: 'projects', name: 'Projects', description: 'Multi-phase project management', core: false },
@@ -348,6 +362,8 @@ const BAR_INDUSTRIES = new Set(['bar', 'bar_and_grill', 'bar_grill', 'tavern', '
   'brewpub', 'brew_pub', 'taproom', 'tap_room', 'brewery', 'beer_garden', 'biergarten',
   'lounge', 'speakeasy', 'supper_club'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
+// Mirrors industryRouting.ts FOODTRUCK_INDUSTRIES → crm-restaurant (food trucks left crm-basic for its food side).
+const FOODTRUCK_INDUSTRIES = new Set(['food_truck', 'foodtruck', 'food', 'mobile_food', 'food_cart', 'mobile_kitchen', 'pop_up_kitchen'])
 const SHOWCASE_INDUSTRIES = new Set(['hospitality', 'hotel', 'fitness', 'gym', 'yoga', 'wedding', 'photography'])
 const CONTRACTOR_INDUSTRIES = new Set(['contractor', 'general_contractor', 'construction', 'remodeling', 'siding',
   'home_improvement', 'kitchen', 'bath_remodeling', 'bathroom_remodeling', 'deck_builder', 'fence_installation',
@@ -367,9 +383,9 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-rv': new Set(['Core', 'RV / Powersports', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-vet': new Set(['Core', 'Veterinary', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-salon': new Set(['Core', 'Salon & Barber', 'Finance', 'Communication', 'Marketing', 'Advanced']),
-  'crm-restaurant': new Set(['Core', 'Private Events & Catering', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-restaurant': new Set(['Core', 'Food & Drink Service', 'Private Events & Catering', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   // Field Operations carries the time clock a bar's staff use; nothing else in it is offered to crm-bar.
-  'crm-bar': new Set(['Core', 'Bar', 'Private Events & Catering', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-bar': new Set(['Core', 'Bar', 'Food & Drink Service', 'Private Events & Catering', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
@@ -390,7 +406,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (VET_INDUSTRIES.has(industry)) return 'crm-vet'
   if (SALON_INDUSTRIES.has(industry)) return 'crm-salon'
   if (BAR_INDUSTRIES.has(industry)) return 'crm-bar'
-  if (EVENTS_INDUSTRIES.has(industry)) return 'crm-restaurant'
+  if (EVENTS_INDUSTRIES.has(industry) || FOODTRUCK_INDUSTRIES.has(industry)) return 'crm-restaurant'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   if (SHOWCASE_INDUSTRIES.has(industry)) return 'crm-basic'
   if (CONTRACTOR_INDUSTRIES.has(industry)) return 'crm'

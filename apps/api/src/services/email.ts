@@ -267,6 +267,7 @@ export function firstWorkStep(industry: string | null | undefined): string {
     case 'salon':      return 'Add your service menu and book your first appointment'
     case 'veterinary': return 'Add your first client and their pet, and book an appointment'
     case 'events':     return 'Add your spaces and take your first party enquiry'
+    case 'foodtruck':  return 'Build your menu, then ring up a test order on the Register'
     case 'rv':         return 'Add a unit to your inventory and your first lead'
     case 'dispensary': return 'Add your products and your first customer'
     default:           return 'Add your first contact and create a job'

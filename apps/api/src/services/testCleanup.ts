@@ -13,7 +13,7 @@ import { S3Client, ListBucketsCommand, ListObjectsV2Command, DeleteObjectsComman
 import { deleteZone, detachTwomiahSubdomain } from './cloudflare'
 import { deleteDomainAuth as deleteSendGridAuth } from './sendgrid'
 import factoryStripe from './factoryStripe'
-import { BAR_INDUSTRIES } from '../config/industryRouting'
+import { BAR_INDUSTRIES, FOODTRUCK_INDUSTRIES } from '../config/industryRouting'
 import { loadOwnedResources, ownsServiceDirectly, ownsRepo, type OwnedResources } from './resourceOwnership'
 import { unifiedNames } from '../unified/names'
 import { teardownUnifiedTenant } from '../unified/teardown'
@@ -55,7 +55,9 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
   const isSalon = i === 'salon' || i === 'hair_salon' || i === 'barber' || i === 'barbershop' || i === 'nail_salon' || i === 'spa' || i === 'day_spa' || i === 'med_spa' || i === 'beauty' || i === 'beauty_salon' || i === 'esthetician' || i === 'lash' || i === 'brow_bar' || i === 'waxing'
   // Bars have their own CRM (crm-bar, -bar services); the set is industryRouting's, not a copy.
   const isBar = BAR_INDUSTRIES.has(i)
-  const isEvents = i === 'restaurant' || i === 'cafe' || i === 'bakery' || i === 'catering' || i === 'caterer' || i === 'events' || i === 'event_venue' || i === 'venue' || i === 'banquet' || i === 'private_events' || i === 'wedding_venue'
+  // Food trucks deploy as -events services since they moved to crm-restaurant (2026-10-24); older trucks are -basic,
+  // which the sweep below tries for every tenant.
+  const isEvents = i === 'restaurant' || i === 'cafe' || i === 'bakery' || i === 'catering' || i === 'caterer' || i === 'events' || i === 'event_venue' || i === 'venue' || i === 'banquet' || i === 'private_events' || i === 'wedding_venue' || FOODTRUCK_INDUSTRIES.has(i)
   const isStore = i === 'store' || i === 'retail' || i === 'ecommerce' || i === 'e_commerce' || i === 'online_store' || i === 'online_shop' || i === 'shop' || i === 'boutique' || i === 'storefront'
 
   const suffix =

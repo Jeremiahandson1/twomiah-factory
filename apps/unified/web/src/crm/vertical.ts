@@ -62,6 +62,8 @@ export interface VerticalScreens {
    * `typeof … === 'string'`: an absent setting reads as an empty object here.
    */
   home?: string
+  /** The bar's food screens as another vertical has them: speakeasy false leaves the bar's door game off its settings page (restaurant). */
+  foodService?: { speakeasy?: boolean }
   /**
    * The browser's Google Maps key (address search, satellite tiles), served at run time by the server
    * (GOOGLE_MAPS_BROWSER_KEY, restricted to the tenant's web addresses). Empty: no key — the screens fall back.

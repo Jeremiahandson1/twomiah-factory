@@ -20,6 +20,7 @@
  * cases here so customers get the closest-fit experience.
  */
 import { tradeFlagsFor } from './tradeDetect.ts'
+import { getDefaultFeaturesForTemplate } from './featureRegistry'
 
 export type CrmTemplate =
   | 'crm'
@@ -330,8 +331,9 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     // Hotels, gyms, yoga studios, wedding services and photographers. They keep the showcase-style
     // WEBSITE, which is right for them; what they no longer get is a construction CRM.
     case 'showcase':     return 'crm-basic'
-    // Contacts (catering leads), jobs (events), invoices — the basic set, exactly.
-    case 'foodtruck':    return 'crm-basic'
+    // A food truck runs the restaurant CRM's food side — the menu, the register and grill, the kiosk, online ordering
+    // (2026-10-24) — with its own starting features (unifiedFeaturePreset below). Trucks already on crm-basic stay there.
+    case 'foodtruck':    return 'crm-restaurant'
     // Anything unmatched, and the explicit "Other (blank slate)" option.
     case 'basic':        return 'crm-basic'
     case 'contractor':   return 'crm'
@@ -480,9 +482,34 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'bar':          return 'bar'    // {slug}-bar-api.onrender.com
     case 'store':        return 'shop' // {slug}-shop-api.onrender.com
     case 'showcase':     return 'basic' // shares crm-basic
-    case 'foodtruck':    return 'basic' // shares crm-basic
+    case 'foodtruck':    return 'events' // shares crm-restaurant (since 2026-10-24)
     case 'contractor':   return ''
   }
+}
+
+/**
+ * The unified app's starting features for an industry where they differ from its template's starting set
+ * (featureRegistry getDefaultFeaturesForTemplate). The food side is offered to crm-restaurant as opt-in — the
+ * template-built restaurant CRM has no screens for it — so the unified app's restaurants and trucks get it here:
+ *   · restaurants, caterers, venues: the private-events side as before, plus the menu, the register and grill and
+ *     Tonight's kitchen hours;
+ *   · food trucks: the same food side, without event rooms (catering gigs and their deposits stay).
+ * The card reader, the kiosk, online ordering and draft taps stay off until the owner switches them on (they need the
+ * business's own Stripe account or hardware). Null: the template's starting set, unchanged.
+ */
+export function unifiedFeaturePreset(industry: string | undefined | null): { add: string[]; drop: string[] } | null {
+  const v = verticalFor(industry)
+  const FOOD = ['bar_menu', 'bar_register', 'bar_tonight']
+  if (v === 'events') return { add: FOOD, drop: [] }
+  if (v === 'foodtruck') return { add: FOOD, drop: ['event_spaces'] }
+  return null
+}
+
+/** What a new business starts with: its template's starting set, with the unified app's preset where it has one. */
+export function startingFeaturesFor(industry: string | undefined | null, opts: { unified: boolean }): string[] {
+  const base = getDefaultFeaturesForTemplate(crmTemplateFor(industry))
+  const p = opts.unified ? unifiedFeaturePreset(industry) : null
+  return p ? [...new Set([...base.filter((f) => !p.drop.includes(f)), ...p.add])] : base
 }
 
 export function buildCrmApiHost(slug: string, industry: string | undefined | null): string {
