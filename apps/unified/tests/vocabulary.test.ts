@@ -25,6 +25,7 @@ describe('every business has its vocabulary', () => {
       for (const k of ['customer', 'team']) expect(typeof w[k].one === 'string' && typeof w[k].many === 'string').toBe(true)
       expect(w.work === null || (typeof w.work.one === 'string' && typeof w.work.many === 'string')).toBe(true)
       expect(['Portfolio', 'Gallery']).toContain(w.gallery)
+      expect(typeof w.customerCompany).toBe('boolean')
     })
   }
 
@@ -86,6 +87,10 @@ const SHARED_SCREENS = [
   'packages/tenant-ui/src/leads/NewLeadsPage.tsx',
   'packages/tenant-ui/src/invoicing/InvoicesPage.tsx',
   'packages/tenant-ui/src/people/ExpensesPage.tsx',
+  // Marketing (salon live test, 2026-10-25): "All contacts with an email", sentences about "contacts" to a salon.
+  'packages/tenant-ui/src/marketing/MarketingPage.tsx',
+  'packages/tenant-ui/src/marketing/EmailEditor.tsx',
+  'packages/tenant-ui/src/marketing/marketingCopy.ts',
   'apps/unified/server/site/legal.ts',
 ]
 const TRADE = /\b(jobs?|crews?|quotes?|contractors?|subcontractors?)\b/i
@@ -118,6 +123,18 @@ describe('shared screens carry no trade words of their own', () => {
       expect(found).toEqual([])
     })
   }
+
+  // Marketing's audience is the vocabulary's people, never "contacts" (salon live test, 2026-10-25: "All contacts with an
+  // email" on a salon). Elsewhere "contact" names the record, so this is the marketing screens' rule only.
+  for (const file of SHARED_SCREENS.filter((f) => f.includes('/marketing/'))) {
+    test(`${file}: whom an email goes to is the business's word`, () => {
+      const src = fs.readFileSync(path.join(REPO, file), 'utf8')
+      expect(readableStrings(src).filter((s) => /\bcontacts?\b/i.test(s.text)).map((s) => `${s.line}: ${s.text.trim()}`)).toEqual([])
+    })
+  }
+  test('the marketing rule reads the old audience line as a violation (mutation check)', () => {
+    expect(readableStrings(`<option value="all">All contacts with an email</option>`).some((s) => /\bcontacts?\b/i.test(s.text))).toBe(true)
+  })
 
   test('the reader finds a trade word where one is written (mutation check)', () => {
     expect(readableStrings(`  const x = 'Their jobs and records stay.'`).some((s) => TRADE.test(s.text))).toBe(true)

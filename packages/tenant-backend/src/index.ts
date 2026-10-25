@@ -201,6 +201,7 @@ export type { ExpenseDeps, ExpenseTables } from './expenses/expenses'
 // Email marketing — templates, campaigns (audience preview, send, schedule, tracking, unsubscribe), drip sequences + the worker.
 export { createMarketingService, createMarketingRoutes, MarketingError, SEQUENCE_TRIGGERS, AUDIENCE_TYPES, MERGE_FIELDS, unknownMergeFields, personalize } from './marketing/marketing'
 export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, MarketingTables, MailMessage } from './marketing/marketing'
+export { sanitizeEmailHtml, isSafeCss } from './marketing/emailHtml'
 
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
 export { moveLegacyWebsiteLeadsToInbox } from './leads/legacyWebsiteLeads'

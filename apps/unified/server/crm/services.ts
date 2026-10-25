@@ -20,6 +20,7 @@ import {
 import { calculateDistance } from './field/geofencingService.ts'
 import type { EmailService } from '../core/email.ts'
 import type { CrmSettings } from '../core/vertical.ts'
+import type { Vocabulary } from '../../../../packages/tenant-ui/src/labels/vocabulary.ts'
 import type { Logger } from '../core/logger.ts'
 import { crmEmail, crmTemplates } from './messages.ts'
 import { createVisitSubject } from './salon/reviewSubject.ts'
@@ -47,6 +48,8 @@ export interface CrmServiceDeps {
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** What the business calls the people it serves (VerticalSettings.vocabulary): a marketing email's footer says it. */
+  vocabulary?: Vocabulary
   /** Tests only: a fake Stripe client (TestSeams.stripe); otherwise one is made from STRIPE_SECRET_KEY. */
   stripe?: any
 }
@@ -117,6 +120,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const marketing = createMarketingService({
     db, tables: { campaign, contact, emailLog }, sendRaw: email.sendRaw, isFeatureEnabled,
     sequencesEnabled: (companyId: string) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']),
+    // "You are receiving this because you are a guest of ours" on a bar's email, not "a customer or contact" (salon
+    // live test, 2026-10-25: the page's words come from the vocabulary; the email it sends says the same).
+    recipientNoun: deps.vocabulary?.customer.one,
   } as any)
   const recurring = createRecurringService({ db, tables: { invoice, invoiceLineItem }, emailService } as any)
   const agreements = createAgreementsService({

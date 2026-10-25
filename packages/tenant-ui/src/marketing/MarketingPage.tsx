@@ -3,7 +3,7 @@
 // Before: two copies whose tables read fields the backend never sent (recipients / enrolled always 0, opens and clicks
 // always "-"), no way to enroll a contact in a sequence, edit a sequence, duplicate or delete a template, alert()s for
 // every failure, and a trigger picker offering automations nothing fires.
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, Clock, Play, Pause, UserPlus, Calendar, X } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
@@ -11,6 +11,8 @@ import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 import { whenDateTime, companyFromLocalInput } from '../time/companyClock'
 import { codeLabel } from '../labels/codes'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { EmailEditor, type EmailBrand } from './EmailEditor'
+import { marketingCopy, type MergeField } from './marketingCopy'
 
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
@@ -39,6 +41,7 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
   const loadStats = useCallback(async () => { try { setStats(await api.get('/api/marketing/stats')) } catch { /* cards are decorative */ } }, [api])
   useEffect(() => { loadStats() }, [loadStats])
   const contactTypes = config?.contactTypes && config.contactTypes.length ? config.contactTypes : DEFAULT_CONTACT_TYPES.map((t: any) => ({ value: t.value, label: t.label }))
+  const look: EditorLook = { brand: config?.brand, pickImage: config?.pickImage }
 
   return (
     <div className="space-y-6" data-testid="marketing-page-shared">
@@ -69,9 +72,9 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
           {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>)}
         </div>
       )}
-      {tab === 'campaigns' && showCampaigns && <CampaignsTab api={api} toast={toast} contactTypes={contactTypes} onChanged={loadStats} />}
-      {tab === 'templates' && showCampaigns && <TemplatesTab api={api} toast={toast} />}
-      {(tab === 'sequences' || tabs.length === 1) && showSequences && <SequencesTab api={api} toast={toast} label={seqLabel} onChanged={loadStats} />}
+      {tab === 'campaigns' && showCampaigns && <CampaignsTab api={api} toast={toast} contactTypes={contactTypes} look={look} onChanged={loadStats} />}
+      {tab === 'templates' && showCampaigns && <TemplatesTab api={api} toast={toast} look={look} />}
+      {(tab === 'sequences' || tabs.length === 1) && showSequences && <SequencesTab api={api} toast={toast} label={seqLabel} look={look} onChanged={loadStats} />}
     </div>
   )
 }
@@ -82,6 +85,8 @@ function Stat({ icon: Icon, label, value, tone = 'gray' }: { icon: any; label: s
 }
 const ErrorBox = ({ msg }: { msg: string }) => (msg ? <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{msg}</div> : null)
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+/** What the email editor draws with: the business's colour and logo, and its photo library (MarketingConfig). */
+interface EditorLook { brand?: EmailBrand; pickImage?: () => Promise<string | null> }
 
 // ─── campaigns ────────────────────────────────────────────────────────────────
 /**
@@ -94,8 +99,9 @@ function useMarketingWrites() {
   return { mayCreate: useMayWrite('marketing:create'), mayUpdate: useMayWrite('marketing:update'), mayDelete: useMayWrite('marketing:delete') }
 }
 
-function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingApi; toast: MarketingToast; contactTypes: Array<{ value: string; label: string }>; onChanged: () => void }) {
+function CampaignsTab({ api, toast, contactTypes, look, onChanged }: { api: MarketingApi; toast: MarketingToast; contactTypes: Array<{ value: string; label: string }>; look: EditorLook; onChanged: () => void }) {
   const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
+  const copy = marketingCopy()
   const [rows, setRows] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<{ open: boolean; campaign: Campaign | null }>({ open: false, campaign: null })
@@ -105,7 +111,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
   const load = useCallback(async () => { try { const d = await api.get('/api/marketing/campaigns'); setRows(d?.data || []) } catch (e) { toast.error(errMsg(e, 'Failed to load campaigns')) } finally { setLoading(false) } }, [api])
   useEffect(() => { load() }, [load])
   const refresh = () => { load(); onChanged() }
-  const send = async () => { if (!confirmSend) return; try { const r = await api.post(`/api/marketing/campaigns/${confirmSend.id}/send`); if (r?.status === 'failed') toast.error(r?.message || 'None of these emails could be sent.'); else toast.success(`Sent to ${r?.sent ?? 0} of ${r?.audience ?? 0} contacts${r?.failed ? ` (${r.failed} could not be sent)` : ''}`) } catch (e) { toast.error(errMsg(e, 'Failed to send campaign')) } finally { setConfirmSend(null); refresh() } }
+  const send = async () => { if (!confirmSend) return; try { const r = await api.post(`/api/marketing/campaigns/${confirmSend.id}/send`); if (r?.status === 'failed') toast.error(r?.message || 'None of these emails could be sent.'); else toast.success(`${copy.sentTo(r?.sent ?? 0, r?.audience ?? 0)}${r?.failed ? ` (${r.failed} could not be sent)` : ''}`) } catch (e) { toast.error(errMsg(e, 'Failed to send campaign')) } finally { setConfirmSend(null); refresh() } }
   const remove = async () => { if (!toDelete) return; try { await api.delete('/api/marketing/campaigns', toDelete.id); toast.success('Campaign deleted') } catch (e) { toast.error(errMsg(e, 'Failed to delete campaign')) } finally { setToDelete(null); refresh() } }
   const doSchedule = async () => { if (!schedule) return; try { await api.post(`/api/marketing/campaigns/${schedule.campaign.id}/schedule`, { scheduledFor: companyFromLocalInput(schedule.when).toISOString() /* the box is the company's wall clock */ }); toast.success('Campaign scheduled'); setSchedule(null); refresh() } catch (e) { toast.error(errMsg(e, 'Failed to schedule')) } }
   const unschedule = async (c: Campaign) => { try { await api.post(`/api/marketing/campaigns/${c.id}/unschedule`); toast.success('Back to draft'); refresh() } catch (e) { toast.error(errMsg(e, 'Failed to unschedule')) } }
@@ -152,8 +158,8 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
           </table>
         </div>
       )}
-      {form.open && <CampaignForm api={api} toast={toast} campaign={form.campaign} contactTypes={contactTypes} onSaved={() => { setForm({ open: false, campaign: null }); refresh() }} onClose={() => setForm({ open: false, campaign: null })} />}
-      <ConfirmModal isOpen={!!confirmSend} onClose={() => setConfirmSend(null)} onConfirm={send} title="Send campaign" message={`Send "${confirmSend?.name || ''}" to its audience now? Contacts who unsubscribed are always excluded.`} confirmText="Send now" danger={false} />
+      {form.open && <CampaignForm api={api} toast={toast} campaign={form.campaign} contactTypes={contactTypes} look={look} onSaved={() => { setForm({ open: false, campaign: null }); refresh() }} onClose={() => setForm({ open: false, campaign: null })} />}
+      <ConfirmModal isOpen={!!confirmSend} onClose={() => setConfirmSend(null)} onConfirm={send} title="Send campaign" message={copy.confirmSend(confirmSend?.name || '')} confirmText="Send now" danger={false} />
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete campaign" message={`Delete "${toDelete?.name || ''}"${toDelete?.status === 'sent' ? ' and its delivery history' : ''}?`} confirmText="Delete" />
       <Modal isOpen={!!schedule} onClose={() => setSchedule(null)} title="Schedule campaign" size="sm">
         <Field label="Send at"><input type="datetime-local" value={schedule?.when || ''} onChange={(e) => setSchedule((prev) => (prev ? { ...prev, when: e.target.value } : prev))} className={inputCls} /></Field>
@@ -169,60 +175,23 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
  * What an email can say about its reader, offered as buttons that put the field where the cursor is — from the
  * server's own list (GET /api/marketing/merge-fields), the one the save and the send check against. Live test
  * 2026-10-22: a campaign went out reading "Hi {firstName}"; the hint named three fields in a grey line. A field the
- * server does not have is named here as it is typed; the server refuses to save or send it either way.
+ * server does not have is named in the editor as it is typed; the server refuses to save or send it either way. Which of
+ * them are offered as buttons is marketingCopy.ts offeredMergeFields (salon live test, 2026-10-25).
  */
-interface MergeField { key: string; label: string; token: string }
-const MERGE_TOKEN = /\{\{\s*([A-Za-z_]\w*)\s*\}\}|\{\s*([A-Za-z_]\w*)\s*\}/g
 function useMergeFields(api: MarketingApi) {
   const [fields, setFields] = useState<MergeField[]>([])
   useEffect(() => { api.get('/api/marketing/merge-fields').then((r: any) => setFields(Array.isArray(r?.data) ? r.data : [])).catch(() => setFields([])) }, [api])
   return fields
 }
-function unknownTokens(fields: MergeField[], ...texts: string[]): string[] {
-  if (!fields.length) return []
-  const known = new Set(fields.map((f) => f.key.toLowerCase()))
-  const out = new Set<string>()
-  for (const t of texts) for (const m of String(t || '').matchAll(MERGE_TOKEN)) if (!known.has(String(m[1] ?? m[2]).toLowerCase())) out.add(m[0])
-  return [...out]
-}
-/** Put `token` into `value` where the textarea's cursor is (the end when it has none), and the cursor after it. */
-function insertAt(el: HTMLTextAreaElement | null, value: string, token: string, set: (v: string) => void) {
-  const start = el && document.activeElement === el ? el.selectionStart : value.length
-  const end = el && document.activeElement === el ? el.selectionEnd : value.length
-  set(value.slice(0, start) + token + value.slice(end))
-  requestAnimationFrame(() => { if (!el) return; el.focus(); el.setSelectionRange(start + token.length, start + token.length) })
-}
-function MergeFieldBar({ fields, onInsert, check }: { fields: MergeField[]; onInsert: (token: string) => void; check: string[] }) {
-  if (!fields.length) return null
-  const bad = unknownTokens(fields, ...check)
-  return (
-    <div className="mt-2" data-testid="merge-fields">
-      <p className="text-xs text-gray-600 dark:text-slate-300 mb-1">Personalize — click to insert where your cursor is:</p>
-      <div className="flex flex-wrap gap-1.5">
-        {fields.map((f) => (
-          <button key={f.key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onInsert(f.token)} title={`Inserts ${f.token}`}
-            className="px-2 py-1 rounded-md border border-gray-300 bg-white text-xs text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
-            {f.label} <code className="text-gray-500 dark:text-slate-400">{f.token}</code>
-          </button>
-        ))}
-      </div>
-      {bad.length > 0 && (
-        <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">
-          {bad.join(', ')} {bad.length === 1 ? 'is not a field we can fill' : 'are not fields we can fill'} — it would be sent as written. Use one of the fields above.
-        </p>
-      )}
-    </div>
-  )
-}
 
-function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; onSaved: () => void; onClose: () => void }) {
+function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string } | null) || null
   const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10) })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [audience, setAudience] = useState<number | null>(null)
   const fields = useMergeFields(api)
-  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const copy = marketingCopy()
   const audienceFilter = form.audienceType === 'segment' ? { ...(form.segmentType ? { type: form.segmentType } : {}), ...(form.segmentCreatedAfter ? { createdAfter: form.segmentCreatedAfter } : {}) } : null
   useEffect(() => {
     let cancelled = false; setAudience(null)
@@ -246,17 +215,17 @@ function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: 
         <Field label="Campaign name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
         <Field label="Subject line *"><input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className={inputCls} /></Field>
         <Field label="Audience">
-          <select value={form.audienceType} onChange={(e) => setForm((f) => ({ ...f, audienceType: e.target.value }))} className={inputCls}><option value="all">All contacts with an email</option><option value="segment">Segment</option></select>
+          <select value={form.audienceType} onChange={(e) => setForm((f) => ({ ...f, audienceType: e.target.value }))} className={inputCls}><option value="all">{copy.audienceAll}</option><option value="segment">{copy.audienceSegment}</option></select>
           {form.audienceType === 'segment' && (
             <div className="mt-3 grid sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg dark:bg-slate-800">
-              <Field label="Contact type"><select value={form.segmentType} onChange={(e) => setForm((f) => ({ ...f, segmentType: e.target.value }))} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+              <Field label={copy.segmentType}><select value={form.segmentType} onChange={(e) => setForm((f) => ({ ...f, segmentType: e.target.value }))} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
               <Field label="Added on or after"><input type="date" value={form.segmentCreatedAfter} onChange={(e) => setForm((f) => ({ ...f, segmentCreatedAfter: e.target.value }))} className={inputCls} /></Field>
             </div>
           )}
-          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{audience === null ? 'Counting recipients…' : `This campaign will go to ${audience} contact${audience === 1 ? '' : 's'}.`} Contacts who unsubscribed are always excluded.</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{audience === null ? copy.counting : copy.willGoTo(audience)} {copy.unsubscribedExcluded}</p>
         </Field>
-        <Field label="Email body (HTML)"><textarea ref={bodyRef} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} />
-          <MergeFieldBar fields={fields} check={[form.subject, form.body]} onInsert={(tok) => insertAt(bodyRef.current, form.body, tok, (body) => setForm((f) => ({ ...f, body })))} />
+        <Field label="Email">
+          <EmailEditor value={form.body} onChange={(body) => setForm((f) => ({ ...f, body }))} fields={fields} subject={form.subject} brand={look.brand} pickImage={look.pickImage} />
         </Field>
       </div>
       <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
@@ -265,7 +234,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: 
 }
 
 // ─── templates ────────────────────────────────────────────────────────────────
-function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast }) {
+function TemplatesTab({ api, toast, look }: { api: MarketingApi; toast: MarketingToast; look: EditorLook }) {
   const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
   const [rows, setRows] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
@@ -298,15 +267,14 @@ function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast
           ))}
         </div>
       )}
-      {form.open && <TemplateForm api={api} toast={toast} template={form.template} onSaved={() => { setForm({ open: false, template: null }); load() }} onClose={() => setForm({ open: false, template: null })} />}
+      {form.open && <TemplateForm api={api} toast={toast} template={form.template} look={look} onSaved={() => { setForm({ open: false, template: null }); load() }} onClose={() => setForm({ open: false, template: null })} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete template" message={`Delete "${toDelete?.name || ''}"?`} confirmText="Delete" />
     </div>
   )
 }
-function TemplateForm({ api, toast, template, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; template: Template | null; onSaved: () => void; onClose: () => void }) {
+function TemplateForm({ api, toast, template, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; template: Template | null; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const [form, setForm] = useState({ name: template?.name || '', subject: template?.subject || '', body: template?.body || '', category: template?.category || template?.type || 'general', active: template?.active !== false })
   const fields = useMergeFields(api)
-  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const save = async () => {
@@ -325,8 +293,8 @@ function TemplateForm({ api, toast, template, onSaved, onClose }: { api: Marketi
           <Field label="Category"><select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputCls}>{TEMPLATE_CATEGORIES.map((c) => <option key={c} value={c}>{c === 'followup' ? 'Follow-up' : c.charAt(0).toUpperCase() + c.slice(1)}</option>)}</select></Field>
         </div>
         <Field label="Subject *"><input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className={inputCls} /></Field>
-        <Field label="Body (HTML)"><textarea ref={bodyRef} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} />
-          <MergeFieldBar fields={fields} check={[form.subject, form.body]} onInsert={(tok) => insertAt(bodyRef.current, form.body, tok, (body) => setForm((f) => ({ ...f, body })))} />
+        <Field label="Email">
+          <EmailEditor value={form.body} onChange={(body) => setForm((f) => ({ ...f, body }))} fields={fields} subject={form.subject} brand={look.brand} pickImage={look.pickImage} />
         </Field>
         {template && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="rounded" /> Active</label>}
       </div>
@@ -336,8 +304,9 @@ function TemplateForm({ api, toast, template, onSaved, onClose }: { api: Marketi
 }
 
 // ─── sequences ────────────────────────────────────────────────────────────────
-function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toast: MarketingToast; label: string; onChanged: () => void }) {
+function SequencesTab({ api, toast, label, look, onChanged }: { api: MarketingApi; toast: MarketingToast; label: string; look: EditorLook; onChanged: () => void }) {
   const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
+  const copy = marketingCopy()
   const [rows, setRows] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<{ open: boolean; sequence: Sequence | null }>({ open: false, sequence: null })
@@ -353,7 +322,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
     <div className="space-y-4">
       {mayCreate && <div className="flex justify-end"><Button onClick={() => setForm({ open: true, sequence: null })}><Plus className="w-4 h-4 mr-2 inline" />New Sequence</Button></div>}
       {rows.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No {label.toLowerCase()} yet</p><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">A series of emails sent automatically, spaced out over days, to the contacts you enroll.</p></div>
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No {label.toLowerCase()} yet</p><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{copy.sequenceEmpty}</p></div>
       ) : rows.map((s) => (
         <div key={s.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -366,7 +335,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
             </div>
             <div className="flex items-center gap-2">
               <span className={`px-2 py-1 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{s.active ? 'Active' : 'Paused'}</span>
-              {mayUpdate && <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? 'Enroll a contact' : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>}
+              {mayUpdate && <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? copy.enroll : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>}
               {mayUpdate && <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>}
               {mayUpdate && <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>}
               {mayDelete && <button onClick={() => setToDelete(s)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
@@ -384,19 +353,19 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
           )}
         </div>
       ))}
-      {form.open && <SequenceForm api={api} toast={toast} sequence={form.sequence} label={label} onSaved={() => { setForm({ open: false, sequence: null }); refresh() }} onClose={() => setForm({ open: false, sequence: null })} />}
+      {form.open && <SequenceForm api={api} toast={toast} sequence={form.sequence} label={label} look={look} onSaved={() => { setForm({ open: false, sequence: null }); refresh() }} onClose={() => setForm({ open: false, sequence: null })} />}
       {enroll && <EnrollModal api={api} toast={toast} sequence={enroll} onDone={() => { setEnroll(null); refresh() }} onClose={() => setEnroll(null)} />}
-      <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete sequence" message={`Delete "${toDelete?.name || ''}"? Contacts currently enrolled stop receiving it.`} confirmText="Delete" />
+      <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete sequence" message={copy.sequenceDeleted(toDelete?.name || '')} confirmText="Delete" />
     </div>
   )
 }
-function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence | null; label: string; onSaved: () => void; onClose: () => void }) {
+function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence | null; label: string; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const [form, setForm] = useState<{ name: string; active: boolean; steps: Step[] }>({ name: sequence?.name || '', active: sequence ? !!sequence.active : true, steps: sequence?.steps?.length ? sequence.steps.map((s) => ({ delayDays: Number(s.delayDays || 0), delayHours: Number(s.delayHours || 0), subject: s.subject || '', body: s.body || '' })) : [{ delayDays: 0, delayHours: 0, subject: '', body: '' }] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const setStep = (i: number, patch: Partial<Step>) => setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
   const fields = useMergeFields(api)
-  const stepRefs = useRef<Array<HTMLTextAreaElement | null>>([])
+  const copy = marketingCopy()
   const save = async () => {
     if (!form.name.trim()) { setError('Sequence name is required'); return }
     const bad = form.steps.findIndex((s) => !s.subject.trim())
@@ -420,9 +389,9 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
         <ErrorBox msg={error} />
         <div className="grid grid-cols-2 gap-4">
           <Field label="Name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
-          <Field label="Status"><select value={form.active ? 'active' : 'paused'} onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === 'active' }))} className={inputCls}><option value="active">Active — contacts can be enrolled</option><option value="paused">Paused</option></select></Field>
+          <Field label="Status"><select value={form.active ? 'active' : 'paused'} onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === 'active' }))} className={inputCls}><option value="active">{copy.sequenceActive}</option><option value="paused">Paused</option></select></Field>
         </div>
-        <p className="text-xs text-gray-500 dark:text-slate-400">Contacts are enrolled by hand from the sequence card. Step 1 goes out within 15 minutes of enrolling; each later step waits its delay after the previous one.</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400">{copy.sequenceHowEnrolled}</p>
         <div className="space-y-3">
           <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm((f) => ({ ...f, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] }))} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add step</button></div>
           {form.steps.map((s, i) => (
@@ -438,8 +407,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
                 </div>
               </div>
               <input value={s.subject} onChange={(e) => setStep(i, { subject: e.target.value })} className={inputCls} placeholder="Subject line *" />
-              <textarea ref={(el) => { stepRefs.current[i] = el }} value={s.body} onChange={(e) => setStep(i, { body: e.target.value })} className={`${inputCls} text-sm`} rows={3} placeholder="Email body (HTML)" />
-              <MergeFieldBar fields={fields} check={[s.subject, s.body]} onInsert={(tok) => insertAt(stepRefs.current[i], s.body, tok, (body) => setStep(i, { body }))} />
+              <EmailEditor value={s.body} onChange={(body) => setStep(i, { body })} fields={fields} subject={s.subject} brand={look.brand} pickImage={look.pickImage} compact />
             </div>
           ))}
         </div>
@@ -449,6 +417,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
   )
 }
 function EnrollModal({ api, toast, sequence, onDone, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence; onDone: () => void; onClose: () => void }) {
+  const copy = marketingCopy()
   const [q, setQ] = useState('')
   const [results, setResults] = useState<Array<{ id: string; name: string; email?: string | null; emailOptOut?: boolean }>>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -459,9 +428,9 @@ function EnrollModal({ api, toast, sequence, onDone, onClose }: { api: Marketing
     <Modal isOpen onClose={onClose} title={`Enroll in “${sequence.name}”`} size="md">
       <div className="space-y-3">
         <ErrorBox msg={error} />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search contacts by name or email…" className={inputCls} />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={copy.enrollSearch} className={inputCls} />
         <div className="divide-y rounded-lg border dark:border-slate-700 dark:divide-slate-700 max-h-72 overflow-y-auto">
-          {results.length === 0 && <p className="p-3 text-sm text-gray-500 dark:text-slate-400">No contacts found</p>}
+          {results.length === 0 && <p className="p-3 text-sm text-gray-500 dark:text-slate-400">{copy.enrollNone}</p>}
           {results.map((c) => (
             <button key={c.id} type="button" disabled={!c.email || busy === c.id} onClick={() => go(c.id)} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-slate-800">
               <span><span className="font-medium text-gray-900 dark:text-slate-100">{c.name}</span><span className="block text-xs text-gray-500 dark:text-slate-400">{c.email || 'no email address'}{c.emailOptOut ? ' · unsubscribed' : ''}</span></span>

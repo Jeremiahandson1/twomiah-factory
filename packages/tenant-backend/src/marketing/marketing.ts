@@ -15,6 +15,7 @@ import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc } from 'drizzle
 import { createId } from '@paralleldrive/cuid2'
 import { publicApiBase } from '../publicOrigin'
 import { mailFailureReason } from '../integrations/mailError'
+import { sanitizeEmailHtml } from './emailHtml'
 
 export interface MarketingTables { campaign: any; contact: any; emailLog: any }
 export interface MailMessage { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }
@@ -36,6 +37,11 @@ export interface MarketingServiceDeps {
    * isFeatureEnabled(companyId, 'email_marketing'). (RV T19 M6)
    */
   sequencesEnabled?: (companyId: string) => Promise<boolean>
+  /**
+   * What the business calls the people it emails, for the footer's "because you are a … of ours": a salon's client, a
+   * bar's guest (the unified app's vocabulary). Without it the footer says what it always said, "a customer or contact".
+   */
+  recipientNoun?: string
 }
 export interface MarketingRoutesDeps {
   service: MarketingService
@@ -74,8 +80,10 @@ function normaliseSteps(steps: any[]): Array<{ stepNumber: number; delayDays: nu
     if (!Number.isFinite(delayDays) || delayDays < 0 || !Number.isFinite(delayHours) || delayHours < 0) throw new MarketingError(`Step ${i + 1}: delay must be a number of days/hours ≥ 0`, 400)
     const subject = String(step.subject || '').trim()
     if (!subject) throw new MarketingError(`Step ${i + 1}: subject is required`, 400)
-    checkMergeFields(`Step ${i + 1}`, subject, String(step.body || ''))
-    return { stepNumber: i + 1, delayDays: Math.floor(delayDays), delayHours: Math.floor(delayHours), subject, body: String(step.body || ''), templateId: step.templateId || null }
+    // A step's body is an email body like a campaign's: the same allow-list (emailHtml.ts) where it is saved.
+    const body = sanitizeEmailHtml(String(step.body || ''))
+    checkMergeFields(`Step ${i + 1}`, subject, body)
+    return { stepNumber: i + 1, delayDays: Math.floor(delayDays), delayHours: Math.floor(delayHours), subject, body, templateId: step.templateId || null }
   })
 }
 /**
@@ -107,7 +115,21 @@ function checkMergeFields(where: string, ...texts: Array<string | null | undefin
   const bad = unknownMergeFields(...texts)
   if (bad.length) throw new MarketingError(`${where} has ${bad.length === 1 ? 'a merge field' : 'merge fields'} we can't fill: ${bad.join(', ')}. The fields you can use are ${MERGE_FIELDS.map((f) => `{{${f.key}}}`).join(', ')}.`, 400)
 }
-export function personalize(content: string, c: any): string {
+const escapeHtml = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+/** A token with the spaces before it, so a field with nothing in it can take its space with it. */
+const SPACED_TOKEN = /([ \t]*)(?:\{\{\s*([A-Za-z_][\w]*)\s*\}\}|\{\s*([A-Za-z_][\w]*)\s*\})/g
+/**
+ * Fill the merge fields for one person.
+ *
+ * html: the body of an email. A value is text, not markup — a contact's name comes from a website form as often as from
+ * the owner — so it is escaped there; the subject line is plain text and is not.
+ *
+ * A field with nothing in it (no company, no last name) leaves no gap: the space before it goes too when what follows
+ * is a space, punctuation, a tag or the end — "Dear Pat {{lastName}}," reads "Dear Pat,", not "Dear Pat ,". (Salon live
+ * test, 2026-10-25: a company field offered to businesses whose customers are people; the editor now offers it only
+ * where they can be companies, and an email that still has it reads cleanly for the person without one.)
+ */
+export function personalize(content: string, c: any, opts: { html?: boolean } = {}): string {
   if (!content) return content
   const full = String(c?.name || '').trim()
   const [first, ...rest] = full.split(/\s+/)
@@ -120,12 +142,20 @@ export function personalize(content: string, c: any): string {
   }
   // A field we have is filled in either spelling; anything else is left as written — the checks above keep it from
   // being saved or sent, and the CSS of an HTML email (`p { color: red }`) is not a token.
-  return content.replace(MERGE_TOKEN, (whole, a, b) => { const k = fieldKey(a ?? b); return k ? values[k] : whole })
+  return content.replace(SPACED_TOKEN, (whole: string, space: string, a: string | undefined, b: string | undefined, at: number, all: string) => {
+    const k = fieldKey((a ?? b) as string)
+    if (!k) return whole
+    const v = values[k]
+    if (v) return space + (opts.html ? escapeHtml(v) : v)
+    const after = all[at + whole.length]
+    return after === undefined || /[\s,.;:!?)\]<]/.test(after) ? '' : space
+  })
 }
 const camelSequence = (s: any) => s ? ({ ...s, companyId: s.company_id ?? s.companyId, createdAt: s.created_at ?? s.createdAt, updatedAt: s.updated_at ?? s.updatedAt, steps: parseSteps(s.steps), enrollmentCount: Number(s.enrollment_count ?? s.enrollmentCount ?? 0), activeEnrollments: Number(s.active_enrollments ?? s.activeEnrollments ?? 0) }) : s
 
 export function createMarketingService(deps: MarketingServiceDeps) {
   const { db, tables: t, sendRaw, isFeatureEnabled, sequencesEnabled } = deps
+  const recipientNoun = deps.recipientNoun ? escapeHtml(deps.recipientNoun) : ''
   const env = deps.env || process.env
   const publicBase = () => publicApiBase(env as Record<string, string | undefined>)
 
@@ -257,7 +287,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       let recipientId: string | null = null
       try {
         recipientId = first(await db.execute(sql`INSERT INTO email_recipient (id, campaign_id, contact_id, email, status) VALUES (${createId()}, ${id}, ${c.id}, ${c.email}, 'sent') RETURNING id`))?.id ?? null
-        await sendRaw({ to: c.email, subject: personalize(row.subject || '', c), html: decorate(personalize(row.content || '', c), recipientId, c.id) })
+        await sendRaw({ to: c.email, subject: personalize(row.subject || '', c), html: decorate(personalize(row.content || '', c, { html: true }), recipientId, c.id) })
         await db.execute(sql`UPDATE email_recipient SET sent_at = NOW() WHERE id = ${recipientId}`)
         await db.insert(t.emailLog).values({ companyId, to: c.email, subject: row.subject || '', body: row.content, status: 'sent', contactId: c.id, sentAt: new Date() })
         sentCount++
@@ -389,7 +419,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       if (unknownMergeFields(step.subject, step.body).length) { console.error('[Marketing] Drip step held, unknown merge field:', e.sequence_id, unknownMergeFields(step.subject, step.body).join(', ')); continue }
       try {
         const person = { name: e.contact_name, email: e.email, company: e.contact_company }
-        await sendRaw({ to: e.email, subject: personalize(step.subject, person), html: decorate(personalize(step.body, person), null, e.contact_id) })
+        await sendRaw({ to: e.email, subject: personalize(step.subject, person), html: decorate(personalize(step.body, person, { html: true }), null, e.contact_id) })
         const next = steps.find((s: any) => Number(s.stepNumber) === Number(e.current_step) + 1)
         if (next) await db.execute(sql`UPDATE sequence_enrollment SET current_step = ${Number(e.current_step) + 1}, next_email_at = NOW() + INTERVAL '1 day' * ${Number(next.delayDays || 0)} + INTERVAL '1 hour' * ${Number(next.delayHours || 0)}, last_email_at = NOW() WHERE id = ${e.id}`)
         else await db.execute(sql`UPDATE sequence_enrollment SET status = 'completed', completed_at = NOW(), last_email_at = NOW() WHERE id = ${e.id}`)
@@ -439,7 +469,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const unsubscribeUrl = `${base}/api/marketing/unsubscribe/${recipientId || 'none'}/${contactId}`
     let out = html || ''
     if (recipientId) out = out.replace(/href="(https?:\/\/[^"]+)"/g, (_m, url) => url.startsWith(base + '/api/marketing/') ? `href="${url}"` : `href="${base}/api/marketing/track/click/${recipientId}?url=${encodeURIComponent(url)}"`)
-    out += `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;"><p style="margin:0 0 4px;">You are receiving this because you are a customer or contact of ours.</p><p style="margin:0;"><a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a></p></div>`
+    out += `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;"><p style="margin:0 0 4px;">You are receiving this because you are ${recipientNoun ? `${/^[aeiou]/i.test(recipientNoun) ? 'an' : 'a'} ${recipientNoun}` : 'a customer or contact'} of ours.</p><p style="margin:0;"><a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a></p></div>`
     if (recipientId) out += `<img src="${base}/api/marketing/track/open/${recipientId}" width="1" height="1" alt="" style="display:none;" />`
     return out
   }
@@ -475,7 +505,9 @@ export function createMarketingService(deps: MarketingServiceDeps) {
 export type MarketingService = ReturnType<typeof createMarketingService>
 
 // ─── routes ────────────────────────────────────────────────────────────────────
-const strip = (s: string) => s.replace(/<script[\s\S]*?<\/script>/gi, '').trim()
+// Every body is reduced to the email allow-list where it is saved (emailHtml.ts). Before, a regex took out <script>
+// blocks and nothing else (salon live test, 2026-10-25).
+const strip = (s: string) => sanitizeEmailHtml(s).trim()
 const templateSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
   subject: z.string().trim().min(1, 'Subject is required').max(300),

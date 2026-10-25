@@ -92,7 +92,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // The app is made below; a link fetches through it (as the person who asked), so it is reached lazily.
   const downloads = createDownloadLinks({ fetchApp: (req) => app.fetch(req) })
   const adsConnector = createCrmAdsConnector()
-  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM, stripe: deps.testing?.stripe })
+  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM, vocabulary: vertical.vocabulary, stripe: deps.testing?.stripe })
   // Phone notifications, every vertical: the sender and the phones (core/phonePush.ts), and who is told what — a job
   // assigned or rescheduled, a new lead (crm/notify/phoneRules.ts). The job scan is timed work: boot only, never tests.
   const phonePush = createPhonePush({ db, logger })

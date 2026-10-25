@@ -28,6 +28,13 @@ export interface Vocabulary {
   reviewAfter: string | null
   /** The website's page of photos: Portfolio for a trade that shows finished work, Gallery elsewhere. */
   gallery: string
+  /**
+   * Can the people the business serves be companies — a contractor's commercial customer, a property manager — so that
+   * a company name on their record means something? false where they are people: a salon's clients, a vet's, a bar's
+   * or a restaurant's guests. An email offers to greet them by {{company}} only where it is true (salon live test,
+   * 2026-10-25: "Company {{company}}" sat among a salon's personalise buttons).
+   */
+  customerCompany: boolean
 }
 
 /** The words the shared screens were written in: a contractor's. */
@@ -37,6 +44,7 @@ export const JOB_TRADE: Vocabulary = {
   team: { one: 'crew member', many: 'crew' },
   reviewAfter: 'a job is completed',
   gallery: 'Portfolio',
+  customerCompany: true,
 }
 
 let current: Vocabulary = JOB_TRADE

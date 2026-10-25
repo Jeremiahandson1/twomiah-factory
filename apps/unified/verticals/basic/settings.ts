@@ -37,7 +37,7 @@ const STARTER: StarterContent = {
 const basic: VerticalSettings = {
   id: 'basic',
   label: 'Business',
-  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a job is completed', gallery: 'Gallery' },
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a job is completed', gallery: 'Gallery', customerCompany: true },
   // Shared by showcase, food truck and basic, so no one trade to name (templates/crm-basic routes/mfa.ts, T41).
   mfaIssuer: 'Twomiah CRM',
   featureSet: 'crm-basic',
