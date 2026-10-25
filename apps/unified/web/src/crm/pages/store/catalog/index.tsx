@@ -23,7 +23,7 @@
 // (business details, integrations, branded email, help, done), so the store's is not a second one.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { Gift, Package, Star, Store, Tag } from 'lucide-react'
+import { CreditCard, Gift, Package, Star, Store, Tag, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -33,6 +33,8 @@ const DiscountsPage = page(() => import('./DiscountsPage'))
 const ReviewsPage = page(() => import('./ReviewsPage'))
 const LoyaltyPage = page(() => import('./LoyaltyPage'))
 const StoreSettingsPage = page(() => import('./StoreSettingsPage'))
+const GiftCardsPage = page(() => import('./GiftCardsPage'))
+const CustomerGroupsPage = page(() => import('./CustomerGroupsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -43,6 +45,8 @@ export const routes: ReactElement[] = [
   <Route key="store-loyalty" path="store-loyalty" element={<LoyaltyPage />} />,
   <Route key="store-reviews" path="product-reviews" element={<ReviewsPage />} />,
   <Route key="store-settings" path="store-settings" element={<StoreSettingsPage />} />,
+  <Route key="store-gift-cards" path="gift-cards" element={<GiftCardsPage />} />,
+  <Route key="store-customer-groups" path="customer-groups" element={<CustomerGroupsPage />} />,
 ]
 
 /** Menu items, each gated by the permission its page's main API asks. */
@@ -55,6 +59,9 @@ export const nav: NavItem[] = [
   { to: '/crm/store-loyalty', icon: Gift, label: 'Loyalty', permission: 'loyalty:read' },
   // GET /api/admin/reviews asks reviews:read.
   { to: '/crm/product-reviews', icon: Star, label: 'Reviews', permission: 'reviews:read' },
+  // GET /api/admin/gift-cards asks orders:refund (a card's number is money); /customer-groups asks discounts:read.
+  { to: '/crm/gift-cards', icon: CreditCard, label: 'Gift cards', permission: 'orders:refund' },
+  { to: '/crm/customer-groups', icon: Users, label: 'Customer groups', permission: 'discounts:read' },
   // The store's settings: its own address, not under /crm/settings, which the shell holds to the owner and admins (a
   // rank, routeRoles) — the store's managers change shipping (shipping:configure, owner's decision 2026-10-10), so the
   // page is offered to whoever may, and shows the rest as a record to a seat that may not.

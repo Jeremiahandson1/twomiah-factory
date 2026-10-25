@@ -166,6 +166,8 @@ export function createStoreCore(d: CrmDeps) {
     if (order.supplierOrderId) return { ok: true, note: 'Already forwarded' }
     if (order.supplierStatus === 'hold' && !opts.manual) return { ok: false, note: 'On hold' }
     if (order.status !== 'paid') return { ok: false, note: 'Order is not in paid status' }
+    // A pickup order is collected at the shop, and gift cards are emailed: neither goes to a supplier.
+    if (order.fulfillment !== 'ship') return { ok: false, note: order.fulfillment === 'pickup' ? 'Pickup order' : 'Nothing to ship' }
     if (!order.shippingAddress) {
       await db.update(storeOrder).set({ supplierStatus: 'error', supplierError: 'No shipping address on order', updatedAt: new Date() }).where(mine)
       return { ok: false, note: 'No shipping address' }

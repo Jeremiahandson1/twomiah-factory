@@ -55,6 +55,8 @@ export interface IssueInput {
   cents: number; soldVia: 'register' | 'online'; soldByName?: string | null; checkId?: string | null; code?: string | null
   purchaserName?: string | null; purchaserEmail?: string | null; recipientName?: string | null; recipientEmail?: string | null; message?: string | null
   providerPaymentId?: string | null; idempotencyKey?: string | null
+  /** The store's order that paid for it (a gift-card product sold online). */
+  orderId?: string | null
 }
 
 export function createBarGiftCards(db: BarDb) {
@@ -86,9 +88,9 @@ export function createBarGiftCards(db: BarDb) {
       code, initialCents: input.cents, balanceCents: input.cents, soldVia: input.soldVia, soldByName: input.soldByName || null, checkId: input.checkId || null,
       purchaserName: input.purchaserName || null, purchaserEmail: input.purchaserEmail || null, recipientName: input.recipientName || null,
       recipientEmail: input.recipientEmail || null, message: input.message || null, providerPaymentId: input.providerPaymentId || null,
-      idempotencyKey: input.idempotencyKey || null, companyId,
+      idempotencyKey: input.idempotencyKey || null, orderId: input.orderId || null, companyId,
     }).returning()
-    await tx.insert(barGiftCardLedger).values({ cardId: card.id, amountCents: input.cents, kind: 'issue', checkId: input.checkId || null, byName: input.soldByName || input.soldVia, companyId })
+    await tx.insert(barGiftCardLedger).values({ cardId: card.id, amountCents: input.cents, kind: 'issue', checkId: input.checkId || null, orderId: input.orderId || null, byName: input.soldByName || input.soldVia, companyId })
     return card
   }
 
@@ -106,14 +108,30 @@ export function createBarGiftCards(db: BarDb) {
   }
 
   /** Take up to `wantCents` off a card inside the caller's transaction. Returns what was actually taken. */
-  async function spend(tx: Tx, companyId: string, cardId: string, wantCents: number, ref: { checkId: string; paymentId?: string | null; byName: string }): Promise<number> {
+  async function spend(tx: Tx, companyId: string, cardId: string, wantCents: number, ref: { checkId?: string | null; orderId?: string | null; paymentId?: string | null; byName: string }): Promise<number> {
     const row = await lockCard(tx, companyId, cardId)
     if (row.status !== 'active') throw new GiftCardError('That card was voided.', 409)
     const take = Math.min(wantCents, row.balanceCents)
     if (take <= 0) throw new GiftCardError('That card has nothing left on it.', 409)
     await takeFromCard(tx, cardId, take)
-    await tx.insert(barGiftCardLedger).values({ cardId, amountCents: -take, kind: 'redeem', checkId: ref.checkId, paymentId: ref.paymentId || null, byName: ref.byName, companyId })
+    await tx.insert(barGiftCardLedger).values({ cardId, amountCents: -take, kind: 'redeem', checkId: ref.checkId || null, orderId: ref.orderId || null, paymentId: ref.paymentId || null, byName: ref.byName, companyId })
     return take
+  }
+
+  /**
+   * Put money back on a card ONCE for this key (a store order refunded to the card, or a checkout's hold given back),
+   * inside the caller's transaction. A retry with the same key moves nothing. True when this call moved it.
+   */
+  async function putBackOnce(tx: Tx, companyId: string, cardId: string, cents: number, ref: { key: string; orderId?: string | null; byName: string; note?: string; kind?: 'refund' | 'release' }): Promise<boolean> {
+    if (!(cents > 0)) return false
+    await lockCard(tx, companyId, cardId)
+    const [row] = await tx.insert(barGiftCardLedger).values({
+      cardId, amountCents: cents, kind: ref.kind || 'refund', orderId: ref.orderId || null, byName: ref.byName, note: ref.note || null,
+      idempotencyKey: ref.key, companyId,
+    }).onConflictDoNothing().returning({ id: barGiftCardLedger.id })
+    if (!row) return false
+    await putBackOnCard(tx, cardId, cents)
+    return true
   }
 
   /** Put money back on a card (a voided gift-card payment), inside the caller's transaction. */
@@ -166,6 +184,6 @@ export function createBarGiftCards(db: BarDb) {
     return { cards: shown, outstandingCents, prefix }
   }
 
-  return { cardPrefix, issueCard, findCard, spend, refundTo, cardHistory, adjustCard, voidCard, listCards }
+  return { cardPrefix, issueCard, findCard, lockCard, spend, putBackOnce, refundTo, cardHistory, adjustCard, voidCard, listCards }
 }
 export type BarGiftCards = ReturnType<typeof createBarGiftCards>

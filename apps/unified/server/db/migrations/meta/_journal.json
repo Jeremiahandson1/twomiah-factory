@@ -232,6 +232,13 @@
       "when": 1792871781123,
       "tag": "0032_job_assignee",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792883407541,
+      "tag": "0033_store_upgrade",
+      "breakpoints": true
     }
   ]
 }

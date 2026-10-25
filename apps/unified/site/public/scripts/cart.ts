@@ -9,7 +9,11 @@
 //   · the saved cart's key is fixed ('store-cart'): the browser already keeps it per website, which the slug was for;
 //   · the order-received page asks for the cart to be emptied with a marker ([data-cart-clear]) instead of an inline
 //     script, so the site's pages need no inline script for it;
-//   · the site's button classes (btn--primary), and the chosen option says so to a screen reader (aria-pressed).
+//   · the site's button classes (btn--primary), and the chosen option says so to a screen reader (aria-pressed);
+//   · (2026-10-24, the store upgrade) the summary offers local pickup when the store has it (its address and hours, no
+//     shipping), takes a gift card number (its balance asked of /api/public/gift-cards/balance; the server holds what
+//     it pays), says when tax is worked out from the address at checkout (Stripe Tax), and shows one upsell line — a
+//     product bought with what is in the cart (/api/public/upsells).
 (function () {
   'use strict';
 
@@ -99,6 +103,8 @@
     }
     writeCart(cart);
     flashCartCount();
+    // Added from the cart page itself (its upsell line): the lines and the totals are drawn again.
+    if (document.getElementById('cart-root')) renderCartPage();
   }
 
   function setQty(sku, qty) {
@@ -291,6 +297,8 @@
       return;
     }
 
+    var pickup = shopSettings && shopSettings.pickup;
+    if (!pickup) deliveryChoice = 'ship';
     var lines = cart.map(function (i) {
       var max = normalizeMax(i.maxQty);
       var atMax = max !== null && i.qty >= max;
@@ -339,16 +347,38 @@
             '<input type="email" data-customer-email placeholder="Email (for points &amp; rewards)" class="cart-summary__input" autocomplete="email" value="' + esc(loyaltyEmail) + '" />' +
           '</div>' +
           '<div data-loyalty-panel style="display:none"></div>' +
-          '<div class="cart-summary__field cart-summary__ship">' +
-            '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" />' +
-            '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" />' +
+          // A gift card: its number is checked here for the balance; what it pays is held by the server at checkout.
+          '<div class="cart-summary__field">' +
+            '<div class="cart-summary__gift">' +
+              '<input type="text" data-gift-code placeholder="Gift card number" class="cart-summary__input" autocomplete="off" aria-label="Gift card number" value="' + esc(giftCode) + '" />' +
+              '<button type="button" class="btn btn--secondary btn--sm" data-gift-apply>Apply</button>' +
+            '</div>' +
+            '<p class="cart-summary__giftmsg' + (giftError ? ' cart-summary__giftmsg--bad' : '') + '" data-gift-msg role="status">' +
+              (giftError ? esc(giftError) : giftBalance !== null ? 'Gift card applied: ' + formatMoney(giftBalance) + ' available — it pays what it can at checkout.' : '') +
+            '</p>' +
           '</div>' +
-          '<p class="cart-summary__note">Enter your region for accurate shipping &amp; tax; final total shown at checkout.</p>' +
+          (pickup
+            ? '<div class="cart-summary__choice" role="radiogroup" aria-label="How you get your order">' +
+                '<label><input type="radio" name="cart-delivery" value="ship" data-delivery' + (deliveryChoice === 'ship' ? ' checked' : '') + ' /> Ship it</label>' +
+                '<label><input type="radio" name="cart-delivery" value="pickup" data-delivery' + (deliveryChoice === 'pickup' ? ' checked' : '') + ' /> Pick up — free</label>' +
+              '</div>'
+            : '') +
+          (deliveryChoice === 'pickup'
+            ? '<p class="cart-summary__pickup"><strong>Pick up from</strong>\n' + esc(pickup.address) + (pickup.hours ? '\n' + esc(pickup.hours) : '') + '</p>'
+            : '<div class="cart-summary__field cart-summary__ship">' +
+                '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" aria-label="Country" />' +
+                '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" aria-label="State" />' +
+              '</div>') +
+          '<p class="cart-summary__note">' + (shopSettings && shopSettings.automaticTax
+            ? (deliveryChoice === 'pickup' ? 'Sales tax is worked out at checkout from your billing address.' : 'Shipping is worked out from your region; sales tax at checkout, from your address.')
+            : (deliveryChoice === 'pickup' ? 'No shipping charge for pickup; final total shown at checkout.' : 'Enter your region for accurate shipping &amp; tax; final total shown at checkout.')) + '</p>' +
           '<button type="button" class="btn btn--primary btn--lg btn--block" data-checkout>Checkout</button>' +
           '<div class="cart-summary__error" data-checkout-error style="display:none"></div>' +
           '<a href="/shop" class="cart-summary__continue">Continue shopping</a>' +
         '</aside>' +
-      '</div>';
+      '</div>' +
+      '<div data-cart-upsell></div>';
+    refreshUpsell(cart);
 
     // The panel was just wiped with the rest of the summary, and the subtotal it was priced against
     // may have changed — a reward with a minimum spend can become claimable (or stop being) purely
@@ -381,9 +411,12 @@
         return;
       }
       if (e.target.closest('[data-checkout]')) { doCheckout(e.target.closest('[data-checkout]')); }
+      if (e.target.closest('[data-gift-apply]')) { applyGiftCard(); }
     });
 
     root.addEventListener('change', function (e) {
+      var choice = e.target.closest('[data-delivery]');
+      if (choice) { deliveryChoice = choice.value === 'pickup' ? 'pickup' : 'ship'; renderCartPage(); return; }
       var qtyInput = e.target.closest('[data-line-qty]');
       if (!qtyInput) return;
       var line = qtyInput.closest('.cart-line');
@@ -483,6 +516,55 @@
     });
   }
 
+  // ── the shop's checkout settings, gift card, upsell ──────────────────────
+  // Kept outside the DOM, like the loyalty state above: the summary is drawn again on every change.
+  var shopSettings = null;
+  var deliveryChoice = 'ship';
+  var giftCode = '';
+  var giftBalance = null;
+  var giftError = '';
+
+  function loadShopSettings() {
+    fetch('/api/public/settings')
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (s) { if (s) { shopSettings = s; renderCartPage(); } })
+      .catch(function () { /* the cart works without pickup and the tax note */ });
+  }
+
+  function applyGiftCard() {
+    var el = document.querySelector('[data-gift-code]');
+    giftCode = el && el.value ? el.value.trim() : '';
+    giftBalance = null;
+    giftError = '';
+    if (!giftCode) { renderCartPage(); return; }
+    fetch('/api/public/gift-cards/balance?code=' + encodeURIComponent(giftCode))
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (r) {
+        if (r.ok && r.data) { giftBalance = Number(r.data.balanceCents) || 0; giftCode = r.data.code || giftCode; }
+        else giftError = (r.data && r.data.error) || 'That gift card could not be used.';
+        renderCartPage();
+      })
+      .catch(function () { giftError = 'The gift card could not be checked. Try again.'; renderCartPage(); });
+  }
+
+  function refreshUpsell(cart) {
+    var box = document.querySelector('[data-cart-upsell]');
+    if (!box || !cart.length) return;
+    fetch('/api/public/upsells?skus=' + encodeURIComponent(cart.map(function (i) { return i.sku; }).join(',')))
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (r) {
+        var p = r && r.product;
+        if (!p || !document.querySelector('[data-cart-upsell]')) return;
+        document.querySelector('[data-cart-upsell]').innerHTML =
+          '<div class="cart-upsell">' +
+            (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" alt="" width="56" height="56">' : '') +
+            '<span class="cart-upsell__text">Goes well with your order: <a href="/product/' + encodeURIComponent(p.slug) + '"><strong>' + esc(p.name) + '</strong></a> — ' + formatMoney(p.priceCents) + '</span>' +
+            '<button type="button" class="btn btn--secondary btn--sm" data-add-to-cart data-sku="' + esc(p.sku) + '" data-name="' + esc(p.name) + '" data-variant="' + esc(p.variantName && p.variantName !== p.name && p.variantName !== 'Default' ? p.variantName : '') + '" data-price="' + p.priceCents + '" data-image="' + esc(p.imageUrl || '') + '"><span data-add-label>Add</span></button>' +
+          '</div>';
+      })
+      .catch(function () { /* no upsell line */ });
+  }
+
   // ── checkout ─────────────────────────────────────────────────────────────
   function doCheckout(btn) {
     var cart = readCart();
@@ -503,6 +585,8 @@
     var country = countryEl && countryEl.value ? countryEl.value.trim() : '';
     var state = stateEl && stateEl.value ? stateEl.value.trim() : '';
     if (country || state) body.shipTo = { country: country, state: state };
+    if (deliveryChoice === 'pickup') body.delivery = 'pickup';
+    if (giftCode && giftBalance !== null) body.giftCardCode = giftCode;
 
     // Loyalty: the email identifies the shopper, the reward id says which one they picked. Only the
     // id travels — what it is worth is decided by the server against this cart, because the browser
@@ -552,6 +636,7 @@
     wireGallery();
     renderCartPage();
     wireCartPageEvents();
+    if (document.getElementById('cart-root')) loadShopSettings();
   }
 
   if (document.readyState === 'loading') {

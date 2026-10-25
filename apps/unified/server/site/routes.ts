@@ -321,7 +321,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       const p = await shop.product(ctx.companyId, c.req.param('slug'))
       if (!p) return c.notFound()
       const name = ctx.settings.companyName
-      return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p } }], {
+      // "Frequently bought together" and "You may also like" (the owner's picks, else the same category).
+      const upsells = await shop.upsells(ctx.companyId, p).catch(() => ({ together: [], alsoLike: [] }))
+      return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p, upsells } }], {
         title: p.name, metaTitle: p.seoTitle || null, metaDescription: (p.seoDescription || p.tagline || p.name || '').slice(0, 300),
       })
     })

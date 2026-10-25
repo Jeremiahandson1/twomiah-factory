@@ -17,18 +17,20 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText } from '../../../../shared'
+import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { cents, listOf, statusBadge, type Order } from './lib'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
-const FILTERS = ['all', 'pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'cancelled', 'refunded']
+const FILTERS = ['all', 'pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up', 'cancelled', 'refunded']
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Making an order for a customer (a wholesale order) is orders:create — the manager's and the owner's.
+  const mayCreate = useMayWrite('orders:create')
 
   useEffect(() => {
     let live = true
@@ -45,15 +47,16 @@ export default function OrdersPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Orders</h1>
+        {mayCreate && <Link to="/crm/orders/new" className="btn btn-primary">New order for a customer</Link>}
       </div>
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
-            className={`rounded-full px-3 py-1 text-sm capitalize ${filter === f
+            className={`rounded-full px-3 py-1 text-sm ${filter === f
               ? 'bg-orange-600 text-white dark:bg-orange-500'
               : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-            {f}
+            {f === 'all' ? 'All' : codeLabel(f)}
           </button>
         ))}
       </div>

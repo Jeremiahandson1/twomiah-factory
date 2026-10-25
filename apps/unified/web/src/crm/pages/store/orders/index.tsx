@@ -19,7 +19,7 @@
 // The dashboard is not a route here: it is the store's home at /crm/dashboard (crm/screens.tsx HOMES, `dashboard`).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { CreditCard, Home, Package, ShoppingBag, Truck, Users } from 'lucide-react'
+import { CreditCard, Home, Package, ShieldAlert, ShoppingBag, Truck, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -29,10 +29,15 @@ const CustomersPage = page(() => import('./CustomersPage'))
 const PaymentsPage = page(() => import('./PaymentsPage'))
 const ShippingPage = page(() => import('./ShippingPage'))
 const SuppliersPage = page(() => import('./SuppliersPage'))
+const NewOrderPage = page(() => import('./NewOrderPage'))
+const DisputesPage = page(() => import('./DisputesPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
   <Route key="store-orders" path="orders" element={<OrdersPage />} />,
+  // An order made for a customer (orders:create — the page asks it; the prefix /crm/orders is orders:read).
+  <Route key="store-order-new" path="orders/new" element={<NewOrderPage />} />,
+  <Route key="store-disputes" path="disputes" element={<DisputesPage />} />,
   <Route key="store-order" path="orders/:id" element={<OrderDetailPage />} />,
   <Route key="store-customers" path="customers" element={<CustomersPage />} />,
   <Route key="store-payments" path="payments" element={<PaymentsPage />} />,
@@ -48,6 +53,8 @@ export const nav: NavItem[] = [
   { to: '/crm/payments', icon: CreditCard, label: 'Payments', permission: 'payments:update' },
   { to: '/crm/suppliers', icon: Truck, label: 'Suppliers', permission: 'integrations:update' },
   { to: '/crm/shipping', icon: Package, label: 'Shipping', permission: 'shipping:read' },
+  // Chargebacks (GET /api/admin/disputes asks orders:refund): money leaving the shop, the seats that refund.
+  { to: '/crm/disputes', icon: ShieldAlert, label: 'Disputes', permission: 'orders:refund' },
 ]
 
 /** '/crm/<path>' → the permission its page's main API asks, for a URL typed in (a prefix covers /crm/orders/:id). */
@@ -58,6 +65,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/payments': 'payments:update',
   '/crm/suppliers': 'integrations:update',
   '/crm/shipping': 'shipping:read',
+  '/crm/disputes': 'orders:refund',
 }
 
 /** The store's home at /crm/dashboard (its sales, orders to ship, set-up). */

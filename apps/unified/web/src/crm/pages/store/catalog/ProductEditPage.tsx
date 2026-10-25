@@ -38,12 +38,19 @@ import {
 interface DetailsForm {
   name: string; tagline: string; description: string; status: Product['status']; featured: boolean
   leadTimeDays: string; seoTitle: string; seoDescription: string
+  kind: 'physical' | 'gift_card'; brand: string; condition: 'new' | 'refurbished' | 'used'; category: string
+  boughtTogetherIds: string[]; alsoLikeIds: string[]
 }
-const BLANK: DetailsForm = { name: '', tagline: '', description: '', status: 'draft', featured: false, leadTimeDays: '', seoTitle: '', seoDescription: '' }
+const BLANK: DetailsForm = {
+  name: '', tagline: '', description: '', status: 'draft', featured: false, leadTimeDays: '', seoTitle: '', seoDescription: '',
+  kind: 'physical', brand: '', condition: 'new', category: '', boughtTogetherIds: [], alsoLikeIds: [],
+}
 
 const formOf = (p: Product): DetailsForm => ({
   name: p.name || '', tagline: p.tagline || '', description: p.description || '', status: p.status, featured: !!p.featured,
   leadTimeDays: p.leadTimeDays == null ? '' : String(p.leadTimeDays), seoTitle: p.seoTitle || '', seoDescription: p.seoDescription || '',
+  kind: p.kind || 'physical', brand: p.brand || '', condition: p.condition || 'new', category: p.category || '',
+  boughtTogetherIds: p.boughtTogetherIds || [], alsoLikeIds: p.alsoLikeIds || [],
 })
 
 /** The product's own fields as the server takes them, or the box that is wrong. */
@@ -54,6 +61,8 @@ function detailsBody(f: DetailsForm): { body: Record<string, unknown> } | { erro
     body: {
       name: f.name.trim(), tagline: f.tagline || null, description: f.description || null, status: f.status, featured: f.featured,
       leadTimeDays: lead, seoTitle: f.seoTitle || null, seoDescription: f.seoDescription || null,
+      kind: f.kind, brand: f.brand.trim() || null, condition: f.condition, category: f.category.trim() || null,
+      boughtTogetherIds: f.boughtTogetherIds, alsoLikeIds: f.alsoLikeIds,
     },
   }
 }
@@ -94,6 +103,13 @@ export default function ProductEditPage() {
   const mayUpdate = useMayWrite('products:update')
   const mayDelete = useMayWrite('products:delete')
   const mayEditDetails = isNew ? mayCreate : mayUpdate
+  // The other products, for the upsell picks.
+  const [others, setOthers] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    api.get('/api/admin/products').then((r) => setOthers(listOf<Product>(r).filter((p) => p.id !== id).map((p) => ({ id: p.id, name: p.name })))).catch(() => setOthers([]))
+  }, [id])
+  const togglePick = (k: 'boughtTogetherIds' | 'alsoLikeIds', pid: string) =>
+    set(k, form[k].includes(pid) ? form[k].filter((x) => x !== pid) : [...form[k], pid])
 
   // What the form was filled from. A save sends only the fields this person changed from it (not `product`: the
   // variant and photo sections reload that, and it then holds another person's edits — comparing with it would send
@@ -224,6 +240,51 @@ export default function ProductEditPage() {
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
           <input type="checkbox" checked={form.featured} onChange={(e) => set('featured', e.target.checked)} /> Feature on the storefront's home page
         </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label" htmlFor="p-kind">Kind</label>
+            <select id="p-kind" className="input" value={form.kind} onChange={(e) => set('kind', e.target.value as DetailsForm['kind'])}>
+              <option value="physical">A product</option>
+              <option value="gift_card">Gift card (emailed as a number when paid)</option>
+            </select>
+            {form.kind === 'gift_card' && <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Each variant is an amount from 5.00 to 500.00. No shipping, tax or discount codes apply to a gift card.</p>}
+          </div>
+          <div>
+            <label className="label" htmlFor="p-cat">Category</label>
+            <input id="p-cat" className="input" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="Mugs" />
+            <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">“You may also like” shows the same category when you pick none below.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="p-brand">Brand (product feeds)</label>
+            <input id="p-brand" className="input" value={form.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Defaults to the store's name" />
+          </div>
+          <div>
+            <label className="label" htmlFor="p-cond">Condition (product feeds)</label>
+            <select id="p-cond" className="input" value={form.condition} onChange={(e) => set('condition', e.target.value as DetailsForm['condition'])}>
+              <option value="new">New</option>
+              <option value="refurbished">Refurbished</option>
+              <option value="used">Used</option>
+            </select>
+          </div>
+        </div>
+        {others.length > 0 && (
+          <details className="rounded-lg border border-gray-200 p-3 dark:border-slate-700">
+            <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-slate-200">Upsells on the product page ({form.boughtTogetherIds.length + form.alsoLikeIds.length} picked)</summary>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {([['boughtTogetherIds', 'Frequently bought together'], ['alsoLikeIds', 'You may also like']] as const).map(([k, title]) => (
+                <fieldset key={k} className="space-y-1 min-w-0">
+                  <legend className="text-sm font-medium text-gray-800 dark:text-slate-200">{title}</legend>
+                  <p className="text-xs text-gray-600 dark:text-slate-400">None picked: products in the same category.</p>
+                  {others.map((o) => (
+                    <label key={o.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200 break-all">
+                      <input type="checkbox" checked={form[k].includes(o.id)} onChange={() => togglePick(k, o.id)} /> {o.name}
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+            </div>
+          </details>
+        )}
         <details className="rounded-lg border border-gray-200 p-3 dark:border-slate-700">
           <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-slate-200">Search engines (optional)</summary>
           <div className="mt-3 space-y-3">
@@ -258,7 +319,7 @@ export default function ProductEditPage() {
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 interface SupplierLink { ref: string; name: string | null }
-interface RowEdit { price: string; compareAt: string; inv: string; options: string; ref: string }
+interface RowEdit { price: string; compareAt: string; inv: string; options: string; ref: string; gtin: string; mpn: string }
 
 function VariantsSection({ product, currency, mayUpdate, onChange }: { product: Product; currency: string; mayUpdate: boolean; onChange: () => Promise<void> }) {
   const toast = useToast()
@@ -341,6 +402,8 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
       if (compare !== v.compareAtPriceCents) body.compareAtPriceCents = compare
       if (inventoryQty !== v.inventoryQty) { body.inventoryQty = inventoryQty; body.inventoryFrom = v.inventoryQty }
       if (optionsText(options) !== optionsText(v.options)) body.options = options
+      if (next.gtin.trim() !== (v.gtin || '')) body.gtin = next.gtin.trim() || null
+      if (next.mpn.trim() !== (v.mpn || '')) body.mpn = next.mpn.trim() || null
       if (Object.keys(body).length) await api.patch(`/api/admin/products/variants/${v.id}`, body)
       if (supplierConnected && next.ref.trim() !== (supplierMap[v.id]?.ref || '')) {
         const res: { cleared?: boolean; name?: string | null } = await api.put(`/api/admin/suppliers/variant-map/${v.id}`, { ref: next.ref.trim() })
@@ -358,6 +421,7 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
       toast.error(errorText(e, 'Could not save the variant'))
       // The count moved under us: show it as it stands, so the next save is typed over the real figure.
       if (refusalOf(e).code === 'inventory_changed') await onChange()
+      else { const f = refusalOf(e).fields; if (Object.keys(f).length) toast.error(Object.values(f).join('; ')) }
       return false
     }
   }
@@ -415,16 +479,18 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
   const fromVariant = (): RowEdit => ({
     price: fromHundredths(v.priceCents), compareAt: fromHundredths(v.compareAtPriceCents),
     inv: v.inventoryQty == null ? '' : String(v.inventoryQty), options: optionsText(v.options), ref: supplierRef,
+    gtin: v.gtin || '', mpn: v.mpn || '',
   })
   const [edit, setEdit] = useState<RowEdit>(fromVariant)
   const [saving, setSaving] = useState(false)
 
   // Re-sync when the variant changes underneath (a reload after a save, or the stock moved).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, optionsText(v.options), supplierRef])
+  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, optionsText(v.options), supplierRef, v.gtin, v.mpn])
 
   const base = fromVariant()
   const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || edit.options !== base.options
+    || edit.gtin.trim() !== base.gtin || edit.mpn.trim() !== base.mpn
     || (supplierConnected && edit.ref.trim() !== supplierRef)
 
   const save = async () => {
@@ -471,6 +537,12 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
         </label>
         <label className="block text-xs text-gray-600 dark:text-slate-400">Options
           <input className="input mt-1 py-1.5" placeholder="size=M" value={edit.options} onChange={(e) => setEdit({ ...edit, options: e.target.value })} />
+        </label>
+        <label className="block text-xs text-gray-600 dark:text-slate-400">Barcode (GTIN)
+          <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="UPC / EAN" value={edit.gtin} onChange={(e) => setEdit({ ...edit, gtin: e.target.value })} />
+        </label>
+        <label className="block text-xs text-gray-600 dark:text-slate-400">Part number (MPN)
+          <input className="input mt-1 py-1.5" placeholder="Optional" value={edit.mpn} onChange={(e) => setEdit({ ...edit, mpn: e.target.value })} />
         </label>
         {supplierConnected && (
           <label className="block col-span-2 text-xs text-gray-600 dark:text-slate-400">Supplier item id{supplierName ? ` — ${supplierName}` : ''}

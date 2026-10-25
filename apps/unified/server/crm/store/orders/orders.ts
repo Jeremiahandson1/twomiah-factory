@@ -44,7 +44,9 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { SHOPPER_TYPE } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
-import { COUNTED, hasParcel, isFulfilment, mayMove, moveRefusal, changedUnderYou, noParcelRefusal, refundRefusal, seatOf, orderForSeat } from './rules.ts'
+import { COUNTED, hasParcel, isFulfilment, mayMove, moveRefusal, changedUnderYou, noParcelRefusal, refundRefusal, seatOf, orderForSeat, fitsFulfillment, fulfillmentRefusal } from './rules.ts'
+import { createStoreGiftCards } from '../giftCards.ts'
+import { emailItems, emailOrder } from '../emails.ts'
 import { holdsRefund, quoteRefund, type MoneyBack, type OrderRefunds } from './refunds.ts'
 
 type Order = typeof storeOrder.$inferSelect
@@ -64,7 +66,7 @@ const badBody = (c: Context, sentence: string, error: z.ZodError) => {
 const nothingToRecord = () => { const scope = requestScope.getStore(); if (scope) scope.logged = true }
 
 const statusSchema = z.object({
-  status: z.enum(['pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'cancelled', 'refunded']),
+  status: z.enum(['pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'cancelled', 'refunded', 'ready_for_pickup', 'picked_up']),
 })
 
 const partSchema = z.object({
@@ -106,8 +108,19 @@ export async function repairFulfilmentStamps(db: any, companyId: string): Promis
 export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRefunds) {
   const { db, audit } = d
   const { requirePermission } = d.permissions
+  const giftCards = createStoreGiftCards(d, core)
   const app = new Hono<AppEnv>()
   app.use('*', requirePermission('orders:read'))
+
+  /** The customer is told their pickup order is ready: the shop's pickup address and hours. Never throws. */
+  const notifyReady = async (order: Order) => {
+    const co = await core.shop()
+    const s = await core.settings(order.companyId)
+    const items = await refunds.itemsOf(order.id)
+    await core.mail(order.customerEmail, 'storeReadyForPickup', {
+      order: emailOrder(order), items: emailItems(items), supportEmail: co?.email, pickupAddress: s.pickupAddress, pickupHours: s.pickupHours,
+    }, co?.email)
+  }
 
   const own = (c: Context) => (c as any).get('user').companyId as string
   const statusOf = async (id: string, companyId: string) =>
@@ -152,7 +165,8 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
   app.get('/customers', async (c) => {
     const page = Math.max(1, Number(c.req.query('page')) || 1)
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 50))
-    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit)
+    const q = String(c.req.query('q') || '').slice(0, 80)
+    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q)
     return list(c, rows, { page, limit, total })
   })
 
@@ -174,8 +188,11 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     // Already there: nothing moves, nothing is refunded, and nothing is written to the audit log.
     if (next === prev.status) { nothingToRecord(); return one(c, { order: orderForSeat(seat, prev) }) }
     if (!mayMove(prev.status, next)) return moveRefusal(c, prev.status, next)
+    if (!fitsFulfillment(prev.fulfillment, next)) return fulfillmentRefusal(c, prev.fulfillment, next)
     if (!isFulfilment(prev.status, next) && !seat.refund) return refundRefusal(c)
     const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }
+    if (next === 'ready_for_pickup') patch.readyForPickupAt = new Date()
+    if (next === 'picked_up') { patch.pickedUpAt = new Date(); if (!prev.fulfilledAt) patch.fulfilledAt = new Date() }
     // The FIRST fulfilment is the one recorded: packing and then shipping kept rewriting it.
     if ((next === 'fulfilled' || next === 'shipped') && !prev.fulfilledAt) patch.fulfilledAt = new Date()
     // A paid order cancelled before it went out was never fulfilled. (A refund after shipping keeps it: it did ship.)
@@ -214,9 +231,12 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
       }
     }
 
+    // A pending order cancelled was never paid: a gift card it was holding gets its money back (once per order).
+    if (next === 'cancelled' && prev.status === 'pending') await giftCards.release(prev, 'Order cancelled before it was paid')
     const final = givesMoneyBack ? (await refunds.orderOf(prev.id, companyId))! : updated
     await refunds.logStatusChange(c, prev, final, restocked, money)
     if (next === 'shipped' && prev.status !== 'shipped') void core.notifyShipped(updated)
+    if (next === 'ready_for_pickup' && prev.status !== 'ready_for_pickup') void notifyReady(updated)
     return one(c, { order: orderForSeat(seat, final), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
   })
 
@@ -334,6 +354,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const seat = await seatOf(d.permissions, c)
     // "Save & mark shipped" is a status change too, and the same rules apply to it.
     if (parsed.data.markShipped && !mayMove(prev.status, 'shipped')) return moveRefusal(c, prev.status, 'shipped')
+    if (parsed.data.markShipped && !fitsFulfillment(prev.fulfillment, 'shipped')) return fulfillmentRefusal(c, prev.fulfillment, 'shipped')
     if (parsed.data.markShipped && !isFulfilment(prev.status, 'shipped') && !seat.refund) return refundRefusal(c)
     // Tracking set to a value (not cleared) needs a parcel — see hasParcel.
     const tracks = !!(parsed.data.trackingCarrier?.trim() || parsed.data.trackingNumber?.trim())

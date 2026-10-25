@@ -51,7 +51,7 @@ export async function verifyingOrderId(db: any, companyId: string, productId: st
       eq(storeOrder.companyId, companyId),
       eq(storeOrderItem.productId, productId),
       sql`LOWER(${storeOrder.customerEmail}) = LOWER(${email})`,
-      inArray(storeOrder.status, ['paid', 'fulfilled', 'shipped', 'delivered']),
+      inArray(storeOrder.status, ['paid', 'fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up']),
     ))
     .limit(1)
   return row?.orderId ?? null

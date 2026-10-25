@@ -32,6 +32,14 @@
           <% if (closed) { %>Your order <strong>#<%= o.orderNumber %></strong> was <%= o.status %>. Contact us if you have any questions.<% } else { %>Your order <strong>#<%= o.orderNumber %></strong> is confirmed.
           <% if (o.email) { %>A receipt is on its way to <strong><%= o.email %></strong>.<% } else { %>A receipt is on its way to your inbox.<% } %><% } %>
         </p>
+        <% if (o.fulfillment === 'pickup' && o.pickup) { %>
+          <div class="order-card order-pickup">
+            <h2 class="order-pickup__title">Pick up from</h2>
+            <p class="order-pickup__where"><%= o.pickup.address %></p>
+            <% if (o.pickup.hours) { %><p class="order-pickup__when"><%= o.pickup.hours %></p><% } %>
+            <p class="order-pickup__note">We'll email you when it's ready.</p>
+          </div>
+        <% } %>
         <% if (items.length) { %>
           <div class="order-card">
             <div class="order-items">
@@ -55,9 +63,10 @@
               <div class="order-summary__row"><span>Subtotal</span><span><%= money(o.subtotalCents) %></span></div>
               <% if (discTotal - discLoyalty > 0) { %><div class="order-summary__row"><span>Discount<%= o.discountCode ? ' (' + o.discountCode + ')' : '' %></span><span>&minus;<%= money(discTotal - discLoyalty) %></span></div><% } %>
               <% if (discLoyalty > 0) { %><div class="order-summary__row"><span>Loyalty reward</span><span>&minus;<%= money(discLoyalty) %></span></div><% } %>
-              <div class="order-summary__row"><span>Shipping</span><span><%= (o.shippingCents && o.shippingCents > 0) ? money(o.shippingCents) : 'Free' %></span></div>
-              <div class="order-summary__row"><span>Tax</span><span><%= money(o.taxCents) %></span></div>
+              <% if (o.fulfillment === 'pickup') { %><div class="order-summary__row"><span>Pickup</span><span>Free</span></div><% } else if (o.fulfillment !== 'digital') { %><div class="order-summary__row"><span>Shipping</span><span><%= (o.shippingCents && o.shippingCents > 0) ? money(o.shippingCents) : 'Free' %></span></div><% } %>
+              <div class="order-summary__row"><span><%= o.taxAutomatic ? 'Sales tax' : 'Tax' %></span><span><%= money(o.taxCents) %></span></div>
               <div class="order-summary__row order-summary__row--total"><span>Total</span><span><%= money(o.totalCents) %></span></div>
+              <% if (o.giftCardCents > 0) { %><div class="order-summary__row"><span>Paid by gift card</span><span>&minus;<%= money(o.giftCardCents) %></span></div><div class="order-summary__row"><span>Paid by card</span><span><%= money(Math.max(0, o.totalCents - o.giftCardCents)) %></span></div><% } %>
               <% if (o.refundedCents > 0 && o.refundedCents < o.totalCents) { %><div class="order-summary__row"><span>Refunded</span><span>&minus;<%= money(o.refundedCents) %></span></div><% } %>
             </div>
           </div>

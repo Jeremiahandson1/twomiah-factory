@@ -30,7 +30,12 @@ const webhookBase = () => (process.env.BACKEND_URL || '').replace(/\/$/, '')
  * Stripe's own dashboard — the orders group's applyProviderRefund). charge.refunded joined on 10/12; a store connected
  * before then is brought up to date by ensureStripeWebhookEvents at startup.
  */
-export const STRIPE_WEBHOOK_EVENTS = ['checkout.session.completed', 'charge.refunded'] as const
+export const STRIPE_WEBHOOK_EVENTS = [
+  'checkout.session.completed', 'charge.refunded',
+  // A chargeback: opened (the owner is emailed), changed, closed — the Disputes screen keeps each as Stripe last said
+  // (2026-10-24, the store upgrade). A store connected before then is brought up to date at startup, as above.
+  'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed', 'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated',
+] as const
 
 /**
  * What the store listens to on PayPal: a completed capture (the order is paid) and every refund event PayPal documents

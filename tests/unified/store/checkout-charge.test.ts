@@ -161,7 +161,7 @@ for (const [label, extra] of [
   check('image: a data: picture (the seeded sample products) is left off the payment page', checkoutImageUrl(svg) === undefined)
   check('image: so is a relative path, a plain-http address and nonsense', checkoutImageUrl('/media/abc.png') === undefined && checkoutImageUrl('http://cdn.example.com/a.png') === undefined && checkoutImageUrl('not a url') === undefined && checkoutImageUrl(null) === undefined)
   check('image: an uploaded or pasted https picture still goes', checkoutImageUrl('https://shop-api.example.com/media/products/a.png') === 'https://shop-api.example.com/media/products/a.png')
-  const src = (require('node:fs') as typeof import('node:fs')).readFileSync('../../server/crm/store/checkout/publicRoutes.ts', 'utf8') /* unified: the checkout route is server/crm/store/checkout/publicRoutes.ts */.replace(/\r\n/g, '\n')
+  const src = (require('node:fs') as typeof import('node:fs')).readFileSync('../../server/crm/store/checkout/placeOrder.ts', 'utf8') /* unified: the checkout route is server/crm/store/checkout/publicRoutes.ts; since the store upgrade (2026-10-24) its pricing, the picture included, is placeOrder.ts, shared with the owner's draft orders */.replace(/\r\n/g, '\n')
   check('image: the checkout route takes its picture through checkoutImageUrl, and nowhere else', /const shown = checkoutImageUrl\(img\?\.url\)\n\s*if \(shown\) li\.imageUrl = shown/.test(src) && !/li\.imageUrl = img\.url/.test(src))
   // …and a checkout of a product whose only picture is a data: URI still reaches the provider and creates the order.
   const { productImages } = await import('./db/schema.ts')
