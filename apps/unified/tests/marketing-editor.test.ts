@@ -156,12 +156,16 @@ describe('the Marketing page in each business\'s words', () => {
 })
 
 describe('the company merge field is offered where it means something', () => {
-  const people = ['salon', 'vet', 'bar', 'restaurant']
+  // Owner's decision (2026-10-25): a restaurant's private events, a dealer's fleet and a store's wholesale buyers can be
+  // companies; a salon's, a vet's, a bar's and an agency's clients are people.
+  const people = ['salon', 'vet', 'bar', 'homecare']
+  const companies = ['restaurant', 'rv', 'store', 'contractor', 'basic', 'fieldservice', 'landscaping', 'roof']
   for (const v of verticals) {
     test(v, async () => {
       const s = await load(v)
       expect(typeof s.vocabulary.customerCompany).toBe('boolean')
       if (people.includes(v)) expect(s.vocabulary.customerCompany).toBe(false)
+      if (companies.includes(v)) expect(s.vocabulary.customerCompany).toBe(true)
       registerVocabulary(s.vocabulary)
       const offered = offeredMergeFields(FIELDS).map((f) => f.key)
       expect(offered.includes('company')).toBe(s.vocabulary.customerCompany)

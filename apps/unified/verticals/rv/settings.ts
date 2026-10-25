@@ -32,7 +32,7 @@ const STARTER: StarterContent = {
 const rv: VerticalSettings = {
   id: 'rv',
   label: 'RV & Powersports',
-  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'service job', many: 'service jobs' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: 'a service job is completed', gallery: 'Gallery', customerCompany: false },
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'service job', many: 'service jobs' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: 'a service job is completed', gallery: 'Gallery', customerCompany: true },
   mfaIssuer: 'Twomiah Powersports',
   featureSet: 'crm-rv',
   starter: STARTER,

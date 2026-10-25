@@ -44,7 +44,7 @@ const STARTER: StarterContent = {
 const restaurant: VerticalSettings = {
   id: 'restaurant',
   label: 'Restaurant & Events',
-  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery', customerCompany: false },
+  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery', customerCompany: true },
   // templates/crm-restaurant routes/mfa.ts
   mfaIssuer: 'Twomiah Events',
   featureSet: 'crm-restaurant',
