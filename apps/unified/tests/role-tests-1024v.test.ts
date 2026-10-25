@@ -105,16 +105,25 @@ describe('roofing: the field seat on its own job, Reports, and canvassing on the
     x = await setUp('roofing', ['jobs', 'contacts', 'dashboard', 'canvassing_tool', 'crews', 'reports'], { address: null, city: 'Eau Claire', state: 'WI', zip: '54701' })
     const [contact] = await x.t.db.insert(x.t.schema.contact).values({ companyId: x.co, name: 'Hal Homeowner', type: 'client' } as any).returning()
     ;[job] = await x.t.db.insert(x.t.schema.job).values({ companyId: x.co, number: 'ROOF-0001', title: '1 Elm St', address: '1 Elm St', status: 'lead', contactId: contact.id, scheduledDate: new Date('2026-10-28T05:00:00Z'), assignedSalesRepId: x.ids.tech } as any).returning()
-    // A stub geocoder — the tests blank NOMINATIM_URL (noLiveKeys.ts); this suite points it at a host nobody serves.
-    process.env.NOMINATIM_URL = 'http://geo.stub'
+    // Google's Geocoding API, stubbed: the tests blank GOOGLE_MAPS_API_KEY (noLiveKeys.ts); this suite sets a stand-in
+    // key and answers Google's address and latlng lookups here — nothing leaves the machine.
+    process.env.GOOGLE_MAPS_API_KEY = 'stub-key'
     globalThis.fetch = (async (input: any, init?: any) => {
       const url = String(input?.url ?? input)
-      if (!url.startsWith('http://geo.stub/')) return realFetch(input, init)
-      asked.push(decodeURIComponent(new URL(url).searchParams.get('q') || ''))
-      return new Response(JSON.stringify([{ lat: '44.8113', lon: '-91.4985', display_name: 'Eau Claire, WI', type: 'city' }]), { headers: { 'content-type': 'application/json' } })
+      if (!url.startsWith('https://maps.googleapis.com/maps/api/geocode/json')) return realFetch(input, init)
+      const q = new URL(url).searchParams
+      if (q.get('latlng')) {
+        asked.push('latlng ' + q.get('latlng'))
+        return Response.json({ status: 'OK', results: [{ formatted_address: '103 Test St, Eau Claire, WI 54701, USA', address_components: [
+          { long_name: '103', short_name: '103', types: ['street_number'] }, { long_name: 'Test Street', short_name: 'Test St', types: ['route'] },
+          { long_name: 'Eau Claire', short_name: 'Eau Claire', types: ['locality'] }, { long_name: 'Wisconsin', short_name: 'WI', types: ['administrative_area_level_1'] },
+          { long_name: '54701', short_name: '54701', types: ['postal_code'] }] }] })
+      }
+      asked.push(q.get('address') || '')
+      return Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 44.8113, lng: -91.4985 } }, formatted_address: 'Eau Claire, WI', types: ['locality'] }] })
     }) as any
   }, 120_000)
-  afterAll(() => { globalThis.fetch = realFetch; process.env.NOMINATIM_URL = '' })
+  afterAll(() => { globalThis.fetch = realFetch; process.env.GOOGLE_MAPS_API_KEY = '' })
 
   test('2. the field seat keeps its notes and may not move the crew, the rep or the dates', async () => {
     expect((await x.as('tech', `/api/jobs/${job.id}`, 'PUT', { notes: 'Ladder on the north side' })).status).toBe(200)
@@ -146,6 +155,37 @@ describe('roofing: the field seat on its own job, Reports, and canvassing on the
     expect(asked).toContain('103 Test St, Eau Claire, WI 54701')
     const map = await x.as('tech', `/api/canvassing/sessions/${s.body.id}/map`)
     expect(map.body.data.map((p: any) => p.address)).toEqual(['103 Test St'])
+  })
+
+  test('5. the Log Door form\'s address comes from our server (Google, the server key) — to who logs doors', async () => {
+    const r = await x.as('tech', '/api/canvassing/reverse-geocode?lat=44.81&lng=-91.49')
+    expect(r.status).toBe(200)
+    expect(r.body).toEqual({ found: true, address: '103 Test Street', city: 'Eau Claire', state: 'WI', zip: '54701' })
+    expect(asked).toContain('latlng 44.81,-91.49')
+    expect((await x.as('tech', '/api/canvassing/reverse-geocode?lat=north')).status).toBe(400)
+    expect((await x.t.call('/api/canvassing/reverse-geocode?lat=44.81&lng=-91.49')).status).toBe(401)
+    process.env.GOOGLE_MAPS_API_KEY = ''
+    expect((await x.as('tech', '/api/canvassing/reverse-geocode?lat=44.82&lng=-91.48')).body).toEqual({ found: false })
+    process.env.GOOGLE_MAPS_API_KEY = 'stub-key'
+  })
+})
+
+describe('no public OpenStreetMap service, anywhere', () => {
+  test('neither OSM host (the public geocoder, the public tiles) appears in apps/unified or packages/*/src', () => {
+    const { readdirSync, statSync } = require('node:fs') as typeof import('node:fs')
+    const hosts = ['nominatim' + '.openstreetmap.org', 'tile' + '.openstreetmap.org']
+    const hits: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        if (name === 'node_modules' || name === 'dist' || name === '.git') continue
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) walk(p)
+        else if (/\.(tsx?|jsx?|mjs|cjs|html|css|json|sql|md)$/.test(name)) { const t = readFileSync(p, 'utf8'); for (const h of hosts) if (t.includes(h)) hits.push(`${p.slice(ROOT.length + 1)}: ${h}`) }
+      }
+    }
+    walk(join(ROOT, 'apps', 'unified'))
+    for (const pkg of readdirSync(join(ROOT, 'packages'))) { const d = join(ROOT, 'packages', pkg, 'src'); try { if (statSync(d).isDirectory()) walk(d) } catch { /* no src */ } }
+    expect(hits).toEqual([])
   })
 })
 

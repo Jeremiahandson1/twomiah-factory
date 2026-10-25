@@ -1,11 +1,10 @@
-// Geocoding: addresses to coordinates and back through Nominatim (OpenStreetMap, free, no key), cached in memory, and
-// the job/project coordinate fill-ins. Moved from the CRM template's services/geocoding.ts
-// (templates/crm/backend/src/services). One change: the template's User-Agent had the company's name and email baked
-// in at build time ('{{COMPANY_NAME}} CRM ({{COMPANY_EMAIL}})'); one build serves every company here, so it is read
-// from the company row when a request is made.
+// Geocoding: addresses to coordinates and back through Google's Geocoding API with the server's key (./googleGeocode.ts —
+// never OpenStreetMap's public Nominatim, whose usage policy a shared app breaks), cached in memory, and the job/project
+// coordinate fill-ins. Moved from the CRM template's services/geocoding.ts (templates/crm/backend/src/services).
 import { eq } from 'drizzle-orm'
-import { company, job, project, contact } from '../../db/schema/index.ts'
+import { job, project, contact } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { googleGeocode, googleKey, googleReverseGeocode } from './googleGeocode.ts'
 
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -47,12 +46,6 @@ export function calculateDistance(lat1: number, lng1: number, lat2: number, lng2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-/**
- * The geocoder: OpenStreetMap's Nominatim, or NOMINATIM_URL. Set and blank, there is none — the tests blank it
- * (tests/noLiveKeys.ts), so a door or a session placed by its address never reaches the network from a test.
- */
-const geocoderBase = () => (process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/+$/, '')
-
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 export function createGeocodingService(d: CrmDeps) {
@@ -60,63 +53,23 @@ export function createGeocodingService(d: CrmDeps) {
   // Per service instance, as the template's was per process.
   const cache = new Map<string, { data: any; timestamp: number }>()
 
-  async function userAgent(companyId: string) {
-    const [co] = await db.select({ name: company.name, email: company.email }).from(company).where(eq(company.id, companyId)).limit(1)
-    return `${co?.name || 'Twomiah'} CRM (${co?.email || ''})`
-  }
-
   async function geocode(address: string, companyId: string): Promise<GeocodeResult | null> {
-    if (!address || address.trim().length < 5 || !geocoderBase()) return null
+    if (!address || address.trim().length < 5) return null
     const cacheKey = address.toLowerCase().trim()
     const cached = cache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
-
-    try {
-      const response = await fetch(
-        `${geocoderBase()}/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-        { headers: { 'User-Agent': await userAgent(companyId) } },
-      )
-      if (!response.ok) throw new Error(`Geocoding failed: ${response.status}`)
-      const data: any = await response.json()
-      if (data.length === 0) {
-        cache.set(cacheKey, { data: null, timestamp: Date.now() }) // a negative result is cached too
-        return null
-      }
-      const result: GeocodeResult = {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        displayName: data[0].display_name,
-        type: data[0].type,
-      }
-      cache.set(cacheKey, { data: result, timestamp: Date.now() })
-      return result
-    } catch (error: any) {
-      logger.error('Geocoding error', { error: error?.message })
-      return null
-    }
+    void companyId
+    const found = await googleGeocode(address, (m) => logger.error('Geocoding error', { error: m }))
+    const result: GeocodeResult | null = found ? { lat: found.lat, lng: found.lng, displayName: found.formattedAddress, type: found.type } : null
+    // A miss is cached too — but not when there is no key, so adding one takes effect at once.
+    if (result || googleKey()) cache.set(cacheKey, { data: result, timestamp: Date.now() })
+    return result
   }
 
   async function reverseGeocode(lat: number, lng: number, companyId: string): Promise<ReverseGeocodeResult | null> {
-    if (!geocoderBase()) return null
-    try {
-      const response = await fetch(
-        `${geocoderBase()}/reverse?format=json&lat=${lat}&lon=${lng}`,
-        { headers: { 'User-Agent': await userAgent(companyId) } },
-      )
-      if (!response.ok) throw new Error(`Reverse geocoding failed: ${response.status}`)
-      const data: any = await response.json()
-      return {
-        address: data.address?.road,
-        city: data.address?.city || data.address?.town || data.address?.village,
-        state: data.address?.state,
-        zip: data.address?.postcode,
-        country: data.address?.country,
-        displayName: data.display_name,
-      }
-    } catch (error: any) {
-      logger.error('Reverse geocoding error', { error: error?.message })
-      return null
-    }
+    void companyId
+    const r = await googleReverseGeocode(lat, lng, (m) => logger.error('Reverse geocoding error', { error: m }))
+    return r ? { address: r.address, city: r.city, state: r.state, zip: r.zip, country: r.country, displayName: r.formattedAddress } : null
   }
 
   /** Geocode a job from its own address, else its project's, else its contact's, and store the coordinates. */
@@ -157,13 +110,13 @@ export function createGeocodingService(d: CrmDeps) {
     return updated
   }
 
-  /** Up to `limit` of the company's jobs; those with no lat and an address are geocoded, one a second (Nominatim's limit). */
+  /** Up to `limit` of the company's jobs; those with no lat and an address are geocoded, paced a little apart. */
   async function geocodeAllJobs(companyId: string, limit = 50) {
     const jobs = await db.select().from(job).where(eq(job.companyId, companyId)).limit(limit)
     const jobsToGeocode = jobs.filter((j: any) => j.lat === null && j.address !== null)
     const results: Array<{ id: string; success: boolean; error?: string }> = []
     for (const j of jobsToGeocode) {
-      await sleep(1100)
+      await sleep(100)
       try {
         const updated = await geocodeJob(j.id, companyId)
         results.push({ id: j.id, success: !!updated })

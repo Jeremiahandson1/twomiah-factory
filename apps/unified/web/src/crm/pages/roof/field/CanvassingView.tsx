@@ -151,18 +151,15 @@ function CanvassingView() {
         setLogLat(pos.coords.latitude)
         setLogLng(pos.coords.longitude)
         setLogGpsStatus('success')
-        // Reverse geocode
+        // The street address at this spot, from our server (GET /api/canvassing/reverse-geocode — Google, the server's
+        // key); never a public geocoder from the browser. Nothing found: the canvasser types it.
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1`,
-          )
-          const data = await res.json()
-          if (data.address) {
-            const a = data.address
-            setLogAddress(`${a.house_number || ''} ${a.road || ''}`.trim())
-            setLogCity(a.city || a.town || a.village || '')
+          const a = await api.get('/api/canvassing/reverse-geocode', { lat: pos.coords.latitude, lng: pos.coords.longitude }) as { found?: boolean; address?: string; city?: string; state?: string; zip?: string }
+          if (a?.found) {
+            setLogAddress(a.address || '')
+            setLogCity(a.city || '')
             setLogState(a.state || '')
-            setLogZip(a.postcode || '')
+            setLogZip(a.zip || '')
           }
         } catch { /* fallback to manual */ }
       },

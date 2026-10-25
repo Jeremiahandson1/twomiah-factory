@@ -182,6 +182,16 @@ export function createCanvassingRoutes(d: CrmDeps) {
     return one(c, session, 201)
   })
 
+  // GET /reverse-geocode?lat=&lng= — the street address at the canvasser's phone, for the Log Door form. Google's, with
+  // the server's key (../../field/googleGeocode.ts): the browser called OpenStreetMap's public Nominatim, whose usage
+  // policy a shared app breaks. canvassing:create — who logs doors. No key or nothing found: { found: false }, typed in.
+  app.get('/reverse-geocode', requirePermission('canvassing:create'), async (c) => {
+    const lat = Number(c.req.query('lat')), lng = Number(c.req.query('lng'))
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return fail(c, 400, 'Send the location as lat and lng.')
+    const r = await geocoding.reverseGeocode(lat, lng, c.get('user').companyId)
+    return one(c, r ? { found: true, address: r.address || '', city: r.city || '', state: r.state || '', zip: r.zip || '' } : { found: false })
+  })
+
   // GET /sessions/:id — the session and every door in it.
   app.get('/sessions/:id', async (c) => {
     const { companyId } = c.get('user')

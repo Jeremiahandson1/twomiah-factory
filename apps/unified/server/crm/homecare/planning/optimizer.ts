@@ -23,7 +23,8 @@ import { shiftHours } from '../core/scheduleOccurrences.ts'
 import { DEFAULT_MILEAGE_RATE } from '../core/mileageRate.ts'
 import * as q from '../../../data/homecarePlanning.ts'
 
-const googleKey = () => process.env.GOOGLE_MAPS_API_KEY || ''
+// The server's Maps key and the one geocoder (crm/field/googleGeocode.ts) — no public OpenStreetMap fallback.
+import { googleKey, googleGeocode as sharedGeocode } from '../../field/googleGeocode.ts'
 async function body(c: Context): Promise<any> { try { return (await c.req.json()) || {} } catch { return {} } }
 
 // ============================================================ Google API helpers
@@ -77,27 +78,10 @@ async function googleRouteMatrix(nodes: Array<{ latitude: number; longitude: num
   } catch (e: any) { log(`Google Route Matrix API error: ${e?.message}`); return null }
 }
 
+/** An address → { latitude, longitude, formattedAddress } through the shared Google geocoder, or null. */
 async function googleGeocode(address: string, log: (m: string) => void) {
-  const key = googleKey(); if (!key) return null
-  try {
-    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}&components=country:US`)
-    const data: any = await res.json()
-    if (data.status === 'OK' && data.results?.length) {
-      const { lat, lng } = data.results[0].geometry.location
-      return { latitude: lat, longitude: lng, formattedAddress: data.results[0].formatted_address }
-    }
-    return null
-  } catch (e: any) { log(`Google Geocoding error: ${e?.message}`); return null }
-}
-
-async function nominatim(address: string, agencyName: string) {
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=us`,
-      { headers: { 'User-Agent': `${agencyName.replace(/[^\w .-]/g, '').trim() || 'HomeCareCRM'}/1.0` } })
-    const data: any = await res.json()
-    if (Array.isArray(data) && data.length) return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon), formattedAddress: data[0].display_name }
-  } catch { /* fallback failed */ }
-  return null
+  const r = await sharedGeocode(address, log)
+  return r ? { latitude: r.lat, longitude: r.lng, formattedAddress: r.formattedAddress } : null
 }
 
 // ============================================================ Distance + route solving (pure)
@@ -189,7 +173,6 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
   const plan = requirePermission('care-schedule:update')
   const app = new Hono<AppEnv>()
 
-  const agencyName = async (companyId: string) => (await q.companyBrand(d.db, companyId)).name || 'HomeCareCRM'
 
   // POST /optimize — order a caregiver's stops for the day, real road miles where Google is configured.
   app.post('/optimize', plan, async (c) => {
@@ -531,16 +514,15 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
     })
   })
 
-  // ── Geocoding (Google → Nominatim) ────────────────────────────────────────────────────────────
+  // ── Geocoding (Google, with the server's key; none → not found) ────────────────────────────────────────────────────────────
   app.post('/geocode', plan, async (c) => {
     const { companyId } = c.get('user')
     const { address, city, state, zip, entityType, entityId } = await body(c)
     const full = [address, city, state, zip].filter(Boolean).join(', ')
     if (!full) return fail(c, 400, 'Address required')
-    let result = await googleGeocode(full, log)
-    let source = 'google'
-    if (!result) { source = 'nominatim'; result = await nominatim(full, await agencyName(companyId)) }
-    if (!result) return fail(c, 404, `Address not found: ${full}`)
+    const result = await googleGeocode(full, log)
+    const source = 'google'
+    if (!result) return fail(c, 404, googleKey() ? `Address not found: ${full}` : 'Address lookup is not set up for this business yet (no Maps key).')
     if (entityType && entityId) {
       await q.setPosition(d.db, companyId, entityType === 'client' ? 'client' : 'user', String(entityId), result.latitude, result.longitude)
     }
@@ -552,16 +534,11 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
     const { entityType } = await body(c)
     const caregivers = entityType === 'caregivers'
     const rows = await q.unplacedAddresses(d.db, companyId, caregivers)
-    const results = { success: 0, failed: 0, errors: [] as any[], source: googleKey() ? 'google' : 'nominatim' }
-    const name = rows.length ? await agencyName(companyId) : ''
+    const results = { success: 0, failed: 0, errors: [] as any[], source: googleKey() ? 'google' : 'none' }
     for (const r of rows) {
       const full = joinAddress(r)
       try {
-        let geo: any = googleKey() ? await googleGeocode(full, log) : null
-        if (!geo) {
-          await new Promise((res) => setTimeout(res, 1100)) // Nominatim's 1 request/second rule
-          geo = await nominatim(full, name)
-        }
+        const geo: any = await googleGeocode(full, log)
         if (geo) {
           await q.setPosition(d.db, companyId, caregivers ? 'user' : 'client', r.id, geo.latitude, geo.longitude)
           results.success++
