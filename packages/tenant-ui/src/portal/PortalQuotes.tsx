@@ -139,8 +139,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             {Number(quote.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({quote.taxRate}%)</span><span>{moneyShort(quote.taxAmount)}</span></div>}
             {Number(quote.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(quote.discount)}</span></div>}
             <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(quote.total)}</span></div>
-            {hasOptional && <p className="text-xs text-gray-600 dark:text-slate-400">Optional items count once you tick them.</p>}
-            {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">Deposit due on approval</span><span>{moneyShort(quote.depositAmount)}</span></div>}
+            {hasOptional && canRespond && <p className="text-xs text-gray-600 dark:text-slate-400">Optional items count once you tick them.</p>}
+            {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">{canRespond ? 'Deposit due on approval' : 'Deposit'}</span><span>{moneyShort(quote.depositAmount)}</span></div>}
           </div>
         </div>
         {quote.terms && <div className="p-6 border-t dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3><p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p></div>}
