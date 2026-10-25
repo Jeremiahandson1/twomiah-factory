@@ -215,33 +215,19 @@ describe('every way a visit goes away takes its photo files', () => {
     expect(t.store.objects.has(v.key)).toBe(false)
   })
 
-  test('a client deleted in bulk: the cascade takes the visits, and the photo files go too', async () => {
-    const doomed = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Bulk Gone', type: 'client' }))).id
-    const kept = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Bulk Kept', type: 'client' }))).id
-    const make = async (contactId: string) => {
-      const v = await body(await as('owner', 'POST', '/api/service-records', { contactId, notes: 'Fringe trim' }))
-      const up = await body(await as('owner', 'POST', `/api/service-records/${v.id}/photos/after`, undefined, { body: photoForm() }))
-      return { id: v.id as string, key: up.photoAfter as string }
-    }
-    const gone = await make(doomed)
-    const stays = await make(kept)
-    const r = await as('owner', 'POST', '/api/bulk/contacts/delete', { ids: [doomed] })
-    expect(r.status).toBe(200)
-    expect(await visitGone(gone.id)).toBe(true)
-    expect(t.store.objects.has(gone.key)).toBe(false)
-    // another client's photo is untouched
-    expect(t.store.objects.has(stays.key)).toBe(true)
-  })
-
-  test("a salon client with visits is not deleted alone (the salon's guard), so its photo files stay", async () => {
+  test("a salon client with visits is not deleted, alone or in bulk (the salon's guard), so its photo files stay", async () => {
     const someone = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Guarded', type: 'client' }))).id
     const v = await body(await as('owner', 'POST', '/api/service-records', { contactId: someone, notes: 'Blow-dry' }))
     const key = (await body(await as('owner', 'POST', `/api/service-records/${v.id}/photos/before`, undefined, { body: photoForm() }))).photoBefore
     expect((await as('owner', 'DELETE', `/api/contacts/${someone}`)).status).toBe(409)
+    const bulk = await body(await as('owner', 'POST', '/api/bulk/contacts/delete', { ids: [someone] }))
+    expect(bulk.deleted).toBe(0)
+    expect(bulk.refused.map((r: any) => r.id)).toEqual([someone])
+    expect(await visitGone(v.id)).toBe(false)
     expect(t.store.objects.has(key)).toBe(true)
   })
 
-  test('a client deleted alone where no guard keeps them (any vertical with client charts on): the photo files go', async () => {
+  test('a client deleted where no guard keeps them (any vertical with client charts on), alone or in bulk: the photo files go', async () => {
     // A contractor's business with Client Profiles switched on: service records are served wherever the feature is
     // (crm/salon/index.ts), and this vertical's contact guards do not count them — the cascade takes them.
     const c = await bootTenant({ vertical: 'contractor' })
@@ -255,14 +241,29 @@ describe('every way a visit goes away takes its photo files', () => {
     await c.db.update(c.schema.company).set({ enabledFeatures: ['contacts', 'client_profiles'] } as any).where(eq(c.schema.company.id, seeded.company.id))
     const tok = (await (await c.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: PASSWORD }, headers: { 'X-Forwarded-For': '198.51.100.250' } })).json()).accessToken
     const call = (method: string, path: string, json?: unknown, init: any = {}) => c.call(path, { method, json, ...init, headers: { Authorization: `Bearer ${tok}` } })
-    const who = await (await call('POST', '/api/contacts', { name: 'Alone', type: 'client' })).json()
-    const v = await (await call('POST', '/api/service-records', { contactId: who.id, notes: 'Consult' })).json()
-    expect(v.id).toBeTruthy()
-    const key = (await (await call('POST', `/api/service-records/${v.id}/photos/before`, undefined, { body: photoForm() })).json()).photoBefore
-    expect(c.store.objects.has(key)).toBe(true)
-    const del = await call('DELETE', `/api/contacts/${who.id}`)
-    expect(del.status).toBe(204)
-    expect((await c.db.select().from(c.schema.serviceRecord).where(eq(c.schema.serviceRecord.id, v.id))).length).toBe(0)
-    expect(c.store.objects.has(key)).toBe(false)
+    const withPhoto = async (name: string) => {
+      const who = await (await call('POST', '/api/contacts', { name, type: 'client' })).json()
+      const v = await (await call('POST', '/api/service-records', { contactId: who.id, notes: 'Consult' })).json()
+      expect(v.id).toBeTruthy()
+      const key = (await (await call('POST', `/api/service-records/${v.id}/photos/before`, undefined, { body: photoForm() })).json()).photoBefore
+      expect(c.store.objects.has(key)).toBe(true)
+      return { contactId: who.id as string, visitId: v.id as string, key: key as string }
+    }
+    const gone = async (visitId: string) => (await c.db.select().from(c.schema.serviceRecord).where(eq(c.schema.serviceRecord.id, visitId))).length === 0
+
+    // alone
+    const alone = await withPhoto('Alone')
+    expect((await call('DELETE', `/api/contacts/${alone.contactId}`)).status).toBe(204)
+    expect(await gone(alone.visitId)).toBe(true)
+    expect(c.store.objects.has(alone.key)).toBe(false)
+
+    // in bulk — and another client's photo is untouched
+    const doomed = await withPhoto('Bulk Gone')
+    const kept = await withPhoto('Bulk Kept')
+    const r = await (await call('POST', '/api/bulk/contacts/delete', { ids: [doomed.contactId] })).json()
+    expect(r.deletedIds).toEqual([doomed.contactId])
+    expect(await gone(doomed.visitId)).toBe(true)
+    expect(c.store.objects.has(doomed.key)).toBe(false)
+    expect(c.store.objects.has(kept.key)).toBe(true)
   }, 120_000)
 })

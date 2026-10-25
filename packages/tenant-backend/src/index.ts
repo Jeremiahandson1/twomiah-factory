@@ -101,8 +101,8 @@ export type { PhotoDeps, PhotoTables } from './files/photos'
 
 // Contacts — one implementation for every CRM; the template injects its tables, guards and related lists.
 export { US_STATES, normaliseState, normaliseZip, zipField, STATE_ERROR, ZIP_ERROR } from './address'
-export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES, withoutPortalCredential, withoutPaymentInternals, PAYMENT_INTERNAL_KEYS } from './contacts/contacts'
-export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
+export { createContactRoutes, createContactDeleter, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES, withoutPortalCredential, withoutPaymentInternals, PAYMENT_INTERNAL_KEYS } from './contacts/contacts'
+export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables, ContactDeleter, ContactDeleteOutcome } from './contacts/contacts'
 
 // Company settings + feature toggles + login users — one implementation for every CRM.
 export { createCompanyRoutes, sanitizeCompany, redactCompanyCommercial, COMPANY_SECRETS, COMPANY_COMMERCIAL } from './company/company'

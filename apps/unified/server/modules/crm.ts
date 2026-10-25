@@ -9,7 +9,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
-  createContactRoutes, standardRelations, standardGuards, createJobRoutes, createQuoteRoutes, createInvoiceRoutes,
+  createContactRoutes, createContactDeleter, type ContactGuard, standardRelations, standardGuards, createJobRoutes, createQuoteRoutes, createInvoiceRoutes,
   companyTimeZone, createTimeRoutes, createExpenseRoutes, createTasksRoutes, createTeamRoutes, createJobsDashboardRoutes,
   createDocumentRoutes, createPhotoRoutes, createRecurringRoutes, createReportingRoutes, createSmsRoutes, createStripeRoutes,
   createTechRoutes, createCommissionRoutes, createLocationRoutes, createEquipmentRoutes, createPricebookRoutes,
@@ -141,6 +141,50 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   // A quote billed in parts: its deposit on approval, progress invoices, the final invoice crediting them (crm/billing).
   const quoteBilling = createQuoteBilling(own, { canTakeCardPayments })
 
+  /**
+   * What keeps a contact from being deleted, and the delete itself: ONE rule (tenant-backend createContactDeleter) for
+   * both doors that delete a contact — its own DELETE (the contact routes below) and the bulk delete (crm/office/bulk.ts,
+   * via CrmDeps.contactDeleter). The bulk door ran no guard at all and deleted a salon client with appointments, visits
+   * and a membership, which the single delete refuses (salon live test, 2026-10-25).
+   */
+  const contactGuards: ContactGuard[] = [
+    // A client owns patients, and every patient's visits, vaccinations, prescriptions and lab results cascade with
+    // them: medical history under statutory retention, so the client is not deleted while any remain (vet).
+    ...(v.patients ? [
+      { table: patient, column: patient.ownerId, label: 'patient', message: (n: number) => `This client has ${n} patient${n === 1 ? '' : 's'} with medical history. Reassign or remove their patients before deleting the client.` },
+      { table: appointment, column: appointment.ownerId, label: 'appointment' },
+    ] : []),
+    ...(sites
+      ? [
+        ...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' },
+        // …and their properties' route stops and snow contracts, which the customer's delete would cascade away.
+        ...propertyHolders(db).byContact,
+      ]
+      : standardGuards({ invoice, quote, job, project })),
+    // …and keeps them: a client with events is not deleted while any remain.
+    ...(v.events ? [{ table: event, column: event.contactId, label: 'event' }] : []),
+    // A dealership's customer with a repair order or a sales lead is kept (templates/crm-rv routes/contacts.ts).
+    ...(v.contacts?.guards?.includes('repairOrder') ? [{ table: repairOrder, column: repairOrder.customerId, label: 'repair order' }] : []),
+    ...(v.contacts?.guards?.includes('salesLead') ? [{ table: salesLead, column: salesLead.contactId, label: 'sales lead' }] : []),
+    // A salon's client with an appointment, a visit on record or a membership is kept (templates/crm-salon routes/contacts.ts).
+    ...(v.contacts?.guards?.includes('appointment') ? [{ table: appointment, column: appointment.contactId, label: 'appointment' }] : []),
+    ...(v.contacts?.guards?.includes('serviceRecord') ? [{ table: serviceRecord, column: serviceRecord.contactId, label: 'service record' }] : []),
+    ...(v.contacts?.guards?.includes('membershipEnrollment') ? [{ table: membershipEnrollment, column: membershipEnrollment.contactId, label: 'membership' }] : []),
+    // A shop's customer with an order is kept: the order keeps its own copy of who bought it, but the customer's
+    // history is the record of what they bought (docs/UNIFIED_STORE_PLAN.md decision 2).
+    ...(v.contacts?.guards?.includes('storeOrder') ? [{ table: storeOrder, column: storeOrder.contactId, label: 'order' }] : []),
+  ]
+  const contactDeleter = createContactDeleter({
+    db, contact, guards: contactGuards,
+    // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
+    // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
+    beforeDelete: async (companyId: string, contactId: string) => {
+      const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
+      return () => removeVisitPhotoFiles(s.storage, files)
+    },
+  })
+  own.contactDeleter = contactDeleter
+
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
     // A seat without contacts:read-all (every job vertical's field seat) reads the customers on its own jobs — led, an
@@ -149,12 +193,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
-      // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
-      // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
-      beforeDelete: async (companyId: string, contactId: string) => {
-        const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
-        return () => removeVisitPhotoFiles(s.storage, files)
-      },
+      // The one contact-delete rule, with its guards and its photo-file clean-up (contactDeleter above).
+      deleter: contactDeleter,
       // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
       // customers — templates/crm-rv routes/contacts.ts). Absent: the shared four, and 'client'.
       ...(v.contacts?.types ? { types: v.contacts.types } : {}),
@@ -174,33 +214,6 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         // A shopper's page lists their store orders, newest first (docs/UNIFIED_STORE_PLAN.md decision 2: a shopper is a
         // contact). Only to a seat that may open the orders (orders:read), as each row links to /crm/orders/:id.
         ...(v.store ? [{ key: 'orders', table: storeOrder, column: storeOrder.contactId, columns: { id: storeOrder.id, orderNumber: storeOrder.orderNumber, status: storeOrder.status, totalCents: storeOrder.totalCents, createdAt: storeOrder.createdAt }, orderBy: desc(storeOrder.createdAt), permission: 'orders:read' }] : []),
-      ],
-      guards: [
-        // A client owns patients, and every patient's visits, vaccinations, prescriptions and lab results cascade with
-        // them: medical history under statutory retention, so the client is not deleted while any remain (vet).
-        ...(v.patients ? [
-          { table: patient, column: patient.ownerId, label: 'patient', message: (n: number) => `This client has ${n} patient${n === 1 ? '' : 's'} with medical history. Reassign or remove their patients before deleting the client.` },
-          { table: appointment, column: appointment.ownerId, label: 'appointment' },
-        ] : []),
-        ...(sites
-          ? [
-            ...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' },
-            // …and their properties' route stops and snow contracts, which the customer's delete would cascade away.
-            ...propertyHolders(db).byContact,
-          ]
-          : standardGuards({ invoice, quote, job, project })),
-        // …and keeps them: a client with events is not deleted while any remain.
-        ...(v.events ? [{ table: event, column: event.contactId, label: 'event' }] : []),
-        // A dealership's customer with a repair order or a sales lead is kept (templates/crm-rv routes/contacts.ts).
-        ...(v.contacts?.guards?.includes('repairOrder') ? [{ table: repairOrder, column: repairOrder.customerId, label: 'repair order' }] : []),
-        ...(v.contacts?.guards?.includes('salesLead') ? [{ table: salesLead, column: salesLead.contactId, label: 'sales lead' }] : []),
-        // A salon's client with an appointment, a visit on record or a membership is kept (templates/crm-salon routes/contacts.ts).
-        ...(v.contacts?.guards?.includes('appointment') ? [{ table: appointment, column: appointment.contactId, label: 'appointment' }] : []),
-        ...(v.contacts?.guards?.includes('serviceRecord') ? [{ table: serviceRecord, column: serviceRecord.contactId, label: 'service record' }] : []),
-        ...(v.contacts?.guards?.includes('membershipEnrollment') ? [{ table: membershipEnrollment, column: membershipEnrollment.contactId, label: 'membership' }] : []),
-        // A shop's customer with an order is kept: the order keeps its own copy of who bought it, but the customer's
-        // history is the record of what they bought (docs/UNIFIED_STORE_PLAN.md decision 2).
-        ...(v.contacts?.guards?.includes('storeOrder') ? [{ table: storeOrder, column: storeOrder.contactId, label: 'order' }] : []),
       ],
       // A property's route stops and snow contracts hold it (crm/landscaping/inUse.ts).
       ...(sites ? { sites: { site, equipment, job, guards: propertyHolders(db).bySite } } : {}),

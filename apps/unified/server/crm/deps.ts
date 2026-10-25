@@ -6,6 +6,7 @@ import type { PhonePush } from '../core/phonePush.ts'
 import type { CrmServices } from './services.ts'
 import type { CrmSettings } from '../core/vertical.ts'
 import type { PhotoStore } from '../site/admin.ts'
+import type { ContactDeleter } from '@twomiah/tenant-backend'
 
 export interface CrmDeps {
   db: any
@@ -24,6 +25,11 @@ export interface CrmDeps {
   settings?: CrmSettings
   /** The website's photo store (served at /media), for a picture the public site shows (a menu item's photo). */
   store?: PhotoStore
+  /**
+   * The one contact-delete rule (tenant-backend createContactDeleter, built with the vertical's guards in modules/crm.ts)
+   * for every door that deletes a contact: its own DELETE and the bulk delete (office/bulk.ts).
+   */
+  contactDeleter?: ContactDeleter
 }
 
 /** May this person see `permission`, counting the grants the owner gave them by name? */
