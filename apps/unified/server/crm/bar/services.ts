@@ -17,6 +17,7 @@ import { createFoodSettings, foodDefaults } from './foodSettings.ts'
 import { createBarTerminal, terminalStripe } from './barTerminal.ts'
 import { createBarReceipts } from './barReceipts.ts'
 import { createBarOrders } from './barOrders.ts'
+import { hasConsent, recordConsent } from '../../site/smsConsent.ts'
 
 export function createBarServices(d: CrmDeps) {
   const db = d.db as BarDb
@@ -41,7 +42,15 @@ export function createBarServices(d: CrmDeps) {
     onOrderPaid: (tx, order, payment) => orders.paidInTx(tx, order, { tender: 'card_terminal', ...payment }),
     afterOrderPaid: (companyId, orderId, fired) => orders.afterPaid(companyId, orderId, fired),
   })
-  const orders = createBarOrders({ db, register, food })
+  const orders = createBarOrders({
+    db, register, food, live, stripe: () => terminalStripe(d.services.testStripeClient), logger: d.logger,
+    connectedAccountFor: (companyId) => d.services.stripeService.connectedAccountFor(companyId),
+    isFeatureEnabled: (companyId, f) => d.features.isFeatureEnabled(companyId, f),
+    sendEmail: (m) => sendEmail(m), sendText: (companyId, to, message) => sendText(companyId, to, message),
+    // A website order's texts go only to a number that ticked "Text me about my order" and has not opted out since.
+    mayText: async (companyId, phone) => (await hasConsent(db, companyId, phone)) && !(await receipts.optedOut(companyId, phone)),
+    recordConsent: (companyId, phone, ip) => recordConsent(db, companyId, { phone, source: 'website_form', topic: 'order', page: '/order', ip }),
+  })
   const sendText = async (companyId: string, to: string, message: string): Promise<{ sent: boolean; why?: string }> => {
     try {
       const r: any = await d.services.sms.sendSMS(companyId, { toPhone: to, message })

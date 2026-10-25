@@ -1,0 +1,13 @@
+<%
+  // Back from paying (Stripe Checkout): /scripts/order.js asks /api/public/food/orders/confirm?session_id=… whether the
+  // order is paid (the server asks Stripe) and shows its number and pickup time, or that the payment has not come in.
+%>
+<section class="order-page section">
+  <div class="container container--narrow">
+    <div id="order-done" class="order-root" aria-live="polite" data-session="<%= data.sessionId || '' %>">
+      <p>Checking your payment&hellip;</p>
+    </div>
+    <p><a class="btn" href="/order">Back to the menu</a></p>
+  </div>
+</section>
+<script src="/scripts/order.js" defer></script>

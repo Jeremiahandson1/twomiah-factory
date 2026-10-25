@@ -303,6 +303,8 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
 
   kitchenRoutes.get('/state', ...ring, async (c) => {
     const actor = await actorOf(c)
+    // A website order paid by a guest who never came back to the site: Stripe is asked here too (at most every 20 s).
+    if (await isFeatureEnabled(actor.companyId, ['online_ordering'])) await bar.orders.sweep(actor.companyId).catch(() => {})
     c.header('Cache-Control', 'no-store')
     return one(c, await kitchenState(actor.companyId))
   })

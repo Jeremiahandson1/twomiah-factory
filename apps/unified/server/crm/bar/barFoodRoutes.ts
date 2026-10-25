@@ -17,6 +17,9 @@
 //   GET    /kiosk/state                    the kiosk's menu (sizes, add-ons), its settings, a reader or not  bar:register · order_kiosk
 //   POST   /kiosk/order                    { lines, name, table, pay: reader | counter }                    bar:register · order_kiosk
 //   GET    /kiosk/order/:id  ·  POST /kiosk/order/:id/cancel                                                 bar:register · order_kiosk
+//   GET    /orders                         tonight's website and kiosk orders (Stripe asked about any unpaid)  bar:register · online_ordering
+//   POST   /orders/:id/ready               the guest is told it is ready                                    bar:register · online_ordering
+//   POST   /orders/:id/collected                                                                            bar:register · online_ordering
 //
 // Ringing and taking payment are bar:register (bartenders and up); refunds are bar:manage and settings bar:update
 // (managers, admins and the owner) — permissions, never rank (packages/tenant-backend/src/auth/permissions.ts).
@@ -30,6 +33,7 @@ import type { CrmDeps } from '../deps.ts'
 import { TerminalError } from './barTerminal.ts'
 import { CheckError } from './barRegister.ts'
 import { applyFoodPatch, FoodSettingsError } from './foodSettings.ts'
+import { businessDayOf, businessDayWindow } from './barLive.ts'
 import type { BarServices } from './services.ts'
 
 type Ctx = any
@@ -156,6 +160,24 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
   app.post('/check/:id/receipt', requireEnabledFeature('bar_register'), requirePermission('bar:register'), async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     return act(c, async () => ({ sent: await receipts.send(actor.companyId, c.req.param('id'), { email: b.email, phone: b.phone }, siteOrigin(c)) }))
+  })
+
+  // ── Online orders ──
+  const ordersGate = [requireEnabledFeature(['online_ordering', 'order_kiosk']), requirePermission('bar:register')] as const
+  app.get('/orders', ...ordersGate, async (c) => {
+    const actor = await actorOf(c)
+    await bar.orders.sweep(actor.companyId).catch(() => {})
+    const tz = await bar.reports.barTimezone(actor.companyId)
+    c.header('Cache-Control', 'no-store')
+    return one(c, { orders: await bar.orders.listOrders(actor.companyId, businessDayWindow(businessDayOf(new Date(), tz), tz).from), timezone: tz })
+  })
+  app.post('/orders/:id/ready', ...ordersGate, async (c) => {
+    const actor = await actorOf(c)
+    return act(c, async () => ({ order: await bar.orders.markOrder(actor, c.req.param('id'), 'ready') }))
+  })
+  app.post('/orders/:id/collected', ...ordersGate, async (c) => {
+    const actor = await actorOf(c)
+    return act(c, async () => ({ order: await bar.orders.markOrder(actor, c.req.param('id'), 'collected') }))
   })
 
   // ── The kiosk ──
