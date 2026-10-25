@@ -12,7 +12,7 @@ const { takesBookings } = (await import(FACTORY)) as { takesBookings: (tenant: a
 // What the signup pages hide (twomiah-website signup.html ASK_HIDDEN_FOR), written from this rule — checked here so the
 // two cannot drift without a failing test.
 const SIGNUP_PAGE_HIDES = {
-  bookings: ['home_care', 'roofing', 'dispensary', 'rv', 'restaurant', 'bar_and_grill', 'retail'],
+  bookings: ['home_care', 'roofing', 'dispensary', 'rv', 'food_truck', 'restaurant', 'bar_and_grill', 'retail'],
   online_payments: ['roofing', 'dispensary', 'retail'],
 }
 const SIGNUP_INDUSTRIES = ['general_contractor', 'remodeler', 'roofing', 'hvac', 'plumbing', 'electrical', 'landscaping', 'painter', 'concrete', 'flooring',

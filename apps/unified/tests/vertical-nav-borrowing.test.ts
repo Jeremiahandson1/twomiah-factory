@@ -19,6 +19,9 @@ const ROOT = path.join(import.meta.dir, '..')
 const BORROWS: Record<string, string[]> = {
   // A bar's private parties are the restaurant's events module (verticals/bar/settings.ts: Parties, Party Packages).
   bar: ['restaurant:/crm/events', 'restaurant:/crm/spaces', 'restaurant:/crm/menus'],
+  // A restaurant (and a food truck) runs the bar's food side — menu, register, grill orders, kiosk, online ordering —
+  // each behind its own feature switch; taps only with draft_taps (10/25).
+  restaurant: ['bar:/crm/bar-settings', 'bar:/crm/kiosk', 'bar:/crm/menu', 'bar:/crm/orders', 'bar:/crm/register', 'bar:/crm/register-settings', 'bar:/crm/taps', 'bar:/crm/tonight', 'bar:/crm/whats-on'],
 }
 
 /** The menu items written as a literal `export const nav` array, with their owner and features. */
