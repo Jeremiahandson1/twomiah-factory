@@ -111,7 +111,7 @@ export function applyFoodPatch(cur: FoodSettings, b: Record<string, any>): FoodS
       if (b.delivery[key] === undefined) continue
       if (b.delivery[key] === null || String(b.delivery[key]).trim() === '') { next.delivery[key] = null; continue }
       const ok = deliveryUrl(k, b.delivery[key])
-      if (!ok) throw new FoodSettingsError(`That is not a ${DELIVERY_NAMES[k]} link. Paste your store's address from ${DELIVERY_HOSTS[k][0]} (it starts with https://).`)
+      if (!ok) throw new FoodSettingsError(`That is not ${k === 'ubereats' ? 'an' : 'a'} ${DELIVERY_NAMES[k]} link. Paste your store's address from ${DELIVERY_HOSTS[k][0]} (it starts with https://).`)
       next.delivery[key] = ok
     }
   }
