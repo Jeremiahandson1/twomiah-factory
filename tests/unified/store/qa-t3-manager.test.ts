@@ -178,7 +178,7 @@ for (const status of ['paid', 'fulfilled', 'shipped', 'delivered']) {
   check('screen: the order page\'s COUNTED is the server\'s', !!counted(page) && counted(page) === counted(server), { page: counted(page), server: counted(server) })
   const rule = (s: string) => s.match(/const hasParcel = \([^)]*\)[^=]*=>\s*([^\n]+)/)?.[1]?.replace(/\s+/g, ' ').trim()
   check('screen: hasParcel reads the same on both sides', !!rule(page) && rule(page) === rule(server), { page: rule(page), server: rule(server) })
-  check('screen: the tracking boxes are shown under hasParcel (or while they hold something to clear)', /\{hasParcel\(order\) \|\| order\.trackingCarrier \|\| order\.trackingNumber \? \(/.test(page))
+  check('screen: the tracking boxes are shown under hasParcel (or while they hold something to clear)', /\{ships && \(hasParcel\(order\) \|\| order\.trackingCarrier \|\| order\.trackingNumber\) \? \(/.test(page)) /* unified: …on an order that is posted (ships): a pickup or gift-card-only order has no parcel to track (the store upgrade, 2026-10-24) */
   check('screen: the label panel names a closed order for what it is, before the permission line', page.indexOf('!canShip(order.status) ? (') > 0 && page.indexOf('!canShip(order.status) ? (') < page.indexOf(') : !mayBuy ? ('))
   const pay = src('web/src/crm/pages/store/orders/PaymentsPage.tsx') /* unified: the store add-on's Payments screen */
   check('screen: Payments renders its key form only for a seat that may connect', /\{mayConnect && \(\s*<div className="card p-5 space-y-4">/.test(pay) && !/disabled=\{[^}]*!mayConnect/.test(pay)) /* unified: the form is written `{mayConnect && (` on its own line */
