@@ -106,6 +106,13 @@ const trackingStandard = (html: string) => html
   .replace(/\s*if \(window\.twomiahLeadSent\) window\.twomiahLeadSent\([^)]*\);/g, '')
 
 /**
+ * A sent form resets (bar live test, 2026-10-25): the templates cleared every input's value, which left the "Text me"
+ * box ticked with its value wiped. Read back as the templates' line, so everything else still has to match.
+ */
+const formReset = (html: string) => html
+  .replace(/\/\*[^*]*reset\(\)[\s\S]*?\*\/\s*f\.reset\(\);/, "f.querySelectorAll('input:not([type=\"hidden\"]), textarea').forEach(function(i){ i.value = ''; });")
+
+/**
  * Texting consent, taken for every design (2026-10-21): the "Text me" box beside every phone field (server/site/smsConsent.ts)
  * and the footer's Privacy · Terms links (server/site/legal.ts). The templates' pages have neither.
  */
@@ -188,7 +195,7 @@ describe('the contact form in each vertical\'s words', () => {
       const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], smsConsent: consentBoxHtml, ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(trackingStandard(textingConsent(inlineFormMessages(mine))))).toBe(squash(messageField(theirs)))
+      expect(squash(formReset(trackingStandard(textingConsent(inlineFormMessages(mine)))))).toBe(squash(messageField(theirs)))
       // …and the box is there, unticked
       expect(mine).toContain('<input type="checkbox" name="smsConsent" value="yes">')
       expect(mine).toContain('name="message"')
