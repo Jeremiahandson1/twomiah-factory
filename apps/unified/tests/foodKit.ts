@@ -101,7 +101,7 @@ export function terminalStripeFake() {
   return { calls, state, readers, intents, sessions, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
 }
 
-export async function bootFood(opts: { vertical?: string; features: string[] }) {
+export async function bootFood(opts: { vertical?: string; features: string[]; adminDist?: string }) {
   const stripe = terminalStripeFake()
   const realFetch = globalThis.fetch
   globalThis.fetch = (async (input: any, init?: any) => {
@@ -109,7 +109,7 @@ export async function bootFood(opts: { vertical?: string; features: string[] }) 
     if (url.startsWith('https://api.stripe.com/')) return stripe.handle(url, init)
     return realFetch(input, init)
   }) as any
-  const t = await bootTenant({ vertical: opts.vertical ?? 'bar' })
+  const t = await bootTenant({ vertical: opts.vertical ?? 'bar', ...(opts.adminDist ? { adminDist: opts.adminDist } : {}) })
   // A stand-in platform key (the harness blanked the real ones): the SDK only reaches the fake above.
   process.env.STRIPE_SECRET_KEY = 'sk_test_food_service'
   process.env.SITE_URL = 'https://bar.test'

@@ -120,12 +120,14 @@ export default function KioskPage() {
 
   if (phase === 'welcome') {
     return (
-      <button type="button" className="min-h-screen w-full flex flex-col items-center justify-center gap-6 bg-orange-600 text-white p-6" onClick={() => { last.current = Date.now(); setPhase('menu') }}>
-        <span className="text-3xl sm:text-5xl font-bold text-center">{st.businessName}</span>
-        <span className="text-xl sm:text-3xl font-semibold">Touch to order</span>
+      <>
+        <button type="button" className="min-h-screen w-full flex flex-col items-center justify-center gap-6 bg-orange-600 text-white p-6" onClick={() => { last.current = Date.now(); setPhase('menu') }}>
+          <span className="text-3xl sm:text-5xl font-bold text-center">{st.businessName}</span>
+          <span className="text-xl sm:text-3xl font-semibold">Touch to order</span>
+        </button>
         {staff}
         {pinDialog}
-      </button>
+      </>
     )
   }
 
