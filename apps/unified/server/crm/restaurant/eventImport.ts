@@ -8,13 +8,15 @@
 // template's whole import router was.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, or, ilike } from 'drizzle-orm'
-import { contact, eventSpace, menuPackage } from '../../db/schema/index.ts'
+import { eq, and, or, ilike, ne } from 'drizzle-orm'
+import { contact, event, eventSpace, menuPackage } from '../../db/schema/index.ts'
+import { sameText } from '../../data/textMatch.ts'
+import { liveSpaceNamed } from '../../data/restaurantEvents.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
-import { parseCSV, normalizeColumns, getValue, parseDecimal, parseDate, type ImportOptions, type ImportResults } from '../office/importService.ts'
+import { parseCSV, normalizeColumns, getValue, parseDecimal, parseDate, importOptionsFrom, skippedDuplicate, type ImportOptions, type ImportResults } from '../office/importService.ts'
 import { EVENT_COLUMN_MAP, SPACE_COLUMN_MAP, MENU_COLUMN_MAP } from './eventImportColumns.ts'
 import { EVENT_STATUSES, EVENT_TYPES, HELD, SpaceClash, createEvent, findClash, clashMessage, validateEventInput } from './eventBooking.ts'
 
@@ -47,7 +49,7 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
   const { db } = d
 
   async function importEvents(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false, createContacts = true } = options
+    const { dryRun = false, createContacts = true, skipDuplicates = true } = options
     const records = parseCSV(csvContent)
     const results = emptyResults()
 
@@ -117,6 +119,13 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
         const vErr = validateEventInput(eventData)
         if (vErr) { results.errors.push({ line: lineNum, error: vErr }); results.skipped++; continue }
 
+        // The same event on the same day is already booked (a cancelled one is history, not a booking).
+        if (skipDuplicates) {
+          const [dupe] = await db.select({ id: event.id }).from(event)
+            .where(and(eq(event.companyId, companyId), sameText(event.name, name), eq(event.eventDate, eventDateVal), ne(event.status, 'cancelled'))).limit(1)
+          if (dupe) { skippedDuplicate(results, lineNum, dupe.id, name); continue }
+        }
+
         if (!dryRun) {
           // The booking write the form uses; a held room is a row error, the other rows still import. (T15 B1)
           let created: any
@@ -144,7 +153,7 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
   }
 
   async function importSpaces(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false } = options
+    const { dryRun = false, skipDuplicates = true } = options
     const records = parseCSV(csvContent)
     const results = emptyResults()
     for (let i = 0; i < records.length; i++) {
@@ -168,6 +177,13 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
         const negative = ([['seatedCapacity', 'Seated capacity'], ['standingCapacity', 'Standing capacity'], ['minimumSpend', 'Minimum spend'], ['hireFee', 'Hire fee']] as const)
           .find(([k]) => spaceData[k] !== null && Number(spaceData[k]) < 0)
         if (negative) { results.errors.push({ line: lineNum, error: `${negative[1]} cannot be negative` }); results.skipped++; continue }
+        // The form's rule (eventSpaces.ts): one live room per name. Skipped when it's the same room, refused otherwise.
+        const taken = await liveSpaceNamed(db, companyId, name.trim())
+        if (taken) {
+          if (skipDuplicates) skippedDuplicate(results, lineNum, taken.id, name)
+          else { results.errors.push({ line: lineNum, error: `A space named "${taken.name}" already exists.` }); results.skipped++ }
+          continue
+        }
         if (!dryRun) {
           const [created] = await db.insert(eventSpace).values(spaceData).returning()
           results.records.push({ line: lineNum, id: created.id, name: created.name })
@@ -183,7 +199,7 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
   }
 
   async function importMenus(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false } = options
+    const { dryRun = false, skipDuplicates = true } = options
     const records = parseCSV(csvContent)
     const results = emptyResults()
     for (let i = 0; i < records.length; i++) {
@@ -206,6 +222,10 @@ export function createVenueImportService(d: Pick<CrmDeps, 'db'>) {
         const negative = ([['pricePerPerson', 'Price per person'], ['minGuests', 'Minimum guests']] as const)
           .find(([k]) => menuData[k] !== null && Number(menuData[k]) < 0)
         if (negative) { results.errors.push({ line: lineNum, error: `${negative[1]} cannot be negative` }); results.skipped++; continue }
+        if (skipDuplicates) {
+          const [dupe] = await db.select({ id: menuPackage.id }).from(menuPackage).where(and(eq(menuPackage.companyId, companyId), sameText(menuPackage.name, name))).limit(1)
+          if (dupe) { skippedDuplicate(results, lineNum, dupe.id, name); continue }
+        }
         if (!dryRun) {
           const [created] = await db.insert(menuPackage).values(menuData).returning()
           results.records.push({ line: lineNum, id: created.id, name: created.name })
@@ -236,13 +256,7 @@ export function createVenueImportRoutes(d: CrmDeps, kind: VenueKind) {
     const formData = await uploadedForm(c)
     const file = formData.get('file') as File | null
     if (!file) return fail(c, 400, 'No file uploaded')
-    const csvContent = await file.text()
-    const options = {
-      dryRun: formData.get('dryRun') === 'true',
-      skipDuplicates: formData.get('skipDuplicates') !== 'false',
-      createContacts: formData.get('createMissingContacts') !== 'false',
-    }
-    const results = await service[HANDLER[kind]](csvContent, user.companyId, options)
+    const results = await service[HANDLER[kind]](await file.text(), user.companyId, importOptionsFrom(formData))
     d.audit.log({ req: c, action: 'IMPORT', entity: kind, metadata: { imported: results.imported, skipped: results.skipped }, userId: user.userId, companyId: user.companyId })
     return one(c, results)
   })

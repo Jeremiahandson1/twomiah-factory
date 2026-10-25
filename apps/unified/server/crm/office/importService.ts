@@ -2,7 +2,8 @@
 // templates/crm/backend/src/services/import.ts. Only the database is needed, so a test can build it with `{ db }`.
 // The platform migration (migration.ts) imports CSVs through the same functions.
 import { parse } from 'csv-parse/sync'
-import { eq, and, or, ilike, desc } from 'drizzle-orm'
+import { eq, and, or, ilike, desc, isNull } from 'drizzle-orm'
+import { sameText } from '../../data/textMatch.ts'
 import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 // The private-events types (events, spaces, menus): their importers are the events module's
@@ -94,8 +95,33 @@ export interface ImportOptions {
   dryRun?: boolean
   skipDuplicates?: boolean
   createContacts?: boolean
-  updateExisting?: boolean
   defaultType?: string
+}
+
+/**
+ * The import screen's choices, read the same way for every type. Each route read its own subset: "Skip duplicate
+ * records" (ticked by default) reached only invoices, so re-running a file doubled every project, job, product, space,
+ * menu package and event (live bistro check, 2026-10-25). The screen's "Update existing records" box went: nothing
+ * read it, and contacts always merge.
+ */
+export function importOptionsFrom(form: FormData): ImportOptions & { createMissingContacts: boolean } {
+  const createMissingContacts = form.get('createMissingContacts') !== 'false'
+  return {
+    dryRun: form.get('dryRun') === 'true',
+    skipDuplicates: form.get('skipDuplicates') !== 'false',
+    createContacts: createMissingContacts,
+    createMissingContacts,
+    defaultType: (form.get('defaultType') as string) || undefined,
+  }
+}
+
+/** A nullable column equal to the row's value, null included. */
+export const sameOrBothEmpty = (column: any, value: unknown) => (value == null ? isNull(column) : eq(column, value as any))
+
+/** A row matching a record already there, left as it is: counted as skipped and named, so the person sees why. */
+export function skippedDuplicate(results: ImportResults, line: number, id: string, name: string) {
+  results.skipped++
+  results.records.push({ line, id, name, action: 'skipped_duplicate' })
 }
 
 export interface ImportResults {
@@ -366,6 +392,7 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   const customerType = d.settings?.contacts?.customerType ?? 'client'
 
   async function importContacts(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
+    // A person is never added twice: a contact already here (same email, else same name) only has its blanks filled in.
     const { dryRun = false } = options
 
     const records = parseCSV(csvContent)
@@ -526,7 +553,7 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   }
 
   async function importProjects(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false, createContacts = true } = options
+    const { dryRun = false, createContacts = true, skipDuplicates = true } = options
 
     const records = parseCSV(csvContent)
     const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
@@ -590,6 +617,13 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
           contactId,
         }
 
+        // The same project for the same customer is already here.
+        if (skipDuplicates) {
+          const [dupe] = await db.select({ id: project.id }).from(project)
+            .where(and(eq(project.companyId, companyId), sameText(project.name, name), sameOrBothEmpty(project.contactId, contactId))).limit(1)
+          if (dupe) { skippedDuplicate(results, lineNum, dupe.id, name); continue }
+        }
+
         if (!dryRun) {
           const [created] = await db.insert(project).values(projectData).returning()
           results.records.push({ line: lineNum, id: created.id, name: created.name })
@@ -608,7 +642,7 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   }
 
   async function importJobs(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false } = options
+    const { dryRun = false, skipDuplicates = true } = options
 
     const records = parseCSV(csvContent)
     const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
@@ -685,6 +719,13 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
           assignedToId,
         }
 
+        // The same job, for the same customer, on the same day, is already here.
+        if (skipDuplicates) {
+          const [dupe] = await db.select({ id: job.id }).from(job)
+            .where(and(eq(job.companyId, companyId), sameText(job.title, title), sameOrBothEmpty(job.contactId, contactId), sameOrBothEmpty(job.scheduledDate, jobData.scheduledDate))).limit(1)
+          if (dupe) { skippedDuplicate(results, lineNum, dupe.id, title); continue }
+        }
+
         if (!dryRun) {
           const [created] = await db.insert(job).values(jobData).returning()
           results.records.push({ line: lineNum, id: created.id, title: created.title })
@@ -703,7 +744,7 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   }
 
   async function importProducts(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
-    const { dryRun = false } = options
+    const { dryRun = false, skipDuplicates = true } = options
 
     const records = parseCSV(csvContent)
     const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
@@ -730,6 +771,13 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
           description: getValue(row, ...PRODUCT_COLUMN_MAP.description),
           taxable: parseBoolean(getValue(row, ...PRODUCT_COLUMN_MAP.taxable)),
           active: true,
+        }
+
+        // Already in the price book: the same code, or (with no code) the same name.
+        if (skipDuplicates) {
+          const [dupe] = await db.select({ id: pricebookItem.id }).from(pricebookItem)
+            .where(and(eq(pricebookItem.companyId, companyId), productData.code ? sameText(pricebookItem.code, productData.code) : sameText(pricebookItem.name, name))).limit(1)
+          if (dupe) { skippedDuplicate(results, lineNum, dupe.id, name); continue }
         }
 
         if (!dryRun) {

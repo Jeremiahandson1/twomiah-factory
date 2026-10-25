@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
-import { createImportService } from './importService.ts'
+import { createImportService, importOptionsFrom } from './importService.ts'
 import { uploadedForm } from './upload.ts'
 
 export function createImportRoutes(d: CrmDeps) {
@@ -40,14 +40,11 @@ export function createImportRoutes(d: CrmDeps) {
     if (!file) return fail(c, 400, 'No file uploaded')
 
     const csvContent = await file.text()
-    const skipDuplicates = formData.get('skipDuplicates')
-    const updateExisting = formData.get('updateExisting')
-    const defaultType = formData.get('defaultType')
+    const chosen = importOptionsFrom(formData)
     const options = {
-      skipDuplicates: skipDuplicates !== 'false',
-      updateExisting: updateExisting === 'true',
+      ...chosen,
       // The vertical's paying contact (CrmSettings.contacts.customerType; templates/crm-rv routes/import.ts 'customer').
-      defaultType: (defaultType as string) || d.settings?.contacts?.customerType || 'client',
+      defaultType: chosen.defaultType || d.settings?.contacts?.customerType || 'client',
     }
 
     const results = await importService.importContacts(csvContent, user.companyId, options)
@@ -69,9 +66,7 @@ export function createImportRoutes(d: CrmDeps) {
     const file = formData.get('file') as File | null
     if (!file) return fail(c, 400, 'No file uploaded')
 
-    const csvContent = await file.text()
-    const skipDuplicates = formData.get('skipDuplicates')
-    const results = await importService.importProjects(csvContent, user.companyId, { skipDuplicates: skipDuplicates !== 'false' })
+    const results = await importService.importProjects(await file.text(), user.companyId, importOptionsFrom(formData))
 
     d.audit.log({ req: c,
       action: 'IMPORT',
@@ -90,7 +85,7 @@ export function createImportRoutes(d: CrmDeps) {
     const file = formData.get('file') as File | null
     if (!file) return fail(c, 400, 'No file uploaded')
 
-    const results = await importService.importJobs(await file.text(), user.companyId)
+    const results = await importService.importJobs(await file.text(), user.companyId, importOptionsFrom(formData))
 
     d.audit.log({ req: c,
       action: 'IMPORT',
@@ -109,7 +104,7 @@ export function createImportRoutes(d: CrmDeps) {
     const file = formData.get('file') as File | null
     if (!file) return fail(c, 400, 'No file uploaded')
 
-    const results = await importService.importProducts(await file.text(), user.companyId)
+    const results = await importService.importProducts(await file.text(), user.companyId, importOptionsFrom(formData))
 
     d.audit.log({ req: c,
       action: 'IMPORT',
@@ -129,11 +124,7 @@ export function createImportRoutes(d: CrmDeps) {
     const file = formData.get('file') as File | null
     if (!file) return fail(c, 400, 'No file uploaded')
 
-    const results = await importService.importInvoices(await file.text(), user.companyId, {
-      dryRun: formData.get('dryRun') === 'true',
-      skipDuplicates: formData.get('skipDuplicates') !== 'false',
-      createMissingContacts: formData.get('createMissingContacts') !== 'false',
-    })
+    const results = await importService.importInvoices(await file.text(), user.companyId, importOptionsFrom(formData))
 
     return one(c, results)
   })

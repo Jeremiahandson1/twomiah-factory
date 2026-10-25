@@ -21,7 +21,9 @@ export const DEFAULT_IMPORT_CONTACT_TYPES = [
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = { contacts: Users, projects: FolderKanban, jobs: Briefcase, products: Package, invoices: Receipt, events: CalendarCheck, spaces: DoorOpen, menus: UtensilsCrossed }
 
 interface PreviewData { valid?: boolean; error?: string; rowCount: number; columns: string[]; sample: Record<string, string>[] }
-interface ImportResults { total: number; imported: number; skipped: number; errors?: { row: number; error: string }[] }
+// The server's reply (crm/office/importService.ts ImportResults): `line` is the file's line, the header being line 1.
+// There is no `total` — the screen showed a blank "Total Rows" and "Row undefined" against every error.
+interface ImportResults { imported: number; skipped: number; errors?: { line: number; error: string }[]; warnings?: { line: number; warning: string }[]; records?: { line: number; name?: string; action?: string }[] }
 
 export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportConfig }) {
   const { hasFeature } = useAuth()
@@ -33,7 +35,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
   const [importing, setImporting] = useState(false)
   const [results, setResults] = useState<ImportResults | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [options, setOptions] = useState({ skipDuplicates: true, updateExisting: false, defaultType: config?.defaultContactType || contactTypes[0]?.value || 'client', createMissingContacts: true })
+  const [options, setOptions] = useState({ skipDuplicates: true, defaultType: config?.defaultContactType || contactTypes[0]?.value || 'client', createMissingContacts: true })
   const current = types.find((t) => t.id === selectedType) || types[0]
 
   const reset = () => { setFile(null); setPreview(null); setResults(null); setError(null) }
@@ -118,8 +120,11 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900 dark:border-slate-800">
           <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Import Options</h2>
           <div className="space-y-3">
-            <label className="flex items-center gap-3"><input type="checkbox" checked={options.skipDuplicates} onChange={(e) => setOptions((prev) => ({ ...prev, skipDuplicates: e.target.checked }))} className="w-4 h-4 rounded border-gray-300" /><span className="text-gray-700 dark:text-slate-200">Skip duplicate records</span></label>
-            <label className="flex items-center gap-3"><input type="checkbox" checked={options.updateExisting} onChange={(e) => setOptions((prev) => ({ ...prev, updateExisting: e.target.checked }))} className="w-4 h-4 rounded border-gray-300" /><span className="text-gray-700 dark:text-slate-200">Update existing records if found</span></label>
+            {/* A contact is never added twice (importService.ts importContacts); the "Update existing records" box that
+                stood here was read by nothing. */}
+            {selectedType === 'contacts'
+              ? <p className="text-sm text-gray-600 dark:text-slate-300">A contact already here (same email, or same name) is not added again — only details it is missing are filled in.</p>
+              : <label className="flex items-center gap-3"><input type="checkbox" checked={options.skipDuplicates} onChange={(e) => setOptions((prev) => ({ ...prev, skipDuplicates: e.target.checked }))} className="w-4 h-4 rounded border-gray-300" /><span className="text-gray-700 dark:text-slate-200">Skip rows already here (untick to add them again)</span></label>}
             {selectedType === 'invoices' && <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={options.createMissingContacts !== false} onChange={(e) => setOptions((prev) => ({ ...prev, createMissingContacts: e.target.checked }))} className="w-4 h-4 rounded border-gray-300" /><span className="text-gray-700 dark:text-slate-200">Create customers that do not exist yet (recommended — an invoice with no customer is hard to use)</span></label>}
             {selectedType === 'contacts' && (
               <div className="flex items-center gap-3"><span className="text-gray-700 dark:text-slate-200">Default contact type:</span>
@@ -136,13 +141,24 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900 dark:border-slate-800">
           <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Import Results</h2>
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-800"><p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{results.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Rows</p></div>
+            <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-800"><p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{results.imported + results.skipped}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Rows</p></div>
             <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-3xl font-bold text-green-700 dark:text-green-400">{results.imported}</p><p className="text-sm text-gray-500 dark:text-slate-400">Imported</p></div>
             <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{results.skipped}</p><p className="text-sm text-gray-500 dark:text-slate-400">Skipped</p></div>
           </div>
           {results.errors && results.errors.length > 0 && (
             <div><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Errors ({results.errors.length})</h3>
-              <div className="max-h-40 overflow-y-auto space-y-1">{results.errors.map((err, i) => <div key={i} className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">Row {err.row}: {err.error}</div>)}</div></div>
+              <div className="max-h-40 overflow-y-auto space-y-1">{results.errors.map((err, i) => <div key={i} className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">Line {err.line}: {err.error}</div>)}</div></div>
+          )}
+          {(() => {
+            const dupes = (results.records || []).filter((r) => r.action === 'skipped_duplicate')
+            return dupes.length > 0 && (
+              <div className="mt-4"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Already here, skipped ({dupes.length})</h3>
+                <div className="max-h-40 overflow-y-auto space-y-1">{dupes.map((r, i) => <div key={i} className="text-sm text-gray-700 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 px-3 py-1.5 rounded">Line {r.line}: {r.name}</div>)}</div></div>
+            )
+          })()}
+          {results.warnings && results.warnings.length > 0 && (
+            <div className="mt-4"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Imported, with a change ({results.warnings.length})</h3>
+              <div className="max-h-40 overflow-y-auto space-y-1">{results.warnings.map((w, i) => <div key={i} className="text-sm text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1.5 rounded">Line {w.line}: {w.warning}</div>)}</div></div>
           )}
           <div className="mt-6 flex gap-3">
             <button onClick={reset} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800">Import More</button>
