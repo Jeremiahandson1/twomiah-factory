@@ -1,5 +1,5 @@
 {
-  "id": "d3bc9226-7bc8-4ef6-9ea8-7bcfa55d7fdb",
+  "id": "95a87d48-d8ce-4897-85bf-3dc9bac604c6",
   "prevId": "be40c02f-52ad-465a-933b-7709280906ba",
   "version": "7",
   "dialect": "postgresql",
@@ -38343,6 +38343,13 @@
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": false
+        },
+        "price_is_from": {
+          "name": "price_is_from",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "deposit_amount": {
           "name": "deposit_amount",

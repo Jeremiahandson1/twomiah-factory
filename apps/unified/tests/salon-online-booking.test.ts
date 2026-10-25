@@ -52,7 +52,7 @@ describe('1. a salon: the Service Menu is the one list behind online booking', (
 
   test('a ticked menu item is on /book with its name, length, price and description; an unticked one is not', async () => {
     const list = (await json(s.t.call('/api/book/services'))).data as any[]
-    expect(list).toEqual([{ slug: 'cut-finish', name: 'Cut & Finish', description: 'Wash, cut and blow-dry.', durationMinutes: 45, price: '55.00', tipPresets: null }])
+    expect(list).toEqual([{ slug: 'cut-finish', name: 'Cut & Finish', description: 'Wash, cut and blow-dry.', durationMinutes: 45, price: '55.00', priceIsFrom: false, tipPresets: null }])
     const page = await (await s.t.call('/book')).text()
     expect(page).toContain('Cut &amp; Finish')
     expect(page).toContain('45 min')
@@ -116,6 +116,22 @@ describe('1. a salon: the Service Menu is the one list behind online booking', (
     expect(await publicSlugs()).toEqual(['full-colour'])
     // Still one engine row per menu item: re-ticking never makes a second.
     expect((await s.t.db.select().from(s.t.schema.bookingService)).length).toBe(2)
+  })
+
+  test('a "from" price on the menu reads "from $X" wherever the booking side shows it, and follows the menu', async () => {
+    expect((await s.as(`/api/service-menu/${colour.id}`, { method: 'PUT', json: { priceIsFrom: true } })).status).toBe(200)
+    expect(((await json(s.t.call('/api/book/services'))).data as any[])[0]).toMatchObject({ slug: 'full-colour', price: '140.00', priceIsFrom: true })
+    const list = await (await s.t.call('/book')).text()
+    expect(list).toContain('<span class="service-card__price">from $140</span>')
+    const page = await (await s.t.call('/book/full-colour')).text()
+    expect(page).toContain('2 hr · from $140')
+    // The Bookings screens read the same flag off the service (web/src/booking/common.tsx servicePrice).
+    const [row] = (await json(s.as('/api/booking/services'))).data.filter((x: any) => x.serviceMenuId === colour.id)
+    expect(row.priceIsFrom).toBe(true)
+    // Unticked "from" on the menu: a plain price again.
+    expect((await s.as(`/api/service-menu/${colour.id}`, { method: 'PUT', json: { priceIsFrom: false } })).status).toBe(200)
+    expect(await (await s.t.call('/book/full-colour')).text()).not.toContain('from $140')
+    expect((await s.as(`/api/service-menu/${colour.id}`, { method: 'PUT', json: { priceIsFrom: true } })).status).toBe(200)
   })
 
   test('Booking settings keeps no second list: no new services; what the menu owns is changed on the menu; how it is booked stays here', async () => {
@@ -230,7 +246,7 @@ describe("migration 0036: existing businesses' menus and hours", () => {
     // Provisioning's rows: written in the company's own transaction, so stamped with its created_at.
     await t.db.insert(t.schema.bookingHours).values([1, 2, 3, 4, 5].map((d) => ({ companyId: seededCo.id, userId: null, dayOfWeek: d, startMinute: 540, endMinute: 1020, createdAt: seededCo.createdAt })))
     await t.db.insert(t.schema.bookingHours).values({ companyId: ownCo.id, userId: null, dayOfWeek: 2, startMinute: 600, endMinute: 900, createdAt: new Date(ownCo.createdAt.getTime() + 86_400_000) })
-    const [ticked] = await t.db.insert(t.schema.serviceMenu).values({ companyId: seededCo.id, name: 'Balayage!', durationMin: 150, price: '180.00', bookableOnline: true }).returning()
+    const [ticked] = await t.db.insert(t.schema.serviceMenu).values({ companyId: seededCo.id, name: 'Balayage!', durationMin: 150, price: '180.00', priceIsFrom: true, bookableOnline: true }).returning()
     await t.db.insert(t.schema.serviceMenu).values({ companyId: seededCo.id, name: 'Beard trim', durationMin: 15, bookableOnline: false })
     // A slug already taken by an older engine row.
     await t.db.insert(t.schema.bookingService).values({ companyId: seededCo.id, slug: 'balayage', name: 'Old balayage', durationMinutes: 60 })
@@ -242,7 +258,7 @@ describe("migration 0036: existing businesses' menus and hours", () => {
     for (const sql of statements) await t.client.exec(sql)
 
     const svc = await t.db.select().from(t.schema.bookingService).where(eq(t.schema.bookingService.serviceMenuId, ticked.id))
-    expect(svc.map((x: any) => [x.name, x.durationMinutes, x.price, x.active, x.slug])).toEqual([['Balayage!', 150, '180.00', true, `balayage-${ticked.id.slice(0, 8).toLowerCase()}`]])
+    expect(svc.map((x: any) => [x.name, x.durationMinutes, x.price, x.priceIsFrom, x.active, x.slug])).toEqual([['Balayage!', 150, '180.00', true, true, `balayage-${ticked.id.slice(0, 8).toLowerCase()}`]])
     expect((await t.db.select().from(t.schema.bookingService)).length).toBe(2)
 
     expect(await t.db.select().from(t.schema.bookingHours).where(eq(t.schema.bookingHours.companyId, seededCo.id))).toEqual([])

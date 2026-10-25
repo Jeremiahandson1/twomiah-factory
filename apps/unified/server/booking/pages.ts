@@ -29,6 +29,8 @@ const EMBED_SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).tra
 const FEATURE = 'online_booking'
 const length = (m: number) => (m % 60 === 0 ? `${m / 60} hr` : m > 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`)
 const price = (p: string | null) => (p == null ? '' : '$' + (Number(p) % 1 ? Number(p).toFixed(2) : String(Number(p))))
+/** A service's price as customers read it: "from $250" when it is a starting price (booking_service.price_is_from). */
+const servicePrice = (svc: Pick<ServiceRow, 'price' | 'priceIsFrom'>) => (svc.price == null ? '' : (svc.priceIsFrom ? 'from ' : '') + price(svc.price))
 
 export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => Promise<SiteContext | null>; isFeatureEnabled: (companyId: string, f: string) => Promise<boolean> }) {
   const { engine } = deps
@@ -72,7 +74,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const body = !services.length
       ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>Online booking is being set up. <a href="/contact">Get in touch</a> for now.</p></div></section>'
       : `<section class="book-services"><div class="container"><h1 class="book-services__title">${escHtml(s.settings.heroTitle || 'Book a service')}</h1>${s.settings.heroSubtitle ? `<p class="book-services__subtitle">${escHtml(s.settings.heroSubtitle)}</p>` : ''}<div class="book-services__grid">${services.map((x) => `
-          <a class="service-card" href="/book/${escHtml(x.slug)}${keep(c)}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${price(x.price)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
+          <a class="service-card" href="/book/${escHtml(x.slug)}${keep(c)}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${servicePrice(x)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
     return html(c, s.ctx, body, 'Book online', '/book')
   })
 
@@ -180,7 +182,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const body = `<section class="book-picker"><div class="container container--narrow">
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
-      <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + price(svc.price) : ''}</p>
+      <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + servicePrice(svc) : ''}</p>
       ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0))}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
