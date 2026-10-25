@@ -176,7 +176,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const s = await site(c); if (!s) return c.notFound()
     if (!s.settings.enabled) return closed(c, s.ctx)
     const svc = await engine.serviceBySlug(s.ctx.companyId, c.req.param('slug'))
-    if (!svc || !svc.active) return c.notFound()
+    if (!engine.offered(svc)) return c.notFound()
     const body = `<section class="book-picker"><div class="container container--narrow">
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>

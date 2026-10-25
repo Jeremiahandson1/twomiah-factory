@@ -260,10 +260,12 @@ describe('Convert to job: the booking becomes a job on the schedule, linked, and
     const o = await seedOwner(s2)
     const tok = (await (await s2.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: o.password } })).json()).accessToken
     const as2 = (path: string, init: any = {}) => s2.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tok}` } })
-    expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts'] } })).status).toBe(200)
+    expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts', 'service_menu'] } })).status).toBe(200)
     await s2.db.update(s2.schema.company).set({ timezone: TZ } as any).where(eq(s2.schema.company.id, o.company.id))
     expect((await as2('/api/booking/settings', { method: 'PATCH', json: { enabled: true } })).status).toBe(200)
-    const svc = await (await as2('/api/booking/services', { method: 'POST', json: { name: 'Cut', durationMinutes: 30 } })).json()
+    // A salon's bookable services are its Service Menu's (crm/salon/onlineBooking.ts).
+    expect((await as2('/api/service-menu', { method: 'POST', json: { name: 'Cut', durationMin: 30, bookableOnline: true } })).status).toBe(201)
+    const svc = ((await (await as2('/api/booking/services')).json()).data as any[])[0]
     await as2('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00' })) } })
     const b2 = await (await as2('/api/booking/bookings', { method: 'POST', json: { serviceId: svc.id, name: 'Client', email: 'c@example.com', phone: '608-555-0155', date: day, time: '10:00' } })).json()
     expect(b2.id).toBeTruthy()
@@ -285,10 +287,13 @@ describe("a salon's online booking lands in The Book (the salon's schedule), and
     stylistId = o.owner.id
     const tok = (await (await s2.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: o.password } })).json()).accessToken
     as2 = (path: string, init: any = {}) => s2.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tok}` } })
-    expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts', 'salon_booking'] } })).status).toBe(200)
+    expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts', 'salon_booking', 'service_menu'] } })).status).toBe(200)
     await s2.db.update(s2.schema.company).set({ timezone: TZ } as any).where(eq(s2.schema.company.id, o.company.id))
     expect((await as2('/api/booking/settings', { method: 'PATCH', json: { enabled: true, leadTimeMinutes: 0 } })).status).toBe(200)
-    await as2('/api/booking/services', { method: 'POST', json: { name: 'Cut', durationMinutes: 60, slotStepMinutes: 60, price: 45 } })
+    // The Service Menu's Cut, ticked "Bookable online"; how it is booked online (hourly starts) is Booking settings'.
+    expect((await as2('/api/service-menu', { method: 'POST', json: { name: 'Cut', durationMin: 60, price: 45, bookableOnline: true } })).status).toBe(201)
+    const cut = ((await (await as2('/api/booking/services')).json()).data as any[])[0]
+    expect((await as2(`/api/booking/services/${cut.id}`, { method: 'PATCH', json: { slotStepMinutes: 60 } })).status).toBe(200)
     await as2('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00', userId: stylistId })) } })
   }, 60_000)
 
@@ -305,6 +310,9 @@ describe("a salon's online booking lands in The Book (the salon's schedule), and
     expect(new Date(a.startTime).toISOString()).toBe(b.startAt.toISOString())
     expect(Number(a.quotedPrice)).toBe(45)
     expect(a.notes).toContain('Online booking: Cut')
+    // The Service Menu's Cut itself: the visit's sale, loyalty and rebooking read it.
+    const [menuCut] = await s2.db.select().from(s2.schema.serviceMenu)
+    expect(a.serviceId).toBe(menuCut.id)
     expect(await times()).not.toContain('10:00')
   })
 

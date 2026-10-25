@@ -33,7 +33,7 @@ beforeAll(async () => {
   // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
   await t.db.update(t.schema.company).set({ name: 'Acme Remodeling', timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   const webhooks = createBookingWebhooks({ db: t.db, logger: quiet })
-  const happen = createHappenings({ db: t.db, email: t.services.email, logger: quiet, webhooks, texts })
+  const happen = createHappenings({ db: t.db, email: t.services.email, logger: quiet, webhooks, texts, offered: (svc) => engine.offered(svc) })
   engine = createBookingEngine({ db: t.db, requireAddressDefault: false, now: () => clock, onHappening: (h) => happen(h) })
   extras = createBookingExtras({ db: t.db, engine, email: t.services.email, logger: quiet, webhooks, texts, now: () => clock })
   await engine.updateSettings(companyId, { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 14, reviewLink: 'https://g.page/r/acme' })

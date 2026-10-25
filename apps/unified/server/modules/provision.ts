@@ -9,7 +9,8 @@ import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { withoutNotReady, withinOffer } from '@twomiah/tenant-backend'
-import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript, bookingSettings, bookingHours, bookingService } from '../db/schema/index.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript, bookingSettings, bookingService } from '../db/schema/index.ts'
+import { startingMenuService } from '../crm/salon/onlineBooking.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { BASE_STARTER, starterArticleRows, starterCategories } from '../core/starter.ts'
 import { SITE_DESIGNS } from '../core/vertical.ts'
@@ -95,16 +96,20 @@ export async function writeStartingSite(tx: any, companyId: string, site: Starti
 }
 
 /**
- * A business that said "We take bookings" at signup starts bookable: the booking settings on its own clock, weekday
- * hours 9–5 for anyone, and one 30-minute Consultation. Live test 2026-10-22: the answer never reached the app, so a new
- * business had no service and every day closed, and its /book page said "Bookings opening soon" until the owner found
- * three settings screens. The owner changes all of it in booking settings.
+ * A business that said "We take bookings" at signup starts bookable: the booking settings on its own clock and one
+ * 30-minute Consultation. Live test 2026-10-22: the answer never reached the app, so a new business had no service and
+ * every day closed, and its /book page said "Bookings opening soon" until the owner found three settings screens.
+ *
+ * No hours are written: bookings follow the business's opening hours, and weekdays 9–5 until it has any (booking/
+ * engine.ts weekOf). Seeded Mon–Fri rows were the owner's in nobody's eyes and outvoted the opening hours they set
+ * later (salon live test, 2026-10-25). A salon's Consultation is a Service Menu item offered online (its menu is the
+ * one list /book offers — crm/salon/onlineBooking.ts), not a booking-only service the menu never shows.
  */
-export async function startingBookings(tx: any, companyId: string) {
+export async function startingBookings(tx: any, companyId: string, vertical: VerticalSettings) {
   // Its clock is the company's (booking/engine.ts settingsOf), given at provisioning — the row keeps no zone of its own.
   await tx.insert(bookingSettings).values({ companyId }).onConflictDoNothing()
-  await tx.insert(bookingHours).values([1, 2, 3, 4, 5].map((dayOfWeek) => ({ companyId, userId: null, dayOfWeek, startMinute: 9 * 60, endMinute: 17 * 60 })))
-  await tx.insert(bookingService).values({ companyId, slug: 'consultation', name: 'Consultation', durationMinutes: 30, slotStepMinutes: 30 }).onConflictDoNothing()
+  if (vertical.booking?.calendar === 'chair') await startingMenuService(tx, companyId)
+  else await tx.insert(bookingService).values({ companyId, slug: 'consultation', name: 'Consultation', durationMinutes: 30, slotStepMinutes: 30 }).onConflictDoNothing()
 }
 
 export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings; forgetFeatures: () => void }) {
@@ -154,7 +159,7 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
       }
 
       if (input.site) await writeStartingSite(tx, created.id, input.site)
-      if (input.takesBookings) await startingBookings(tx, created.id)
+      if (input.takesBookings) await startingBookings(tx, created.id, vertical)
       return { created: { companyId: created.id, ownerId: owner.id } }
     })
 

@@ -6,6 +6,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing } from '@twomiah/tenant-backend'
 import { serviceMenu } from '../../db/schema/index.ts'
 import { serviceNamedOnMenu } from '../../data/salon.ts'
+import { keepOnlineService } from './onlineBooking.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -54,20 +55,26 @@ export function createServiceMenuRoutes(d: CrmDeps) {
       return fail(c, 409, `"${body.name.trim()}" is already on the menu.`, 'DUPLICATE_SERVICE')
     }
 
-    const [created] = await db.insert(serviceMenu).values({
-      id: createId(),
-      name: body.name.trim(),
-      category: body.category || 'hair',
-      description: body.description || null,
-      durationMin: body.durationMin ?? 60,
-      price: body.price ?? null,
-      priceIsFrom: body.priceIsFrom ?? false,
-      rebookIntervalDays: body.rebookIntervalDays ?? null,
-      requiresPatchTest: body.requiresPatchTest ?? false,
-      bookableOnline: body.bookableOnline ?? false,
-      active: body.active ?? true,
-      companyId: currentUser.companyId,
-    }).returning()
+    // The item and its online booking service in one write (onlineBooking.ts keepOnlineService): the menu is the one
+    // list /book offers.
+    const created = await db.transaction(async (tx: any) => {
+      const [row] = await tx.insert(serviceMenu).values({
+        id: createId(),
+        name: body.name.trim(),
+        category: body.category || 'hair',
+        description: body.description || null,
+        durationMin: body.durationMin ?? 60,
+        price: body.price ?? null,
+        priceIsFrom: body.priceIsFrom ?? false,
+        rebookIntervalDays: body.rebookIntervalDays ?? null,
+        requiresPatchTest: body.requiresPatchTest ?? false,
+        bookableOnline: body.bookableOnline ?? false,
+        active: body.active ?? true,
+        companyId: currentUser.companyId,
+      }).returning()
+      await keepOnlineService(tx, row)
+      return row
+    })
 
     await audit.log({ action: 'create', entity: 'service_menu', entityId: created.id, metadata: created, req: { user: currentUser } })
     refresh(currentUser.companyId)
@@ -93,7 +100,13 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
 
-    const [updated] = await db.update(serviceMenu).set(updates).where(eq(serviceMenu.id, id)).returning()
+    // Unticked "Bookable online", or taken off the menu: off /book in the same write; a rename, a new length or price:
+    // /book shows it at once. Bookings already made keep their time (keepOnlineService).
+    const updated = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(serviceMenu).set(updates).where(eq(serviceMenu.id, id)).returning()
+      await keepOnlineService(tx, row)
+      return row
+    })
     await audit.log({ action: 'update', entity: 'service_menu', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
     refresh(currentUser.companyId)
     return one(c, updated)
@@ -107,7 +120,11 @@ export function createServiceMenuRoutes(d: CrmDeps) {
       .where(and(eq(serviceMenu.id, id), eq(serviceMenu.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Service not found')
 
-    const [updated] = await db.update(serviceMenu).set({ active: false, updatedAt: new Date() }).where(eq(serviceMenu.id, id)).returning()
+    const updated = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(serviceMenu).set({ active: false, updatedAt: new Date() }).where(eq(serviceMenu.id, id)).returning()
+      await keepOnlineService(tx, row)
+      return row
+    })
     await audit.log({ action: 'update', entity: 'service_menu', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
     refresh(currentUser.companyId)
     return one(c, { success: true, service: updated })

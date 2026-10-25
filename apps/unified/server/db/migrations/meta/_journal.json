@@ -253,6 +253,13 @@
       "when": 1792897319552,
       "tag": "0035_food_service",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792960831202,
+      "tag": "0036_menu_bookings_hours",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@
 // settings.logoUrl, …), built from the app's company and site rows. The views moved across unchanged; this is the one
 // place that knows the premium site kept these in its own settings table.
 import { and, asc, eq } from 'drizzle-orm'
-import { businessHoursLines, checkBusinessHours } from '@twomiah/tenant-backend'
+import { businessHoursLines, businessHoursOf } from '@twomiah/tenant-backend'
 import { company, website, page, post, portfolioItem } from '../db/schema/index.ts'
 import { sectionsShown } from './render.ts'
 import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
@@ -55,11 +55,9 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     ...row, ...(preview.settings ?? {}),
     googleTagManagerId: null, googleAnalyticsId: null, googleAdsId: null, facebookPixelId: null, microsoftClarityId: null,
   } : row
-  // The company's opening hours (Settings › Company; company.settings.businessHours). The blob may be stored as JSON
-  // text on a moved agency (enabledFeature.ts readSettingsBlob), so it is read either way; a bad value is no hours.
-  let blob: any = co.settings
-  if (typeof blob === 'string') { try { blob = JSON.parse(blob) } catch { blob = null } }
-  const businessHours = blob?.businessHours && !checkBusinessHours(blob.businessHours) ? blob.businessHours : null
+  // The company's opening hours (Settings › Company; company.settings.businessHours), read by the one rule online booking
+  // reads them by too (booking/engine.ts weekOf): JSON text on a moved agency is read, a bad value is no hours.
+  const businessHours = businessHoursOf(co.settings)
   const design = (SITE_DESIGNS as readonly string[]).includes(s?.design) ? (s.design as SiteDesign) : vertical.site.design
   // The menu and "What we do" as visitors see them (site/menu.ts): from the pages, posts, work and services as they are now.
   const [pages, [aPost], [aWork], services] = await Promise.all([

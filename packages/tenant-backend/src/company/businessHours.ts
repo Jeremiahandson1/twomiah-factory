@@ -36,6 +36,34 @@ const twelveHour = (t: string) => {
   return m ? `${hour}:${String(m).padStart(2, '0')}${suffix}` : `${hour}${suffix}`
 }
 
+/**
+ * The opening hours on a company's settings blob (company.settings), or null when none are set or they aren't a usable
+ * week. The blob may be stored as JSON text (a moved agency: enabledFeature.ts readSettingsBlob), so it is read either way.
+ */
+export function businessHoursOf(settings: unknown): BusinessHours | null {
+  let blob: any = settings
+  if (typeof blob === 'string') { try { blob = JSON.parse(blob) } catch { blob = null } }
+  const v = blob && typeof blob === 'object' ? blob.businessHours : null
+  return v && !checkBusinessHours(v) ? (v as BusinessHours) : null
+}
+
+/**
+ * The hours as weekly windows on the business's clock (dayOfWeek 0 = Sunday … 6 = Saturday, minutes from midnight):
+ * what online booking offers until the owner sets booking hours of their own (apps/unified booking/engine.ts weekOf;
+ * salon live test, 2026-10-25). A closed day and a day not said both have no window. Null when no day is said at all.
+ */
+export function businessHoursWindows(v: unknown): Array<{ dayOfWeek: number; startMinute: number; endMinute: number }> | null {
+  if (!v || checkBusinessHours(v)) return null
+  const hours = v as BusinessHours
+  if (!WEEK_DAYS.some((d) => hours[d])) return null
+  const minutes = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+  return WEEK_DAYS.flatMap((d, i) => {
+    const h = hours[d]
+    if (!h || h.closed) return []
+    return [{ dayOfWeek: (i + 1) % 7, startMinute: minutes(h.open!), endMinute: minutes(h.close!) }]
+  })
+}
+
 /** The hours as lines for a page ("Monday: 9am – 5pm", "Sunday: Closed"), in week order; days not said are left out. */
 export function businessHoursLines(v: unknown): string[] {
   if (checkBusinessHours(v) || !v) return []

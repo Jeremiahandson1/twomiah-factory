@@ -30,8 +30,12 @@ export const icsOf = (b: BookingRow, svc: ServiceRow | null, companyName: string
   location: b.customerAddress, description: `Reschedule or cancel: ${siteOrigin()}/booking/${b.token}`, cancelled,
 })
 
-export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts }) {
-  const { db, email, logger, webhooks } = deps
+/**
+ * `offered`: the engine's one rule for "can a customer book this now" (engine.offered — switched on, and on the
+ * vertical's own list when it keeps one), so a message never links a customer to a /book page that isn't there.
+ */
+export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; offered: (svc: ServiceRow | null) => boolean }) {
+  const { db, email, logger, webhooks, offered } = deps
 
   async function owner(companyId: string) {
     const [co] = await db.select({ name: company.name, email: company.email }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -41,7 +45,7 @@ export function createHappenings(deps: { db: any; email: EmailService; logger: L
 
   /** Open waitlist entries for this service whose dates include the freed day are told, once. */
   async function tellWaitlist(h: BookingHappening) {
-    if (!h.service || !h.service.active) return
+    if (!h.service || !offered(h.service)) return
     const day = tzParts(h.booking.startAt, safeTz(h.settings.timezone)).date
     const entries = await db.update(bookingWaitlist).set({ status: 'notified', notifiedAt: new Date() }).where(and(
       eq(bookingWaitlist.companyId, h.booking.companyId), eq(bookingWaitlist.serviceId, h.service.id), eq(bookingWaitlist.status, 'open'),
@@ -77,7 +81,7 @@ export function createHappenings(deps: { db: any; email: EmailService; logger: L
     }
     if (h.event === 'booking.cancelled') {
       // The customer is told unless they did it themselves (they saw it happen); an expired deposit hold is told too.
-      if (h.by !== 'customer') await quietly('cancel email', email.send(b.customerEmail, 'bookingCancelled', { ...m, bookUrl: svc?.active ? `${siteOrigin()}/book/${svc.slug}` : undefined }))
+      if (h.by !== 'customer') await quietly('cancel email', email.send(b.customerEmail, 'bookingCancelled', { ...m, bookUrl: svc && offered(svc) ? `${siteOrigin()}/book/${svc.slug}` : undefined }))
       if (h.by === 'customer' && s.notifyEmail && co.email) await quietly('owner email', email.send(co.email, 'bookingCancelledForOwner', m))
       await quietly('waitlist', tellWaitlist(h))
     }

@@ -23,6 +23,7 @@ import { BookingCalendarPage } from './booking/BookingCalendarPage'
 import { BookingSettingsPage } from './booking/BookingSettingsPage'
 import { BookingInsightsPage, BookingWaitlistPage, BookingSeriesPage } from './booking/BookingExtrasPages'
 import { Crm, page, named } from './crm/lazy'
+import { verticalScreens } from './crm/vertical'
 import * as basicScreens from './crm/verticals/basic'
 import * as landscapingScreens from './crm/verticals/landscaping'
 import * as barScreens from './crm/verticals/bar'
@@ -38,6 +39,8 @@ const PortalApp = lazy(() => import('./crm/portal'))
 // A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
 const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
 const DomainPage = page(() => import('./crm/pages/DomainPage'))
+/** The vertical's own book, where its online bookings land beside the desk's (VerticalScreens.booking.calendarPath). */
+const OWN_BOOK = verticalScreens().booking.calendarPath
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
 const ProjectDetailPage = page(() => import('./crm/pages/ProjectDetailPage'))
 const RFIsPage = page(() => import('./crm/pages/RFIsPage'))
@@ -214,7 +217,9 @@ export default function App() {
                           and its Stripe return to /crm/domain always were; only a store had the screen). */}
                       <Route path="domain" element={<DomainPage />} />
                       <Route path="bookings" element={<BookingsPage />} />
-                      <Route path="bookings/calendar" element={<BookingCalendarPage />} />
+                      {/* A vertical whose online bookings land in its own book (a salon's The Book) sees them there with the
+                          desk's; this address goes to it (shell.ts — salon live test, 2026-10-25). */}
+                      <Route path="bookings/calendar" element={typeof OWN_BOOK === 'string' ? <Navigate to={OWN_BOOK} replace /> : <BookingCalendarPage />} />
                       <Route path="bookings/waitlist" element={<BookingWaitlistPage />} />
                       <Route path="bookings/insights" element={<BookingInsightsPage />} />
                       <Route path="bookings/settings" element={<BookingSettingsPage />} />
