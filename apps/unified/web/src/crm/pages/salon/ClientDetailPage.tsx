@@ -14,7 +14,6 @@ import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
 import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
-import { useAuth } from '../../../shared'
 import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
 import { SLOT_LABEL, VISIT_PHOTO_SLOTS, urlOf, type VisitPhotoSlot } from './VisitPhotos'
@@ -155,7 +154,6 @@ export default function ClientDetailPage() {
   // The photo history open full size (the shared viewer), by its place in `photos`.
   const [viewing, setViewing] = useState<number | null>(null);
   const toast = useToast();
-  const { hasFeature } = useAuth();
 
   const load = useCallback(async () => {
     if (!id) return;
