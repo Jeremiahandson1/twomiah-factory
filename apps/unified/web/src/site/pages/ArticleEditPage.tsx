@@ -7,6 +7,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../../crm/vertical'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
@@ -28,7 +29,9 @@ interface Article {
 type KindId = 'posts' | 'portfolio'
 const KINDS: Record<KindId, { back: string; backLabel: string; publicPrefix: string; titlePlaceholder: string; photoTag: string }> = {
   posts: { back: '/crm/website/blog', backLabel: 'Blog', publicPrefix: '/blog/', titlePlaceholder: 'Post title', photoTag: 'blog' },
-  portfolio: { back: '/crm/website/portfolio', backLabel: 'Portfolio', publicPrefix: '/projects/', titlePlaceholder: 'Project title', photoTag: 'projects' },
+  portfolio: verticalScreens().vocabulary?.gallery === 'Gallery'
+    ? { back: '/crm/website/portfolio', backLabel: 'Gallery', publicPrefix: '/projects/', titlePlaceholder: 'Title', photoTag: 'projects' }
+    : { back: '/crm/website/portfolio', backLabel: 'Portfolio', publicPrefix: '/projects/', titlePlaceholder: 'Project title', photoTag: 'projects' },
 }
 
 const workingOf = (kind: KindId) => (r: DraftRow): Article => {

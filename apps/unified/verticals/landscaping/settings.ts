@@ -35,6 +35,7 @@ const STARTER: StarterContent = {
 const landscaping: VerticalSettings = {
   id: 'landscaping',
   label: 'Landscaping',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio' },
   mfaIssuer: 'Twomiah Landscaping',
   featureSet: 'crm-landscaping',
   starter: STARTER,
@@ -106,8 +107,8 @@ const landscaping: VerticalSettings = {
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
-    time: { jobLabel: 'Service Visit' },
-    expenses: { jobLabel: 'Service Visit' },
+    time: {},
+    expenses: {},
     // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
     team: { rolePlaceholder: 'e.g. Crew Lead', crewLogins: true },
     agreements: { recurrence: true, planNamePlaceholder: 'e.g., Weekly mowing plan' },

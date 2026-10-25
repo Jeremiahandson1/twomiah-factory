@@ -120,7 +120,9 @@
             if (x.ok) {
               s.textContent = x.d.message || 'Thanks \u2014 your message was sent.';
               if (window.twomiahLeadSent) window.twomiahLeadSent(s.textContent);
-              f.querySelectorAll('input:not([type="hidden"]), textarea').forEach(function(i){ i.value = ''; });
+              // reset(), not value = '' on every input: that left the "Text me" box ticked with its value wiped, so the
+              // next message sent an empty consent (bar live test, 2026-10-25).
+              f.reset();
             } else { s.textContent = x.d.error || 'That didn\u2019t go through. Please try again.'; b.disabled = false; }
           })
           .catch(function(){ s.hidden = false; s.textContent = 'That didn\u2019t go through. Please check your connection and try again.'; b.disabled = false; });

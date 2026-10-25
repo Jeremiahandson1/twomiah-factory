@@ -27,7 +27,7 @@ export function parseSitePackage(j: any): SitePackage {
   if (j?.fresh) {
     const fresh = provisionSchema.shape.site.unwrap().parse(j.fresh)
     if (j.leadsFrom === undefined) return { fresh }
-    if (typeof j.leadsFrom?.siteDb !== 'string' || !j.leadsFrom.siteDb) throw new Error("the old site's enquiries were named but their database is missing")
+    if (typeof j.leadsFrom?.siteDb !== 'string' || !j.leadsFrom.siteDb) throw new Error("the old site's inquiries were named but their database is missing")
     return { fresh, leadsFrom: { siteDb: j.leadsFrom.siteDb } }
   }
   if (j?.premium) {

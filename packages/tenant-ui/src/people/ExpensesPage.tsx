@@ -10,6 +10,7 @@ import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
+import { vocabulary, capital } from '../labels/vocabulary'
 
 interface Expense { id: string; receiptUrl?: string | null; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
@@ -45,7 +46,8 @@ const receiptHref = (r: Expense) => (r.receiptUrl ? r.receiptUrl : null)
 
 export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: ExpensesConfig }) {
   const auth = useAuth()
-  const jobLabel = config?.jobLabel || 'Job'
+  // The work's name from the business's vocabulary (labels/vocabulary.ts), not a label per vertical per screen.
+  const jobLabel = config?.jobLabel || capital(vocabulary().work?.one || 'job')
   /**
    * The category list comes from the server that validates it. (Salon RR7 X1 — a HIGH.)
    *
@@ -473,7 +475,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
             </Field>
           )}
           <div className="flex gap-6">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable to customer</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable to the {vocabulary().customer.one}</label>
             {/*
               "REIMBURSE ME" IS WRONG WHEN IT IS NOT YOUR CLAIM. (T41)
 

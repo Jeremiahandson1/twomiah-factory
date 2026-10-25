@@ -75,7 +75,12 @@ export interface MigrationConfig {
   entityLabels?: Record<string, string>
 }
 
+/**
+ * The Reviews page builds its sentences from the business's vocabulary (labels/vocabulary.ts). These are a template's
+ * own sentences, which win; the unified app passes none, only `hasFeature` (whether a job's page has the button).
+ */
 export interface ReviewsConfig {
+  hasFeature?: (feature: string) => boolean
   subtitle?: string
   /** Column header for what the request was about — "Job" or "Visit". */
   subjectLabel?: string

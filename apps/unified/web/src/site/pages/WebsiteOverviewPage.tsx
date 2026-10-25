@@ -28,7 +28,10 @@ const PARTS = [
   { to: '/crm/website/photos', icon: Image, label: 'Photos', text: 'Upload and tag your pictures.' },
   { to: '/crm/website/blog', icon: Newspaper, label: 'Blog', text: 'Posts that bring in search traffic.' },
   // In the vertical's words where it has them (a restaurant's is not "finished work").
-  { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', text: verticalScreens().website?.portfolioText || 'Finished work, with photos.' },
+  // Portfolio (a trade's finished work) or Gallery (VerticalSettings.vocabulary.gallery), as the menu names it.
+  verticalScreens().vocabulary?.gallery === 'Gallery'
+    ? { to: '/crm/website/portfolio', icon: Briefcase, label: 'Gallery', text: 'Photos for your website, each with a few words.' }
+    : { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', text: 'Finished work, with photos.' },
 ]
 
 export function WebsiteOverviewPage() {
@@ -83,7 +86,7 @@ export function WebsiteOverviewPage() {
               <div className="text-3xl text-ink font-semibold">{data.viewsLast30.toLocaleString()}<Delta now={data.viewsLast30} prev={data.viewsPrev30} /></div>
             </div>
             <div className="card card-padding">
-              <div className="text-sm text-muted mb-1">Enquiries · last 30 days</div>
+              <div className="text-sm text-muted mb-1">Inquiries · last 30 days</div>
               <div className="text-3xl text-ink font-semibold">{data.leadsLast30.toLocaleString()}<Delta now={data.leadsLast30} prev={data.leadsPrev30} /></div>
             </div>
           </div>

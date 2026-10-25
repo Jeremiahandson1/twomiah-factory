@@ -129,7 +129,7 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       // The bar's own forms answer in its words ("You're on the list."); every other form says thanks.
       return reply(true, (ownForm && BAR_FORM_THANKS[one(body.formType)]) || THANKS)
     } catch (err: any) {
-      console.error('[enquiry] not saved:', err?.message)
+      console.error('[inquiry] not saved:', err?.message)
       return reply(false, 'Could not save your message. Please try again.', 500)
     }
   }

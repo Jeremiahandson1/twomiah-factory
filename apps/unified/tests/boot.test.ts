@@ -233,7 +233,7 @@ describe('the admin screens', () => {
       expect(res.headers.get('cache-control')).toBe('no-store')
       const html = await res.text()
       expect(html).toContain('<meta name="company-name" content="Smith &amp; Sons">')
-      expect(html).toContain('<title>Smith &amp; Sons · Admin</title>')
+      expect(html).toContain('<title>Smith &amp; Sons</title>')
     }
   })
 

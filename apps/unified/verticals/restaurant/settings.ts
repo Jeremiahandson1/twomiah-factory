@@ -21,11 +21,11 @@ const DOC_TYPES = ['general', 'contract', 'menu', 'floor_plan', 'photo', 'invoic
 const STARTER: StarterContent = {
   helpArticles: [
     { title: "Getting Started", category: "Getting Started", isFaq: true,
-      content: "Welcome! Start by adding your rooms on the Spaces page and your packages on Catering Menus. Then log each enquiry on Events (New Enquiry) and move it through to a confirmed event. Use the menu on the left to move between pages." },
+      content: "Welcome! Start by adding your rooms on the Spaces page and your packages on Catering Menus. Then log each inquiry on Events (New Inquiry) and move it through to a confirmed event. Use the menu on the left to move between pages." },
     { title: "Managing Events", category: "Events", isFaq: true,
-      content: "Events run from Enquiry to Tentative to Confirmed to Completed; an event can also be marked Lost or Cancelled. Change the stage from the picker on the event. Click Edit to set the date, the space, the guest count and the coordinator. Use the Food & Beverage tab for the menu and the Run of Show tab for the timing." },
+      content: "Events run from Inquiry to Tentative to Confirmed to Completed; an event can also be marked Lost or Cancelled. Change the stage from the picker on the event. Click Edit to set the date, the space, the guest count and the coordinator. Use the Food & Beverage tab for the menu and the Run of Show tab for the timing." },
     { title: "Event Spaces", category: "Events", isFaq: false,
-      content: "Add each bookable room with New Space on the Spaces page: seated and standing capacity, minimum spend and hire fee. An event booked in a space holds it once the event is Tentative or later, so the same space can't be double-booked. An enquiry doesn't hold the room." },
+      content: "Add each bookable room with New Space on the Spaces page: seated and standing capacity, minimum spend and hire fee. An event booked in a space holds it once the event is Tentative or later, so the same space can't be double-booked. An inquiry doesn't hold the room." },
     { title: "Catering Menus", category: "Catering", isFaq: false,
       content: "Build per-head packages on the Catering Menus page (New Package), with the price per person, minimum guests and courses. On an event's Food & Beverage tab, click Add Line and pick a package. A per-person line starts at the event's guest count, and you can change the quantity." },
     { title: "Run of Show & BEO", category: "Events", isFaq: false,
@@ -44,6 +44,7 @@ const STARTER: StarterContent = {
 const restaurant: VerticalSettings = {
   id: 'restaurant',
   label: 'Restaurant & Events',
+  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery' },
   // templates/crm-restaurant routes/mfa.ts
   mfaIssuer: 'Twomiah Events',
   featureSet: 'crm-restaurant',
@@ -67,7 +68,7 @@ const restaurant: VerticalSettings = {
     portal: { disable: ['service'] },
     // What the help assistant is told this software is: "You are a helpful support assistant for <this>" (routes/support.ts).
     support: {
-      assistant: 'a private-events & catering CRM for a restaurant/venue. The app\'s features are: Events (an enquiry->confirmed pipeline), Event Spaces, Catering Menus, Run of Show / BEO, Deposits & Payments, Contacts, Invoices, and Reports. This app has NO "jobs", "projects", "quotes", or construction concepts — never suggest those. Answer from these features and the knowledge base articles provided.',
+      assistant: 'a private-events & catering CRM for a restaurant/venue. The app\'s features are: Events (an inquiry->confirmed pipeline), Event Spaces, Catering Menus, Run of Show / BEO, Deposits & Payments, Contacts, Invoices, and Reports. This app has NO "jobs", "projects", "quotes", or construction concepts — never suggest those. Answer from these features and the knowledge base articles provided.',
     },
   },
   // templates/crm-restaurant/frontend/src/*Config.ts
@@ -81,8 +82,9 @@ const restaurant: VerticalSettings = {
     // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx), and no bar of its own: the
     // kitchen's hours alone there and on Tonight (TonightPage.tsx).
     foodService: { speakeasy: false, bar: false },
-    // The events dashboard (crm/pages/restaurant/DashboardPage.tsx) in place of the jobs one, as /api/dashboard is.
-    home: 'events',
+    // The food side's home (crm/pages/bar/HomePage.tsx): Tonight, today on the register and the party book, each by its
+    // feature — the events dashboard alone showed no sales (bar live test, 2026-10-25).
+    home: 'bar',
     contacts: {
       // A venue deals with clients and their vendors (florists, DJs, photographers) — not subcontractors. (T16/T17 L10)
       types: [{ value: 'lead', label: 'Lead' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Vendor' }],
@@ -104,7 +106,7 @@ const restaurant: VerticalSettings = {
         { id: 'contacts', label: 'Contacts', description: 'Import customers, vendors, and leads' },
         { id: 'projects', label: 'Projects', description: 'Import project records', feature: 'projects' },
         { id: 'jobs', label: 'Jobs', description: 'Import work orders and jobs', feature: 'jobs' },
-        { id: 'events', label: 'Events', description: 'Import bookings, enquiries, and confirmed events', feature: 'event_bookings' },
+        { id: 'events', label: 'Events', description: 'Import bookings, inquiries, and confirmed events', feature: 'event_bookings' },
         { id: 'spaces', label: 'Spaces', description: 'Import event spaces and their capacities', feature: 'event_bookings' },
         { id: 'menus', label: 'Menu Packages', description: 'Import per-person menu and catering packages', feature: 'event_bookings' },
         { id: 'products', label: 'Products/Services', description: 'Import products and service items' },
@@ -121,11 +123,11 @@ const restaurant: VerticalSettings = {
     leads: {
       platforms: [
         {
-          value: 'the_knot', label: 'The Knot', color: '#1565c0', tone: 'blue', description: 'Forward The Knot enquiries into your Lead Inbox.',
-          instructions: ['The Knot Pro → Settings → Notifications → turn on new-lead emails', 'Forward those emails to the inbound address below', 'Each enquiry becomes a lead with the couple\'s name, date and message'],
+          value: 'the_knot', label: 'The Knot', color: '#1565c0', tone: 'blue', description: 'Forward The Knot inquiries into your Lead Inbox.',
+          instructions: ['The Knot Pro → Settings → Notifications → turn on new-lead emails', 'Forward those emails to the inbound address below', 'Each inquiry becomes a lead with the couple\'s name, date and message'],
         },
         {
-          value: 'weddingwire', label: 'WeddingWire', color: '#00897b', tone: 'emerald', description: 'Forward WeddingWire enquiries into your Lead Inbox.',
+          value: 'weddingwire', label: 'WeddingWire', color: '#00897b', tone: 'emerald', description: 'Forward WeddingWire inquiries into your Lead Inbox.',
           instructions: ['WeddingWire for Vendors → Account → Notifications', 'Enable email alerts for new messages / requests', 'Forward those alerts to the inbound address below'],
         },
         {
@@ -151,7 +153,7 @@ const restaurant: VerticalSettings = {
     },
     marketing: {},
     messages: {},
-    reviews: { manualHelp: "on a customer's contact page", subjectLabel: 'Event', subtitle: 'Automate Google review requests after an event or job', autoRequestHelp: 'Automatically request reviews after a completed job', emptyHelp: 'Requests are created automatically when jobs are completed' },
+    reviews: {},
     settings: {
       // The Website admin in a restaurant's words, not a contractor's ("Photos of your real work", "Licenses, insurance and
     // certifications", "Finished work" — live test 2026-10-25).
@@ -160,7 +162,6 @@ const restaurant: VerticalSettings = {
         photos: { label: 'Photos of your food, your room and your events — three or more' },
         credentials: { label: 'Awards, press mentions or your food-safety rating', unlocks: 'A line guests read before they book or come in' },
       },
-      portfolioText: 'Your dishes, your room and past events, with photos.',
     },
       licenseNumber: false,
       // The four rungs, described as what each does in a restaurant (the shared list said "view jobs, log time", live test

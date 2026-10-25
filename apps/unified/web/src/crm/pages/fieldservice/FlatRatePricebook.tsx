@@ -11,6 +11,7 @@ import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { verticalScreens } from '../../vertical'
+import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
 
 /**
  * The form's examples in the trade's words: the flat-rate book is the price book (the same /api/pricebook items), so it
@@ -133,7 +134,7 @@ export default function FlatRatePricebook() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Flat Rate Pricebook</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white"><MenuName fallback="Flat Rate Pricebook" /></h1>
           <p className="text-gray-500 dark:text-slate-400">Standard pricing for field services</p>
         </div>
         {mayAdd && <button

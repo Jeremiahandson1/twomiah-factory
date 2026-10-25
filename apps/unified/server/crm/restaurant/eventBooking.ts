@@ -233,7 +233,7 @@ export async function bookOnDeposit(tx: any, companyId: string, eventId: string 
   await lockEventBook(tx, companyId)
   if (ev.spaceId) {
     const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id)
-    if (clash) return `"${ev.name}" is still an enquiry and its room is already held on ${eventDayWords(ev.eventDate)} by "${clash.name}" — move the date or the room before taking money.`
+    if (clash) return `"${ev.name}" is still an inquiry and its room is already held on ${eventDayWords(ev.eventDate)} by "${clash.name}" — move the date or the room before taking money.`
   }
   await tx.update(event).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(event.id, ev.id))
   return null

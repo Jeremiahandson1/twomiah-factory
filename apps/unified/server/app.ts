@@ -199,7 +199,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // roleLabels: what this vertical calls each rung — the one vocabulary the server's refusals and Users rows answer in
         // (VerticalSettings.roleLabels through permissions.roleLabel), handed to the screens so the Users list, the role
         // picker and the View As banner say the same word (roofing live re-test 3: "Staff" in Users, "Field" in the brief).
-        screens: () => ({ ...vertical.screens, roleLabels: Object.fromEntries((permissions.ROLE_HIERARCHY as string[]).map((r) => [r, permissions.roleLabel(r)])), mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
+        screens: () => ({ ...vertical.screens, vocabulary: vertical.vocabulary, roleLabels: Object.fromEntries((permissions.ROLE_HIERARCHY as string[]).map((r) => [r, permissions.roleLabel(r)])), mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
         extraPages: vertical.crm?.homecare ? HOMECARE_PAGES : [],
         brand: async () => (await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1))[0] ?? null,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,

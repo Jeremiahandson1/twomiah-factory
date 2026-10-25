@@ -65,7 +65,7 @@ export function ClientLoyaltyCard({ contactId, compact = false }: { contactId?: 
           <TierNote standing={m.tier} />
         </>
       ) : (
-        <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not on the programme yet — they join the first time a visit is completed.</p>
+        <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not on the program yet — they join the first time a visit is completed.</p>
       )}
       {!compact && <Link to="/crm/loyalty" className="mt-2 inline-block text-sm font-medium text-pink-700 hover:underline dark:text-pink-300">Open Loyalty</Link>}
     </section>

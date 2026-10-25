@@ -37,6 +37,7 @@ const STARTER: StarterContent = {
 const basic: VerticalSettings = {
   id: 'basic',
   label: 'Business',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a job is completed', gallery: 'Gallery' },
   // Shared by showcase, food truck and basic, so no one trade to name (templates/crm-basic routes/mfa.ts, T41).
   mfaIssuer: 'Twomiah CRM',
   featureSet: 'crm-basic',
@@ -101,8 +102,8 @@ const basic: VerticalSettings = {
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
-    time: { jobLabel: 'Job' },
-    expenses: { jobLabel: 'Job' },
+    time: {},
+    expenses: {},
     // "Trade" and "Lead Technician" are a contractor's words (peopleConfig.ts, T51).
     // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
     team: { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead', crewLogins: true },
@@ -146,7 +147,7 @@ const basic: VerticalSettings = {
         },
       ],
       jobTypeLabel: 'Service',
-      sourcesSubtitle: 'Where new enquiries arrive: Google, Meta, Yelp and your website',
+      sourcesSubtitle: 'Where new inquiries arrive: Google, Meta, Yelp and your website',
     },
     marketing: {},
     messages: {},

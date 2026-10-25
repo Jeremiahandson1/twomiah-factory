@@ -19,7 +19,7 @@
       <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
     </div>
     <div class="parties__layout">
-      <form class="parties__form" method="POST" action="/api/leads" aria-label="Private party enquiry">
+      <form class="parties__form" method="POST" action="/api/leads" aria-label="Private party inquiry">
         <input type="hidden" name="formType" value="party">
         <input type="hidden" name="source" value="<%= typeof currentPath !== 'undefined' && currentPath ? currentPath : '/parties' %>">
         <input type="hidden" name="t" value="<%= t %>">

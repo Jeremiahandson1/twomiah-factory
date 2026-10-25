@@ -160,7 +160,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // -> banquet event order. Scoped to the private-events side of a restaurant,
   // NOT a POS or covers system. Every id here gates exactly one sidebar item or
   // tab in the template; nothing is listed that the app doesn't act on.
-  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
+  { id: 'event_bookings', name: 'Events', description: 'Inquiry-to-confirmed pipeline with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
   { id: 'event_spaces', name: 'Spaces', description: 'Bookable rooms with seated/standing capacity, minimum spend and hire fees', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
   { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with structured courses, choices and guest minimums', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
   { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Minute-by-minute banquet event order the kitchen and floor work from, printable', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
@@ -200,7 +200,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile — see your rating and reply to reviews from the CRM', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-store', 'crm-bar'] },
   { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-bar', 'crm-store'] },
   { id: 'client_portal', name: 'Client Portal', description: 'A customer portal by private link — quotes to approve, invoices to view and pay, and their projects where you run them', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
-  { id: 'lead_inbox', name: 'Lead Inbox', description: 'Every enquiry in one inbox — marketplaces, ads, booking apps and your website', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'lead_inbox', name: 'Lead Inbox', description: 'Every inquiry in one inbox — marketplaces, ads, booking apps and your website', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
   // Marketing
   // Twomiah Ads — NOT ready (2026-09-17). The page, the routes and the connector all still exist in the templates
@@ -251,7 +251,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'id_verification', name: 'ID Verification', description: 'Customer ID verification tracking at pickup/delivery', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
 
   // Dispensary — Loyalty & Marketing
-  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points and rewards for regulars; member tiers (Silver, Gold…) in the salon and dispensary programmes', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary', 'crm-salon', 'crm-bar'] },
+  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points and rewards for regulars; member tiers (Silver, Gold…) in the salon and dispensary programs', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary', 'crm-salon', 'crm-bar'] },
   { id: 'sms_marketing', name: 'SMS Marketing', description: 'Text message campaigns and opt-in management', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
   { id: 'email_campaigns', name: 'Email Campaigns', description: 'Email marketing and deal notifications', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
 

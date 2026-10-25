@@ -6,6 +6,7 @@ import { resolveConfig } from './types'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, DataTable, DialogError, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dueDateLabel, errMsg, inputCls, money, paymentAmountError, moneyInputError, refundEffectNote, selectCls } from './ui'
+import { vocabulary } from '../labels/vocabulary'
 
 type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
@@ -224,7 +225,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       </div>
       <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/invoices/${row.id}`)}
         emptyMessage={statusFilter ? 'No invoices match' : 'No invoices yet'}
-        emptyHint={statusFilter ? 'Try a different status or clear the filter.' : 'Bill a customer here, or turn an accepted quote into an invoice. Payments are recorded against it.'}
+        emptyHint={statusFilter ? 'Try a different status or clear the filter.' : `Bill a ${vocabulary().customer.one} here. Payments are recorded against the invoice.`}
         emptyAction={!statusFilter && mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined}
         actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },

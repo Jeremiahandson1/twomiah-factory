@@ -11,7 +11,7 @@ const LEAD_PLATFORMS = [
   { value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo', description: 'Turn Google messages and booking requests into leads in your Lead Inbox.', instructions: [
     'Google emails the profile owner for every new message or booking request', 'Forward those notification emails to the inbound address below',
     'Gmail: Settings › Filters › from:google.com "Business Profile" › Forward', "Each forwarded message becomes a lead with the sender's name and note"] },
-  { value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp quote requests and messages into your Lead Inbox.', instructions: [
+  { value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp messages and requests into your Lead Inbox.', instructions: [
     'Yelp for Business → Account Settings → Notifications', 'Turn on email alerts for "Request a quote" / messages', 'Forward those alerts to the inbound address below'] },
   { value: 'instagram', label: 'Instagram / Facebook', color: '#6a1b9a', tone: 'pink', description: 'Bring DMs and lead-form submissions from Meta into your CRM.', instructions: [
     'Meta emails you when someone messages your page or fills in a lead form', 'Forward those notification emails to the inbound address below',
@@ -46,6 +46,7 @@ const STARTER: StarterContent = {
 const vet: VerticalSettings = {
   id: 'vet',
   label: 'Veterinary',
+  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Veterinary',
   featureSet: 'crm-vet',
   starter: STARTER,
@@ -84,7 +85,7 @@ const vet: VerticalSettings = {
     contacts: {
       // A clinic has owners, not "contacts", and no subcontractors at all (Vet T12 M11).
       title: 'Owners',
-      types: [{ value: 'client', label: 'Owner' }, { value: 'lead', label: 'Enquiry' }, { value: 'vendor', label: 'Supplier' }],
+      types: [{ value: 'client', label: 'Owner' }, { value: 'lead', label: 'Inquiry' }, { value: 'vendor', label: 'Supplier' }],
       convertLabel: 'Owner',
       addLabel: 'Owner',
       sections: { patients: true, projects: false, quotes: false, portal: true },
@@ -126,10 +127,10 @@ const vet: VerticalSettings = {
       collaboratorNav: ['sharedDocuments', 'messages'],
       reviewerNav: ['sharedDocuments', 'messages'],
     },
-    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client enquiries arrive: Google, Yelp, Meta and your website' },
+    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client inquiries arrive: Google, Yelp, Meta and your website' },
     marketing: {},
     messages: {},
-    reviews: { manualHelp: '', subtitle: 'Automatically ask pet owners for a Google review after a visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after a completed visit', emptyHelp: 'Requests are created automatically after completed visits' },
+    reviews: {},
     import: {
       intro: 'Import clients, products and invoices from CSV files',
       types: [
@@ -144,7 +145,6 @@ const vet: VerticalSettings = {
     // where Call Tracking is switched on, which the registry does not offer this vertical today.
     integrations: {
       callTracking: true,
-      copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to pet owners and staff.', email: 'Send invoices, receipts and reminders by email.' },
     },
     settings: { licenseNumber: false },
   },

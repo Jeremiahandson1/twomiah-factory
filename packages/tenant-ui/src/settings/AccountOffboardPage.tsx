@@ -111,7 +111,7 @@ export function AccountOffboardPage(): React.ReactElement {
           <h2 className="font-semibold mb-2">Before you go</h2>
           <ul className="text-sm text-gray-700 space-y-2 pl-5 list-disc mb-4 dark:text-slate-200">
             <li><strong>30-day grace period</strong> — everything stays live so you can change your mind.</li>
-            <li><strong>Data export</strong> — we'll email you CSV + JSON of every contact, job, quote, invoice, and document.</li>
+            <li><strong>Data export</strong> — we'll email you CSV + JSON of every record in your account — contacts, invoices, documents and the rest.</li>
             <li><strong>Clean domain handoff</strong> — if you bought your domain through us, we unlock it and send the transfer auth code.</li>
             <li><strong>No hostage fees</strong> — cancellation is at the end of the current billing period; no penalties.</li>
           </ul>

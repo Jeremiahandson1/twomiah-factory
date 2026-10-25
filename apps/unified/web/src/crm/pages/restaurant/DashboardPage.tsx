@@ -88,7 +88,7 @@ export default function DashboardPage() {
   const topSpace = Math.max(1, ...bySpace.map((s) => Number(s.events || 0)));
 
   const stages: { key: keyof Pipeline; label: string }[] = [
-    { key: 'enquiry', label: 'Enquiry' },
+    { key: 'enquiry', label: 'Inquiry' },
     { key: 'tentative', label: 'Tentative' },
     { key: 'confirmed', label: 'Confirmed' },
     { key: 'completed', label: 'Completed' },
@@ -143,7 +143,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Open Enquiries</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Open Inquiries</p>
             <Inbox className="w-5 h-5 text-amber-500 dark:text-amber-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.enquiry || 0}</p>

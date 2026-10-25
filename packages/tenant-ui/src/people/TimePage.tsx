@@ -12,6 +12,7 @@ import { isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { whenTime } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
+import { vocabulary, capital } from '../labels/vocabulary'
 
 interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
@@ -21,7 +22,8 @@ const fmtElapsed = (ms: number) => { const m = Math.max(0, Math.floor(ms / 60000
 
 export function TimePage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TimeConfig }) {
   const auth = useAuth()
-  const jobLabel = config?.jobLabel || 'Job'
+  // The work's name from the business's vocabulary (labels/vocabulary.ts), not a label per vertical per screen.
+  const jobLabel = config?.jobLabel || capital(vocabulary().work?.one || 'job')
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)

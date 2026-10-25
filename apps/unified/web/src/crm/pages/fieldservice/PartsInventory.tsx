@@ -11,6 +11,7 @@ import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { verticalScreens } from '../../vertical'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -114,7 +115,7 @@ export default function PartsInventory() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Parts Inventory</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white"><MenuName fallback="Parts Inventory" /></h1>
           <p className="text-gray-500 dark:text-slate-400">Track parts and materials</p>
         </div>
         {mayAdd && <button

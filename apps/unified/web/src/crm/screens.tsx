@@ -182,7 +182,12 @@ export const Warranties = () => <WarrantiesPage api={client} config={v().warrant
 export const Recurring = () => <RecurringList api={client} />
 export const RecurringEdit = () => <RecurringForm api={client} />
 export const Tasks = () => <TasksPage api={client} />
-export const Reviews = () => <ReviewsPage api={client} toast={useToast()} config={v().reviews as any} />
+// The page's sentences come from the business's vocabulary (labels/vocabulary.ts); hasFeature says whether a job's page
+// carries the Send review request button.
+export function Reviews() {
+  const { hasFeature } = useAuth()
+  return <ReviewsPage api={client} toast={useToast()} config={{ hasFeature }} />
+}
 // Campaigns and templates need Email Marketing; a dealership opens the page for its Follow-Up drips alone, and the API
 // refuses the campaigns then (templates/crm-rv MarketingPage.tsx, RV T19 M6). With Email Marketing on, as everywhere
 // the page opens otherwise, nothing changes.

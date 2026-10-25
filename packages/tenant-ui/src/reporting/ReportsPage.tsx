@@ -39,23 +39,36 @@ const amount = (n: unknown) => (Number(n) || 0).toFixed(2)
 type CsvTable = { head: string[]; rows: CsvCell[][] }
 /** A status bar's counts as a table: one row per status. */
 const countsTable = (segments: Array<[string, string, string]>, counts: Record<string, number>): CsvTable => ({ head: ['Status', 'Count'], rows: segments.map(([k, label]) => [label, Number(counts[k]) || 0]) })
-const EVENT_STAGES: Array<[string, string, string]> = [['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]
+const EVENT_STAGES: Array<[string, string, string]> = [['enquiry', 'Inquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]
 const SALES_STAGES: Array<[string, string, string]> = [['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]
 
 /**
  * A report card's heading with its CSV export (csv.ts: one helper for every table on the page). Live test 2026-10-22:
  * the contractor's Reports page had no export; home care's had CSV and PDF. `table` may fetch (the full customer list).
  */
+/**
+ * "Downloaded top-customers.csv" beside the button for a few seconds: a browser that saves without asking showed
+ * nothing at all, and the click read as broken (bar live test, 2026-10-25).
+ */
+function useDownloaded(): [string, (name: string) => void] {
+  const [name, setName] = useState('')
+  useEffect(() => { if (!name) return; const t = setTimeout(() => setName(''), 6000); return () => clearTimeout(t) }, [name])
+  return [name, setName]
+}
+const Downloaded = ({ name }: { name: string }) => (name ? <span role="status" className="text-xs text-green-800 dark:text-green-300">Downloaded {name}</span> : null)
+
 function CardHead({ title, period, table }: { title: string; period: string; table?: () => CsvTable | Promise<CsvTable> }) {
   const [busy, setBusy] = useState(false)
+  const [downloaded, setDownloaded] = useDownloaded()
   const go = async () => {
     if (!table) return
     setBusy(true)
-    try { const t = await table(); downloadCsv(csvName(title, period), t.head, t.rows) } finally { setBusy(false) }
+    try { const t = await table(); setDownloaded(downloadCsv(csvName(title, period), t.head, t.rows)) } finally { setBusy(false) }
   }
   return (
     <div className="flex items-start justify-between gap-3 mb-4">
       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
+      {table && <Downloaded name={downloaded} />}
       {table && (
         <button type="button" onClick={go} disabled={busy} aria-label={`Download ${title} as CSV`}
           className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -117,6 +130,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
     return { startDate: dayKeyPlus(todayKey(), -days), endDate: todayKey() }
   }
   /** The headline figures, one row each. */
+  const [summaryDownloaded, setSummaryDownloaded] = useDownloaded()
   const summaryCsv = () => {
     if (!data) return
     const r: Partial<Summary['revenue']> = data.revenue || {}, j: Partial<Summary['jobs']> = data.jobs || {}, q: Partial<Summary['quotes']> = data.quotes || {}, p: Partial<Summary['projects']> = data.projects || {}
@@ -128,7 +142,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       ...(cfg.quotes ? [['Quotes', q.total ?? 0], ['Quotes approved', q.approved ?? 0], ['Quote conversion %', q.conversionRate ?? 0]] : []),
       ...(showProjects ? [['Projects', p.total ?? 0], ['Active projects', p.active ?? 0], ['Completed projects', p.completed ?? 0], ['Project value', amount(p.totalValue)]] : []),
     ]
-    downloadCsv(csvName('Report summary', rangeLabel), ['Measure', rangeLabel], rows)
+    setSummaryDownloaded(downloadCsv(csvName('Report summary', rangeLabel), ['Measure', rangeLabel], rows))
   }
 
   return (
@@ -139,6 +153,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
           <p className={muted}>{rangeLabel}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Downloaded name={summaryDownloaded} />
           {!loading && data && (
             <button type="button" onClick={summaryCsv} aria-label="Download the summary as CSV"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -186,7 +201,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                     return <Metric title="Events booked ahead" value={held} subtitle={`${ahead.confirmed} confirmed · ${ahead.tentative} tentative${booked === undefined ? '' : ` · ${money(booked)}`}`} icon={CheckCircle} color="blue" />
                   })()}
                   {/* Enquiries received in the chosen period; the label follows the picker (it read "in the next 30 days" on any period). */}
-                  <Metric title="Enquiries" value={events?.events?.enquiriesInPeriod ?? events?.pipeline?.enquiry ?? 0} subtitle={events?.events?.enquiriesInPeriod === undefined ? 'Open now' : `Received · ${rangeLabel.toLowerCase()} · ${events?.pipeline?.enquiry ?? 0} open now`} icon={Calendar} color="purple" />
+                  <Metric title="Inquiries" value={events?.events?.enquiriesInPeriod ?? events?.pipeline?.enquiry ?? 0} subtitle={events?.events?.enquiriesInPeriod === undefined ? 'Open now' : `Received · ${rangeLabel.toLowerCase()} · ${events?.pipeline?.enquiry ?? 0} open now`} icon={Calendar} color="purple" />
                 </>
               ) : cfg.dealership ? (
                 <>

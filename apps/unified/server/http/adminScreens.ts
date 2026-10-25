@@ -42,7 +42,8 @@ const PUBLIC_TITLES: Array<[RegExp, string]> = [
 export function tabTitle(pathname: string, name: string): string {
   const own = PUBLIC_TITLES.find(([re]) => re.test(pathname))?.[1]
   if (own) return name ? `${name} — ${own}` : own
-  return name ? `${name} · Admin` : 'Admin'
+  // The business's name alone: "· Admin" on every tab, a bartender's and a viewer's too (bar live test, 2026-10-25).
+  return name || 'CRM'
 }
 
 const TYPES: Record<string, string> = {

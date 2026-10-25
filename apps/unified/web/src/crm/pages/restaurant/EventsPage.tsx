@@ -8,6 +8,7 @@ import ClientPicker from './ClientPicker'
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
 import FormError, { errorText } from '../../ui/FormError'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
 
 /**
  * Events — the pipeline and the book, over the same list.
@@ -119,8 +120,8 @@ export default function EventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Events</h1>
-          <p className="text-gray-500 dark:text-slate-400">Every enquiry, booking and party in one place</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100"><MenuName fallback="Events" /></h1>
+          <p className="text-gray-500 dark:text-slate-400">Every inquiry, booking and party in one place</p>
         </div>
         {mayCreate && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Enquiry
@@ -295,8 +296,8 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
   const ask = useConfirm();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { setErr('Give the enquiry a name — "Harper / Diaz wedding" is enough to find it again.'); return; }
-    if (!form.eventDate) { setErr('Pick the event date. It is what puts the enquiry in the book.'); return; }
+    if (!form.name.trim()) { setErr('Give the inquiry a name — "Harper / Diaz wedding" is enough to find it again.'); return; }
+    if (!form.eventDate) { setErr('Pick the event date. It is what puts the inquiry in the book.'); return; }
     if (!(await confirmEventRisks(ask, form, spaces))) return; // past date / over capacity: warn, allow (T16 L1 / L2)
     setErr('');
     setSaving(true);
@@ -318,7 +319,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
       await api.post('/api/events', payload);
       onSave();
     } catch (e2) {
-      setErr(errorText(e2, 'Could not create the enquiry.'));
+      setErr(errorText(e2, 'Could not create the inquiry.'));
     } finally {
       setSaving(false);
     }
@@ -330,7 +331,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold">New Enquiry</h2>
+            <h2 className="text-lg font-bold">New Inquiry</h2>
             <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">

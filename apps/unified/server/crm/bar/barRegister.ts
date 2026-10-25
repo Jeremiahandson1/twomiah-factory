@@ -658,7 +658,7 @@ async function attachGuest(actor: Actor, checkId: string, contactId: string | nu
 /** Spend a reward on this check: a negative line worth what the engine says, and the points off the guest. One per check. */
 async function redeemReward(actor: Actor, checkId: string, rewardId: string): Promise<CheckView> {
   const companyId = actor.companyId
-  if (!(await loyaltyRunning(companyId))) throw new CheckError('The Regulars programme is switched off.', 403)
+  if (!(await loyaltyRunning(companyId))) throw new CheckError('The Regulars program is switched off.', 403)
   try {
     await db.transaction(async (tx: Tx) => {
       const c = await lockOpen(tx, companyId, checkId)

@@ -85,7 +85,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
           await db.transaction(async (tx: any) => {
             const [inv] = await tx.select({ companyId: invoice.companyId, eventId: invoice.eventId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
             const refused = inv?.eventId ? await bookOnDeposit(tx, inv.companyId, inv.eventId) : null
-            if (refused) logger.warn('[events] online deposit on an enquiry whose room is held', { refused })
+            if (refused) logger.warn('[events] online deposit on an inquiry whose room is held', { refused })
           })
           await syncEventInvoiceDueDate(db, invoiceId)
         }

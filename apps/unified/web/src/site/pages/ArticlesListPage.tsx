@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Edit3, Plus, Trash2 } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../../crm/vertical'
 import { DraftPill, NewItemDialog, StatusPill, useShortDate } from '../components/ui'
 
 interface Row {
@@ -41,12 +42,16 @@ export const BLOG: Kind = {
   emptyText: 'No posts yet.',
 }
 
+/** A trade's Portfolio of finished work, or a Gallery (VerticalSettings.vocabulary.gallery: a bar's photos are no projects). */
+const GALLERY = verticalScreens().vocabulary?.gallery === 'Gallery'
 export const PORTFOLIO: Kind = {
-  heading: 'Portfolio',
-  intro: "Show work you've done: photos, where, and the story. Each published piece gets its own page under /projects.",
+  heading: GALLERY ? 'Gallery' : 'Portfolio',
+  intro: GALLERY
+    ? 'Photos for your website, each with a title and a few words. Each published one gets its own page under /projects.'
+    : "Show work you've done: photos, where, and the story. Each published piece gets its own page under /projects.",
   collection: 'portfolio', route: 'portfolio', publicPrefix: '/projects/',
-  noun: 'project', newLabel: 'New project',
-  titlePlaceholder: 'Kitchen remodel on Oak Street',
+  noun: GALLERY ? 'photo story' : 'project', newLabel: GALLERY ? 'New photo story' : 'New project',
+  titlePlaceholder: GALLERY ? 'Title' : 'Kitchen remodel on Oak Street',
   emptyText: 'Nothing here yet.',
 }
 

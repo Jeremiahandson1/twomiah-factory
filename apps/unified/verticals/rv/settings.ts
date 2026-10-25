@@ -32,6 +32,7 @@ const STARTER: StarterContent = {
 const rv: VerticalSettings = {
   id: 'rv',
   label: 'RV & Powersports',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'service job', many: 'service jobs' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: 'a service job is completed', gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Powersports',
   featureSet: 'crm-rv',
   starter: STARTER,
@@ -102,12 +103,8 @@ const rv: VerticalSettings = {
     // integrationsConfig.ts: the CallRail signing-key panel (shown only when Call Tracking is on) and the cards' words.
     integrations: {
       callTracking: true,
-      copy: { quickbooks: 'Sync invoices, payments and customers with your books.', sms: 'Send service updates and reminders to customers and techs.' },
     },
-    reviews: {
-      manualHelp: "on a customer's contact page", subjectLabel: 'Service', subtitle: 'Automate Google review requests after a completed service',
-      autoRequestHelp: 'Automatically request reviews after a completed service job', emptyHelp: 'Requests are created automatically when service jobs are completed',
-    },
+    reviews: {},
     pricebook: {},
     // Units sold, front-end gross, close rate, the pipeline and service ROs; no contractor job, project or time panels
     // (reportingConfig.ts, RV T19 M8).
@@ -132,10 +129,10 @@ const rv: VerticalSettings = {
       platforms: [
         {
           value: 'rv_trader', label: 'RV Trader / Cycle Trader', color: '#1565c0', tone: 'blue',
-          description: 'Forward RV Trader / Cycle Trader buyer enquiries into your Lead Inbox.',
+          description: 'Forward RV Trader / Cycle Trader buyer inquiries into your Lead Inbox.',
           instructions: [
             'TraderInteractive dealer portal → Settings → Lead notifications', 'Send lead emails to the inbound address below (or add it as a CC recipient)',
-            "Each enquiry becomes a lead with the buyer's name, unit of interest and message",
+            "Each inquiry becomes a lead with the buyer's name, unit of interest and message",
           ],
         },
         {
@@ -182,21 +179,21 @@ const rv: VerticalSettings = {
         {
           id: 'rv_trader', label: 'RV Trader', category: 'lead_sources',
           // The Lead Sources page's own steps (email forwarding): there is no "Connect RV Trader" button (live test 10/22).
-          description: 'Forward RV Trader buyer enquiries into your Lead Inbox.',
+          description: 'Forward RV Trader buyer inquiries into your Lead Inbox.',
           guideSteps: [
             'Open Lead Sources and connect RV Trader / Cycle Trader to get your inbound email address',
             'In the TraderInteractive dealer portal: Settings → Lead notifications — send lead emails to that address (or add it as a CC)',
-            "Each enquiry becomes a lead with the buyer's name, unit of interest and message",
+            "Each inquiry becomes a lead with the buyer's name, unit of interest and message",
           ],
           open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
         },
         {
           id: 'cycle_trader', label: 'Cycle Trader', category: 'lead_sources',
-          description: 'Forward Cycle Trader / powersports buyer enquiries into your Lead Inbox.',
+          description: 'Forward Cycle Trader / powersports buyer inquiries into your Lead Inbox.',
           guideSteps: [
             'Cycle Trader is the same TraderInteractive portal as RV Trader: open Lead Sources and connect RV Trader / Cycle Trader',
             'In the dealer portal: Settings → Lead notifications — send lead emails to the inbound address it shows',
-            'Each enquiry becomes a lead in your Lead Inbox',
+            'Each inquiry becomes a lead in your Lead Inbox',
           ],
           open: { to: '/crm/lead-sources', label: 'Open Lead Sources' },
         },

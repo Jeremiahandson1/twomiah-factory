@@ -14,7 +14,7 @@ const LEAD_PLATFORMS = [
   { value: 'instagram', label: 'Instagram / Facebook', color: '#6a1b9a', tone: 'pink', description: 'Bring DMs and lead-form submissions from Meta into your CRM.', instructions: [
     'Meta emails you when someone messages your page or fills in a lead form', 'Forward those notification emails to the inbound address below',
     'Or connect a Zapier / Make zap from Meta Lead Ads to the webhook URL below' ] },
-  { value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp quote requests and messages into your Lead Inbox.', instructions: [
+  { value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp messages and requests into your Lead Inbox.', instructions: [
     'Yelp for Business → Account Settings → Notifications', 'Turn on email alerts for "Request a quote" / messages', 'Forward those alerts to the inbound address below' ] },
   { value: 'booking_app', label: 'Booksy / StyleSeat / Vagaro', color: '#1565c0', tone: 'blue', description: 'Keep every client who books through an app in one place.', instructions: [
     'In the booking app, turn on "new client" or "new booking" email notifications', 'Forward those emails to the inbound address below',
@@ -59,6 +59,7 @@ const STARTER: StarterContent = {
 const salon: VerticalSettings = {
   id: 'salon',
   label: 'Salon',
+  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a visit is checked out', gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Salon',
   featureSet: 'crm-salon',
   starter: STARTER,
@@ -143,14 +144,13 @@ const salon: VerticalSettings = {
     migration: { entityLabels: { contacts: 'Clients', products: 'Services & Products' } },
     integrations: {
       callTracking: true,
-      copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to clients and stylists.', email: 'Send invoices, receipts and reminders by email.' },
     },
     pricebook: {},
     reporting: { jobsLabel: 'Appointments', jobs: false, quotes: false, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: {},
     jobCosting: {},
-    time: { jobLabel: 'Appointment' },
-    expenses: { jobLabel: 'Appointment', categories: EXPENSE_CATEGORIES.map((value) => ({ value, label: EXPENSE_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1) })) },
+    time: {},
+    expenses: { categories: EXPENSE_CATEGORIES.map((value) => ({ value, label: EXPENSE_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1) })) },
     team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Senior Stylist' },
     agreements: {},
     fleet: {},
@@ -161,10 +161,10 @@ const salon: VerticalSettings = {
       collaboratorNav: ['sharedDocuments', 'messages'],
       reviewerNav: ['messages'],
     },
-    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client enquiries arrive: Google, Meta, Yelp, booking apps and your website' },
+    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client inquiries arrive: Google, Meta, Yelp, booking apps and your website' },
     marketing: { contactTypes: CONTACT_TYPES },
     messages: {},
-    reviews: { manualHelp: '', subtitle: 'Automatically ask clients for a Google review after their visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after each completed visit (one per client per month)', emptyHelp: 'Requests are created automatically after completed visits' },
+    reviews: {},
     booking: { calendarLabel: 'Appointment', calendarPath: '/crm/appointments', serviceMenuPath: '/crm/service-menu', concurrentLabel: 'Chairs bookable at once', concurrentHelp: 'Online bookings per time slot — the number of stylists taking online clients. Desk bookings count too.' },
     settings: {
       roles: [

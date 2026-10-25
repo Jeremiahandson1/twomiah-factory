@@ -737,7 +737,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client</label>
           <ClientPicker value={contactId} onChange={(id) => setContactId(id)} initialLabel={clientLabel} />
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Leave empty for an enquiry you have not put a name to yet.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Leave empty for an inquiry you have not put a name to yet.</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>

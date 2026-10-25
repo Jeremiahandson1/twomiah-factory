@@ -185,7 +185,7 @@ export default function LoyaltyPage() {
       setConfig(cfg || null);
       setServices(svc?.data || []);
     } catch (err: unknown) {
-      toast.error(serverMessage(err, 'Could not load the loyalty programme'));
+      toast.error(serverMessage(err, 'Could not load the loyalty program'));
     } finally {
       setLoading(false);
     }
@@ -254,7 +254,7 @@ export default function LoyaltyPage() {
           </h1>
           <p className="text-gray-600 dark:text-slate-400">
             {config?.loyaltyEnabled === false
-              ? 'The programme is switched off — clients are not earning.'
+              ? 'The program is switched off — clients are not earning.'
               : <>Clients earn {config?.loyaltyPointsPerDollar ?? 1} point per {fmtMoney(1)} spent
                 {(config?.loyaltyPunchCard?.visitsRequired ?? 0) > 0
                   ? `, and every ${config?.loyaltyPunchCard?.visitsRequired} visits earns ${config?.loyaltyPunchCard?.rewardName || 'a free service'}.`
@@ -683,7 +683,7 @@ function MemberPanel({
       const r: { programmeOff?: boolean; pointsBalance: number } = await api.post(`/api/loyalty/members/${member.id}/adjust`, { points: n, reason: reason.trim() });
       toast.success(
         r.programmeOff
-          ? `Balance is now ${r.pointsBalance}. The programme is switched off, so clients are not earning.`
+          ? `Balance is now ${r.pointsBalance}. The program is switched off, so clients are not earning.`
           : `Balance is now ${r.pointsBalance}`,
       );
       setPoints(''); setReason('');

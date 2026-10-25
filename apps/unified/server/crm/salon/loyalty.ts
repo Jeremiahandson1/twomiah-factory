@@ -233,7 +233,7 @@ export function createLoyaltyRoutes(d: CrmDeps) {
     if (!client) return fail(c, 404, 'Client not found')
 
     const existing = await db.select({ id: loyaltyMember.id }).from(loyaltyMember).where(and(eq(loyaltyMember.companyId, u.companyId), eq(loyaltyMember.contactId, contactId))).limit(1)
-    if (existing.length) return fail(c, 409, 'This client is already in the loyalty programme')
+    if (existing.length) return fail(c, 409, 'This client is already in the loyalty program')
 
     const cfg = await configFor(u.companyId)
     const member = await ensureMember(u.companyId, contactId)
@@ -348,10 +348,10 @@ export function createLoyaltyRoutes(d: CrmDeps) {
     }).parse(await c.req.json())
 
     const cfg = await configFor(u.companyId)
-    if (!cfg.enabled) return fail(c, 403, 'The loyalty programme is switched off for this salon. An admin can turn it back on under Loyalty → Settings.')
+    if (!cfg.enabled) return fail(c, 403, 'The loyalty program is switched off for this salon. An admin can turn it back on under Loyalty → Settings.')
 
     const [member]: MemberRow[] = await db.select().from(loyaltyMember).where(and(eq(loyaltyMember.id, c.req.param('id')), eq(loyaltyMember.companyId, u.companyId))).limit(1)
-    if (!member) return fail(c, 404, 'This client is not on the loyalty programme')
+    if (!member) return fail(c, 404, 'This client is not on the loyalty program')
     const [reward]: RewardRow[] = await db.select().from(loyaltyReward).where(and(eq(loyaltyReward.id, r.rewardId), eq(loyaltyReward.companyId, u.companyId))).limit(1)
     if (!reward) return fail(c, 404, 'Reward not found')
     if (!reward.active) return fail(c, 400, 'That reward is not currently available.', 'cannot_redeem')

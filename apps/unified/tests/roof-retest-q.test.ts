@@ -117,7 +117,7 @@ describe('3. the customer portal', () => {
 
     const page = await (await t.call(new URL(failed.body.portalUrl, 'http://t').pathname)).text()
     expect(page).toContain('<title>Summit Roofing — Customer portal</title>')
-    expect(tabTitle('/crm/jobs', 'Summit Roofing')).toBe('Summit Roofing · Admin')
+    expect(tabTitle('/crm/jobs', 'Summit Roofing')).toBe('Summit Roofing')
   })
 
   test('the homeowner\'s Jobs tab: their job, its stage and dates, and no money', async () => {

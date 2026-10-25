@@ -194,7 +194,7 @@ export const SETTINGS_SUB_PAGES = [
  * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
  */
 const verticalShell = (): ShellConfig => {
-  const sc = verticalScreens() as unknown as { nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]> }
+  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]> }
   const names = sc.nav || {}
   const sections = sc.navSections || {}
   const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
@@ -203,7 +203,9 @@ const verticalShell = (): ShellConfig => {
     ...SHELL,
     nav: SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
       const gated = widened[item.to] ? { ...item, features: widened[item.to] } : item
-      const renamed = names[item.to] ? { ...gated, label: names[item.to] } : gated
+      // The website's page of photos is the business's Portfolio or Gallery (VerticalSettings.vocabulary.gallery).
+      const own = names[item.to] || (item.to === '/crm/website/portfolio' ? sc.vocabulary?.gallery : undefined)
+      const renamed = own ? { ...gated, label: own } : gated
       return item.section && sections[item.section] ? { ...renamed, section: sections[item.section] } : renamed
     }),
     ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),

@@ -58,6 +58,7 @@ const roof: VerticalSettings = {
   // the contractor's tabs), what the template's sign-in reported and what the Factory calls this vertical.
   id: 'roofing',
   label: 'Roofing',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio' },
   mfaIssuer: 'Twomiah Roofing',
   featureSet: 'crm-roof',
   starter: STARTER,

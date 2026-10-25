@@ -14,6 +14,7 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { CallTrackingSection } from './CallTrackingSettings'
 import { useNavigate } from 'react-router-dom'
 import { whenDateTime } from '../time/companyClock'
+import { vocabulary } from '../labels/vocabulary'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
 // config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
@@ -41,7 +42,9 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const confirm = useConfirm()
   const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
   // QuickBooks takes customers, invoices and payments (integrations/quickbooks.ts) — never expenses, which this said.
-  const copy = { quickbooks: 'Send customers, invoices and payments to QuickBooks Online.', quickbooksAutoSync: 'Auto-sync new invoices and customers', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
+  // The cards' lines in the business's own words (labels/vocabulary.ts): a bar's said "customers and crew members".
+  const w = vocabulary()
+  const copy = { quickbooks: `Send ${w.customer.many}, invoices and payments to QuickBooks Online.`, quickbooksAutoSync: `Auto-sync new invoices and ${w.customer.many}`, sms: `Send text updates and reminders to ${w.customer.many} and ${w.team.many}.`, email: `Send invoices${on('quotes') ? ', quotes' : ''} and reminders by email.`, intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const navigate = useNavigate()
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)

@@ -98,7 +98,7 @@ export function createEnquiries(deps: {
       // Replying answers the visitor when they gave an email; a phone-only form is answered by phone.
       await email.send(owner.email, 'newEnquiry', { ...e, companyName: owner.companyName }, e.email ? { replyTo: { address: e.email, name: e.name } } : {})
     } catch (err: any) {
-      logger.warn('Owner was not told about a website enquiry', { error: err?.message })
+      logger.warn('Owner was not told about a website inquiry', { error: err?.message })
     }
   }
 

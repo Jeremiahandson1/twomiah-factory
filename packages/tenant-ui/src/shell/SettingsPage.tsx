@@ -301,7 +301,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const toggleAccess = async (u: any) => {
     const active = !!u.isActive
     const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
-    if (active && !(await confirm(`Deactivate ${name}? They can't sign in until you reactivate them, and their seat is freed. Their jobs and records stay.`, { title: 'Deactivate user', confirmText: 'Deactivate' }))) return
+    if (active && !(await confirm(`Deactivate ${name}? They can't sign in until you reactivate them, and their seat is freed. Everything they recorded stays.`, { title: 'Deactivate user', confirmText: 'Deactivate' }))) return
     try { await api.put(`/api/company/users/${u.id}`, { isActive: !active }); toast.success(active ? `${name} is deactivated` : `${name} is active again`); loadUsers() }
     catch (err) { toast.error(errMsg(err, active ? 'Could not deactivate them' : 'Could not reactivate them')) }
   }
@@ -476,8 +476,8 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
               )}
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Default Sales Tax Rate (%)" hint="Applied to new quotes and invoices. Leave 0 if you do not collect sales tax."><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>
-                <Field label="Invoice Payment Terms (days)" hint="Sets the due date when a quote is converted to an invoice."><input type="number" min="0" value={form.paymentTermsDays} onChange={set('paymentTermsDays')} className={inputCls} placeholder="30" /></Field>
+                <Field label="Default Sales Tax Rate (%)" hint={`Applied to new ${hasFeature && !hasFeature('quotes') ? '' : 'quotes and '}invoices. Leave 0 if you do not collect sales tax.`}><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>
+                <Field label="Invoice Payment Terms (days)" hint="Sets the due date on a new invoice that is not given one."><input type="number" min="0" value={form.paymentTermsDays} onChange={set('paymentTermsDays')} className={inputCls} placeholder="30" /></Field>
               </div>
               <Button onClick={saveCompany} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </div>

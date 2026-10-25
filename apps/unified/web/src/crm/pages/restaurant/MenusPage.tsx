@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
 
 /**
  * Catering menus — packages priced per head.
@@ -92,7 +93,7 @@ export default function MenusPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <UtensilsCrossed className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Catering Menus
+            <UtensilsCrossed className="w-6 h-6 text-orange-600 dark:text-orange-200" /> <MenuName fallback="Catering Menus" />
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Packages priced per head, with their courses and minimums</p>
         </div>

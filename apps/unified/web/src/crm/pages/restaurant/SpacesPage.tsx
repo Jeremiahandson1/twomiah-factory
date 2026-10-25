@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
 
 /**
  * Spaces — the rooms you can sell. Minimum spend is the number the sales
@@ -75,7 +76,7 @@ export default function SpacesPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Spaces
+            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-200" /> <MenuName fallback="Spaces" />
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
@@ -118,12 +119,15 @@ export default function SpacesPage() {
               {/* Prices are withheld (absent) from a seat without invoices:read — no "$0 minimum spend". (T62) */}
               {('minimumSpend' in s || 'hireFee' in s) && (
               <div className="mt-3 space-y-1 text-sm">
+                {/* Only what is set: a room with a hire fee and no minimum read "— minimum spend" (bar live test, 2026-10-25). */}
+                {Number(s.minimumSpend) > 0 && (
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                   <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
                   <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
                 </p>
-                {s.hireFee ? <p className="text-xs text-gray-500 dark:text-slate-400 pl-6">plus {money(s.hireFee)} hire fee</p> : null}
+                )}
+                {Number(s.hireFee) > 0 ? <p className={Number(s.minimumSpend) > 0 ? 'text-xs text-gray-500 dark:text-slate-400 pl-6' : 'flex items-center gap-2 text-gray-700 dark:text-slate-200'}>{Number(s.minimumSpend) > 0 ? <>plus {money(s.hireFee)} hire fee</> : <><Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" /><span className="font-semibold">{money(s.hireFee)}</span><span className="text-gray-500 dark:text-slate-400">hire fee</span></>}</p> : null}
               </div>
               )}
 

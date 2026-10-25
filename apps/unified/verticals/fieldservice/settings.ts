@@ -34,6 +34,7 @@ const STARTER: StarterContent = {
 const fieldservice: VerticalSettings = {
   id: 'fieldservice',
   label: 'Field Service',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'service call', many: 'service calls' }, team: { one: 'technician', many: 'technicians' }, reviewAfter: 'a service call is completed', gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Field Service',
   featureSet: 'crm-fieldservice',
   starter: STARTER,
@@ -91,8 +92,8 @@ const fieldservice: VerticalSettings = {
     reporting: { jobsLabel: 'Service Calls', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },
-    time: { jobLabel: 'Service Call' },
-    expenses: { jobLabel: 'Service Call' },
+    time: {},
+    expenses: {},
     // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
     team: { rolePlaceholder: 'e.g. Lead Technician', crewLogins: true },
     agreements: { recurrence: true, planNamePlaceholder: 'e.g., HVAC Maintenance Plan' },

@@ -140,7 +140,7 @@ export function createLoyaltyAdminRoutes(d: CrmDeps, core: StoreCore) {
     })
     if (!next) return fail(c, 404, 'Company not found')
     // After the transaction, not inside it: audit.log writes through the pool, and the lock above is still held there.
-    await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'loyalty_config', entityName: 'Loyalty programme', changes: changedKeys(flatLoyalty(before), flatLoyalty(next)), req: c })
+    await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'loyalty_config', entityName: 'Loyalty program', changes: changedKeys(flatLoyalty(before), flatLoyalty(next)), req: c })
     return one(c, loyaltyConfigResponse({ loyalty: next }, STORE_LOYALTY_DEFAULTS))
   })
 

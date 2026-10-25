@@ -7,16 +7,16 @@ import type { SettingsApi, SettingsToast, ReviewsConfig } from '../settings/inte
 import { useMayWrite } from '../auth/PermissionsContext'
 import { ModuleNotEnabled, featureNotEnabled } from '../ui/ModuleNotEnabled'
 import { momentDate } from '../time/companyClock'
+import { reviewsCopy } from './reviewsCopy'
 
 type Tab = 'dashboard' | 'settings'
+
+type Copy = ReturnType<typeof reviewsCopy>
 /** When a request went: its day on the company's clock (time/companyClock.ts). */
 const fmt = (v: any) => momentDate(v) || '—'
 
 export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: SettingsToast; config?: ReviewsConfig }) {
-  const copy = {
-    subtitle: 'Automate Google review requests after job completion', subjectLabel: 'Job', autoRequestHelp: 'Automatically request reviews after job completion',
-    emptyHelp: 'Requests are created automatically when jobs are completed', manualHelp: "on a job or a customer's page", ...(config || {}),
-  }
+  const copy = reviewsCopy(config)
   const [tab, setTab] = useState<Tab>('dashboard')
   // The Settings tab is the marketing desk's: GET /api/reviews/settings asks marketing:read (a crew seat was shown it).
   const maySeeSettings = useMayWrite('marketing:read')
@@ -31,7 +31,7 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
     return (
       <ModuleNotEnabled
         title="Review Requests"
-        what="Automatic review requests after a completed job are not enabled for this account, so there are no requests or settings to show."
+        what="Review requests are not enabled for this account, so there are no requests or settings to show."
         note="Replying to the reviews you already have is a different module — that one is under Google Reviews, and it is on."
       />
     )
@@ -60,7 +60,7 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
  * Each flag is asked inside the component that renders its control, because useMayWrite is a hook —
  * the request list and the settings form are still readable to everyone who may open the page.
  */
-function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig>; onFeatureOff?: () => void }) {
+function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Copy; onFeatureOff?: () => void }) {
   const mayChase = useMayWrite('marketing:create')
   const [stats, setStats] = useState<any>(null)
   const [requests, setRequests] = useState<any[]>([])
@@ -111,9 +111,9 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
         </div>
       ) : null}
       {/* "None are created when a job completes" was this switch, off by default, with nothing on the page saying so. */}
-      {autoOn === false && (
+      {copy.auto && autoOn === false && (
         <div role="status" data-testid="auto-request-off" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          Automatic review requests are off, so finishing a {copy.subjectLabel.toLowerCase()} asks nobody yet. Turn on Auto-Request Reviews under Settings{copy.manualHelp ? `, or use Send review request ${copy.manualHelp} to ask one person now` : ''}.
+          Automatic review requests are off, so nobody is asked after {copy.reviewAfter} yet. Turn on Auto-Request Reviews under Settings{copy.manualHelp ? `, or use Send review request ${copy.manualHelp} to ask one person now` : ''}.
         </div>
       )}
       {stats && (
@@ -131,11 +131,11 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm" data-testid="review-requests">
-              <thead><tr className="text-left text-gray-500 dark:text-slate-400 border-b dark:border-slate-800"><th className="px-4 py-3 font-medium">Contact</th><th className="px-4 py-3 font-medium">{copy.subjectLabel}</th><th className="px-4 py-3 font-medium">Channel</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Sent</th><th className="px-4 py-3 font-medium"></th></tr></thead>
+              <thead><tr className="text-left text-gray-500 dark:text-slate-400 border-b dark:border-slate-800"><th className="px-4 py-3 font-medium">Contact</th>{copy.subjectLabel && <th className="px-4 py-3 font-medium">{copy.subjectLabel}</th>}<th className="px-4 py-3 font-medium">Channel</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Sent</th><th className="px-4 py-3 font-medium"></th></tr></thead>
               <tbody className="divide-y dark:divide-slate-800">{requests.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
                   <td className="px-4 py-3"><p className="font-medium text-gray-900 dark:text-white">{r.contact?.name || '—'}</p><p className="text-xs text-gray-500 dark:text-slate-400">{r.contact?.phone || r.contact?.email || ''}</p></td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{r.job?.title || '—'}</td>
+                  {copy.subjectLabel && <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{r.job?.title || '—'}</td>}
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-xs">{(r.channel === 'sms' || r.channel === 'both') && <Phone className="w-3 h-3" />}{(r.channel === 'email' || r.channel === 'both') && <Mail className="w-3 h-3" />}<span className="capitalize">{r.channel}</span></span></td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{fmt(r.sentAt || r.createdAt)}</td>
@@ -150,7 +150,7 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
   )
 }
 
-function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig>; onFeatureOff?: () => void }) {
+function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Copy; onFeatureOff?: () => void }) {
   const maySave = useMayWrite('settings:update')
   const [settings, setSettings] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -177,10 +177,10 @@ function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toa
           Save was already withheld (settings:update); the fields were left live, so a manager could
           change them and find no way to keep the change. Read-only now, and it says who can edit. */}
       {!maySave && <p className="text-sm text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3">You can see these settings. Only an owner or admin can change them.</p>}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
-        <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p><p className="text-sm text-gray-700 dark:text-slate-300 mt-1" data-testid="auto-request-default">Off until you turn it on. While it is off, nobody is asked automatically{copy.manualHelp ? <> — you can still ask one customer with Send review request {copy.manualHelp}</> : null}. Nothing can be sent until a Google review link is set below.</p></div>
+      {copy.auto && <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
+        <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p><p className="text-sm text-gray-700 dark:text-slate-300 mt-1" data-testid="auto-request-default">Off until you turn it on. While it is off, nobody is asked automatically{copy.manualHelp ? <> — you can still ask one {copy.customer} with Send review request {copy.manualHelp}</> : null}. Nothing can be sent until a Google review link is set below.</p></div>
           <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewRequestEnabled: e.target.checked }))} disabled={!maySave} className="w-5 h-5 rounded text-orange-500 dark:text-orange-200 disabled:cursor-not-allowed" /></label>
-      </div>
+      </div>}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />Google Review Link</h2>
         <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Review URL</label><input type="url" value={settings?.googleReviewUrl || ''} onChange={(e) => setSettings((prev: any) => ({ ...prev, googleReviewUrl: e.target.value }))} placeholder="https://g.page/r/your-business/review" disabled={!maySave} className={field} /><p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste your Google review link, or enter a Place ID below</p></div>
@@ -191,17 +191,17 @@ function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toa
             <div className="flex items-center gap-2"><input type="text" value={settings.reviewLink || settings.googleReviewUrl} readOnly className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border rounded-lg text-sm dark:border-slate-700 dark:text-white" /><a href={settings.reviewLink || settings.googleReviewUrl} target="_blank" rel="noopener noreferrer" aria-label="Open review link" className="p-2 bg-white dark:bg-slate-800 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700"><ExternalLink className="w-4 h-4" /></a></div></div>
         )}
       </div>
-      <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
+      {copy.auto && <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Settings className="w-5 h-5 text-gray-500 dark:text-slate-400" />Channel &amp; Timing</h2>
         <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Channel</label>
           <select value={settings?.reviewChannel || 'both'} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewChannel: e.target.value }))} disabled={!maySave} className={field}><option value="both">SMS &amp; Email</option><option value="sms">SMS Only</option><option value="email">Email Only</option></select></div>
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Delay After Completion</label>
+          <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Wait after {copy.reviewAfter}</label>
             <select value={settings?.reviewRequestDelay ?? 24} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewRequestDelay: parseInt(e.target.value) }))} disabled={!maySave} className={field}><option value={0}>Right away</option><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={4}>4 hours</option><option value={24}>1 day</option><option value={48}>2 days</option><option value={72}>3 days</option></select></div>
           <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Follow-up After</label>
             <select value={settings?.reviewFollowUpDelay ?? 5} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewFollowUpDelay: parseInt(e.target.value) }))} disabled={!maySave} className={field}><option value={0}>No follow-up</option><option value={3}>3 days</option><option value={5}>5 days</option><option value={7}>7 days</option></select></div>
         </div>
-      </div>
+      </div>}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><MessageSquare className="w-5 h-5 text-gray-500 dark:text-slate-400" />SMS Template</h2>
         <textarea value={settings?.reviewSmsTemplate || ''} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewSmsTemplate: e.target.value }))} rows={3} placeholder="Hi {firstName}, thanks for choosing {companyName}! We'd love your feedback — could you leave us a quick Google review? {trackingUrl}" disabled={!maySave} className={`${field} text-sm`} />

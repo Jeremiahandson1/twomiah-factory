@@ -8,6 +8,8 @@ import { Navigate, Route, useLocation } from 'react-router-dom'
 import { Beer, CalendarDays, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
 import { kioskLocked } from '../pages/bar/kioskLock'
 import { useAuth, type NavItem } from '../../shared'
+import { NoAccessPage } from '@twomiah/tenant-ui/src/shell/noAccess'
+import { allowsPermission } from '@twomiah/tenant-ui/src/shell/types'
 import { page } from '../lazy'
 
 const TonightPage = page(() => import('../pages/bar/TonightPage'))
@@ -30,6 +32,15 @@ const FoodSettingsPage = page(() => import('../pages/bar/FoodSettingsPage'))
 const OrdersPage = page(() => import('../pages/bar/OrdersPage'))
 /** The order kiosk: full screen, outside the shell (App.tsx), behind the order_kiosk feature (the page and its API). */
 export const KioskPage = page(() => import('../pages/bar/KioskPage'))
+/**
+ * The kiosk opens outside the shell, so the shell's gate never stood in front of it: a viewer got a blank page with a
+ * "Permission denied" chip (bar live test, 2026-10-25). The same permission as its menu item, the same page as the shell's.
+ */
+export function KioskGate({ children }: { children: ReactElement }) {
+  const { can } = useAuth()
+  const needs = nav.find((i) => i.to === '/crm/kiosk')?.permission
+  return allowsPermission(can, needs) ? children : <NoAccessPage label="the Kiosk" needs={[needs].flat()[0] || ''} />
+}
 
 /**
  * Kiosk mode is on in this browser: every other address of the app goes back to the kiosk, until a manager's till PIN

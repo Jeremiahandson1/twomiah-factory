@@ -9,14 +9,14 @@ import type { StarterContent } from '../../server/core/starter.ts'
 // care set none (live test, 2026-10-22). The ids are crm.leads.platforms; the cards are screens.leads.platforms and
 // Settings › Integrations' Lead Sources guides (one list).
 const LEAD_PLATFORMS = [
-  { value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo', description: 'Turn Google messages and enquiries into leads in your Lead Inbox.', instructions: [
+  { value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo', description: 'Turn Google messages and inquiries into leads in your Lead Inbox.', instructions: [
     'Google emails the profile owner for every new message', 'Forward those notification emails to the inbound address below',
     'Gmail: Settings › Filters › from:google.com "Business Profile" › Forward', "Each forwarded message becomes a lead with the sender's name and note"] },
   { value: 'instagram', label: 'Instagram / Facebook', color: '#6a1b9a', tone: 'pink', description: 'Bring DMs and lead-form submissions from Meta into your CRM.', instructions: [
     'Meta emails you when someone messages your page or fills in a lead form', 'Forward those notification emails to the inbound address below',
     'Or connect a Zapier / Make zap from Meta Lead Ads to the webhook URL below'] },
   { value: 'care_directory', label: 'Care directories', color: '#1565c0', tone: 'blue', description: 'Families who find you on a senior-care or home-care directory, in one inbox.', instructions: [
-    'In the directory account, turn on email notifications for new referrals or enquiries', 'Forward those emails to the inbound address below',
+    'In the directory account, turn on email notifications for new referrals or inquiries', 'Forward those emails to the inbound address below',
     'Or, where the directory offers one, point its webhook at the webhook URL below'] },
   { value: 'website', label: 'Website contact form', color: '#2e7d32', tone: 'emerald', description: 'Every form submission on your website becomes a lead.', instructions: [
     "Point your website form's notification email at the inbound address below", 'Or use the webhook URL below with Zapier / Make from any form builder'] },
@@ -25,7 +25,7 @@ const LEAD_PLATFORMS = [
 // What a contact is at an agency: an enquiry (someone asking about care), a client, or a supplier. No subcontractors —
 // a builder's word (live test, 2026-10-22). The people it cares for are its Clients (Operations › Clients); Contacts is
 // the office's address book. The server and the screens read the same ids (crm.contacts.types, screens.contacts.types).
-const CONTACT_TYPES = [{ value: 'lead', label: 'Enquiry' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }]
+const CONTACT_TYPES = [{ value: 'lead', label: 'Inquiry' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }]
 
 // What a new home-care agency finds in Help on day one (server/core/starter.ts; written once by modules/provision.ts,
 // then the agency's own to edit). The template's built-in guides (templates/crm-homecare frontend/src/components/
@@ -393,6 +393,7 @@ Long reports run onto more pages. The file name includes your agency's name and 
 const homecare: VerticalSettings = {
   id: 'homecare',
   label: 'Home Care',
+  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'visit', many: 'visits' }, team: { one: 'caregiver', many: 'caregivers' }, reviewAfter: null, gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Home Care',
   featureSet: 'crm-homecare',
   // The template's seats were owner, admin and caregiver; a caregiver is the field rung.
@@ -474,12 +475,12 @@ const homecare: VerticalSettings = {
       quickActions: [],
     },
     // Lead Sources, the Lead Inbox and Settings › Integrations' guides: the agency's sources (LEAD_PLATFORMS above).
-    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Care needed', sourcesSubtitle: 'Where enquiries from families arrive: Google, Meta, care directories and your website' },
+    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Care needed', sourcesSubtitle: 'Where inquiries from families arrive: Google, Meta, care directories and your website' },
     // Settings › Integrations' cards in an agency's words (the shared copy offered quotes and crew members).
     integrations: {
       // QuickBooks takes the CRM's customers, invoices and payments; an agency's Billing invoices and its clients are its
       // own tables, which nothing sends (crm/office/quickbooksAutoSync.ts) — so the card says so (2026-10-23).
-      copy: { quickbooks: 'Connects to QuickBooks Online. Your Billing invoices for visits are not sent to QuickBooks — download them from Billing as a CSV for your bookkeeper.', sms: 'Send visit reminders and updates to clients, families and caregivers.', email: 'Send invoices, receipts and reminders by email.' },
+      copy: { quickbooks: 'Connects to QuickBooks Online. Your Billing invoices for visits are not sent to QuickBooks — download them from Billing as a CSV for your bookkeeper.' },
     },
     // The agency's own screens (web/src/crm/verticals/homecare.tsx): its dashboard at /crm/dashboard (the office's, or a
     // caregiver's day), its menu, and its public pages (the portals, paying an invoice, onboarding, careers).

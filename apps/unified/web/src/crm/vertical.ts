@@ -15,6 +15,7 @@ import type { CommissionsConfig } from '@twomiah/tenant-ui/src/commissions/Commi
 import type { TechViewConfig } from '@twomiah/tenant-ui/src/tech/TechView'
 import type { IntegrationsConfig } from '@twomiah/tenant-ui/src/settings/integrationsTypes'
 import type { WarrantiesConfig } from '@twomiah/tenant-ui/src/warranties/types'
+import type { Vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 export interface VerticalScreens {
   contacts: ContactsConfig
@@ -39,7 +40,8 @@ export interface VerticalScreens {
   leads: Record<string, unknown>
   marketing: Record<string, unknown>
   messages: Record<string, unknown>
-  reviews: Record<string, unknown>
+  /** Nothing: the Reviews page speaks from the vocabulary. Typed empty so no vertical writes its sentences here again. */
+  reviews: Record<string, never>
   migration: Record<string, unknown>
   import: Record<string, unknown>
   settings: Record<string, unknown>
@@ -73,7 +75,7 @@ export interface VerticalScreens {
    * stored at signup in the Factory's words, so the vertical's own replace them here, for every tenant already signed
    * up), and the Portfolio card's line. Absent: the stored words, the shared line.
    */
-  website?: { gaps?: Record<string, { label: string; unlocks?: string }>; portfolioText?: string }
+  website?: { gaps?: Record<string, { label: string; unlocks?: string }> }
   /**
    * The browser's Google Maps key (address search, satellite tiles), served at run time by the server
    * (GOOGLE_MAPS_BROWSER_KEY, restricted to the tenant's web addresses). Empty: no key — the screens fall back.
@@ -84,6 +86,8 @@ export interface VerticalScreens {
    * (VerticalSettings.roleLabels through permissions.roleLabel), served at run time. Read through crm/viewAs.tsx roleWord.
    */
   roleLabels?: Record<string, string>
+  /** What the business calls its customers, work and team (VerticalSettings.vocabulary); registered in main.tsx. */
+  vocabulary?: Vocabulary
   /**
    * The switch the call log and the CallRail key ride (server CrmSettings.callTrackingSwitch, served at run time):
    * 'ai_receptionist' puts the CallRail key in the AI Receptionist page's Settings tab, there being no Call Tracking page.

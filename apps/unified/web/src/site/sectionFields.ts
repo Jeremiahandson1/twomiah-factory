@@ -272,7 +272,8 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'title', label: 'Name (optional)', kind: 'text', hint: 'Leave blank for your business name.' },
       { key: 'titleImage', label: 'Lettering image instead of the name (optional)', kind: 'image' },
       { key: 'titleImageSmall', label: 'Lettering image, small (optional)', kind: 'image' },
-      { key: 'titleSub', label: 'Line under the lettering (optional)', kind: 'text' },
+      // No "line under the lettering": the bar's cover hides it (designs/bar.css .board__title-sub); the lines under the
+      // name are line1 and line2. An owner who set it saw it nowhere (bar live test, 2026-10-25).
       { key: 'coverImage', label: 'Cover image (optional)', kind: 'image', hint: 'A picture of your sign or your cover art; the live board sits beside it.' },
       { key: 'coverImageSmall', label: 'Cover image, small (optional)', kind: 'image' },
       { key: 'coverAlt', label: 'Cover image description (optional)', kind: 'text' },
@@ -408,8 +409,8 @@ export const TRADE_SECTIONS: TradeSection[] = [
     defaultData: { riddles: [] },
   },
   {
-    type: 'parties', variant: 'inquiry-form', label: 'Parties — Enquiry form',
-    description: 'A private-party enquiry: name, phone, date, how many, the occasion. It lands in your CRM and your email.',
+    type: 'parties', variant: 'inquiry-form', label: 'Parties — Inquiry form',
+    description: 'A private-party inquiry: name, phone, date, how many, the occasion. It lands in your CRM and your email.',
     fields: [heading, intro, { key: 'occasions', label: 'Occasions to choose from (optional)', kind: 'strings', addLabel: 'Add occasion', hint: 'Blank: guests type their own.' },
       { key: 'minParty', label: 'Smallest party (optional)', kind: 'number' }, { key: 'promise', label: 'What happens after they send it (optional)', kind: 'text' },
       { key: 'sidebar', label: 'Numbers beside the form (optional)', kind: 'list', itemLabel: 'number', max: 4, item: [

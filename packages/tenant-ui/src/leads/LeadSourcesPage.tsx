@@ -97,8 +97,9 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Settings size={24} /> Lead Sources</h1>
           <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>{subtitle}</p>
         </div>
+        {/* The app's own primary button: this one was the only blue one (bar live test, 2026-10-25). */}
         {mayManageSources && (
-          <button onClick={() => setShowAdd(true)} style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-5 py-2 rounded-md text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white">
             <Plus size={16} /> Add Source
           </button>
         )}

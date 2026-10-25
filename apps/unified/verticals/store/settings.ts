@@ -8,6 +8,7 @@ const store: VerticalSettings = {
   // 'store': industryRouting's vertical id (apps/api/src/config/industryRouting.ts) and what the Factory calls it.
   id: 'store',
   label: 'Online Store',
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: null, team: { one: 'team member', many: 'team' }, reviewAfter: null, gallery: 'Gallery' },
   mfaIssuer: 'Twomiah Store',
   featureSet: 'crm-store',
   // templates/crm-store middleware/permissions.ts — the store's three seats (owner's decision, 2026-10-10):

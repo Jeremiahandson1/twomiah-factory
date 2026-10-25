@@ -10,6 +10,7 @@ import { useMayWrite } from '../auth/PermissionsContext';
 import { PageError, errorText } from '../ui/PageError'
 import { money } from '../invoicing/ui'
 import { codeLabel } from '../labels/codes'
+import { MenuName } from '../shell/menuName'
 
 // api is injected once at the page root; child components read it via useInventory().
 type Branch = { id: string; name: string; code?: string | null };
@@ -187,7 +188,7 @@ export default function InventoryPage({ api, hasFeature }: InventoryPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Inventory</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100"><MenuName fallback="Inventory" /></h1>
           <p className="text-gray-500 dark:text-slate-400">Track parts and materials</p>
         </div>
         <div className="flex items-center gap-2">

@@ -212,7 +212,7 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         if (cos.length !== 1) throw new Error(`The unified database has ${cos.length} companies; the site move needs the one the CRM move made`)
         const co = cos[0]
         companyId = co.id
-        if (o.scope === 'leads') return `company ${companyId}; the old site's enquiries only — the business gets a new site`
+        if (o.scope === 'leads') return `company ${companyId}; the old site's inquiries only — the business gets a new site`
         const settings = rows('settings', 'updated_at DESC')
         const s = settings[0]
         if (!s) return 'the site has no settings row'

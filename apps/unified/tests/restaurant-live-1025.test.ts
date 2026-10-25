@@ -71,7 +71,7 @@ describe('public pages are titled for their visitor', () => {
     expect(tabTitle('/vendor/abc', 'Bistro')).toBe('Bistro — Vendor portal')
     expect(tabTitle('/pay/abc', 'Care Co')).toBe('Care Co — Pay your invoice')
     expect(tabTitle('/portal/abc', 'Bistro')).toBe('Bistro — Customer portal')
-    expect(tabTitle('/crm/invoices', 'Bistro')).toBe('Bistro · Admin')
+    expect(tabTitle('/crm/invoices', 'Bistro')).toBe('Bistro')
   })
 
   test('the unsubscribe page speaks no trade', () => {

@@ -103,7 +103,7 @@ export default function App() {
                     {/* Roofing's canvasser view: full screen, outside the shell, for a roofer only (crm/verticals/roof.tsx). */}
                     {roofScreens.isRoofing && <Route path="/crm/canvass" element={<ProtectedRoute><roofScreens.CanvassView /></ProtectedRoute>} />}
                     {/* The order kiosk: full screen, outside the shell, locked by a manager's PIN (crm/verticals/bar.tsx). */}
-                    <Route path="/crm/kiosk" element={<ProtectedRoute><barScreens.KioskPage /></ProtectedRoute>} />
+                    <Route path="/crm/kiosk" element={<ProtectedRoute><barScreens.KioskGate><barScreens.KioskPage /></barScreens.KioskGate></ProtectedRoute>} />
 
                     <Route path="/crm" element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                       <Route index element={<Home />} />

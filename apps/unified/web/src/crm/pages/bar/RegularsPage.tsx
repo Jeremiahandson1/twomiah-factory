@@ -62,7 +62,7 @@ export default function RegularsPage() {
 
       <div className={CARD}>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <p className={LABEL}>The programme</p>
+          <p className={LABEL}>The program</p>
           {mayConfigure && (
             <div className="flex gap-2">
               <button className={`${BTN} ${cfg.loyaltyEnabled ? ON : OFF}`} aria-pressed={cfg.loyaltyEnabled} disabled={busy} onClick={() => save({ loyaltyEnabled: true })}>On</button>
@@ -125,7 +125,7 @@ function MemberList() {
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
       {rows === null && !err && <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-slate-400" />}
-      {rows?.length === 0 && <p className={`text-sm ${MUTED}`}>{q.trim() ? 'Nobody on the programme matches that.' : 'No regulars yet. Add one at the register with "Add a regular": a name and a phone number.'}</p>}
+      {rows?.length === 0 && <p className={`text-sm ${MUTED}`}>{q.trim() ? 'Nobody on the program matches that.' : 'No regulars yet. Add one at the register with "Add a regular": a name and a phone number.'}</p>}
       <ul className="divide-y divide-gray-200 dark:divide-slate-800">
         {rows?.map((m) => (
           <li key={m.contactId}>

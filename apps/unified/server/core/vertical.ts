@@ -2,6 +2,7 @@
 // differ by industry. Everything here feeds an option the shared modules already take, so a vertical changes
 // words and switches, never code paths.
 import type { StarterContent } from './starter.ts'
+import type { Vocabulary } from '../../../../packages/tenant-ui/src/labels/vocabulary.ts'
 
 /**
  * CREW SCOPE — Jobber's rule for a job trade's field seat: it reads the jobs assigned to it and to its crews
@@ -17,6 +18,12 @@ export interface VerticalSettings {
   id: string
   /** What the industry is called, for people. */
   label: string
+  /**
+   * What this business calls the people it serves, its work, its team, and what asks for a review by itself
+   * (packages/tenant-ui labels/vocabulary.ts). Every shared screen builds its sentences from it; required, so no vertical
+   * falls back to a contractor's words.
+   */
+  vocabulary: Vocabulary
   /** What this vertical calls each role rung (owner, admin, manager, field, viewer); unset rungs use the shared defaults. */
   roleLabels?: Record<string, string>
   /** Permissions added to a rung's base list, e.g. `{ field: ['contacts:create'] }`. */

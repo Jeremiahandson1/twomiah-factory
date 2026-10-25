@@ -13,6 +13,8 @@
 
 export const COMMON_WORDS: Record<string, string> = {
   no_show: 'No-show',
+  // The events stage is stored as 'enquiry' (the template's British word); it reads in American English everywhere.
+  enquiry: 'Inquiry',
   in_progress: 'In progress',
   on_hold: 'On hold',
   past_due: 'Past due',

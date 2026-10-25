@@ -22,7 +22,7 @@ export function toCsv(head: string[], rows: CsvCell[][]): string {
 export const csvName = (...parts: string[]) => parts.join(' ').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '.csv'
 
 /** Hand the browser the file. The byte-order mark makes Excel read it as UTF-8 (a café's é, a dash). */
-export function downloadCsv(filename: string, head: string[], rows: CsvCell[][]) {
+export function downloadCsv(filename: string, head: string[], rows: CsvCell[][]): string {
   const blob = new Blob(['﻿' + toCsv(head, rows)], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -31,4 +31,5 @@ export function downloadCsv(filename: string, head: string[], rows: CsvCell[][])
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(a.href), 0)
+  return filename
 }

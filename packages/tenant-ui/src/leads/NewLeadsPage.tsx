@@ -24,12 +24,12 @@ export function NewLeadsPage({ api }: { api: NewLeadsApi }) {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="New leads" subtitle="Enquiries nobody has answered yet, and leads nothing has been done for — no quote, job or invoice" />
+      <PageHeader title="New leads" subtitle="Inquiries nobody has answered yet, and leads nothing has been started for" />
       {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       {rows === null ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
       ) : rows.length === 0 && !error ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">No new leads — every enquiry has an answer.</div>
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">No new leads — every inquiry has an answer.</div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <p className="px-4 py-2 text-sm text-gray-600 border-b border-gray-200 dark:text-slate-400 dark:border-slate-800" data-testid="new-leads-count">{total} new lead{total === 1 ? '' : 's'}{rows.length < total ? ` — the newest ${rows.length} shown` : ''}</p>

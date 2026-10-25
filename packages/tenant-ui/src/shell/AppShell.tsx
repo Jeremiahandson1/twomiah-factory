@@ -13,26 +13,8 @@ import type { AppShellProps, NavItem } from './types'
 import { meetsRole, maySeeRoute, allowsPermission } from './types'
 
 import { blockedRoute } from './routeGate'
-
-// Who can open a page that needs a given rung. One sentence per rung, because a single sentence for all
-// of them told a MANAGER that the page was "limited to your salon's managers and owner" — wrong, and
-// confusing to the person reading it. (Salon T29 L2)
-const WHO_CAN_OPEN: Record<string, string> = {
-  owner: 'This page is limited to the account owner',
-  admin: 'This page is limited to admins and the owner',
-  manager: 'This page is limited to managers and above',
-  // …and by permission, for the pages the server gates that way. Keyed by the permission string itself,
-  // so the sentence a person reads is looked up with the same key the guard checks. (T30 M-R1)
-  // "This page", not the permission's own noun: more than one page sits behind each of these, and RV's Accounting
-  // page — behind invoices:read — told staff "Invoices are limited…". (T63) The heading above already names the page.
-  'invoices:read': 'This page is limited to the people who handle the money',
-  'quotes:read': 'This page is limited to the people who handle the money',
-  'reports:read': 'This page is limited to managers and above',
-  'audit:read': 'This page is limited to admins and the owner',
-  'marketing:read': 'This page is limited to managers and above',
-  'team:read': 'This page is limited to managers and above',
-  'company:update': 'This page is limited to admins and the owner',
-}
+import { MenuNameContext } from './menuName'
+import { WHO_CAN_OPEN } from './noAccess'
 
 /** "/crm/lead-sources" → "Lead Sources", for a gated route with no menu entry to take a label from. */
 const labelFromPath = (to: string) =>
@@ -378,7 +360,8 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
                   : <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>}
               </div>
             ) : (
-              outlet
+              // Each page reads its own menu name (menuName.tsx).
+              <MenuNameContext.Provider value={config.nav}>{outlet}</MenuNameContext.Provider>
             )}
           </ErrorBoundary>
         </main>

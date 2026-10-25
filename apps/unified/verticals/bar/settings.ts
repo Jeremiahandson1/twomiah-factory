@@ -36,7 +36,7 @@ const STARTER: StarterContent = {
     { title: "Tonight and your website", category: "Tonight", isFaq: false,
       content: "Tonight is your console for the night: kitchen and bar open, closed or closing early (\"Open now\", \"Closed now\", \"Close at\"), how busy it is, a note and tonight's special. Anything you change lasts until 4 AM and then goes back to your hours by itself. Mark an item 86 when you run out." },
     { title: "Parties and private events", category: "Parties", isFaq: false,
-      content: "Parties takes a private party from enquiry to booked. Click New Enquiry and pick the date and the Space. On the party, add a Party Package on the Food & Beverage tab (Add Line). On the Payments tab, Schedule Payment for the deposit; this raises the party's invoice, which you send from Invoices. Add your rooms (the whole bar, a back room, the patio) on the Spaces page. Party Packages are per-person menus with a minimum number of guests." },
+      content: "Parties takes a private party from inquiry to booked. Click New Inquiry and pick the date and the Space. On the party, add a Party Package on the Food & Beverage tab (Add Line). On the Payments tab, Schedule Payment for the deposit; this raises the party's invoice, which you send from Invoices. Add your rooms (the whole bar, a back room, the patio) on the Spaces page. Party Packages are per-person menus with a minimum number of guests." },
     { title: "Your team and what each role can do", category: "Team", isFaq: true,
       content: "Invite people from Settings > Users; they get an email to set their own password. Staff (bartenders) work the Register, the Grill, Tonight and the Regulars, and see their own shifts and clock. Managers can also void, close the night, run stock, gift cards, the schedule and reports. Admins and the owner also run the company settings and billing. Set each person's hourly rate on Team so the schedule shows wages." },
   ],
@@ -47,6 +47,7 @@ const STARTER: StarterContent = {
 const bar: VerticalSettings = {
   id: 'bar',
   label: 'Bar & Grill',
+  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery' },
   // The template named itself 'Twomiah CRM' because crm-basic served three verticals (routes/mfa.ts, T41); this one is a bar's.
   mfaIssuer: 'Twomiah Bar',
   featureSet: 'crm-bar',
@@ -56,6 +57,12 @@ const bar: VerticalSettings = {
   // gives its stylists. Correcting points and changing the programme stay a manager's.
   extraRolePermissions: { field: ['sms:send', 'loyalty:enroll', 'loyalty:redeem'] },
   crm: {
+    // What a bar buys in (packages/tenant-backend expenses.ts validates against it): the shared list was a contractor's —
+    // Materials, Equipment, Labor, Travel (bar live test, 2026-10-25).
+    expenses: {
+      categories: ['food', 'drink', 'supplies', 'repairs', 'utilities', 'rent', 'marketing', 'licenses', 'other'],
+      categoryLabels: { food: 'Food stock', drink: 'Beer, wine & spirits', supplies: 'Supplies & smallwares', repairs: 'Repairs & maintenance', licenses: 'Licenses & permits' },
+    },
     // The party request and the Regulars sign-up (crm/bar/enquiry.ts; templates/crm-bar routes/webhooks.ts).
     websiteForms: 'bar',
     // crm-basic's switches, as the copy kept them (routes/contacts, jobs, quotes, equipment, agreements, services/fleet).
@@ -138,8 +145,8 @@ const bar: VerticalSettings = {
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     // A bar pays its hours and never bills them, and has no jobs to log them against (Bar Run 1).
-    time: { jobLabel: 'Job', jobsFeature: 'jobs', billable: false, subtitle: 'Clock in on the bar tablet with your till PIN, or log hours by hand' },
-    expenses: { jobLabel: 'Job' },
+    time: { jobsFeature: 'jobs', billable: false, subtitle: 'Clock in on the bar tablet with your till PIN, or log hours by hand' },
+    expenses: {},
     // The column was the shared default, "Job Title / Trade" (Bar Run 2).
     team: { roleLabel: 'Position', rolePlaceholder: 'e.g. Bartender, line cook' },
     agreements: { recurrence: true },
@@ -170,7 +177,7 @@ const bar: VerticalSettings = {
           ],
         },
         {
-          value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp quote requests and messages into your Lead Inbox.',
+          value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky', description: 'Forward Yelp messages and requests into your Lead Inbox.',
           instructions: ['Yelp for Business → Account Settings → Notifications', 'Turn on email alerts for "Request a quote" / messages', 'Forward those alerts to the inbound address below'],
         },
         {
@@ -179,7 +186,7 @@ const bar: VerticalSettings = {
         },
       ],
       jobTypeLabel: 'Service',
-      sourcesSubtitle: 'Where new enquiries arrive: Google, Meta, Yelp and your website',
+      sourcesSubtitle: 'Where new inquiries arrive: Google, Meta, Yelp and your website',
     },
     marketing: {},
     messages: {},
@@ -190,7 +197,6 @@ const bar: VerticalSettings = {
         photos: { label: 'Photos of your bar, your food and your nights — three or more' },
         credentials: { label: 'Awards or press mentions', unlocks: 'A line guests read before they come in' },
       },
-      portfolioText: 'Your room, your food and your nights, with photos.',
     },
     settings: {
       // No trade licence behind a bar (settingsConfig.ts, T41).

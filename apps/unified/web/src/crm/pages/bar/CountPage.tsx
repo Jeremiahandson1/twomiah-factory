@@ -21,7 +21,9 @@ export default function CountPage() {
   const [saved, setSaved] = useState<Record<string, number | null>>({});
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [done, setDone] = useState(false);
+  // The count just finished, as it stood: finishing opens the next count (empty), which read "0 of 1 counted" beside
+  // "Count finished" (bar live test, 2026-10-25).
+  const [done, setDone] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,7 +41,7 @@ export default function CountPage() {
     setBusy(it.id); setErr('');
     try {
       const r = await api.post('/api/stock/count/item', { stockItemId: it.id, packs: e.packs, units: e.units, clear: !e.packs.trim() && !e.units.trim() });
-      setSaved((s) => ({ ...s, [it.id]: r.qty }));
+      setSaved((s) => ({ ...s, [it.id]: r.qty })); setDone(null);
     } catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(''); }
   };
 
@@ -51,10 +53,10 @@ export default function CountPage() {
     <div className="space-y-3 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">The count</h1>
-        <p className={`text-sm ${MUTED}`}>{countedN} of {data.stock.length} counted. Full packs, then anything loose. Saved as you go.</p>
+        <p className={`text-sm ${MUTED}`}>{done !== null ? `The count is finished: ${done} of ${data.stock.length} counted. The next count starts from here.` : `${countedN} of ${data.stock.length} counted. Full packs, then anything loose. Saved as you go.`}</p>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
-      {done && <div className="rounded-2xl border border-green-300 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100 p-4">Count finished. Thank you.</div>}
+      {done !== null && <div className="rounded-2xl border border-green-300 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100 p-4">Count finished. Thank you.</div>}
       {data.stock.length === 0 && <p className={`text-sm ${MUTED}`}>Nothing to count yet — a manager adds stock items first.</p>}
       {grouped.map((g) => (
         <section key={g.id} className={CARD} aria-label={g.label}>
@@ -84,7 +86,7 @@ export default function CountPage() {
         <div className="flex justify-end">
           <button className={`${BTN} ${ON}`} disabled={!countedN || busy === 'finish'} onClick={async () => {
             setBusy('finish'); setErr('');
-            try { await api.post('/api/stock/count/finish', {}); setDone(true); setEntry({}); await load(); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
+            try { const n = countedN; await api.post('/api/stock/count/finish', {}); setEntry({}); await load(); setDone(n); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
           }}>Finish the count</button>
         </div>
       )}

@@ -86,7 +86,7 @@ export default function LoyaltyPage() {
     try {
       const [cfg, rew] = await Promise.all([api.get('/api/admin/loyalty/config'), api.get('/api/admin/loyalty/rewards')])
       setConfig(cfg as LoyaltyConfig); setRewards(listOf<LoyaltyReward>(rew)); setError(null)
-    } catch (e) { setError(errorText(e, 'Could not load the loyalty programme')) }
+    } catch (e) { setError(errorText(e, 'Could not load the loyalty program')) }
   }, [])
   const loadMembers = useCallback(async (q: string) => {
     try { setMembers(listOf<LoyaltyMember>(await api.get('/api/admin/loyalty/members', { search: q || undefined }))) }
@@ -156,7 +156,7 @@ export default function LoyaltyPage() {
         {config && (
           <p className="text-gray-700 dark:text-slate-300">
             {config.loyaltyEnabled === false
-              ? 'The programme is switched off — shoppers are not earning.'
+              ? 'The program is switched off — shoppers are not earning.'
               : <>Shoppers earn {config.loyaltyPointsPerDollar ?? 1} {config.loyaltyPointsPerDollar === 1 ? 'point' : 'points'} per {formatMoney(100, currency)} spent on goods
                 {card && card.visitsRequired > 0 ? `, and every ${card.visitsRequired} orders earns ${card.rewardName || 'a reward'}.` : '.'}</>}
           </p>
@@ -191,7 +191,7 @@ export default function LoyaltyPage() {
           />
           {members.length === 0 ? (
             <p className="card p-8 text-center text-gray-700 dark:text-slate-300">
-              {debounced ? 'Nobody on the programme matches that.' : 'Nobody is on the programme yet. Shoppers join automatically the first time an order is paid.'}
+              {debounced ? 'Nobody on the program matches that.' : 'Nobody is on the program yet. Shoppers join automatically the first time an order is paid.'}
             </p>
           ) : (
             <div className="card overflow-x-auto">
@@ -368,10 +368,10 @@ function SettingsTab({ config, mayConfigure, saving, onSave }: {
 
   return (
     <fieldset disabled={!mayConfigure || saving} className="card max-w-xl space-y-4 p-5 min-w-0">
-      {!mayConfigure && <p className="text-sm text-gray-600 dark:text-slate-400">The programme is set by a manager or the owner.</p>}
+      {!mayConfigure && <p className="text-sm text-gray-600 dark:text-slate-400">The program is set by a manager or the owner.</p>}
       <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
         <input type="checkbox" checked={config.loyaltyEnabled}
-          onChange={(e) => void onSave({ loyaltyEnabled: e.target.checked }, e.target.checked ? 'Loyalty programme switched on' : 'Loyalty programme switched off')} />
+          onChange={(e) => void onSave({ loyaltyEnabled: e.target.checked }, e.target.checked ? 'Loyalty program switched on' : 'Loyalty program switched off')} />
         Run a loyalty programme
       </label>
 
