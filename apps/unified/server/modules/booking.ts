@@ -234,7 +234,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
 
   pub.get('/services', (c) => withCompany(c, async (id) => {
     const s = await engine.settingsOf(id)
-    const rows = s.enabled ? (await engine.listServices(id, { activeOnly: true })).map((x) => ({ slug: x.slug, name: x.name, description: x.description, durationMinutes: x.durationMinutes, price: x.price, tipPresets: x.tipPresets })) : []
+    const rows = s.enabled ? (await engine.listServices(id, { activeOnly: true })).map((x) => ({ slug: x.slug, name: x.name, description: x.description, durationMinutes: x.durationMinutes, price: x.price, priceIsFrom: x.priceIsFrom, tipPresets: x.tipPresets })) : []
     return listAll(c, rows)
   }))
   pub.get('/services/:slug/dates', (c) => withCompany(c, (id) => guard(c, async () => {

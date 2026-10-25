@@ -7,7 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw, CalendarCheck } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useConfirm, useKnownPermission, useMayWrite, useToast } from '../shared'
-import { useBookingBasics, dollars, minutesWords, dateWords, bookable, type BookingSettings, type Service, type Person } from './common'
+import { useBookingBasics, dollars, minutesWords, dateWords, bookable, servicePrice, type BookingSettings, type Service, type Person } from './common'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 import { verticalScreens } from '../crm/vertical'
 
@@ -117,7 +117,7 @@ function Services({ services, mayEdit, onChange }: { services: Service[]; mayEdi
 }
 
 /** What the services line says about a service: its address, length, price, people per time and deposit. */
-const serviceLine = (s: Service) => `/book/${s.slug} · ${minutesWords(s.durationMinutes)}${s.price != null ? ` · ${dollars(s.price)}` : ''}${s.capacity > 1 ? ` · up to ${s.capacity} at a time` : ''}${s.depositAmount || s.depositPercent ? ` · deposit ${s.depositAmount ? dollars(s.depositAmount) : s.depositPercent + '%'}` : ''}`
+const serviceLine = (s: Service) => `/book/${s.slug} · ${minutesWords(s.durationMinutes)}${s.price != null ? ` · ${servicePrice(s)}` : ''}${s.capacity > 1 ? ` · up to ${s.capacity} at a time` : ''}${s.depositAmount || s.depositPercent ? ` · deposit ${s.depositAmount ? dollars(s.depositAmount) : s.depositPercent + '%'}` : ''}`
 
 function MenuServices({ menuPath, services, mayEdit, onChange }: { menuPath: string; services: Service[]; mayEdit: boolean; onChange: () => void }) {
   const confirm = useConfirm()
@@ -243,7 +243,7 @@ function ServiceDialog({ initial, fromMenu = false, onClose, onSaved }: { initia
         </div>
         <form onSubmit={submit} className="space-y-3">
           {fromMenu && initial && (
-            <p className="text-sm text-ink-soft">{minutesWords(initial.durationMinutes)}{initial.price != null ? ` · ${dollars(initial.price)}` : ''} — its name, description, length and price come from your <Link to={MENU_PATH || ''} className="underline">Service Menu</Link>; change them there.</p>
+            <p className="text-sm text-ink-soft">{minutesWords(initial.durationMinutes)}{initial.price != null ? ` · ${servicePrice(initial)}` : ''} — its name, description, length and price come from your <Link to={MENU_PATH || ''} className="underline">Service Menu</Link>; change them there.</p>
           )}
           {!fromMenu && field('name', 'Name', { required: true })}
           {field('slug', 'Address (/book/…)', { placeholder: 'Made from the name' })}

@@ -64,9 +64,14 @@ export interface Service {
   rebookIntervalDays: number | null
   active: boolean
   sortOrder: number
+  /** The price is a starting price ("from $250" — a Service Menu item's). */
+  priceIsFrom: boolean
   /** The Service Menu item it offers online (a salon's): that menu owns its name, length, price and whether it's offered. */
   serviceMenuId: string | null
 }
+
+/** A service's price as the booking screens show it: "from $250" when it is a starting price, as /book says it. */
+export const servicePrice = (s: Pick<Service, 'price' | 'priceIsFrom'>) => (s.price == null ? '' : (s.priceIsFrom ? 'from ' : '') + dollars(s.price))
 
 /**
  * Can a new booking be made for this service: switched on and, where the vertical keeps the list customers book from

@@ -78,6 +78,12 @@ export const bookingService = pgTable('booking_service', {
   description: text('description'),
   durationMinutes: integer('duration_minutes').notNull(),
   price: money('price'),
+  /**
+   * The price is a starting price — "from $250" (a salon's colour is rarely fixed; service_menu.price_is_from, kept here
+   * by crm/salon/onlineBooking.ts keepOnlineService). Every place the booking side shows the price says "from" with it
+   * (salon live test, 2026-10-25: /book printed a plain "$250").
+   */
+  priceIsFrom: boolean('price_is_from').default(false).notNull(),
   /** A deposit to book: a fixed amount, or a percent of the price (one or the other). */
   depositAmount: money('deposit_amount'),
   depositPercent: integer('deposit_percent'),

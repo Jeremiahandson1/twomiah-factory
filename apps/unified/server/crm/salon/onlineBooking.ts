@@ -33,14 +33,14 @@ type MenuItem = typeof serviceMenu.$inferSelect
 /**
  * The menu item's booking service, kept in step by every write to the menu (crm/salon/serviceMenu.ts), in the same
  * transaction: ticked "Bookable online" and on the menu, it is offered with the menu's name, description, length and
- * price; unticked or taken off the menu, it is switched off — never deleted, so a booking already made keeps its service
+ * price (and whether that price is a "from" price); unticked or taken off the menu, it is switched off — never deleted, so a booking already made keeps its service
  * and its time. Its address (/book/<slug>) is made once from the name and kept: a link a client saved still works after
  * a rename. The rebook interval stays the menu's (the salon's Rebooking reads it), so the engine's own rebook email is
  * never set here — one client, one reminder.
  */
 export async function keepOnlineService(exec: any, m: MenuItem) {
   const offered = m.bookableOnline && m.active
-  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
+  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, priceIsFrom: m.priceIsFrom, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
   const [linked] = await exec.select({ id: bookingService.id }).from(bookingService).where(and(eq(bookingService.companyId, m.companyId), eq(bookingService.serviceMenuId, m.id))).limit(1)
   if (linked) { await exec.update(bookingService).set(values).where(eq(bookingService.id, linked.id)); return }
   if (!offered) return
