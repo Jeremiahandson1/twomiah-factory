@@ -172,6 +172,13 @@ export interface CrmSettings {
    */
   loyalty?: 'bar'
   /**
+   * The bar's food side (crm/bar: the menu, the register and grill, the card reader, the kiosk, online ordering) as a
+   * vertical other than the bar has it: whether the register opens long tabs until the owner says otherwise, and the
+   * feature the tap list needs on top of the menu's (a restaurant pours draft only when it switches 'draft_taps' on).
+   * Absent: the bar's own (tabs on, taps with the menu). (restaurant)
+   */
+  foodService?: { tabs?: boolean; tapsFeature?: string }
+  /**
    * Records that keep a contact from being deleted, beyond the standard ones (invoices, quotes, jobs, projects):
    * 'appointment', 'serviceRecord', 'membershipEnrollment' (salon, templates/crm-salon routes/contacts.ts).
    */

@@ -87,9 +87,17 @@ export const barCheckPayment = pgTable('bar_check_payment', {
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
   voidedByName: text('voided_by_name'),
+  /** card_terminal / card_online: the connected Stripe account the charge is on (a refund goes back through it). */
+  stripeAccount: text('stripe_account'),
+  /** Money given back through Stripe (crm/bar/barTerminal.ts refundPayment): never more than amount + tip. */
+  refundedCents: integer('refunded_cents').default(0).notNull(),
+  refundedAt: timestamp('refunded_at'),
+  refundReason: text('refund_reason'),
+  refundedByName: text('refunded_by_name'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_check_payment_check_idx').on(t.checkId),
+  uniqueIndex('bar_check_payment_provider_key').on(t.companyId, t.providerPaymentId),
   index('bar_check_payment_company_taken_idx').on(t.companyId, t.takenAt),
 ])
 
@@ -250,6 +258,8 @@ export const barMenuItem = pgTable('bar_menu_item', {
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),
+  /** Add-ons and changes a guest picks (crm/bar/barModifiers.ts): [{ id, name, priceCents }] — "Add bacon" +200, "No onions" 0. */
+  modifiers: json('modifiers').default([]).notNull(),
   /** The grill: null = by its section (food goes, drinks don't); true/false = this item says so. */
   toKitchen: boolean('to_kitchen'),
   /** Seconds on the grill, as the owner set it; pacing learns the real time from bumps (services/barPacing.ts). */
@@ -373,10 +383,93 @@ export const barSettings = pgTable('bar_settings', {
   poSeq: integer('po_seq').default(0).notNull(),
   /** The room as the floor screen draws it: { tables: [{ id, name, kind: booth|table|bar, seats }] } (services/barFloor.ts). */
   floor: json('floor'),
+  /** The register's card reader, the kiosk, online ordering and the delivery links (crm/bar/foodSettings.ts). */
+  foodService: json('food_service').default({}).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   uniqueIndex('bar_settings_company_key').on(t.companyId),
+])
+
+// ─── Food service: the card reader, the kiosk and online orders (crm/bar/barTerminal.ts, barOrders.ts) ─────────────
+// A Stripe Terminal reader registered to the business's own connected Stripe account, by the code it shows.
+export const barReader = pgTable('bar_reader', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  stripeReaderId: text('stripe_reader_id').notNull(),   // tmr_…
+  stripeAccount: text('stripe_account'),                // acct_… it was registered on
+  locationId: text('location_id'),                      // tml_…
+  label: text('label').notNull(),
+  deviceType: text('device_type'),                      // bbpos_wisepos_e | stripe_s700 | simulated_wisepos_e
+  serialNumber: text('serial_number'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_reader_company_reader_key').on(t.companyId, t.stripeReaderId),
+])
+
+// One card payment sent to a reader: pending until Stripe says the PaymentIntent succeeded (then the check's payment
+// row is written, once) or the reader says it failed, the guest or the bartender cancelled, or it ran out of time.
+export const barTerminalCharge = pgTable('bar_terminal_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
+  orderId: text('order_id'),                            // a kiosk order paid before it becomes a check
+  readerId: text('reader_id').notNull(),                // bar_reader.id
+  stripeAccount: text('stripe_account'),
+  paymentIntentId: text('payment_intent_id').notNull(),
+  amountCents: integer('amount_cents').notNull(),       // toward the check; a tip the reader asks for is on top
+  tipCents: integer('tip_cents').default(0).notNull(),
+  status: text('status').default('pending').notNull(), // pending | succeeded | failed | canceled | timed_out
+  failure: text('failure'),
+  paymentId: text('payment_id'),                        // bar_check_payment.id once recorded
+  startedById: text('started_by_id').references(() => user.id, { onDelete: 'set null' }),
+  startedByName: text('started_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_terminal_charge_pi_key').on(t.companyId, t.paymentIntentId),
+  index('bar_terminal_charge_check_idx').on(t.companyId, t.checkId, t.status),
+])
+
+// A kiosk or website order before (and after) it is paid. Its lines are priced on the server when it is placed; it
+// becomes a paid check — and its food a grill ticket — only when the payment is confirmed (a kiosk "pay at the
+// counter" order becomes an open check straight away, and the food goes when the counter takes the money).
+export const barOrder = pgTable('bar_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: integer('number'),                            // the check number once it is one ("#214")
+  channel: text('channel').notNull(),                   // kiosk | online
+  status: text('status').default('awaiting_payment').notNull(), // awaiting_payment | at_counter | received | ready | collected | cancelled
+  name: text('name'),
+  tableLabel: text('table_label'),
+  phone: text('phone'),
+  email: text('email'),
+  /** The guest ticked "Text me about my order" (site/smsConsent.ts records it). */
+  textOk: boolean('text_ok').default(false).notNull(),
+  /** [{ menuItemId, name, size, mods, qty, unitPriceCents, note, toKitchen }], priced on the server. */
+  lines: json('lines').default([]).notNull(),
+  subtotalCents: integer('subtotal_cents').notNull(),
+  taxCents: integer('tax_cents').notNull(),
+  totalCents: integer('total_cents').notNull(),
+  taxRateBps: integer('tax_rate_bps').notNull(),
+  pickupAt: timestamp('pickup_at'),
+  checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
+  stripeAccount: text('stripe_account'),
+  stripeSessionId: text('stripe_session_id'),
+  paymentIntentId: text('payment_intent_id'),
+  paidAt: timestamp('paid_at'),
+  receivedNotifiedAt: timestamp('received_notified_at'),
+  readyAt: timestamp('ready_at'),
+  readyByName: text('ready_by_name'),
+  readyNotifiedAt: timestamp('ready_notified_at'),
+  collectedAt: timestamp('collected_at'),
+  cancelledAt: timestamp('cancelled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_order_company_status_idx').on(t.companyId, t.status, t.createdAt),
+  uniqueIndex('bar_order_session_key').on(t.companyId, t.stripeSessionId),
 ])
 
 export const barSpecial = pgTable('bar_special', {

@@ -25,6 +25,7 @@ const CountPage = page(() => import('../pages/bar/CountPage'))
 const ClockPage = page(() => import('../pages/bar/ClockPage'))
 const BarSchedulePage = page(() => import('../pages/bar/BarSchedulePage'))
 const SalesReport = page(() => import('../pages/bar/SalesReport'))
+const FoodSettingsPage = page(() => import('../pages/bar/FoodSettingsPage'))
 
 /**
  * The bar's home (Tonight at a glance above the party book), shown at /crm/dashboard in place of the jobs dashboard when
@@ -58,6 +59,7 @@ export const routes: ReactElement[] = [
   <Route key="bar-count" path="count" element={<CountPage />} />,
   <Route key="bar-clock" path="clock" element={<ClockPage />} />,
   <Route key="bar-shifts" path="shifts" element={<BarSchedulePage />} />,
+  <Route key="bar-register-settings" path="register-settings" element={<FoodSettingsPage />} />,
 ]
 
 /**
@@ -75,6 +77,8 @@ export const nav: NavItem[] = [
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/bar-settings', icon: Settings, label: 'Bar Settings', features: ['bar_tonight'], permission: 'bar:read' },
+  // The card reader, tabs, the kiosk, online ordering and the delivery links (GET /api/food/settings asks bar:register).
+  { to: '/crm/register-settings', icon: Settings, label: 'Register Settings', features: ['bar_register', 'card_reader'], permission: 'bar:register' },
 ]
 
 /** The register's other screens, opened from it with no menu item of their own: the feature each needs (shellConfig.ts routeGates). */

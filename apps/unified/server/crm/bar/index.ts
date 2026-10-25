@@ -21,6 +21,8 @@ import { createBarGiftCardRoutes } from './barGiftCardRoutes.ts'
 import { createBarLoyaltyRoutes } from './barLoyaltyRoutes.ts'
 import { createBarStockRoutes } from './barStockRoutes.ts'
 import { createBarScheduleRoutes } from './barScheduleRoutes.ts'
+import { createBarFoodRoutes } from './barFoodRoutes.ts'
+import { createBarFoodPublicRoutes } from './barFoodPublicRoutes.ts'
 
 export function barMounts(d: CrmDeps): Mount[] {
   const bar = createBarServices(d)
@@ -35,5 +37,9 @@ export function barMounts(d: CrmDeps): Mount[] {
     ...(d.settings?.loyalty === 'bar' ? [{ path: '/api/loyalty', access: 'user' as const, feature: 'loyalty_rewards', router: createBarLoyaltyRoutes(d, bar) }] : []),
     // No sign-in: public fields only, read by the bar's website server. Each path answers 404 with its feature off.
     { path: '/api/public/bar', access: 'public', router: createBarPublicRoutes(d, bar) },
+    // Food service (the restaurant has it too): Register Settings, the card reader, refunds, receipts — and a receipt's
+    // own page by its private link.
+    { path: '/api/food', access: 'user', feature: ['bar_register', 'card_reader', 'order_kiosk', 'online_ordering'], router: createBarFoodRoutes(d, bar) },
+    { path: '/api/public/food', access: 'public', router: createBarFoodPublicRoutes(d, bar) },
   ]
 }

@@ -16,7 +16,7 @@
 // grill, Regulars and gift-card services; the check-number counter and the reward-use counts are server/data/bar.ts.
 import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '@twomiah/tenant-backend'
-import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barTap, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
+import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barTap, barTerminalCharge, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
 import { nextCheckNumber, rewardUseTakenBack, rewardUsedOnce } from '../../data/bar.ts'
 import type { BarKitchen } from './barKitchen.ts'
 import { sizesOf } from './barMenuSizes.ts'
@@ -96,6 +96,16 @@ async function lockOpen(tx: Tx, companyId: string, id: string) {
   if (!c) throw new CheckError('That check is gone.', 404)
   if (c.status !== 'open') throw new CheckError(c.status === 'paid' ? 'That check is already paid.' : 'That check was voided.', 409)
   return c
+}
+
+/**
+ * While the card reader is taking a payment on this check, nothing else may be paid on it: the reader's amount was
+ * checked against the balance when it was sent, and a cash payment in the meantime would leave the card overpaying.
+ */
+async function refuseWhileOnReader(tx: Tx, companyId: string, checkId: string): Promise<void> {
+  const [busy] = await tx.select({ id: barTerminalCharge.id }).from(barTerminalCharge)
+    .where(and(eq(barTerminalCharge.companyId, companyId), eq(barTerminalCharge.checkId, checkId), eq(barTerminalCharge.status, 'pending'))).limit(1)
+  if (busy) throw new CheckError('The card reader is taking a payment on this check. Wait for it, or cancel it on the register.', 409)
 }
 
 // ─── Reading ────────────────────────────────────────────────────────────────
@@ -281,6 +291,7 @@ async function voidItem(actor: Actor, itemId: string, reason: string, byName: st
     const [it] = await tx.select().from(barCheckItem).where(and(eq(barCheckItem.id, itemId), eq(barCheckItem.companyId, companyId))).limit(1)
     if (!it) throw new CheckError('That item is gone.', 404)
     await lockOpen(tx, companyId, it.checkId)
+    await refuseWhileOnReader(tx, companyId, it.checkId)
     if (it.state === 'void') throw new CheckError('Already voided.', 409)
     if (it.kind === 'reward') { await unredeemInTx(tx, companyId, it, byName); return it.checkId }
     if (it.state === 'held' || (it.kind === 'giftcard' && !it.giftCardId)) { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
@@ -368,6 +379,7 @@ async function addPayment(actor: Actor, checkId: string, input: { tender?: strin
   const earn = await loyaltyRunning(companyId)
   const fired = await db.transaction(async (tx: Tx) => {
     await lockOpen(tx, companyId, checkId)
+    await refuseWhileOnReader(tx, companyId, checkId)
     const before = await getCheck(companyId, checkId, tx)
     if (before.totals.totalCents <= 0) throw new CheckError('Nothing on the check to pay for.')
     const amount = Math.round(Number(input.amountCents))
@@ -399,6 +411,7 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
   try {
     fired = await db.transaction(async (tx: Tx) => {
       await lockOpen(tx, companyId, checkId)
+      await refuseWhileOnReader(tx, companyId, checkId)
       const card = await findCard(companyId, String(input.giftCardCode || ''), tx)
       if (!card) throw new CheckError('No gift card with that number.', 404)
       const before = await getCheck(companyId, checkId, tx)
@@ -420,6 +433,28 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
   if (fired) notifyKitchen(companyId)
   notifyRegister(companyId)
   return { ...(await getCheck(companyId, checkId)), changeCents: null, giftCard: after }
+}
+
+/**
+ * A card payment Stripe has CONFIRMED (crm/bar/barTerminal.ts, barOrders.ts), written onto an open check inside the
+ * caller's transaction: the money is already taken, so it is recorded even if it now covers more than the balance
+ * (nothing else could be paid while the reader held the check — refuseWhileOnReader). The provider's id is unique per
+ * company, so the same PaymentIntent can never be written twice. `earn` is decided before the transaction, as above.
+ */
+async function recordCardInTx(tx: Tx, actor: Actor, checkId: string, p: { tender: 'card_terminal' | 'card_online'; amountCents: number; tipCents: number; providerPaymentId: string; stripeAccount: string | null }, earn: boolean): Promise<{ paymentId: string; fired: boolean }> {
+  const companyId = actor.companyId
+  await lockOpen(tx, companyId, checkId)
+  const [row] = await tx.insert(barCheckPayment).values({
+    checkId, tender: p.tender, amountCents: p.amountCents, tipCents: p.tipCents, providerPaymentId: p.providerPaymentId, stripeAccount: p.stripeAccount,
+    takenById: actor.id || null, takenByName: actor.name, companyId,
+  }).returning({ id: barCheckPayment.id })
+  return { paymentId: row.id as string, fired: await closeIfPaid(tx, companyId, checkId, actor, earn) }
+}
+
+/** After a confirmed card payment: tell the grill (when food fired) and the registers. */
+function afterCardPayment(companyId: string, fired: boolean): void {
+  if (fired) notifyKitchen(companyId)
+  notifyRegister(companyId)
 }
 
 /** Sell a gift card on this check. It is issued (and its number final) when the check is paid. */
@@ -449,6 +484,8 @@ async function voidPayment(actor: Actor, paymentId: string, reason: string, byNa
     if (!p) throw new CheckError('That payment is gone.', 404)
     await lockOpen(tx, companyId, p.checkId)
     if (p.voidedAt) throw new CheckError('Already voided.', 409)
+    // Money Stripe took is on the guest's card: crossing it off here would not give it back. Refund gives it back.
+    if (p.providerPaymentId && (p.tender === 'card_terminal' || p.tender === 'card_online')) throw new CheckError('That card payment went through Stripe. Use Refund to give it back to the card.', 409)
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason.')
     await tx.update(barCheckPayment).set({ voidedAt: new Date(), voidReason: why, voidedByName: byName }).where(eq(barCheckPayment.id, paymentId))
@@ -471,6 +508,7 @@ async function splitItems(actor: Actor, checkId: string, itemIds: string[], labe
 async function splitInTx(tx: Tx, actor: Actor, checkId: string, itemIds: string[], label: string | null): Promise<string> {
   const companyId = actor.companyId
   const c = await lockOpen(tx, companyId, checkId)
+  await refuseWhileOnReader(tx, companyId, checkId)
   const all = await getCheck(companyId, checkId, tx)
   const wanted = new Set(itemIds.slice(0, 100).map(String))
   const movable = all.items.filter(i => wanted.has(i.id) && i.state !== 'void' && i.kind !== 'reward')   // a reward stays with the regular's check
@@ -515,6 +553,7 @@ async function voidCheck(actor: Actor, checkId: string, reason: string, byName: 
   const companyId = actor.companyId
   await db.transaction(async (tx: Tx) => {
     await lockOpen(tx, companyId, checkId)
+    await refuseWhileOnReader(tx, companyId, checkId)
     const view = await getCheck(companyId, checkId, tx)
     if (view.totals.paidCents > 0) throw new CheckError('Void its payments first.', 409)
     const why = clean(reason, 80)
@@ -611,7 +650,7 @@ async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem
 return {
   notifyRegister, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
   voidItem, sendCheck, addPayment, addGiftCardLine, voidPayment, splitItems, splitBySeat, checkNeedsManager, voidCheck, renameCheck,
-  attachGuest, redeemReward,
+  attachGuest, redeemReward, recordCardInTx, afterCardPayment,
 }
 }
 export type BarRegister = ReturnType<typeof createBarRegister>

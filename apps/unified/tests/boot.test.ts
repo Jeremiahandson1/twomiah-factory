@@ -33,9 +33,10 @@ describe('boot', () => {
     // who agreed to be texted (0017, sms_consent), a repeating job's series (0022, job_series), and each lender webhook
     // applied to a financing application (0026, financing_event), and what was sent on the company's clock and QuickBooks'
     // sync record (0029: reminder_log, qb_sync_run, qb_sync_failure), the logins on a crew (0031, crew_login) and the
-    // other people on a job (0032, job_assignee), and texts set to send later (0034, scheduled_text).
-    expect(declared.length).toBe(392)
-    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure', 'crew_login', 'job_assignee', 'scheduled_text']) expect(declared).toContain(name)
+    // other people on a job (0032, job_assignee), texts set to send later (0034, scheduled_text), and food service's card readers,
+    // reader payments and kiosk and website orders (0035: bar_reader, bar_terminal_charge, bar_order).
+    expect(declared.length).toBe(395)
+    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure', 'crew_login', 'job_assignee', 'scheduled_text', 'bar_reader', 'bar_terminal_charge', 'bar_order']) expect(declared).toContain(name)
   })
 
   test('health answers', async () => {
