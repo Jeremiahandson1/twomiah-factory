@@ -20,8 +20,7 @@ import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } 
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { engineForSignup, isUnifiedTenant } from '../../unified/factory'
-import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
-import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../config/industryRouting'
+import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
 import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../../services/resourceOwnership'
@@ -375,9 +374,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       ...(premiumPages ? { preview_premium_pages: premiumPages } : {}),
       // The signup pages send no list, so the business starts with its industry's whole ready CRM
       // (getDefaultFeaturesForTemplate: everything the template offers except paid add-ons and not-ready features).
+      // A unified signup starts with the unified app's preset for its industry (a restaurant's or a food truck's food
+      // side; industryRouting.ts startingFeaturesFor).
       features: (Array.isArray(body.features) && body.features.length)
         ? body.features
-        : getDefaultFeaturesForTemplate(crmTemplateFor(body.industry)),
+        : startingFeaturesFor(body.industry, { unified: engine === 'unified' }),
       // The zone the CRM will run on — its state's (config/stateTimezone.ts), not the form's Timezone select, which
       // starts on Eastern and reached us only as text in these notes (Run 4: a Wisconsin agency recorded as Eastern).
       notes: notesWithTimezone(body.notes, signupZone),

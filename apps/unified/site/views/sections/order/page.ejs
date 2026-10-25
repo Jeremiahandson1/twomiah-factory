@@ -1,0 +1,58 @@
+<%
+  // Pickup ordering (server/crm/bar/barOrders.ts): the menu with a cart, the kitchen's pickup times, and the
+  // business's DoorDash / Uber Eats store links beside it. /scripts/order.js fills it from /api/public/food/ordering
+  // and posts the order; the payment is a Stripe Checkout page on the business's own account.
+  // data: { heading }
+%>
+<section class="order-page section">
+  <div class="container">
+    <h1 class="order-page__title"><%= data.heading || 'Order for pickup' %></h1>
+    <div id="order-delivery" class="order-delivery" hidden></div>
+    <div id="order-root" class="order-root" aria-live="polite">
+      <p class="order-muted">Loading the menu&hellip;</p>
+    </div>
+    <noscript><p class="order-muted">Ordering needs JavaScript in this browser. Call us to order.</p></noscript>
+    <template id="order-consent"><%- typeof smsConsent === 'function' ? smsConsent('order') : '' %></template>
+  </div>
+</section>
+<style>
+.order-page{padding:32px 0 64px}
+.order-page__title{margin:0 0 16px}
+.order-muted{opacity:.8}
+.order-delivery{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
+.order-layout{display:grid;gap:24px}
+@media (min-width:900px){.order-layout{grid-template-columns:minmax(0,1fr) 340px;align-items:start}}
+.order-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
+.order-tab{border:1px solid currentColor;border-radius:999px;padding:8px 14px;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap}
+.order-tab[aria-selected="true"]{font-weight:700;outline:2px solid currentColor}
+.order-items{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.order-item{display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid rgba(127,127,127,.45);border-radius:14px;padding:12px;background:transparent;color:inherit;font:inherit;cursor:pointer;min-height:88px}
+.order-item[disabled]{opacity:.55;cursor:not-allowed}
+.order-item__name{font-weight:700}
+.order-item__desc{font-size:.9em;opacity:.85}
+.order-cart{border:1px solid rgba(127,127,127,.45);border-radius:14px;padding:16px;position:sticky;top:90px}
+.order-cart ul{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:8px}
+.order-line{display:flex;justify-content:space-between;gap:8px}
+.order-line small{display:block;opacity:.8}
+.order-qty{display:inline-flex;gap:6px;align-items:center;margin-top:4px}
+.order-qty button{width:32px;height:32px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.order-sum{display:flex;justify-content:space-between}
+.order-total{font-weight:700;font-size:1.1em}
+.order-form{display:grid;gap:10px;margin-top:12px}
+.order-form label{display:grid;gap:4px;font-size:.95em}
+.order-form input,.order-form select{font:inherit;padding:10px;border-radius:10px;border:1px solid rgba(127,127,127,.6);background:#fff;color:#111}
+.order-error{color:#b91c1c;background:#fff;border-radius:8px;padding:8px}
+.order-closed{border:1px solid rgba(127,127,127,.45);border-radius:14px;padding:16px;margin-bottom:16px}
+.order-sheet{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+@media (min-width:640px){.order-sheet{align-items:center}}
+.order-sheet__box{background:#fff;color:#111;width:100%;max-width:460px;border-radius:16px 16px 0 0;padding:18px;max-height:90vh;overflow-y:auto}
+@media (min-width:640px){.order-sheet__box{border-radius:16px}}
+.order-opt{display:flex;justify-content:space-between;gap:8px;width:100%;padding:12px;border-radius:10px;border:1px solid #9ca3af;background:#fff;color:#111;font:inherit;cursor:pointer;margin-bottom:8px;text-align:left}
+.order-opt[aria-pressed="true"],.order-opt[aria-checked="true"]{border-color:#111;outline:2px solid #111;font-weight:700}
+.order-sheet__actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.order-sheet__actions button{font:inherit;padding:10px 16px;border-radius:10px;border:1px solid #111;cursor:pointer}
+.order-sheet__add{background:#111;color:#fff}
+.order-sheet__cancel{background:#fff;color:#111}
+.sms-consent{display:flex;gap:8px;align-items:flex-start;font-size:.85em}
+</style>
+<script src="/scripts/order.js" defer></script>

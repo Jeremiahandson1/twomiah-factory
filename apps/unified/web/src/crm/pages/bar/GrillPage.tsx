@@ -95,7 +95,7 @@ export default function GrillPage() {
               <header className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{t.label}</p>
-                  <p className={`text-xs ${MUTED}`}>{t.source === 'web' ? 'Website' : t.source === 'table' ? 'Table' : 'Bar'}{t.recalled ? ' · recalled' : ''}</p>
+                  <p className={`text-xs ${MUTED}`}>{t.source === 'web' ? 'Online pickup' : t.source === 'kiosk' ? 'KIOSK' : t.source === 'table' ? 'Table' : 'Bar'}{t.recalled ? ' · recalled' : ''}</p>
                 </div>
                 <span className={`text-sm font-semibold px-2 py-1 rounded-lg ${AGE_BADGE[age]}`}>{AGE[age].word} {mmss(waited)}</span>
               </header>

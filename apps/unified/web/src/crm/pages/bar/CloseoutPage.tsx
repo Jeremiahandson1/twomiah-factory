@@ -25,6 +25,8 @@ interface Summary {
   voids: Array<{ kind: string; what: string; amountCents: number; reason: string; by: string | null; checkNumber: number }>
   cash: { salesCents: number; tipsCents: number; inCents: number }
   giftCardsSold: { count: number; cents: number }
+  /** Given back to cards through Stripe on tonight's checks (barTerminal.ts refundPayment). */
+  refunds?: { count: number; cents: number }
 }
 interface Closeout { id: string; businessDay: string; cashExpectedCents: number; cashCountedCents: number | null; floatCents: number; overShortCents: number | null; note: string | null; closedByName: string | null; closedAt: string; emailedAt: string | null }
 interface Day { day: string; timezone: string; scope?: 'night' | 'mine'; drawerInCents?: number; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Closeout[] }
@@ -107,6 +109,7 @@ export default function CloseoutPage() {
             <div className="flex justify-between"><dt className={MUTED}>Food &amp; drink</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(s.subtotalCents)}</dd></div>
             <div className="flex justify-between"><dt className={MUTED}>Sales tax</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(s.taxCents)}</dd></div>
             {s.giftCardsSold.count > 0 && <div className="flex justify-between"><dt className={MUTED}>Gift cards sold ({s.giftCardsSold.count})</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(s.giftCardsSold.cents)}</dd></div>}
+            {(s.refunds?.cents || 0) > 0 && <div className="flex justify-between"><dt className={MUTED}>Refunds to cards ({s.refunds!.count})</dt><dd className="font-mono text-gray-900 dark:text-slate-100">−{money(s.refunds!.cents)}</dd></div>}
             {s.byTender.map((t) => <div key={t.tender} className="flex justify-between"><dt className={MUTED}>{t.label} ({t.count})</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(t.amountCents)}{t.tipsCents ? ` + ${money(t.tipsCents)}` : ''}</dd></div>)}
           </dl>
         </div>

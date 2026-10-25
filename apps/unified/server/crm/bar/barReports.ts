@@ -23,7 +23,7 @@ type SendRaw = (m: { to: string; subject: string; html: string }) => Promise<{ s
 
 export interface DayCheck { id: string; number: number; kind: string; label: string; status: string; subtotalCents: number | null; taxCents: number | null; totalCents: number | null; tipCents: number | null; closedAt: Date | null; closedByName: string | null; voidReason: string | null }
 export interface DayItem { checkId: string; name: string; size: string | null; qty: number; unitPriceCents: number; state: string; voidReason: string | null; voidedByName: string | null; kind?: string | null }
-export interface DayPayment { checkId: string; tender: string; amountCents: number; tipCents: number; takenByName: string | null; voidedAt: Date | null; voidReason: string | null; voidedByName?: string | null; takenAt: Date }
+export interface DayPayment { checkId: string; tender: string; amountCents: number; tipCents: number; takenByName: string | null; voidedAt: Date | null; voidReason: string | null; voidedByName?: string | null; takenAt: Date; refundedCents?: number }
 
 export interface DaySummary {
   day: string
@@ -45,10 +45,12 @@ export interface DaySummary {
   cash: { salesCents: number; tipsCents: number; inCents: number }
   /** Gift cards sold: money in, but owed back as food later — not sales. subtotalCents excludes them; totalCents includes them. */
   giftCardsSold: { count: number; cents: number }
+  /** Money given back to cards through Stripe on tonight's checks (barTerminal.ts refundPayment). Sales above are as rung. */
+  refunds: { count: number; cents: number }
 }
 
-const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (reader)', card_online: 'Card (website)', card: 'Card', giftcard: 'Gift card' }
-const CHANNEL: Record<string, string> = { tab: 'Bar', walkup: 'Bar', table: 'Tables', online: 'Website' }
+const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (reader)', card_terminal: 'Card (Stripe reader)', card_online: 'Card (website)', card: 'Card', giftcard: 'Gift card' }
+const CHANNEL: Record<string, string> = { tab: 'Bar', walkup: 'Bar', table: 'Tables', online: 'Website', kiosk: 'Kiosk' }
 
 function hourLabel(h: number): string { return h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM` }
 
@@ -131,6 +133,7 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
     voids,
     cash: { salesCents: cash.amountCents, tipsCents: cash.tipsCents, inCents: cash.amountCents + cash.tipsCents },
     giftCardsSold: { count: soldCards.reduce((n, i) => n + i.qty, 0), cents: giftCardCents },
+    refunds: { count: livePays.filter(p => (p.refundedCents || 0) > 0).length, cents: sum(livePays.map(p => p.refundedCents || 0)) },
   }
 }
 
@@ -150,6 +153,7 @@ export interface RangeSummary {
   items: DaySummary['items']
   voids: { count: number; amountCents: number }
   giftCardsSold: { count: number; cents: number }
+  refunds: { count: number; cents: number }
 }
 
 /** Add nights up. Pure: every figure is the sum of the nights' own figures. */
@@ -176,6 +180,7 @@ export function combineDays(from: string, to: string, days: DaySummary[]): Range
     items: merge(days.flatMap(d => d.items), 'name', ['qty', 'salesCents']).sort((a, b) => b.qty - a.qty || b.salesCents - a.salesCents),
     voids: { count: sum(d => d.voids.length), amountCents: sum(d => d.voids.reduce((n, v) => n + v.amountCents, 0)) },
     giftCardsSold: { count: sum(d => d.giftCardsSold.count), cents: sum(d => d.giftCardsSold.cents) },
+    refunds: { count: sum(d => d.refunds?.count || 0), cents: sum(d => d.refunds?.cents || 0) },
   }
 }
 

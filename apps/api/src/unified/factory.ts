@@ -26,7 +26,7 @@ import { updateUnifiedTenant, type UpdateResult } from './update'
 import { createHosts, hostConfigFromEnv, type EnvVar } from './hosts'
 import { unifiedNames } from './names'
 import { engineVersion } from './tree'
-import { verticalFor, crmTemplateFor } from '../config/industryRouting'
+import { verticalFor, crmTemplateFor, startingFeaturesFor } from '../config/industryRouting'
 import { stateTimezone } from '../config/stateTimezone'
 import { resolveCrmFeatures } from '../services/generator'
 import { premiumSitePages, premiumServiceAreas, buildPremiumNav, type PremiumComposition } from '../services/premiumSitePages'
@@ -63,13 +63,13 @@ export function isTestSignup(s: { email?: string | null; admin_email?: string | 
 
 /**
  * The unified vertical (apps/unified/server/core/vertical.ts loadVertical) a Factory industry runs as, or null when the
- * unified app has none yet. Mirrors the templates' routing: showcase and food trucks run the basic CRM there too
- * (services/deploy.ts isBasic).
+ * unified app has none yet. Mirrors the templates' routing: showcase runs the basic CRM there too (services/deploy.ts
+ * isBasic), and food trucks the restaurant's (its food side; config/industryRouting.ts unifiedFeaturePreset).
  */
 export function unifiedVerticalFor(industry: string | null | undefined): string | null {
   const v = verticalFor(industry)
   const map: Partial<Record<typeof v, string>> = {
-    basic: 'basic', showcase: 'basic', foodtruck: 'basic', contractor: 'contractor', fieldservice: 'fieldservice',
+    basic: 'basic', showcase: 'basic', foodtruck: 'restaurant', contractor: 'contractor', fieldservice: 'fieldservice',
     homecare: 'homecare', roofing: 'roofing', landscaping: 'landscaping', bar: 'bar', rv: 'rv', veterinary: 'vet',
     salon: 'salon', events: 'restaurant', store: 'store',
   }
@@ -112,8 +112,12 @@ export function ownerName(company: { ownerFirstName?: string; ownerLastName?: st
 
 /** The features the business starts with: exactly what the template path seeds (generator.ts resolveCrmFeatures). */
 export function unifiedFeatures(tenant: any, config: any): string[] {
-  const requested: string[] = tenant.features?.length ? tenant.features : (config?.features?.crm || [])
-  return resolveCrmFeatures(crmTemplateFor(tenant.industry), config?.company?.plan || 'starter', requested).seed
+  const template = crmTemplateFor(tenant.industry)
+  let requested: string[] = tenant.features?.length ? tenant.features : (config?.features?.crm || [])
+  // Nothing picked: the industry's starting set as the unified app has it (a restaurant's and a food truck's food side —
+  // industryRouting.ts startingFeaturesFor). What the signup picked is kept as it was picked.
+  if (!requested.length) requested = startingFeaturesFor(tenant.industry, { unified: true })
+  return resolveCrmFeatures(template, config?.company?.plan || 'starter', requested).seed
 }
 
 /**

@@ -4,8 +4,9 @@
 // Private parties (Parties, Spaces, Party Packages) are the restaurant's screens and menu items (crm/verticals/restaurant),
 // by the same features; the bar's settings rename them (screens.nav).
 import type { ReactElement } from 'react'
-import { Route } from 'react-router-dom'
-import { Beer, CalendarDays, CreditCard, Flame, Gift, Package, Settings, Star, Utensils } from 'lucide-react'
+import { Navigate, Route, useLocation } from 'react-router-dom'
+import { Beer, CalendarDays, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
+import { kioskLocked } from '../pages/bar/kioskLock'
 import { useAuth, type NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -25,6 +26,19 @@ const CountPage = page(() => import('../pages/bar/CountPage'))
 const ClockPage = page(() => import('../pages/bar/ClockPage'))
 const BarSchedulePage = page(() => import('../pages/bar/BarSchedulePage'))
 const SalesReport = page(() => import('../pages/bar/SalesReport'))
+const FoodSettingsPage = page(() => import('../pages/bar/FoodSettingsPage'))
+const OrdersPage = page(() => import('../pages/bar/OrdersPage'))
+/** The order kiosk: full screen, outside the shell (App.tsx), behind the order_kiosk feature (the page and its API). */
+export const KioskPage = page(() => import('../pages/bar/KioskPage'))
+
+/**
+ * Kiosk mode is on in this browser: every other address of the app goes back to the kiosk, until a manager's till PIN
+ * stops it (KioskPage). Drawn once beside the routes (App.tsx).
+ */
+export function KioskLock() {
+  const { pathname } = useLocation()
+  return kioskLocked() && pathname !== '/crm/kiosk' && (pathname.startsWith('/crm') || pathname === '/login') ? <Navigate to="/crm/kiosk" replace /> : null
+}
 
 /**
  * The bar's home (Tonight at a glance above the party book), shown at /crm/dashboard in place of the jobs dashboard when
@@ -58,6 +72,8 @@ export const routes: ReactElement[] = [
   <Route key="bar-count" path="count" element={<CountPage />} />,
   <Route key="bar-clock" path="clock" element={<ClockPage />} />,
   <Route key="bar-shifts" path="shifts" element={<BarSchedulePage />} />,
+  <Route key="bar-register-settings" path="register-settings" element={<FoodSettingsPage />} />,
+  <Route key="bar-orders" path="orders" element={<OrdersPage />} />,
 ]
 
 /**
@@ -67,6 +83,10 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/tonight', icon: Flame, label: 'Tonight', section: 'The Bar', features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
+  // The kiosk opens full screen (outside the menu's shell); GET /api/food/kiosk/state asks bar:register.
+  { to: '/crm/kiosk', icon: Tablet, label: 'Kiosk', features: ['order_kiosk'], permission: 'bar:register' },
+  // Website pickups and kiosk orders (GET /api/food/orders asks bar:register).
+  { to: '/crm/orders', icon: ShoppingBag, label: 'Orders', features: ['online_ordering', 'order_kiosk'], permission: 'bar:register' },
   { to: '/crm/gift-cards', icon: Gift, label: 'Gift Cards', features: ['gift_cards'], permission: 'bar:manage' },
   { to: '/crm/regulars', icon: Star, label: 'Regulars', features: ['loyalty_rewards'], permission: 'loyalty:read' },
   { to: '/crm/stock', icon: Package, label: 'Stock', features: ['bar_stock'], permission: 'bar:update' },
@@ -75,6 +95,8 @@ export const nav: NavItem[] = [
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/bar-settings', icon: Settings, label: 'Bar Settings', features: ['bar_tonight'], permission: 'bar:read' },
+  // The card reader, tabs, the kiosk, online ordering and the delivery links (GET /api/food/settings asks bar:register).
+  { to: '/crm/register-settings', icon: Settings, label: 'Register Settings', features: ['bar_register', 'card_reader', 'order_kiosk', 'online_ordering'], permission: 'bar:register' },
 ]
 
 /** The register's other screens, opened from it with no menu item of their own: the feature each needs (shellConfig.ts routeGates). */

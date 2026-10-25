@@ -18,7 +18,10 @@ interface Item {
   priceLabel: string | null; isSignature: boolean; is86ed: boolean; isActive: boolean; dietary: string[]; story: string | null;
   variations: Array<{ name: string; priceCents: number }>;
   toKitchen: boolean | null; prepSeconds: number | null;
+  modifiers?: Array<{ id: string; name: string; priceCents: number }>;
 }
+/** An add-on as the form edits it: the price typed in dollars. */
+type ModRow = { id?: string; name: string; price: string };
 interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; items: Item[] }
 
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
@@ -33,7 +36,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [sectionForm, setSectionForm] = useState<Partial<Section> | null>(null);
-  const [itemForm, setItemForm] = useState<(Partial<Item> & { price?: string; prepMin?: string }) | null>(null);
+  const [itemForm, setItemForm] = useState<(Partial<Item> & { price?: string; prepMin?: string; mods?: ModRow[] }) | null>(null);
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string>('');
@@ -68,6 +71,8 @@ export default function MenuPage() {
       };
       // The price box is dollars ("9.50"); blank means no single price (the label says it).
       if (itemForm.price !== undefined) body.price = itemForm.price.trim() === '' ? null : itemForm.price;
+      // Add-ons and changes the register, the kiosk and the website offer: a name and a price ($0 for "No onions").
+      if (itemForm.mods) body.modifiers = itemForm.mods.filter((m) => m.name.trim()).map((m) => ({ ...(m.id ? { id: m.id } : {}), name: m.name.trim(), priceCents: Math.round((Number(m.price.replace(/[$,\s]/g, '')) || 0) * 100) }));
       if (itemForm.id) await api.put(`/api/bar/menu/items/${itemForm.id}`, body);
       else await api.post('/api/bar/menu/items', body);
       setItemForm(null); await load();
@@ -140,7 +145,7 @@ export default function MenuPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {may86 && <button onClick={() => toggle86(i)} aria-pressed={i.is86ed} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${i.is86ed ? 'bg-orange-600 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-500' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{i.is86ed ? 'Back on' : '86'}</button>}
-                      {mayEdit && <button onClick={() => { setFormErr(''); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '' }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
+                      {mayEdit && <button onClick={() => { setFormErr(''); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '', mods: (i.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: (m.priceCents / 100).toFixed(2) })) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
                       {mayEdit && (confirmDelete === i.id
                         ? <><button onClick={() => remove('items', i.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Delete</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
                         : <button onClick={() => setConfirmDelete(i.id)} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Delete ${i.name}`}><Trash2 className="w-4 h-4" /></button>)}
@@ -178,6 +183,20 @@ export default function MenuPage() {
               <div><label htmlFor="item-label" className={LBL}>Price as printed (optional)</label><input id="item-label" className={INPUT} placeholder="$6.49 / $7.99" value={itemForm.priceLabel || ''} onChange={(e) => setItemForm({ ...itemForm, priceLabel: e.target.value })} /></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400">Two prices in "as printed" (sandwich / platter) become two sizes on the website.</p>
+            <div>
+              <p className={LBL}>Add-ons and changes</p>
+              {(itemForm.mods || []).map((m, n) => (
+                <div key={n} className="flex gap-2 mb-2">
+                  <label className="sr-only" htmlFor={`mod-name-${n}`}>Add-on {n + 1}</label>
+                  <input id={`mod-name-${n}`} className={INPUT} placeholder="Add bacon" value={m.name} onChange={(e) => setItemForm({ ...itemForm, mods: (itemForm.mods || []).map((x, k) => k === n ? { ...x, name: e.target.value } : x) })} />
+                  <label className="sr-only" htmlFor={`mod-price-${n}`}>Its price</label>
+                  <input id={`mod-price-${n}`} className={`${INPUT} w-28`} inputMode="decimal" placeholder="2.00" value={m.price} onChange={(e) => setItemForm({ ...itemForm, mods: (itemForm.mods || []).map((x, k) => k === n ? { ...x, price: e.target.value } : x) })} />
+                  <button type="button" className="px-3 rounded-lg border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100" aria-label={`Take off ${m.name || 'this add-on'}`} onClick={() => setItemForm({ ...itemForm, mods: (itemForm.mods || []).filter((_, k) => k !== n) })}><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" className="text-sm underline text-gray-800 dark:text-slate-200" onClick={() => setItemForm({ ...itemForm, mods: [...(itemForm.mods || []), { name: '', price: '' }] })}>Add an add-on</button>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">The register, the kiosk and online orders offer these; $0 for a change like "No onions". The grill ticket says them.</p>
+            </div>
             <div><label htmlFor="item-desc" className={LBL}>Description</label><textarea id="item-desc" className={INPUT} rows={2} value={itemForm.description || ''} onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })} /></div>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={!!itemForm.isSignature} onChange={(e) => setItemForm({ ...itemForm, isSignature: e.target.checked })} /> Signature item — gets its own page on the website</label>
             {itemForm.isSignature && <div><label htmlFor="item-story" className={LBL}>Its story (for its own page)</label><textarea id="item-story" className={INPUT} rows={4} value={itemForm.story || ''} onChange={(e) => setItemForm({ ...itemForm, story: e.target.value })} /></div>}

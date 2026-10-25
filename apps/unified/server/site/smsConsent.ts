@@ -8,7 +8,7 @@ import { smsConsent } from '../db/schema/index.ts'
 import { SMS_TERMS } from './legal.ts'
 
 /** What the customer is agreeing to be texted about, in their words. */
-export type ConsentTopic = 'booking' | 'enquiry' | 'estimate'
+export type ConsentTopic = 'booking' | 'enquiry' | 'estimate' | 'order'
 
 /** The words beside the box — stored with the consent, since the consent is to what it said. */
 export const consentWording = (topic: ConsentTopic) =>
@@ -30,7 +30,7 @@ export function phoneE164(phone: unknown): string | null {
   return null
 }
 
-const TOPICS = new Set<ConsentTopic>(['booking', 'enquiry', 'estimate'])
+const TOPICS = new Set<ConsentTopic>(['booking', 'enquiry', 'estimate', 'order'])
 /** Did this form's box get ticked? (A form posts "yes"; a JSON body may send true.) */
 export const ticked = (b: Record<string, any>) => b?.smsConsent === 'yes' || b?.smsConsent === true || b?.smsConsent === 'on'
 export const topicOf = (b: Record<string, any>, fallback: ConsentTopic): ConsentTopic => (TOPICS.has(b?.smsConsentFor) ? b.smsConsentFor : fallback)

@@ -6,7 +6,8 @@ import { Hono, type Context } from 'hono'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import fs from 'node:fs'
 import path from 'node:path'
-import { company, page, post, portfolioItem } from '../db/schema/index.ts'
+import { barSettings, company, page, post, portfolioItem } from '../db/schema/index.ts'
+import { readFoodSettings, foodDefaults } from '../crm/bar/foodSettings.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
@@ -31,6 +32,8 @@ const ESTIMATOR_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).tra
 // A store's own (CrmSettings.store): the shop pages' stylesheet, added to the site's, and the cart (sections/shop/*).
 const STORE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'store.css'), 'utf8')
 const CART_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'cart.ts'), 'utf8'))
+// Pickup ordering's menu, cart and checkout (views/sections/order; crm/bar/barOrders.ts).
+const ORDER_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'order.ts'), 'utf8'))
 const DESIGN_CSS = new Map<string, string>()
 for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f.replace(/\.css$/, ''), fs.readFileSync(path.join(SITE_DIR, 'designs', f), 'utf8'))
 // A cover design's own files (the bar's, templates/website-premium-bar build/): its self-hosted faces and their sheet, the
@@ -126,8 +129,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return null
   }
   /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer, a store's Shop. */
-  function toolNav(ctx: SiteContext, visualizer: boolean) {
+  function toolNav(ctx: SiteContext, visualizer: boolean, ordering = false) {
     const items: Array<{ label: string; href: string }> = []
+    if (ordering) items.push({ label: 'Order online', href: '/order' })
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
     if (visualizer) items.push({ label: 'Visualizer', href: '/visualize' })
     if (shop) items.push({ label: 'Shop', href: '/shop' })
@@ -145,6 +149,20 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return Array.isArray(co?.f) && (co!.f as string[]).includes('visualizer')
   }
   /**
+   * Pickup ordering on a food business's site (the bar; a vertical with crm.foodService): the Order page and its nav
+   * item are there when the business takes online orders (online_ordering on) or has a DoorDash / Uber Eats link set —
+   * whether the kitchen is open right now is the page's to say, not the menu's.
+   */
+  const foodSite = vertical.site?.facts === 'bar' || !!vertical.crm?.foodService
+  async function orderingOffered(companyId: string): Promise<boolean> {
+    if (!foodSite) return false
+    const [co] = await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+    if (Array.isArray(co?.f) && (co!.f as string[]).includes('online_ordering')) return true
+    const [s] = await db.select({ foodService: barSettings.foodService }).from(barSettings).where(eq(barSettings.companyId, companyId)).limit(1)
+    const d = readFoodSettings(s?.foodService, foodDefaults()).delivery
+    return !!(d.doordashUrl || d.ubereatsUrl)
+  }
+  /**
    * Count a visit — unless it is the admin's preview: a render of a draft (site/preview.ts), or a same-origin frame (the
    * browser sets both headers; a page can't). The preview redraws as the owner types; none of that is traffic.
    */
@@ -159,7 +177,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta, pageFacts?: { page: PageFacts; source: SiteFacts; about?: unknown }) {
     count(c, ctx, pathname)
     const f = pageFacts ?? await factsOf(ctx)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId)), facts: f }))
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId)), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
@@ -341,6 +359,24 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order } }], { title: 'Order received', metaDescription: 'Thank you for your order.' })
     })
   }
+
+  // ── Pickup ordering (crm/bar/barOrders.ts; views/sections/order) ─────────
+  if (foodSite) {
+    app.get('/order', async (c, next) => {
+      const ctx = await ctxOf()
+      if (!ctx || !(await orderingOffered(ctx.companyId))) return next()
+      const name = ctx.settings.companyName
+      return page200(c, ctx, '/order', [{ type: 'order', variant: 'page', data: { heading: 'Order for pickup' } }], { title: 'Order online', metaDescription: `Order online from ${name} for pickup.` })
+    })
+    // Stripe returns ?session_id=; the page asks the server, which asks Stripe, whether the order is paid.
+    app.get('/order/done', async (c, next) => {
+      const ctx = await ctxOf()
+      if (!ctx || !(await orderingOffered(ctx.companyId))) return next()
+      const sessionId = /^cs_[A-Za-z0-9_]{6,200}$/.test(c.req.query('session_id') || '') ? c.req.query('session_id') : ''
+      return page200(c, ctx, '/order/done', [{ type: 'order', variant: 'done', data: { sessionId } }], { title: 'Your order', metaDescription: 'Your pickup order.' })
+    })
+  }
+  app.get('/scripts/order.js', (c) => foodSite ? c.body(ORDER_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }) : c.notFound())
 
   // ── Dealer inventory ─────────────────────────────────────────────────────
   app.get('/inventory', async (c, next) => {
@@ -583,7 +619,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   // A page the vertical's facts make (templates/website-premium-bar server-static.ts): /story/<era>, an era of the
   // story timeline, and /<menu-section>/<item>, a signature item's own page (its photo, story, price and MenuItem
   // JSON-LD) — built from the menu itself, so there is nothing to keep in sync. Anything else falls through to 404.
-  const NESTED_TAKEN = new Set([...RESERVED_SLUGS, 'projects', 'inventory', 'product', 'checkout', 'shop', 'cart'])
+  const NESTED_TAKEN = new Set([...RESERVED_SLUGS, 'projects', 'inventory', 'product', 'checkout', 'shop', 'cart', 'order'])
   if (facts) app.get('/:a/:b', async (c, next) => {
     const { a, b } = c.req.param()
     if (NESTED_TAKEN.has(a)) return next()

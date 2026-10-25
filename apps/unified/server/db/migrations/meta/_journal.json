@@ -246,6 +246,13 @@
       "when": 1792891861602,
       "tag": "0034_quote_billing_texts",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792897319552,
+      "tag": "0035_food_service",
+      "breakpoints": true
     }
   ]
 }

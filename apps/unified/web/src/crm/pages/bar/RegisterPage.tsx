@@ -5,6 +5,7 @@ import { Loader2, Flame, LayoutGrid, Clock, Send, CreditCard, Banknote, Scissors
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
+import { ChargeWaiting, RefundDialog, ReceiptPanel, useCharge, type Charge, type ReaderChoice } from './terminalUi';
 
 /**
  * THE REGISTER — the bar tablet. Open a tab ("Mike"), a table ("Booth 2") or ring a walk-up; ring items (sizes,
@@ -16,12 +17,13 @@ import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dial
  */
 
 interface Size { id: string; name: string; priceCents: number | null }
-interface MenuItem { id: string; name: string; is86ed: boolean; sizes: Size[] }
+interface Mod { id: string; name: string; priceCents: number }
+interface MenuItem { id: string; name: string; is86ed: boolean; sizes: Size[]; modifiers?: Mod[] }
 interface Section { id: string; name: string; kind: string; items: MenuItem[] }
 interface OpenRow { id: string; number: number; kind: string; label: string; spot: string | null; totalCents: number; balanceCents: number; itemCount: number; heldCount: number; foodUpAt: string | null; onGrill: number }
 interface Recent { id: string; number: number; label: string; status: string; totalCents: number | null; closedAt: string }
 interface Line { id: string; name: string; size: string | null; qty: number; unitPriceCents: number; note: string | null; seat: number | null; toKitchen: boolean; kind: string; state: string; ticketId: string | null; voidReason: string | null; voidedByName: string | null }
-interface Payment { id: string; tender: string; amountCents: number; tipCents: number; changeCents: number | null; takenByName: string | null; voidedAt: string | null; voidReason: string | null }
+interface Payment { id: string; tender: string; amountCents: number; tipCents: number; changeCents: number | null; takenByName: string | null; voidedAt: string | null; voidReason: string | null; providerPaymentId?: string | null; refundedCents?: number }
 interface Check {
   id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string
   contactId: string | null; guestName: string | null; guestPoints: number | null
@@ -29,9 +31,11 @@ interface Check {
   totals: { subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; tipCents: number; balanceCents: number }
 }
 interface Reward { id: string; name: string; pointsCost: number; type: string }
-interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean } }
+interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean }; cardReader?: { readers: ReaderChoice[]; tipping: boolean }; tabs?: boolean }
 
-const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_online: 'Card (website)', giftcard: 'Gift card' };
+const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_terminal: 'Card (reader)', card_online: 'Card (online)', giftcard: 'Gift card' };
+/** A card Stripe took (the reader, the website): given back with Refund, never crossed off with Void. */
+const viaStripe = (p: Payment) => !!p.providerPaymentId && (p.tender === 'card_terminal' || p.tender === 'card_online');
 
 export default function RegisterPage() {
   const [params] = useSearchParams();
@@ -43,7 +47,7 @@ export default function RegisterPage() {
   const [seat, setSeat] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' }>(null);
+  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'options'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' } | { kind: 'refund'; payment: Payment }>(null);
   const [showRecent, setShowRecent] = useState(false);
   const [paid, setPaid] = useState<{ changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null>(null);
   const { guarded, dialog: managerDialog } = useManagerPin();
@@ -80,7 +84,7 @@ export default function RegisterPage() {
     return r?.check as Check | undefined;
   };
 
-  const ring = async (item: MenuItem, size: Size | null, priceCents?: number) => {
+  const ring = async (item: MenuItem, size: Size | null, priceCents?: number, modifierIds?: string[]) => {
     let id = checkId;
     if (!id || check?.status !== 'open') {
       // Ringing with no check open is a walk-up: one tap, no naming.
@@ -88,10 +92,12 @@ export default function RegisterPage() {
       if (!c) return;
       id = c.id;
     }
-    await act('ring', () => api.post(`/api/register/check/${id}/items`, { menuItemId: item.id, sizeId: size?.id ?? null, seat, priceCents }));
+    await act('ring', () => api.post(`/api/register/check/${id}/items`, { menuItemId: item.id, sizeId: size?.id ?? null, seat, priceCents, ...(modifierIds?.length ? { modifierIds } : {}) }));
   };
   const pick = (item: MenuItem) => {
     if (item.is86ed) return;
+    // Add-ons on a priced item: one dialog for its size and its add-ons.
+    if (item.modifiers?.length && item.sizes.length && item.sizes.every((s) => s.priceCents !== null)) { setDialog({ kind: 'options', item }); return; }
     if (item.sizes.length > 1) { setDialog({ kind: 'size', item }); return; }
     const size = item.sizes[0] || null;
     if (!size || size.priceCents === null) { setDialog({ kind: 'price', item, size }); return; }
@@ -130,7 +136,7 @@ export default function RegisterPage() {
         {/* ── the checks ── */}
         <section className={CARD} aria-label="Open checks">
           <div className="grid grid-cols-3 lg:grid-cols-1 gap-2 mb-3">
-            <button className={`${BTN} ${OFF}`} onClick={() => setDialog({ kind: 'open', as: 'tab' })}>New tab</button>
+            {state.tabs !== false && <button className={`${BTN} ${OFF}`} onClick={() => setDialog({ kind: 'open', as: 'tab' })}>New tab</button>}
             <button className={`${BTN} ${OFF}`} onClick={() => setDialog({ kind: 'open', as: 'table' })}>New table</button>
             <button className={`${BTN} ${OFF}`} disabled={!!busy} onClick={() => openCheck({ kind: 'walkup' })}>Walk-up</button>
           </div>
@@ -271,7 +277,9 @@ export default function RegisterPage() {
                   <div key={p.id} className="flex justify-between items-center gap-2">
                     <dt className={`${MUTED} ${p.voidedAt ? 'line-through' : ''}`}>
                       {TENDER_LABEL[p.tender] || p.tender}{p.tipCents ? ` + ${money(p.tipCents)} tip` : ''}{p.takenByName ? ` · ${p.takenByName}` : ''}
-                      {live && !p.voidedAt && <button className="ml-2 underline text-red-700 dark:text-red-300" onClick={() => setDialog({ kind: 'void', what: 'payment', id: p.id, label: `${TENDER_LABEL[p.tender] || p.tender} ${money(p.amountCents)}` })}>Void</button>}
+                      {(p.refundedCents || 0) > 0 && <span className="ml-1 text-red-700 dark:text-red-300">· refunded {money(p.refundedCents)}</span>}
+                      {!p.voidedAt && viaStripe(p) && state.me.mayManage && (p.amountCents + p.tipCents - (p.refundedCents || 0)) > 0 && <button className="ml-2 underline text-red-700 dark:text-red-300" onClick={() => setDialog({ kind: 'refund', payment: p })}>Refund</button>}
+                      {live && !p.voidedAt && !viaStripe(p) && <button className="ml-2 underline text-red-700 dark:text-red-300" onClick={() => setDialog({ kind: 'void', what: 'payment', id: p.id, label: `${TENDER_LABEL[p.tender] || p.tender} ${money(p.amountCents)}` })}>Void</button>}
                     </dt>
                     <dd className={`font-mono text-gray-900 dark:text-slate-100 ${p.voidedAt ? 'line-through' : ''}`}>−{money(p.amountCents)}</dd>
                   </div>
@@ -279,6 +287,7 @@ export default function RegisterPage() {
                 <div className="flex justify-between text-lg font-bold pt-1 border-t border-gray-200 dark:border-slate-800"><dt className="text-gray-900 dark:text-slate-100">Balance</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(check.totals.balanceCents)}</dd></div>
               </dl>
 
+              {check.status === 'paid' && <ReceiptPanel key={check.id} checkId={check.id} />}
               {live && (
                 <div className="grid grid-cols-2 gap-2">
                   <button className={`${BTN} ${held.length ? ON : OFF} inline-flex items-center justify-center gap-2 col-span-2`} disabled={!held.length || !!busy}
@@ -317,10 +326,17 @@ export default function RegisterPage() {
           </div>
         </Dialog>
       )}
+      {dialog?.kind === 'options' && <OptionsDialog item={dialog.item} onClose={() => setDialog(null)} onRing={(size, mods) => { const item = dialog.item; setDialog(null); ring(item, size, undefined, mods); }} />}
       {dialog?.kind === 'price' && <PriceDialog item={dialog.item} onClose={() => setDialog(null)} onRing={(cents) => { const d = dialog; setDialog(null); ring(d.item, d.size, cents); }} />}
       {dialog?.kind === 'pay' && check && (
         <PayDialog check={check} result={paid} onClose={() => { setDialog(null); setPaid(null); }}
-          onPay={async (body) => { const r = await act('pay', () => api.post(`/api/register/check/${check.id}/pay`, body)); if (r) setPaid({ changeCents: r.changeCents ?? null, giftCard: r.giftCard ?? null }); return !!r; }} giftCards={state.giftCards} />
+          onPay={async (body) => { const r = await act('pay', () => api.post(`/api/register/check/${check.id}/pay`, body)); if (r) setPaid({ changeCents: r.changeCents ?? null, giftCard: r.giftCard ?? null }); return !!r; }} giftCards={state.giftCards}
+          readers={state.cardReader?.readers || []} readerTips={!!state.cardReader?.tipping}
+          onReaderDone={async () => { await loadCheck(check.id); await loadState(); }} />
+      )}
+      {dialog?.kind === 'refund' && check && (
+        <RefundDialog payment={dialog.payment} checkOpen={check.status === 'open'} onClose={() => setDialog(null)}
+          onDone={async (r) => { if (r?.check) setCheck(r.check); setDialog(null); await loadState(); }} />
       )}
       {dialog?.kind === 'split' && check && (
         <SplitDialog check={check} onClose={() => setDialog(null)}
@@ -380,6 +396,32 @@ function OpenDialog({ as, onClose, onOpen }: { as: 'tab' | 'table'; onClose: () 
   );
 }
 
+/** A size and the add-ons for one item ("Burger · Add bacon · No onions"); the server prices it. */
+function OptionsDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () => void; onRing: (size: Size, modifierIds: string[]) => void }) {
+  const [size, setSize] = useState<Size>(item.sizes[0]);
+  const [mods, setMods] = useState<string[]>([]);
+  const each = (size.priceCents || 0) + (item.modifiers || []).filter((m) => mods.includes(m.id)).reduce((n, m) => n + m.priceCents, 0);
+  return (
+    <Dialog title={item.name} onClose={onClose}>
+      {item.sizes.length > 1 && (
+        <div className="grid grid-cols-2 gap-2 mb-3" role="radiogroup" aria-label="Size">
+          {item.sizes.map((s) => <button key={s.id} type="button" role="radio" aria-checked={size.id === s.id} className={`${BTN} ${size.id === s.id ? ON : OFF}`} onClick={() => setSize(s)}>{s.name} · {money(s.priceCents)}</button>)}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-2">
+        {(item.modifiers || []).map((m) => {
+          const on = mods.includes(m.id);
+          return <button key={m.id} type="button" aria-pressed={on} className={`${BTN} ${on ? ON : OFF} flex justify-between`} onClick={() => setMods((cur) => on ? cur.filter((x) => x !== m.id) : [...cur, m.id])}><span>{m.name}</span><span>{m.priceCents ? `+${money(m.priceCents)}` : ''}</span></button>;
+        })}
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
+        <button type="button" className={`${BTN} ${ON}`} onClick={() => onRing(size, mods)}>Ring {money(each)}</button>
+      </div>
+    </Dialog>
+  );
+}
+
 function PriceDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () => void; onRing: (cents: number) => void }) {
   const [typed, setTyped] = useState('');
   const cents = centsFrom(typed);
@@ -398,8 +440,12 @@ function PriceDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () =>
   );
 }
 
-function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check; result: { changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null; onClose: () => void; onPay: (b: Record<string, unknown>) => Promise<boolean>; giftCards: boolean }) {
-  const [tender, setTender] = useState<'cash' | 'card_external' | 'giftcard'>('card_external');
+function PayDialog({ check, result, onClose, onPay, giftCards, readers, readerTips, onReaderDone }: { check: Check; result: { changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null; onClose: () => void; onPay: (b: Record<string, unknown>) => Promise<boolean>; giftCards: boolean; readers: ReaderChoice[]; readerTips: boolean; onReaderDone: () => Promise<void> }) {
+  const hasReader = readers.length > 0;
+  const [tender, setTender] = useState<'reader' | 'cash' | 'card_external' | 'giftcard'>(hasReader ? 'reader' : 'card_external');
+  const [readerId, setReaderId] = useState(readers[0]?.id || '');
+  const [readerErr, setReaderErr] = useState('');
+  const reader = useCharge(async (c: Charge) => { if (c.status === 'succeeded') await onReaderDone(); });
   const [cardCode, setCardCode] = useState('');
   const [cardBalance, setCardBalance] = useState<{ text: string; cents: number | null } | null>(null);
   const [amount, setAmount] = useState((check.totals.balanceCents / 100).toFixed(2));
@@ -408,12 +454,32 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
   const [busy, setBusy] = useState(false);
   const amt = centsFrom(amount), tipC = centsFrom(tip) ?? 0, tend = centsFrom(tendered);
   const ways = [2, 3, 4];
+  // A payment on the reader: waiting, then what Stripe said. Paid closes into the check's own Paid view.
+  if (reader.charge) {
+    const c = reader.charge;
+    return (
+      <Dialog title={`Card · #${check.number} ${check.label}`} onClose={c.status === 'pending' ? () => {} : onClose}>
+        <ChargeWaiting charge={c} simulated={!!readers.find((r) => r.id === c.readerId)?.simulated} err={reader.err} onCancel={reader.cancel} onSimulate={reader.simulate} />
+        {c.status !== 'pending' && (
+          <>
+            {c.status === 'succeeded' && <p className={`text-sm mt-3 ${MUTED}`}>{check.status === 'paid' ? 'The check is paid and closed.' : `Still owed: ${money(check.totals.balanceCents)}`}</p>}
+            {c.status === 'succeeded' && check.status === 'paid' && <ReceiptPanel checkId={check.id} />}
+            <div className="flex justify-end gap-2 mt-4">
+              {c.status !== 'succeeded' && <button className={`${BTN} ${OFF}`} onClick={() => reader.setCharge(null)}>Try again</button>}
+              <button className={`${BTN} ${ON}`} onClick={onClose}>Done</button>
+            </div>
+          </>
+        )}
+      </Dialog>
+    );
+  }
   if (result) {
     return (
       <Dialog title="Paid" onClose={onClose}>
         {result.changeCents !== null && <p className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Change {money(result.changeCents)}</p>}
         {result.giftCard && <p className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">{result.giftCard.code}: {money(result.giftCard.balanceCents)} left on the card</p>}
         <p className={`text-sm ${MUTED}`}>{check.status === 'paid' ? 'The check is paid and closed.' : `Still owed: ${money(check.totals.balanceCents)}`}</p>
+        {check.status === 'paid' && <ReceiptPanel checkId={check.id} />}
         <div className="flex justify-end mt-4"><button className={`${BTN} ${ON}`} onClick={onClose}>Done</button></div>
       </Dialog>
     );
@@ -422,17 +488,38 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
     <Dialog title={`Pay #${check.number} ${check.label}`} onClose={onClose}>
       <form onSubmit={async (e) => {
         e.preventDefault(); if (amt === null) return; setBusy(true);
+        if (tender === 'reader') {
+          setReaderErr('');
+          try { const r = await api.post('/api/food/terminal/charge', { checkId: check.id, readerId, amountCents: amt }); reader.setCharge(r.charge); }
+          catch (ex) { setReaderErr(errorText(ex, 'The reader did not take the payment.')); }
+          setBusy(false); return;
+        }
         await onPay(tender === 'giftcard'
           ? { tender, amountCents: amt, giftCardCode: cardCode }
           : { tender, amountCents: amt, tipCents: tipC, cashTenderedCents: tender === 'cash' && tend !== null ? tend : null });
         setBusy(false);
       }}>
-        <div className={`grid ${giftCards ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-3`}>
-          <button type="button" className={`${BTN} ${tender === 'card_external' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'card_external'} onClick={() => setTender('card_external')}><CreditCard className="w-4 h-4" />Card</button>
+        <div className={`grid ${(giftCards ? 3 : 2) + (hasReader ? 1 : 0) >= 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'} gap-2 mb-3`}>
+          {hasReader && <button type="button" className={`${BTN} ${tender === 'reader' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'reader'} onClick={() => setTender('reader')}><CreditCard className="w-4 h-4" />Card reader</button>}
+          <button type="button" className={`${BTN} ${tender === 'card_external' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'card_external'} onClick={() => setTender('card_external')}><CreditCard className="w-4 h-4" />{hasReader ? 'Card (record)' : 'Card'}</button>
           <button type="button" className={`${BTN} ${tender === 'cash' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'cash'} onClick={() => setTender('cash')}><Banknote className="w-4 h-4" />Cash</button>
           {giftCards && <button type="button" className={`${BTN} ${tender === 'giftcard' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'giftcard'} onClick={() => setTender('giftcard')}><Gift className="w-4 h-4" />Gift card</button>}
         </div>
-        {tender === 'card_external' && <p className={`text-sm mb-3 ${MUTED}`}>Run the card on the card reader first, then record it here.</p>}
+        {tender === 'card_external' && <p className={`text-sm mb-3 ${MUTED}`}>{hasReader ? 'Run the card on another machine first, then record it here.' : 'Run the card on the card reader first, then record it here.'}</p>}
+        {tender === 'reader' && (
+          <div className="mb-3">
+            {readers.length > 1 && (
+              <>
+                <label className={LABEL} htmlFor="pay-reader">Reader</label>
+                <select id="pay-reader" className={`${INPUT} mt-1`} value={readerId} onChange={(e) => setReaderId(e.target.value)}>
+                  {readers.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+              </>
+            )}
+            <p className={`text-sm mt-2 ${MUTED}`}>{readerTips ? 'The amount goes to the reader, and the reader asks the guest for a tip.' : 'The amount goes to the reader. Tips on the reader are off (Register Settings).'}</p>
+            <FormError message={readerErr} className="mt-2" />
+          </div>
+        )}
         {tender === 'giftcard' && (
           <div className="mb-3">
             <label className={LABEL} htmlFor="pay-card">Gift card number</label>
@@ -460,7 +547,7 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
             return <button key={n} type="button" className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => setAmount((hi / 100).toFixed(2))}>{n} ways · {label}</button>;
           })}
         </div>
-        {tender !== 'giftcard' && (
+        {tender !== 'giftcard' && tender !== 'reader' && (
           <>
             <label className={`${LABEL} block mt-3`} htmlFor="pay-tip">Tip ($)</label>
             <input id="pay-tip" className={`${INPUT} mt-1`} inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0.00" />
@@ -478,7 +565,7 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
         )}
         <div className="flex justify-end gap-2 mt-4">
           <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
-          <button type="submit" className={`${BTN} ${ON}`} disabled={busy || amt === null || amt <= 0 || (tender === 'giftcard' && !cardCode.trim())}>Take {amt !== null ? money(tender === 'giftcard' ? amt : amt + tipC) : ''}</button>
+          <button type="submit" className={`${BTN} ${ON}`} disabled={busy || amt === null || amt <= 0 || (tender === 'giftcard' && !cardCode.trim()) || (tender === 'reader' && !readerId)}>{tender === 'reader' ? `Send ${amt !== null ? money(amt) : ''} to the reader` : `Take ${amt !== null ? money(tender === 'giftcard' ? amt : amt + tipC) : ''}`}</button>
         </div>
       </form>
     </Dialog>

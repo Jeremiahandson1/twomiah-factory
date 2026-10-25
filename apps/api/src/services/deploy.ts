@@ -1240,11 +1240,12 @@ export async function deployCustomer(
   const isVet = vertical === 'veterinary' // veterinary practice CRM
   const isSalon = vertical === 'salon' // salon / barber / spa CRM
   const isBar = vertical === 'bar' // bar / tavern / pub CRM (crm-bar)
-  const isEvents = vertical === 'events' // restaurant / caterer / venue private-events CRM
+  // restaurant / caterer / venue CRM (private events and the food side); food trucks run it too since 2026-10-24
+  const isEvents = vertical === 'events' || vertical === 'foodtruck'
   const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
   // Everything with no vertical of its own: 'other', hotels, gyms, yoga, weddings, photographers,
-  // food trucks, and any industry no set recognises. These used to land on the contractor CRM.
-  const isBasic = vertical === 'basic' || vertical === 'showcase' || vertical === 'foodtruck'
+  // and any industry no set recognises. These used to land on the contractor CRM. (Food trucks moved to crm-restaurant.)
+  const isBasic = vertical === 'basic' || vertical === 'showcase'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   // Every name this deploy uses, known up front so the preflight can judge them all before anything is touched.

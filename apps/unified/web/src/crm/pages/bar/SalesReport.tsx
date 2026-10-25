@@ -23,6 +23,7 @@ interface Report {
   items: Array<{ name: string; qty: number; salesCents: number }>
   voids: { count: number; amountCents: number }
   giftCardsSold: { count: number; cents: number }
+  refunds?: { count: number; cents: number }
 }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -77,7 +78,7 @@ export default function SalesReport() {
         <div className={`space-y-3 ${busy ? 'opacity-60' : ''}`}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[['Total', money(r.totalCents)], ['Food & drink', money(r.subtotalCents)], ['Checks', String(r.checksPaid)], ['Average check', money(r.averageCheckCents)],
-              ['Tips', money(r.tipsCents)], ['Sales tax', money(r.taxCents)], ['Gift cards sold', `${money(r.giftCardsSold.cents)}${r.giftCardsSold.count ? ` (${r.giftCardsSold.count})` : ''}`], ['Voids', `${r.voids.count}${r.voids.amountCents ? ` · ${money(r.voids.amountCents)}` : ''}`]].map(([k, v]) => (
+              ['Tips', money(r.tipsCents)], ['Sales tax', money(r.taxCents)], ...((r.refunds?.cents || 0) > 0 ? [['Refunds to cards', `−${money(r.refunds!.cents)} (${r.refunds!.count})`]] : []), ['Gift cards sold', `${money(r.giftCardsSold.cents)}${r.giftCardsSold.count ? ` (${r.giftCardsSold.count})` : ''}`], ['Voids', `${r.voids.count}${r.voids.amountCents ? ` · ${money(r.voids.amountCents)}` : ''}`]].map(([k, v]) => (
               <div key={k} className={CARD}><p className={LABEL}>{k}</p><p className="text-xl font-bold text-gray-900 dark:text-slate-100 mt-1">{v}</p></div>
             ))}
           </div>

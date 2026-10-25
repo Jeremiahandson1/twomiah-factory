@@ -502,7 +502,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   // The Features page renders THIS — the registry entries offered to this template — never a local
   // catalog with its own ids. Any signed-in user may read it; only admins write.
   app.get('/features/catalog', async (c) => {
-    const features = getFeaturesForTemplate(template).filter((f) => !f.hidden).map(({ id, name, description, category, core }) => ({ id, name, description, category, core }))
+    // A feature this template has as opt-in (featureRegistry optIn: the bar's register on a restaurant) is never core HERE:
+    // the owner may leave it off, and a save does not force it on.
+    const features = getFeaturesForTemplate(template).filter((f) => !f.hidden).map(({ id, name, description, category, core, optIn }) => ({ id, name, description, category, core: core && !optIn?.includes(template) }))
     return c.json({ template, features })
   })
 
@@ -530,7 +532,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // An id already on may come back in the save (the page sends what it was given), but only what this product still
     // offers is kept (withinOffer): a feature taken off the industry goes at the owner's next save, never kept because
     // it happened to be on (home care's shared Invoices, live test 2026-10-22).
-    const next = withinOffer(template, [...offered.filter((f) => f.core).map((f) => f.id), ...(features as string[])])
+    const next = withinOffer(template, [...offered.filter((f) => f.core && !f.optIn?.includes(template)).map((f) => f.id), ...(features as string[])])
     const [row] = await db.update(t.company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
     try { deps.onFeaturesChanged?.(next) } catch (e: any) { console.warn('[Features] onFeaturesChanged failed:', e?.message || e) }

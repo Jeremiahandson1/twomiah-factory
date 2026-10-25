@@ -20,6 +20,7 @@ import { endOfBusinessDay, ROOM_STATUSES, TAP_STATUSES } from './barLive.ts'
 import { isHoursConfig, type HoursConfig } from './barHours.ts'
 import { slugify, sizesFromLabel } from './barMenuSizes.ts'
 import { tapSizesInput } from './barTapSizes.ts'
+import { modifiersInput } from './barModifiers.ts'
 import type { BarServices } from './services.ts'
 
 type Ctx = any
@@ -186,6 +187,9 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   const requireEnabledFeature = d.features.requireEnabledFeature
   const { buildLiveState, hoursFor } = bar.live
   const app = new Hono<AppEnv>()
+  // The tap list as a vertical other than the bar has it: behind its own switch as well as the menu's (a restaurant's
+  // 'draft_taps', CrmSettings.foodService.tapsFeature). The bar's taps ride the menu, as they always have.
+  const tapsGate = d.settings?.foodService?.tapsFeature ? [requireEnabledFeature(d.settings.foodService.tapsFeature)] : []
 
   async function uniqueSlug(table: any, companyId: string, base: string, exceptId?: string): Promise<string> {
     const root = slugify(base) || 'item'
@@ -237,6 +241,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
         out.push({ id: slugify(nm), name: nm, priceCents: pc })
       }
       v.variations = out
+    }
+    // Add-ons and changes ("Add bacon" +$2, "No onions"): the register, the kiosk and the website price them (barModifiers.ts).
+    if (body.modifiers !== undefined) {
+      const mods = modifiersInput(body.modifiers)
+      if (mods === 'bad') return { ok: false, error: 'Each add-on needs a name and a price from $0 to $100 (20 at most).' }
+      v.modifiers = mods
     }
     for (const k of ['isSignature', 'is86ed', 'isActive'] as const) if (body[k] !== undefined) v[k] = bool(body[k], false)
     if (body.sortOrder !== undefined) v.sortOrder = Math.max(0, Math.min(10000, Number(body.sortOrder) || 0))
@@ -404,12 +414,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   })
 
   // ─── taps ─────────────────────────────────────────────────────────────────────────────────────────
-  app.get('/taps', requireEnabledFeature('bar_menu'), requirePermission('bar:read'), async (c) => {
+  app.get('/taps', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:read'), async (c) => {
     const { companyId } = me(c)
     return all(c, await db.select().from(barTap).where(eq(barTap.companyId, companyId)).orderBy(asc(barTap.sortOrder), asc(barTap.lineNumber)))
   })
 
-  app.post('/taps', requireEnabledFeature('bar_menu'), requirePermission('bar:update'), async (c) => {
+  app.post('/taps', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:update'), async (c) => {
     const { companyId } = me(c)
     const v = tapInput(await c.req.json().catch(() => ({})), true); if (!v.ok) return bad(c, v.error)
     const [row] = await db.insert(barTap).values({ companyId, tappedAt: new Date(), ...v.value } as any).returning()
@@ -417,7 +427,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     return one(c, row, 201)
   })
 
-  app.put('/taps/:id', requireEnabledFeature('bar_menu'), requirePermission('bar:update'), async (c) => {
+  app.put('/taps/:id', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:update'), async (c) => {
     const { companyId } = me(c)
     const v = tapInput(await c.req.json().catch(() => ({})), false); if (!v.ok) return bad(c, v.error)
     const [row] = await db.update(barTap).set({ ...v.value, updatedAt: new Date() }).where(and(eq(barTap.id, c.req.param('id')), eq(barTap.companyId, companyId))).returning()
@@ -428,7 +438,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
 
   // Tap / blow a keg — the console's control. A new beer on the line is a PUT by a manager; this only moves
   // the status, and stamps when it was tapped or blown.
-  app.put('/taps/:id/status', requireEnabledFeature('bar_menu'), requirePermission('bar:console'), async (c) => {
+  app.put('/taps/:id/status', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:console'), async (c) => {
     const { companyId } = me(c)
     const body = await c.req.json().catch(() => ({}))
     if (!(TAP_STATUSES as readonly string[]).includes(body.status)) return bad(c, 'Status: pouring, just tapped, last keg, or blown')
@@ -439,7 +449,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     return one(c, row)
   })
 
-  app.delete('/taps/:id', requireEnabledFeature('bar_menu'), requirePermission('bar:update'), async (c) => {
+  app.delete('/taps/:id', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:update'), async (c) => {
     const { companyId } = me(c)
     const [row] = await db.delete(barTap).where(and(eq(barTap.id, c.req.param('id')), eq(barTap.companyId, companyId))).returning()
     if (!row) return bad(c, 'Tap not found', 404)

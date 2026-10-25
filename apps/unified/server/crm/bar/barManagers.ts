@@ -42,6 +42,18 @@ export function createBarManagers(db: BarDb,permissions: { hasPermission: (role:
 
   async function managerApproval(actor: Actor, managerPin: unknown): Promise<ManagerCheck> {
     if (await mayManage(actor)) return { ok: true, byName: actor.name, approverId: actor.id }
+    return managerPinCheck(actor, managerPin)
+  }
+
+  /**
+   * A manager's till PIN, ALWAYS typed — whoever is signed in. The kiosk tablet is signed in as one seat all day, so
+   * starting and stopping kiosk mode asks for the PIN itself, never "the person signed in may manage".
+   */
+  async function verifyManagerPin(actor: Actor, managerPin: unknown): Promise<ManagerCheck> {
+    return managerPinCheck(actor, managerPin)
+  }
+
+  async function managerPinCheck(actor: Actor, managerPin: unknown): Promise<ManagerCheck> {
     const rows: Array<{ id: string; role: string; pinHash: string | null; firstName: string; lastName: string }> = await db
       .select({ id: user.id, role: user.role, pinHash: user.pinHash, firstName: user.firstName, lastName: user.lastName })
       .from(user).where(and(eq(user.companyId, actor.companyId), eq(user.isActive, true), isNotNull(user.pinHash)))
@@ -86,6 +98,6 @@ export function createBarManagers(db: BarDb,permissions: { hasPermission: (role:
     return !!r?.pinHash
   }
 
-  return { actorOf, mayManage, managerApproval, setOwnPin, clearOwnPin, hasOwnPin }
+  return { actorOf, mayManage, managerApproval, verifyManagerPin, setOwnPin, clearOwnPin, hasOwnPin }
 }
 export type BarManagers = ReturnType<typeof createBarManagers>
