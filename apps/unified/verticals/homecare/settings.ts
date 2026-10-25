@@ -393,7 +393,7 @@ Long reports run onto more pages. The file name includes your agency's name and 
 const homecare: VerticalSettings = {
   id: 'homecare',
   label: 'Home Care',
-  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'visit', many: 'visits' }, team: { one: 'caregiver', many: 'caregivers' }, reviewAfter: null, gallery: 'Gallery' },
+  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'visit', many: 'visits' }, team: { one: 'caregiver', many: 'caregivers' }, reviewAfter: null, gallery: 'Gallery', customerCompany: false },
   mfaIssuer: 'Twomiah Home Care',
   featureSet: 'crm-homecare',
   // The template's seats were owner, admin and caregiver; a caregiver is the field rung.

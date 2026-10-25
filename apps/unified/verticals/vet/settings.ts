@@ -46,7 +46,7 @@ const STARTER: StarterContent = {
 const vet: VerticalSettings = {
   id: 'vet',
   label: 'Veterinary',
-  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery' },
+  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery', customerCompany: false },
   mfaIssuer: 'Twomiah Veterinary',
   featureSet: 'crm-vet',
   starter: STARTER,

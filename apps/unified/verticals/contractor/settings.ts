@@ -4,7 +4,7 @@ import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/ve
 const contractor: VerticalSettings = {
   id: 'contractor',
   label: 'Contractor',
-  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio' },
+  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio', customerCompany: true },
   mfaIssuer: 'Twomiah Contractor',
   featureSet: 'crm',
   // Crew scope: a crew login reads its own and its crews' jobs and their customers (server/core/vertical.ts).

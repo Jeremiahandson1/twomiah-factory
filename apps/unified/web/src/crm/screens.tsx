@@ -33,6 +33,7 @@ import { DocumentAside } from './invoiceAside'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { TextComposer } from './textComposer'
+import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
 
 const v = verticalScreens
 const client = api as any
@@ -191,9 +192,13 @@ export function Reviews() {
 // Campaigns and templates need Email Marketing; a dealership opens the page for its Follow-Up drips alone, and the API
 // refuses the campaigns then (templates/crm-rv MarketingPage.tsx, RV T19 M6). With Email Marketing on, as everywhere
 // the page opens otherwise, nothing changes.
+// The email editor draws its button in the business's colour, offers its logo, and takes pictures from the website's
+// photo library (salon live test, 2026-10-25: the campaign body was a raw HTML box).
 export function Marketing() {
-  const { hasFeature } = useAuth()
-  return <MarketingPage api={client} toast={useToast()} config={v().marketing as any} showCampaigns={hasFeature('email_marketing')} />
+  const { hasFeature, company } = useAuth()
+  const { pickOne } = usePhotoPicker()
+  const config = { ...(v().marketing as any), brand: { name: company?.name, color: company?.primaryColor, logo: company?.logo }, pickImage: () => pickOne('') }
+  return <MarketingPage api={client} toast={useToast()} config={config} showCampaigns={hasFeature('email_marketing')} />
 }
 // The reply box carries pictures and sends later (crm/textComposer.tsx).
 const textComposer = (p: { conversationId: string; contactId: string | null; onSent: () => void }) => <TextComposer key={p.conversationId} {...p} />

@@ -47,7 +47,7 @@ const STARTER: StarterContent = {
 const bar: VerticalSettings = {
   id: 'bar',
   label: 'Bar & Grill',
-  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery' },
+  vocabulary: { customer: { one: 'guest', many: 'guests' }, work: null, team: { one: 'staff member', many: 'staff' }, reviewAfter: null, gallery: 'Gallery', customerCompany: false },
   // The template named itself 'Twomiah CRM' because crm-basic served three verticals (routes/mfa.ts, T41); this one is a bar's.
   mfaIssuer: 'Twomiah Bar',
   featureSet: 'crm-bar',

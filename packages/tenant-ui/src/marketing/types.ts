@@ -14,6 +14,16 @@ export interface MarketingConfig {
   sequencesLabel?: string
   title?: string
   subtitle?: string
+  /**
+   * The business's colour and logo, for the email editor's button and Logo insert (EmailEditor.tsx). Without it a
+   * button is drawn dark grey and there is no Logo button.
+   */
+  brand?: { name?: string | null; color?: string | null; logo?: string | null }
+  /**
+   * The app's photo library: resolves to the chosen photo's address, or null when dismissed. Without it the editor
+   * asks for a picture's web address instead.
+   */
+  pickImage?: () => Promise<string | null>
 }
 
 export interface MessagesConfig {
