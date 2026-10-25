@@ -74,7 +74,7 @@ describe('a restaurant has the food side', () => {
     const v = await loadVertical('restaurant')
     expect(v.crm?.foodService).toEqual({ tabs: false, tapsFeature: 'draft_taps' })
     expect((v.screens as any).navFeatures['/crm/taps']).toEqual(['draft_taps'])
-    expect((v.screens as any).foodService).toEqual({ speakeasy: false })
+    expect((v.screens as any).foodService).toEqual({ speakeasy: false, bar: false })
     expect((v.screens as any).navSections['The Bar']).toBe('Kitchen & Counter')
   })
 })
