@@ -110,7 +110,9 @@ export function createContactDeleter(o: { db: any; contact: any; guards?: Contac
       throw e
     }
     afterDelete?.()
-    return { deleted: true, contact: existing }
+    // The deleted row goes on to the routes' audit and replies: never with its portal credential (portal_token is a
+    // bearer credential; scripts/check-portal-token-never-ships.ts).
+    return { deleted: true, contact: withoutPortalCredential(existing) }
   }
   return { remove }
 }
