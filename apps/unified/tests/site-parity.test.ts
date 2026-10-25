@@ -33,7 +33,9 @@ const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ej
   // docs/TRACKING_STANDARD.md: a saved lead shows the page's one #form-success (Google's conversion trigger).
   'sections/inventory/unit.ejs', 'sections/care/finder.ejs',
   // The "Text me" box on every form that asks for a phone (server/site/smsConsent.ts): carriers require it (2026-10-21).
-  'sections/catering/inquiry-form.ejs', 'sections/parties/inquiry-form.ejs', 'sections/regulars/signup.ejs'])
+  'sections/catering/inquiry-form.ejs', 'sections/parties/inquiry-form.ejs', 'sections/regulars/signup.ejs',
+  // A menu item's photo, and the restaurant's live menu without the bar's own copy (10/25).
+  'sections/menu/sections.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
