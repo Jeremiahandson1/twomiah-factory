@@ -67,6 +67,7 @@ import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
+import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
@@ -148,6 +149,12 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
+      // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
+      // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
+      beforeDelete: async (companyId: string, contactId: string) => {
+        const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
+        return () => removeVisitPhotoFiles(s.storage, files)
+      },
       // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
       // customers — templates/crm-rv routes/contacts.ts). Absent: the shared four, and 'client'.
       ...(v.contacts?.types ? { types: v.contacts.types } : {}),

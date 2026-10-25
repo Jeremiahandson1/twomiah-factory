@@ -10,9 +10,13 @@
 //   POST   /api/service-records/:id/photos/:slot        (schedule:update — editing the visit)  multipart `photo`
 //   GET    /api/service-records/:id/photos/:slot/file   (contacts:read — reading the visit)
 //   DELETE /api/service-records/:id/photos/:slot        (schedule:update)
+//
+// A visit's row going away takes its photo files with it, however it goes — visitPhotoFilesOf / removeVisitPhotoFiles
+// below, the one pair every deletion path calls.
 import type { Context } from 'hono'
+import { and, eq, inArray, or } from 'drizzle-orm'
+import { serviceRecord } from '../../db/schema/index.ts'
 import { fail } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
 
 export const VISIT_PHOTO_SLOTS = ['before', 'after'] as const
 export type VisitPhotoSlot = typeof VISIT_PHOTO_SLOTS[number]
@@ -68,11 +72,35 @@ export function photoFieldsOf(body: Record<string, unknown>, existing: { id: str
   return { set, drop }
 }
 
-/** The files behind a visit's photos, removed best-effort — the row is the source of truth (as recordPhotos.removeFiles). */
-export function removeVisitPhotoFiles(d: CrmDeps, keys: Array<string | null | undefined>) {
+/** The file store, as far as dropping a file goes (CrmDeps.services.storage). */
+export interface FileDropper { deleteFile: (key: string) => unknown }
+
+/**
+ * EVERY WAY A VISIT GOES AWAY TAKES ITS PHOTO FILES WITH IT. A visit row is deleted on five paths — the visit's own
+ * Delete (serviceRecords.ts), a completed appointment reopened or cancelled (appointments.ts onVisitUncompleted), the
+ * legacy repair (serviceRecords.ts /repair-legacy), and its client deleted, alone (modules/crm.ts, the contact routes'
+ * beforeDelete) or in bulk (office/bulk.ts) — the last two by the database's cascade, which no route sees. So each path
+ * asks this, BEFORE it deletes, for the files of the visits about to go (by visit, or by client), and hands them to
+ * removeVisitPhotoFiles once the rows are gone. Only the visits' own uploads (isOwnVisitPhoto) are ever named.
+ */
+export async function visitPhotoFilesOf(db: any, companyId: string, by: { visitIds?: string[]; contactIds?: string[] }): Promise<string[]> {
+  const which = [
+    ...(by.visitIds?.length ? [inArray(serviceRecord.id, by.visitIds)] : []),
+    ...(by.contactIds?.length ? [inArray(serviceRecord.contactId, by.contactIds)] : []),
+  ]
+  if (!which.length) return []
+  const rows: Array<{ id: string; companyId: string; photoBefore: string | null; photoAfter: string | null }> = await db
+    .select({ id: serviceRecord.id, companyId: serviceRecord.companyId, photoBefore: serviceRecord.photoBefore, photoAfter: serviceRecord.photoAfter })
+    .from(serviceRecord)
+    .where(and(eq(serviceRecord.companyId, companyId), which.length === 1 ? which[0] : or(...which)))
+  return rows.flatMap((r) => [r.photoBefore, r.photoAfter].filter((k): k is string => isOwnVisitPhoto(k, r.companyId, r.id)))
+}
+
+/** The files behind visits' photos, removed best-effort — the row is the source of truth (as recordPhotos.removeFiles). */
+export function removeVisitPhotoFiles(storage: FileDropper, keys: Array<string | null | undefined>) {
   for (const k of keys) {
     if (!k) continue
-    try { d.services.storage.deleteFile(k) } catch { /* nothing points at it any more */ }
+    try { storage.deleteFile(k) } catch { /* nothing points at it any more */ }
   }
 }
 

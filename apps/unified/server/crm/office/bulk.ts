@@ -6,6 +6,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { JOB_DISPATCH_PERMISSION } from '@twomiah/tenant-backend'
+import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../salon/visitPhotos.ts'
 
 /** Only the named fields of `updates`, the ones a bulk change may set. */
 const pick = (updates: Record<string, any>, allowedFields: string[]) => {
@@ -35,7 +36,11 @@ export function createBulkRoutes(d: CrmDeps) {
     const user = c.get('user') as any
     const { ids } = await c.req.json()
     if (!ids?.length) return noIds(c)
+    // Their visits go with them by the cascade, and the visits' photo files with those (crm/salon/visitPhotos.ts — the
+    // one rule every visit deletion path calls): read now, dropped once the contacts are gone.
+    const photoFiles = await visitPhotoFilesOf(d.db, user.companyId, { contactIds: ids })
     const count = await bulk.bulkDeleteContacts(user.companyId, ids)
+    removeVisitPhotoFiles(d.services.storage, photoFiles)
     d.audit.log({ req: c, action: 'BULK_DELETE', entity: 'contacts', metadata: { count }, userId: user.userId, companyId: user.companyId })
     return one(c, { deleted: count })
   })

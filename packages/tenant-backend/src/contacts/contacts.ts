@@ -87,6 +87,13 @@ export interface ContactOptions {
   sites?: ContactSitesTables
   /** Hard page-size cap. Default 500 (matches the templates' global pagination guard). */
   maxLimit?: number
+  /**
+   * Run once the guards have passed and just before a contact is deleted; the function it answers runs after the delete
+   * has gone through. For what the database's cascade takes with the contact that leaves something outside the
+   * database — the unified app's salon visit photo files (crm/salon/visitPhotos.ts; salon live test, 2026-10-25).
+   * Absent: nothing, as before.
+   */
+  beforeDelete?: (companyId: string, contactId: string) => Promise<(() => void) | void>
 }
 
 export interface ContactDeps {
@@ -551,8 +558,11 @@ export function createContactRoutes(deps: ContactDeps) {
       return c.json({ error: `This contact still has ${attached.join(', ')} attached. Reassign or remove them before deleting the contact.` }, 409)
     }
 
+    // What the cascade takes that lives outside the database (ContactOptions.beforeDelete): read now, cleared after.
+    const afterDelete = o.beforeDelete ? await o.beforeDelete(currentUser.companyId, id) : undefined
     try {
       await db.delete(t.contact).where(eq(t.contact.id, id))
+      afterDelete?.()
     } catch (e: any) {
       const blob = [e?.code, e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(' ')
       if (/23503|foreign key|violates foreign/i.test(blob)) {

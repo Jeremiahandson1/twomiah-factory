@@ -172,10 +172,97 @@ describe('a visit photo is uploaded to the visit, never named in a write', () =>
   })
 
   test('deleting the visit removes its photo files', async () => {
+    // (every deletion path is below; this one is the visit's own Delete)
     const visit = await newVisit('Gloss')
     const key = (await body(await as('owner', 'POST', `/api/service-records/${visit.id}/photos/before`, undefined, { body: photoForm() }))).photoBefore
     expect(t.store.objects.has(key)).toBe(true)
     expect((await as('owner', 'DELETE', `/api/service-records/${visit.id}`)).status).toBe(200)
     expect(t.store.objects.has(key)).toBe(false)
   })
+})
+
+// A visit row going away takes its photo files with it on EVERY path (visitPhotos.ts visitPhotoFilesOf /
+// removeVisitPhotoFiles): the visit's Delete (above), a completed appointment reopened, the legacy repair, and its
+// client deleted — in bulk, or alone — where the database's cascade takes the rows and no visit route runs.
+describe('every way a visit goes away takes its photo files', () => {
+  const yesterday = () => new Date(Date.now() - 86400000).toISOString()
+  /** A completed appointment's visit (the record Complete writes), with a before photo on it. */
+  const completedVisitWithPhoto = async (contactId: string) => {
+    const appt = await body(await as('owner', 'POST', '/api/appointments', { contactId, startTime: yesterday() }))
+    expect(appt.id).toBeTruthy()
+    expect((await as('owner', 'PUT', `/api/appointments/${appt.id}`, { status: 'completed' })).status).toBe(200)
+    const [rec] = await t.db.select().from(t.schema.serviceRecord).where(eq(t.schema.serviceRecord.appointmentId, appt.id))
+    const up = await body(await as('owner', 'POST', `/api/service-records/${rec.id}/photos/before`, undefined, { body: photoForm() }))
+    expect(t.store.objects.has(up.photoBefore)).toBe(true)
+    return { apptId: appt.id as string, visitId: rec.id as string, key: up.photoBefore as string }
+  }
+  const visitGone = async (id: string) => (await t.db.select().from(t.schema.serviceRecord).where(eq(t.schema.serviceRecord.id, id))).length === 0
+
+  test('a completed appointment reopened (cancelled): its visit and the photo file go', async () => {
+    const v = await completedVisitWithPhoto(client)
+    expect((await as('owner', 'PUT', `/api/appointments/${v.apptId}`, { status: 'cancelled' })).status).toBe(200)
+    expect(await visitGone(v.visitId)).toBe(true)
+    expect(t.store.objects.has(v.key)).toBe(false)
+  })
+
+  test('the legacy repair removing a cancelled appointment\'s visit removes its photo file', async () => {
+    const v = await completedVisitWithPhoto(client)
+    // what the old write paths left behind: an appointment cancelled under a visit that stayed
+    await t.db.update(t.schema.appointment).set({ status: 'cancelled' } as any).where(eq(t.schema.appointment.id, v.apptId))
+    const r = await body(await as('owner', 'POST', '/api/service-records/repair-legacy'))
+    expect(r.removed.map((x: any) => x.id)).toContain(v.visitId)
+    expect(await visitGone(v.visitId)).toBe(true)
+    expect(t.store.objects.has(v.key)).toBe(false)
+  })
+
+  test('a client deleted in bulk: the cascade takes the visits, and the photo files go too', async () => {
+    const doomed = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Bulk Gone', type: 'client' }))).id
+    const kept = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Bulk Kept', type: 'client' }))).id
+    const make = async (contactId: string) => {
+      const v = await body(await as('owner', 'POST', '/api/service-records', { contactId, notes: 'Fringe trim' }))
+      const up = await body(await as('owner', 'POST', `/api/service-records/${v.id}/photos/after`, undefined, { body: photoForm() }))
+      return { id: v.id as string, key: up.photoAfter as string }
+    }
+    const gone = await make(doomed)
+    const stays = await make(kept)
+    const r = await as('owner', 'POST', '/api/bulk/contacts/delete', { ids: [doomed] })
+    expect(r.status).toBe(200)
+    expect(await visitGone(gone.id)).toBe(true)
+    expect(t.store.objects.has(gone.key)).toBe(false)
+    // another client's photo is untouched
+    expect(t.store.objects.has(stays.key)).toBe(true)
+  })
+
+  test("a salon client with visits is not deleted alone (the salon's guard), so its photo files stay", async () => {
+    const someone = (await body(await as('owner', 'POST', '/api/contacts', { name: 'Guarded', type: 'client' }))).id
+    const v = await body(await as('owner', 'POST', '/api/service-records', { contactId: someone, notes: 'Blow-dry' }))
+    const key = (await body(await as('owner', 'POST', `/api/service-records/${v.id}/photos/before`, undefined, { body: photoForm() }))).photoBefore
+    expect((await as('owner', 'DELETE', `/api/contacts/${someone}`)).status).toBe(409)
+    expect(t.store.objects.has(key)).toBe(true)
+  })
+
+  test('a client deleted alone where no guard keeps them (any vertical with client charts on): the photo files go', async () => {
+    // A contractor's business with Client Profiles switched on: service records are served wherever the feature is
+    // (crm/salon/index.ts), and this vertical's contact guards do not count them — the cascade takes them.
+    const c = await bootTenant({ vertical: 'contractor' })
+    Object.assign((c.services as any).crm.storage, {
+      storageConfigured: () => true,
+      put: async (key: string, b: Buffer, type: string) => { await c.store.put(key, b, type) },
+      getObject: async (key: string) => c.store.getObject(key),
+      deleteFile: (key: string) => { void c.store.remove(key); return true },
+    })
+    const seeded = await seedOwner(c, PASSWORD)
+    await c.db.update(c.schema.company).set({ enabledFeatures: ['contacts', 'client_profiles'] } as any).where(eq(c.schema.company.id, seeded.company.id))
+    const tok = (await (await c.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: PASSWORD }, headers: { 'X-Forwarded-For': '198.51.100.250' } })).json()).accessToken
+    const call = (method: string, path: string, json?: unknown, init: any = {}) => c.call(path, { method, json, ...init, headers: { Authorization: `Bearer ${tok}` } })
+    const who = await (await call('POST', '/api/contacts', { name: 'Alone', type: 'client' })).json()
+    const v = await (await call('POST', '/api/service-records', { contactId: who.id, notes: 'Consult' })).json()
+    expect(v.id).toBeTruthy()
+    const key = (await (await call('POST', `/api/service-records/${v.id}/photos/before`, undefined, { body: photoForm() })).json()).photoBefore
+    expect(c.store.objects.has(key)).toBe(true)
+    const del = await call('DELETE', `/api/contacts/${who.id}`)
+    expect(del.status).toBe(204)
+    expect((await c.db.select().from(c.schema.serviceRecord).where(eq(c.schema.serviceRecord.id, v.id))).length).toBe(0)
+    expect(c.store.objects.has(key)).toBe(false)
+  }, 120_000)
 })

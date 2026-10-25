@@ -19,7 +19,7 @@ import type { CrmDeps } from '../deps.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK, normaliseFormula } from './formulas.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from './people.ts'
 import type { SalonServices } from './services.ts'
-import { PHOTO_COLUMN, isOwnVisitPhoto, isVisitPhotoSlot, photoFieldsOf, removeVisitPhotoFiles, unknownSlot, visitPhotoFolder, withVisitPhotos } from './visitPhotos.ts'
+import { PHOTO_COLUMN, isOwnVisitPhoto, isVisitPhotoSlot, photoFieldsOf, removeVisitPhotoFiles, unknownSlot, visitPhotoFilesOf, visitPhotoFolder, withVisitPhotos } from './visitPhotos.ts'
 import { encodedPhoto, photoResponse } from '../siteRecords/recordPhotos.ts'
 import { uploadedForm } from '../office/upload.ts'
 
@@ -96,6 +96,8 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     for (const row of futureRows) await redateVisitToCreation(db, row.id, cid)
 
     const staleRows = await visitsOfCancelledAppointments(db, cid)
+    // Their photo files go with them (./visitPhotos.ts, every deletion path): read now, dropped once the rows are gone.
+    const stalePhotoFiles = await visitPhotoFilesOf(db, cid, { visitIds: staleRows.map((r) => r.id) })
     const visitsRemoved: Array<{ id: string; contactId: string }> = []
     const formulasKept: Array<{ recordId: string; contactId: string; formulaId: string }> = []
     for (const row of staleRows) {
@@ -111,6 +113,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       await deleteVisitRecord(db, row.id, cid)
       visitsRemoved.push({ id: row.id, contactId: row.contactId })
     }
+    removeVisitPhotoFiles(d.services.storage, stalePhotoFiles)
 
     await audit.log({
       action: 'update', entity: 'service_record', entityId: 'repair-legacy',
@@ -185,7 +188,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     const [updated] = await db.update(serviceRecord).set({ [column]: key, updatedAt: new Date() } as any)
       .where(and(eq(serviceRecord.id, row.id), eq(serviceRecord.companyId, currentUser.companyId))).returning()
     // The photo it replaced, if it was one of this visit's uploads.
-    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d, [row[column]])
+    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d.services.storage, [row[column]])
     await audit.log({ action: 'update', entity: 'service_record', entityId: row.id, metadata: { photo: slot, name: got.name }, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
     return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) }, 201)
@@ -214,7 +217,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if (!row[column]) return fail(c, 404, 'Photo not found')
     const [updated] = await db.update(serviceRecord).set({ [column]: null, updatedAt: new Date() } as any)
       .where(and(eq(serviceRecord.id, row.id), eq(serviceRecord.companyId, currentUser.companyId))).returning()
-    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d, [row[column]])
+    if (isOwnVisitPhoto(row[column], currentUser.companyId, row.id)) removeVisitPhotoFiles(d.services.storage, [row[column]])
     await audit.log({ action: 'update', entity: 'service_record', entityId: row.id, metadata: { photoRemoved: slot }, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
     return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) })
@@ -258,7 +261,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
         if ('formula' in body) upd.formula = normaliseFormula(body.formula)
         if (body.performedAt) upd.performedAt = visitDate(body.performedAt)
         const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
-        removeVisitPhotoFiles(d, photos.drop)
+        removeVisitPhotoFiles(d.services.storage, photos.drop)
         refresh(currentUser.companyId, 'service_record')
         // The bill this visit already has, not null. (Salon RR8)
         const billed = merged.invoiceId || await checkout.invoiceIdForVisit(currentUser.companyId, body.appointmentId)
@@ -340,7 +343,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if (updates.performedAt) updates.performedAt = new Date(updates.performedAt)
 
     const [updated] = await db.update(serviceRecord).set(updates).where(eq(serviceRecord.id, id)).returning()
-    removeVisitPhotoFiles(d, photos.drop)
+    removeVisitPhotoFiles(d.services.storage, photos.drop)
     await audit.log({ action: 'update', entity: 'service_record', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
     return one(c, { ...withVisitPhotos(updated), stylistId: stylistIdOf(updated) })
@@ -383,6 +386,8 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       }
     }
 
+    // The visit's photo files, read before it goes and dropped once it has (./visitPhotos.ts, every deletion path).
+    const photoFiles = await visitPhotoFilesOf(db, currentUser.companyId, { visitIds: [id] })
     let voidedInvoice: { id: string; number: string } | null = null
     await db.transaction(async (tx: any) => {
       if (linkedInvoice && !visitSurvives && linkedInvoice.status !== 'void' && linkedInvoice.status !== 'refunded') {
@@ -392,8 +397,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
       }
       await tx.delete(serviceRecord).where(eq(serviceRecord.id, id))
     })
-    // The visit's photos go with it: nothing points at them any more.
-    removeVisitPhotoFiles(d, [existing.photoBefore, existing.photoAfter].filter((k) => isOwnVisitPhoto(k, currentUser.companyId, id)))
+    removeVisitPhotoFiles(d.services.storage, photoFiles)
 
     await audit.log({ action: 'delete', entity: 'service_record', entityId: id, metadata: { ...existing, voidedInvoice }, req: { user: currentUser } })
     refresh(currentUser.companyId, 'service_record')
