@@ -42,7 +42,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   // Tick or untick an optional line (the server works the totals out again: tenant-backend quotes.ts /:id/options).
   const choose = async (lineItemId: string, selected: boolean) => {
     setBusy(true)
-    try { setQuote({ ...quote, ...(await api.post(`/api/quotes/${id}/options`, { lineItemId, selected })) }) } catch (e) { toast.error(errMsg(e, 'Could not change that line')) } finally { setBusy(false) }
+    try { const next = await api.post(`/api/quotes/${id}/options`, { lineItemId, selected }); setQuote((s: any) => ({ ...s, ...next })) } catch (e) { toast.error(errMsg(e, 'Could not change that line')) } finally { setBusy(false) }
   }
   const hasOptional = cfg.quoteOptions && (quote.lineItems || []).some((li: any) => li.optional)
   const depositAsked = cfg.quoteDeposit && quote.depositType ? (quote.depositType === 'percent' ? Math.min(Number(quote.total), Number(quote.total) * Math.min(100, Number(quote.depositValue)) / 100) : Math.min(Number(quote.depositValue), Number(quote.total))) : 0

@@ -15,8 +15,8 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 // the route
 const sms = read('packages/tenant-backend/src/integrations/sms.ts')
 const route = sms.slice(sms.indexOf("app.post('/send'"), sms.indexOf("app.post('/conversations/:id/reply'"))
-if (!/const \{ contactId, toPhone, message, jobId, templateId \} = await c\.req\.json\(\)/.test(route)) fail('POST /api/sms/send must read { contactId, toPhone, message, jobId, templateId }')
-if (!/if \(!message\) return c\.json\(\{ error: 'Message is required' \}, 400\)/.test(route)) fail('POST /api/sms/send must require message')
+if (!/const \{ contactId, toPhone, message, jobId, templateId(?:, media)? \} = await c\.req\.json\(\)/.test(route)) fail('POST /api/sms/send must read { contactId, toPhone, message, jobId, templateId }')
+if (!/if \(!message(?: && !\(Array\.isArray\(media\) && media\.length\))?\) return c\.json\(\{ error: 'Message is required' \}, 400\)/.test(route)) fail('POST /api/sms/send must require message')
 if (!/if \(!contactId && !toPhone\) return c\.json/.test(route)) fail('POST /api/sms/send must require contactId or toPhone')
 
 // the send itself: a wallet refusal opens no thread and writes no row; a text to a bare number is filed
