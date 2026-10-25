@@ -8,7 +8,7 @@
 import { describe, test, expect, afterAll } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { sanitizeEmailHtml, isSafeCss } from '../../../packages/tenant-backend/src/marketing/emailHtml.ts'
 import { createMarketingService, personalize, MERGE_FIELDS } from '../../../packages/tenant-backend/src/marketing/marketing.ts'
 import { registerVocabulary } from '../../../packages/tenant-ui/src/labels/vocabulary.ts'
@@ -213,18 +213,40 @@ describe('the server keeps only the allow-list, wherever a body is saved', () =>
   }, 120_000)
 })
 
-describe('a campaign saved as HTML before the editor sends exactly as it was written', () => {
-  test('the stored body goes out unchanged', async () => {
+describe('one allow-list at save and at send', () => {
+  // No public address: no pixel or footer is added, so what goes out is the body itself.
+  const capture = (t: any, sent: any[], extra: Record<string, unknown> = {}) => createMarketingService({ db: t.db, tables: { campaign: t.schema.campaign, contact: t.schema.contact, emailLog: t.schema.emailLog }, sendRaw: async (m: any) => { sent.push(m); return {} }, env: {}, ...extra } as any)
+
+  test('a clean campaign saved as HTML before the editor sends exactly as it was written', async () => {
     const { t, companyId } = await tenant('contractor')
-    const legacy = '<table width="100%" style="background:#f3f4f6"><tr><td style="padding:24px"><h1>Hello {{firstName}}</h1><p>Our <a href="https://x.test/offer">autumn offer</a> ends Friday.</p><!-- footer --><p style="font-size:12px">Reply STOP</p></td></tr></table>'
+    const legacy = '<style>.small{font-size:12px}</style><table width="100%" style="background:#f3f4f6"><tr><td style="padding:24px"><h1>Hello {{firstName}}</h1><p>Our <a href="https://x.test/offer" target="_blank">autumn offer</a> ends Friday.</p><p class="small">Reply STOP</p></td></tr></table>'
     const [row] = await t.db.insert(t.schema.campaign).values({ companyId, name: 'Old', type: 'email', subject: 'Autumn, {{firstName}}', content: legacy, status: 'draft', audienceType: 'all' } as any).returning()
     const sent: any[] = []
-    // No public address: no pixel or footer is added, so what goes out is the body itself.
-    const service = createMarketingService({ db: t.db, tables: { campaign: t.schema.campaign, contact: t.schema.contact, emailLog: t.schema.emailLog }, sendRaw: async (m) => { sent.push(m); return {} }, env: {} })
-    const r = await service.sendCampaign(row.id, companyId)
+    const r = await capture(t, sent).sendCampaign(row.id, companyId)
     expect(r.sent).toBe(1)
     expect(sent[0].html).toBe(legacy.replace('{{firstName}}', 'Ann'))
     expect(sent[0].subject).toBe('Autumn, Ann')
+  }, 120_000)
+
+  test('a stored row with handlers or javascript: links is cleaned on the way out — campaign and drip', async () => {
+    const { t, companyId } = await tenant('contractor')
+    // Written to the table directly, as a row saved before the allow-list would be.
+    const [row] = await t.db.insert(t.schema.campaign).values({ companyId, name: 'Old', type: 'email', subject: 'Hi', content: HOSTILE, status: 'draft', audienceType: 'all' } as any).returning()
+    const sent: any[] = []
+    await capture(t, sent).sendCampaign(row.id, companyId)
+    expect(sent[0].html).toBe(CLEAN.replace('{{firstName}}', 'Ann'))
+    // the stored row itself is left as it was (the send cleans its copy)
+    const [stored] = await t.db.select().from(t.schema.campaign).where(eq(t.schema.campaign.id, row.id))
+    expect(stored.content).toBe(HOSTILE)
+
+    const [contact] = await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.companyId, companyId))
+    const seqId = 'seq_old_hostile'
+    await t.db.execute(sql`INSERT INTO drip_sequence (id, company_id, name, trigger, active, steps) VALUES (${seqId}, ${companyId}, 'Old drip', 'manual', true, ${JSON.stringify([{ stepNumber: 1, delayDays: 0, delayHours: 0, subject: 'Hi', body: HOSTILE }])}::json)`)
+    await t.db.execute(sql`INSERT INTO sequence_enrollment (id, sequence_id, contact_id, current_step, status, next_email_at) VALUES ('enr_old_hostile', ${seqId}, ${contact.id}, 1, 'active', NOW() - INTERVAL '1 minute')`)
+    const drips: any[] = []
+    const d = await capture(t, drips).processDripEmails()
+    expect(d.sent).toBe(1)
+    expect(drips[0].html).toBe(CLEAN.replace('{{firstName}}', 'Ann'))
   }, 120_000)
 
   test('the footer says the business\'s word for who it is writing to', async () => {

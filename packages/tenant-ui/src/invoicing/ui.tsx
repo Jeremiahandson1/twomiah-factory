@@ -7,6 +7,7 @@ import { MoreVertical, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { LineItemInput, PricebookPick } from './types'
 import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
+import { useConfirm } from '../ui/confirmContext'
 
 // ---------------------------------------------------------------- formatting
 // The one money formatter (../money.ts): the sign before the dollar sign.
@@ -266,24 +267,60 @@ export function Field({ label, children, hint }: { label: React.ReactNode; child
 }
 
 // ---------------------------------------------------------------- modal
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
+/**
+ * The dialogs open now, oldest first. Escape closes the TOP one only: every open Modal listened on the document, so one
+ * Escape in a confirm drawn over a form closed the form too (salon live test, 2026-10-25). An Escape a control inside
+ * the dialog already handled (preventDefault — the email editor's link panel) closes nothing.
+ */
+const openModals: object[] = []
+
+/**
+ * Close, asking first when there is unsaved work: the same rule for a dialog's Escape, backdrop and × (Modal `dirty`)
+ * and for a form's own Cancel button, which calls the function this returns. Not dirty: closes at once, as before.
+ */
+export function useGuardedClose(dirty: boolean | undefined, onClose: () => void, message = 'You have changes that are not saved. Close and lose them?') {
+  const confirm = useConfirm()
+  return async () => {
+    if (dirty && !(await confirm(message, { title: 'Discard changes?', confirmText: 'Discard' }))) return
+    onClose()
+  }
+}
+
+export function Modal({ isOpen, onClose, title, children, size = 'md', dirty, dirtyMessage }: {
+  isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl'
+  /** Unsaved work in the dialog: closing it (Escape, backdrop, ×) asks first, with the app's own confirm. */
+  dirty?: boolean
+  dirtyMessage?: string
+}) {
+  const close = useGuardedClose(dirty, onClose, dirtyMessage)
+  const closeRef = useRef(close)
+  closeRef.current = close
   useEffect(() => {
     if (!isOpen) return
+    const me = {}
+    openModals.push(me)
     const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || openModals[openModals.length - 1] !== me) return
+      e.preventDefault()
+      closeRef.current()
+    }
     document.addEventListener('keydown', onKey)
-    return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey) }
-  }, [isOpen, onClose])
+    return () => {
+      const at = openModals.indexOf(me); if (at >= 0) openModals.splice(at, 1)
+      document.body.style.overflow = prev; document.removeEventListener('keydown', onKey)
+    }
+  }, [isOpen])
   if (!isOpen) return null
   const width = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size]
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/60" onClick={close} />
       <div className="flex min-h-full items-center justify-center p-4">
         <div className={`relative w-full ${width} bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl`}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
             <h3 className="text-lg font-semibold">{title}</h3>
-            <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-200" aria-label="Close"><X className="w-5 h-5" /></button>
+            <button onClick={close} className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-200" aria-label="Close"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5">{children}</div>
         </div>

@@ -3,9 +3,9 @@
 // Before: two copies whose tables read fields the backend never sent (recipients / enrolled always 0, opens and clicks
 // always "-"), no way to enroll a contact in a sequence, edit a sequence, duplicate or delete a template, alert()s for
 // every failure, and a trigger picker offering automations nothing fires.
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, Clock, Play, Pause, UserPlus, Calendar, X } from 'lucide-react'
-import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
+import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls, useGuardedClose } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 import { whenDateTime, companyFromLocalInput } from '../time/companyClock'
@@ -85,6 +85,15 @@ function Stat({ icon: Icon, label, value, tone = 'gray' }: { icon: any; label: s
 }
 const ErrorBox = ({ msg }: { msg: string }) => (msg ? <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{msg}</div> : null)
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+/**
+ * Has the form moved from what it opened with? An email is real work: Escape, the backdrop, × and Cancel ask before it is
+ * thrown away (the shared Modal's `dirty`; salon live test, 2026-10-25).
+ */
+function useUnsaved(form: unknown, onClose: () => void) {
+  const opened = useRef(JSON.stringify(form))
+  const dirty = JSON.stringify(form) !== opened.current
+  return { dirty, cancel: useGuardedClose(dirty, onClose) }
+}
 /** What the email editor draws with: the business's colour and logo, and its photo library (MarketingConfig). */
 interface EditorLook { brand?: EmailBrand; pickImage?: () => Promise<string | null> }
 
@@ -187,6 +196,7 @@ function useMergeFields(api: MarketingApi) {
 function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string } | null) || null
   const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10) })
+  const unsaved = useUnsaved(form, onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [audience, setAudience] = useState<number | null>(null)
@@ -209,7 +219,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
     } catch (e) { setError(errMsg(e, 'Failed to save campaign')) } finally { setSaving(false) }
   }
   return (
-    <Modal isOpen onClose={onClose} title={campaign ? 'Edit Campaign' : 'New Campaign'} size="lg">
+    <Modal isOpen onClose={onClose} dirty={unsaved.dirty} title={campaign ? 'Edit Campaign' : 'New Campaign'} size="lg">
       <div className="space-y-4">
         <ErrorBox msg={error} />
         <Field label="Campaign name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
@@ -228,7 +238,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
           <EmailEditor value={form.body} onChange={(body) => setForm((f) => ({ ...f, body }))} fields={fields} subject={form.subject} brand={look.brand} pickImage={look.pickImage} />
         </Field>
       </div>
-      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={unsaved.cancel}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
     </Modal>
   )
 }
@@ -274,6 +284,7 @@ function TemplatesTab({ api, toast, look }: { api: MarketingApi; toast: Marketin
 }
 function TemplateForm({ api, toast, template, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; template: Template | null; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const [form, setForm] = useState({ name: template?.name || '', subject: template?.subject || '', body: template?.body || '', category: template?.category || template?.type || 'general', active: template?.active !== false })
+  const unsaved = useUnsaved(form, onClose)
   const fields = useMergeFields(api)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -285,7 +296,7 @@ function TemplateForm({ api, toast, template, look, onSaved, onClose }: { api: M
     catch (e) { setError(errMsg(e, 'Failed to save template')) } finally { setSaving(false) }
   }
   return (
-    <Modal isOpen onClose={onClose} title={template ? 'Edit Template' : 'New Template'} size="lg">
+    <Modal isOpen onClose={onClose} dirty={unsaved.dirty} title={template ? 'Edit Template' : 'New Template'} size="lg">
       <div className="space-y-4">
         <ErrorBox msg={error} />
         <div className="grid grid-cols-2 gap-4">
@@ -298,7 +309,7 @@ function TemplateForm({ api, toast, template, look, onSaved, onClose }: { api: M
         </Field>
         {template && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="rounded" /> Active</label>}
       </div>
-      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={unsaved.cancel}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
     </Modal>
   )
 }
@@ -361,6 +372,7 @@ function SequencesTab({ api, toast, label, look, onChanged }: { api: MarketingAp
 }
 function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence | null; label: string; look: EditorLook; onSaved: () => void; onClose: () => void }) {
   const [form, setForm] = useState<{ name: string; active: boolean; steps: Step[] }>({ name: sequence?.name || '', active: sequence ? !!sequence.active : true, steps: sequence?.steps?.length ? sequence.steps.map((s) => ({ delayDays: Number(s.delayDays || 0), delayHours: Number(s.delayHours || 0), subject: s.subject || '', body: s.body || '' })) : [{ delayDays: 0, delayHours: 0, subject: '', body: '' }] })
+  const unsaved = useUnsaved(form, onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const setStep = (i: number, patch: Partial<Step>) => setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
@@ -384,7 +396,7 @@ function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: {
     } catch (e) { setError(errMsg(e, 'Failed to save sequence')) } finally { setSaving(false) }
   }
   return (
-    <Modal isOpen onClose={onClose} title={sequence ? `Edit ${label.replace(/s$/, '')}` : `New ${label.replace(/s$/, '')}`} size="xl">
+    <Modal isOpen onClose={onClose} dirty={unsaved.dirty} title={sequence ? `Edit ${label.replace(/s$/, '')}` : `New ${label.replace(/s$/, '')}`} size="xl">
       <div className="space-y-4">
         <ErrorBox msg={error} />
         <div className="grid grid-cols-2 gap-4">
@@ -412,7 +424,7 @@ function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: {
           ))}
         </div>
       </div>
-      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : sequence ? 'Save' : 'Create sequence'}</Button></div>
+      <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={unsaved.cancel}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : sequence ? 'Save' : 'Create sequence'}</Button></div>
     </Modal>
   )
 }

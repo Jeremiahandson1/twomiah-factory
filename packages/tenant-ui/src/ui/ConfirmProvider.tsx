@@ -16,19 +16,11 @@
 // would have been a bigger change than the defect.
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { Button, ConfirmModal, Modal, inputCls } from '../invoicing/ui'
-
-export interface ConfirmOptions {
-  /** Dialog heading. Default "Are you sure?". */
-  title?: string
-  /** The affirmative button. Default "Confirm". */
-  confirmText?: string
-  /** Red button for a destructive act (the default), or the primary colour for an ordinary one. */
-  danger?: boolean
-}
-
-type Ask = (message: string, options?: ConfirmOptions) => Promise<boolean>
-
-const ConfirmContext = createContext<Ask | null>(null)
+import { ConfirmContext, useConfirm, type Ask, type ConfirmOptions } from './confirmContext'
+// The question's context and useConfirm live in confirmContext.ts (the shared Modal asks it too, salon live test
+// 2026-10-25); exported from here as they always were.
+export { useConfirm }
+export type { ConfirmOptions }
 
 /**
  * Ask for a line of TEXT. Same contract as window.prompt — the answer, or null if they backed out —
@@ -99,16 +91,6 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       </PromptContext.Provider>
     </ConfirmContext.Provider>
   )
-}
-
-/**
- * Ask the person a yes/no question. Falls back to window.confirm when no provider is mounted, so a screen
- * rendered outside the app shell (or a template that has not added the provider yet) still asks rather
- * than silently proceeding — the one outcome worse than an ugly dialog.
- */
-export function useConfirm(): Ask {
-  const ctx = useContext(ConfirmContext)
-  return ctx || (async (message: string) => window.confirm(message))
 }
 
 /**

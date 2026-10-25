@@ -282,12 +282,15 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     // Delivery truth: an empty audience is not a successful send.
     if (contacts.length === 0) throw new MarketingError('This campaign has no deliverable recipients. Add contacts with email addresses to the selected audience, then send.', 400)
     await db.update(t.campaign).set({ status: 'sending', sentAt: new Date(), recipientCount: contacts.length }).where(eq(t.campaign.id, id))
+    // The same allow-list as the save (emailHtml.ts), on the way out: a row stored before it — or written to the table by
+    // anything but the routes — goes out cleaned. A clean body is kept byte for byte, so it sends exactly as written.
+    const body = sanitizeEmailHtml(row.content || '')
     let sentCount = 0, firstError: string | null = null
     for (const c of contacts) {
       let recipientId: string | null = null
       try {
         recipientId = first(await db.execute(sql`INSERT INTO email_recipient (id, campaign_id, contact_id, email, status) VALUES (${createId()}, ${id}, ${c.id}, ${c.email}, 'sent') RETURNING id`))?.id ?? null
-        await sendRaw({ to: c.email, subject: personalize(row.subject || '', c), html: decorate(personalize(row.content || '', c, { html: true }), recipientId, c.id) })
+        await sendRaw({ to: c.email, subject: personalize(row.subject || '', c), html: decorate(personalize(body, c, { html: true }), recipientId, c.id) })
         await db.execute(sql`UPDATE email_recipient SET sent_at = NOW() WHERE id = ${recipientId}`)
         await db.insert(t.emailLog).values({ companyId, to: c.email, subject: row.subject || '', body: row.content, status: 'sent', contactId: c.id, sentAt: new Date() })
         sentCount++
@@ -419,7 +422,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       if (unknownMergeFields(step.subject, step.body).length) { console.error('[Marketing] Drip step held, unknown merge field:', e.sequence_id, unknownMergeFields(step.subject, step.body).join(', ')); continue }
       try {
         const person = { name: e.contact_name, email: e.email, company: e.contact_company }
-        await sendRaw({ to: e.email, subject: personalize(step.subject, person), html: decorate(personalize(step.body, person, { html: true }), null, e.contact_id) })
+        await sendRaw({ to: e.email, subject: personalize(step.subject, person), html: decorate(personalize(sanitizeEmailHtml(step.body), person, { html: true }), null, e.contact_id) })
         const next = steps.find((s: any) => Number(s.stepNumber) === Number(e.current_step) + 1)
         if (next) await db.execute(sql`UPDATE sequence_enrollment SET current_step = ${Number(e.current_step) + 1}, next_email_at = NOW() + INTERVAL '1 day' * ${Number(next.delayDays || 0)} + INTERVAL '1 hour' * ${Number(next.delayHours || 0)}, last_email_at = NOW() WHERE id = ${e.id}`)
         else await db.execute(sql`UPDATE sequence_enrollment SET status = 'completed', completed_at = NOW(), last_email_at = NOW() WHERE id = ${e.id}`)

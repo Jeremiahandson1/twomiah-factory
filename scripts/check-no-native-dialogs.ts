@@ -32,6 +32,9 @@ const EXEMPT = [
   'contexts/ToastContext.tsx',
   // provides useConfirm, and falls back to window.confirm when no provider is mounted
   'ui/ConfirmProvider.tsx',
+  // useConfirm itself, moved out of ConfirmProvider so the shared Modal can ask before a dirty close without an
+  // import cycle (salon live test, 2026-10-25) — the same fallback, the same exemption
+  'ui/confirmContext.ts',
 ]
 
 const walk = (dir: string): string[] => {

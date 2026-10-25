@@ -201,7 +201,10 @@ export function EmailEditor({ value, onChange, fields, subject = '', brand, pick
             )}
           </div>
           {panel && (
-            <div className="grid gap-2 border border-b-0 border-gray-300 bg-gray-50 px-3 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end dark:border-slate-600 dark:bg-slate-800">
+            // Escape here closes this panel only — marked handled, so the dialog around the editor stays open (the
+            // shared Modal ignores an Escape a control already handled).
+            <div onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPanel(null); setNotice('') } }}
+              className="grid gap-2 border border-b-0 border-gray-300 bg-gray-50 px-3 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end dark:border-slate-600 dark:bg-slate-800">
               <label className="text-xs text-gray-700 dark:text-slate-300">{panel === 'button' ? 'Button text' : panel === 'image' ? 'Description (for screen readers)' : 'Text to show'}
                 <input value={panelText} onChange={(e) => setPanelText(e.target.value)} className={`${inputCls} mt-1`} placeholder={panel === 'button' ? 'Book now' : ''} />
               </label>
