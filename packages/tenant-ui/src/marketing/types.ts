@@ -20,4 +20,9 @@ export interface MessagesConfig {
   /** Where "New message" looks people up — defaults to /api/contacts. */
   contactsPath?: string
   subtitle?: string
+  /**
+   * An app's own reply box under a thread, in place of the words-only one (the unified app's: pictures and sending
+   * later). Given the open conversation and what to call once something was sent or set.
+   */
+  composer?: (p: { conversationId: string; contactId: string | null; onSent: () => void }) => import('react').ReactNode
 }

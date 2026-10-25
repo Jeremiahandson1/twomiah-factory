@@ -8,7 +8,7 @@ import type { MarketingApi, MarketingToast, MessagesConfig } from './types'
 import { momentDate, whenTime } from '../time/companyClock'
 
 interface Conversation { id: string; phoneNumber?: string; unreadCount?: number; contact?: { id?: string; name?: string; email?: string } | null; lastMessage?: { body?: string; direction?: string; createdAt?: string } | null; archived?: boolean }
-interface Msg { id: string; body: string; direction: 'inbound' | 'outbound' | string; status?: string; createdAt: string }
+interface Msg { id: string; body: string; direction: 'inbound' | 'outbound' | string; status?: string; createdAt: string; media?: Array<{ url: string }> }
 
 // +16085550188 → (608) 555-0188; anything else is shown as stored.
 export function fmtPhone(p: unknown): string {
@@ -117,7 +117,8 @@ export function MessagesPage({ api, toast, config }: { api: MarketingApi; toast:
               {selected.phoneNumber && <a href={`tel:${String(selected.phoneNumber).replace(/[^\d+]/g, '')}`} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800">Call</a>}
               <button onClick={() => archive(selected)} title="Archive conversation" className="p-2 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800"><Archive className="w-5 h-5 text-gray-500 dark:text-slate-400" /></button>
             </div>
-            <Thread api={api} toast={toast} messages={messages} loading={loadingMessages} conversationId={selected.id} onSent={() => { select(selected); loadConversations() }} />
+            <Thread api={api} toast={toast} messages={messages} loading={loadingMessages} conversationId={selected.id} onSent={() => { select(selected); loadConversations() }}
+              composer={config?.composer ? config.composer({ conversationId: selected.id, contactId: selected.contact?.id || null, onSent: () => { select(selected); loadConversations() } }) : undefined} />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-slate-400"><div className="text-center"><MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" /><p>Select a conversation to view messages</p></div></div>
@@ -129,7 +130,7 @@ export function MessagesPage({ api, toast, config }: { api: MarketingApi; toast:
   )
 }
 
-function Thread({ api, toast, messages, loading, conversationId, onSent }: { api: MarketingApi; toast: MarketingToast; messages: Msg[]; loading: boolean; conversationId: string; onSent: () => void }) {
+function Thread({ api, toast, messages, loading, conversationId, onSent, composer }: { api: MarketingApi; toast: MarketingToast; messages: Msg[]; loading: boolean; conversationId: string; onSent: () => void; composer?: React.ReactNode }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -152,7 +153,11 @@ function Thread({ api, toast, messages, loading, conversationId, onSent }: { api
           return (
             <div key={msg.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
               <div className="max-w-[70%]">
-                <div className={`px-4 py-2 rounded-2xl ${out ? 'bg-orange-500 text-white rounded-br-md' : 'bg-white border rounded-bl-md dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'}`}><p className="text-sm whitespace-pre-wrap">{msg.body}</p></div>
+                <div className={`px-4 py-2 rounded-2xl ${out ? 'bg-orange-700 text-white rounded-br-md' : 'bg-white border rounded-bl-md dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'}`}>
+                  {/* A picture message: each picture by the short-lived link the server gave this read of the thread. */}
+                  {(msg.media || []).length > 0 && <div className="mb-1 flex flex-wrap gap-1" data-testid="message-pictures">{(msg.media || []).map((m, i) => <a key={i} href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt="Picture in this text" className="max-h-48 max-w-full rounded-lg bg-white object-cover" /></a>)}</div>}
+                  {msg.body && <p className="text-sm whitespace-pre-wrap">{msg.body}</p>}
+                </div>
                 <div className={`flex items-center gap-1 mt-1 ${out ? 'justify-end' : ''}`}><span className="text-xs text-gray-500 dark:text-slate-400">{whenTime(msg.createdAt, { hour: '2-digit', minute: '2-digit' })}</span>{out && icon(msg.status)}</div>
               </div>
             </div>
@@ -160,12 +165,12 @@ function Thread({ api, toast, messages, loading, conversationId, onSent }: { api
         })}
         <div ref={endRef} />
       </div>
-      <form onSubmit={send} className="p-4 bg-white border-t dark:bg-slate-900 dark:border-slate-800">
+      {composer ?? <form onSubmit={send} className="p-4 bg-white border-t dark:bg-slate-900 dark:border-slate-800">
         <div className="flex gap-2">
           <input type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." className={inputCls} maxLength={1600} />
           <button type="submit" aria-label={sending ? "Sending message" : "Send message"} disabled={!text.trim() || sending} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed">{sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}</button>
         </div>
-      </form>
+      </form>}
     </>
   )
 }

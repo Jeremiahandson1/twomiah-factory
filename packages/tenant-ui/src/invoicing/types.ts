@@ -75,6 +75,13 @@ export interface InvoicingConfig {
    * the record as loaded. Absent: nothing.
    */
   aside?: (doc: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => import('react').ReactNode
+  /**
+   * A quote line may be OPTIONAL (offered, counted only once ticked — tenant-backend invoicing/quoteOptions.ts) and a quote
+   * may ask a DEPOSIT on approval. Only for an app whose quote tables have the columns (the unified app); absent, the
+   * editor and the quote page are as they were.
+   */
+  quoteOptions?: boolean
+  quoteDeposit?: boolean
 }
 
 export interface InvoicingPageProps {
@@ -120,7 +127,13 @@ export interface LineItemInput {
   unitCost?: number
   /** Which catalogue item it was priced from. */
   pricebookItemId?: string
+  /** An optional line, and whether it is ticked (InvoicingConfig.quoteOptions). An optional line counts once ticked. */
+  optional?: boolean
+  selected?: boolean
 }
+
+/** The lines a quote's price counts: every line not optional, and the optional ones ticked. */
+export const countedLines = <T extends { optional?: boolean; selected?: boolean }>(items: T[]): T[] => items.filter((li) => !li.optional || !!li.selected)
 
 /** A pricebook entry as the quote editor needs it. `cost` is absent when the caller may not see it. */
 export interface PricebookPick {

@@ -54,6 +54,8 @@ export interface JobsConfig {
    * series (packages/tenant-backend jobs.ts tables.jobSeries — the unified app). Default false. (live test 2026-10-22)
    */
   repeat?: boolean
+  /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
+  aside?: (job: Record<string, any>) => import('react').ReactNode
 }
 
 /**

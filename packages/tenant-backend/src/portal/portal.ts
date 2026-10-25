@@ -17,6 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
+import { includedLines, depositAmount, chooseOptionalLine } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -95,6 +96,16 @@ export interface PortalDeps {
    * how to pay. Optional: a template that does not wire it keeps the Pay button it always showed. (2026-10-22)
    */
   canTakeCardPayments?: (companyId: string) => Promise<boolean>
+  /**
+   * The deposit a quote asks, once it is approved (the unified app's billing, apps/unified/server/crm/billing): raised
+   * when the customer approves (onApproved), and read back on the quote's page (depositFor) — its invoice's number,
+   * what is still owed and the invoice's own link, where the customer pays it or is told how. Optional: a template's
+   * quotes ask no deposit.
+   */
+  quoteDeposit?: {
+    onApproved: (companyId: string, quote: any) => Promise<unknown>
+    depositFor: (companyId: string, quoteId: string) => Promise<unknown>
+  }
   options?: PortalOptions
 }
 
@@ -148,8 +159,9 @@ const MAX_SIGNATURE_BYTES = 500_000
  * customer's hands until somebody decides it belongs there. Each list is what PortalQuotes / PortalProjects read,
  * plus the dates and ids the portal already has.
  */
-const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId'] as const
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder'] as const
+const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
+// optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -671,7 +683,32 @@ export function createPortalRoutes(deps: PortalDeps) {
       await db.update(t.quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(t.quote.id, quoteId))
       found.status = 'viewed'
     }
-    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone), lineItems: (await customerLines(db, contact.companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
+    return c.json({ ...(await customerQuote(contact.companyId, found, lineItems, company)), project: projectInfo })
+  }
+  /** The customer's copy of a quote: named fields, lines without item codes, the deposit it asks and — approved — its invoice. */
+  const customerQuote = async (companyId: string, found: any, lineItems: any[], company: any) => {
+    const asks = 'depositType' in found ? depositAmount(found) : 0
+    const deposit = asks > 0 && found.status === 'approved' && deps.quoteDeposit ? await deps.quoteDeposit.depositFor(companyId, found.id).catch(() => null) : null
+    return {
+      ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
+      lineItems: (await customerLines(db, companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
+      company: { name: company.name, email: company.email, phone: company.phone },
+    }
+  }
+  /** The customer ticks or unticks an optional line while the quote is still theirs to answer; the totals follow. */
+  const chooseOption = async (c: any) => {
+    const { contact, company } = P(c)
+    const quoteId = c.req.param('quoteId')
+    const found = await visibleQuote(quoteId, contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
+    if (refused) return c.json({ error: refused }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r: any = await chooseOptionalLine(db, t, contact.companyId, quoteId, body?.lineItemId, body?.selected)
+    if ('error' in r) return c.json({ error: r.error }, r.status)
+    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
+    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
@@ -716,13 +753,19 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
-    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId))
+    // What they signed is what is included: an optional line they left unticked is not part of the agreement.
+    const lineItems = includedLines(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
     const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
     await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total })
     notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
-    return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS) })
+    // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
+    let deposit: unknown = null
+    if (deps.quoteDeposit) {
+      try { deposit = await deps.quoteDeposit.onApproved(contact.companyId, updated) } catch (err) { log.error('[portal] deposit invoice not raised', { quote: found.number, error: (err as Error).message }) }
+    }
+    return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS), ...(deps.quoteDeposit ? { deposit } : {}) })
   }
 
   const rejectQuote = async (c: any) => {
@@ -813,6 +856,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.get('/p/:token/quotes/:quoteId', portalAuth, quoteDetail)
   app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
+  app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -826,6 +870,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.get('/d/:token/quotes/:quoteId', docAuth, onlyLinked('quote', 'quoteId'), quoteDetail)
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
+  app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)

@@ -14,7 +14,10 @@ export interface PortalQuoteData {
   id: string; number: string; name?: string | null; status: string; total: string | number; subtotal?: string | number
   taxAmount?: string | number; taxRate?: string | number; discount?: string | number; terms?: string | null
   expiryDate?: string | null; approvedAt?: string | null; signature?: string | null; signedBy?: string | null; approvedBy?: string | null
-  lineItems?: Array<{ description: string; quantity: string | number; unitPrice: string | number; total: string | number }>
+  lineItems?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; optional?: boolean; selected?: boolean }>
+  /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
+  depositAmount?: string
+  deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
   project?: { name: string; number?: string } | null
   [key: string]: unknown
 }
@@ -85,8 +88,14 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
     setBusy(true); setShowSign(false); setError('')
     try {
       const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent }) })
-      setQuote((q) => ({ ...(q as PortalQuoteData), ...(res?.quote || { status: 'approved', signature: sig.signature, signedBy: sig.signedBy, approvedAt: sig.signedAt }) }))
+      setQuote((q) => ({ ...(q as PortalQuoteData), ...(res?.quote || { status: 'approved', signature: sig.signature, signedBy: sig.signedBy, approvedAt: sig.signedAt }), ...(res?.deposit !== undefined ? { deposit: res.deposit } : {}) }))
     } catch (e) { setError('Failed to approve quote: ' + (e as Error).message) } finally { setBusy(false) }
+  }
+  // Tick or untick an optional line before approving: the server works the total out again and answers the quote.
+  const choose = async (lineItemId: string, selected: boolean) => {
+    setBusy(true); setError('')
+    try { const res = await portalFetch(`/quotes/${quoteId}/options`, { method: 'POST', body: JSON.stringify({ lineItemId, selected }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    catch (e) { setError('Could not change that line: ' + (e as Error).message) } finally { setBusy(false) }
   }
   const decline = async () => {
     setBusy(true); setError('')
@@ -98,6 +107,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   if (!quote) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Quote not found.'}</div>
   const canRespond = RESPONDABLE.includes(quote.status)
   const business = (quote.company as { name?: string | null } | undefined)?.name || 'us'
+  const hasOptional = (quote.lineItems || []).some((li) => li.optional)
+  const reach = [(quote.company as any)?.phone, (quote.company as any)?.email].filter(Boolean).join(' or ')
 
   return (
     <div>
@@ -117,7 +128,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           <table className="w-full">
             <thead><tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400 dark:border-slate-700"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Total</th></tr></thead>
-            <tbody>{quote.lineItems?.map((item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 dark:text-slate-100">{item.description}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>)}</tbody>
+            <tbody>{quote.lineItems?.map((item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 dark:text-slate-100">{item.optional && canRespond && item.id
+              ? <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!item.selected} disabled={busy} onChange={(e) => choose(item.id!, e.target.checked)} aria-label={`Add ${item.description}`} /><span>{item.description} <span className="text-xs text-gray-600 dark:text-slate-400">(optional)</span></span></label>
+              : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400"> (optional{item.selected ? ', included' : ', not included'})</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>)}</tbody>
           </table>
         </div>
         <div className="p-6 bg-gray-50 dark:bg-slate-800/60">
@@ -126,6 +139,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             {Number(quote.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({quote.taxRate}%)</span><span>{moneyShort(quote.taxAmount)}</span></div>}
             {Number(quote.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(quote.discount)}</span></div>}
             <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(quote.total)}</span></div>
+            {hasOptional && <p className="text-xs text-gray-600 dark:text-slate-400">Optional items count once you tick them.</p>}
+            {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">Deposit due on approval</span><span>{moneyShort(quote.depositAmount)}</span></div>}
           </div>
         </div>
         {quote.terms && <div className="p-6 border-t dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3><p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p></div>}
@@ -142,7 +157,17 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700">
             <div className="flex items-start gap-4">
               <CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" />
-              <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatWhen(quote.approvedAt, company?.timeZone)}` : ''}</p>{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} timeZone={company?.timeZone} />}</div>
+              <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatWhen(quote.approvedAt, company?.timeZone)}` : ''}</p>
+                {/* The deposit is its own invoice: paid on its page by card where the business takes cards, else how to pay. */}
+                {quote.deposit && Number(quote.deposit.balance) > 0 && (
+                  <div className="mt-3 rounded-lg border border-green-200 bg-white p-3 text-sm text-gray-800 dark:border-green-900 dark:bg-slate-900 dark:text-slate-200" data-testid="quote-deposit-due">
+                    <p className="font-medium">Deposit due: {moneyShort(quote.deposit.balance)} ({quote.deposit.number})</p>
+                    {quote.deposit.payOnline && quote.deposit.path
+                      ? <a href={quote.deposit.path} className={`${btnSuccess} mt-2`}>Pay the deposit</a>
+                      : <p className="mt-1 text-gray-700 dark:text-slate-300">{business} does not take card payments online. To pay the deposit, please contact them{reach ? ` at ${reach}` : ''}.</p>}
+                  </div>
+                )}
+                {quote.deposit && Number(quote.deposit.balance) <= 0 && <p className="mt-2 text-sm text-green-800 dark:text-green-300">Deposit paid ({quote.deposit.number}). Thank you.</p>}{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} timeZone={company?.timeZone} />}</div>
             </div>
           </div>
         )}

@@ -57,8 +57,11 @@ import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
+import { createSmsMediaRoutes, SMS_MEDIA_PATH } from '../crm/comms/smsMedia.ts'
+import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
+import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
@@ -131,6 +134,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
    * payments/stripe.ts). The invoice email's link opened onto a Pay button whatever the answer (2026-10-22).
    */
   const canTakeCardPayments = cardPaymentsFor({ features, services: s })
+  // A quote billed in parts: its deposit on approval, progress invoices, the final invoice crediting them (crm/billing).
+  const quoteBilling = createQuoteBilling(own, { canTakeCardPayments })
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
@@ -219,6 +224,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
+      // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
+      // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
+      onApproved: ({ companyId, quote: q }: any) => quoteBilling.raiseDeposit(companyId, q.id),
+      billedBefore: (tx: any, q: any) => quoteBilling.billedBefore(tx, q),
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
       // the field-service copies had them, the base CRM didn't).
       hasDeclinedAt: true, hasConvertedToJobId: true,
@@ -271,6 +280,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     loadPdf: loadInvoicePdf, audit,
     options: {
       timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId),
+      // A deposit, progress or final invoice is never edited above what is left of its quote (crm/billing/quoteBilling.ts).
+      checkTotal: (existing: any, total: number) => quoteBilling.checkTotal(existing, total),
       // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
       ...(v.invoices?.numbering ? { numbering: v.invoices.numbering } : {}),
       // The owner pays, but the bill is for an animal: an invoice names its patient (templates/crm-vet routes/invoices.ts T12 M6).
@@ -338,6 +349,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : jobs },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
     { path: '/api/invoices', access: 'user', feature: 'invoices', router: invoices },
+    // A quote's deposit and progress invoices, billed against what is left (crm/billing/quoteBilling.ts).
+    { path: '/api/quote-billing', access: 'user', feature: 'invoices', router: quoteBilling.routes() },
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
@@ -427,6 +440,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/messaging-billing', access: 'user', router: messagingBilling },
     // Texting from the business's own registered number (crm/comms/texting.ts).
     { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
+    // Pictures in texts (crm/comms/smsMedia.ts): the signed-link door is public (the carrier has no sign-in); its router
+    // signs everyone else in and asks Two-Way Texting itself. Scheduled texts are Two-Way Texting's (comms/scheduledTexts.ts).
+    { path: SMS_MEDIA_PATH, access: 'public', router: createSmsMediaRoutes(own) },
+    { path: '/api/sms-scheduled', access: 'user', feature: 'two_way_texting', router: createScheduledTextRoutes(own) },
     { path: '/api/internal/texting', access: 'factory', router: createTextingInternalRoutes(own) },
     { path: '/api/email-domain', access: 'user', router: signedInAdmin(createEmailDomainRoutes({ factoryApiClient } as any)) },
     { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes(gbpDeps as any)) },
@@ -469,6 +486,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
       canTakeCardPayments,
+      // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
+      quoteDeposit: { onApproved: (companyId: string, q: any) => quoteBilling.raiseDeposit(companyId, q.id), depositFor: quoteBilling.depositFor },
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

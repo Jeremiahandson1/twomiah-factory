@@ -239,6 +239,13 @@
       "when": 1792883407541,
       "tag": "0033_store_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792891861602,
+      "tag": "0034_quote_billing_texts",
+      "breakpoints": true
     }
   ]
 }

@@ -525,10 +525,12 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
  * The line is then filled with everything else and left uncosted, which job costing counts and
  * reports rather than guessing — the right outcome for someone who is not shown the figure.
  */
-export function LineItemsEditor({ items, onChange, pricebook }: {
+export function LineItemsEditor({ items, onChange, pricebook, optional }: {
   items: LineItemInput[]
   onChange: (items: LineItemInput[]) => void
   pricebook?: { items: PricebookPick[]; canSeeCost?: boolean }
+  /** Offer "Optional" on each line, and "Included" on an optional one (a quote's optional lines). */
+  optional?: boolean
 }) {
   const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
   const lineError = moneyInputError(items, 0, 0)
@@ -560,6 +562,7 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-32">Our cost</th>}
           <th className="px-3 py-2 text-left text-xs font-medium w-36">Unit Price</th>
           <th className="px-3 py-2 text-right text-xs font-medium w-32">Total</th>
+          {optional && <th className="px-3 py-2 text-left text-xs font-medium w-32">Optional</th>}
           <th className="w-10" />
         </tr></thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -596,6 +599,12 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
               )}
               <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
               <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
+              {optional && (
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">
+                  <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!li.optional} onChange={(e) => update(i, { optional: e.target.checked, selected: e.target.checked ? false : true })} aria-label="Optional line" /> Optional</label>
+                  {li.optional && <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={!!li.selected} onChange={(e) => update(i, { selected: e.target.checked })} aria-label="Included in the total" /> Included</label>}
+                </td>
+              )}
               <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700 dark:text-red-300" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
             </tr>
           ))}

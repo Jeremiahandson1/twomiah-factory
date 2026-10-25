@@ -31,6 +31,8 @@ import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
+import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
+import { TextComposer } from './textComposer'
 
 const v = verticalScreens
 const client = api as any
@@ -88,6 +90,8 @@ export function JobDetail() {
   return <JobDetailPage api={client} toast={useToast()} config={{
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
+    // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
+    aside: (job: Record<string, any>) => <JobBillingPanel job={job} />,
   } as any} />
 }
 /**
@@ -98,7 +102,8 @@ export function JobDetail() {
  */
 const invoicingFor = (hasFeature: (f: string) => boolean) => {
   const i = v().invoicing as any
-  return { ...i, siteLabels: v().sites, hasFeature,
+  // Optional quote lines and a deposit on approval: every vertical's quotes have the columns (server 0034).
+  return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true,
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),
     jobs: !!i.jobs && hasFeature('jobs'),
@@ -111,10 +116,12 @@ export function Quotes() {
 }
 /** Customer financing on a quote or an invoice (crm/financing.tsx): shown only with consumer_financing on. */
 const financingAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <FinancingPanel kind={kind} record={record} />
+/** Beside a quote: financing, and its billing in parts — deposit, progress invoices, what is left (crm/quoteBilling.tsx). */
+const quoteAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <>{financingAside({ kind, record })}<QuoteBillingPanel record={record} /></>
 export { FinancingPage }
 export function QuoteDetail() {
   const { company, hasFeature } = useAuth()
-  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), aside: financingAside } as any} />
+  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), aside: quoteAside } as any} />
 }
 export function Invoices() {
   const { company, hasFeature } = useAuth()
@@ -183,7 +190,9 @@ export function Marketing() {
   const { hasFeature } = useAuth()
   return <MarketingPage api={client} toast={useToast()} config={v().marketing as any} showCampaigns={hasFeature('email_marketing')} />
 }
-export const Messages = () => <MessagesPage api={client} toast={useToast()} config={v().messages as any} />
+// The reply box carries pictures and sends later (crm/textComposer.tsx).
+const textComposer = (p: { conversationId: string; contactId: string | null; onSent: () => void }) => <TextComposer key={p.conversationId} {...p} />
+export const Messages = () => <MessagesPage api={client} toast={useToast()} config={{ ...(v().messages as any), composer: textComposer }} />
 export const Ads = () => <AdsPage api={client} toast={useToast()} />
 // The presentation page is the unified app's (server crm/office/pricebookPresent.ts), so its button is offered here.
 export const Pricebook = () => <PricebookPage api={client} toast={useToast()} config={{ ...v().pricebook, present: true }} />

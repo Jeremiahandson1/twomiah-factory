@@ -360,6 +360,11 @@ export const quote = pgTable('quote', {
   // the quote and approve or decline it, with or without a client portal (2026-10-22: a quote went out with no way to
   // accept it unless the portal was on). packages/tenant-backend portal/documentLinks.ts.
   publicToken: text('public_token').unique(),
+  // A deposit asked for when the customer approves (0034, crm/billing/quoteBilling.ts): 'percent' of the quote's total or a
+  // 'fixed' amount; null asks none. On approval it becomes a deposit invoice linked to the quote (invoice.billed_quote_id,
+  // bill_kind 'deposit'), credited on the final invoice.
+  depositType: text('deposit_type'),
+  depositValue: decimal('deposit_value', { precision: 12, scale: 2 }),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
@@ -385,6 +390,11 @@ export const quoteLineItem = pgTable('quote_line_item', {
   unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // An optional line (0034): offered, not included until ticked — by the office on the quote page or the customer on its
+  // own link. The quote's totals count a line only when it is not optional or is selected, and only those lines carry
+  // into the job and the invoice. A line that is not optional is always selected.
+  optional: boolean('optional').default(false).notNull(),
+  selected: boolean('selected').default(true).notNull(),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -427,8 +437,17 @@ export const invoice = pgTable('invoice', {
   // The invoice's own private link (/d/<token>), minted when it is first sent: the customer sees it and pays it there
   // (2026-10-22: the email carried no way to pay). packages/tenant-backend portal/documentLinks.ts.
   publicToken: text('public_token').unique(),
+  // What part of a quote this invoice bills (0034, crm/billing/quoteBilling.ts): 'deposit' (asked on approval), 'progress'
+  // (a percent or chosen lines, billed before the work is done) or 'final' (what is left). Null: an invoice as it always
+  // was. billed_quote_id is the quote it bills; many invoices may bill one quote, unlike quote_id (the one invoice a quote
+  // converted to — the final one, when it was billed in parts). credit_applied: the deposit and progress invoices the final
+  // invoice credits, taken off its total.
+  billKind: text('bill_kind'),
+  billedQuoteId: text('billed_quote_id').references((): AnyPgColumn => quote.id, { onDelete: 'set null' }),
+  creditApplied: decimal('credit_applied', { precision: 12, scale: 2 }).default('0').notNull(),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
+  index('invoice_billed_quote_id_idx').on(t.billedQuoteId),
   index('invoice_status_idx').on(t.status),
   // Two live invoices never share a number: the database's backstop under numbering and "bill once" (Vet T41: a race
   // double-billed and twice shared a number). For every vertical, not only the vet's.
@@ -446,6 +465,8 @@ export const invoiceLineItem = pgTable('invoice_line_item', {
   unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // The quote line a progress invoice bills (0034): a line billed once is not offered again.
+  quoteLineItemId: text('quote_line_item_id').references(() => quoteLineItem.id, { onDelete: 'set null' }),
 
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
 }, (t) => [

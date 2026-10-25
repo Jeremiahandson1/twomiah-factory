@@ -31,7 +31,17 @@ export interface SmsServiceDeps {
    * START), 'withdrawn' on STOP. The unified app keeps it in its consent ledger (site/smsConsent.ts).
    */
   onConsent?: (companyId: string, phone: string, change: 'given' | 'withdrawn') => Promise<void>
+  /**
+   * Picture messages (MMS): the pictures a text carries are files in the business's own private store, named by key.
+   * `allowed` says a key is this company's; `providerUrl` is the short-lived signed link the carrier fetches it from
+   * (null when the app has no public address to give it); `viewUrl` the one the inbox shows it by. Without this, a
+   * text with pictures is refused and every text is words only, as before. (The unified app's crm/comms/smsMedia.ts.)
+   */
+  media?: { allowed: (companyId: string, key: string) => boolean; providerUrl: (key: string) => string | null; viewUrl: (key: string) => string }
 }
+
+/** At most this many pictures in one text (the carrier's limit). */
+export const MAX_TEXT_PICTURES = 10
 
 /** The carriers' keywords (CTIA; Twilio's default opt-out handling answers the same words). */
 const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
@@ -40,6 +50,8 @@ const OPT_IN_WORDS = new Set(['START', 'UNSTOP'])
 export function createSmsService(deps: SmsServiceDeps) {
   const { db, tables: t } = deps
   const usage: SmsUsage = deps.usage || { reportSmsUsage: () => {}, walletSufficient: async () => true }
+  /** Where a text is handed to the carrier: Twilio, unless a test put a recorder in its place (setTransport). */
+  let transport: null | ((params: Record<string, unknown>) => Promise<any>) = null
   /** The account this company texts from: its own (Settings → Integrations) or the platform's (env). */
   const cfgFor = async (companyId: string): Promise<TwilioConfig> => {
     if (deps.twilio) return deps.twilio
@@ -80,8 +92,20 @@ export function createSmsService(deps: SmsServiceDeps) {
     return byPhone?.id
   }
 
-  async function sendSMS(companyId: string, { contactId, toPhone, message, userId, jobId }: { contactId?: string; toPhone?: string; message: string; userId?: string; jobId?: string; templateId?: string }) {
+  async function sendSMS(companyId: string, { contactId, toPhone, message, userId, jobId, media }: { contactId?: string; toPhone?: string; message: string; userId?: string; jobId?: string; templateId?: string; media?: string[] }) {
     const cfg = async () => cfgFor(companyId)
+    // Pictures first, before anything is looked up or spent: each must be this company's file, and the carrier needs a
+    // link it can fetch. A refusal here is the sender's to fix, so it is thrown in words, as a bad number is.
+    const pictures = Array.isArray(media) ? media.filter((k) => typeof k === 'string' && k) : []
+    let mediaUrl: string[] = []
+    if (pictures.length) {
+      if (!deps.media) throw new Error('Picture messages are not set up here — send words only.')
+      if (pictures.length > MAX_TEXT_PICTURES) throw new Error(`A text can carry at most ${MAX_TEXT_PICTURES} pictures.`)
+      if (pictures.some((k) => !deps.media!.allowed(companyId, k))) throw new Error('That picture is not one of this business\'s files.')
+      mediaUrl = pictures.map((k) => deps.media!.providerUrl(k)).filter((u): u is string => !!u)
+      if (mediaUrl.length !== pictures.length) throw new Error('Pictures cannot be sent yet: the app has no public address for the carrier to fetch them from.')
+    }
+    if (!String(message || '').trim() && !pictures.length) throw new Error('Message is required')
     if (!toPhone && contactId) {
       const [contactRow] = await db.select().from(t.contact).where(eq(t.contact.id, contactId))
       if (!contactRow?.phone && !contactRow?.mobile) throw new Error('Contact has no phone number')
@@ -131,16 +155,18 @@ export function createSmsService(deps: SmsServiceDeps) {
     let errorMessage: string | null = null
     try {
       const conf = await cfg()
-      const client = await twilioClient(conf)
+      const client = transport ? null : await twilioClient(conf)
       // The delivery report comes back to this tenant — only with a full address: Twilio refuses the text outright
       // for a relative one, so without an address the text goes without the report.
       const base = (deps.apiBaseUrl || publicApiBase()).replace(/\/+$/, '')
-      twilioResponse = await client.messages.create({
-        body: message,
+      const params = {
+        body: message || '',
         to: formattedPhone,
         ...twilioSender(conf),
+        ...(mediaUrl.length ? { mediaUrl } : {}),
         ...(/^https?:\/\//.test(base) ? { statusCallback: `${base}/api/sms/webhook/status` } : {}),
-      })
+      }
+      twilioResponse = transport ? await transport(params) : await client.messages.create(params)
     } catch (error: any) {
       status = 'failed'
       errorMessage = error?.message || 'Send failed'
@@ -149,16 +175,19 @@ export function createSmsService(deps: SmsServiceDeps) {
     if (twilioResponse) usage.reportSmsUsage(Number(twilioResponse.numSegments) || 1, twilioResponse.sid)
 
     const [smsMsg] = await db.insert(t.smsMessage).values({
-      conversationId: conversation.id, direction: 'outbound', body: message, status, errorMessage,
+      conversationId: conversation.id, direction: 'outbound', body: message || '', status, errorMessage,
       twilioSid: twilioResponse?.sid, sentById: userId || null,
+      ...(pictures.length ? { mediaUrls: pictures } : {}),
     }).returning()
     await db.update(t.smsConversation).set({ lastMessageAt: new Date() }).where(eq(t.smsConversation.id, conversation.id))
     return smsMsg
   }
 
   /** Twilio inbound webhook. Finds the company by the number texted, threads the message, runs auto-responders. */
-  async function handleIncomingSMS(data: { From: string; Body: string; MessageSid: string; To: string }) {
+  async function handleIncomingSMS(data: { From: string; Body: string; MessageSid: string; To: string; NumMedia?: string; [k: string]: string | undefined }) {
     const { From, Body, MessageSid, To } = data
+    // A picture the customer sent: the carrier's own links to it (MediaUrl0…), kept on the message for the thread.
+    const inboundMedia = Array.from({ length: Math.min(MAX_TEXT_PICTURES, Number(data.NumMedia) || 0) }, (_, i) => data[`MediaUrl${i}`]).filter((u): u is string => typeof u === 'string' && /^https:\/\//.test(u))
     if (!From || !To) return null
     const comp = await findCompanyByTwilioNumber(To)
     if (!comp) { console.error('No company found for Twilio number:', To); return null }
@@ -175,7 +204,7 @@ export function createSmsService(deps: SmsServiceDeps) {
       const [dupe] = await db.select({ id: t.smsMessage.id }).from(t.smsMessage).where(eq(t.smsMessage.twilioSid, MessageSid)).limit(1)
       if (dupe) return dupe
     }
-    const [msg] = await db.insert(t.smsMessage).values({ conversationId: conversation.id, direction: 'inbound', body: Body || '', status: 'received', twilioSid: MessageSid || null }).returning()
+    const [msg] = await db.insert(t.smsMessage).values({ conversationId: conversation.id, direction: 'inbound', body: Body || '', status: 'received', twilioSid: MessageSid || null, ...(inboundMedia.length ? { mediaUrls: inboundMedia } : {}) }).returning()
     await db.update(t.smsConversation).set({
       lastMessageAt: new Date(), unreadCount: sql`${t.smsConversation.unreadCount} + 1`, status: 'active',
       contactId: conversation.contactId || matchedContactId || null,
@@ -262,7 +291,10 @@ export function createSmsService(deps: SmsServiceDeps) {
       .where(eq(t.smsMessage.conversationId, conversationId)).orderBy(asc(t.smsMessage.createdAt), asc(t.smsMessage.id)).limit(100)
     await db.update(t.smsConversation).set({ unreadCount: 0 }).where(eq(t.smsConversation.id, conversationId))
     // Flat rows: every inbox renders message.direction / message.body directly. (SALON-C3)
-    return { ...conversation, contact: withoutPortalCredential(contactRow), messages: messages.map((r: any) => ({ ...r.message, sentBy: r.sentBy })) }
+    // A picture is shown by a short-lived link of its own (deps.media.viewUrl), never its storage key; a carrier's link
+    // (a picture the customer sent) is shown as it came.
+    const pictureLinks = (m: any) => (Array.isArray(m.mediaUrls) ? m.mediaUrls : []).map((k: string) => (/^https:\/\//.test(k) ? k : deps.media ? deps.media.viewUrl(k) : null)).filter(Boolean).map((url: string) => ({ url }))
+    return { ...conversation, contact: withoutPortalCredential(contactRow), messages: messages.map((r: any) => { const { mediaUrls: _keys, ...m } = r.message; return { ...m, media: pictureLinks(r.message), sentBy: r.sentBy } }) }
   }
 
   const archiveConversation = (conversationId: string, companyId: string) =>
@@ -414,6 +446,8 @@ export function createSmsService(deps: SmsServiceDeps) {
     sendSMS, handleIncomingSMS, handleStatusUpdate, getConversations, getConversation, archiveConversation, linkToContact,
     createTemplate, getTemplates, updateTemplate, deleteTemplate, applyTemplateVariables, createAutoResponder, getAutoResponders,
     sendBulkSMS, sendJobUpdate, getUnreadCount, findCompanyByTwilioNumber, webhookAuthToken, twilioConfigFor: cfgFor,
+    /** Tests: hand texts to a recorder instead of the carrier (null puts the carrier back). */
+    setTransport(fn: null | ((params: Record<string, unknown>) => Promise<any>)) { transport = fn },
   }
 }
 export type SmsService = ReturnType<typeof createSmsService>
@@ -520,20 +554,20 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   }
   app.post('/send', textsACustomer, async (c) => {
     const user = (c as any).get('user')
-    const { contactId, toPhone, message, jobId, templateId } = await c.req.json().catch(() => ({}))
-    if (!message) return c.json({ error: 'Message is required' }, 400)
+    const { contactId, toPhone, message, jobId, templateId, media } = await c.req.json().catch(() => ({}))
+    if (!message && !(Array.isArray(media) && media.length)) return c.json({ error: 'Message is required' }, 400)
     if (!contactId && !toPhone) return c.json({ error: 'contactId or toPhone is required' }, 400)
-    try { return sendResult(c, await sms.sendSMS(user.companyId, { contactId, toPhone, message, userId: user.userId, jobId, templateId })) }
+    try { return sendResult(c, await sms.sendSMS(user.companyId, { contactId, toPhone, message: message || '', userId: user.userId, jobId, templateId, media })) }
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
   app.post('/conversations/:id/reply', textsACustomer, async (c) => {
     const user = (c as any).get('user')
-    const { message } = await c.req.json().catch(() => ({}))
-    if (!message) return c.json({ error: 'Message is required' }, 400)
+    const { message, media } = await c.req.json().catch(() => ({}))
+    if (!message && !(Array.isArray(media) && media.length)) return c.json({ error: 'Message is required' }, 400)
     const conversation = await sms.getConversation(c.req.param('id'), user.companyId)
     if (!conversation) return c.json({ error: 'Conversation not found' }, 404)
     // the thread's number is the destination — replying to an unlinked conversation used to read a field that did not exist
-    try { return sendResult(c, await sms.sendSMS(user.companyId, { toPhone: conversation.phoneNumber, contactId: conversation.contactId || undefined, message, userId: user.userId })) }
+    try { return sendResult(c, await sms.sendSMS(user.companyId, { toPhone: conversation.phoneNumber, contactId: conversation.contactId || undefined, message: message || '', userId: user.userId, media })) }
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
   app.post('/bulk', requirePermission('contacts:update'), async (c) => {

@@ -17,6 +17,7 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
+import { includedLines, depositProblem, chooseOptionalLine } from './quoteOptions'
 
 
 export interface QuoteTables {
@@ -75,6 +76,18 @@ export interface QuoteOptions {
   makeJob?: (tx: any, from: { companyId: string; userId: string; quote: any; description: string; address: string; city: string; state: string; zip: string; estimatedValue: string }) => Promise<any>
   /** Optional: text the customer when a quote is sent (field service). */
   onSent?: (ctx: { companyId: string; quote: any; contact: any; company: any }) => Promise<void>
+  /**
+   * After the office marks a quote approved (the customer's own approval runs portal.ts's hook): the unified app raises
+   * the deposit invoice a quote asks for (apps/unified/server/crm/billing/quoteBilling.ts). What it returns goes back
+   * with the approved quote as `deposit`. A failure is logged, never undoes the approval.
+   */
+  onApproved?: (ctx: { companyId: string; quote: any }) => Promise<unknown>
+  /**
+   * What was billed against the quote before it is converted to its invoice — its deposit and progress invoices
+   * (unified billing). Runs inside the conversion's transaction, under its lock. Returns the credit the invoice takes off
+   * its total and the columns that mark it final, or a refusal (nothing left to bill).
+   */
+  billedBefore?: (tx: any, quote: any) => Promise<{ error?: string; credit?: number; values?: Record<string, unknown> } | null>
 }
 
 export interface QuoteDeps {
@@ -146,6 +159,9 @@ const lineItemSchema = z.object({
   unitCost: z.number().min(0, 'Cost cannot be negative').optional()
     .transform((v) => (v === undefined ? undefined : Math.round((v + Number.EPSILON) * 100) / 100)),
   pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
+  // An optional line, and whether it is ticked (quoteOptions.ts). Kept only where quote_line_item has the columns.
+  optional: z.boolean().optional(),
+  selected: z.boolean().optional(),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
@@ -159,7 +175,7 @@ const EDITABLE = OPEN_QUOTE_STATUSES
 /** The statuses an edit may set by hand: 'viewed' is the customer's act, never typed in. */
 const SETTABLE = ['draft', 'sent']
 
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false) => items.map((item, i) => ({
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false) => items.map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -174,7 +190,11 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
     unitCost: item.unitCost === undefined ? null : item.unitCost.toString(),
     pricebookItemId: item.pricebookItemId ?? null,
   } : {}),
+  // An optional line starts unticked unless the office ticked it; a line that is not optional is always included.
+  ...(hasOptional ? { optional: !!item.optional, selected: item.optional ? !!item.selected : true } : {}),
 }))
+/** The lines that count, for a quote whose lines may be optional (quoteOptions.ts) — every line where none can be. */
+const counted = (items: z.infer<typeof lineItemSchema>[], hasOptional: boolean) => (hasOptional ? includedLines(items.map((i) => ({ ...i, selected: i.optional ? !!i.selected : true }))) : items)
 
 export function createQuoteRoutes(deps: QuoteDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, loadPdf } = deps
@@ -243,6 +263,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const numQuote: NumberingOptions = o.numbering?.quote || { prefix: 'QTE', pad: 5, seed: 0 }
   const numInvoice: NumberingOptions = o.numbering?.invoice || { prefix: 'INV', pad: 5, seed: 0 }
   const numJob: NumberingOptions = o.numbering?.job || { prefix: 'JOB', pad: 5, seed: 0 }
+  // Optional lines and a deposit on approval (quoteOptions.ts): where the table has the columns, as documentLinks.ts
+  // decides a quote's own link by its public_token column. A template's tables have neither and keep what they had.
+  const hasOptional = !!t.quoteLineItem?.optional
+  const hasDeposit = !!t.quote?.depositType
+  /** A quote's lines as its job and its invoice take them: the included ones. */
+  const billable = (rows: any[]) => (hasOptional ? includedLines(rows) : rows)
 
   const quoteSchema = z.object({
     name: z.string().min(1),
@@ -260,7 +286,18 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     terms: z.string().optional(),
     lineItems: z.array(lineItemSchema).default([]),
     status: z.enum(QUOTE_STATUSES).optional(),
+    ...(hasDeposit ? { depositType: z.enum(['percent', 'fixed']).nullable().optional(), depositValue: z.number().nullable().optional() } : {}),
   })
+  /** The deposit columns an edit writes, or the refusal — checked against the total the quote will have. */
+  const depositValues = (data: any, existing: any, total: number): { error: string } | Record<string, unknown> => {
+    if (!hasDeposit || (data.depositType === undefined && data.depositValue === undefined)) return {}
+    const type = data.depositType !== undefined ? data.depositType : existing?.depositType ?? null
+    const value = data.depositValue !== undefined ? data.depositValue : existing?.depositValue ?? null
+    if (!type) return { depositType: null, depositValue: null }
+    const problem = depositProblem(type, value, total)
+    if (problem) return { error: problem }
+    return { depositType: type, depositValue: round2(Number(value)).toString() }
+  }
   const COPY_FIELDS = ['name', 'contactId', 'projectId', 'notes', 'terms', ...(extra.has('siteId') ? ['siteId'] : []), ...(extra.has('equipmentId') ? ['equipmentId'] : []), ...(extra.has('customerMessage') ? ['customerMessage'] : []), ...(extra.has('jobId') ? ['jobId'] : [])] as const
 
   const app = new Hono()
@@ -381,11 +418,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
     if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId ?? undefined
     if ((data as any).jobId && !(await ownJob(cid, (data as any).jobId))) return c.json({ error: 'That job does not exist.' }, 404)
-    const subtotalRaw = rawSubtotal(data.lineItems)
+    const subtotalRaw = rawSubtotal(counted(data.lineItems, hasOptional))
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
     // A quote is a priced offer: it needs something on it, and an expiry date that hasn't already passed — a $0.00
     // quote with no lines and one expiring in 2020 both saved. (Landscaping T14 L14)
     if (!data.lineItems.length) return c.json({ error: 'Add at least one line item.' }, 400)
+    // …and something that is not optional: a quote of nothing but options is no offer until one is ticked.
+    if (hasOptional && !data.lineItems.some((l: any) => !l.optional)) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
     // TODAY on the business's own calendar. This was `startOfToday()`, which is the UTC day, so from
@@ -396,7 +435,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // One read, two answers — the tax rate and how long the quote stands both come off the same settings blob.
     const settings = await companySettings(cid)
     const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
-    const totals = calcTotals(data.lineItems, taxRate, data.discount)
+    const totals = calcTotals(counted(data.lineItems, hasOptional), taxRate, data.discount)
+    const deposit = depositValues(data, null, totals.total)
+    if ('error' in deposit) return c.json({ error: deposit.error }, 400)
     // A blank expiry means "use our usual validity", exactly as a blank due date on an invoice means "use our
     // payment terms" — the form sends `expiryDate: form.expiryDate || null` for both. It used to land as a
     // literal null, which is not a missing date but an open-ended price: no "Valid until" line for the
@@ -404,11 +445,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // price. (Field Service T26 L2)
     const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings, today), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
+    Object.assign(values, deposit)
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
@@ -455,20 +497,25 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
     if (recompute) {
-      const lines: z.infer<typeof lineItemSchema>[] = data.lineItems ?? (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+      const lines: z.infer<typeof lineItemSchema>[] = data.lineItems ?? (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), optional: !!li.optional, selected: li.selected !== false }))
+      if (hasOptional && data.lineItems && data.lineItems.length && !data.lineItems.some((l: any) => !l.optional)) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
       const taxRate = data.taxRate ?? Number(existing.taxRate)
       const discount = data.discount ?? Number(existing.discount)
-      const subtotalRaw = rawSubtotal(lines)
+      const subtotalRaw = rawSubtotal(counted(lines, hasOptional))
       if (discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
-      const calc = calcTotals(lines, taxRate, discount)
+      const calc = calcTotals(counted(lines, hasOptional), taxRate, discount)
       Object.assign(update, { subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(), discount: calc.effectiveDiscount.toString(), total: calc.total.toString() })
     }
+    // The deposit is checked against the total the quote will have once this edit is saved.
+    const deposit = depositValues(data, existing, Number(update.total ?? existing.total))
+    if ('error' in deposit) return c.json({ error: deposit.error }, 400)
+    Object.assign(update, deposit)
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.quote).set(update).where(eq(t.quote.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {
         await tx.delete(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id))
-        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost)).returning() : []
+        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional)).returning() : []
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
       // a single-connection database). Every other caller reads before the transaction opens.
@@ -589,7 +636,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
         approveOnline = !!token || portalLive
         // The customer's copy: no pricebook item codes (itemCodes.ts).
-        const lines = await customerLines(db, cid, await lineRows(found.id))
+        const lines = await customerLines(db, cid, billable(await lineRows(found.id)))
         try {
           await deps.sendQuoteEmail(recipient.email, {
             quoteNumber: found.number, quoteName: found.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
@@ -632,8 +679,29 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
     const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
-    return r.updated ? c.json(r.updated) : r
+    if (!r.updated) return r
+    // The deposit the quote asks (unified billing): raised now, recorded by the office or paid on its own link.
+    let deposit: unknown = null
+    if (o.onApproved) {
+      try { deposit = await o.onApproved({ companyId: r.cid, quote: r.updated }) } catch (err: any) { console.error('[quotes] after-approval hook failed', { quote: r.updated.number, error: err?.message }) }
+    }
+    return c.json({ ...r.updated, ...(o.onApproved ? { deposit } : {}) })
   })
+  // Tick or untick an optional line while the quote is open (quoteOptions.ts): the totals are worked out again.
+  if (hasOptional) {
+    app.post('/:id/options', requirePermission('quotes:update'), async (c: any) => {
+      const cid = (c.get('user') as any).companyId
+      const id = c.req.param('id')
+      const existing = await findOwn(cid, id)
+      if (!existing) return c.json({ error: 'Quote not found' }, 404)
+      if (!EDITABLE.includes(existing.status)) return c.json({ error: `This quote is ${existing.status}: its lines can no longer change.` }, 400)
+      const body = await c.req.json().catch(() => ({}))
+      const r: any = await chooseOptionalLine(db, t, cid, id, body?.lineItemId, body?.selected)
+      if ('error' in r) return c.json({ error: r.error }, r.status)
+      emitToCompany(cid, EVENTS.QUOTE_UPDATED, forBroadcast({ ...r.quote, lineItems: r.lineItems }))
+      return c.json(forCaller({ ...r.quote, lineItems: r.lineItems }, await may(c, 'margin:read'), await may(c, 'quotes:update')))
+    })
+  }
   app.post('/:id/reject', requirePermission('quotes:update'), async (c) => {
     const r: any = await setStatus(c, c.req.param('id'), { status: 'rejected', ...(o.hasDeclinedAt ? { declinedAt: new Date() } : {}) }, [...OPEN_QUOTE_STATUSES, 'rejected'])
     return r.updated ? c.json(r.updated) : r
@@ -675,7 +743,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const [already] = await db.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice).where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
       // The invoice is the customer's document: its lines are written without pricebook item codes (itemCodes.ts).
-      const items = await customerLines(db, cid, await lineRows(id))
+      // Only the included lines: an optional line nobody ticked is not billed (quoteOptions.ts).
+      const items = await customerLines(db, cid, billable(await lineRows(id)))
       const settings = await companySettings(cid)
       // Who it bills: the quote's customer, else its project's (contacts/customer.ts) — read before the transaction opens.
       const customerId = await customerOfQuote(cid, found)
@@ -685,18 +754,24 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const dup = await tx.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice)
           .where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
         if (dup.length) return { conflict: dup[0] }
+        // Billed in parts already (a deposit, progress invoices): this invoice is the final one, crediting them.
+        const prior = o.billedBefore ? await o.billedBefore(tx, found) : null
+        if (prior?.error) return { refused: prior.error }
+        const credit = round2(Number(prior?.credit || 0))
 
         const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numInvoice)
         const [inv] = await tx.insert(t.invoice).values({
           number, contactId: customerId, projectId: found.projectId, quoteId: found.id,
           // The quote's job is the invoice's (roofing): the job's page lists the bill made from its proposal.
           ...(extra.has('jobId') && found.jobId ? { jobId: found.jobId } : {}),
-          subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, amountPaid: '0',
+          subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: round2(Number(found.total) - credit).toString(), amountPaid: '0',
           dueDate: dueDateFromTerms(settings), notes: found.notes, terms: found.terms, companyId: cid,
+          ...(prior?.values || {}),
         }).returning()
         const lines = items.length ? await tx.insert(t.invoiceLineItem).values(items.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total, sortOrder: li.sortOrder, invoiceId: inv.id }))).returning() : []
         return { invoice: { ...inv, lineItems: lines } }
       })
+      if ('refused' in result && result.refused) return c.json({ error: result.refused }, 400)
       // The loser of the race gets the winner's invoice number, not a second invoice.
       if ('conflict' in result && result.conflict) {
         return c.json({ error: `This quote was already converted to invoice ${result.conflict.number}.`, invoiceId: result.conflict.id }, 400)
@@ -721,7 +796,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
       // A quote written for a job (quote.job_id, roofing) is that job's proposal: it is not made into a second job.
       if (extra.has('jobId') && found.jobId) return c.json({ error: 'This quote is already on a job.', jobId: found.jobId }, 400)
-      const items = await customerLines(db, cid, await lineRows(id))
+      const items = await customerLines(db, cid, billable(await lineRows(id)))
       const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
       let address = '', city = '', state = '', zip = ''
@@ -788,7 +863,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const [ct, lineItems, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      lineRows(id).then((rows: any[]) => customerLines(db, cid, rows)),
+      lineRows(id).then((rows: any[]) => customerLines(db, cid, billable(rows))),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it

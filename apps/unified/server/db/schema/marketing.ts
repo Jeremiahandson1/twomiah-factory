@@ -103,6 +103,36 @@ export const smsMessage = pgTable('sms_message', {
   index('sms_message_conversation_id_created_at_idx').on(t.conversationId, t.createdAt),
 ])
 
+/**
+ * A text to send later (0034, crm/comms/scheduledTexts.ts): typed for a time on the company's clock, stored as the UTC
+ * instant, sent by the CRM's timed work through the same sender as every text (opt-outs and the wallet as any text),
+ * and cancelable until it goes.
+ *   status  'scheduled' → 'sending' (claimed) → 'sent' | 'failed' | 'skipped' (opted out, no phone); or 'cancelled'
+ *   media   the pictures it carries: storage keys, as sms_message.media_urls holds them
+ */
+export const scheduledText = pgTable('scheduled_text', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  conversationId: text('conversation_id').references(() => smsConversation.id, { onDelete: 'set null' }),
+  toPhone: text('to_phone').notNull(),
+  body: text('body').notNull(),
+  media: json('media'),
+  sendAt: timestamp('send_at').notNull(),
+  status: text('status').default('scheduled').notNull(),
+  error: text('error'),
+  messageId: text('message_id'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  cancelledAt: timestamp('cancelled_at'),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('scheduled_text_company_id_idx').on(t.companyId),
+  index('scheduled_text_status_send_at_idx').on(t.status, t.sendAt),
+  index('scheduled_text_conversation_id_idx').on(t.conversationId),
+])
+
 export const smsTemplate = pgTable('sms_template', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),

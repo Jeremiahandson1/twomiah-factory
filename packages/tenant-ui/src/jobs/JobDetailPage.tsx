@@ -210,7 +210,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           {showParts && <JobPartsPanel api={api as any} toast={toast} jobId={id} />}
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
+          {config?.aside?.(job)}
           <div className={card}>
             <h2 className="font-semibold mb-4 text-gray-900 dark:text-slate-100">Related</h2>
             <div className="space-y-3">

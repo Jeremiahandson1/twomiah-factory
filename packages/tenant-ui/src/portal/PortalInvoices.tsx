@@ -152,6 +152,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
             <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Subtotal</span><span>{moneyShort(invoice.subtotal)}</span></div>
             {Number(invoice.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({invoice.taxRate}%)</span><span>{moneyShort(invoice.taxAmount)}</span></div>}
             {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(invoice.discount)}</span></div>}
+            {Number(invoice.creditApplied || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Billed before (deposit and progress)</span><span>-{moneyShort(invoice.creditApplied)}</span></div>}
             <div className="flex justify-between font-medium border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(invoice.total)}</span></div>
             {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-700 dark:text-green-300"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
             {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700 dark:text-amber-300"><span>Refunded</span><span>{moneyShort(invoice.amountRefunded)}</span></div>}

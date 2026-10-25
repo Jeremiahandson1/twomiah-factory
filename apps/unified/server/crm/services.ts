@@ -29,6 +29,8 @@ import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eve
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
 import { createInvoiceReminders } from './billing/invoiceReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
+import { smsMediaLinks } from './comms/smsMedia.ts'
+import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -96,7 +98,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
     onConsent: (companyId: string, phone: string, change: 'given' | 'withdrawn') => change === 'given'
       ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
       : withdrawConsent(db, companyId, phone),
+    // Picture messages: files in the private store, handed to the carrier by short-lived signed links (comms/smsMedia.ts).
+    media: smsMediaLinks,
   } as any)
+  // Texts set to go later, sent by the timed work below (comms/scheduledTexts.ts).
+  const scheduledTexts = createScheduledTextRunner({ db, sms, logger })
   const reviews = createReviewsService({
     db, tables: { reviewRequest, company, contact, job }, sendRaw: (m: any) => email.sendRaw(m), usage: { reportSmsUsage },
     // Review requests go out through sendRaw(), which records nothing by design, so they were invisible to the usage
@@ -192,7 +198,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync, scheduledTexts,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -224,6 +230,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
       invoiceReminders.start()
       // QuickBooks auto-sync, every 15 minutes, for the companies whose switch is on.
       quickbooksSync.start()
+      // Scheduled texts that are due, every minute.
+      scheduledTexts.start()
       for (const start of moduleJobs) start()
     },
   }

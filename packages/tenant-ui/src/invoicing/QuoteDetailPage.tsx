@@ -39,6 +39,13 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const handleDelete = async () => { try { await api.delete('/api/quotes', id); toast.success('Quote deleted'); navigate('/crm/quotes') } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
   const handlePdf = async () => { try { await downloadFile(`/api/quotes/${id}/pdf`, `quote-${quote.number}.pdf`) } catch (e) { toast.error(errMsg(e, 'Could not download the PDF')) } }
   const editable = EDITABLE.includes(quote.status)
+  // Tick or untick an optional line (the server works the totals out again: tenant-backend quotes.ts /:id/options).
+  const choose = async (lineItemId: string, selected: boolean) => {
+    setBusy(true)
+    try { setQuote({ ...quote, ...(await api.post(`/api/quotes/${id}/options`, { lineItemId, selected })) }) } catch (e) { toast.error(errMsg(e, 'Could not change that line')) } finally { setBusy(false) }
+  }
+  const hasOptional = cfg.quoteOptions && (quote.lineItems || []).some((li: any) => li.optional)
+  const depositAsked = cfg.quoteDeposit && quote.depositType ? (quote.depositType === 'percent' ? Math.min(Number(quote.total), Number(quote.total) * Math.min(100, Number(quote.depositValue)) / 100) : Math.min(Number(quote.depositValue), Number(quote.total))) : 0
   const expired = !!quote.expiryDate && isPastDay(quote.expiryDate) && editable
   const secondary = 'px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'
   const timeline: Array<[string, string, any]> = [['Created', 'bg-gray-400', quote.createdAt], ['Sent', 'bg-blue-500', quote.sentAt], ['Viewed', 'bg-purple-500', quote.viewedAt], ['Approved', 'bg-green-500', quote.approvedAt], [cfg.quoteDecline ? 'Declined' : 'Rejected', 'bg-red-500', quote.declinedAt]]
@@ -97,7 +104,13 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-gray-900 dark:text-slate-100">
-                {(quote.lineItems || []).map((li: any, i: number) => <tr key={i}><td className="px-4 py-3">{li.description}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>)}
+                {(quote.lineItems || []).map((li: any, i: number) => <tr key={i} className={li.optional && !li.selected ? 'text-gray-500 dark:text-slate-400' : ''}><td className="px-4 py-3">{li.description}{li.optional && (
+                  <span className="ml-2 inline-flex items-center gap-1.5 text-xs">
+                    {editable && mayUpdate
+                      ? <label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!li.selected} disabled={busy} onChange={(e) => choose(li.id, e.target.checked)} aria-label={`Include ${li.description}`} /> Optional — {li.selected ? 'included' : 'not included'}</label>
+                      : <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-slate-800 dark:text-slate-200">Optional — {li.selected ? 'included' : 'not included'}</span>}
+                  </span>
+                )}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>)}
                 {(quote.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
@@ -105,6 +118,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                 {Number(quote.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(quote.discount)}</td></tr>}
                 {Number(quote.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax ({Number(quote.taxRate)}%)</td><td className="px-4 py-2 text-right">{money(quote.taxAmount)}</td></tr>}
                 <tr className="font-bold text-base"><td colSpan={3} className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right">{money(quote.total)}</td></tr>
+                {hasOptional && <tr><td colSpan={4} className="px-4 pb-3 text-right text-xs text-gray-600 dark:text-slate-300">Optional lines count only when included.</td></tr>}
               </tfoot>
             </table>
           </div>
@@ -149,6 +163,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
               {cfg.projects && quote.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${quote.project.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{quote.project.name}</NavLink></div>}
               {cfg.quoteEquipment && quote.equipment && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><Wrench className="w-3 h-3" /> Equipment</p><p>{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p></div>}
               {cfg.quoteSites && quote.site && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><MapPinned className="w-3 h-3" /> {cfg.siteLabels?.singular || 'Location'}</p><p>{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p></div>}
+              {depositAsked > 0 && <div><p className="text-gray-500 dark:text-slate-400">Deposit on approval</p><p>{money(depositAsked)}{quote.depositType === 'percent' ? ` (${Number(quote.depositValue)}%)` : ''}</p></div>}
               <div><p className="text-gray-500 dark:text-slate-400">Valid Until</p><p className={expired ? 'text-red-600 dark:text-red-300' : ''}>{expiryLabel(quote.expiryDate)}</p></div>
               <div><p className="text-gray-500 dark:text-slate-400">Created</p><p>{dateTime(quote.createdAt)}</p></div>
             </div>

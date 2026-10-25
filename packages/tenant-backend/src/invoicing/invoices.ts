@@ -79,6 +79,12 @@ export interface InvoiceOptions {
    *
    * All three run INSIDE the caller's transaction, under the invoice row lock.
    */
+  /**
+   * May an edit take this invoice to `total`? Asked before an edit's new totals are saved; a returned sentence refuses
+   * it (400). The unified app's quote billing uses it so a deposit, progress or final invoice is never edited above
+   * what is left of its quote (apps/unified/server/crm/billing/quoteBilling.ts).
+   */
+  checkTotal?: (existing: any, total: number) => Promise<string | null>
   accountBalance?: {
     /** Take `amount` off the invoice's client. A returned message refuses the payment. */
     spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
@@ -193,8 +199,12 @@ export async function insertInvoice(
  * money already collected (refund or void instead). Shared by PUT /:id and any record that keeps an
  * invoice in step with its own lines (events).
  */
-export function retotalInvoice(existing: { amountPaid: any; status: string }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
-  const calc = calcTotals(lines, taxRate, discount)
+export function retotalInvoice(existing: { amountPaid: any; status: string; creditApplied?: any }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
+  const worked = calcTotals(lines, taxRate, discount)
+  // A final invoice credits what was billed before it (a deposit, progress invoices — invoice.credit_applied, the unified
+  // app's quote billing): its total is the work's total less that credit, after every edit as on the day it was raised.
+  const credit = round2(Number(existing.creditApplied || 0))
+  const calc = { ...worked, total: round2(Math.max(0, worked.total - credit)) }
   const paid = Number(existing.amountPaid)
   if (calc.total < paid - 0.005) return { error: `This invoice already has ${money(paid)} in payments; the total can't be lowered below that. Refund or void instead.` }
   // amountPaid is gross (refunds live in amountRefunded), so a partially refunded, fully paid invoice stays 'paid'.
@@ -852,6 +862,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       if (discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
       const retotal = retotalInvoice(existing, lines, taxRate, discount)
       if ('error' in retotal) return c.json({ error: retotal.error }, 400)
+      const over = deps.options?.checkTotal ? await deps.options.checkTotal(existing, Number(retotal.fields.total)) : null
+      if (over) return c.json({ error: over }, 400)
       Object.assign(update, retotal.fields)
       // WHEN IT WAS PAID, the same rule recordInvoicePayment keeps: stamped the moment the balance reaches 0, kept
       // while it stays paid, cleared when it is not. An edit that lowered the total to what had been paid marked the
