@@ -11,7 +11,7 @@ import { Hono } from 'hono'
 import { and, count, eq, gte, lte, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
-import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice } from '../../db/schema/index.ts'
+import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -22,6 +22,7 @@ import { VOIDED_ON_CANCEL } from './checkout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from './people.ts'
 import type { SalonServices } from './services.ts'
 import { calendarDayWords } from '../../core/dayWords.ts'
+import { OWN_BOOK_SETTING, inOwnChair, isOwnChair, ownBookOnlyFrom } from './bookScope.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from './visitPhotos.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
@@ -44,9 +45,45 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   const { db, audit, logger } = d
   const { requirePermission } = d.permissions
   const live = d.realtime
-  const { clock, checkout, formulas, loyalty } = salon
+  const { clock, checkout, formulas, loyalty, book } = salon
   const warn = (what: string, e: any) => logger.warn(`[appointments] ${what}`, { error: e?.message || String(e) })
   const app = new Hono<AppEnv>()
+
+  /**
+   * Someone else's appointment, to a seat narrowed to its own chair (./bookScope.ts; owner's decision 2026-10-25): the
+   * answer an appointment that is not there gets, because to that seat it is not in the book.
+   */
+  const notInBook = (c: any) => fail(c, 404, 'Appointment not found')
+  /** The refusal for writing an appointment into a chair a narrowed seat does not hold. */
+  const notYourChair = (c: any) => fail(c, 403, 'You can only book into your own chair. Ask the front desk or a manager to book another stylist.', 'OWN_BOOK_ONLY')
+
+  /**
+   * THE OWNER'S SWITCH: "Stylists see only their own appointments" (Settings › The Book). Read by every seat that opens
+   * the book, so the screen can say whose chairs it shows: `ownOnly` is this seat's answer — the one every read and
+   * write below applies — and `ownStylistIds` the ids that are its chair, for the stylist picker.
+   */
+  app.get('/book-settings', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user') as any
+    const own = await book.ownChairOf(u)
+    return one(c, { [OWN_BOOK_SETTING]: await book.switchOn(u.companyId), ownOnly: !!own, ownStylistIds: own ? [own.userId, ...own.memberIds] : [] })
+  })
+
+  /** Who may flip it is who may change the company (company:update — the owner and admins), as Settings › Company. */
+  app.put('/book-settings', requirePermission('company:update'), async (c) => {
+    const u = c.get('user') as any
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    if (typeof body[OWN_BOOK_SETTING] !== 'boolean') return fail(c, 400, 'Say whether stylists see only their own appointments: on or off.', 'BAD_SETTING', { [OWN_BOOK_SETTING]: 'On or off.' })
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, u.companyId)).limit(1)
+    const settings: any = (typeof co?.settings === 'string' ? JSON.parse(co.settings || '{}') : co?.settings) || {}
+    const before = ownBookOnlyFrom(settings)
+    const after = body[OWN_BOOK_SETTING] as boolean
+    // Merged onto the stored settings: the rest of the blob (plan, tax, loyalty) is not this screen's to touch.
+    await db.update(company).set({ settings: { ...settings, [OWN_BOOK_SETTING]: after }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [OWN_BOOK_SETTING]: { before, after } }, req: { user: u } })
+    live.emitToCompany(u.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
+    const own = await book.ownChairOf(u)
+    return one(c, { [OWN_BOOK_SETTING]: after, ownOnly: !!own, ownStylistIds: own ? [own.userId, ...own.memberIds] : [] })
+  })
 
   /** The service, if it is on THIS salon's menu — an unknown id is named, not a foreign-key 409. (Salon T27 N17) */
   async function ownService(companyId: string, serviceId: string) {
@@ -145,6 +182,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (contactId) conditions.push(eq(appointment.contactId, contactId))
     if (stylistId) conditions.push(or(eq(appointment.stylistId, stylistId), eq(appointment.stylistMemberId, stylistId))!)
     if (status) conditions.push(eq(appointment.status, status))
+    // A seat narrowed to its own chair reads only that chair — the day, the week, the paged list and the count alike.
+    const own = await book.ownChairOf(currentUser)
+    if (own) conditions.push(inOwnChair(own))
 
     const windowed = !!(from || to)
     const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
@@ -215,8 +255,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
 
     // Either field: a login user or a roster stylist. (T20 H1, Salon T27 N17)
-    const stylist = await resolveStylist(db, currentUser.companyId, body.stylistId ?? body.stylistMemberId)
+    // A seat narrowed to its own chair books into it: named nobody, it is the stylist (an unassigned booking would
+    // vanish from its own book the moment it was saved); named somebody else, it is refused.
+    const own = await book.ownChairOf(currentUser)
+    const asked = body.stylistId ?? body.stylistMemberId
+    const stylist = await resolveStylist(db, currentUser.companyId, own && (asked == null || asked === '') ? own.userId : asked)
     if (!stylist) return unknownStylist(c, body.stylistId)
+    if (own && !isOwnChair(own, stylist)) return notYourChair(c)
 
     let created: AppointmentRow
     try {
@@ -263,6 +308,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const [existing]: AppointmentRow[] = await db.select().from(appointment)
       .where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Appointment not found')
+    const own = await book.ownChairOf(currentUser)
+    if (own && !isOwnChair(own, existing)) return notInBook(c)
 
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, any> = { updatedAt: new Date() }
@@ -288,6 +335,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if ('stylistId' in updates) {
       const resolved = await resolveStylist(db, currentUser.companyId, updates.stylistId ?? updates.stylistMemberId)
       if (!resolved) return unknownStylist(c, updates.stylistId)
+      // Handing the appointment to another chair (or to nobody) is not a narrowed seat's to do.
+      if (own && !isOwnChair(own, resolved)) return notYourChair(c)
       nextStylist = resolved
       updates.stylistId = resolved.stylistId
       updates.stylistMemberId = resolved.stylistMemberId
@@ -340,6 +389,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const [existing]: AppointmentRow[] = await db.select().from(appointment)
       .where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Appointment not found')
+    { const own = await book.ownChairOf(currentUser); if (own && !isOwnChair(own, existing)) return notInBook(c) }
 
     // Checking in a cancelled or no-show appointment quietly revived it. (Salon T27 N4)
     if (CANCELLED.includes(existing.status)) {
@@ -368,6 +418,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const [existing]: AppointmentRow[] = await db.select().from(appointment)
       .where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Appointment not found')
+    { const own = await book.ownChairOf(currentUser); if (own && !isOwnChair(own, existing)) return notInBook(c) }
 
     const [updated] = await db.update(appointment).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(appointment.id, id)).returning()
     // Cancelling from the book and from the list are the same act. (LY0928 M1)

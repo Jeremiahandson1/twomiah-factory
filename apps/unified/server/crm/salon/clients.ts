@@ -20,6 +20,7 @@ import { hasSubstance } from './formulas.ts'
 import { isClient } from './people.ts'
 import type { SalonServices } from './services.ts'
 import { withVisitPhotos } from './visitPhotos.ts'
+import { inOwnChair } from './bookScope.ts'
 
 const PROFILE_EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
 // Hair type is a short label on a client card; the longer free-text fields keep their own ceilings. (Salon T28 L4)
@@ -128,6 +129,10 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
       ]
     })
 
+    // The chart's appointments are the book's: a seat narrowed to its own chair (./bookScope.ts, owner's decision
+    // 2026-10-25) sees this client's bookings in its chair only. Visits and formulas stay whole — the next stylist
+    // needs the colour history, whoever did it.
+    const ownChair = await salon.book.ownChairOf(currentUser)
     const apptRows: any[] = await db.select({
       appointment, serviceName: serviceMenu.name, stylistFirstName: user.firstName, stylistMemberName: teamMember.name, stylistLastName: user.lastName,
     })
@@ -135,7 +140,7 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
       .leftJoin(serviceMenu, eq(appointment.serviceId, serviceMenu.id))
       .leftJoin(user, eq(appointment.stylistId, user.id))
       .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
-      .where(and(eq(appointment.contactId, contactId), eq(appointment.companyId, companyId)))
+      .where(and(eq(appointment.contactId, contactId), eq(appointment.companyId, companyId), ...(ownChair ? [inOwnChair(ownChair)] : [])))
       .orderBy(desc(appointment.startTime))
       .limit(30)
     const appointments = apptRows.map((r) => ({ ...r.appointment, serviceName: r.serviceName, stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName, stylistMemberName: r.stylistMemberName }))

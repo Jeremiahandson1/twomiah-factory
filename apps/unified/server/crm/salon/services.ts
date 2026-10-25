@@ -10,6 +10,7 @@ import { createLoyaltyAward } from './loyaltyAward.ts'
 import { createMembershipBilling } from './membershipBilling.ts'
 import { createRebookingDue } from './rebookingDue.ts'
 import { createVisitClosing } from './visit.ts'
+import { createBookScope } from './bookScope.ts'
 
 export function createSalonServices(d: CrmDeps) {
   const clock = createSalonClock(d.db)
@@ -24,6 +25,8 @@ export function createSalonServices(d: CrmDeps) {
     visits: createVisitClosing(d, checkout, loyalty),
     memberships: createMembershipBilling(d, clock, checkout),
     rebooking: createRebookingDue(d.db, clock),
+    /** Whose chairs a seat sees in The Book: the owner's "own appointments only" switch (bookScope.ts). */
+    book: createBookScope(d.db, d.permissions),
   }
 }
 

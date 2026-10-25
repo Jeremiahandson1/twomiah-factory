@@ -10,6 +10,7 @@ import { one } from '../../http/reply.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { clientsOf, isClient } from './people.ts'
 import type { SalonServices } from './services.ts'
+import { inOwnChair } from './bookScope.ts'
 
 // Cancelled and no-show rows are not appointments the desk has to serve; upcoming excludes completed too. (SALON-N9)
 // Module scope because two handlers use them — one referencing a handler-local copy was a ReferenceError on every
@@ -35,13 +36,17 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
     const now = new Date()
     // The SHOP's days, not the server's. (Salon T27 H1)
     const { today, tomorrow, in7, startOfMonth, startOfNextMonth } = await salon.clock.salonDayWindows(companyId)
+    // The appointment tiles count the book this seat reads: its own chair where the owner narrowed it (./bookScope.ts,
+    // owner's decision 2026-10-25), else everyone's. The month's visits by chair are the visit record, not the book.
+    const own = await salon.book.ownChairOf(u)
+    const mine = own ? [inOwnChair(own)] : []
 
     const [clientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, byStylistRows, membershipRows, dueRows] = await Promise.all([
       // The tile says "Clients … In your book", so it counts CLIENTS. (T20 M2)
       safe(() => db.select({ value: count() }).from(contact).where(clientsOf(companyId)), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), LIVE_APPT)), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
-      safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
+      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), LIVE_APPT)), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
+      safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
       safe(() => db.select({ value: count() }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ amt: serviceRecord.priceCharged }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [] as { amt: string | null }[]),
       // Chair productivity this month, whichever column holds the stylist. (Salon T27 N5)
@@ -91,6 +96,9 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
     const u = c.get('user') as any
     const companyId = u.companyId
     const now = new Date()
+    // Upcoming Appointments is the book: this seat's own chair where the owner narrowed it (./bookScope.ts).
+    const own = await salon.book.ownChairOf(u)
+    const mine = own ? [inOwnChair(own)] : []
     const [recentClients, recentServices, upcomingAppointments] = await Promise.all([
       // Clients, not everyone in the address book. (Salon T27 N10)
       safe(() => db.select({ id: contact.id, name: contact.name, phone: contact.phone, email: contact.email, updatedAt: contact.updatedAt })
@@ -109,7 +117,7 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
         .leftJoin(contact, eq(appointment.contactId, contact.id))
         .leftJoin(user, eq(appointment.stylistId, user.id))
         .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
-        .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), UPCOMING_APPT)).orderBy(appointment.startTime).limit(8), []),
+        .where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, now), UPCOMING_APPT)).orderBy(appointment.startTime).limit(8), []),
     ]) as [any[], any[], any[]]
 
     return one(c, {
