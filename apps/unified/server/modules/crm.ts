@@ -14,7 +14,7 @@ import {
   createDocumentRoutes, createPhotoRoutes, createRecurringRoutes, createReportingRoutes, createSmsRoutes, createStripeRoutes,
   createTechRoutes, createCommissionRoutes, createLocationRoutes, createEquipmentRoutes, createPricebookRoutes,
   createInventoryRoutes, createFleetRoutes, createWarrantiesRoutes, createAgreementsRoutes, createMarketingRoutes,
-  createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
+  createQuickBooksRoutes, createIntegrationsRoutes, createStripeLinkInternalRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath,
@@ -487,7 +487,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     } as any) },
     { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit, requireFeature: features.requireEnabledFeature('quickbooks') } as any) },
     { path: '/api/reviews', access: 'public', router: createReviewsRoutes({ service: s.reviews, db, tables: { reviewRequest }, authenticate, requireRole, requirePermission, audit, requireEnabledFeature: features.requireEnabledFeature } as any) },
-    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient, requireQuickbooks: features.requireEnabledFeature('quickbooks'), requireOnlinePayments: features.requireEnabledFeature('online_payments') } as any) },
+    // stripeLink: "I already have a Stripe account" — offered when the Factory has Stripe's client id; the Factory hands the
+    // linked account to /api/internal/stripe-link below. (A test's fake Stripe stands in for the SDK, as for payments.)
+    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.testStripeClient ?? s.stripe, factoryApiClient, stripeLink: true, requireQuickbooks: features.requireEnabledFeature('quickbooks'), requireOnlinePayments: features.requireEnabledFeature('online_payments') } as any) },
+    { path: '/api/internal/stripe-link', access: 'factory', router: createStripeLinkInternalRoutes({ db, tables: { company, user } }) },
     // The customer portal: a customer's own pages by their private link (/p/:token), and the staff switches that hand
     // the link out, which sign people in themselves (portal:share).
     // Home care's client portal answers first on the same path (inFront above).
