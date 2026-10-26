@@ -187,6 +187,12 @@ factory.post('/stripe/connect-webhook', async (c) => {
     },
   })
   if (result.status !== 'forwarded') console.warn('[StripeConnect]', event.type, event.account, result)
+  // The owner removed Twomiah from their Stripe account (or Disconnect withdrew it): the platform can no longer act on it,
+  // so the Factory's record goes too — once the business has been told (forwarded), so a retry still finds the tenant.
+  if (event.type === 'account.application.deauthorized' && result.status === 'forwarded' && typeof event.account === 'string') {
+    const { error } = await supabase.from('tenants').update({ stripe_connect_account_id: null }).eq('stripe_connect_account_id', event.account)
+    if (error) console.error('[StripeConnect] clearing a deauthorized account failed:', error.message)
+  }
   return c.json({ received: true, ...result }, responseStatusFor(result) as any)
 })
 

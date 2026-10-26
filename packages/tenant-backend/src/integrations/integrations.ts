@@ -4,6 +4,7 @@
 // tokens in company.integrations, which the sync endpoints never read, so "Connected" could never sync),
 // Stripe Connect onboarding, the SMS/email toggles, and the company's own Twilio account (which the SMS
 // service now actually uses).
+import crypto from 'node:crypto'
 import { Hono } from 'hono'
 import { eq, and, gte, count, sql } from 'drizzle-orm'
 import type { QuickBooksService } from './quickbooks'
@@ -21,12 +22,27 @@ export interface IntegrationsRoutesDeps {
    * Tells the Factory which connected Stripe account this business collects on, so connected-account
    * webhooks can be forwarded to this tenant (Factory → /api/stripe/factory-event). Null clears it.
    */
-  factoryApiClient?: { registerStripeAccount(accountId: string | null): Promise<unknown> }
+  factoryApiClient?: { registerStripeAccount(accountId: string | null): Promise<unknown>
+    // "I already have a Stripe account" (stripeLink below): the Factory's offer, its Stripe sign-in, and withdrawing access.
+    stripeLinkAvailable?(): Promise<{ available: boolean }>
+    startStripeLink?(p: { nonce: string; userId: string; returnUrl: string }): Promise<{ url: string }>
+    deauthorizeStripeLink?(accountId: string): Promise<{ deauthorized: boolean }>
+  }
+  /**
+   * "I already have a Stripe account — link it" (the Factory's Stripe sign-in, apps/api stripeOAuth.ts). Only an app that
+   * also mounts createStripeLinkInternalRoutes at /api/internal/stripe-link — where the Factory hands the account over —
+   * passes true (the unified app). Absent: the card offers only "Create a new Stripe account", as before.
+   */
+  stripeLink?: boolean
   frontendUrl?: string
   /** Gates for the QuickBooks and Stripe doors (the unified app: the quickbooks and online_payments switches). */
   requireQuickbooks?: (c: any, next: any) => any
   requireOnlinePayments?: (c: any, next: any) => any
 }
+
+/** How long a "link my Stripe account" press stays good — as long as the Factory's signed state (stripeConnectOAuth.ts). */
+const LINK_TTL_MS = 10 * 60_000
+const nonceHash = (nonce: string) => crypto.createHash('sha256').update(nonce).digest('hex')
 
 export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   const { db, tables: t, authenticate, requireAdmin, quickbooks: qb } = deps
@@ -45,6 +61,19 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
     })
   }
   const frontend = () => deps.frontendUrl || process.env.FRONTEND_URL || ''
+  // Whether the Factory offers linking, asked at most once a minute and never for more than 3 seconds: the status page
+  // must not hang on the Factory, and an unanswered question is "not offered" (default-safe).
+  let linkAvailableCache: { value: boolean; at: number } | null = null
+  const stripeLinkAvailable = async (): Promise<boolean> => {
+    if (!deps.stripeLink || !deps.factoryApiClient?.stripeLinkAvailable) return false
+    if (linkAvailableCache && Date.now() - linkAvailableCache.at < 60_000) return linkAvailableCache.value
+    const ask = deps.factoryApiClient.stripeLinkAvailable().then((r) => !!r?.available).catch(() => false)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const value = await Promise.race([ask, new Promise<boolean>((done) => { timer = setTimeout(() => done(false), 3_000) })])
+    clearTimeout(timer)
+    linkAvailableCache = { value, at: Date.now() }
+    return value
+  }
   const settingsUrl = (q: string) => `${frontend()}/settings/integrations?${q}`
   const loadCompany = async (companyId: string) => { const [row] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1); return row }
   const patchIntegrations = async (companyId: string, fn: (j: any) => any) => {
@@ -125,7 +154,11 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
       try { const account = await deps.stripe.accounts.retrieve(integrations.stripeAccountId); stripeStatus = { connected: true, chargesEnabled: !!account.charges_enabled, configured: true } }
       catch { stripeStatus = { connected: false, chargesEnabled: false, configured: true } }
       if (stripeStatus.connected) registerStripeAccount(integrations.stripeAccountId)
+      // A linked account finishes its setup in its own Stripe dashboard — an onboarding link is for accounts we created.
+      stripeStatus.linked = integrations.stripeAccountSource === 'oauth'
     }
+    // The second choice is shown only when it can work: this app takes accounts over, and the Factory has Stripe's client id.
+    if (deps.stripe && !stripeStatus.connected) stripeStatus.linkAvailable = await stripeLinkAvailable()
 
     const qbStatus = await qb.getConnectionStatus(u.companyId)
     const twilio = twilioConfigFor(row)
@@ -179,10 +212,50 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
       return c.json({ connectUrl: accountLink.url })
     } catch (e: any) { return c.json({ error: e?.message || 'Stripe could not start onboarding' }, 502) }
   })
+  /**
+   * "I already have a Stripe account — sign in to link it." The Factory holds Stripe's client id and the one registered
+   * redirect, so it signs the state; this app keeps a one-time nonce's HASH for this admin's press, which the Factory's
+   * hand-over must present (createStripeLinkInternalRoutes). A second press replaces the first — only the latest works.
+   */
+  app.get('/stripe/link-url', requireAdmin, async (c) => {
+    if (!deps.stripe || !deps.factoryApiClient?.startStripeLink || !(await stripeLinkAvailable())) {
+      return c.json({ error: 'Linking an existing Stripe account is not available on your account yet. Use "Create a new Stripe account", or email support@twomiah.com.' }, 503)
+    }
+    const u = user(c)
+    const row = await loadCompany(u.companyId)
+    if ((row?.integrations as any)?.stripeAccountId) return c.json({ error: 'Stripe is already connected. Disconnect it first to link a different account.' }, 409)
+    const nonce = crypto.randomBytes(32).toString('base64url')
+    await patchIntegrations(u.companyId, (j) => ({ ...j, stripeLinkPending: { nonceHash: nonceHash(nonce), userId: u.userId, expiresAt: Date.now() + LINK_TTL_MS } }))
+    // Back to the address the owner is on (their own domain, or the service's). The Factory refuses any address that is
+    // not this business's own, so a forged Host header only earns a refusal.
+    const here = new URL(c.req.url)
+    const origin = here.hostname === 'localhost' ? here.origin : `https://${here.host}`
+    try {
+      const { url } = await deps.factoryApiClient.startStripeLink({ nonce, userId: u.userId, returnUrl: `${origin}/crm/settings/integrations` })
+      return c.json({ linkUrl: url })
+    } catch (e: any) {
+      console.error('[integrations] Stripe link start failed:', e?.message)
+      return c.json({ error: 'Stripe sign-in could not be started. Please try again in a minute.' }, 502)
+    }
+  })
   app.post('/stripe/disconnect', requireAdmin, async (c) => {
-    await patchIntegrations(user(c).companyId, (j) => { delete j.stripeAccountId; return j })
+    const u = user(c)
+    const row = await loadCompany(u.companyId)
+    const current = ((row?.integrations as any) || {}) as any
+    // A linked account is the owner's own: Disconnect also withdraws Twomiah's access to it at Stripe (connect.stripe.com
+    // oauth/deauthorize, through the Factory, which holds the client id). An account we created is cleared here as before.
+    let deauthorized: boolean | undefined
+    if (current.stripeAccountId && current.stripeAccountSource === 'oauth' && deps.factoryApiClient?.deauthorizeStripeLink) {
+      deauthorized = await deps.factoryApiClient.deauthorizeStripeLink(current.stripeAccountId).then((r) => !!r?.deauthorized).catch((e: any) => {
+        console.error('[integrations] Stripe deauthorize failed:', e?.message)
+        return false
+      })
+    }
+    await patchIntegrations(u.companyId, (j) => { delete j.stripeAccountId; delete j.stripeAccountSource; delete j.stripeLinkPending; return j })
     registerStripeAccount(null, true)
-    return c.json({ success: true })
+    // Disconnected here either way — no more payments go to it. When Stripe did not confirm, the owner is told where to finish.
+    if (deauthorized === false) return c.json({ success: true, deauthorized: false, message: "Stripe is disconnected here, but Stripe did not confirm removing Twomiah's access. You can remove it in your Stripe dashboard (Settings › Connected apps)." })
+    return c.json({ success: true, ...(deauthorized ? { deauthorized: true } : {}) })
   })
 
   // ── Texting / email toggles (company.settings)
@@ -216,5 +289,54 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
     return c.json({ success: true })
   })
 
+  return app
+}
+
+export interface StripeLinkInternalDeps {
+  db: any
+  tables: { company: any; user: any }
+}
+
+/**
+ * POST /api/internal/stripe-link — the Factory hands over the account an owner linked at Stripe (X-Factory-Key, applied
+ * where it is mounted), or tells this app the sign-in ended without one ({ outcome }). Accepted only for the ONE pending
+ * press it matches: same nonce (by hash), not expired, the same admin, who is still an active owner/admin of this
+ * business, and no account connected meanwhile. The press is consumed by a conditional update, so a second hand-over
+ * of the same nonce finds nothing (410). Any refusal makes the Factory withdraw its access to the account.
+ *   410 gone or expired · 403 someone else's press, or no longer an admin · 409 already connected · 400 malformed
+ */
+export function createStripeLinkInternalRoutes(deps: StripeLinkInternalDeps) {
+  const { db, tables: t } = deps
+  const app = new Hono()
+  app.post('/', async (c) => {
+    const b = await c.req.json().catch(() => null) as any
+    const nonce = typeof b?.nonce === 'string' ? b.nonce : ''
+    const userId = typeof b?.userId === 'string' ? b.userId : ''
+    const accountId = b?.accountId === undefined || b?.accountId === null ? null : String(b.accountId)
+    if (!nonce || !userId || (accountId !== null && !/^acct_[A-Za-z0-9]+$/.test(accountId))) return c.json({ error: 'nonce, userId and an account id (acct_...) or an outcome are required' }, 400)
+    const hash = nonceHash(nonce)
+    const pendingIs = sql`(${t.company.integrations}->'stripeLinkPending'->>'nonceHash') = ${hash}`
+    const [row] = await db.select().from(t.company).where(pendingIs).limit(1)
+    if (!row) return c.json({ error: 'This Stripe sign-in is no longer pending' }, 410)
+    const integrations = { ...((row.integrations as any) || {}) }
+    const pending = integrations.stripeLinkPending || {}
+    delete integrations.stripeLinkPending
+    let refusal: { status: 410 | 403 | 409; error: string } | null = null
+    if (!(Number(pending.expiresAt) > Date.now())) refusal = { status: 410, error: 'This Stripe sign-in has expired' }
+    else if (pending.userId !== userId) refusal = { status: 403, error: 'This Stripe sign-in was started by someone else' }
+    else if (accountId) {
+      const [who] = await db.select({ role: t.user.role, isActive: t.user.isActive }).from(t.user).where(and(eq(t.user.id, userId), eq(t.user.companyId, row.id))).limit(1)
+      if (!who || who.isActive === false || !['owner', 'admin'].includes(who.role)) refusal = { status: 403, error: 'Only an owner or admin can link a Stripe account' }
+      else if (integrations.stripeAccountId) refusal = { status: 409, error: 'Stripe is already connected' }
+    }
+    if (!refusal && accountId) Object.assign(integrations, { stripeAccountId: accountId, stripeAccountSource: 'oauth' })
+    // Consumed only while it is still the same press: two hand-overs racing for one nonce cannot both win.
+    const done = await db.update(t.company).set({ integrations, updatedAt: new Date() })
+      .where(and(eq(t.company.id, row.id), pendingIs))
+      .returning({ id: t.company.id })
+    if (!done.length) return c.json({ error: 'This Stripe sign-in is no longer pending' }, 410)
+    if (refusal) return c.json({ error: refusal.error }, refusal.status)
+    return c.json(accountId ? { linked: true } : { cleared: true })
+  })
   return app
 }

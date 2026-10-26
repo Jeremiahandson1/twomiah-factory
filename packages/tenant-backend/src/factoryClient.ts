@@ -20,6 +20,10 @@ interface FullFactoryApiClient extends FactoryApiClient {
   startRestartCheckout(returnPath?: string): Promise<{ url: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
   registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
+  // Linking an EXISTING Stripe account through the Factory's one registered Stripe redirect (apps/api stripeOAuth.ts).
+  stripeLinkAvailable(): Promise<{ available: boolean }>
+  startStripeLink(p: { nonce: string; userId: string; returnUrl: string }): Promise<{ url: string }>
+  deauthorizeStripeLink(accountId: string): Promise<{ deauthorized: boolean }>
   // The business's own web address — the same Factory routes the premium sites' Domain page uses (10/15).
   getDomainStatus(): Promise<{ status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain: string | null; nameservers: string[]; registrar?: string | null }>
   checkDomain(domain: string): Promise<any>
@@ -113,6 +117,17 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     // that account's webhooks to this tenant. Null after a disconnect.
     async registerStripeAccount(accountId) {
       return call('POST', tenantBase() + '/stripe-connect', { accountId })
+    },
+    // "I already have a Stripe account": whether the Factory offers it, the Stripe sign-in link for one admin's press
+    // (the Factory signs the state; this app keeps the nonce's hash), and withdrawing the platform's access on Disconnect.
+    async stripeLinkAvailable() {
+      return call('GET', tenantBase() + '/stripe-oauth')
+    },
+    async startStripeLink(p) {
+      return call('POST', tenantBase() + '/stripe-oauth/start', p)
+    },
+    async deauthorizeStripeLink(accountId) {
+      return call('POST', tenantBase() + '/stripe-oauth/deauthorize', { accountId })
     },
     // Domain: status, availability with both prices, the purchase checkout (Stripe returns the customer to returnPath
     // on this app), and connecting a domain the business already owns. Same Factory routes as the premium sites.

@@ -479,10 +479,30 @@ export function createStripeService(deps: StripeServiceDeps) {
         return handleCheckoutComplete(event.data.object as Stripe.Checkout.Session)
       case 'charge.refunded':
         return handleChargeRefunded(event.data.object as Stripe.Charge, stripeAccount)
+      case 'account.application.deauthorized':
+        return forgetDeauthorizedAccount(stripeAccount)
       default:
         console.log(`Unhandled Stripe event: ${event.type}`)
         return { handled: false }
     }
+  }
+
+  /**
+   * The owner removed Twomiah from their Stripe account (Stripe › Settings › Connected apps), or a Disconnect withdrew it:
+   * the platform can no longer charge on it, so Settings › Integrations must stop saying "Ready to accept payments" and
+   * the card stop offering Pay. Only the business that held THAT account is changed.
+   */
+  async function forgetDeauthorizedAccount(accountId: string | null) {
+    if (!accountId) return { handled: false, reason: 'no account on the event' }
+    const rows: Array<{ id: string; integrations: any }> = await db.select({ id: company.id, integrations: company.integrations }).from(company)
+      .where(sql`(${company.integrations}->>'stripeAccountId') = ${accountId}`)
+    for (const row of rows) {
+      const next = { ...((row.integrations as any) || {}) }
+      delete next.stripeAccountId
+      delete next.stripeAccountSource
+      await db.update(company).set({ integrations: next, updatedAt: new Date() } as any).where(eq(company.id, row.id))
+    }
+    return { handled: true, cleared: rows.length }
   }
 
   // The late-deposit guard, per calendar. Each block is the per-template SQL as it was; only the

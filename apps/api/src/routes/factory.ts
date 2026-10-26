@@ -12,6 +12,7 @@ import { registerAdminRoutes } from './factory/admin'
 import { registerRoofReviewRoutes } from './factory/roofReview'
 import { registerA2pRoutes } from './factory/a2p'
 import { registerMessagingRoutes } from './factory/messaging'
+import { registerStripeOAuthRoutes } from './factory/stripeOAuth'
 
 const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 
@@ -77,6 +78,10 @@ factory.use('*', async (c, next) => {
     || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/ads\/register$/i.test(c.req.path))
     // Stripe Connect: the tenant CRM reports its connected account with X-Factory-Key (checked in lifecycle.ts).
     || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/stripe-connect$/i.test(c.req.path))
+    // Linking an existing Stripe account (factory/stripeOAuth.ts): the tenant's three calls carry X-Factory-Key (checked
+    // there), and Stripe's redirect back carries only the signed state, verified in services/stripeConnectOAuth.ts.
+    || /\/customers\/[0-9a-f-]{36}\/stripe-oauth(\/start|\/deauthorize)?$/i.test(c.req.path)
+    || (c.req.method === 'GET' && c.req.path.endsWith('/stripe/oauth/callback'))
   ) return next()
   return authenticate(c, next)
 })
@@ -92,5 +97,6 @@ registerAdminRoutes(factory)
 registerRoofReviewRoutes(factory)
 registerA2pRoutes(factory)
 registerMessagingRoutes(factory)
+registerStripeOAuthRoutes(factory)
 
 export default factory

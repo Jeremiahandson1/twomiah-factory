@@ -12,7 +12,7 @@ import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integra
 import { leadSourceGuides } from '../leads/types'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { CallTrackingSection } from './CallTrackingSettings'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { whenDateTime } from '../time/companyClock'
 import { vocabulary } from '../labels/vocabulary'
 
@@ -23,7 +23,9 @@ export const DEFAULT_LEAD_SOURCES: LeadSourceGuide[] = leadSourceGuides()
 
 interface Status {
   quickbooks: { connected: boolean; configured?: boolean; companyName: string | null; lastSync: string | null; syncEnabled?: boolean }
-  stripe: { connected: boolean; chargesEnabled: boolean; configured?: boolean }
+  // linked: an existing account the owner signed in to link (its setup is finished in its own Stripe dashboard).
+  // linkAvailable: the "I already have a Stripe account" choice can work here (the server asked the Factory).
+  stripe: { connected: boolean; chargesEnabled: boolean; configured?: boolean; linked?: boolean; linkAvailable?: boolean }
   sms: { enabled: boolean; usage: number }
   email: { enabled: boolean; usage: number }
   twilio: { configured: boolean; ownAccount?: boolean; phoneNumber: string | null }
@@ -38,6 +40,20 @@ const EMPTY: Status = {
 }
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
 
+/**
+ * Where "I already have a Stripe account" ended — the Factory sends the owner back with ?stripe=<outcome>
+ * (apps/api services/stripeConnectOAuth.ts LinkOutcome). Each in plain words; ok = shown as a success.
+ */
+export const STRIPE_LINK_OUTCOMES: Record<string, { ok: boolean; text: string }> = {
+  linked: { ok: true, text: 'Your Stripe account is linked. Card payments now go into it.' },
+  cancelled: { ok: false, text: 'Stripe sign-in was cancelled, so nothing was linked.' },
+  other_platform: { ok: false, text: 'That Stripe account is run by another software company, and Stripe does not let it be linked here. Press "Create a new Stripe account" instead.' },
+  expired: { ok: false, text: 'The Stripe sign-in took too long or was already used. Press "I already have a Stripe account" to try again.' },
+  already_connected: { ok: false, text: 'Stripe was already connected, so nothing was changed. Disconnect it first to link a different account.' },
+  not_allowed: { ok: false, text: 'Only an owner or admin can link a Stripe account, so nothing was linked.' },
+  failed: { ok: false, text: 'Stripe could not link the account. Please try again, or email support@twomiah.com.' },
+}
+
 export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: IntegrationsConfig }) {
   const confirm = useConfirm()
   const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
@@ -46,6 +62,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const w = vocabulary()
   const copy = { quickbooks: `Send ${w.customer.many}, invoices and payments to QuickBooks Online.`, quickbooksAutoSync: `Auto-sync new invoices and ${w.customer.many}`, sms: `Send text updates and reminders to ${w.customer.many} and ${w.team.many}.`, email: `Send invoices${on('quotes') ? ', quotes' : ''} and reminders by email.`, intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const navigate = useNavigate()
+  const location = useLocation()
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -71,6 +88,16 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+  // Back from the Stripe sign-in: say how it went once, then take the word off the address so a reload does not repeat it.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const outcome = STRIPE_LINK_OUTCOMES[params.get('stripe') || '']
+    if (!outcome) return
+    if (outcome.ok) flash(outcome.text); else fail(outcome.text)
+    params.delete('stripe')
+    const rest = params.toString()
+    navigate(location.pathname + (rest ? `?${rest}` : ''), { replace: true })
+  }, [])
 
   const run = async (key: string, fn: () => Promise<void>, fallback: string) => {
     setSaving(key); setError('')
@@ -86,7 +113,9 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   }, 'Sync failed')
   const qbAutoSync = () => run('autosync', async () => { const next = !status.quickbooks.syncEnabled; await api.post('/api/quickbooks/auto-sync', { enabled: next }); setStatus((s) => ({ ...s, quickbooks: { ...s.quickbooks, syncEnabled: next } })); flash(`Auto-sync ${next ? 'enabled' : 'disabled'}`) }, 'Failed to update auto-sync')
   const stripeConnect = () => run('stripe-connect', async () => { const d = await api.get('/api/integrations/stripe/connect-url'); if (d?.connectUrl) window.location.href = d.connectUrl; else throw new Error('Stripe did not return an onboarding link') }, 'Failed to start Stripe connection')
-  const stripeDisconnect = async () => { if (!(await confirm("Disconnect Stripe? You won't be able to accept payments.", { title: 'Disconnect Stripe', confirmText: 'Disconnect' }))) return; run('stripe', async () => { await api.post('/api/integrations/stripe/disconnect'); setStatus((s) => ({ ...s, stripe: { ...EMPTY.stripe } })); flash('Stripe disconnected') }, 'Failed to disconnect Stripe') }
+  const stripeLink = () => run('stripe-link', async () => { const d = await api.get('/api/integrations/stripe/link-url'); if (d?.linkUrl) window.location.href = d.linkUrl; else throw new Error('Stripe did not return a sign-in link') }, 'Failed to start the Stripe sign-in')
+  // A linked account's disconnect also removes Twomiah's access at Stripe; when Stripe did not confirm, the server says where to finish.
+  const stripeDisconnect = async () => { if (!(await confirm("Disconnect Stripe? You won't be able to accept payments.", { title: 'Disconnect Stripe', confirmText: 'Disconnect' }))) return; run('stripe', async () => { const d = await api.post('/api/integrations/stripe/disconnect'); await load(); flash(d?.message || 'Stripe disconnected') }, 'Failed to disconnect Stripe') }
   const twilioSave = () => {
     if (!twilioForm.accountSid || !twilioForm.authToken || !twilioForm.phoneNumber) { fail('All Twilio fields are required'); return }
     run('twilio', async () => { const d = await api.post('/api/integrations/twilio/configure', twilioForm); setStatus((s) => ({ ...s, twilio: { configured: true, ownAccount: true, phoneNumber: d?.phoneNumber || twilioForm.phoneNumber } })); setTwilioForm((f) => ({ ...f, accountSid: '', authToken: '' })); flash('Twilio configured') }, 'Failed to save Twilio settings')
@@ -161,8 +190,19 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           ) : status.stripe.connected ? (
             <div className="mt-2 text-sm">
               {status.stripe.chargesEnabled ? <p className="text-green-700 dark:text-green-400 font-medium">Ready to accept payments</p>
-                : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-700 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p><button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button></div>}
+                : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-700 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p>{status.stripe.linked
+                  // A linked account is the owner's own: its missing details are filled in on Stripe's site, not through our onboarding.
+                  ? <a href="https://dashboard.stripe.com/account/onboarding" target="_blank" rel="noreferrer" className="text-sm text-purple-700 dark:text-purple-300 hover:underline">Finish setup in your Stripe dashboard</a>
+                  : <button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button>}</div>}
             </div>
+          ) : status.stripe.linkAvailable ? (
+            // Both ways in, each said plainly: a business that already takes cards on Stripe links that account rather than
+            // getting a second one (owner, 2026-10-25).
+            <HowTo steps={[
+              'Already use Stripe? Press "I already have a Stripe account", sign in to Stripe and allow the connection. Your account is linked as it is.',
+              'New to Stripe? Press "Create a new Stripe account". Stripe asks for your business details and the bank account to pay you into — about 10 minutes.',
+              'Either way you come back here, and this card says "Ready to accept payments".',
+            ]} />
           ) : (
             <HowTo steps={[
               'Click Connect Stripe. Sign in to Stripe, or create a free account there.', 'Stripe asks for your business details and the bank account to pay you into — about 10 minutes.', 'You come back here, and this card says "Ready to accept payments".',
@@ -170,6 +210,10 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           )}
           actions={status.stripe.configured === false ? null : status.stripe.connected
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
+            : status.stripe.linkAvailable ? (<div className="flex flex-col gap-2 items-stretch">
+              <button onClick={stripeLink} disabled={saving === 'stripe-link'} data-testid="stripe-link" className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center justify-center gap-2">I already have a Stripe account<ExternalLink className="w-4 h-4" /></button>
+              <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} data-testid="stripe-create" className="border border-purple-600 dark:border-purple-400 text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 dark:hover:bg-purple-500/10 flex items-center justify-center gap-2">Create a new Stripe account<ExternalLink className="w-4 h-4" /></button>
+            </div>)
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
         </>}
         {config?.paymentsExtra && <>{!on('online_payments') && <SectionLabel label="Payments" />}{config.paymentsExtra}</>}

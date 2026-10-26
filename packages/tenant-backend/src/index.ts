@@ -173,7 +173,7 @@ export { refuseUnverifiedWebhook, verifyWebhookSecret } from './integrations/web
 export { aiRuleFields, aiRuleCreateSchema, aiRuleUpdateSchema, aiSettingsSchema, AI_RULE_TRIGGERS, AI_RULE_CHANNELS } from './integrations/aiReceptionistSchemas'
 export { verifyPlaidWebhook, plaidKeyFetcher } from './integrations/plaid'
 export type { PlaidKeyFetcher } from './integrations/plaid'
-export { createIntegrationsRoutes } from './integrations/integrations'
+export { createIntegrationsRoutes, createStripeLinkInternalRoutes } from './integrations/integrations'
 export type { IntegrationsRoutesDeps } from './integrations/integrations'
 export type { TwilioConfig } from './integrations/twilio'
 export { createSmsService, createSmsRoutes, MAX_TEXT_PICTURES } from './integrations/sms'
