@@ -563,6 +563,17 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       console.warn('[Deploy] Store content compose failed (non-blocking, deploying skeleton):', e?.message)
     }
 
+    // A premium template site reads its pages from preview_premium_pages when it boots (premium-site-bootstrap), so a
+    // signup's AI composition is settled first — finished, redone after a restart, or given up on for the template one
+    // stored at signup (services/signupSite.ts). Bounded; a site not waiting on the AI is not touched.
+    if (tenant.preview_premium_pages?.aiCompose) {
+      try {
+        const signupSite = await import('../../services/signupSite')
+        const settled = await signupSite.settleSignupSite(tenant.id, await signupSite.liveSignupSiteDeps())
+        console.log('[Deploy] Site for', tenant.slug, 'settled:', settled)
+      } catch (e: any) { console.warn('[Deploy] Site settle failed (non-blocking, the stored site is used):', e?.message) }
+    }
+
     console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
     const genResult = await generate({ ...config, tenant_slug: tenant.slug }) // Render hosts follow the row's slug (GenerateConfig.tenant_slug)
     const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')

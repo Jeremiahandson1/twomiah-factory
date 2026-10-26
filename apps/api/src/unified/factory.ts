@@ -30,7 +30,7 @@ import { verticalFor, crmTemplateFor, startingFeaturesFor } from '../config/indu
 import { stateTimezone } from '../config/stateTimezone'
 import { resolveCrmFeatures } from '../services/generator'
 import { premiumSitePages, premiumServiceAreas, buildPremiumNav, type PremiumComposition } from '../services/premiumSitePages'
-import { composeInstant, tradeLabelFor } from '../services/instantComposer'
+import { composeInstant, toComposition, tradeLabelFor } from '../services/instantComposer'
 import { websiteTradeFor } from '../config/websiteTrades'
 import { wantsBookings } from '../services/composerFacts'
 import { signupQuestionsFor } from '../config/signupQuestions'
@@ -66,25 +66,73 @@ export function isTestSignup(s: { email?: string | null; admin_email?: string | 
  * unified app has none yet. Mirrors the templates' routing: showcase runs the basic CRM there too (services/deploy.ts
  * isBasic), and food trucks the restaurant's (its food side; config/industryRouting.ts unifiedFeaturePreset).
  */
-export function unifiedVerticalFor(industry: string | null | undefined): string | null {
-  const v = verticalFor(industry)
-  const map: Partial<Record<typeof v, string>> = {
-    basic: 'basic', showcase: 'basic', foodtruck: 'restaurant', contractor: 'contractor', fieldservice: 'fieldservice',
-    homecare: 'homecare', roofing: 'roofing', landscaping: 'landscaping', bar: 'bar', rv: 'rv', veterinary: 'vet',
-    salon: 'salon', events: 'restaurant', store: 'store',
-  }
-  return map[v] ?? null
+const UNIFIED_VERTICAL_OF: Partial<Record<ReturnType<typeof verticalFor>, string>> = {
+  basic: 'basic', showcase: 'basic', foodtruck: 'restaurant', contractor: 'contractor', fieldservice: 'fieldservice',
+  homecare: 'homecare', roofing: 'roofing', landscaping: 'landscaping', bar: 'bar', rv: 'rv', veterinary: 'vet',
+  salon: 'salon', events: 'restaurant', store: 'store',
 }
 
-/** The engine a NEW signup gets. Off: always the templates. */
-export function engineForSignup(
-  s: { industry?: string | null; email?: string | null; admin_email?: string | null; is_test_tenant?: boolean | null },
-  mode: UnifiedSignups = unifiedSignupsMode(),
-): Engine {
+export function unifiedVerticalFor(industry: string | null | undefined): string | null {
+  return UNIFIED_VERTICAL_OF[verticalFor(industry)] ?? null
+}
+
+/** Every unified vertical id a Factory industry can run as. */
+export const UNIFIED_VERTICAL_IDS: readonly string[] = [...new Set(Object.values(UNIFIED_VERTICAL_OF) as string[])]
+
+/**
+ * The unified verticals open to REAL customers (owner's decision, 2026-10-25: go live per industry, as each is tested):
+ * UNIFIED_LIVE_VERTICALS, a comma- or space-separated list of unified vertical ids (UNIFIED_VERTICAL_IDS —
+ * contractor, fieldservice, landscaping, roofing, homecare, restaurant, bar, salon, …). A food truck, a caterer or a
+ * venue is 'restaurant' here, as it runs as one (unifiedVerticalFor).
+ *
+ * Unset, empty, or naming no known id: null — no list, and signups behave exactly as UNIFIED_SIGNUPS alone says, so
+ * a typo can neither open an untested industry nor close the signup to everyone. An unknown id beside known ones is
+ * ignored (and logged once), never guessed at.
+ */
+export function unifiedLiveVerticals(env: Record<string, string | undefined> = process.env): Set<string> | null {
+  const raw = String(env.UNIFIED_LIVE_VERTICALS || '').toLowerCase().split(/[\s,]+/).filter(Boolean)
+  const known = raw.filter((id) => UNIFIED_VERTICAL_IDS.includes(id))
+  const unknown = raw.filter((id) => !UNIFIED_VERTICAL_IDS.includes(id))
+  if (unknown.length && !warnedUnknown.has(unknown.join(','))) {
+    warnedUnknown.add(unknown.join(','))
+    console.warn('[Unified] UNIFIED_LIVE_VERTICALS names unknown vertical(s), ignored:', unknown.join(', '), '— known:', UNIFIED_VERTICAL_IDS.join(', '))
+  }
+  return known.length ? new Set(known) : null
+}
+const warnedUnknown = new Set<string>()
+
+type SignupWho = { industry?: string | null; email?: string | null; admin_email?: string | null; is_test_tenant?: boolean | null }
+
+/**
+ * The engine a NEW signup gets.
+ *   off   always the templates (the list is not read: off means the Factory behaves exactly as before).
+ *   test  a test signup: the unified app, for every vertical it has. A real signup: the unified app when its vertical
+ *         is on the live list (UNIFIED_LIVE_VERTICALS), else the templates — the behaviour before the list existed.
+ *   all   every signup whose industry has a unified vertical.
+ * An industry with no unified vertical (dispensary) stays on the templates whatever the switch says.
+ */
+export function engineForSignup(s: SignupWho, mode: UnifiedSignups = unifiedSignupsMode(), live: Set<string> | null = unifiedLiveVerticals()): Engine {
   if (mode === 'off') return 'templates'
-  if (!unifiedVerticalFor(s.industry)) return 'templates'
+  const vertical = unifiedVerticalFor(s.industry)
+  if (!vertical) return 'templates'
   if (mode === 'all') return 'unified'
-  return isTestSignup(s) ? 'unified' : 'templates'
+  return isTestSignup(s) || !!live?.has(vertical) ? 'unified' : 'templates'
+}
+
+/**
+ * Whether a REAL signup is refused because its industry is not open yet: only while a live list is set (the Factory
+ * is going live per industry). Then an industry that is not on it — not tested on the unified app (vet, RV, store, the
+ * basic/"other" CRM), or with no unified vertical at all (dispensary) — is refused with a clear message, rather than
+ * built on the templates: the owner's rule (2026-10-25) is that no new customer starts on the templates who would have
+ * to be moved later. A test signup is never refused (every vertical is tested through it), and with no list the
+ * signup behaves exactly as before. Null: not refused.
+ */
+export function signupRefusal(s: SignupWho, mode: UnifiedSignups = unifiedSignupsMode(), live: Set<string> | null = unifiedLiveVerticals()): string | null {
+  if (mode === 'off' || !live || isTestSignup(s)) return null
+  if (engineForSignup(s, mode, live) === 'unified') return null
+  const trade = tradeLabelFor(String(s.industry || ''))
+  return (trade ? `Sign-ups for ${trade} businesses` : 'Sign-ups for this kind of business') +
+    ' are not open yet. We are getting Twomiah ready for you — please check back soon.'
 }
 
 export const isUnifiedTenant = (t: { engine?: string | null } | null | undefined) => t?.engine === 'unified'
@@ -138,16 +186,13 @@ export function takesBookings(tenant: any): boolean {
 export function compositionFor(tenant: any): PremiumComposition | null {
   if (tenant.preview_premium_pages?.pages) return tenant.preview_premium_pages
   const intake = tenant.intake_data?.intake || {}
-  const site = composeInstant({
+  // The template composer (services/instantComposer.ts): the trade's whole page plan from the tenant's own facts.
+  return toComposition(composeInstant({
     businessName: tenant.name, businessType: tenant.industry || 'other',
     city: tenant.city || undefined, state: tenant.state || undefined, phone: tenant.phone || undefined,
     email: tenant.email || undefined, services: Array.isArray(intake.services) ? intake.services : [],
     description: intake.description || undefined,
-  } as any)
-  return {
-    pages: Object.fromEntries(Object.entries(site.pages).map(([slug, sections]) => [slug, { sections }])),
-    heldPages: site.heldPages, contentGaps: site.contentGaps as any[],
-  }
+  } as any))
 }
 
 /**
@@ -303,6 +348,11 @@ export interface UnifiedDeps {
   stillWorkingMs?: number
   /** How long the build waits for the database and the new code (unified/build.ts waitMs). */
   waitMs?: number
+  /**
+   * services/signupSite.ts settleSignupSite: the signup's AI website finished, run again after a restart, or given up
+   * on for the template one stored at signup. Absent: the stored composition is used as it is.
+   */
+  settleSite?: (tenantId: string) => Promise<unknown>
 }
 
 /** Pushes a built tree to the repo's main branch (replacing it, as the template deploy does) and returns the commit. */
@@ -334,11 +384,12 @@ export function factoryVersion(root: string, env: Record<string, string | undefi
 
 /** The Factory's own deps: Supabase, GitHub, Render, the email and audit services. */
 export async function liveUnifiedDeps(): Promise<UnifiedDeps> {
-  const [{ supabase }, ownership, email, shared, sub, deploySvc, aliases, bcrypt, deployRoutes] = await Promise.all([
+  const [{ supabase }, ownership, email, shared, sub, deploySvc, aliases, bcrypt, deployRoutes, signupSite] = await Promise.all([
     import('../middleware/auth'), import('../services/resourceOwnership'), import('../services/email'),
     import('../routes/factory/shared'), import('../services/tenantSubscription'), import('../services/deploy'),
-    import('../services/emailAliasSync'), import('bcryptjs'), import('../routes/factory/deploy'),
+    import('../services/emailAliasSync'), import('bcryptjs'), import('../routes/factory/deploy'), import('../services/signupSite'),
   ])
+  const siteDeps = await signupSite.liveSignupSiteDeps()
   const env = { ...process.env, GITHUB_ORG: process.env.GITHUB_ORG || process.env.GITHUB_USER }
   const hosts = createHosts(hostConfigFromEnv(env), (url, init) => fetch(url, init))
   const root = path.resolve(import.meta.dir, '..', '..', '..', '..')
@@ -366,6 +417,7 @@ export async function liveUnifiedDeps(): Promise<UnifiedDeps> {
       wire: (o) => deploySvc.wireDomainInfrastructure(o),
       reconcileAliases: (t) => aliases.reconcileAliasesInBackground(t),
     },
+    settleSite: (id) => signupSite.settleSignupSite(id, siteDeps),
   }
 }
 
@@ -439,6 +491,20 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
     const plain = tenant.admin_password || config?.company?.defaultPassword || crypto.randomBytes(24).toString('base64url')
     const passwordHash = await deps.hashPassword(plain)
     const provision = provisionBody(tenant, config, passwordHash)
+    // The website: a signup's AI composition is settled (finished, redone after a restart, or given up on for the
+    // template one stored at signup — services/signupSite.ts) while the database and service are made, and the provision
+    // body is made from what stands once the new code answers. Only a site still waiting on the AI is settled; any
+    // other composition is used as stored.
+    const settling = wantsWebsite(tenant) && tenant.preview_premium_pages?.aiCompose && deps.settleSite
+      ? deps.settleSite(tenant.id).catch((e: any) => { console.warn('[Unified] Site settle failed for', tenant.slug, '— the stored site is used:', e?.message) })
+      : null
+    const provisionNow = settling
+      ? async () => {
+          await settling
+          const { data } = await db.from('tenants').select('preview_premium_pages').eq('id', tenant.id).maybeSingle()
+          return provisionBody({ ...tenant, preview_premium_pages: data?.preview_premium_pages ?? tenant.preview_premium_pages }, config, passwordHash)
+        }
+      : provision
     const baseEnv = await deps.integrationEnv(tenant, config, { factoryUrl: deps.factoryUrl, guessUrl })
 
     // The media bucket every upload goes to (packages/tenant-backend files/storage.ts reads R2_*), made the template
@@ -460,7 +526,7 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
 
     console.log('[Unified] Building', tenant.slug, 'as', vertical, 'at', deps.version.slice(0, 9))
     const result = await buildUnifiedTenant({
-      tenant: { id: tenant.id, slug: tenant.slug }, vertical, provision, integrationEnv, factoryUrl: deps.factoryUrl, domain: tenant.domain || null,
+      tenant: { id: tenant.id, slug: tenant.slug }, vertical, provision: provisionNow, integrationEnv, factoryUrl: deps.factoryUrl, domain: tenant.domain || null,
       owned, root: deps.root, version: deps.version, waitMs: deps.waitMs,
     }, deps.io)
     console.log('[Unified] Build steps for', tenant.slug + ':', JSON.stringify(result.steps))

@@ -19,7 +19,8 @@ import { composeInstant } from '../../services/instantComposer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
-import { engineForSignup, isUnifiedTenant } from '../../unified/factory'
+import { engineForSignup, isUnifiedTenant, signupRefusal } from '../../unified/factory'
+import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes } from '../../services/signupSite'
 import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
@@ -261,6 +262,13 @@ function signupServices(v: any): string[] {
   return out
 }
 
+// Is an industry open for sign-ups? The signup form asks when the owner picks one, so an industry not yet open is
+// said so up front instead of only at submit (unified/factory.ts signupRefusal, the same rule /public/signup applies).
+factory.get('/public/signup/industry-open', rateLimit(10 * 60 * 1000, 60), (c) => {
+  const refusal = signupRefusal({ industry: String(c.req.query('industry') || '').slice(0, 80) })
+  return c.json(refusal ? { open: false, message: refusal } : { open: true })
+})
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -273,6 +281,12 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
       return c.json({ error: 'Valid email is required' }, 400)
     }
+
+    // Going live per industry (unified/factory.ts signupRefusal): while UNIFIED_LIVE_VERTICALS is set, a real signup
+    // for an industry not yet open is refused here, before anything is made, rather than started on the templates and
+    // moved later. Unset (the default), nothing is refused.
+    const refusal = signupRefusal({ industry: body.industry, email: body.email, admin_email: body.admin_email })
+    if (refusal) return c.json({ error: refusal, code: 'INDUSTRY_NOT_OPEN' }, 422)
 
     const baseSlug = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
@@ -327,24 +341,21 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     const premiumSite = signupWebsiteEngine() === 'premium' && verticalFor(body.industry) !== 'store'
       && requestedProducts.some((x) => String(x).startsWith('website'))
     const signupProducts = premiumSite ? deployProductsForVertical(body.industry, requestedProducts) : requestedProducts
-    // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS (unified/factory.ts). Off (the
-    // default): 'templates', and this signup runs exactly as it always has. A unified tenant's site is composed now
-    // too, the same way, so its build seeds the site with it.
+    // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS and UNIFIED_LIVE_VERTICALS
+    // (unified/factory.ts). Off (the default): 'templates', and this signup runs exactly as it always has.
     const engine = engineForSignup({ industry: body.industry, email: body.email, admin_email: body.admin_email })
     const unifiedSite = engine === 'unified' && verticalFor(body.industry) !== 'store'
       && requestedProducts.some((x) => String(x).startsWith('website'))
+    // The site (services/signupSite.ts): the trade's template composition stored now — no model call, so neither the
+    // signup nor the checkout waits — and the AI builder's composition of the same answers started after the insert;
+    // the build uses the AI's when it is ready and the template one otherwise.
     let premiumPages: Record<string, any> | null = null
     if (premiumSite || unifiedSite) {
-      const site = composeInstant({
-        businessName: body.name.trim(), businessType: body.industry || 'other',
-        city: body.city || undefined, state: body.state || undefined,
-        phone: body.phone || undefined, email: body.email.trim(),
-        services: signupServices(body.services), goals: signupChoices(body).goals,
-      })
-      premiumPages = {
-        pages: Object.fromEntries(Object.entries(site.pages).map(([pageSlug, sections]) => [pageSlug, { sections }])),
-        heldPages: site.heldPages, contentGaps: site.contentGaps, composer: 'instant', composedAt: new Date().toISOString(),
-      }
+      const facts = body.facts && typeof body.facts === 'object' ? parseIntakeFacts(body.facts) : undefined
+      premiumPages = signupComposition(
+        signupComposerInput(body, { services: signupServices(body.services), goals: signupChoices(body).goals, facts }),
+        { ai: true },
+      )
     }
 
     const signupZone = stateTimezone(body.state)
@@ -406,6 +417,13 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     }
 
     console.log('[Signup] New tenant created (pending payment):', tenant.id, tenant.name, tenant.plan)
+
+    // The AI builder's site, in the background: never awaited, so it cannot hold up the signup or the checkout. A
+    // compose lost to a restart is run again by the preview sweep, or by the build (services/signupSite.ts).
+    if (premiumPages) {
+      liveSignupSiteDeps().then((d) => composeSignupSite(tenant.id, d))
+        .catch((e: any) => console.warn('[Signup] AI site compose could not start for', tenant.slug, ':', e?.message))
+    }
 
     // The owner's answers, kept on the tenant (intake_data.signup — everything else reads
     // intake_data.intake, so a signup row is never mistaken for an intake). Non-fatal.
@@ -1941,7 +1959,11 @@ factory.post('/internal/preview-sweep', async (c) => {
     try { await autoComposeForNewIntake(row.id); result.composed.push(row.id) }
     catch (e: any) { console.warn('[PreviewSweep] ' + row.id + ' failed:', e?.message); result.failed.push(row.id) }
   }
-  return c.json({ ok: true, ...result })
+  // Signups not yet built whose AI site is pending or was lost with a restart (services/signupSite.ts).
+  let signupSites: string[] = []
+  try { signupSites = await resumeSignupComposes(await liveSignupSiteDeps()) }
+  catch (e: any) { console.warn('[PreviewSweep] signup sites:', e?.message) }
+  return c.json({ ok: true, ...result, signupSites })
 })
 
 // The compose itself. Mirrors the staff-triggered /intake/:id/preview-premium logic

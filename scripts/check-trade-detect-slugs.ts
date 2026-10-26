@@ -14,7 +14,8 @@ import { tradeFlagsFor } from '../apps/api/src/config/tradeDetect.ts'
 import { pageRecipesFor } from '../apps/api/src/services/sectionComposer.ts'
 import { composeInstant } from '../apps/api/src/services/instantComposer.ts'
 
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+// Decoded: a checkout under a folder with a space read "%20" and found no files.
+const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 let passed = 0
 const check = (ok: boolean, m: string) => { if (ok) passed++; else { failed++; console.error('FAIL: ' + m) } }

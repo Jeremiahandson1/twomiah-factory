@@ -40,9 +40,11 @@ export interface BuildInput {
   /**
    * The body of the tenant's POST /api/internal/provision (apps/unified/server/modules/provision.ts) — or null for a
    * business moving in from the templates (unified/move.ts): its records arrive by the move job instead, into the empty
-   * database this build leaves.
+   * database this build leaves. A function is called only once the new code answers: the body is made then, so what
+   * goes into it (the AI's website, composed while the database and service were being made — services/signupSite.ts)
+   * can finish during the build instead of before it.
    */
-  provision: Record<string, unknown> | null
+  provision: Record<string, unknown> | null | (() => Promise<Record<string, unknown>>)
   /**
    * Secrets the service must have exactly (a move: the old service's ENCRYPTION_KEY, which the moved rows were
    * encrypted with). They win over the service's own and over a new one.
@@ -255,9 +257,14 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   // — no answer, 502, 503, 504, as while Render swaps the instance that just went live — is asked again, a few times,
   // before it fails the build. (The first home-care build on Render, 2026-10-19: live, then a 502 on this call.)
   const retryable = (status: number) => status === 0 || status === 502 || status === 503 || status === 504
+  let body: Record<string, unknown>
+  try { body = typeof input.provision === 'function' ? await input.provision() : input.provision } catch (e: any) {
+    const r = stop('provision', 'the provision body could not be made: ' + (e?.message || e))
+    return { ...r, record }
+  }
   let p: { status: number; body: any } = { status: 0, body: {} }
   for (let attempt = 1; attempt <= 6; attempt++) {
-    p = await hosts.callTenant(serviceUrl, '/api/internal/provision', factorySyncKey, input.provision).catch((e: any) => ({ status: 0, body: { error: e.message } }))
+    p = await hosts.callTenant(serviceUrl, '/api/internal/provision', factorySyncKey, body).catch((e: any) => ({ status: 0, body: { error: e.message } }))
     if (!retryable(p.status) || attempt === 6) break
     steps.push({ step: 'provision', status: 'skipped', detail: `attempt ${attempt}: the tenant answered ${p.status || 'nothing'}; asking again` })
     await io.sleep(15_000)
