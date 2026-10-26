@@ -1,4 +1,6 @@
 name: Build check
+# Bun is pinned (1.3.14, as unified.yml and the local checks run): "latest" made each of ~256 jobs resolve it at bun.sh,
+# which began refusing them (HTTP 403) and failed whole runs before any test ran (2026-10-26).
 
 # Runs the same build the deploy pipeline runs. Tonight (2026-06-06) a
 # tsc unused-var error in apps/platform silently failed every Render
@@ -23,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Install + build
         working-directory: apps/api
         run: |
@@ -37,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Install + build
         working-directory: apps/platform
         run: |
@@ -51,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Every feature id a template gates on must exist in packages/tenant-backend/src/featureRegistry.ts
         run: bun run scripts/check-feature-vocabulary.ts
 
@@ -62,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
@@ -73,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Every name imported from db/schema.ts must exist, or a try/catch mount hides a dead API
         run: bun run scripts/check-schema-imports-resolve.ts
 
@@ -84,7 +86,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: An auth-shaped middleware that never refuses must not be used to gate a route
         run: bun run scripts/check-no-op-auth-middleware.ts
 
@@ -95,7 +97,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: A webhook registered above a router's authenticate must not be re-authenticated by a mount-level .use in index.ts
         run: bun run scripts/check-public-routes-reachable.ts
 
@@ -106,7 +108,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: crm-dispensary forks ROLE_PERMISSIONS, so the shared-matrix check cannot see it — verify against its own list
         run: bun run scripts/check-forked-permission-matrix.ts
 
@@ -117,7 +119,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: A route may not use a request-supplied id as a row id without scoping it to the caller (or PUBLIC_BY_DESIGN with a reason)
         run: bun run scripts/check-companyid-scoping.ts
 
@@ -128,7 +130,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Every bare import in packages/tenant-ui + tenant-backend is in the package.json of every template that vendors them
         run: bun run scripts/check-shared-deps.ts
 
@@ -139,7 +141,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: A refunded deposit reopens the balance; a refund on a fully-paid invoice never creates one
         run: bun run scripts/check-money-model.ts
 
@@ -150,7 +152,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: salon/vet/restaurant conflict check+write is transactional and cancel is a soft status
         run: bun run scripts/check-appointment-guards.ts
 
@@ -161,7 +163,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: kiosk company is scoped to the owner account, not `company LIMIT 1`
         run: bun run scripts/check-kiosk-tenant-isolation.ts
 
@@ -172,7 +174,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: the "Assigned To" picker reads /api/team/assignable (login users)
         run: bun run scripts/check-assignee-source.ts
 
@@ -183,7 +185,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: a partial settings write can't wipe plan/seat-limit/terms/onboarding
         run: bun run scripts/check-company-settings-merge.ts
 
@@ -194,7 +196,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: inline-styled lead pages must colour from useLeadPalette(), never hardcode a light palette
         run: bun run scripts/check-lead-inbox-theme.ts
 
@@ -205,7 +207,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: /slots must step by the advertised grid and honour the booking window
         run: bun run scripts/check-booking-availability.ts
 
@@ -216,7 +218,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: a bad tax rate / term must be refused, never coerced to a default that wipes the stored value
         run: bun run scripts/check-settings-money-validation.ts
 
@@ -227,7 +229,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: the same-tech/slot check + write must share one transaction under the job lock
         run: bun run scripts/check-job-doublebook.ts
 
@@ -238,7 +240,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: status is a bounded enum and scheduledTime is HH:MM
         run: bun run scripts/check-jobs-input.ts
 
@@ -249,7 +251,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: quantity + unit price must clamp at the input so display == payload
         run: bun run scripts/check-lineitem-nonneg.ts
 
@@ -260,7 +262,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: due >= issue on both paths; issue date settable; no today-based guard
         run: bun run scripts/check-invoice-datewindow.ts
 
@@ -271,7 +273,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: editing email/phone to another contact's is caught (excluding self)
         run: bun run scripts/check-contact-dup-update.ts
 
@@ -282,7 +284,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: no main-file transcode; row records stored bytes; PDF served inline
         run: bun run scripts/check-document-fidelity.ts
 
@@ -293,7 +295,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: rules/calls unwrap { data }; updateRule sets only editable columns
         run: bun run scripts/check-roof-ai-receptionist-read.ts
 
@@ -304,7 +306,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: spaces/packages POST+PUT, menu-line/payment PUT, CSV import refuse negatives
         run: bun run scripts/check-events-nonneg.ts
 
@@ -315,7 +317,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: no toISOString() day-slicing; paid badge + overdue use localDay()
         run: bun run scripts/check-events-local-dates.ts
 
@@ -326,7 +328,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: no new Date(<calendar day>), no new Date(x).toLocaleDateString(), no toISOString() day-slicing
         run: bun run scripts/check-homecare-local-dates.ts
 
@@ -337,7 +339,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: no bare toLocaleString/TimeString on an instant; the zone reaches every screen
         run: bun run scripts/check-homecare-instants-on-agency-clock.ts
 
@@ -348,7 +350,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: every CRM mounts the read-back; the Factory reconciles on attach, buy, deploy, activation and hourly
         run: bun run scripts/check-email-alias-readback.ts
 
@@ -359,7 +361,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       # The Email item had no <Route> for two months; the catch-all quietly sent the owner to Pages.
       - name: every NAV item has a <Route> rendering an imported page, in all 11 premium admins
         run: bun run scripts/check-premium-admin-nav-routes.ts
@@ -371,7 +373,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: install the premium template's own dependencies (the test runs its real server)
         run: cd templates/website-premium-contractor && bun install
       - name: the Factory read-back, admin-only, the Factory's status, and a CRM-paired site refusing writes
@@ -384,7 +386,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: schedule-only event_payment; shared invoice writes; dashboard == Reports; due-date hooks
         run: bun run scripts/check-events-ledger.ts
 
@@ -395,7 +397,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: services/routes stripe.ts are glue over packages/tenant-backend payments/stripe.ts
         run: bun run scripts/check-shared-stripe.ts
 
@@ -406,7 +408,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: services/bulk.ts is glue over packages/tenant-backend bulk/bulk.ts
         run: bun run scripts/check-shared-bulk.ts
 
@@ -417,7 +419,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: payment/setup intents return publishableKey; portal forwards stripeAccount to loadStripe
         run: bun run scripts/check-portal-payment-init.ts
 
@@ -428,7 +430,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: every Stripe money call scoped; /factory-event; Factory connect-webhook + registration + schema
         run: bun run scripts/check-connect-charging.ts
 
@@ -439,7 +441,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: recordInvoicePayment is locked, refund-aware, idempotent; webhook has no own math
         run: bun run scripts/check-webhook-payment-core.ts
 
@@ -450,7 +452,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: recordInvoiceRefund shared by route + owner refund + charge.refunded; endpoints subscribed
         run: bun run scripts/check-stripe-refunds.ts
 
@@ -461,7 +463,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: intents carry invoice_id via payment_intent_data; charges use the refund-aware balance; no inv.balance
         run: bun run scripts/check-checkout-recording.ts
 
@@ -472,7 +474,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: webhook mirrors the confirm onto the job (pending → scheduled), same mapping as a manual confirm
         run: bun run scripts/check-booking-deposit-confirms-job.ts
 
@@ -483,7 +485,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: bulkMarkInvoicesPaid records the refund-aware balance via recordInvoicePayment; glue passes payment
         run: bun run scripts/check-bulk-markpaid.ts
 
@@ -494,7 +496,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: every text sender posts { contactId | toPhone, message }; no { to, body }
         run: bun run scripts/check-sms-send-contract.ts
 
@@ -505,7 +507,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: validateEventInput + createEvent (lock, clash) used by POST/PUT/import; status/type lists == UI
         run: bun run scripts/check-events-input.ts
 
@@ -516,7 +518,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: DELETE + PUT {active:false} answer 409 with the count; UI shows the reason
         run: bun run scripts/check-events-retire-guard.ts
 
@@ -527,7 +529,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: shared createEnabledFeatureGate (id or any-of list); every CRM gates its sidebar-gated families at the mount + email marketing in-route; processor + sidebar honour the switch; cross-module lookups tolerant
         run: bun run scripts/check-enabled-feature-gates.ts
 
@@ -538,7 +540,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: onPayment hook in the shared payment core; bookOnDeposit on both money paths; packageFloor on add + edit; merged Team list; coordinator = login user; confirmEventRisks in both forms
         run: bun run scripts/check-events-booking-rules.ts
 
@@ -549,7 +551,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: header search button not hidden below md; Help headings/body readable and identical across templates; no hard-coded teal on events pages; no two features share a name; no trend arrow on a rate
         run: bun run scripts/check-ui-consistency.ts
 
@@ -560,7 +562,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: applyInvoiceCredit locked, capped at what is owed, re-totalled, recorded, no money moved; POST /:id/credit; Apply credit on the invoice page with a matching preview
         run: bun run scripts/check-invoice-credit.ts
 
@@ -571,7 +573,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: each CRM's search TYPE_FEATURES agrees with index.ts (gated → same features, unmounted → hidden); search, quick search, Recent and ?types= filtered
         run: bun run scripts/check-search-feature-gates.ts
 
@@ -582,7 +584,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: marking a deal Sold sells its unit in one locked transaction, a sold unit is refused, reopening frees it; pipeline labels + flag; seed
         run: bun run scripts/check-rv-sold-unit.ts
 
@@ -593,7 +595,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: sales_lead.deal + migration; GET/PUT /:id/deal scoped + validated; Desking saves/reloads via lib/deal; F&I = desked + products; no notes-JSON desk
         run: bun run scripts/check-rv-desked-deal.ts
 
@@ -604,7 +606,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: adjust/transfer/use/return/receive in one locked transaction via moveStock; quantity validated; item/location scoped; refusals 400/404/409
         run: bun run scripts/check-inventory-stock-moves.ts
 
@@ -615,7 +617,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: unavailable unit → availableNow false + status, no price; instruction forbids offering it; alternatives available-only; inbox/page show status
         run: bun run scripts/check-rv-ai-leads-availability.ts
 
@@ -626,7 +628,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: Send text → POST /api/sms/send (contactId), Sent ✓ only on success, errors shown; email = mailto, no send claim
         run: bun run scripts/check-rv-ai-responder-send.ts
 
@@ -637,7 +639,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: precomputedTotals in the model context + instruction; fixReportTotals corrects wrong Total rows and repeats, with a note; pure helper behaviour on the T19 shape
         run: bun run scripts/check-rv-ai-report-totals.ts
 
@@ -648,7 +650,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: rental_reservation + migration; no in-memory/made-up rows; server days/total; unit lock + overlap 409; status flow; revenue excludes cancelled; page books a real unit
         run: bun run scripts/check-rv-rentals.ts
 
@@ -659,7 +661,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: adf+prospect+customer identity required (400); fields from <customer>; advisory identity lock; open recent same-interest lead returned as duplicate
         run: bun run scripts/check-rv-adf-import.ts
 
@@ -670,7 +672,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: category enum, stock/year/make/model required, VIN format; PUT parses unitUpdateSchema; pricing warnings; LISTABLE = available; pending only on explicit export
         run: bun run scripts/check-rv-unit-validation.ts
 
@@ -681,7 +683,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "leadRefusal in create/edit tx before writes — stage enum 400; contact/unit/salesperson company-scoped 404; open duplicate 409 under contact lock"
         run: bun run scripts/check-rv-lead-rules.ts
 
@@ -692,7 +694,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "roInputError + roRefError before writes on create/edit; closing bills only when total > 0; Service page shows the refusal"
         run: bun run scripts/check-rv-repair-orders.ts
 
@@ -703,7 +705,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "itemFields validation for create/update; updateItem never writes the raw body; PUT 404 for other companies; form shows refusals"
         run: bun run scripts/check-inventory-items.ts
 
@@ -714,7 +716,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "unit search (stock/VIN/make/model/trim/year) company-scoped, default type, gated on unit_inventory; result opens /crm/units?search="
         run: bun run scripts/check-rv-search-units.ts
 
@@ -725,7 +727,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "sales-report endpoint (units sold, gross from desk, close rate, pipeline, service) + dealership mode; quote label approved of decided"
         run: bun run scripts/check-rv-dealer-reports.ts
 
@@ -736,7 +738,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "title-reg loads the company deal, refuses unsold, fee from desk, list scoped; F&I amount/term/products validated before lender submit"
         run: bun run scripts/check-rv-deal-jacket.ts
 
@@ -747,7 +749,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "findCatalogPart per item, catalog price and name, quantity 1-999, per-company list, Order button shows results"
         run: bun run scripts/check-rv-parts-orders.ts
 
@@ -758,7 +760,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "year 1900..next year, category and condition from the lists, checked before fetch"
         run: bun run scripts/check-rv-trade-appraisal.ts
 
@@ -769,7 +771,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "availableByCategory + closedLostThisMonth in stats; panel and close cell use them"
         run: bun run scripts/check-rv-dashboard.ts
 
@@ -780,7 +782,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check every shared-invoice CRM refuses an invoice with no line items"
         run: bun run scripts/check-invoice-min-lines.ts
 
@@ -791,7 +793,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check a client balance can only be spent under a lock, and only where one is kept"
         run: bun run scripts/check-account-balance-locking.ts
 
@@ -802,7 +804,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check audit entries from callers passing userId/companyId are stored"
         run: bun run scripts/check-audit-direct-identity.ts
 
@@ -813,7 +815,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check Desking shows no totals from an invalid field"
         run: bun run scripts/check-rv-desking-invalid-preview.ts
 
@@ -824,7 +826,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check RV deal pickers load beyond the 30 newest leads"
         run: bun run scripts/check-rv-lead-pickers.ts
 
@@ -835,7 +837,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check agreements list relations, expiry and scoped create/edit"
         run: bun run scripts/check-agreements.ts
 
@@ -846,7 +848,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check customers are emailed once before an auto-renew agreement renews"
         run: bun run scripts/check-agreement-renewal-notice.ts
 
@@ -857,7 +859,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check refunded sales stay in gross invoiced and refunds are reported separately"
         run: bun run scripts/check-refund-revenue.ts
 
@@ -868,7 +870,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check landscaping snow visits bill to a locked draft invoice"
         run: bun run scripts/check-snow-billing.ts
 
@@ -879,7 +881,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check Open Jobs counts open work and billed totals keep refunded sales"
         run: bun run scripts/check-dashboard-counts.ts
 
@@ -890,7 +892,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check properties are managed via /api/sites and picked on both pages"
         run: bun run scripts/check-sites.ts
 
@@ -901,7 +903,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check portal cents, team rate, singular job label and recurring totals"
         run: bun run scripts/check-money-and-labels.ts
 
@@ -912,7 +914,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check job completion stamps and quote line/expiry rules"
         run: bun run scripts/check-job-quote-rules.ts
 
@@ -923,7 +925,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check ads errors never show the provider payload"
         run: bun run scripts/check-ads-upstream-errors.ts
 
@@ -934,7 +936,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check an unknown audience is refused and a mis-clicked clock-in is discarded"
         run: bun run scripts/check-audience-quotes-leads-time.ts
 
@@ -945,7 +947,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check the live file is in its own version history"
         run: bun run scripts/check-document-versions.ts
 
@@ -956,7 +958,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check Twomiah Ads and the Instant Estimator cannot be switched on"
         run: bun run scripts/check-parked-features.ts
 
@@ -967,7 +969,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check every website posts to /api/webhooks/leads and every paired CRM answers there"
         run: bun run scripts/check-website-lead-webhook.ts
 
@@ -978,7 +980,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check no shared screen sets state from a stale spread of itself"
         run: bun run scripts/check-form-updates-use-latest-state.ts
 
@@ -989,7 +991,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check /reset-password is never wrapped and the old session is ended"
         run: bun run scripts/check-reset-link-while-signed-in.ts
 
@@ -1000,7 +1002,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check every hand-built Bearer header sits in code that refreshes on a 401"
         run: bun run scripts/check-no-hand-sent-bearer.ts
 
@@ -1011,7 +1013,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check online booking normalises the species it is given"
         run: bun run scripts/check-booking-species.ts
 
@@ -1022,7 +1024,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check a wellness enrolment is invoiced and renews"
         run: bun run scripts/check-wellness-billing.ts
 
@@ -1033,7 +1035,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check a veterinary client's portal is about their animals"
         run: bun run scripts/check-portal-pets.ts
 
@@ -1044,7 +1046,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check today's appointments, visit totals and species chips"
         run: bun run scripts/check-vet-dashboard.ts
 
@@ -1055,7 +1057,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check rooms, refills, lab statuses and addresses"
         run: bun run scripts/check-vet-validation.ts
 
@@ -1066,7 +1068,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check shared control classes"
         run: bun run scripts/check-control-classes.ts
 
@@ -1077,7 +1079,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check table cell truncation"
         run: bun run scripts/check-table-cells.ts
 
@@ -1088,7 +1090,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check vet prescribing"
         run: bun run scripts/check-vet-prescribing.ts
 
@@ -1099,7 +1101,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check patient documents"
         run: bun run scripts/check-patient-documents.ts
 
@@ -1110,7 +1112,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check patient invoices"
         run: bun run scripts/check-patient-invoices.ts
 
@@ -1121,7 +1123,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check reminder state"
         run: bun run scripts/check-reminder-state.ts
 
@@ -1132,7 +1134,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check invoice PDF header"
         run: bun run scripts/check-invoice-pdf-header.ts
 
@@ -1143,7 +1145,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check vet vocabulary"
         run: bun run scripts/check-vet-vocabulary.ts
 
@@ -1154,7 +1156,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check recall message"
         run: bun run scripts/check-recall-message.ts
 
@@ -1165,7 +1167,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check chart lows"
         run: bun run scripts/check-chart-lows.ts
 
@@ -1176,7 +1178,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check vet feature copy"
         run: bun run scripts/check-vet-feature-copy.ts
 
@@ -1187,7 +1189,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check T24 re-test fixes"
         run: bun run scripts/check-retest-t24.ts
 
@@ -1198,7 +1200,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check search invoice status"
         run: bun run scripts/check-search-invoice-status.ts
 
@@ -1209,7 +1211,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check calendar-day dates"
         run: bun run scripts/check-calendar-day-dates.ts
 
@@ -1220,7 +1222,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check contact related lists"
         run: bun run scripts/check-contact-related-lists.ts
 
@@ -1231,7 +1233,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check portal feature sections"
         run: bun run scripts/check-portal-feature-sections.ts
 
@@ -1242,7 +1244,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check team removal warning"
         run: bun run scripts/check-team-removal-warning.ts
 
@@ -1253,7 +1255,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check portal seat"
         run: bun run scripts/check-portal-seat.ts
       - name: "Home care's two-factor is wired end to end"
@@ -1268,7 +1270,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check help page theme"
         run: bun run scripts/check-help-page-theme.ts
 
@@ -1279,7 +1281,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check mail error wording"
         run: bun run scripts/check-mail-error-wording.ts
 
@@ -1290,7 +1292,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check branding settings"
         run: bun run scripts/check-branding-settings.ts
 
@@ -1301,7 +1303,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check seeded logo"
         run: bun run scripts/check-seeded-logo.ts
 
@@ -1312,7 +1314,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check profile editable"
         run: bun run scripts/check-profile-editable.ts
 
@@ -1323,7 +1325,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check email usage log"
         run: bun run scripts/check-email-usage-log.ts
 
@@ -1334,7 +1336,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "An unknown status, type or category is refused by name"
         run: bun run scripts/check-list-filter-vocabulary.ts
 
@@ -1345,7 +1347,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "The last day is in the window and a refunded sale still counts"
         run: bun run scripts/check-compliance-report-window.ts
 
@@ -1356,7 +1358,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Rows are presented in the shape the page reads"
         run: bun run scripts/check-audit-log-readable.ts
 
@@ -1367,7 +1369,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "One shared row reader, no private copies"
         run: bun run scripts/check-raw-sql-camel.ts
 
@@ -1381,7 +1383,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       # The guard runs each template's OWN compiler, so the dependencies have to be there.
       - name: Install frontend dependencies for the checkable templates
         run: |
@@ -1470,7 +1472,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Settled sales, gross/refunded/net shared by every surface"
         run: bun run scripts/check-revenue-one-definition.ts
 
@@ -1481,7 +1483,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "The buyer is findable, visible and keeps their spend"
         run: bun run scripts/check-customer-on-sale.ts
 
@@ -1492,7 +1494,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Refund returns units; sale records grams; card on file lowers age"
         run: bun run scripts/check-refund-units-and-gates.ts
 
@@ -1503,7 +1505,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Blocked sale states its reason; POS tiles re-read stock"
         run: bun run scripts/check-register-tells-the-cashier.ts
 
@@ -1514,7 +1516,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Loyalty settings persist where read; welcome + birthday bonuses paid"
         run: bun run scripts/check-loyalty-bonuses.ts
 
@@ -1525,7 +1527,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "API times leave as instants; Peak Hours on the shop clock"
         run: bun run scripts/check-times-carry-their-zone.ts
 
@@ -1536,7 +1538,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Add Product is a real form; both bounds enforced; import agrees"
         run: bun run scripts/check-product-form-validates.ts
 
@@ -1547,7 +1549,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Every order state filterable and badged; unknown filter refused"
         run: bun run scripts/check-order-filters-complete.ts
 
@@ -1558,7 +1560,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Dark mode carries its own colours; a long name cannot take the table"
         run: bun run scripts/check-readable-in-both-themes.ts
 
@@ -1569,7 +1571,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "One home per value, one order name, customer understood, stocked shelf"
         run: bun run scripts/check-dispensary-lows.ts
 
@@ -1580,7 +1582,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A chair-only stylist can be booked, named and filtered"
         run: bun run scripts/check-roster-stylist-bookable.ts
 
@@ -1591,7 +1593,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Enrolling bills and schedules; due periods caught up once each"
         run: bun run scripts/check-membership-billing.ts
 
@@ -1602,7 +1604,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Deleting a visit voids its sale; payment blocks the delete"
         run: bun run scripts/check-visit-sale-not-orphaned.ts
 
@@ -1613,7 +1615,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Cards and alerts follow the theme their text follows"
         run: bun run scripts/check-salon-dark-surfaces.ts
 
@@ -1624,7 +1626,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Near-black ink answers for dark mode, or it is invisible"
         run: bun run scripts/check-unpaired-dark-ink.ts
 
@@ -1635,7 +1637,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A recall reaches every door a sale comes in through"
         run: bun run scripts/check-every-sale-path-checks-batches.ts
 
@@ -1646,7 +1648,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A capability an owner is meant to use is reachable from a screen"
         run: bun run scripts/check-server-features-have-screens.ts
 
@@ -1657,7 +1659,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "No route cuts a naive-UTC timestamp on the server's clock"
         run: bun run scripts/check-calendar-day-is-the-stores.ts
 
@@ -1668,7 +1670,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A rule applied when a record is created also applies when it is edited"
         run: bun run scripts/check-create-rules-apply-on-edit.ts
 
@@ -1679,7 +1681,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Every door that creates an order records which door it was"
         run: bun run scripts/check-every-order-names-its-door.ts
 
@@ -1690,7 +1692,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "The signed-in user carries userId; .id is undefined and fails silently"
         run: bun run scripts/check-signed-in-user-is-userid.ts
 
@@ -1701,7 +1703,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "No service worker caches /api/ responses"
         run: bun run scripts/check-service-worker-never-caches-data.ts
 
@@ -1712,7 +1714,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A bg-white surface with dark-mode text inside needs a dark:bg-* partner"
         run: bun run scripts/check-light-card-dark-text.ts
 
@@ -1723,7 +1725,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A row-action table must filter on `show` and dismiss without bubbling into the row"
         run: bun run scripts/check-row-action-show.ts
 
@@ -1734,7 +1736,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "peopleConfig's expense categories must match the route's options.categories"
         run: bun run scripts/check-expense-categories-mirror.ts
 
@@ -1745,7 +1747,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "mounting the shared expenses module obliges the payroll summary to report deductions"
         run: bun run scripts/check-payroll-reports-deductions.ts
 
@@ -1756,7 +1758,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "every <table>.<column> a route reads must exist in the schema"
         run: bun run scripts/check-selected-columns-exist.ts
 
@@ -1767,7 +1769,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "no service may throw a bare not-found Error"
         run: bun run scripts/check-notfound-carries-404.ts
 
@@ -1778,7 +1780,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "an empty id list is a 400, never IN () and never a silent no-op"
         run: bun run scripts/check-bulk-checks-its-ids.ts
 
@@ -1789,7 +1791,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "c.req.formData() belongs only in utils/upload.ts"
         run: bun run scripts/check-uploads-refuse-non-multipart.ts
 
@@ -1800,7 +1802,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Shared predicates module-scoped; panel failures logged"
         run: bun run scripts/check-dashboard-panels-load.ts
 
@@ -1811,7 +1813,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Client book is clients; visits happened; heading honest; brand reads dark"
         run: bun run scripts/check-salon-mediums.ts
 
@@ -1822,7 +1824,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Settings keys removable; refusals honest; no portal secret; theme at boot"
         run: bun run scripts/check-salon-lows.ts
 
@@ -1833,7 +1835,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "today belongs to the business: instants convert, calendar markers do not"
         run: bun run scripts/check-business-day.ts
 
@@ -1844,7 +1846,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "muted labels are readable in both themes"
         run: bun run scripts/check-muted-label-contrast.ts
 
@@ -1855,7 +1857,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "a feature the API supports must be reachable from the product"
         run: bun run scripts/check-insurance-reachable.ts
 
@@ -1866,7 +1868,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "supplement totals are the server's, and only a manager may approve"
         run: bun run scripts/check-supplement-money.ts
 
@@ -1877,7 +1879,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "roof has one token key, one owner, and no cached copy"
         run: bun run scripts/check-one-token-key.ts
 
@@ -1888,7 +1890,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "a write schema means what the product means"
         run: bun run scripts/check-roof-validation.ts
 
@@ -1899,7 +1901,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check store-day ranges"
         run: bun run scripts/check-store-day-ranges.ts
 
@@ -1910,7 +1912,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check kiosk pairing reachable"
         run: bun run scripts/check-kiosk-pairing-reachable.ts
 
@@ -1921,7 +1923,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check settings writes are admin"
         run: bun run scripts/check-settings-writes-are-admin.ts
 
@@ -1932,7 +1934,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check uncoloured text is not left at the browser default"
         run: bun run scripts/check-inherited-ink-follows-theme.ts
 
@@ -1943,7 +1945,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check inline styles are not pinned to one theme"
         run: bun run scripts/check-inline-styles-are-theme-aware.ts
 
@@ -1954,7 +1956,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check a number field does not rewrite the value being typed"
         run: bun run scripts/check-number-inputs-are-not-clamped.ts
 
@@ -1965,7 +1967,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check the API accepts exactly the document types the page offers"
         run: bun run scripts/check-document-types-match-the-picker.ts
 
@@ -1976,7 +1978,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check crm-salon never builds a day from the UTC clock"
         run: bun run scripts/check-salon-days-are-the-shop-calendar.ts
 
@@ -1987,7 +1989,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check no route gate redirects before /api/auth/me has landed"
         run: bun run scripts/check-feature-gates-wait-for-the-answer.ts
 
@@ -1998,7 +2000,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check kiosk lines carry category and weight"
         run: bun run scripts/check-kiosk-lines-say-what-they-are.ts
 
@@ -2009,7 +2011,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check loyalty defaults agree"
         run: bun run scripts/check-loyalty-defaults-agree.ts
 
@@ -2020,7 +2022,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check no null invoice due date"
         run: bun run scripts/check-no-null-invoice-due-date.ts
 
@@ -2031,7 +2033,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check money figures print a currency symbol"
         run: bun run scripts/check-money-keeps-its-currency.ts
 
@@ -2042,7 +2044,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check every $ figure prints two decimals"
         run: bun run scripts/check-money-shows-cents.ts
 
@@ -2053,7 +2055,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check every journal's when strictly increases"
         run: bun run scripts/check-migration-journal-applies.ts
 
@@ -2064,7 +2066,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check no migration splits into prose"
         run: bun run scripts/check-migration-statements-parse.ts
 
@@ -2075,7 +2077,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Run every migrate.ts against drizzle-kit's real output (storetest 10/10: ECONNREFUSED called a broken migration)"
         run: bun run scripts/check-migrate-classifies-what-drizzle-printed.ts
 
@@ -2086,7 +2088,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check MAX_SESSIONS_PER_USER"
         run: bun run scripts/check-session-cap-agrees.ts
 
@@ -2097,7 +2099,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - run: bun install
       - name: "Replay every journal against an empty database"
         run: bun run scripts/check-migrations-build-the-schema.ts
@@ -2109,7 +2111,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - run: bun install
       - name: "Generate one tenant twice and compare every file"
         run: bun run scripts/check-render-hosts-follow-tenant-slug.ts
@@ -2121,7 +2123,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "A gate declared in one component and used in another throws for every role"
         run: bun run scripts/check-gate-in-scope.ts
 
@@ -2132,7 +2134,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check column-backed values stay out of settings"
         run: bun run scripts/check-settings-blob-has-no-column-values.ts
 
@@ -2143,7 +2145,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check dispensary tax is defined once"
         run: bun run scripts/check-one-tax-definition.ts
 
@@ -2154,7 +2156,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check dispensary API feature gates"
         run: bun run scripts/check-dispensary-api-gates.ts
 
@@ -2165,7 +2167,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check no screen reads a field the API never sends"
         run: bun run scripts/check-dashboard-stats-shape.ts
 
@@ -2176,7 +2178,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check form fields reach the database"
         run: bun run scripts/check-schema-fields-are-writable.ts
 
@@ -2187,7 +2189,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check the purchase-limit sellability test"
         run: bun run scripts/check-one-countable-definition.ts
 
@@ -2198,7 +2200,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Check tax category is derived and the seed ships no trading data"
         run: bun run scripts/check-dispensary-no-invented-data.ts
 
@@ -2209,7 +2211,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Support page theme"
         run: bun run scripts/check-support-page-theme.ts
 
@@ -2220,7 +2222,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Light-mode ink"
         run: bun run scripts/check-light-mode-ink.ts
 
@@ -2231,7 +2233,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "White-surface ink rule"
         run: bun run scripts/check-white-surface-ink-rule.ts
 
@@ -2242,7 +2244,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Pricebook picker"
         run: bun run scripts/check-pricebook-picker-both-documents.ts
 
@@ -2253,7 +2255,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Link parameters"
         run: bun run scripts/check-link-params-are-read.ts
 
@@ -2264,7 +2266,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Toast z-index"
         run: bun run scripts/check-toast-outranks-modals.ts
 
@@ -2275,7 +2277,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Status chips"
         run: bun run scripts/check-status-chip-has-dark-ground.ts
 
@@ -2286,7 +2288,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "One tax split"
         run: bun run scripts/check-one-tax-split.ts
 
@@ -2297,7 +2299,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Commission role words"
         run: bun run scripts/check-commission-role-words.ts
 
@@ -2308,7 +2310,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Converted time names its zone"
         run: bun run scripts/check-converted-time-names-its-zone.ts
 
@@ -2319,7 +2321,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Every write is audited"
         run: bun run scripts/check-every-write-is-audited.ts
 
@@ -2330,7 +2332,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Audit page shapes"
         run: bun run scripts/check-audit-page-reads-both-shapes.ts
 
@@ -2341,7 +2343,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "No new native pop-ups"
         run: bun run scripts/check-refusals-render-on-the-page.ts
 
@@ -2352,7 +2354,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Refresh outcomes"
         run: bun run scripts/check-refresh-outcomes.ts
 
@@ -2363,7 +2365,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "No native dialogs"
         run: bun run scripts/check-no-native-dialogs.ts
 
@@ -2374,7 +2376,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Contrast measured"
         run: bun run scripts/check-contrast-measured.ts
 
@@ -2385,7 +2387,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Roster stylist visible"
         run: bun run scripts/check-roster-stylist-visible.ts
 
@@ -2396,7 +2398,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Loyalty engine"
         run: bun run tests/shared/loyalty-engine.test.ts
       - name: "Storefront proxies to crm-store fail soft"
@@ -2455,7 +2457,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Store suite"
         run: bun run tests/store/harness/run.ts
 
@@ -2466,7 +2468,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Salon suite"
         run: bun run tests/salon/harness/run.ts
 
@@ -2477,7 +2479,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "CI workflow valid"
         run: bun run scripts/check-ci-workflow-valid.ts
 
@@ -2488,7 +2490,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Homecare suite"
         run: bun run tests/homecare/harness/run.ts
 
@@ -2499,7 +2501,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Dispensary suite"
         run: bun run tests/dispensary/harness/run.ts
 
@@ -2510,7 +2512,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Field service suite"
         run: bun run tests/fieldservice/harness/run.ts
 
@@ -2523,7 +2525,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Base CRM suite"
         run: bun run tests/crm/harness/run.ts
 
@@ -2536,7 +2538,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Basic CRM suite"
         run: bun run tests/basic/harness/run.ts
 
@@ -2547,7 +2549,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Bar CRM suite"
         run: bun run tests/bar/harness/run.ts
 
@@ -2558,7 +2560,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "render.yaml.template rootDir is the template's own"
         run: bun run scripts/check-crm-render-yaml-own-template.ts
 
@@ -2569,7 +2571,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Landscaping suite"
         run: bun run tests/landscaping/harness/run.ts
 
@@ -2580,7 +2582,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Restaurant suite"
         run: bun run tests/restaurant/harness/run.ts
 
@@ -2591,7 +2593,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Roofing suite"
         run: bun run tests/roof/harness/run.ts
 
@@ -2602,7 +2604,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "RV suite"
         run: bun run tests/rv/harness/run.ts
 
@@ -2613,7 +2615,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Vet suite"
         run: bun run tests/vet/harness/run.ts
 
@@ -2624,7 +2626,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Every sign-out names its own refresh token"
         run: bun run scripts/check-logout-ends-one-session.ts
 
@@ -2635,7 +2637,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Every CRM refuses a cancelled company on the server and offers the owner a restart"
         run: bun run scripts/check-cancelled-company-is-locked.ts
 
@@ -2646,7 +2648,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Upsell not self-gated"
         run: bun run scripts/check-upsell-not-self-gated.ts
 
@@ -2657,7 +2659,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Business day wired"
         run: bun run scripts/check-business-day-wired.ts
 
@@ -2668,7 +2670,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Write routes authorise"
         run: bun run scripts/check-write-routes-authorise.ts
 
@@ -2679,7 +2681,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Store routes ask a permission, no rank gates"
         run: bun run scripts/check-store-routes-ask-permission.ts
 
@@ -2690,7 +2692,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Lender applications and the daily-log weather ask a permission in all eight CRMs"
         run: bun run scripts/check-copied-write-routes-ask-permission.ts
 
@@ -2701,7 +2703,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Read routes authorise"
         run: bun run scripts/check-read-routes-authorise.ts
 
@@ -2712,7 +2714,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "Authenticated files no-store"
         run: bun run scripts/check-authenticated-files-no-store.ts
 
@@ -2723,7 +2725,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check search permission gates"
         run: bun run scripts/check-search-permission-gates.ts
 
@@ -2734,7 +2736,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check booking config permission"
         run: bun run scripts/check-booking-config-permission.ts
 
@@ -2745,7 +2747,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check nav permission gates"
         run: bun run scripts/check-nav-permission-gates.ts
 
@@ -2756,7 +2758,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check admin nav matches api"
         run: bun run scripts/check-admin-nav-matches-api.ts
 
@@ -2767,7 +2769,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check change order status lists"
         run: bun run scripts/check-change-order-status-lists.ts
 
@@ -2778,7 +2780,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check team roster includes logins"
         run: bun run scripts/check-team-roster-includes-logins.ts
 
@@ -2789,7 +2791,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check viewer local day"
         run: bun run scripts/check-viewer-local-day.ts
 
@@ -2800,7 +2802,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check vertical vocabulary"
         run: bun run scripts/check-vertical-vocabulary.ts
 
@@ -2811,7 +2813,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check dashboard reports what exists"
         run: bun run scripts/check-dashboard-reports-what-exists.ts
 
@@ -2822,7 +2824,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check brand hex under white text"
         run: bun run scripts/check-brand-hex-under-white-text.ts
 
@@ -2833,7 +2835,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check action colour is brand"
         run: bun run scripts/check-action-colour-is-brand.ts
 
@@ -2844,7 +2846,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check brand colour rules"
         run: bun run scripts/check-brand-colour-rules.ts
 
@@ -2855,7 +2857,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check portal token never ships"
         run: bun run scripts/check-portal-token-never-ships.ts
 
@@ -2866,7 +2868,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check composer facts"
         run: bun run scripts/check-composer-facts.ts
 
@@ -2877,7 +2879,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check trade detect slugs"
         run: bun run scripts/check-trade-detect-slugs.ts
 
@@ -2888,7 +2890,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check ejs escaped markup"
         run: bun run scripts/check-ejs-no-escaped-markup.ts
       - name: "check premium site origin"
@@ -2903,7 +2905,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check bar site words and header"
         run: bun run scripts/check-bar-site-words-and-header.ts
       - name: "every site's contact form asks in its own business's words"
@@ -2916,7 +2918,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check write controls ask permission"
         run: bun run scripts/check-write-controls-ask-permission.ts
 
@@ -2927,7 +2929,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check authenticate runs before authorize"
         run: bun run scripts/check-authenticate-runs-before-authorize.ts
 
@@ -2938,7 +2940,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check ai receptionist bodies"
         run: bun run scripts/check-ai-receptionist-bodies.ts
 
@@ -2949,7 +2951,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check provider webhooks signed"
         run: bun run scripts/check-provider-webhooks-signed.ts
 
@@ -2960,7 +2962,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "check roof write controls ask permission"
         run: bun run scripts/check-roof-write-controls-ask-permission.ts
 
@@ -2971,7 +2973,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       # tsconfig extended expo/tsconfig.base, which the installed expo ships without, so tsc ran with defaults
       # and reported 2,168 errors that said nothing about the code — and nobody could type-check a mobile
       # change. It is spelled out now and comes back clean; this keeps it that way. node + the local tsc,
@@ -2986,7 +2988,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.14
       - name: "bun install"
         run: bun install --frozen-lockfile
       # login → mfaRequired → code → tokens in SecureStore; a wrong code stays, an expired one restarts.
