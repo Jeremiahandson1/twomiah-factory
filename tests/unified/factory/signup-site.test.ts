@@ -176,12 +176,12 @@ function siteStage(opts: { compose?: (input: ComposerInput) => Promise<SiteResul
 describe('the signup\'s site', () => {
   test('the signup stores the template composition at once, with the AI compose pending and the answers it composes from', () => {
     const input = signupComposerInput(
-      { name: ' Acme Roofing ', industry: 'roofing', city: 'Eau Claire', state: 'WI', phone: '715-555-0100', email: 'o@acme.example', owner_first_name: 'Jo', owner_last_name: 'Tester', description: 'not a signup field' },
+      { name: ' Acme Roofing ', industry: 'roofing', city: 'Eau Claire', state: 'WI', phone: '715-555-0100', email: 'o@acme.example', owner_first_name: 'Jo', owner_last_name: 'Tester', description: '  We fix roofs across the Chippewa Valley.  ' },
       { services: ['Roof repair'], goals: ['bookings'] },
     )
     expect(input).toMatchObject({ businessName: 'Acme Roofing', businessType: 'roofing', ownerName: 'Jo Tester', services: ['Roof repair'], goals: ['bookings'] })
-    // Only what the signup form sends is read: it has no description field.
-    expect(input.description).toBeUndefined()
+    // "About your business", the signup's optional box (owner's decision 2026-10-25): read in the owner's own words.
+    expect(input.description).toBe('We fix roofs across the Chippewa Valley.')
     const stored = signupComposition(input, { ai: true })
     expect(stored.composer).toBe('template')
     expect(stored.aiCompose).toEqual({ status: 'pending', attempts: 0, input })
@@ -492,5 +492,16 @@ describe('UNIFIED_LIVE_VERTICALS', () => {
     expect(refuse).toBeLessThan(signup.indexOf('allocateSlug('))
     expect(signup).toMatch(/if \(refusal\) return c\.json\(\{ error: refusal, code: 'INDUSTRY_NOT_OPEN' \}, 422\)/)
     expect(intake).toMatch(/factory\.get\('\/public\/signup\/industry-open'/)
+  })
+})
+
+describe('"About your business" at signup', () => {
+  test("given, the About page starts published with the owner's own words; not given, About starts held", () => {
+    const base = { name: 'Acme Roofing', industry: 'roofing', city: 'Eau Claire', state: 'WI' }
+    const withStory = signupComposition(signupComposerInput({ ...base, description: 'We fix roofs across the Chippewa Valley. Family owned since our dad started it.' }, { services: [], goals: [] }), { ai: false })
+    expect(withStory.heldPages || []).not.toContain('about')
+    expect(JSON.stringify(withStory.pages.about)).toContain('We fix roofs across the Chippewa Valley.')
+    const without = signupComposition(signupComposerInput(base, { services: [], goals: [] }), { ai: false })
+    expect(without.heldPages || []).toContain('about')
   })
 })

@@ -71,8 +71,9 @@ const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v
 /**
  * The composer's input from the signup's answers — exactly the fields the twomiah.com signup sends (signup.html
  * getFormData): name, trade, town, phone and email, the services they ticked or typed, their goals (bookings), the
- * owner's name, and their photo once stored (storeSignupPhoto). The signup asks for no description and none of the
- * intake's optional facts, so none are read here.
+ * owner's name, their photo once stored (storeSignupPhoto), and — optional — "About your business" in their own words
+ * (description, owner's decision 2026-10-25): their About page and the AI's copy start from it, the facts policy holding
+ * both to what they said. None of the intake's other optional facts are asked, so none are read here.
  */
 export function signupComposerInput(body: any, extra: { services: string[]; goals: string[]; photos?: ComposerInput['customerPhotos'] }): ComposerInput {
   const owner = [text(body?.owner_first_name, 80), text(body?.owner_last_name, 80)].filter(Boolean).join(' ')
@@ -86,6 +87,7 @@ export function signupComposerInput(body: any, extra: { services: string[]; goal
     services: extra.services,
     goals: extra.goals,
     ...(owner ? { ownerName: owner } : {}),
+    ...(text(body?.description, 2000) ? { description: text(body.description, 2000) } : {}),
     ...(extra.photos?.length ? { customerPhotos: extra.photos } : {}),
   }
 }
