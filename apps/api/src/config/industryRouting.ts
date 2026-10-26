@@ -113,7 +113,9 @@ export const FIELDSERVICE_INDUSTRIES = new Set([
   // Other recurring/mobile services that fit the same template:
   'pest_control', 'exterminator', 'locksmith', 'garage_door',
   'septic', 'pool_service', 'irrigation', 'handyman',
-  'painting',  // painters use jobs + crews like field service
+  // painters use jobs + crews like field service. 'painter' is what the twomiah.com picker sends: it fell through to
+  // basic, which was closed at go-live (2026-10-25).
+  'painting', 'painter',
   'mobile_detailing', 'mobile_mechanic', 'pet_grooming', 'dog_walking',
 ])
 
@@ -242,6 +244,9 @@ export const CONTRACTOR_INDUSTRIES = new Set([
   // change orders and punch lists. A fallback that happens to be right hides the cases it is carrying.
   'windows_doors', 'windows', 'doors', 'insulation', 'solar',
   'pool_spa', 'pool', 'spa_installation', 'commercial_construction',
+  // The picker's "Remodeler" ('remodeler'): it fell through to basic, closed at go-live — a remodeler is this CRM's
+  // own customer (Higgs Heritage Builders). (2026-10-25)
+  'remodeler',
 ])
 
 // ─── Resolvers ──────────────────────────────────────────────────────
