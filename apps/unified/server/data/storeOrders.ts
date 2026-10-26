@@ -45,7 +45,9 @@ export async function storeCustomers(db: any, companyId: string, customerType: s
   const orders = db.select({
     contactId: storeOrder.contactId,
     orderCount: sql<number>`count(*) filter (where ${storeOrder.status} <> 'pending')`.as('order_count'),
-    totalSpentCents: sql<number>`coalesce(sum(${storeOrder.totalCents}) filter (where ${storeOrder.status} not in ('pending','cancelled')), 0)`.as('total_spent_cents'),
+    // Spent is what they paid less what was refunded to them — the Dashboard's net (orderStats); a fully refunded order
+    // counted in full here (store live test, 2026-10-26).
+    totalSpentCents: sql<number>`coalesce(sum(${storeOrder.totalCents} - ${storeOrder.refundedCents}) filter (where ${storeOrder.status} not in ('pending','cancelled')), 0)`.as('total_spent_cents'),
     lastOrderAt: sql<Date | null>`max(${storeOrder.createdAt}) filter (where ${storeOrder.status} <> 'pending')`.as('last_order_at'),
   }).from(storeOrder).where(eq(storeOrder.companyId, companyId)).groupBy(storeOrder.contactId).as('o')
   const rows = await db.select({

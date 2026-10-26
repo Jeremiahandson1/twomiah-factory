@@ -14,6 +14,7 @@ import type { StoreCore } from '../core.ts'
 import { groupPrice, type GroupPricing } from '../catalog/groupPricing.ts'
 import { cardShare, GIFT_CARD_TAX_CODE, MIN_PROVIDER_CHARGE_CENTS, sellableCardAmount, type StoreGiftCards } from '../giftCards.ts'
 import type { PaymentProvider } from '../payments/types.ts'
+import { formatCents } from '../lib/money.ts'
 import { NO_EMAIL_YET, newRecoveryToken, orderNumberFor, successUrlFor, type CheckoutService } from './checkoutService.ts'
 
 /** How the order reaches the shopper. 'digital' is decided here (a cart of gift cards only), never asked for. */
@@ -126,13 +127,15 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     }
     if (!lines.length) return refuse(400, 'None of these items are available')
 
-    // A primary image per product for the payment page.
+    // A primary image per product: the order keeps the photo as the shop shows it (its own /media address), so the
+    // order-received page and the order show it; only the payment page is held to an address it can fetch
+    // (checkoutImageUrl, at createCheckout). The line kept only an https picture, so a shop's own photo left the
+    // thank-you page with an empty box (store live test, 2026-10-26).
     const prodIds = [...new Set(lines.map((l) => l.productId))]
     const imgs: Array<typeof storeProductImage.$inferSelect> = await db.select().from(storeProductImage).where(inArray(storeProductImage.productId, prodIds))
     for (const li of lines) {
       const img = imgs.find((i) => i.productId === li.productId && i.isPrimary) ?? imgs.find((i) => i.productId === li.productId)
-      const shown = checkoutImageUrl(img?.url)
-      if (shown) li.imageUrl = shown
+      if (img?.url) li.imageUrl = img.url
     }
 
     // ── Server-computed totals (never trust the client) ──
@@ -211,6 +214,10 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       orderId: order.id, productId: li.productId, variantId: li.variantId, productName: li.productName, variantName: li.variantName,
       sku: li.sku, imageUrl: li.imageUrl ?? null, unitPriceCents: li.unitPriceCents, quantity: li.quantity, lineTotalCents: li.unitPriceCents * li.quantity,
     })))
+    // The audit log: an order begun (store live test, 2026-10-26: orders left no record there). Unpaid until the provider
+    // says so (checkoutService.ts finalizeOrder records "paid").
+    await d.audit.log({ action: d.audit.ACTIONS.CREATE, entity: 'store_order', entityId: order.id, entityName: order.orderNumber, companyId,
+      metadata: { description: `Order ${order.orderNumber} ${input.draft ? 'made for ' + (input.draft.customerName || 'a customer') : 'started at checkout'} — ${formatCents(totalCents, currency)}, not paid yet` } })
     let heldCents = 0
     const forget = async (why: string) => {
       await giftCards.release({ id: order.id, companyId, giftCardId: card?.id ?? null, giftCardCents: heldCents }, why)
@@ -239,7 +246,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     try {
       const session = await provider.createCheckout({
         lineItems: lines.map((li) => ({
-          name: li.name, description: li.description, imageUrl: li.imageUrl, unitPriceCents: li.unitPriceCents, quantity: li.quantity, sku: li.sku,
+          name: li.name, description: li.description, imageUrl: checkoutImageUrl(li.imageUrl), unitPriceCents: li.unitPriceCents, quantity: li.quantity, sku: li.sku,
           ...(li.giftCard ? { taxCode: GIFT_CARD_TAX_CODE } : {}),
         })),
         currency, shippingCents, taxCents,

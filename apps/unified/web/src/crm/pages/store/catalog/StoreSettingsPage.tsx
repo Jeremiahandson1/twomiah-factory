@@ -232,7 +232,8 @@ export default function StoreSettingsPage() {
         <h2 className={h2}>Currency &amp; tax</h2>
         {!maySaveSettings && <p className={note}>The currency and tax are set by the owner.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="label" htmlFor="st-cur">Currency</label><input disabled={!maySaveSettings} id="st-cur" className="input" value={form.currency} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
+          {/* Shown as the code is written (USD), kept lowercase as the server stores it (store live test, 2026-10-26). */}
+          <div><label className="label" htmlFor="st-cur">Currency</label><input disabled={!maySaveSettings} id="st-cur" className="input" value={form.currency.toUpperCase()} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
           <div><label className="label" htmlFor="st-tax">Tax rate (%)</label><input disabled={!maySaveSettings} id="st-tax" className="input" inputMode="decimal" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
         </div>
       </fieldset>

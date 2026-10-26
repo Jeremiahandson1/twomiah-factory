@@ -34,6 +34,8 @@ import type { StoreCore } from '../core.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { createStoreGiftCards, GIFT_CARD_TAX_CODE, HOLD_EXPIRY_MS } from '../giftCards.ts'
 import type { PaymentProvider, WebhookResult } from '../payments/types.ts'
+import { checkoutImageUrl } from './placeOrder.ts'
+import { formatCents } from '../lib/money.ts'
 
 /** Cancel only well after the reminder has had a chance to work (the abandoned-cart reminder needs room). */
 export const STALE_PENDING_MS = 7 * 24 * 60 * 60 * 1000
@@ -131,6 +133,9 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
     }).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId), eq(storeOrder.status, 'pending'))).returning()
 
     if (!flipped) return // another path finalized it first
+    // The audit log: the order paid, once — only the update that made it paid writes it (store live test, 2026-10-26).
+    await d.audit.log({ action: d.audit.ACTIONS.PAYMENT, entity: 'store_order', entityId: flipped.id, entityName: orderNumber, companyId,
+      metadata: { description: `Order ${orderNumber} paid — ${formatCents(flipped.totalCents, flipped.currency)} by ${order.provider}` } })
 
     // The shopper is a customer (decision 2): an order begun before they gave an address is given its contact now,
     // from what the provider told us, before loyalty settles on that contact.
@@ -273,7 +278,8 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
       lineItems: items.map((i) => ({
         sku: i.sku,
         name: i.productName + (i.variantName ? ' - ' + i.variantName : ''),
-        imageUrl: i.imageUrl ?? undefined,
+        // The payment page takes only a picture it can fetch (placeOrder.ts checkoutImageUrl); the order keeps its own.
+        imageUrl: checkoutImageUrl(i.imageUrl),
         unitPriceCents: i.unitPriceCents,
         quantity: i.quantity,
         ...(i.productId && cardsSold.has(i.productId) ? { taxCode: GIFT_CARD_TAX_CODE } : {}),

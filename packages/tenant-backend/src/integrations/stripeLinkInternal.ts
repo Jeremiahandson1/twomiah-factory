@@ -11,6 +11,8 @@ export const nonceHash = (nonce: string) => crypto.createHash('sha256').update(n
 export interface StripeLinkInternalDeps {
   db: any
   tables: { company: any; user: any }
+  /** The audit log: the linked account, recorded as the owner's who signed in at Stripe (store live test, 2026-10-26). */
+  audit?: { log(entry: { action: string; entity: string; entityId?: string | null; entityName?: string | null; metadata?: Record<string, unknown> | null; userId?: string | null; companyId?: string | null }): Promise<void> }
 }
 
 /**
@@ -53,6 +55,7 @@ export function createStripeLinkInternalRoutes(deps: StripeLinkInternalDeps) {
       .returning({ id: t.company.id })
     if (!done.length) return c.json({ error: 'This Stripe sign-in is no longer pending' }, 410)
     if (refusal) return c.json({ error: refusal.error }, refusal.status)
+    if (accountId) await deps.audit?.log({ action: 'update', entity: 'stripe_account', entityId: accountId, entityName: 'Stripe', metadata: { description: 'Existing Stripe account linked for card payments' }, userId, companyId: row.id })
     return c.json(accountId ? { linked: true } : { cleared: true })
   })
   return app

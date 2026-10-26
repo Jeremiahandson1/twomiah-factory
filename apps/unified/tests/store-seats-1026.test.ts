@@ -8,7 +8,8 @@
 import { describe, test, expect, beforeAll } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { bootStore } from './storeKit.ts'
+import { eq as eqId } from 'drizzle-orm'
+import { bootStore, paidSession } from './storeKit.ts'
 import { loadVertical } from '../server/core/vertical.ts'
 
 let k: Awaited<ReturnType<typeof bootStore>>
@@ -103,5 +104,54 @@ describe("a shop's own words", () => {
     expect(src('crm/verticals/store.tsx')).toContain("'/crm/customers', '/crm/leads'")
     const store = await loadVertical('store')
     expect((store.screens as any).navHidden).toEqual(['/crm/lead-sources'])
+  })
+})
+
+describe("a store's orders, as the owner reads them", () => {
+  let paidId = ''
+  test("an order keeps the product's own photo for its order-received page; the payment page gets only a fetchable one", async () => {
+    await k.connectStripe()
+    const { product } = await k.product({ slug: 'mug', name: 'Camp Mug', sku: 'MUG-1', priceCents: 1800 })
+    await (k.t.db as any).insert(k.S.storeProductImage).values({ productId: product.id, url: '/media/site/mug.jpg', alt: 'A mug', isPrimary: true })
+    const r = await k.pub('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: 1 }], customerEmail: 'ada@example.com' })
+    expect(r.status).toBe(200)
+    const call = k.stripe.last('/v1/checkout/sessions')!
+    expect(call.params.get('line_items[0][price_data][product_data][images][0]')).toBeNull()
+    const o = await k.orderBySession(new URL(r.json.url).pathname.split('/').pop()!)
+    paidId = o.id
+    const summary = await k.pub('GET', `/api/public/order-summary?session_id=${o.providerSessionId}`)
+    expect(JSON.stringify(summary.json)).toContain('/media/site/mug.jpg')
+    // Started: the audit log says so, unpaid.
+    const started = await (k.t.db as any).select().from(k.S.auditLog).where(eqId(k.S.auditLog.entityId, o.id))
+    expect(started.map((a: any) => a.metadata?.description).join(' | ')).toMatch(/started at checkout — \$\d+\.\d\d, not paid yet/)
+    k.stripe.sessions.set(o.providerSessionId, paidSession(o.providerSessionId, { amountTotal: o.totalCents }))
+    await k.webhook('checkout.session.completed', k.stripe.sessions.get(o.providerSessionId))
+    await k.webhook('checkout.session.completed', k.stripe.sessions.get(o.providerSessionId))
+    const rows = await (k.t.db as any).select().from(k.S.auditLog).where(eqId(k.S.auditLog.entityId, o.id))
+    expect(rows.filter((a: any) => /paid —/.test(a.metadata?.description || ''))).toHaveLength(1)
+  })
+
+  test('Spent is what a customer paid less what was refunded to them, as the Dashboard nets it', async () => {
+    const o = await k.order(paidId)
+    await (k.t.db as any).update(k.S.storeOrder).set({ status: 'refunded', refundedCents: o.totalCents }).where(eqId(k.S.storeOrder.id, paidId))
+    const list = (await k.O('GET', '/api/admin/orders/customers')).json
+    const ada = (list.data || []).find((c: any) => c.email === 'ada@example.com')
+    expect(ada?.totalSpentCents).toBe(0)
+  })
+
+  test('Stripe disconnected is in the audit log', async () => {
+    await (k.t.db as any).update(k.S.company).set({ integrations: { stripeAccountId: 'acct_test123' } }).where(eqId(k.S.company.id, k.companyId))
+    expect((await k.O('POST', '/api/integrations/stripe/disconnect')).status).toBe(200)
+    const rows = await (k.t.db as any).select().from(k.S.auditLog).where(eqId(k.S.auditLog.entityId, 'acct_test123'))
+    expect(rows.map((a: any) => a.metadata?.description)).toContain('Stripe disconnected — card payments no longer go to this account')
+  })
+
+  test('an unfinished checkout is labelled apart and left out of the recent sales; the list shows the sale price beside its was-price', () => {
+    const lib = src('crm/pages/store/orders/lib.ts')
+    expect(lib).toContain("o.status !== 'pending' ? codeLabel(o.status) : o.source === 'draft' ? 'Awaiting payment' : 'Checkout not completed'")
+    expect(src('crm/pages/store/orders/DashboardPage.tsx')).toContain('.filter((x) => !isUnfinishedCheckout(x))')
+    expect(src('crm/pages/store/orders/OrdersPage.tsx')).toContain('{orderStatusLabel(o)}')
+    expect(src('crm/pages/store/catalog/ProductsPage.tsx')).toContain('lo.compareAtPriceCents && lo.compareAtPriceCents > lo.priceCents')
+    expect(src('crm/pages/store/catalog/StoreSettingsPage.tsx')).toContain('value={form.currency.toUpperCase()}')
   })
 })

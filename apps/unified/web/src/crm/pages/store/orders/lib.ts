@@ -1,4 +1,5 @@
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 // What the orders screens share: the order's shape as server/crm/store/orders answers it, money in integer cents, the
 // status badges, and reading a reply (RULEBOOK §3: a list is { data, pagination }; a refusal { error, code?, fields? },
 // which the app's client throws as an Error whose `data` is that body). Moved from templates/crm-store/frontend/src
@@ -31,6 +32,8 @@ export interface Order {
   trackingCarrier: string | null; trackingNumber: string | null; internalNote: string | null
   createdAt: string; fulfilledAt?: string | null
   providerPaymentId?: string | null
+  /** storefront | draft (made by the owner for a customer). */
+  source?: string
   refundPendingAt?: string | null; refundId?: string | null; refundedAt?: string | null; refundError?: string | null
   refundedCents?: number
   supplierOrderId?: string | null; supplierStatus?: string | null; supplierCostCents?: number | null; supplierError?: string | null
@@ -78,6 +81,16 @@ const STATUS_BADGE: Record<string, string> = {
   picked_up: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
 }
 export const statusBadge = (status: string) => STATUS_BADGE[status] || 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300'
+
+/**
+ * An order's status as the lists show it. A pending order from the shop is a checkout the shopper never finished — not a
+ * sale waiting to ship (store live test, 2026-10-26: an abandoned checkout sat in Orders and the Dashboard's recent orders
+ * as "Pending"); a pending one the owner made for a customer is waiting for that customer to pay. Kept, never deleted.
+ */
+export const orderStatusLabel = (o: Pick<Order, 'status' | 'source'>) =>
+  o.status !== 'pending' ? codeLabel(o.status) : o.source === 'draft' ? 'Awaiting payment' : 'Checkout not completed'
+/** An unfinished checkout from the shop: shown apart from the sales (the Dashboard's recent orders leave it out). */
+export const isUnfinishedCheckout = (o: Pick<Order, 'status' | 'source'>) => o.status === 'pending' && o.source !== 'draft'
 
 /** A list reply's rows; anything else is no rows. */
 export function listOf<T>(reply: unknown): T[] {

@@ -19,7 +19,7 @@ import { ShoppingBag } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { cents, listOf, statusBadge, type Order } from './lib'
+import { cents, listOf, orderStatusLabel, statusBadge, type Order } from './lib'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const FILTERS = ['all', 'pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'ready_for_pickup', 'picked_up', 'cancelled', 'refunded']
@@ -56,7 +56,7 @@ export default function OrdersPage() {
             className={`rounded-full px-3 py-1 text-sm ${filter === f
               ? 'bg-orange-600 text-white dark:bg-orange-500'
               : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-            {f === 'all' ? 'All' : codeLabel(f)}
+            {f === 'all' ? 'All' : f === 'pending' ? 'Not paid' : codeLabel(f)}
           </button>
         ))}
       </div>
@@ -86,7 +86,7 @@ export default function OrdersPage() {
                   <td className="px-3 sm:px-4 py-3 text-gray-600 dark:text-slate-300 max-w-[8rem] sm:max-w-none truncate">{o.customerName || o.customerEmail}</td>
                   <td className="hidden sm:table-cell px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(o.createdAt)}</td>
                   <td className="px-3 sm:px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{codeLabel(o.status)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{orderStatusLabel(o)}</span>
                     {/* Money has gone back on an order still open: a part refund. */}
                     {(o.refundedCents || 0) > 0 && o.status !== 'refunded' && o.status !== 'cancelled' && (
                       <span className="block text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">part refunded</span>

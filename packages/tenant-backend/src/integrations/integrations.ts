@@ -39,6 +39,11 @@ export interface IntegrationsRoutesDeps {
   /** Gates for the QuickBooks and Stripe doors (the unified app: the quickbooks and online_payments switches). */
   requireQuickbooks?: (c: any, next: any) => any
   requireOnlinePayments?: (c: any, next: any) => any
+  /**
+   * The audit log (the unified app's core/audit.ts): Stripe connected, a link started, Stripe disconnected — where the
+   * business's card money goes is a record the owner can read back (store live test, 2026-10-26: none of it was there).
+   */
+  audit?: { log(entry: { action: string; entity: string; entityId?: string | null; entityName?: string | null; metadata?: Record<string, unknown> | null; req?: any }): Promise<void> }
 }
 
 /** How long a "link my Stripe account" press stays good — as long as the Factory's signed state (stripeConnectOAuth.ts). */
@@ -209,6 +214,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
       }
       registerStripeAccount(accountId, true)
       const accountLink = await deps.stripe.accountLinks.create({ account: accountId, refresh_url: `${frontend()}/crm/settings/integrations?stripe=refresh`, return_url: `${frontend()}/crm/settings/integrations?stripe=success`, type: 'account_onboarding' })
+      await deps.audit?.log({ action: 'update', entity: 'stripe_account', entityId: accountId, entityName: 'Stripe', metadata: { description: (row as any)?.integrations?.stripeAccountId ? 'Stripe set-up reopened' : 'Stripe account created for card payments; set-up opened' }, req: c })
       return c.json({ connectUrl: accountLink.url })
     } catch (e: any) { return c.json({ error: e?.message || 'Stripe could not start onboarding' }, 502) }
   })
@@ -233,6 +239,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
     const origin = here.hostname === 'localhost' ? here.origin : `https://${here.host}`
     try {
       const { url } = await deps.factoryApiClient.startStripeLink({ nonce, userId: u.userId, returnUrl: `${origin}/crm/settings/integrations` })
+      await deps.audit?.log({ action: 'update', entity: 'stripe_account', entityName: 'Stripe', metadata: { description: 'Linking an existing Stripe account started' }, req: c })
       return c.json({ linkUrl: url })
     } catch (e: any) {
       console.error('[integrations] Stripe link start failed:', e?.message)
@@ -254,6 +261,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
     }
     await patchIntegrations(u.companyId, (j) => { delete j.stripeAccountId; delete j.stripeAccountSource; delete j.stripeLinkPending; return j })
     registerStripeAccount(null, true)
+    if (current.stripeAccountId) await deps.audit?.log({ action: 'delete', entity: 'stripe_account', entityId: current.stripeAccountId, entityName: 'Stripe', metadata: { description: 'Stripe disconnected — card payments no longer go to this account' }, req: c })
     // Disconnected here either way — no more payments go to it. When Stripe did not confirm, the owner is told where to finish.
     if (deauthorized === false) return c.json({ success: true, deauthorized: false, message: "Stripe is disconnected here, but Stripe did not confirm removing Twomiah's access. You can remove it in your Stripe dashboard (Settings › Connected apps)." })
     return c.json({ success: true, ...(deauthorized ? { deauthorized: true } : {}) })

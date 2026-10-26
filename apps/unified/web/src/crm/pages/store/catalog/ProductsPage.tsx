@@ -17,9 +17,14 @@ import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { PRODUCT_STATUS, formatMoney, listOf, useStoreCurrency, type Product } from './lib'
 
-function startingPrice(p: Product) {
+/**
+ * The price a shopper sees on the shop's grid (site/views/sections/shop/grid.ejs): the cheapest option, and its
+ * compare-at ("was") price when it is higher — the list showed the sale price alone (store live test, 2026-10-26).
+ */
+function startingPrice(p: Product): { cents: number; wasCents: number | null } | null {
   if (!p.variants.length) return null
-  return Math.min(...p.variants.map((v) => v.priceCents))
+  const lo = p.variants.reduce((a, v) => (v.priceCents < a.priceCents ? v : a), p.variants[0])
+  return { cents: lo.priceCents, wasCents: lo.compareAtPriceCents && lo.compareAtPriceCents > lo.priceCents ? lo.compareAtPriceCents : null }
 }
 function totalInventory(p: Product) {
   const tracked = p.variants.filter((v) => v.inventoryQty !== null)
@@ -76,7 +81,10 @@ export default function ProductsPage() {
                     </div>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
-                  <div className="w-20 text-right text-sm font-medium text-gray-900 dark:text-slate-100">{price !== null ? formatMoney(price, currency) : '—'}</div>
+                  <div className="w-24 text-right text-sm font-medium text-gray-900 dark:text-slate-100">
+                    {price !== null ? formatMoney(price.cents, currency) : '—'}
+                    {price?.wasCents != null && <div className="text-xs font-normal text-gray-600 line-through dark:text-slate-400"><span className="sr-only">Was </span>{formatMoney(price.wasCents, currency)}</div>}
+                  </div>
                 </Link>
               )
             })}

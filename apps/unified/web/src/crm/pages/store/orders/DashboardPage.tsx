@@ -22,8 +22,7 @@ import { AlertCircle, ArrowRight, CheckCircle2, DollarSign, Package, RotateCcw, 
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { cents, listOf, statusBadge, type Order } from './lib'
-import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { cents, isUnfinishedCheckout, listOf, orderStatusLabel, statusBadge, type Order } from './lib'
 
 interface Stats {
   paidCount: number; pendingFulfillment: number; atSupplier: number
@@ -57,7 +56,8 @@ export default function DashboardPage() {
       if (!live) return
       if (s.status === 'fulfilled') setStats(s.value as Stats)
       else setError(errorText(s.reason, "Couldn't load the store's figures"))
-      if (o.status === 'fulfilled') setOrders(listOf<Order>(o.value).slice(0, 5))
+      // The recent sales: a checkout the shopper never finished is not one (Orders lists it, labelled).
+      if (o.status === 'fulfilled') setOrders(listOf<Order>(o.value).filter((x) => !isUnfinishedCheckout(x)).slice(0, 5))
       if (p.status === 'fulfilled') setActiveProducts(listOf<{ status: string }>(p.value).filter((x) => x.status === 'active').length)
       if (pay.status === 'fulfilled' && pay.value) setPayment(pay.value as PaymentStatus)
     }).finally(() => { if (live) setLoading(false) })
@@ -129,7 +129,7 @@ export default function DashboardPage() {
                   <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{o.customerEmail} · {formatDate(o.createdAt)}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{codeLabel(o.status)}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{orderStatusLabel(o)}</span>
                   <span className="font-medium text-sm text-gray-900 dark:text-slate-100">{cents(o.totalCents, o.currency)}</span>
                 </div>
               </Link>
