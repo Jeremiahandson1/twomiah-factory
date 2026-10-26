@@ -18,7 +18,9 @@ interface Entry { id: string; date: string; hours: string | number; description?
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
 // TOMORROW all evening, and it is also the ceiling the date box is given. (Contractor T29 L1)
 const today = () => todayKey() // the company's day, not the browser's
-const fmtElapsed = (ms: number) => { const m = Math.max(0, Math.floor(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` }
+// H:MM:SS, ticking every second: hours and minutes refreshed every 30s read "0:00" for the whole first minute and looked
+// stuck (basic live test, 2026-10-25).
+const fmtElapsed = (ms: number) => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` }
 
 export function TimePage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TimeConfig }) {
   const auth = useAuth()
@@ -91,7 +93,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     } catch (e) { setPayError(errMsg(e, 'Could not work out the pay run')); setPayRun(null) }
     finally { setPayLoading(false) }
   }
-  useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id) }, [active])
+  useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [active])
 
   const clockIn = async () => { setClockBusy(true); try { await api.post('/api/time/clock-in', {}); toast.success('Clocked in'); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock in')) } finally { setClockBusy(false) } }
   const clockOut = async () => { setClockBusy(true); try { const r = await api.post('/api/time/clock-out', {}); toast.success(r?.discarded ? (r.message || 'That clock-in was too short to record') : `Clocked out — ${Number(r?.hours || 0).toFixed(2)} h`); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock out')) } finally { setClockBusy(false) } }
