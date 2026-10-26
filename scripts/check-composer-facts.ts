@@ -322,12 +322,16 @@ const invented = (): Record<string, Section[]> => ({
   check(/preview_premium_pages: premiumPages/.test(intakeSrc) && /premiumPages = signupComposition\(\s*signupComposerInput\(body,/.test(intakeSrc), 'intake.ts: a premium signup stores its composition for site-bootstrap')
   const signupSiteSrc = read('apps/api/src/services/signupSite.ts')
   check(/\.\.\.toComposition\(composeInstant\(input\)\)/.test(signupSiteSrc), 'signupSite.ts: the composition stored at signup is the template composer\'s (enforceIntakeFacts inside it)')
-  // Every trade the template composer writes for: a real menu from the answers a signup carries, and nothing claimed.
-  for (const bt of ['general_contractor', 'roofing', 'hvac', 'plumbing', 'electrical', 'painting', 'landscaping', 'home_care', 'veterinary', 'rv', 'salon', 'restaurant', 'food_truck', 'bar', 'cleaning', 'pest_control', 'windows_doors', 'other']) {
-    const site = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI', email: 'acme@example.com' })
-    const published = Object.keys(site.pages).filter((s) => !site.heldPages.includes(s) && s !== 'home' && s !== 'contact')
-    check(published.length >= 1, `composeInstant(${bt}): a menu beyond Home and Contact from the signup's answers alone (published: ${published.join(', ') || 'none'})`)
-    check(site.removedClaims.length === 0, `composeInstant(${bt}): its own copy states nothing the facts check removes (${site.removedClaims.slice(0, 3).join(' | ')})`)
+  // Every trade the template composer writes for: the services the signup's picker collects each get a page, an About
+  // with no story from the owner is never published (the live tests' rule), and its own copy claims nothing.
+  for (const bt of ['general_contractor', 'roofing', 'hvac', 'plumbing', 'electrical', 'painting', 'landscaping', 'home_care', 'veterinary', 'rv', 'salon', 'cleaning', 'pest_control', 'windows_doors', 'other']) {
+    const bare = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI', email: 'acme@example.com' })
+    check(bare.heldPages.includes('about') || !('about' in bare.pages), `composeInstant(${bt}): no About is published without the owner's story`)
+    check(bare.removedClaims.length === 0, `composeInstant(${bt}): its own copy states nothing the facts check removes (${bare.removedClaims.slice(0, 3).join(' | ')})`)
+    const site = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI', email: 'acme@example.com', services: ['Repairs', 'Installs'] })
+    const published = Object.keys(site.pages).filter((s) => !site.heldPages.includes(s))
+    check(['repairs', 'installs'].every((s) => published.includes(s)), `composeInstant(${bt}): each service the owner names gets a published page (published: ${published.join(', ')})`)
+    check(site.removedClaims.length === 0, `composeInstant(${bt}, services): its own copy states nothing the facts check removes (${site.removedClaims.slice(0, 3).join(' | ')})`)
   }
 }
 

@@ -64,11 +64,6 @@ function firstSentence(text?: string): string {
   return m ? m[0] : t.slice(0, 160)
 }
 
-/** "a, b and c" */
-function listOf(names: string[]): string {
-  return names.length <= 1 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
-}
-
 // The library photo for the trade's hero. Where websiteTrades hand-picked shots (plumbing and HVAC:
 // the library's first field-service photo is an electrician; salons and gyms had office stock), the
 // premium site uses the same pick the standard site does.
@@ -290,9 +285,16 @@ export function composeInstant(input: ComposerInput): SiteResult {
     }
   }
   const hrefOf = (title: string) => servicePages.find((p) => p.title === title)?.slug
-  const serviceCards = (heading: string): Section | null => serviceNames.length
-    ? { type: 'services', variant: 'cards-grid', data: { heading, items: serviceNames.map((title) => (hrefOf(title) ? { title, href: hrefOf(title) } : { title })) } }
+  // "What we do": the owner's services, or the one stand-in card for the trade, which the build marks standIn so the
+  // live site shows the business's own list there (price book, a salon's service menu, a venue's spaces and packages)
+  // or nothing — never the trade as a service (apps/unified/server/site/menu.ts; site-menu-1022.test.ts). The card is
+  // a title only, and only the Services page's cards link to each service's own page.
+  const serviceCards = (heading: string, linked = false): Section | null => serviceNames.length
+    ? { type: 'services', variant: 'cards-grid', data: { heading, items: serviceNames.map((title) => (linked && hrefOf(title) ? { title, href: hrefOf(title) } : { title })) } }
     : null
+  // What the owner said they do, in their own words: a page that implies an offering (storm-damage help, catering) is
+  // written only when these words name it — otherwise it would be a promise the owner never made.
+  const ownWords = [input.description || '', ...services].join(' ').toLowerCase()
   const steps = (which: keyof typeof STEPS, heading = 'How it works'): Section => ({ type: 'services', variant: 'cards-grid', data: { heading, items: STEPS[which] } })
   const stepKind: keyof typeof STEPS = kind === 'fieldservice' ? 'fieldservice' : kind === 'homecare' ? 'homecare' : kind === 'salon' ? 'salon' : kind === 'vet' ? 'vet' : 'generic'
   const faqItems = (FAQS[kind] || FAQS.generic)
@@ -310,20 +312,19 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const bookingSection = (): Section | null => booking ? { type: 'reservation', variant: 'cta', data: booking } : null
   // The owner's prices, in their own words — the one pricing fact a signup or intake gives.
   const priceFaq = (): Section | null => f.pricing ? faq('Pricing', [{ question: 'How is pricing set?', answer: f.pricing }]) : null
-  const story = (): Section => {
-    const paragraphs = [
-      ...(input.description
-        ? paragraphsOf(input.description)
-        : [
-            'Welcome to ' + name + (place ? ', serving ' + place : '') + '.',
-            ...(services.length ? ['What we do: ' + listOf(services) + '.'] : []),
-            'Have a question, or something in mind? Get in touch and tell us what you need.',
-          ]),
-      // Where the about page's plan has no badges section, the credentials the owner gave are said here, in their words.
-      ...(f.credentials?.length && !recipe.about?.allowed_types.includes('trust') ? ['Credentials: ' + f.credentials.join('; ') + '.'] : []),
-    ]
-    return { type: 'about', variant: 'story', data: { title: 'About ' + name, paragraphs, ...(input.ownerName ? { signature: input.ownerName } : {}) } }
-  }
+  // The About story is the owner's own: their description. With none (the signup asks for none), there is no story —
+  // a "Welcome to …" written for them is a hollow page, and the About page starts held until they tell it
+  // (site-menu-1022.test.ts: "About starts hidden"). Their credentials join a story they told, where the plan has no badges.
+  const story = (): Section | null => input.description
+    ? { type: 'about', variant: 'story', data: {
+        title: 'About ' + name,
+        paragraphs: [
+          ...paragraphsOf(input.description),
+          ...(f.credentials?.length && !recipe.about?.allowed_types.includes('trust') ? ['Credentials: ' + f.credentials.join('; ') + '.'] : []),
+        ],
+        ...(input.ownerName ? { signature: input.ownerName } : {}),
+      } }
+    : null
 
   // ── Each page of the plan ──
   const home = (): Array<Section | null> => [
@@ -346,16 +347,19 @@ export function composeInstant(input: ComposerInput): SiteResult {
     // The kinds of care the owner named, when they named any; else the partial's own neutral choices.
     return { heading: 'Find the right care', ...(services.length ? { careTypes: [...services.slice(0, 6), 'Not sure yet'] } : {}) }
   }
+  // The Services page lists what the business does. Until it has something to list (the owner's services, or on the
+  // live site the business's own list in place of the stand-in), it has nothing of its own and stays out of the menu —
+  // "how it works" and a general FAQ do not make a page of services (the live tests' "Services" link to nothing).
   const servicesPage = (eyebrow = 'Services'): Array<Section | null> => [
     pageHero(eyebrow, label ? (place ? label + ' in ' + place : label) : 'What we do'),
-    serviceCards('What we do'),
-    steps(stepKind),
+    serviceCards('What we do', true),
+    services.length ? steps(stepKind) : null,
     // A home-care site answers its questions on its coverage page.
-    kind === 'homecare' ? null : faq(),
+    services.length && kind !== 'homecare' ? faq() : null,
     bookingSection(),
     talkTo(),
   ]
-  const aboutPage = (): Array<Section | null> => [story(), founded(), trust(), reviews(), gallery(1, 'Our work'), talkTo()]
+  const aboutPage = (): Array<Section | null> => [story() || pageHero('About', 'About ' + name), founded(), trust(), reviews(), gallery(1, 'Our work'), talkTo()]
   const contactPage = (): Array<Section | null> => [
     pageHero('Contact', 'Get in touch with ' + name),
     { type: 'contact', variant: 'form-info', data: contactData() },
@@ -383,7 +387,9 @@ export function composeInstant(input: ComposerInput): SiteResult {
     shop: () => servicesPage('Shop'),
     projects: () => framed('Projects', 'Our work', gallery(1, 'Our work'), reviews()),
     gallery: () => framed('Gallery', 'Our work', gallery(1, 'Our work'), reviews()),
-    storm: () => [pageHero('Storm damage', 'Storm damage?', 'What to do first after a storm.'), { type: 'services', variant: 'cards-grid', data: { heading: 'After a storm', items: STORM_STEPS } }, { ...faq(), data: { heading: 'Storm questions', items: FAQS.roofing!.slice(1) } }, bookingSection(), talkTo()],
+    storm: () => /\b(storm|hail|wind|insurance|claims?|restoration)\b/.test(ownWords)
+      ? [pageHero('Storm damage', 'Storm damage?', 'What to do first after a storm.'), { type: 'services', variant: 'cards-grid', data: { heading: 'After a storm', items: STORM_STEPS } }, { ...faq(), data: { heading: 'Storm questions', items: FAQS.roofing!.slice(1) } }, bookingSection(), talkTo()]
+      : framed('Storm damage', 'Storm damage?'),
     quote: () => framed('Estimator', 'Get a ballpark'),
     emergency: () => framed('Emergency', 'Emergency service'),
     pricing: () => framed('Pricing', 'Pricing', priceFaq()),
@@ -392,7 +398,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
     caregivers: () => framed('Our caregivers', 'Our caregivers'),
     coverage: () => [pageHero('Coverage + payment', 'Paying for care at home'), { type: 'coverage', variant: 'insurance-guide', data: { heading: 'How families pay for in-home care', items: COVERAGE } }, faq(), talkTo()],
     'private-dining': () => enquiryPage('Private events', 'Plan a private event'),
-    catering: () => enquiryPage('Catering', 'Book us for your event'),
+    // A restaurant here is the private-events business (the product's scope); a food truck caters only if it says so.
+    catering: () => /\b(cater\w*|events?|private|parties|party|weddings?)\b/.test(ownWords) ? enquiryPage('Catering', 'Book us for your event') : framed('Catering', 'Catering'),
     venue: () => framed('The venue', 'The venue', gallery(1, 'The space'), serviceCards('What we host')),
     visit: () => [pageHero('Visit', 'Visit ' + name), { type: 'contact', variant: 'form-info', data: contactData() }, talkTo()],
     menu: () => framed('Menu', 'Menu'),
@@ -404,7 +411,9 @@ export function composeInstant(input: ComposerInput): SiteResult {
   }
 
   const pages: Record<string, Section[]> = {}
-  const allowedOn = (slug: string) => new Set<string>(recipe[slug]?.allowed_types || ['hero', 'services', 'faq', 'reservation', 'cta'])
+  // Home always keeps its "What we do", whatever the plan lists: on the live site it is where the business's own
+  // services, service menu or event spaces appear (a restaurant's plan has no services section; its spaces go there).
+  const allowedOn = (slug: string) => new Set<string>([...(recipe[slug]?.allowed_types || ['hero', 'services', 'faq', 'reservation', 'cta']), ...(slug === 'home' ? ['services'] : [])])
   const build = (slug: string, sections: Array<Section | null>) => {
     const allowed = allowedOn(slug)
     // Only the section types this page's plan allows — the same catalogue the AI composes the page from.
@@ -445,6 +454,53 @@ export function composeInstant(input: ComposerInput): SiteResult {
       rationale: 'Template composition from the owner\'s facts and the trade\'s page plan (no model call).',
       ...(Object.keys(t).length ? { titles: t } : {}),
     }
+  }
+}
+
+const stem = (w: string) => w.replace(/(?:ing|es|s)$/, '')
+const wordsOf = (s: string) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3).map(stem))
+
+/**
+ * The AI's site held to the same two rules the template composer keeps (site-menu-1022.test.ts, the live tests of
+ * 2026-10-22), before it is stored as the signup's site:
+ *   · "What we do" (home's, and the Services page's) lists what the owner gave: a card the AI wrote for a service the
+ *     owner never named is taken out, and a list left empty becomes the one stand-in card for the trade — which the
+ *     build marks standIn, so the live site shows the business's own services there, or nothing.
+ *   · The About story is the owner's own: with no description from them, a story the AI wrote is taken out, and the
+ *     page is held until they tell it.
+ * Then the facts gate runs again, so a page left with nothing is held and links to it go (composerFacts.ts).
+ */
+export function heldToOwnerFacts(site: { pages: Record<string, { sections: Section[] }>; [k: string]: any }, input: ComposerInput): { pages: Record<string, { sections: Section[] }>; heldPages: string[]; contentGaps: any[]; removedClaims: string[] } & Record<string, any> {
+  const type = input.businessType || ''
+  const label = tradeLabelFor(type)
+  const standIn = label ? websiteTradeFor(type.toLowerCase().replace(/\s+/g, '_'))?.service || label : ''
+  const owned = (input.services || []).map(wordsOf)
+  const isOwners = (title: unknown) => { const w = wordsOf(String(title || '')); return owned.some((o) => [...o].some((x) => w.has(x))) }
+  const removed: string[] = []
+  const pages: Record<string, Section[]> = {}
+  for (const [slug, page] of Object.entries(site.pages || {})) {
+    const out: Section[] = []
+    for (const s of page?.sections || []) {
+      if (s?.type === 'about' && s.variant === 'story' && !input.description) { removed.push(slug + ': about/story with no story from the owner'); continue }
+      if (s?.type === 'services' && (slug === 'home' || slug === 'services' || slug === 'service') && Array.isArray(s.data?.items)) {
+        const items = s.data.items.filter((i: any) => isOwners(i?.title))
+        if (items.length < s.data.items.length) removed.push(slug + ': ' + (s.data.items.length - items.length) + ' service card(s) the owner did not name')
+        if (items.length) out.push({ ...s, data: { ...s.data, items } })
+        else if (standIn && !out.some((x) => x.type === 'services')) out.push({ type: 'services', variant: 'cards-grid', data: { heading: s.data.heading || 'What we do', items: [{ title: standIn }] } })
+        continue
+      }
+      out.push(s)
+    }
+    pages[slug] = out
+  }
+  const recipe = pageRecipesFor(type)
+  const enforced = enforceIntakeFacts(pages, input, { requiredOf, allowedTypes: new Set(Object.values(recipe).flatMap((r) => [...r.allowed_types])) })
+  return {
+    ...site,
+    pages: Object.fromEntries(Object.entries(enforced.pages).map(([slug, sections]) => [slug, { ...(site.pages[slug] || {}), sections }])),
+    heldPages: enforced.heldPages,
+    contentGaps: enforced.contentGaps,
+    removedClaims: [...removed, ...(site.removedClaims || []), ...enforced.removedClaims].slice(0, 60),
   }
 }
 
