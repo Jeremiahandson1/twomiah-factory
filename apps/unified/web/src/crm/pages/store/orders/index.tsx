@@ -52,7 +52,9 @@ export const nav: NavItem[] = [
   { to: '/crm/customers', icon: Users, label: 'Customers', permission: 'orders:read' },
   { to: '/crm/payments', icon: CreditCard, label: 'Payments', permission: 'payments:update' },
   { to: '/crm/suppliers', icon: Truck, label: 'Suppliers', permission: 'integrations:update' },
-  { to: '/crm/shipping', icon: Package, label: 'Shipping', permission: 'shipping:read' },
+  // The carrier account and its labels' defaults: the seats that set shipping (shipping:configure — manager, owner). Staff
+  // hold shipping:read only to buy a label from an order (store live test, 2026-10-26: staff reached the API key form).
+  { to: '/crm/shipping', icon: Package, label: 'Shipping', permission: 'shipping:configure' },
   // Chargebacks (GET /api/admin/disputes asks orders:refund): money leaving the shop, the seats that refund.
   { to: '/crm/disputes', icon: ShieldAlert, label: 'Disputes', permission: 'orders:refund' },
 ]
@@ -64,7 +66,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/customers': 'orders:read',
   '/crm/payments': 'payments:update',
   '/crm/suppliers': 'integrations:update',
-  '/crm/shipping': 'shipping:read',
+  '/crm/shipping': 'shipping:configure',
   '/crm/disputes': 'orders:refund',
 }
 

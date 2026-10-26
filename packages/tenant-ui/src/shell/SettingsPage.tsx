@@ -475,11 +475,16 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   </select>
                 </Field>
               )}
+              {/* Only where the business sends invoices or quotes: an online store charges at checkout and keeps its tax on
+                  Store Settings, so "invoice payment terms" was a contractor's form on its Company page (store live test,
+                  2026-10-26). */}
+              {(!hasFeature || hasFeature('invoices') || hasFeature('quotes')) && (<>
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Default Sales Tax Rate (%)" hint={`Applied to new ${hasFeature && !hasFeature('quotes') ? '' : 'quotes and '}invoices. Leave 0 if you do not collect sales tax.`}><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>
                 <Field label="Invoice Payment Terms (days)" hint="Sets the due date on a new invoice that is not given one."><input type="number" min="0" value={form.paymentTermsDays} onChange={set('paymentTermsDays')} className={inputCls} placeholder="30" /></Field>
               </div>
+              </>)}
               <Button onClick={saveCompany} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </div>
           )}

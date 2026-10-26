@@ -3,6 +3,29 @@
 // and loyalty are the store's add-on (server/crm/store, web/src/crm/pages/store); its shoppers are the CRM's contacts
 // (decision 2) and its loyalty the shared programme, by contact.
 import { BASE_CRM, type VerticalSettings } from '../../server/core/vertical.ts'
+import { BASE_STARTER, type StarterContent } from '../../server/core/starter.ts'
+
+// What a new store finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Store live test, 2026-10-26: a store's Help opened on the contractor's "Quotes & Invoices", "Scheduling" and "Time &
+// Expenses" — none of them a store's. Each article names only screens and steps the store has (its onboarding steps,
+// the Shipping and Product Reviews screens, the seats in roleMapping below).
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: 'Getting started with your store', category: 'Getting Started', isFaq: true,
+      content: 'Do these in order and you can take an order today. 1) Payments: connect Stripe, Square or PayPal — you are paid directly, and the storefront cannot check anyone out until one is connected. 2) Products: add a product with a name, price, photos and stock; one is enough to go live. 3) Open your storefront, add the product to the cart and place a test order. 4) Settings > Users: invite your managers and staff.' },
+    { title: 'Adding and editing products', category: 'Products', isFaq: false,
+      content: 'Go to Products and add a product: its name, price, photos and stock. A product shows in your shop once it is on sale; a draft stays hidden from shoppers. Each option a shopper can pick (a size, a colour) has its own price and stock, and an option with no stock left shows as sold out.' },
+    { title: 'Orders and shipping', category: 'Orders', isFaq: true,
+      content: 'Every paid order is on the Orders page. Open one to pack it, add its tracking number and mark it shipped. With a carrier account connected on Shipping (set up by the owner), you can buy and print the label from the order itself; without one, enter the tracking number by hand. Refunds and cancellations are for a manager or the owner.' },
+    { title: 'Discount codes', category: 'Promotions', isFaq: false,
+      content: 'On Discounts, a manager or the owner creates a code shoppers enter at checkout, and can switch a code off at any time.' },
+    { title: 'Product reviews', category: 'Customers', isFaq: true,
+      content: 'Shoppers can review a product from its page in your shop. A new review waits on Product Reviews until it is approved; only approved reviews show on the product page. A review from an email that bought the product is marked "Verified purchase".' },
+    { title: 'Messages from your website', category: 'Customers', isFaq: false,
+      content: "Messages sent through your website's contact form arrive in the Lead Inbox, and are emailed to you as well." },
+  ],
+  pricebookCategories: BASE_STARTER.pricebookCategories,
+}
 
 const store: VerticalSettings = {
   // 'store': industryRouting's vertical id (apps/api/src/config/industryRouting.ts) and what the Factory calls it.
@@ -10,6 +33,7 @@ const store: VerticalSettings = {
   label: 'Online Store',
   vocabulary: { customer: { one: 'customer', many: 'customers' }, work: null, team: { one: 'team member', many: 'team' }, reviewAfter: null, gallery: 'Gallery', customerCompany: true },
   mfaIssuer: 'Twomiah Store',
+  starter: STARTER,
   featureSet: 'crm-store',
   // templates/crm-store middleware/permissions.ts — the store's three seats (owner's decision, 2026-10-10):
   //   owner    everything — payments, settings, logins and the integrations stay here
@@ -27,8 +51,9 @@ const store: VerticalSettings = {
       'orders:read', 'orders:update', 'shipping:read', 'shipping:label',
       // The catalogue, short of removing anything from sale.
       'products:read', 'products:create', 'products:update',
-      // Sees the codes to answer a shopper; writing one is giving money away.
-      'discounts:read',
+      // No discounts: the codes are money given away, and a staff seat does not reach them (store live test, 2026-10-26 —
+      // staff could open Discounts; "credentials, money and controls follow the seat", bda5a934a). Nor the carrier
+      // account or the shipping rates: shipping:read is for buying a label from an order, never the Shipping screen.
       // Publishes or rejects a review; deleting one for good is the manager's.
       'reviews:read', 'reviews:update',
     ],
@@ -49,6 +74,19 @@ const store: VerticalSettings = {
   screens: {
     // The store's own home and screens (web/src/crm/verticals/store.tsx).
     home: 'store',
+    // The Lead Inbox is the store's for its website's enquiries (featureRegistry lead_inbox, store live test 2026-10-26);
+    // Lead Sources is the marketplaces' forwarding guide (Angi, Thumbtack, booking apps), which a shop does not sell on.
+    navHidden: ['/crm/lead-sources'],
+    // Settings in a shop's words (store live test, 2026-10-26): no License # (not a licensed trade, as vet and restaurant),
+    // and its two seats described as what each does in a shop — the shared list said "view jobs, log time". It replaces
+    // the shared list; a shop hands out only these two (crm.team.roles).
+    settings: {
+      licenseNumber: false,
+      roles: [
+        { value: 'field', label: 'Staff', description: 'packs and ships orders, adds and edits products and stock, answers reviews; not refunds, discount codes, shipping rates, payments or settings' },
+        { value: 'manager', label: 'Manager', description: 'runs the shop: refunds and cancellations, discount codes, shipping rates, removing products, loyalty; not payments, the carrier account, company settings or logins' },
+      ],
+    },
     // Its customers are shoppers (decision 2). A shopper's page lists their store orders (the server's `orders` relation,
     // server/modules/crm.ts); a store has no projects or quotes, so those lists and their counts are off.
     contacts: {
@@ -58,7 +96,8 @@ const store: VerticalSettings = {
     // The first-run wizard follows the money, as templates/crm-store's did: a store can't sell without a payment account
     // and a product. Its own Domain page, not the CRM's CNAME guide; no Jobber, Angi, Thumbtack or Google LSA.
     onboarding: {
-      integrations: ['store_domain', 'store_payments', 'store_first_product', 'quickbooks', 'twilio'],
+      // No QuickBooks: the store is not offered it (featureRegistry quickbooks has no crm-store; store live test 2026-10-26).
+      integrations: ['store_domain', 'store_payments', 'store_first_product', 'twilio'],
       emailProduct: 'crm-store',
       extra: [
         {

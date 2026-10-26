@@ -38,8 +38,10 @@ export default function ShippingPage() {
   const [from, setFrom] = useState({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: 'US', phone: '' })
   const [parcel, setParcel] = useState({ lengthIn: '10', widthIn: '8', heightIn: '4', weightOz: '16' })
   const [saving, setSaving] = useState(false)
-  // The carrier account is the manager's (shipping:configure). Staff buy labels from the order page.
-  const mayConfigure = useMayWrite('shipping:configure')
+  // The carrier account's API key is a credential: the seats that hold the business's other credentials set it
+  // (integrations:update — the owner; the rule of bda5a934a, store live test 2026-10-26). Staff buy labels from the order
+  // page and never reach this screen.
+  const mayConfigure = useMayWrite('integrations:update')
 
   const load = useCallback(async () => {
     try {
@@ -125,7 +127,7 @@ export default function ShippingPage() {
       )}
 
       {!mayConfigure && (
-        <p className="text-sm text-gray-500 dark:text-slate-400">The carrier account is set up by a manager or the owner. Labels are bought from each order.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">The carrier account is set up by the owner. Labels are bought from each order.</p>
       )}
 
       {mayConfigure && !error && (

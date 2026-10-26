@@ -1,7 +1,7 @@
 // The CRM's shared screens (packages/tenant-ui), each handed this app's client, toasts, session and the vertical's
 // settings. Every CRM template kept a wrapper file per screen (templates/crm/frontend/src/pages/*, components/detail/*)
 // and a config file per area; here one file, and the settings come from the vertical (./vertical.ts).
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import {
   ContactsPage, ContactDetailPage, JobsPage, JobDetailPage, QuotesPage, QuoteDetailPage, InvoicesPage, InvoiceDetailPage,
   JobsDashboardPage, ReportsPage, JobCostingPage, SchedulePage, TimePage, ExpensesPage, TeamPage, DocumentsPage, LocationsPage,
@@ -12,7 +12,7 @@ import {
 } from '../shared'
 import { api } from '../api'
 import { verticalScreens } from './vertical'
-import OnboardingWizard from './pages/OnboardingWizard'
+import OnboardingWizard, { wizardOpens } from './pages/OnboardingWizard'
 import type { ComponentType } from 'react'
 import { dashboard as salonDashboard } from './verticals/salon'
 import { dashboard as eventsDashboard } from './verticals/restaurant'
@@ -257,7 +257,10 @@ function needsOnboarding(company: unknown, hasFeature: (id: string) => boolean, 
 
 export function OnboardingGate() {
   const { company, hasFeature, isAdmin } = useAuth()
-  if (needsOnboarding(company, hasFeature, isAdmin)) return <Navigate to="/crm/onboarding" replace />
+  const { pathname } = useLocation()
+  // The pages the wizard's own steps open (Payments, the product editor…) are what it asks the owner to do: sent back to
+  // the wizard, "Open Payments" opened the wizard again in the new tab (store live test, 2026-10-26).
+  if (needsOnboarding(company, hasFeature, isAdmin) && !wizardOpens().includes(pathname)) return <Navigate to="/crm/onboarding" replace />
   return <Outlet />
 }
 

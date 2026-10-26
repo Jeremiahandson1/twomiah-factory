@@ -139,6 +139,13 @@ const offeredIntegrations = (): Integration[] => {
   return all.filter((i) => (ids || []).includes(i.id))
 }
 
+/**
+ * The pages the wizard's "Open …" buttons open, in a new tab so the wizard keeps its place. The first-run gate lets these
+ * through (crm/screens.tsx OnboardingGate): it sent "Open Payments" back to the wizard, so the owner could never reach
+ * the page the step asks for (store live test, 2026-10-26).
+ */
+export const wizardOpens = (): string[] => offeredIntegrations().map((i) => i.open?.to).filter((to): to is string => !!to)
+
 const CATEGORY_LABELS: Record<string, string> = {
   dns: 'Domain Setup',
   lead_sources: 'Lead Sources',
@@ -612,8 +619,8 @@ function StepIntegrations({
                             ))}
                           </ol>
                           {integration.open && (
-                            <a href={integration.open.to} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg dark:text-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30 dark:hover:bg-orange-500/20">
-                              {integration.open.label} <ExternalLink className="w-4 h-4" />
+                            <a href={integration.open.to} target="_blank" rel="noopener noreferrer" aria-label={`${integration.open.label} (opens in a new tab)`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg dark:text-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30 dark:hover:bg-orange-500/20">
+                              {integration.open.label} <ExternalLink className="w-4 h-4" aria-hidden="true" />
                             </a>
                           )}
                         </div>

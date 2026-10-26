@@ -20,7 +20,8 @@ export const nav: NavItem[] = isStore ? GROUPS.flatMap((g) => g.nav) : []
 // The store's menu, in its own order (templates/crm-store frontend components/layout/AppLayout.tsx): its pages and the
 // shared ones it uses among them. /crm/dashboard is the shared item, which shows the store's home (crm/screens.tsx HOMES).
 const ORDER = [
-  '/crm/dashboard', '/crm/products', '/crm/orders', '/crm/customers', '/crm/customer-groups', '/crm/payments', '/crm/disputes',
+  // The Lead Inbox: the website's enquiries, in the CRM rather than only the owner's email (store live test, 2026-10-26).
+  '/crm/dashboard', '/crm/products', '/crm/orders', '/crm/customers', '/crm/leads', '/crm/customer-groups', '/crm/payments', '/crm/disputes',
   '/crm/discounts', '/crm/gift-cards', '/crm/store-loyalty',
   '/crm/suppliers', '/crm/shipping', '/crm/product-reviews', '/crm/google-reviews', '/crm/email', '/crm/domain',
   '/crm/store-settings', '/crm/audit',

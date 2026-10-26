@@ -97,7 +97,10 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
     })
   })
 
-  app.post('/config', requirePermission('shipping:configure'), async (c) => {
+  // The carrier account's API key is a credential: set or dropped only by the seats that hold the business's other
+  // credentials (integrations:update — the owner; bda5a934a's rule, store live test 2026-10-26), not the manager's
+  // shipping:configure, which keeps the shop's rates (catalog/settings.ts).
+  app.post('/config', requirePermission('shipping:configure'), requirePermission('integrations:update'), async (c) => {
     const companyId = own(c)
     const parsed = connectSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) {
@@ -120,7 +123,7 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
     return one(c, { success: true, connected: true })
   })
 
-  app.delete('/config', requirePermission('shipping:configure'), async (c) => {
+  app.delete('/config', requirePermission('shipping:configure'), requirePermission('integrations:update'), async (c) => {
     const companyId = own(c)
     const existing = await configOf(companyId)
     if (existing) {

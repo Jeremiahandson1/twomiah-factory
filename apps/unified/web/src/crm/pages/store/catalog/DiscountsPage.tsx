@@ -1,6 +1,6 @@
 // Moved from templates/crm-store/frontend/src/pages/DiscountsPage.tsx. Discount codes at /api/admin/discounts
-// (server/crm/store/catalog/discounts.ts): everyone who may see them reads them (discounts:read — staff answer a shopper
-// with them); writing one is giving money away, discounts:create / update / delete, the manager's.
+// (server/crm/store/catalog/discounts.ts): the seats that may see them read them (discounts:read — the manager and owner;
+// staff no longer, store live test 2026-10-26); writing one is giving money away, discounts:create / update / delete.
 //
 // Changes from the template:
 //   · the list is the reply's `data` (the template read `codes`); the app's API client, toasts and the shared confirm
