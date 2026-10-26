@@ -45,6 +45,13 @@ export interface StripeServiceOptions {
    */
   onBookingDeposit?: (p: { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }) => Promise<'done' | 'refund' | 'unknown'>
   onBookingDepositRefunded?: (p: { bookingId: string; companyId: string | null; paymentIntentId: string }) => Promise<void>
+  /**
+   * An event on a CONNECTED account that another part of the app owns — the unified store's orders, paid through
+   * Checkout Sessions on the business's account (2026-10-26). Asked first, for connected-account events only; a non-null
+   * answer is the event's result and the invoice handling below does not run; null leaves the event to it. Throwing
+   * fails the delivery, so the Factory answers Stripe with an error and Stripe sends the event again. Absent: unchanged.
+   */
+  claimConnectedEvent?: (event: Stripe.Event, stripeAccount: string) => Promise<Record<string, unknown> | null>
 }
 
 export interface StripeServiceDeps {
@@ -470,6 +477,10 @@ export function createStripeService(deps: StripeServiceDeps) {
     // A connected-account event carries the account it happened on; anything we do back to Stripe for
     // it (the late-deposit refund) must be scoped to that account.
     const stripeAccount = ((event as any).account as string | undefined) || null
+    if (stripeAccount && options.claimConnectedEvent) {
+      const claimed = await options.claimConnectedEvent(event, stripeAccount)
+      if (claimed) return claimed
+    }
     switch (event.type) {
       case 'payment_intent.succeeded':
         return handlePaymentSuccess(event.data.object as Stripe.PaymentIntent, stripeAccount)

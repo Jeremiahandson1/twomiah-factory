@@ -24,9 +24,10 @@ import { lockLoyaltyMember, contactByEmail, countRewardUse } from '../../data/st
 import type { CrmDeps } from '../deps.ts'
 import { decrypt as decryptString, decryptJSON } from '../../core/crypto.ts'
 import type { PaymentProvider, ProviderCredentials } from './payments/types.ts'
-import { StripeProvider } from './payments/stripe.ts'
+import { StripeProvider, type ConnectedStripe } from './payments/stripe.ts'
 import { SquareProvider } from './payments/square.ts'
 import { PayPalProvider } from './payments/paypal.ts'
+import { platformStripe } from '../platformStripe.ts'
 import type { ShippingCredentials, ShippingProvider, Parcel } from './shipping/types.ts'
 import { EasyPostProvider } from './shipping/easypost.ts'
 import type { SupplierProvider, SupplierCredentials } from './suppliers/types.ts'
@@ -101,9 +102,32 @@ export function createStoreCore(d: CrmDeps) {
   }
 
   // ── Payments, shipping, suppliers: the merchant's own accounts ─────────────
-  /** The connected payment provider, its credentials decrypted just in time. At most one at a time. */
+  /**
+   * The business's connected Stripe account (Settings › Integrations › Connect Stripe, or "I already have a Stripe
+   * account"), read by the shared Stripe service's one reader; null when none is connected, or when this server has no
+   * platform key to act on it with. A core built without the CRM's Stripe service (a unit test's) has none.
+   */
+  async function connectedStripe(companyId: string): Promise<ConnectedStripe | null> {
+    const stripeService = d.services?.stripeService
+    const stripeAccount = stripeService ? await stripeService.connectedAccountFor(companyId) : null
+    const client = stripeAccount ? platformStripe(d.services.testStripeClient) : null
+    return stripeAccount && client ? { client, stripeAccount } : null
+  }
+
+  /**
+   * The payment provider the store takes money through. At most one at a time (owner's decision, 2026-10-26):
+   *   · Square or PayPal, connected with their keys on the Payments page — the owner chose it for the store;
+   *   · otherwise Stripe on the business's CONNECTED account, as every other vertical takes cards (no secret key is
+   *     pasted for Stripe any more — /api/admin/payments/connect refuses one);
+   *   · otherwise a store still on the Stripe keys it pasted before Connect: kept taking orders until the owner
+   *     connects, after which the connected account wins and the old keys are no longer used.
+   */
   async function getActiveProvider(companyId: string): Promise<PaymentProvider | null> {
     const [cfg] = await db.select().from(paymentConfig).where(and(eq(paymentConfig.companyId, companyId), eq(paymentConfig.connected, true))).limit(1)
+    if (!cfg || cfg.provider === 'stripe') {
+      const connected = await connectedStripe(companyId)
+      if (connected) return new StripeProvider(connected)
+    }
     if (!cfg) return null
     const creds = decryptJSON<Omit<ProviderCredentials, 'mode' | 'webhookSecret'>>(cfg.credentialsEnc)
     const full: ProviderCredentials = {
@@ -411,7 +435,7 @@ export function createStoreCore(d: CrmDeps) {
 
   return {
     shop, isClosed, settings,
-    getActiveProvider, getActiveShipping, getActiveSupplier,
+    getActiveProvider, connectedStripe, getActiveShipping, getActiveSupplier,
     mail, notifyShipped, forwardOrderToSupplier, sweepSupplierOrders,
     findShopper, shopperFor,
     loyaltySettings, findMember, ensureMember, availableRewards, quoteRewardForCheckout, settleLoyaltyForPaidOrder, memberHistory,

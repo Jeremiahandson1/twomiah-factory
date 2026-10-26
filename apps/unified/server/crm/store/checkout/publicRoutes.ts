@@ -34,7 +34,7 @@ import { Hono } from 'hono'
 import type { Context, MiddlewareHandler } from 'hono'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
-import { paymentConfig, productReview, storeOrder } from '../../../db/schema/store.ts'
+import { productReview, storeOrder } from '../../../db/schema/store.ts'
 import { ratingSummaries, verifyingOrderId } from '../../../data/storeCheckout.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
@@ -46,7 +46,7 @@ import { requestOrigin, type CheckoutService } from './checkoutService.ts'
 import { createOrderStarter, usesStripeTax } from './placeOrder.ts'
 import { createFeedRoutes } from './feeds.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
-import { createStoreDisputes } from '../orders/disputes.ts'
+import { createPaymentNotices, type PaymentNotices } from './paymentNotices.ts'
 
 export { computeShipping, computeTaxBps, checkoutImageUrl } from './placeOrder.ts'
 
@@ -107,11 +107,12 @@ const headersOf = (c: Context): Record<string, string> => {
   return headers
 }
 
-export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: CheckoutService, orders?: OrderHooks) {
+export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: CheckoutService, orders?: OrderHooks, paymentNotices?: PaymentNotices) {
   const { db, logger } = d
   const giftCards = createStoreGiftCards(d, core)
   const starter = createOrderStarter(d, core, checkout, giftCards)
-  const disputes = createStoreDisputes(d, core)
+  // The provider's word on an order, applied by the one rule the Connect forwarder's events use too (./paymentNotices.ts).
+  const notices = paymentNotices ?? createPaymentNotices(d, core, checkout, orders)
   const pub = new Hono()
   const isProd = process.env.NODE_ENV === 'production'
 
@@ -168,8 +169,9 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   pub.get('/settings', shopperDoor, async (c) => {
     const s = await theShop(c); if (s.reply) return s.reply
     const settings = await core.settings(s.co.id)
-    const [cfg] = await db.select({ connected: paymentConfig.connected }).from(paymentConfig)
-      .where(and(eq(paymentConfig.companyId, s.co.id), eq(paymentConfig.connected, true))).limit(1)
+    // Checkout is open when the store has a way to take the money — keys connected on the Payments page, or the
+    // business's connected Stripe account (core.getActiveProvider's rule), not a payment_config row alone.
+    const provider = await core.getActiveProvider(s.co.id).catch(() => null)
     return one(c, {
       companyName: s.co.name,
       supportEmail: s.co.email,
@@ -177,9 +179,9 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       flatShippingCents: settings.flatShippingCents,
       freeShippingThresholdCents: settings.freeShippingThresholdCents,
       taxRateBps: settings.taxRateBps,
-      checkoutEnabled: !!cfg,
+      checkoutEnabled: !!provider,
       // Tax by the shopper's address at the payment page (Stripe Tax), so the cart says so instead of a rate.
-      automaticTax: usesStripeTax(settings, cfg ? await core.getActiveProvider(s.co.id) : null),
+      automaticTax: usesStripeTax(settings, provider),
       // Local pickup: offered at checkout, with where and when.
       pickup: settings.pickupEnabled ? { address: settings.pickupAddress || '', hours: settings.pickupHours || '' } : null,
     })
@@ -309,6 +311,8 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     const provider = await core.getActiveProvider(companyId)
     if (!provider) return fail(c, 400, 'No provider configured')
 
+    // A store on its connected Stripe account has no webhook of its own here (no signing secret): its events come
+    // through the Factory's Connect forwarder (./paymentNotices.ts claim), so a notice posted here is refused below.
     let result: WebhookResult
     try {
       result = await provider.verifyAndParseWebhook({ rawBody, signature, headers })
@@ -317,37 +321,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       return fail(c, 400, 'Invalid signature')
     }
 
-    // A notice naming one refund is first matched to the store's own (its echo is never counted twice; a refund the
-    // provider was holding is settled, or given back on a failure). Anything else is a dashboard refund, by running
-    // total. Both are the orders group's; until it is wired the notice is refused so the provider sends it again.
-    if (result.type === 'refund_failed' || (result.type === 'refunded' && result.providerPaymentId)) {
-      if (!orders) return fail(c, 503, 'Orders are not ready to take this notice yet')
-      if (result.type === 'refund_failed') {
-        const outcome = result.providerRefundId ? await orders.applyRefundUpdate(companyId, provider.name, result.providerRefundId, 'failed', result.refundFailureReason) : 'unknown'
-        logger.info('[store] refund failure notification', { outcome })
-        return done(c)
-      }
-      const ours = result.providerRefundId ? await orders.applyRefundUpdate(companyId, provider.name, result.providerRefundId, 'completed') : 'unknown'
-      const outcome = ours !== 'unknown' ? ours : await orders.applyProviderRefund(companyId, provider.name, result.providerPaymentId!, result.amountRefundedCents ?? 0, result.amountTotalCents ?? 0)
-      logger.info('[store] refund notification', { outcome })
-      return done(c)
-    }
-    // A chargeback: the order is marked disputed and the owner told (orders/disputes.ts).
-    if (result.type === 'dispute' && result.dispute) {
-      const outcome = await disputes.apply(companyId, provider.name, result.dispute, requestOrigin(c))
-      logger.info('[store] dispute notification', { outcome })
-      return done(c)
-    }
-    if (result.type !== 'paid' || !result.providerSessionId) return done(c)
-
-    const [order] = await db.select().from(storeOrder)
-      .where(and(eq(storeOrder.companyId, companyId), eq(storeOrder.provider, provider.name), eq(storeOrder.providerSessionId, result.providerSessionId)))
-      .limit(1)
-    if (!order) {
-      logger.warn('[store] webhook for unknown session', { session: result.providerSessionId })
-      return done(c)
-    }
-    await checkout.finalizeOrder(order, result)
+    if ((await notices.apply(companyId, provider.name, result, requestOrigin(c))) === 'retry') return fail(c, 503, 'Orders are not ready to take this notice yet')
     return done(c)
   })
 

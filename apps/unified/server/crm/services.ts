@@ -39,6 +39,8 @@ export interface BookingDeposits {
   paid(p: DepositPayment): Promise<'done' | 'refund' | 'unknown'>
   refunded(p: DepositPayment): Promise<void>
 }
+/** A connected-account event claimed by its owner (payments/stripe.ts claimConnectedEvent): its result, or null = not ours. */
+export type ConnectedEventClaim = (event: Stripe.Event, stripeAccount: string) => Promise<Record<string, unknown> | null>
 
 export interface CrmServiceDeps {
   db: any
@@ -73,12 +75,17 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
+  // The store's orders on the connected account (crm/store/checkout/paymentNotices.ts): its module mounts after these
+  // services and hands its claim in with useConnectedEvents. Until then (and for every vertical without the store) an
+  // event is the invoices' as before.
+  let connectedEvents: ConnectedEventClaim | null = null
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
       bookingCalendarKind: 'job',
       onBookingDeposit: (p: DepositPayment) => (bookingDeposits ? bookingDeposits.paid(p) : Promise.resolve('unknown' as const)),
       onBookingDepositRefunded: async (p: DepositPayment) => { await bookingDeposits?.refunded(p) },
+      claimConnectedEvent: (event: Stripe.Event, stripeAccount: string) => (connectedEvents ? connectedEvents(event, stripeAccount) : Promise.resolve(null)),
       afterInvoicePayment: async (invoiceId: string) => {
         await commissionEarner.earnForInvoice(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
@@ -209,6 +216,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
     useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
+    /** Who claims a connected-account event before the invoices see it (the store's orders). */
+    useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents = claim },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()

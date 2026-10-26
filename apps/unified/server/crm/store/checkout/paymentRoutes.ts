@@ -1,6 +1,11 @@
-// /api/admin/payments — the merchant connects their OWN Stripe, Square or PayPal account (its keys verified against the
+// /api/admin/payments — the merchant connects their OWN Square or PayPal account (its keys verified against the
 // provider, encrypted at rest, never sent back), the payment webhook is made for them, and an older store's webhook is
 // brought up to date at boot. Moved from templates/crm-store/backend/src/routes/payments.ts.
+//
+// Stripe (owner's decision, 2026-10-26): the business's CONNECTED account, created or linked with Connect Stripe as
+// everywhere else in the app (Settings › Integrations; the Payments page offers the same two buttons). No Stripe secret
+// key is accepted here any more. A store that pasted Stripe keys before keeps them working until it connects; then the
+// connected account is used (core.getActiveProvider) and ensureStripeWebhookEvents below only ever touches those keys.
 //
 // Changes from the template:
 //   · the registry signs the person in (access 'user'), so the router does not apply authenticate itself;
@@ -30,6 +35,9 @@ const webhookBase = () => (process.env.BACKEND_URL || '').replace(/\/$/, '')
  * Stripe's own dashboard — the orders group's applyProviderRefund). charge.refunded joined on 10/12; a store connected
  * before then is brought up to date by ensureStripeWebhookEvents at startup.
  */
+// A connected account's store gets the same events through the Factory's Connect endpoint, which must list them as
+// well. That endpoint is set up by apps/api scripts/register-connect-webhook.ts. On 2026-10-26 its list was missing
+// the charge.dispute.* events, and they have to be added to the endpoint in Stripe.
 export const STRIPE_WEBHOOK_EVENTS = [
   'checkout.session.completed', 'charge.refunded',
   // A chargeback: opened (the owner is emailed), changed, closed — the Disputes screen keeps each as Stripe last said
@@ -121,8 +129,9 @@ export async function ensurePayPalWebhookEvents(d: CrmDeps, core: StoreCore): Pr
 // created at this URL is deleted first (Stripe only reveals the signing secret at creation, so reuse is impossible).
 // Failure is non-fatal — credentials still save; the caller surfaces a note telling the merchant orders will confirm
 // via the slower success-page fallback until webhooks are set up.
+// (Stripe has none to make: a connected account's events come through the Factory's Connect endpoint.)
 async function autoCreateWebhook(
-  provider: 'stripe' | 'square' | 'paypal',
+  provider: 'square' | 'paypal',
   mode: 'test' | 'live',
   secretKey: string,
   publishableKey: string | undefined,
@@ -133,20 +142,6 @@ async function autoCreateWebhook(
   if (!backendUrl) return { warning: 'this service has no public address for them yet — email support@twomiah.com' }
   const webhookUrl = backendUrl + '/api/public/webhooks/payment'
   try {
-    if (provider === 'stripe') {
-      const stripe = new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() })
-      const existing = await stripe.webhookEndpoints.list({ limit: 100 })
-      for (const ep of existing.data) {
-        if (ep.url === webhookUrl) await stripe.webhookEndpoints.del(ep.id)
-      }
-      const ep = await stripe.webhookEndpoints.create({
-        url: webhookUrl,
-        enabled_events: [...STRIPE_WEBHOOK_EVENTS],
-        description: 'Twomiah store — order payment notifications (auto-created)',
-      })
-      if (!ep.secret) return { warning: 'Stripe did not return a signing secret' }
-      return { secret: ep.secret }
-    }
     if (provider === 'square') {
       const base = mode === 'live' ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com'
       const H = { 'Authorization': `Bearer ${secretKey}`, 'Square-Version': '2024-10-17', 'Content-Type': 'application/json' }
@@ -201,22 +196,35 @@ async function autoCreateWebhook(
   }
 }
 
+// Square and PayPal only: Stripe is never connected by a key (STRIPE_USES_CONNECT, above the schema's check).
 const connectSchema = z.object({
-  provider: z.enum(['stripe', 'square', 'paypal']),
+  provider: z.enum(['square', 'paypal']),
   mode: z.enum(['test', 'live']).default('test'),
   secretKey: z.string().min(1),
   publishableKey: z.string().optional(),
   webhookSecret: z.string().optional(),
 })
 
-export function createStorePaymentRoutes(d: CrmDeps) {
+/** Test or live: a connected account is in the platform key's mode (its Stripe-Account calls are made with that key). */
+const platformMode = (): 'test' | 'live' => ((process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live_') ? 'live' : 'test')
+
+/** The refusal a Stripe secret key gets: Stripe is connected, never pasted (owner's decision, 2026-10-26). */
+export const STRIPE_USES_CONNECT = 'Stripe connects with "Connect Stripe" (or "I already have a Stripe account") — there is no key to paste. Press it above.'
+
+export function createStorePaymentRoutes(d: CrmDeps, core: StoreCore) {
   const { db, logger, audit } = d
   const { requirePermission } = d.permissions
   const admin = new Hono<AppEnv>()
 
-  // Status only — NEVER returns the encrypted secret/webhook material. The owner's alone, as connecting is: the store's
-  // seats leave payments with the owner (owner's decision, 2026-10-10), and which account takes the money, in which mode,
-  // is not the staff's to read. The template asked nothing here (found in the browser check, 2026-10-19).
+  // Status only — NEVER returns the encrypted secret/webhook material, nor the connected account's id. The owner's alone,
+  // as connecting is: the store's seats leave payments with the owner (owner's decision, 2026-10-10), and which account
+  // takes the money, in which mode, is not the staff's to read. The template asked nothing here (found in the browser
+  // check, 2026-10-19).
+  //
+  // `config` is the processor the store takes money through NOW (core.getActiveProvider's rule): Square or PayPal by
+  // their keys; else Stripe on the business's connected account (via: 'connect' — its notices come through the Factory's
+  // Connect forwarder, so they are always set up); else a Stripe connection by keys pasted before Connect (via: 'keys'),
+  // which the page asks the owner to replace with Connect (`stripeKeysToReplace`).
   admin.get('/', requirePermission('payments:update'), async (c) => {
     const companyId = c.get('user').companyId
     const [cfg] = await db.select({
@@ -227,24 +235,37 @@ export function createStorePaymentRoutes(d: CrmDeps) {
       hasWebhookSecret: paymentConfig.webhookSecretEnc,
       updatedAt: paymentConfig.updatedAt,
     }).from(paymentConfig).where(eq(paymentConfig.companyId, companyId)).limit(1)
+    const keysInUse = !!cfg?.connected && cfg.provider !== 'stripe'
+    const connected = keysInUse ? null : await core.connectedStripe(companyId).catch(() => null)
 
     return one(c, {
-      config: cfg ? {
-        provider: cfg.provider,
-        mode: cfg.mode,
-        publishableKey: cfg.publishableKey,
-        connected: cfg.connected,
-        hasWebhookSecret: !!cfg.hasWebhookSecret,
-        updatedAt: cfg.updatedAt,
-      } : null,
-      // The URL the merchant pastes into their provider dashboard.
+      config: connected
+        ? { provider: 'stripe', via: 'connect', mode: platformMode(), publishableKey: null, connected: true, hasWebhookSecret: true, updatedAt: null }
+        : cfg ? {
+          provider: cfg.provider,
+          ...(cfg.provider === 'stripe' ? { via: 'keys' } : {}),
+          mode: cfg.mode,
+          publishableKey: cfg.publishableKey,
+          connected: cfg.connected,
+          hasWebhookSecret: !!cfg.hasWebhookSecret,
+          updatedAt: cfg.updatedAt,
+        } : null,
+      // A store still on Stripe keys pasted before Connect: they work until the owner connects, then are not used.
+      stripeKeysToReplace: !connected && !!cfg?.connected && cfg.provider === 'stripe',
+      // The URL the merchant pastes into their provider dashboard (Square, PayPal).
       webhookUrl: `${process.env.BACKEND_URL || ''}/api/public/webhooks/payment`,
     })
   })
 
   admin.post('/connect', requirePermission('payments:update'), async (c) => {
     const companyId = c.get('user').companyId
-    const parsed = connectSchema.safeParse(await c.req.json().catch(() => null))
+    const body = await c.req.json().catch(() => null)
+    // Stripe is the business's connected account, as everywhere else in the app: a secret key is refused before it is
+    // read, verified or stored — the owner is pointed at Connect Stripe instead.
+    if (body && typeof body === 'object' && (body as any).provider === 'stripe') {
+      return fail(c, 400, STRIPE_USES_CONNECT, 'stripe_uses_connect', { provider: 'Use Connect Stripe' })
+    }
+    const parsed = connectSchema.safeParse(body)
     if (!parsed.success) {
       const fields: Record<string, string> = {}
       for (const i of parsed.error.issues) { const k = i.path.join('.'); if (k && !fields[k]) fields[k] = i.message }
@@ -254,14 +275,10 @@ export function createStorePaymentRoutes(d: CrmDeps) {
 
     // Verify the merchant's credentials actually work before saving them — a cheap authenticated read against their
     // own account. Field mapping per provider:
-    //   stripe: secretKey = Secret Key
     //   square: secretKey = Access Token, publishableKey = Location ID
     //   paypal: secretKey = Client Secret, publishableKey = Client ID
     try {
-      if (provider === 'stripe') {
-        const stripe = new Stripe(secretKey)
-        await stripe.balance.retrieve()
-      } else if (provider === 'square') {
+      if (provider === 'square') {
         const base = mode === 'live' ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com'
         const res = await fetch(base + '/v2/locations', {
           headers: { 'Authorization': `Bearer ${secretKey}`, 'Square-Version': '2024-10-17' },
