@@ -13,6 +13,7 @@ import { checkoutMounts } from './checkout/index.ts'
 import { createCheckoutService, type OrderSummary } from './checkout/checkoutService.ts'
 import { productUpsells, storefrontCatalogue, storefrontProduct, type StorefrontProduct } from './checkout/catalogue.ts'
 import { ordersMounts, createOrderHooks } from './orders/index.ts'
+import { ratingSummaries } from '../../data/storeCheckout.ts'
 import { catalogMounts } from './catalog/index.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
@@ -45,6 +46,11 @@ export interface Storefront {
   orderSummary(companyId: string, q: { ref?: string | null; sessionId?: string | null }): Promise<OrderSummary | null>
   /** A product page's "Frequently bought together" and "You may also like". */
   upsells(companyId: string, product: StorefrontProduct): Promise<{ together: StorefrontProduct[]; alsoLike: StorefrontProduct[] }>
+  /**
+   * A product page's reviews: the approved ones and their average, and whether the shop takes new ones (Store settings'
+   * reviewsEnabled). Store live test, 2026-10-26: the product page had no review form though Product Reviews was there.
+   */
+  reviews(companyId: string, product: StorefrontProduct): Promise<{ open: boolean; reviews: any[]; summary: { average: number; count: number } }>
 }
 export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>): Storefront {
   const core = coreFor(d)
@@ -56,5 +62,10 @@ export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>)
     product: (companyId, slug) => storefrontProduct(d, companyId, slug),
     orderSummary: (companyId, q) => checkout.orderSummary(companyId, q),
     upsells: (companyId, product) => productUpsells(d, companyId, product),
+    reviews: async (companyId, product) => {
+      const id = (product as any).id as string
+      const [settings, reviews, summary] = await Promise.all([core.settings(companyId), checkout.approvedReviews(companyId, id, 20), ratingSummaries(d.db, companyId, [id])])
+      return { open: settings.reviewsEnabled !== false, reviews, summary: summary[id] ?? { average: 0, count: 0 } }
+    },
   }
 }

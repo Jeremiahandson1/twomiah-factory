@@ -324,7 +324,7 @@ export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, o
       <ol style="margin:0;padding-left:20px;color:#333;line-height:1.8;">
         ${isStore ? `
         <li>Open <strong>Payments</strong> in your store admin and connect your payment account so you can accept orders</li>
-        <li>Add your products — or edit the sample products we added to get you started</li>
+        <li>Add your first product in <strong>Products</strong> — your store starts empty, and your storefront shows what you add</li>
         <li>Preview your storefront and place a test order</li>` : `
         <li>Complete the onboarding wizard to set up your company profile</li>
         <li>${firstWorkStep(tenant.industry)}</li>

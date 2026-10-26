@@ -9,8 +9,11 @@
 <div class="store-page shop-page">
   <section class="store-shop-head">
     <div class="container">
-      <h1>Shop</h1>
-      <p>Browse the full collection from <%= settings.companyName %>.</p>
+      <%# On /shop the page's heading; on a page the owner composed (a store's home, store live test 2026-10-26) under its
+          hero, a heading of its own, and their words when they gave some. %>
+      <% const shopHeading = data.heading || 'Shop' %>
+      <% if (data.onPage) { %><h2><%= shopHeading %></h2><% } else { %><h1><%= shopHeading %></h1><% } %>
+      <p><%= data.intro || ('Browse the full collection from ' + settings.companyName + '.') %></p>
     </div>
   </section>
   <section class="shop-section">

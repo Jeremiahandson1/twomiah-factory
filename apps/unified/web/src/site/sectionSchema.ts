@@ -142,7 +142,9 @@ export const SECTION_DEFS: SectionDef[] = [
       // Empty: the section prints the business hours saved in Settings › Company (form-info.ejs). A typed default here
       // printed "Monday – Friday: 8am – 5pm" over the owner's own hours (2026-10-22).
       hours: [],
-      responsePromise: 'We reply to project inquiries within one business day.',
+      // Empty: a reply time is the owner's promise to make, and "project inquiries" was a contractor's word on every
+      // business's page (store live test, 2026-10-26). The form's placeholder suggests one.
+      responsePromise: '',
     },
   },
 

@@ -91,7 +91,8 @@ describe('the template composer (the fallback), for every trade the signup offer
         for (const href of hrefsOf(site.pages[slug])) {
           const target = href.replace(/^\//, '').replace(/[?#].*$/, '')
           if (!target || /^https?:|^tel:|^mailto:/.test(href)) continue
-          expect(published.includes(target)).toBe(true)
+          // A store's /shop is the site's own page, built from its catalogue (apps/unified site/routes.ts), never composed.
+          expect({ href, live: published.includes(target) || (bt === 'store' && target === 'shop') }).toEqual({ href, live: true })
         }
       }
     })

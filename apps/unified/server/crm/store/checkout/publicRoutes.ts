@@ -334,12 +334,19 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     return one(c, { reviews, summary: summary[row.id] ?? { average: 0, count: 0 } })
   })
 
-  pub.post('/products/:slug/reviews', shopperDoor, async (c) => {
+  // The product page's review form posts here (site/views/sections/shop/product.ejs; store live test, 2026-10-26). Held as
+  // the site's contact form is (site/enquiryHandler.ts): a few a quarter-hour from one address, and a filled hidden box
+  // or a form sent within 1.5s of the page drawing is a bot — it gets the same thanks, and nothing is saved.
+  pub.post('/products/:slug/reviews', createRateLimiter(15 * 60 * 1000, isProd ? 5 : 1000), shopperDoor, async (c) => {
     const s = await theShop(c); if (s.reply) return s.reply
     const settings = await core.settings(s.co.id)
     if (settings.reviewsEnabled === false) return fail(c, 403, 'Reviews are turned off')
 
-    const parsed = reviewSchema.safeParse(await c.req.json().catch(() => null))
+    const raw = await c.req.json().catch(() => null)
+    const thanks = { success: true, message: 'Thanks! Your review will appear once it is approved.' }
+    const stamp = parseInt(String(raw?.t || '0'), 10)
+    if (String(raw?.website || '').trim() || (stamp > 0 && Date.now() - stamp < 1500)) return one(c, thanks, 201)
+    const parsed = reviewSchema.safeParse(raw && typeof raw === 'object' ? { ...raw, website: undefined, t: undefined } : raw)
     if (!parsed.success) return fail(c, 400, 'Please give a rating from 1 to 5 and your name', 'validation_failed', fieldsOf(parsed.error))
 
     const row = await activeProductRow(db, s.co.id, c.req.param('slug'))

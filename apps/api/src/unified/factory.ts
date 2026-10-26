@@ -260,7 +260,8 @@ export function provisionBody(tenant: any, config: any, passwordHash: string): R
     features: unifiedFeatures(tenant, config),
     industry: clip(tenant.industry, 120),
     takesBookings: takesBookings(tenant),
-    ...(wantsWebsite(tenant) && verticalFor(tenant.industry) !== 'store' ? { site: provisionSite(tenant) } : {}),
+    // A store's too (store live test, 2026-10-26): its composed home is its live products (shop/grid), with a contact page.
+    ...(wantsWebsite(tenant) ? { site: provisionSite(tenant) } : {}),
   }
 }
 

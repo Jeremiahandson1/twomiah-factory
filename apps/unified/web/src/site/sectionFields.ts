@@ -428,6 +428,15 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'The Regulars', perks: [] },
   },
+  // ── A store's ─────────────────────────────────────────────────────────
+  // Offered to a store only (server/site/tradeSections.ts). The products are the catalogue's, drawn live by the site; the
+  // owner sets only the words above them (store live test, 2026-10-26: the picker had no products section).
+  {
+    type: 'shop', variant: 'grid', label: 'Shop — Your products',
+    description: 'Every product you have on sale, with its photo and price, live from Products.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Shop' }, { key: 'intro', label: 'Intro (optional)', kind: 'textarea' }],
+    defaultData: { heading: 'Shop', intro: '' },
+  },
 ]
 
 export function findTradeSection(type: string, variant: string): TradeSection | undefined {

@@ -25,6 +25,7 @@ import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
 import { linkSlug } from './menu.ts'
+import { tradeDrawsSection } from './tradeSections.ts'
 import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, draftOf, nextDraft, withDraft } from './drafts.ts'
 import { addPreviewRoutes, type PreviewDeps } from './preview.ts'
 import { publishSet } from '../data/siteDrafts.ts'
@@ -47,7 +48,10 @@ export function sharedPhotoStore(): PhotoStore {
 
 // Sections the server fills in itself (live menu, inventory, portfolio, service areas, tools, a bar's signature-item page,
 // which the bar's facts make at /<menu-section>/<item>) aren't offered in "Add a section".
-export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+// A store's product page, cart and order-received page, and pickup ordering's page and its done page, are the routes' own
+// (site/routes.ts /product/:slug, /cart, /checkout/success, /order, /order/done).
+export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator',
+  'shop/product', 'shop/cart', 'shop/receipt', 'order/page', 'order/done'])
 
 /**
  * Sections that work only on a vertical's own add-on, and are offered only to a vertical that has it: the ones that read
@@ -66,6 +70,8 @@ export const ADDON_SECTIONS: Record<string, { facts?: 'bar' | Array<'bar' | 'men
 /** Whether this vertical's site can draw a section of the library. */
 export function offersSection(key: string, vertical: VerticalSettings): boolean {
   if (SERVER_BUILT_SECTIONS.has(key)) return false
+  // Another trade's section (an age gate, a care finder, a storm alert on a store) is not this business's (tradeSections.ts).
+  if (!tradeDrawsSection(key.split('/')[0], vertical.id)) return false
   const needs = ADDON_SECTIONS[key]
   if (!needs) return true
   const factsOk = !needs.facts || (Array.isArray(needs.facts) ? needs.facts.includes(vertical.site.facts as any) : vertical.site.facts === needs.facts)

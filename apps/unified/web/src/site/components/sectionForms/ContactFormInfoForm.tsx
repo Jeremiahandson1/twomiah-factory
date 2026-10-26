@@ -31,7 +31,7 @@ export function ContactFormInfoForm({ data, onChange }: { data: Data; onChange: 
       <TextAreaField
         label="Response promise"
         rows={2}
-        placeholder='e.g. "We reply to project inquiries within one business day."'
+        placeholder='e.g. "We reply within one business day."'
         value={data.responsePromise || ''}
         onChange={(e) => update({ responsePromise: e.target.value })}
       />

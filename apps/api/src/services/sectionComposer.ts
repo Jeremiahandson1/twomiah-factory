@@ -396,6 +396,15 @@ export const SECTION_SCHEMA = {
       use_when: 'RV / marine / powersports dealer — a featured-units grid. Units: { title, year, make, model, type, price, payment, length, mileage, image, status }. ONLY units the owner listed in the intake, with ONLY the prices and specs they gave — never invent a unit, a price or a payment. No units supplied → leave this section out. It is a featured selection, not a live feed of the lot.',
     },
   },
+  // An online store's products, drawn live from its catalogue by the site (apps/unified site/routes.ts fills data.products):
+  // the composer places it and never writes a product, a price or a category (store live test, 2026-10-26).
+  shop: {
+    grid: {
+      required: [],
+      optional: ['heading', 'intro'],
+      use_when: "online store — the main content of its home: the products on sale, filled in live from the store's own catalogue. Never list products, prices or categories yourself; heading/intro only in the owner's words.",
+    },
+  },
   urgent: {
     bar: {
       required: ['phone'],
@@ -799,25 +808,15 @@ const PAGE_RECIPES = {
   },
 } as const
 
-// Store / dropship / e-commerce. A store sells PRODUCTS, not services — so no
-// "services" page. The catalog + cart live in the CRM storefront; this
-// marketing site frames the brand, shows what's stocked, teaches with guides
-// (the content-commerce engine that pulls organic traffic), and pushes to shop.
+// Store / e-commerce. A store sells PRODUCTS, not services — so no "services" page. Its home's main content is its
+// products, live from its catalogue (shop/grid; the site's /shop, /product/<slug> and /cart are built in, so no page of
+// the plan takes those addresses). No guides or category pages: what a store stocks is its catalogue, never written for
+// it (store live test, 2026-10-26: composerFacts.ts — sites state only the owner's facts).
 const STORE_PAGE_RECIPES = {
   home: {
-    purpose: 'Front door for a store. Stake out who this store is for, lead with the hero product/starter bundle, show "what we stock" as product categories, tease the guides, answer buying questions, push to shop.',
-    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
-    required_sequence: '1 hero (the store\'s point of view + a "shop" CTA), then 1 services (framed as PRODUCT CATEGORIES / "what we stock" — each item a category a shopper browses, never a chore or a service), optional 1 gallery, ADD 1 faq (shipping, returns, gifting, "is this for beginners?"), close with 1 cta ("Shop the ..." / "Start with the ... kit")',
-  },
-  shop: {
-    purpose: 'The browsing surface — product categories and hero bundles for people ready to buy. Links out to the live storefront catalog.',
-    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
-    required_sequence: 'optional 1 hero (lighter), 1 services (the full product-category list, the more-detailed variant), optional 1 gallery, close with 1 cta',
-  },
-  guides: {
-    purpose: 'Content-commerce: how-to guides and buying advice that pull organic search traffic and make first-time buyers confident. The niche-authority page.',
-    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
-    required_sequence: 'optional 1 hero (copy-led), 1 services (framed as GUIDE / ARTICLE TOPICS for this niche — concrete titles a beginner would search, e.g. "Your first 10 backyard birds", "Seed vs suet: what to fill it with"), optional 1 faq, close with 1 cta',
+    purpose: 'Front door for a store: who it is, then its products. The products are drawn live from its catalogue.',
+    allowed_types: ['hero', 'shop', 'gallery', 'faq', 'cta'],
+    required_sequence: `1 hero (the store's name and, in the owner's words, who it is for; primaryCta "Shop now" to /shop), then 1 shop/grid (its products — no items: the site fills them), optional 1 gallery (Tier 1 photos only), optional 1 faq (only questions the intake answers), close with 1 cta`,
   },
   about: {
     purpose: 'Brand story — why this store exists and who it is for. The voice page.',
@@ -825,7 +824,7 @@ const STORE_PAGE_RECIPES = {
     required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
   },
   contact: {
-    purpose: 'Support + wholesale/press contact. Form + response promise — not a sales page.',
+    purpose: 'Customer questions about an order or a product. Form + business details — not a sales page.',
     allowed_types: ['hero', 'contact', 'faq'],
     required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info, optional 1 faq',
   },

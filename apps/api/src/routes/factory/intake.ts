@@ -361,7 +361,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS and UNIFIED_LIVE_VERTICALS
     // (unified/factory.ts). Off (the default): 'templates', and this signup runs exactly as it always has.
     const engine = engineForSignup({ industry: body.industry, email: body.email, admin_email: body.admin_email })
-    const unifiedSite = engine === 'unified' && verticalFor(body.industry) !== 'store'
+    // A store on the unified app gets a site too: its home is its products (the built-in shop), with a contact page —
+    // skipping it left a store's front door a "coming soon" with no way to the shop (store live test, 2026-10-26).
+    const unifiedSite = engine === 'unified'
       && requestedProducts.some((x) => String(x).startsWith('website'))
     // The site (services/signupSite.ts): the trade's template composition stored now — no model call, so neither the
     // signup nor the checkout waits — and the AI builder's composition of the same answers started after the insert;

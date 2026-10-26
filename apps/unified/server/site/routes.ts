@@ -180,6 +180,12 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   /** Render, count the visit, answer. A page the facts made passes the facts it was made from. */
   async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta, pageFacts?: { page: PageFacts; source: SiteFacts; about?: unknown }) {
     count(c, ctx, pathname)
+    // A store's products on a page the owner composed (its home's shop/grid): the catalogue as it is now, never composed
+    // (store live test, 2026-10-26: a store's home is its products).
+    if (shop && sections.some((s) => s?.type === 'shop' && s.variant === 'grid' && !Array.isArray(s.data?.products))) {
+      const products = await shop.catalogue(ctx.companyId)
+      sections = sections.map((s) => s?.type === 'shop' && s.variant === 'grid' && !Array.isArray(s.data?.products) ? { ...s, data: { ...(s.data || {}), products, onPage: true } } : s)
+    }
     const f = pageFacts ?? await factsOf(ctx)
     return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
   }
@@ -242,6 +248,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     const ctx = await ctxOf()
     if (!ctx) return c.html(homePlaceholder(process.env.SITE_NAME || 'Your Site'))
     const home = await loadPage(ctx.companyId, 'home')
+    // A store with no home page of its own opens on its shop — never a "coming soon" with only an admin button (store
+    // live test, 2026-10-26: a store was signed up with no site, and its front door was that dead end).
+    if ((!home || !home.isPublished) && shop) return page200(c, ctx, '/', [{ type: 'shop', variant: 'grid', data: { products: await shop.catalogue(ctx.companyId) } }], { title: 'Shop', metaDescription: 'Browse products from ' + ctx.settings.companyName + '.' })
     if (!home || !home.isPublished) return c.html(homePlaceholder(ctx.settings.companyName))
     return page200(c, ctx, '/', Array.isArray(home.sections) ? home.sections : [], home)
   })
@@ -344,8 +353,12 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!p) return c.notFound()
       const name = ctx.settings.companyName
       // "Frequently bought together" and "You may also like" (the owner's picks, else the same category).
-      const upsells = await shop.upsells(ctx.companyId, p).catch(() => ({ together: [], alsoLike: [] }))
-      return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p, upsells } }], {
+      const [upsells, reviews] = await Promise.all([
+        shop.upsells(ctx.companyId, p).catch(() => ({ together: [], alsoLike: [] })),
+        // Its approved reviews and the form for a new one (pending until the owner approves it in Product Reviews).
+        shop.reviews(ctx.companyId, p),
+      ])
+      return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p, upsells, reviews } }], {
         title: p.name, metaTitle: p.seoTitle || null, metaDescription: (p.seoDescription || p.tagline || p.name || '').slice(0, 300),
       })
     })
@@ -621,6 +634,19 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
 
   // Pages composed before the contact form posted to /api/leads posted here.
   app.post('/contact', (c) => deps.enquiries(c))
+
+  // The contact page: the owner's own when they published one; else the contact form with the business's own details.
+  // Every page's header button and the menu link here, and the form saves the enquiry where the business works its leads
+  // (store live test, 2026-10-26: /contact answered 404 until the owner built the page).
+  app.get('/contact', async (c, next) => {
+    const ctx = await ctxOf()
+    if (!ctx) return next()
+    const own = await loadPage(ctx.companyId, 'contact')
+    if (own && own.isPublished) return next()
+    const s = ctx.settings as any
+    return page200(c, ctx, '/contact', [{ type: 'contact', variant: 'form-info', data: { heading: 'Get in touch', phone: s.phone || '', email: s.email || '', address: s.address || '' } }],
+      { title: 'Contact', metaDescription: 'Get in touch with ' + ctx.settings.companyName + '.' })
+  })
 
   // Any other single-segment path is a page of the owner's, if it exists and is published.
   app.get('/:slug', async (c) => {

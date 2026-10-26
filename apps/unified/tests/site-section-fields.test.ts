@@ -43,6 +43,10 @@ const NO_FIELD: Record<string, Record<string, string>> = {
     mapZoom: 'the same map; nothing in the app sets its token',
     smsOptIn: "texting sign-up is off until a real one exists (settings.smsSubscribeEnabled, nothing sets it; A2P consent first)",
   },
+  'shop/grid': {
+    products: "the store's catalogue, drawn live by the site (site/routes.ts) — products are edited on Products",
+    onPage: 'set by the site when the grid sits on a composed page under its hero (an h2), not on /shop (the h1)',
+  },
   'social/feed': { limit: 'how many posts the grid shows, from settings.recentInstagramPosts, which nothing in the app fills: the section is a follow link' },
 }
 
@@ -136,7 +140,22 @@ describe('the picker', () => {
   test('a contractor (no add-on) is offered none of the bar-only sections; the shared ones still', async () => {
     const contractor = await loadVertical('contractor')
     for (const k of Object.keys(ADDON_SECTIONS)) expect({ k, offered: offersSection(k, contractor) }).toEqual({ k, offered: false })
-    for (const k of ['events/recurring', 'visit/details', 'social/feed', 'hero/full-bleed']) expect(offersSection(k, contractor)).toBe(true)
+    for (const k of ['hero/full-bleed', 'services/cards-grid', 'gallery/grid', 'faq/accordion', 'contact/form-info', 'reservation/cta']) expect({ k, offered: offersSection(k, contractor) }).toEqual({ k, offered: true })
+  })
+
+  // Store live test, 2026-10-26: "Add a section" offered every trade's sections to every business — an online store saw
+  // Age gate, Strains, Care finder, Caregivers, Storm alert, Urgent care, Inventory units, Quote by property size, and no
+  // section of its products. Each business is offered the sections its own page plans use (server/site/tradeSections.ts).
+  test("each business is offered its own trade's sections, not another's", async () => {
+    const [store, contractor, homecare] = await Promise.all([loadVertical('store'), loadVertical('contractor'), loadVertical('homecare')])
+    expect(offersSection('shop/grid', store)).toBe(true)
+    for (const k of ['age/modal', 'strain/grid', 'care/finder', 'caregivers/grid', 'banner/storm-alert', 'urgent/bar', 'inventory/showcase', 'quote/instant-address', 'events/recurring', 'visit/details'])
+      expect({ k, offered: offersSection(k, store) }).toEqual({ k, offered: false })
+    expect(offersSection('shop/grid', contractor)).toBe(false)
+    expect(offersSection('care/finder', homecare)).toBe(true)
+    expect(offersSection('care/finder', contractor)).toBe(false)
+    // The routes' own pages are never offered (a product page, a cart, an order-received page).
+    for (const k of ['shop/product', 'shop/cart', 'shop/receipt', 'order/page', 'order/done']) expect(offersSection(k, store)).toBe(false)
   })
 })
 

@@ -150,5 +150,80 @@
       </div>
     </section>
   <% } %>
+  <%
+    // Reviews (store live test, 2026-10-26: no review form on the product page though Product Reviews existed). The
+    // approved ones only; a new one is pending until the owner approves it (/api/public/products/:slug/reviews, which
+    // holds the same honeypot, time stamp and per-address limit as the contact form).
+    const rv = data.reviews || { open: false, reviews: [], summary: { average: 0, count: 0 } }
+    const approved = Array.isArray(rv.reviews) ? rv.reviews : []
+    const stars = (n) => '★★★★★'.slice(0, Math.round(n)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(n))
+  %>
+  <% if (approved.length || rv.open) { %>
+    <section class="container product-reviews" aria-labelledby="reviews-title">
+      <h2 id="reviews-title" class="product-upsell__title">Reviews</h2>
+      <% if (rv.summary && rv.summary.count) { %>
+        <p class="product-reviews__summary"><span aria-hidden="true"><%= stars(rv.summary.average) %></span> <%= Number(rv.summary.average).toFixed(1) %> out of 5 · <%= rv.summary.count %> review<%= rv.summary.count === 1 ? '' : 's' %></p>
+      <% } %>
+      <% approved.forEach(function (r) { %>
+        <article class="product-review">
+          <p class="product-review__stars"><span aria-hidden="true"><%= stars(r.rating) %></span><span class="sr-only"><%= r.rating %> out of 5</span></p>
+          <% if (r.title) { %><h3 class="product-review__title"><%= r.title %></h3><% } %>
+          <% if (r.body) { %><p class="product-review__body"><%= r.body %></p><% } %>
+          <p class="product-review__by"><%= r.authorName %><% if (r.verifiedPurchase) { %> · Verified purchase<% } %></p>
+        </article>
+      <% }) %>
+      <% if (!approved.length) { %><p class="product-reviews__none">No reviews yet.</p><% } %>
+      <% if (rv.open) { %>
+        <form class="product-review-form contact-form" action="/api/public/products/<%= encodeURIComponent(p.slug || '') %>/reviews" method="post" data-review-form>
+          <h3>Write a review</h3>
+          <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;">
+            <label for="rv-website">Website (leave empty)</label>
+            <input id="rv-website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+          <input type="hidden" name="t" value="" data-form-stamp>
+          <fieldset class="product-review-form__rating">
+            <legend>Your rating</legend>
+            <% [5, 4, 3, 2, 1].forEach(function (n) { %>
+              <label><input type="radio" name="rating" value="<%= n %>" required> <%= n %> star<%= n === 1 ? '' : 's' %></label>
+            <% }) %>
+          </fieldset>
+          <label for="rv-name">Your name</label>
+          <input id="rv-name" name="authorName" type="text" maxlength="80" required autocomplete="name">
+          <label for="rv-email">Your email (optional — shows "Verified purchase" when it matches an order)</label>
+          <input id="rv-email" name="authorEmail" type="email" maxlength="200" autocomplete="email">
+          <label for="rv-title">Title (optional)</label>
+          <input id="rv-title" name="title" type="text" maxlength="120">
+          <label for="rv-body">Your review (optional)</label>
+          <textarea id="rv-body" name="body" rows="4" maxlength="4000"></textarea>
+          <button type="submit" class="btn btn--primary">Send review</button>
+          <p class="contact-form__status" role="status" hidden></p>
+        </form>
+        <script>(function(){
+          var f = document.currentScript.previousElementSibling;
+          if (!f || !window.fetch) return;
+          var stamp = f.querySelector('[data-form-stamp]'); if (stamp) stamp.value = Date.now();
+          f.addEventListener('submit', function(e){
+            e.preventDefault();
+            var s = f.querySelector('.contact-form__status'), b = f.querySelector('button[type="submit"]');
+            var v = function(n){ var i = f.elements[n]; return i ? String(i.value || '').trim() : ''; };
+            var picked = f.querySelector('input[name="rating"]:checked');
+            if (!picked || !v('authorName')) { s.hidden = false; s.textContent = 'Please choose a rating and give your name.'; return; }
+            var body = { rating: Number(picked.value), authorName: v('authorName'), website: v('website'), t: v('t') };
+            ['authorEmail', 'title', 'body'].forEach(function(k){ if (v(k)) body[k] = v(k); });
+            b.disabled = true;
+            fetch(f.action, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+              .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok: r.ok, d: d }; }); })
+              .then(function(x){
+                s.hidden = false;
+                var d = x.d && (x.d.data || x.d);
+                s.textContent = x.ok ? ((d && d.message) || 'Thanks! Your review will appear once it is approved.') : ((x.d && (x.d.error || x.d.message)) || 'Your review could not be sent. Please try again.');
+                if (x.ok) f.reset(); else b.disabled = false;
+              })
+              .catch(function(){ s.hidden = false; s.textContent = 'Your review could not be sent. Please try again.'; b.disabled = false; });
+          });
+        })();</script>
+      <% } %>
+    </section>
+  <% } %>
   <script type="application/ld+json"><%- ld(structured) %></script>
 </div>

@@ -271,7 +271,7 @@ export function composeInstant(input: ComposerInput): SiteResult {
   // The plan's pages, plus a services page where the trade's standard site had one and its plan has none
   // (website-landscaping's services index; website-homecare's and the roofing site's service pages).
   const planSlugs = Object.keys(recipe)
-  const servicesHome = ['services', 'service', 'classes', 'rooms', 'shop'].find((s) => planSlugs.includes(s))
+  const servicesHome = ['services', 'service', 'classes', 'rooms'].find((s) => planSlugs.includes(s))
     || ((kind === 'landscaping' || kind === 'homecare' || kind === 'roofing') ? 'services' : undefined)
   // Each service the owner named gets a page of its own, linked from its card (the standard sites' /services/<name>).
   // Food businesses' "services" are not dishes, and a store's are product categories: no pages for them.
@@ -332,11 +332,14 @@ export function composeInstant(input: ComposerInput): SiteResult {
     { type: 'hero', variant: heroImage ? 'full-bleed' : 'centered-stats', data: {
       ...(heroImage ? { image: heroImage } : {}), eyebrow: [label, place].filter(Boolean).join(' · '), title: name,
       subtitle: firstSentence(input.description) || (place ? (label ? label + ' in ' + place : 'Serving ' + place) + '.' : ''),
-      primaryCta: contactCta,
+      // A store's front door sends shoppers to its products; everyone else's to a conversation.
+      primaryCta: kind === 'store' ? { label: 'Shop now', href: 'shop' } : contactCta,
     } },
     kind === 'homecare' ? { type: 'care', variant: 'finder', data: careFinder() } : null,
+    // A store's home is its products, live from its catalogue (the site fills shop/grid; store live test, 2026-10-26).
+    kind === 'store' ? { type: 'shop', variant: 'grid', data: {} } : null,
     bookingSection(),
-    serviceCards('What we do'),
+    kind === 'store' ? null : serviceCards('What we do'),
     trust(),
     founded(),
     reviews(),
@@ -384,7 +387,6 @@ export function composeInstant(input: ComposerInput): SiteResult {
     service: () => servicesPage('Service'),
     classes: () => servicesPage('Classes'),
     rooms: () => servicesPage('Rooms'),
-    shop: () => servicesPage('Shop'),
     projects: () => framed('Projects', 'Our work', gallery(1, 'Our work'), reviews()),
     gallery: () => framed('Gallery', 'Our work', gallery(1, 'Our work'), reviews()),
     storm: () => /\b(storm|hail|wind|insurance|claims?|restoration)\b/.test(ownWords)
@@ -413,7 +415,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const pages: Record<string, Section[]> = {}
   // Home always keeps its "What we do", whatever the plan lists: on the live site it is where the business's own
   // services, service menu or event spaces appear (a restaurant's plan has no services section; its spaces go there).
-  const allowedOn = (slug: string) => new Set<string>([...(recipe[slug]?.allowed_types || ['hero', 'services', 'faq', 'reservation', 'cta']), ...(slug === 'home' ? ['services'] : [])])
+  // A store's are its products (shop/grid), so its home has no "What we do".
+  const allowedOn = (slug: string) => new Set<string>([...(recipe[slug]?.allowed_types || ['hero', 'services', 'faq', 'reservation', 'cta']), ...(slug === 'home' && kind !== 'store' ? ['services'] : [])])
   const build = (slug: string, sections: Array<Section | null>) => {
     const allowed = allowedOn(slug)
     // Only the section types this page's plan allows — the same catalogue the AI composes the page from.

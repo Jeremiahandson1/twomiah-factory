@@ -56,7 +56,9 @@ describe('pages', () => {
     expect(body.data).not.toContain('projects/grid')
     // A contractor has no bar add-on: nothing that reads the bar's night or posts its forms (ADDON_SECTIONS).
     for (const k of ['tonight/board', 'taps/wall', 'speakeasy/door', 'parties/inquiry-form', 'regulars/signup', 'timeline/eras', 'menu/item-hero']) expect(body.data).not.toContain(k)
-    expect(body.data).toContain('events/recurring')
+    // Another trade's sections are not a contractor's (server/site/tradeSections.ts; store live test, 2026-10-26).
+    for (const k of ['events/recurring', 'age/modal', 'care/finder', 'shop/grid']) expect(body.data).not.toContain(k)
+    expect(body.data).toContain('reservation/cta')
     expect(body.pagination.total).toBe(body.data.length)
   })
 
