@@ -32,8 +32,6 @@ export interface Order {
   trackingCarrier: string | null; trackingNumber: string | null; internalNote: string | null
   createdAt: string; fulfilledAt?: string | null
   providerPaymentId?: string | null
-  /** storefront | draft (made by the owner for a customer). */
-  source?: string
   refundPendingAt?: string | null; refundId?: string | null; refundedAt?: string | null; refundError?: string | null
   refundedCents?: number
   supplierOrderId?: string | null; supplierStatus?: string | null; supplierCostCents?: number | null; supplierError?: string | null
