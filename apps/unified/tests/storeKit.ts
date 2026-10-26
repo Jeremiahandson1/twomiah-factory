@@ -13,7 +13,11 @@ process.env.SITE_URL ||= 'https://site.test'
 export const WEBHOOK_SECRET = 'whsec_test_store_upgrade'
 
 /** Stripe, as its API answers: every request recorded (path, method and the form-encoded params). */
-export interface StripeCall { method: string; path: string; params: URLSearchParams }
+export interface StripeCall {
+  method: string; path: string; params: URLSearchParams
+  /** The Stripe-Account header (a connected account's call), and the key the call was made with (Authorization). */
+  account: string | null; key: string | null
+}
 export function stripeMock() {
   const calls: StripeCall[] = []
   /** What a retrieved session says when the success page asks: by session id. */
@@ -24,7 +28,8 @@ export function stripeMock() {
     const u = new URL(url)
     const method = String(init?.method || 'GET').toUpperCase()
     const params = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
-    calls.push({ method, path: u.pathname, params })
+    const h = new Headers(init?.headers || {})
+    calls.push({ method, path: u.pathname, params, account: h.get('stripe-account'), key: (h.get('authorization') || '').replace(/^Bearer\s+/i, '') || null })
     if (u.pathname === '/v1/tax/settings' && method === 'GET') return json({ object: 'tax.settings', status: state.taxStatus, defaults: {}, head_office: null, livemode: false })
     if (u.pathname === '/v1/coupons' && method === 'POST') return json({ id: `co_${++state.n}`, object: 'coupon', amount_off: Number(params.get('amount_off')), currency: params.get('currency') })
     if (u.pathname === '/v1/checkout/sessions' && method === 'POST') {

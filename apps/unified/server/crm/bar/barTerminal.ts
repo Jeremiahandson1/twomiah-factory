@@ -22,6 +22,7 @@ import type { Actor } from './barManagers.ts'
 import type { BarRegister } from './barRegister.ts'
 import type { BarLoyalty } from './barLoyalty.ts'
 import type { FoodSettingsStore } from './foodSettings.ts'
+import { platformStripe } from '../platformStripe.ts'
 
 type Tx = any
 
@@ -32,14 +33,10 @@ export const CHARGE_TIMEOUT_MS = 3 * 60_000
 /** On-reader tip suggestions (Stripe Terminal configuration tipping). */
 export const TIP_PERCENTAGES = [15, 18, 20]
 
-let cached: { key: string; client: Stripe } | null = null
-/** The platform's Stripe client (STRIPE_SECRET_KEY), over fetch; null when the key is not set. A test may hand one in. */
+/** The platform's Stripe client (STRIPE_SECRET_KEY), over fetch; null when the key is not set. A test may hand one in.
+ *  The one client the store's checkout uses too (../platformStripe.ts). */
 export function terminalStripe(testClient?: unknown): Stripe | null {
-  if (testClient) return testClient as Stripe
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key) return null
-  if (!cached || cached.key !== key) cached = { key, client: new Stripe(key, { httpClient: Stripe.createFetchHttpClient() }) }
-  return cached.client
+  return platformStripe(testClient)
 }
 
 /** Stripe's own sentence for a refusal, for the person at the register; anything else a plain one. */

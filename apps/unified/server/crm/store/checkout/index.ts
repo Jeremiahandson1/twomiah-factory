@@ -19,6 +19,7 @@ import type { StoreCore } from '../core.ts'
 import { createCheckoutService } from './checkoutService.ts'
 import { createStorePublicRoutes, type OrderHooks } from './publicRoutes.ts'
 import { createStorePaymentRoutes, ensurePayPalWebhookEvents, ensureStripeWebhookEvents } from './paymentRoutes.ts'
+import { createPaymentNotices } from './paymentNotices.ts'
 
 export type { OrderHooks } from './publicRoutes.ts'
 export { createCheckoutService } from './checkoutService.ts'
@@ -30,6 +31,11 @@ export { storefrontCatalogue, storefrontProduct } from './catalogue.ts'
  */
 export function checkoutMounts(d: CrmDeps, core: StoreCore, orders?: OrderHooks): Mount[] {
   const checkout = createCheckoutService(d, core)
+  // One rule for the provider's word on an order, through either door: the store's own webhook (Square, PayPal, Stripe
+  // keys pasted before Connect) and the Factory's Connect forwarder (Stripe on the business's connected account), whose
+  // events reach the shared Stripe module and are claimed here when they name one of the store's orders.
+  const notices = createPaymentNotices(d, core, checkout, orders)
+  d.services.useConnectedEvents?.(notices.claim)
 
   d.services.addJob(() => {
     const log = (what: string) => (err: any) => d.logger.warn(`[store] ${what} failed`, { error: err?.message })
@@ -47,7 +53,7 @@ export function checkoutMounts(d: CrmDeps, core: StoreCore, orders?: OrderHooks)
   })
 
   return [
-    { path: '/api/public', access: 'public', router: createStorePublicRoutes(d, core, checkout, orders) },
-    { path: '/api/admin/payments', access: 'user', router: createStorePaymentRoutes(d) },
+    { path: '/api/public', access: 'public', router: createStorePublicRoutes(d, core, checkout, orders, notices) },
+    { path: '/api/admin/payments', access: 'user', router: createStorePaymentRoutes(d, core) },
   ]
 }

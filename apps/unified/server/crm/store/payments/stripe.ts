@@ -7,6 +7,15 @@ import type {
 import { RefundRefused } from './types.ts'
 import type { StoreAddress as Address } from '../../../db/schema/store.ts'
 
+/**
+ * The business's Stripe account as the rest of the app takes cards on it (owner's decision, 2026-10-26): the PLATFORM's
+ * client (STRIPE_SECRET_KEY) acting on the account the owner created or linked in Settings › Integrations
+ * (company.integrations.stripeAccountId), every call carrying it as the Stripe-Account header — so the money lands in
+ * their own Stripe and no owner ever pastes a secret key. Its events reach the store through the Factory's Connect
+ * forwarder (POST /api/stripe/factory-event → checkout/paymentNotices.ts claim), not through a webhook of its own.
+ */
+export type ConnectedStripe = { client: Stripe; stripeAccount: string }
+
 // Stripe adapter — hosted Checkout Sessions. We build line items with
 // price_data (prices are trusted, computed server-side from the DB), add
 // shipping + tax as their own fixed amounts so the provider total exactly
@@ -15,11 +24,22 @@ export class StripeProvider implements PaymentProvider {
   readonly name = 'stripe' as const
   private stripe: Stripe
   private webhookSecret?: string
+  /** The connected account every call is made on; null for a store still on the keys it pasted before Connect. */
+  readonly stripeAccount: string | null
+  private opts: { stripeAccount: string } | undefined
 
-  constructor(creds: ProviderCredentials) {
+  constructor(source: ProviderCredentials | ConnectedStripe) {
+    if ('client' in source) {
+      this.stripe = source.client
+      this.stripeAccount = source.stripeAccount
+      this.opts = { stripeAccount: source.stripeAccount }
+      return
+    }
     // Over fetch — the transport Stripe recommends off plain Node, and the one a test can answer without the network.
-    this.stripe = new Stripe(creds.secretKey, { httpClient: Stripe.createFetchHttpClient() })
-    this.webhookSecret = creds.webhookSecret
+    this.stripe = new Stripe(source.secretKey, { httpClient: Stripe.createFetchHttpClient() })
+    this.webhookSecret = source.webhookSecret
+    this.stripeAccount = null
+    this.opts = undefined
   }
 
   async createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
@@ -91,11 +111,11 @@ export class StripeProvider implements PaymentProvider {
     if (input.discountCents > 0) {
       const coupon = await this.stripe.coupons.create({
         amount_off: input.discountCents, currency, duration: 'once', name: 'Discount',
-      })
+      }, this.opts)
       params.discounts = [{ coupon: coupon.id }]
     }
 
-    const session = await this.stripe.checkout.sessions.create(params)
+    const session = await this.stripe.checkout.sessions.create(params, this.opts)
     if (!session.url) throw new Error('Stripe did not return a checkout URL')
     return { redirectUrl: session.url, providerSessionId: session.id }
   }
@@ -108,33 +128,20 @@ export class StripeProvider implements PaymentProvider {
     const event = await this.stripe.webhooks.constructEventAsync(
       input.rawBody, input.signature, this.webhookSecret,
     )
-
-    // A refund — made here (Refund on an order) or in Stripe's own dashboard. routes/orders.ts tells the two apart.
-    if (event.type === 'charge.refunded') {
-      const ch = event.data.object as Stripe.Charge
-      const pi = typeof ch.payment_intent === 'string' ? ch.payment_intent : ch.payment_intent?.id
-      if (!pi) return { type: 'ignored' }
-      return { type: 'refunded', providerPaymentId: pi, amountRefundedCents: ch.amount_refunded, amountTotalCents: ch.amount, currency: ch.currency }
-    }
-    // A chargeback opened, changed (evidence submitted, under review, funds withdrawn) or closed (won, lost).
-    if (event.type.startsWith('charge.dispute.')) {
-      return { type: 'dispute', dispute: parseDispute(event.data.object as Stripe.Dispute, event.type === 'charge.dispute.created') }
-    }
-    if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
-    return parseSession(event.data.object as Stripe.Checkout.Session)
+    return parseStripeEvent(event)
   }
 
   // Success-page fallback: pull the session's final state straight from Stripe
-  // (authenticated with the merchant's own key) so orders finalize even when the
+  // (on the connected account, or with the merchant's own key) so orders finalize even when the
   // webhook is delayed, misconfigured, or intercepted by another endpoint.
   async retrieveSession(sessionId: string): Promise<WebhookResult> {
-    const session = await this.stripe.checkout.sessions.retrieve(sessionId)
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId, {}, this.opts)
     return parseSession(session)
   }
 
   // Stripe Tax's settings: 'active' once the business has its origin address (and a registration) set in Stripe.
   async taxStatus(): Promise<'active' | 'pending'> {
-    const s = await this.stripe.tax.settings.retrieve()
+    const s = await this.stripe.tax.settings.retrieve({}, this.opts)
     return s.status === 'active' ? 'active' : 'pending'
   }
 
@@ -146,7 +153,7 @@ export class StripeProvider implements PaymentProvider {
     try {
       const r = await this.stripe.refunds.create(
         { payment_intent: providerPaymentId, reason: 'requested_by_customer', ...(amountCents != null ? { amount: amountCents } : {}) },
-        { idempotencyKey },
+        { idempotencyKey, ...this.opts },
       )
       if (r.status === 'failed' || r.status === 'canceled') throw new RefundRefused(`Stripe did not complete the refund (${r.status}${r.failure_reason ? ': ' + r.failure_reason : ''})`)
       return { refundId: r.id, status: r.status ?? 'pending', amountCents: r.amount ?? null }
@@ -157,6 +164,27 @@ export class StripeProvider implements PaymentProvider {
       throw e
     }
   }
+}
+
+/**
+ * One Stripe event in the store's terms — read the same whether it came signed to the store's own webhook (a store on
+ * the keys it pasted before Connect) or forwarded by the Factory's Connect endpoint (a connected account: the Factory
+ * checked Stripe's signature, and the Factory→tenant key vouches for the forward).
+ */
+export function parseStripeEvent(event: Pick<Stripe.Event, 'type' | 'data'>): WebhookResult {
+  // A refund — made here (Refund on an order) or in Stripe's own dashboard. routes/orders.ts tells the two apart.
+  if (event.type === 'charge.refunded') {
+    const ch = event.data.object as Stripe.Charge
+    const pi = typeof ch.payment_intent === 'string' ? ch.payment_intent : ch.payment_intent?.id
+    if (!pi) return { type: 'ignored' }
+    return { type: 'refunded', providerPaymentId: pi, amountRefundedCents: ch.amount_refunded, amountTotalCents: ch.amount, currency: ch.currency }
+  }
+  // A chargeback opened, changed (evidence submitted, under review, funds withdrawn) or closed (won, lost).
+  if (event.type.startsWith('charge.dispute.')) {
+    return { type: 'dispute', dispute: parseDispute(event.data.object as Stripe.Dispute, event.type === 'charge.dispute.created') }
+  }
+  if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
+  return parseSession(event.data.object as Stripe.Checkout.Session)
 }
 
 // Normalizes a Stripe Checkout Session into our provider-agnostic result.
