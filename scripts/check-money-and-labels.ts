@@ -51,10 +51,12 @@ if (/`New \$\{cfg\.labels\.singular\}`/.test(jobsPage)) fail('…and must not bu
 // One name per thing: the sidebar's "Email" item opened a page headed "Inbound Messages", while the SMS page
 // next door was headed "Messages" like its own nav item — three names for two things. (T14 L2)
 const inbox = read('packages/tenant-ui/src/settings/InboundMessagesPage.tsx')
-if (!/<h1 className="text-2xl font-bold mb-2">Email<\/h1>/.test(inbox)) fail('the inbound-email page must be headed "Email", the name of the nav item that opens it')
+// Its heading is its menu item's name (MenuName): "Email" in the templates' menus, "Email Inbox" in the unified one
+// (store live test, 2026-10-26) — never a literal that one of those menus no longer says.
+if (!/<h1 className="text-2xl font-bold mb-2"><MenuName fallback="Email" \/><\/h1>/.test(inbox)) fail('the inbound-email page must be headed by its menu item\'s name (<MenuName fallback="Email" />), as the templates\' menus say "Email"')
 // rendered text only — the comment above the heading, and the component's own filename, both say the old name
 if (/>Inbound Messages</.test(inbox)) fail('…and must not still render "Inbound Messages" as a heading')
-if (!/Emails received on your "route into CRM" aliases/.test(inbox)) fail('…keeping the subtitle that explains what the page actually lists')
+if (!/The messages people sent to your business&rsquo;s email addresses/.test(inbox)) fail('…keeping the subtitle that explains what the page actually lists')
 const sms = read('packages/tenant-ui/src/marketing/MessagesPage.tsx')
 if (!/>Messages<\/h1>/.test(sms)) fail('the SMS page must stay headed "Messages", matching its own nav item')
 for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']) {

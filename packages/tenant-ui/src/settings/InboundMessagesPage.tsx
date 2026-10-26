@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { momentDate, whenDateTime } from '../time/companyClock'
+import { MenuName } from '../shell/menuName'
 
 // List + detail for inbound emails routed into the CRM via crm-mode
 // aliases. V1 is a flat reverse-chrono inbox — no threading, no contact
@@ -55,8 +56,9 @@ export function InboundMessagesPage(): React.ReactElement {
           detail the old heading was trying to. (Contractor T14 L2) */}
       {/* Store live test, 2026-10-26: "Email" read as where Branded Email is set up. It is the inbox — what people sent
           to the business's own addresses — and says so, with the way to the addresses themselves. Settings and the menu
-          both call it Email Inbox. */}
-      <h1 className="text-2xl font-bold mb-2">Email Inbox</h1>
+          both call it Email Inbox. The heading is the menu's own name (MenuName): the templates' menus still say
+          "Email", and a hard-coded "Email Inbox" there broke the one-name rule (check-money-and-labels.ts). */}
+      <h1 className="text-2xl font-bold mb-2"><MenuName fallback="Email" /></h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
         The messages people sent to your business&rsquo;s email addresses, newest first.{' '}
         To add an address or choose where its mail goes, open <a href="/crm/settings/email" className="text-blue-700 underline dark:text-blue-300">Settings &rsaquo; Branded Email</a>.

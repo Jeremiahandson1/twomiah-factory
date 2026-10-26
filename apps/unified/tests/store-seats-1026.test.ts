@@ -93,7 +93,8 @@ describe("a shop's own words", () => {
     expect(shell.slice(shell.indexOf('export const SETTINGS_SUB_PAGES'))).not.toMatch(/^[^\]]*email-inbox/)
     expect(src('App.tsx')).toContain('<Route path="settings/email-inbox" element={<Navigate to="/crm/email" replace />} />')
     const page = fs.readFileSync(path.join(import.meta.dir, '..', '..', '..', 'packages', 'tenant-ui', 'src', 'settings', 'InboundMessagesPage.tsx'), 'utf8')
-    expect(page).toContain('>Email Inbox</h1>')
+    // Headed by its menu item's name — "Email Inbox" above; the templates' menus still say "Email"
+    expect(page).toContain('<h1 className="text-2xl font-bold mb-2"><MenuName fallback="Email" /></h1>')
     expect(page).toContain('The messages people sent to your business&rsquo;s email addresses')
     expect(page).toContain('href="/crm/settings/email"')
     // Signed in, the owner reads it (branded_email is the store's).
