@@ -35,8 +35,9 @@ const webhookBase = () => (process.env.BACKEND_URL || '').replace(/\/$/, '')
  * Stripe's own dashboard — the orders group's applyProviderRefund). charge.refunded joined on 10/12; a store connected
  * before then is brought up to date by ensureStripeWebhookEvents at startup.
  */
-// The same events reach a connected account's store through the Factory's Connect endpoint (apps/api
-// scripts/register-connect-webhook.ts lists them there too).
+// A connected account's store gets the same events through the Factory's Connect endpoint, which must list them as
+// well. That endpoint is set up by apps/api scripts/register-connect-webhook.ts. On 2026-10-26 its list was missing
+// the charge.dispute.* events, and they have to be added to the endpoint in Stripe.
 export const STRIPE_WEBHOOK_EVENTS = [
   'checkout.session.completed', 'charge.refunded',
   // A chargeback: opened (the owner is emailed), changed, closed — the Disputes screen keeps each as Stripe last said
