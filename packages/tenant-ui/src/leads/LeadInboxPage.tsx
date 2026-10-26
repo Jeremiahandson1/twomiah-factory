@@ -52,8 +52,11 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const maySetUpSources = useMayWrite('leads:create')
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   // The website form and call tracking post here on every vertical, so the inbox can always name them —
-  // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins.
-  const platforms: LeadPlatform[] = [...offered, ...BUILT_IN_LEAD_PLATFORMS.filter((b) => !offered.some((p) => p.value === b.value))]
+  // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins. A phone call arrives only through call
+  // tracking, so it is named only where that can happen (config.phoneCalls): a shop has none, and its filter offered
+  // "Phone call" (store final check, 2026-10-26). Absent — the templates — as before.
+  const builtIn = BUILT_IN_LEAD_PLATFORMS.filter((b) => b.value !== 'phone' || config?.phoneCalls !== false)
+  const platforms: LeadPlatform[] = [...offered, ...builtIn.filter((b) => !offered.some((p) => p.value === b.value))]
   const jobTypeLabel = config?.jobTypeLabel || 'Job Type'
   const subtitle = config?.inboxSubtitle || 'All inbound leads from external sources in one place'
   const [leads, setLeads] = useState<LeadRow[]>([])

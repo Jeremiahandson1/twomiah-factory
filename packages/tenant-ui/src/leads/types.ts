@@ -30,6 +30,11 @@ export interface LeadPlatform {
 export interface LeadsConfig {
   /** Platforms this vertical offers. Default: the trades set (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz). */
   platforms?: LeadPlatform[]
+  /**
+   * Can a phone call arrive here (call tracking on)? false: the inbox does not name "Phone call" as a source. Absent: it
+   * does, as every template always has.
+   */
+  phoneCalls?: boolean
   /** What the lead is about — "Job Type" (trades), "Service" (salon/vet), "Interest" (dealership), "Event Type". */
   jobTypeLabel?: string
   inboxSubtitle?: string

@@ -52,7 +52,7 @@ export function cardShareOfRefund(order: Pick<Order, 'totalCents' | 'giftCardCen
   return Math.min(order.giftCardCents, Math.round((amountCents * order.giftCardCents) / order.totalCents))
 }
 
-export function createStoreGiftCards(d: CrmDeps, core: StoreCore) {
+export function createStoreGiftCards(d: Pick<CrmDeps, 'db' | 'logger'>, core: StoreCore) {
   const { db, logger } = d
   const cards = createBarGiftCards(db as any)
 

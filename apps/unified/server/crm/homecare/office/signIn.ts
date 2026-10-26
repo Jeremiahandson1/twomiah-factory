@@ -49,7 +49,7 @@ const onViewAsCookie = (c: any): boolean => { const p: any = requestToken(c); re
  * last sign-out is refused, and signing out ends every session. `real` is the shared authenticate.
  */
 export function withHomecareSessions(real: MiddlewareHandler, deps: Pick<CrmDeps, 'db' | 'logger'>): MiddlewareHandler {
-  const tokens = createTokenRevocation(deps as CrmDeps)
+  const tokens = createTokenRevocation(deps)
   return async (c, next) => {
     const decoded = verifiedToken(c)
     // A View As of someone who has since signed out everywhere has ended: the cookie is dropped and the request refused

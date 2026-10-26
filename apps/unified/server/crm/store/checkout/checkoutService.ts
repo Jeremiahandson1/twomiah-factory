@@ -102,7 +102,8 @@ export interface OrderSummary {
   items: Array<{ productName: string; variantName: string; quantity: number; lineTotalCents: number; imageUrl: string | null }>
 }
 
-export function createCheckoutService(d: CrmDeps, core: StoreCore) {
+/** Exactly what it uses: a caller with less is a type error, never a crash halfway through a payment. */
+export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'>, core: StoreCore) {
   const { db, logger } = d
   const giftCards = createStoreGiftCards(d, core)
 
@@ -134,8 +135,12 @@ export function createCheckoutService(d: CrmDeps, core: StoreCore) {
 
     if (!flipped) return // another path finalized it first
     // The audit log: the order paid, once — only the update that made it paid writes it (store live test, 2026-10-26).
-    await d.audit.log({ action: d.audit.ACTIONS.PAYMENT, entity: 'store_order', entityId: flipped.id, entityName: orderNumber, companyId,
-      metadata: { description: `Order ${orderNumber} paid — ${formatCents(flipped.totalCents, flipped.currency)} by ${order.provider}` } })
+    // Never stops what follows: once the order is paid nothing retries the rest, so a failed audit write must not cost
+    // the shopper their confirmation, the owner their new-order email, or the stock its count (store final check).
+    try {
+      await d.audit.log({ action: d.audit.ACTIONS.PAYMENT, entity: 'store_order', entityId: flipped.id, entityName: orderNumber, companyId,
+        metadata: { description: `Order ${orderNumber} paid — ${formatCents(flipped.totalCents, flipped.currency)} by ${order.provider}` } })
+    } catch (e: any) { logger.error('[store] paid order not audited', { order: order.id, error: e?.message }) }
 
     // The shopper is a customer (decision 2): an order begun before they gave an address is given its contact now,
     // from what the provider told us, before loyalty settles on that contact.

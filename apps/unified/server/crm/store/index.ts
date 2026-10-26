@@ -20,7 +20,7 @@ import { catalogMounts } from './catalog/index.ts'
 const cores = new WeakMap<object, StoreCore>()
 function coreFor(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>): StoreCore {
   let core = cores.get(d.services)
-  if (!core) { core = createStoreCore(d as CrmDeps); cores.set(d.services, core) }
+  if (!core) { core = createStoreCore(d); cores.set(d.services, core) }
   return core
 }
 
@@ -52,9 +52,12 @@ export interface Storefront {
    */
   reviews(companyId: string, product: StorefrontProduct): Promise<{ open: boolean; reviews: any[]; summary: { average: number; count: number } }>
 }
-export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>): Storefront {
+// `audit`: finishing an order from the thank-you page writes its "paid" row (checkoutService finalizeOrder). Without it the
+// website's copy crashed right after marking the order paid — no order emails, no audit row (store final check, 2026-10-26);
+// an `as CrmDeps` cast had hidden the missing piece from the type check.
+export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' | 'audit'>): Storefront {
   const core = coreFor(d)
-  const checkout = createCheckoutService(d as CrmDeps, core)
+  const checkout = createCheckoutService(d, core)
   return {
     companyId: async () => (await core.shop())?.id ?? null,
     isClosed: () => core.isClosed(),

@@ -76,7 +76,7 @@ export interface AvailableReward {
 
 let registeredWith: unknown = null
 
-export function createStoreCore(d: CrmDeps) {
+export function createStoreCore(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>) {
   const { db, logger } = d
   const mailer: any = d.services.emailService
   if (mailer && registeredWith !== mailer) { mailer.register(storeTemplates); registeredWith = mailer }

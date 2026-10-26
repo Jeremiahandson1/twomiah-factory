@@ -217,7 +217,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // A store's website reads its shop through the store add-on (crm/store createStorefront); a bar's sections read
         // its night through the bar add-on (crm/bar/barSite.ts, SiteSettings.facts).
         .route('/', createSiteRoutes({
-          db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm }) : null,
+          db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm, audit }) : null,
           facts: vertical.site.facts === 'bar' ? createBarSite({ db, live: createBarLive(db) })
             : vertical.site.facts === 'menu' ? createMenuSite({ db, live: createBarLive(db) }) : null,
         })),

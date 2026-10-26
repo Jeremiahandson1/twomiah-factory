@@ -79,7 +79,11 @@ export const EmailAliases = () => <EmailAliasesPage />
 // The dashboard's "New leads" tile's list: exactly the rows it counts (GET /api/dashboard/new-leads).
 export const NewLeads = () => <NewLeadsPage api={api} />
 // ownPermission: the inbox asks leads:* on both sides (server modules/company.ts; live role check, 2026-10-23).
-export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={{ ...(verticalScreens().leads as any), ownPermission: true }} subscribe={subscribeLive} />
+// phoneCalls: a call reaches the inbox only through call tracking (store final check, 2026-10-26).
+export const LeadInbox = () => {
+  const { hasFeature } = useAuth()
+  return <LeadInboxPage api={api} toast={useToast()} config={{ ...(verticalScreens().leads as any), ownPermission: true, phoneCalls: hasFeature('call_tracking') }} subscribe={subscribeLive} />
+}
 
 export function AuditLog() {
   const { company, can } = useAuth()

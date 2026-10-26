@@ -166,3 +166,56 @@ describe("a shop's enquiries come from its website, not a trade's marketplaces",
     expect(store.screens.leads.platforms.map((p: any) => p.value)).toEqual(store.crm.leads.platforms)
   })
 })
+
+// Store final check (2026-10-26): the shopper's return to the website's thank-you page reached the order before Stripe's
+// payment notice did, and the WEBSITE's copy of the checkout had been built without the audit log (an `as CrmDeps`
+// cast hid it). It crashed right after marking the order paid: the page said "We haven't received your payment yet",
+// and no order emails and no "paid" audit row followed. The real path, the website's own page, with no notice at all.
+describe('the thank-you page finishing a paid order does every step of it', () => {
+  test('paid, the "paid" audit row once, both order emails, the receipt — before any payment notice arrives', async () => {
+    await (k.t.db as any).delete(k.S.paymentConfig)
+    await k.connectStripe()
+    await k.product({ slug: 'cap', name: 'Final Cap', sku: 'CAP-F1', priceCents: 100 })
+    const r = await k.pub('POST', '/api/public/checkout', { items: [{ sku: 'CAP-F1', quantity: 1 }], customerEmail: 'buyer@example.com' })
+    expect(r.status).toBe(200)
+    const sid = new URL(r.json.url).pathname.split('/').pop()!
+    const o = await k.orderBySession(sid)
+    k.stripe.sessions.set(sid, paidSession(sid, { amountTotal: o.totalCents, email: 'buyer@example.com' }))
+    const before = k.mails.length
+
+    const page = await k.pub('GET', `/checkout/success?session_id=${sid}`)
+    expect(page.status).toBe(200)
+    expect(page.text).toContain('Final Cap')
+    expect(page.text).not.toMatch(/haven.t received your payment/i)
+    await k.settle()
+
+    expect((await k.order(o.id)).status).toBe('paid')
+    const rows = await (k.t.db as any).select().from(k.S.auditLog).where(eqId(k.S.auditLog.entityId, o.id))
+    expect(rows.filter((a: any) => /paid —/.test(a.metadata?.description || ''))).toHaveLength(1)
+    const sent = k.mails.slice(before).map((m) => m.template)
+    expect(sent).toContain('storeOrderConfirmation')
+    expect(sent).toContain('storeMerchantNewOrder')
+  })
+
+  test('no deps cast hides a missing piece in the server (the rule, read from the source)', () => {
+    const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(dir, e.name)) : /\.ts$/.test(e.name) ? [path.join(dir, e.name)] : [])
+    const files = walk(path.join(import.meta.dir, '..', 'server'))
+    expect(files.length).toBeGreaterThan(200)
+    const found = files.flatMap((f) => fs.readFileSync(f, 'utf8').split(/\r?\n/).map((l, i) => [f, i + 1, l] as const))
+      .filter(([, , l]) => /\bas\s+(any\s+as\s+)?CrmDeps\b/.test(l) && !/^\s*(\/\/|\*)/.test(l))
+      .map(([f, n]) => `${path.relative(path.join(import.meta.dir, '..'), f)}:${n}`)
+    expect(found).toEqual([])
+  })
+})
+
+// Store final check (2026-10-26): the Lead Inbox's filter still offered "Phone call" to a shop, which has no call
+// tracking — the only way a call becomes a lead. The inbox names it only where call tracking is on.
+describe('the Lead Inbox names a phone call only where call tracking can bring one', () => {
+  test('the unified inbox tells the shared page; the page leaves "Phone call" out when told false', () => {
+    const screens = fs.readFileSync(path.join(WEB, 'screens.tsx'), 'utf8')
+    expect(screens).toMatch(/phoneCalls: hasFeature\('call_tracking'\)/)
+    const page = fs.readFileSync(path.join(import.meta.dir, '..', '..', '..', 'packages', 'tenant-ui', 'src', 'leads', 'LeadInboxPage.tsx'), 'utf8')
+    expect(page).toMatch(/b\.value !== 'phone' \|\| config\?\.phoneCalls !== false/)
+  })
+})
