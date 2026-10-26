@@ -53,8 +53,14 @@ export function InboundMessagesPage(): React.ReactElement {
       {/* The sidebar item that opens this is "Email"; it used to land on a page headed "Inbound Messages",
           which with the SMS page next door made three names for two things. The subtitle below carries the
           detail the old heading was trying to. (Contractor T14 L2) */}
-      <h1 className="text-2xl font-bold mb-2">Email</h1>
-      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Emails received on your "route into CRM" aliases. Newest first.</p>
+      {/* Store live test, 2026-10-26: "Email" read as where Branded Email is set up. It is the inbox — what people sent
+          to the business's own addresses — and says so, with the way to the addresses themselves. Settings and the menu
+          both call it Email Inbox. */}
+      <h1 className="text-2xl font-bold mb-2">Email Inbox</h1>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+        The messages people sent to your business&rsquo;s email addresses, newest first.{' '}
+        To add an address or choose where its mail goes, open <a href="/crm/settings/email" className="text-blue-700 underline dark:text-blue-300">Settings &rsaquo; Branded Email</a>.
+      </p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
@@ -62,7 +68,7 @@ export function InboundMessagesPage(): React.ReactElement {
 
       {!loading && messages.length === 0 && !error && (
         <div className="text-sm text-gray-500 dark:text-slate-400 italic py-12 text-center border border-dashed border-gray-300 rounded-md">
-          No inbound messages yet. Once an alias is set to "Route into CRM" and receives an email, it'll appear here.
+          No messages yet. An address set to &ldquo;Route into CRM&rdquo; in Settings &rsaquo; Branded Email puts the mail it receives here.
         </div>
       )}
 

@@ -157,7 +157,9 @@ export default function App() {
                         <Route path="email" element={<Crm.EmailInbox />} />
                         <Route path="google-reviews" element={<Crm.GoogleReviews />} />
                         <Route path="settings/email-domain" element={<Crm.EmailDomain />} />
-                        <Route path="settings/email-inbox" element={<Crm.EmailInbox />} />
+                        {/* One name, one place (store live test, 2026-10-26): the Email Inbox is the menu's /crm/email; an old
+                            Settings link lands there. */}
+                        <Route path="settings/email-inbox" element={<Navigate to="/crm/email" replace />} />
                         <Route path="settings/integrations" element={<Crm.Integrations />} />
                         <Route path="settings/texting" element={<Crm.Texting />} />
                         <Route path="settings/migration" element={<Crm.Migration />} />

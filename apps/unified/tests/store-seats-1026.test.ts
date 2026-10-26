@@ -85,6 +85,20 @@ describe("a shop's own words", () => {
     expect(store.starter!.helpArticles[0].title).toBe('Getting started with your store')
   })
 
+  test('the email inbox says what it is, links to Branded Email, and has one name in one place', async () => {
+    const shell = src('shell.ts')
+    expect(shell).toContain("{ to: '/crm/email', icon: Mail, label: 'Email Inbox'")
+    // Settings no longer lists a second copy; an old link lands on the one page.
+    expect(shell.slice(shell.indexOf('export const SETTINGS_SUB_PAGES'))).not.toMatch(/^[^\]]*email-inbox/)
+    expect(src('App.tsx')).toContain('<Route path="settings/email-inbox" element={<Navigate to="/crm/email" replace />} />')
+    const page = fs.readFileSync(path.join(import.meta.dir, '..', '..', '..', 'packages', 'tenant-ui', 'src', 'settings', 'InboundMessagesPage.tsx'), 'utf8')
+    expect(page).toContain('>Email Inbox</h1>')
+    expect(page).toContain('The messages people sent to your business&rsquo;s email addresses')
+    expect(page).toContain('href="/crm/settings/email"')
+    // Signed in, the owner reads it (branded_email is the store's).
+    expect((await k.as('owner')('GET', '/api/inbound-messages?limit=100')).status).toBe(200)
+  })
+
   test("the Lead Inbox is in the store's menu; Lead Sources (the marketplaces) is not", async () => {
     expect(src('crm/verticals/store.tsx')).toContain("'/crm/customers', '/crm/leads'")
     const store = await loadVertical('store')

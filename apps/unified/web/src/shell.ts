@@ -54,7 +54,9 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
   // The inbox and Google Business are requireAdmin on the server: a rank, so the menu asks the same rank.
-  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
+  // The messages people sent to the business's own addresses — named as Settings named it, and in one place: Settings
+  // no longer lists a second copy (store live test, 2026-10-26: "Email" beside Settings' "Email Inbox" read as two things).
+  { to: '/crm/email', icon: Mail, label: 'Email Inbox', features: ['branded_email'], minRole: 'admin' },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], permission: 'calltracking:read' },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
@@ -184,7 +186,7 @@ export const SHELL: ShellConfig = {
 
 /** The settings sub-pages this app has routes for (the shared Settings page links only to these). */
 export const SETTINGS_SUB_PAGES = [
-  '/crm/settings/features', '/crm/settings/billing', '/crm/settings/email', '/crm/settings/email-domain', '/crm/settings/email-inbox',
+  '/crm/settings/features', '/crm/settings/billing', '/crm/settings/email', '/crm/settings/email-domain',
   '/crm/settings/integrations', '/crm/settings/migration', '/crm/settings/import',
 ].filter((to) => !(isHomecare && SETTINGS_HIDDEN.includes(to)))
 
