@@ -86,6 +86,12 @@ export function verifyFactoryKey(c: any, key: string | undefined = process.env.F
   if (!safeEqual(got, key)) return { ok: false, status: 401, error: 'Unauthorized' }
   return { ok: true }
 }
+/** The same check as a route's own gate: only the Factory, by its key, may drive the route (a hand-over, not a person). */
+export const requireFactoryKey = async (c: any, next: any) => {
+  const fk = verifyFactoryKey(c)
+  if (!fk.ok) return c.json({ error: fk.error }, fk.status)
+  await next()
+}
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (ch) => '\\' + ch)
 const clip = (v: unknown, n: number) => { const s = v == null ? '' : String(v).trim(); return s ? s.slice(0, n) : undefined }

@@ -217,8 +217,10 @@ for (const rel of files) {
    * twelve routes is better than the same string inlined twelve times — booking does it as
    * `configuresBooking` — so the reader learns the names rather than the code losing them.
    */
+  // requireFactoryKey: a route only the Factory drives, by its key (a hand-over such as the Stripe link) — authorised, not
+  // merely authenticated: no signed-in person can call it at all (2026-10-25).
   const aliases = [...src.matchAll(/const (\w+) = require(?:Permission|AnyPermission|Role|Admin|Ownership)\(/g)].map((m) => m[1])
-  const guarded = new RegExp(`require(Permission|AnyPermission|Role|Admin|Ownership)${aliases.length ? '|\\b(' + aliases.join('|') + ')\\b' : ''}`)
+  const guarded = new RegExp(`require(Permission|AnyPermission|Role|Admin|Ownership|FactoryKey)${aliases.length ? '|\\b(' + aliases.join('|') + ')\\b' : ''}`)
 
   const unguarded = writes.filter((m) => !guarded.test(m[2]))
 
