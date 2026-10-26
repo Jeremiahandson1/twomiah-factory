@@ -25,7 +25,7 @@
  */
 import crypto from 'node:crypto'
 import type { ComposerInput, SiteResult } from './sectionComposer'
-import { composeInstant, toComposition } from './instantComposer'
+import { composeInstant, heldToOwnerFacts, toComposition } from './instantComposer'
 
 export const MAX_ATTEMPTS = 2
 /** How long a build waits for the AI's site before it goes ahead with the template one. */
@@ -207,7 +207,8 @@ async function attempt(tenantId: string, deps: SignupSiteDeps): Promise<void> {
 
   try {
     const stock = deps.stockPhotos ? await deps.stockPhotos(state.input).catch(() => []) : []
-    const site = await deps.compose({ ...state.input, ...(stock.length ? { stockPhotos: stock } : {}) })
+    // The AI's site is held to the template composer's rules for "What we do" and the About story before it is stored.
+    const site = heldToOwnerFacts(await deps.compose({ ...state.input, ...(stock.length ? { stockPhotos: stock } : {}) }) as any, state.input)
     const home = (site.pages as any)?.home?.sections
     if (!Array.isArray(home) || !home.length) throw new Error('the AI composition has no home page')
     const kept = await writeIfCurrent(db, tenantId, attemptId, () => ({

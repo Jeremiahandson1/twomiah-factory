@@ -5,7 +5,7 @@
 import { test, expect, describe } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { composeInstant, toComposition } from '../../../apps/api/src/services/instantComposer'
+import { composeInstant, heldToOwnerFacts, toComposition } from '../../../apps/api/src/services/instantComposer'
 import { enforceIntakeFacts, extractNumbers } from '../../../apps/api/src/services/composerFacts'
 import { SECTION_SCHEMA, pageRecipesFor, type ComposerInput, type SiteResult } from '../../../apps/api/src/services/sectionComposer'
 import { premiumSitePages } from '../../../apps/api/src/services/premiumSitePages'
@@ -48,13 +48,29 @@ const prose = (pages: Record<string, any[]>) => JSON.stringify(pages)
 
 describe('the template composer (the fallback), for every trade the signup offers', () => {
   for (const bt of TRADES) {
-    test(bt + ': several linked pages from the signup\'s answers alone, nothing invented', () => {
+    test(bt + ': linked pages from the signup\'s answers, no hollow page, nothing invented', () => {
+      // With the services the signup's picker collects, a real menu: a Services page and a page per service, where the
+      // trade's plan lists services.
+      const withServices = composeInstant(signupAnswers(bt, { services: ['Signature service'] }))
+      const extras = Object.keys(withServices.pages).filter((s) => !withServices.heldPages.includes(s) && s !== 'home' && s !== 'contact')
+      if (!['dispensary', 'restaurant', 'store', 'food_truck', 'bar'].includes(bt)) expect(extras).toEqual(expect.arrayContaining(['signature-service']))
+      // With nothing but the name, trade and town, no page published beyond Home and Contact is hollow: only the
+      // trade's own functions (a care finder, an events enquiry, a visit page, a bar's live pages), general guidance
+      // (home care's coverage), or the Services page whose stand-in card the live site fills with the business's own
+      // list (or leaves out of the menu) — never an About with no story, a "How it works" page, a storm page no one asked for.
       const input = signupAnswers(bt)
       const site = composeInstant(input)
       const published = Object.keys(site.pages).filter((s) => !site.heldPages.includes(s))
-      // A real menu: more than Home and Contact.
-      expect(published.filter((s) => s !== 'home' && s !== 'contact').length).toBeGreaterThanOrEqual(1)
       expect(published).toContain('home')
+      expect(published).not.toContain('about')
+      for (const slug of published.filter((s) => s !== 'home' && s !== 'contact')) {
+        expect(['services', 'service', 'classes', 'shop', 'find-care', 'coverage', 'private-dining', 'visit', 'menu', 'taps', 'events', 'parties']).toContain(slug)
+        if (['services', 'service', 'classes', 'shop'].includes(slug)) {
+          const own = site.pages[slug].filter((s) => !['hero', 'cta', 'reservation'].includes(s.type))
+          expect(own.map((s) => s.type)).toEqual(['services'])
+          expect(own[0].data.items).toHaveLength(1)
+        }
+      }
       // Home and Contact always; every page is one of the trade's plan, an added services page, or a service's own.
       const plan = Object.keys(pageRecipesFor(bt))
       for (const slug of Object.keys(site.pages)) expect(plan.includes(slug) || slug === 'contact' || slug === 'services').toBe(true)
@@ -369,14 +385,36 @@ describe('the unified build', () => {
     expect(r.errors).toEqual([])
     const site = s.provisioned[0].site
     const live = site.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)
-    expect(live).toEqual(expect.arrayContaining(['home', 'storm', 'about', 'contact', 'roof-repair']))
-    expect(site.nav.map((n: any) => n.label)).toEqual(expect.arrayContaining(['Storm damage', 'About']))
+    expect(live).toEqual(expect.arrayContaining(['home', 'services', 'contact', 'roof-repair']))
+    // No story from the owner, no storm work named: About and Storm damage start held, as the live tests decided.
+    expect(live).not.toContain('about')
+    expect(live).not.toContain('storm')
+    expect(site.nav.map((n: any) => n.label)).toEqual(['Services'])
     expect(site.pages.find((p: any) => p.slug === 'roof-repair').title).toBe('Roof repair')
   }, 180_000)
 
   test('provisionSite: a tenant with no stored composition gets the template composer\'s', () => {
     const body: any = provisionSite({ name: 'Acme Lawn', industry: 'landscaping', city: 'Eau Claire', state: 'WI', intake_data: { intake: { services: ['Mowing'] } } })
-    expect(body.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)).toEqual(expect.arrayContaining(['home', 'services', 'packages', 'about', 'contact', 'mowing']))
+    expect(body.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)).toEqual(expect.arrayContaining(['home', 'services', 'packages', 'contact', 'mowing']))
+  })
+
+  test('the AI\'s site is held to the same rules: What we do lists only the owner\'s services, and no story is written for them', () => {
+    const input = signupAnswers('roofing', { services: ['Roof repair'] })
+    const ai = {
+      pages: {
+        home: { sections: [{ type: 'hero', variant: 'centered-stats', data: { title: 'Acme' } }, { type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: [{ title: 'Roof repairs', description: 'x' }, { title: 'Solar panels', description: 'invented' }] } }] },
+        about: { sections: [{ type: 'about', variant: 'story', data: { title: 'About', paragraphs: ['A story the owner never told.'] } }, { type: 'cta', variant: 'banner', data: { heading: 'Call', primaryCta: { label: 'Go', href: 'contact' } } }] },
+        contact: { sections: [{ type: 'contact', variant: 'form-info', data: {} }] },
+      },
+    }
+    const held = heldToOwnerFacts(ai as any, input)
+    expect(held.pages.home.sections[1].data.items.map((i: any) => i.title)).toEqual(['Roof repairs'])
+    expect(held.heldPages).toContain('about')
+    expect(JSON.stringify(held.pages)).not.toContain('never told')
+    // Nothing named by the owner: the one stand-in card, which the build marks for the business's own list.
+    const bare = heldToOwnerFacts(ai as any, signupAnswers('roofing'))
+    expect(bare.pages.home.sections[1].data.items).toEqual([{ title: 'Roofing' }])
+    expect((provisionSite({ name: 'Acme', industry: 'roofing', preview_premium_pages: bare }) as any).pages[0].sections[1].data.items).toEqual([{ title: 'Roofing', standIn: true }])
   })
 })
 
