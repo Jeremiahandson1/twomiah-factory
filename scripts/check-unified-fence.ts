@@ -87,12 +87,15 @@ export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path:
   return out
 }
 
-/** build-check.yml may only change its `on:` block (so the existing checks also run on engine); every job stays as it is. */
-function onlyTriggerChanged(baseText: string | null, headText: string | null): string | null {
+/**
+ * build-check.yml may only change its `on:` block (so the existing checks also run on engine) and the Bun version its
+ * jobs set up (pinned 2026-10-26: "latest" had bun.sh refuse the downloads); every job is otherwise as it is.
+ */
+export function onlyTriggerChanged(baseText: string | null, headText: string | null): string | null {
   if (baseText == null || headText == null) return 'could not read both versions'
   const jobs = (t: string) => {
     const i = t.search(/^jobs:/m)
-    return i < 0 ? null : t.slice(i).split(/\r?\n/).join('\n')
+    return i < 0 ? null : t.slice(i).split(/\r?\n/).map((l) => l.replace(/^(\s*bun-version:\s*).*$/, '$1<version>')).join('\n')
   }
   const a = jobs(baseText), b = jobs(headText)
   if (a == null || b == null) return 'no jobs: block'

@@ -83,6 +83,15 @@ describe('refused', () => {
     expect(run([{ status: 'M', path: '.github/workflows/build-check.yml' }])[0].detail).toContain('only the trigger')
   })
 
+  // Bun pinned (2026-10-26): the version a job sets up may change; the command beside it may not.
+  test('build-check.yml pinning its Bun version is allowed; a command changed alongside it is not', () => {
+    const bun = (version: string, command: string) => workflow('main', command).replace('    run:', `    bun-version: ${version}\n    run:`)
+    files['.github/workflows/build-check.yml'] = { base: bun('latest', 'one'), head: bun('1.3.14', 'one') }
+    expect(run([{ status: 'M', path: '.github/workflows/build-check.yml' }])).toEqual([])
+    files['.github/workflows/build-check.yml'] = { base: bun('latest', 'one'), head: bun('1.3.14', 'two') }
+    expect(run([{ status: 'M', path: '.github/workflows/build-check.yml' }])[0].detail).toContain('only the trigger')
+  })
+
   test('a new file dropped into live code', () => {
     expect(run([{ status: 'A', path: 'templates/crm/backend/src/routes/new.ts' }]).length).toBe(1)
     // Cutover: the Factory's source takes the unified path (owner's go, 2026-10-20); a template still takes nothing.

@@ -65,8 +65,13 @@ function boot(cart: Array<{ sku: string; name: string; unitPriceCents: number; q
     return { ok: false, json: async () => ({}) }
   }
 
-  // cart.js is an IIFE that reads document/window/localStorage off the global scope and self-inits.
-  win.eval(SRC)
+  // cart.js is an IIFE that reads document/window/localStorage off the global scope and self-inits. It runs with the
+  // window as its scope: happy-dom's win.eval is not there under Bun 1.3.14 (CI pinned it, 2026-10-26), so a sloppy
+  // Function with `with (scope)` resolves those names on the window first, as a page's script would. Only names the
+  // window has a value for: it lists the language's own (String, JSON…) as empty slots there, which would hide them.
+  const scope = new Proxy(win as any, { has: (t, k) => typeof k === 'string' && k in t && t[k] !== undefined })
+  // eslint-disable-next-line no-new-func
+  new Function('scope', 'with (scope) {\n' + SRC + '\n}')(scope)
 
   return {
     win, doc, calls,
