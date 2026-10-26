@@ -219,7 +219,8 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
    */
   app.get('/stripe/link-url', requireAdmin, async (c) => {
     if (!deps.stripe || !deps.factoryApiClient?.startStripeLink || !(await stripeLinkAvailable())) {
-      return c.json({ error: 'Linking an existing Stripe account is not available on your account yet. Use "Create a new Stripe account", or email support@twomiah.com.' }, 503)
+      // The provider's own "not set up" answer (code PROVIDER_NOT_CONFIGURED), as every unconfigured service gives it.
+      return c.json({ error: 'Linking an existing Stripe account is not set up yet. Use "Create a new Stripe account", or email support@twomiah.com.', code: 'PROVIDER_NOT_CONFIGURED' }, 503)
     }
     const u = user(c)
     const row = await loadCompany(u.companyId)
