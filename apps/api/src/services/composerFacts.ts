@@ -367,6 +367,17 @@ export function wantsBookings(input: ComposerInput): boolean {
   return (input.goals || []).some((g) => /\b(book|booking|bookings|appointment|appointments|reserv\w*|schedul\w*)\b/i.test(String(g)))
 }
 
+/** The owner's description, split into short paragraphs: an About story's words, exactly as they wrote them. */
+export function ownerParagraphs(text: string): string[] {
+  const parts = text.split(/\n\s*\n+/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  if (parts.length > 1) return parts.slice(0, 4)
+  // One block: break it into paragraphs of about three sentences.
+  const sentences = text.replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || []
+  const out: string[] = []
+  for (let i = 0; i < sentences.length; i += 3) out.push(sentences.slice(i, i + 3).join('').trim())
+  return out.filter(Boolean).slice(0, 4)
+}
+
 function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed: string[]): Section | null {
   // A booking section on a site that didn't ask for bookings becomes a plain contact CTA with
   // the same heading — every premium site used to get a "Book now" pointing at /book.
@@ -445,6 +456,15 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
       keepItems('stats', it => statTraceable(it, c))
       break
     case 'about':
+      // The story is the owner's own words, exactly (store final check, 2026-10-26: the model's About for a print shop
+      // added "a small retail shop" and "one piece at a time, by hand" — claims with no number or name in them, which
+      // nothing below can catch). With no description there is no story to tell.
+      if (s.variant === 'story') {
+        // `notes` is the short form's only description box — the owner's words as much as `description` is.
+        const own = (input.description || '').trim() || (input.notes || '').trim()
+        if (!own) return drop('no description from the owner to tell the story')
+        d.paragraphs = ownerParagraphs(own)
+      }
       keepItems('stats', it => statTraceable(it, c))
       if (d.portrait && !ownPhoto(d.portrait)) { removed.push(label + ' portrait (not the owner\'s photo)'); d.portrait = '' }
       if (d.signature) {

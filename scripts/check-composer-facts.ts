@@ -22,8 +22,9 @@
 //
 //   bun scripts/check-composer-facts.ts
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { enforceIntakeFacts, extractNumbers, parseIntakeFacts } from '../apps/api/src/services/composerFacts.ts'
+import { enforceIntakeFacts, extractNumbers, parseIntakeFacts, ownerParagraphs } from '../apps/api/src/services/composerFacts.ts'
 import { SECTION_SCHEMA, sanitizeSections, pageRecipesFor, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
+const HIGGS_DESCRIPTION = 'Two brothers who grew up in Texas. Interior and exterior remodeling, everything except full new builds. Licensed, insured and bonded. Free estimates.'
 
 // Decoded: a checkout under a folder with a space read "%20" and found no files.
 const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
@@ -52,7 +53,7 @@ const higgs: ComposerInput = {
   businessName: 'Higgs Heritage Builders',
   businessType: 'general contractor',
   city: 'Fort Worth', state: 'TX',
-  description: 'Two brothers who grew up in Texas. Interior and exterior remodeling, everything except full new builds. Licensed, insured and bonded. Free estimates.',
+  description: HIGGS_DESCRIPTION,
   ownerName: 'Wesley Higgs',
   phone: '817-888-5135',
   services: ['Kitchen remodels', 'Bathroom remodels', 'Siding', 'Decks'],
@@ -119,7 +120,10 @@ const invented = (): Record<string, Section[]> => ({
   const story = r.pages.about.find(s => s.type === 'about')!
   check(story.data.portrait === '', 'a stock portrait beside the founder story must be removed')
   check(story.data.signature === 'Wesley Higgs', 'the signature is the intake owner name, without an invented role')
-  check(story.data.paragraphs.length === 1, 'the about paragraph with an invented year and count must be dropped')
+  // The story is the owner's description, word for word (store final check, 2026-10-26): the model's invented year and
+  // count are gone with every other word of its own — including claims with no number in them, which nothing else catches.
+  check(JSON.stringify(story.data.paragraphs) === JSON.stringify(ownerParagraphs(HIGGS_DESCRIPTION)), "the about story must be the owner's own description, exactly")
+  check(!/\b(19|20)\d\d\b/.test(story.data.paragraphs.join(' ')), 'the about paragraph with an invented year and count must be dropped')
   const team = r.pages.about.find(s => s.type === 'team')
   check(!!team && team.data.members.length === 2 && team.data.members[0].name === 'Wesley Higgs' && !team.data.members[0].portrait,
     'team keeps only people the intake names, and never under a stock face')

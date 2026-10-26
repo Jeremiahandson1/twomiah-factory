@@ -19,7 +19,7 @@
  * Returns composeSite()'s SiteResult shape (pages as section arrays; toComposition() wraps them the way
  * tenants.preview_premium_pages keeps them), so the preview renderer, site-bootstrap and the unified build take either.
  */
-import { enforceIntakeFacts, wantsBookings } from './composerFacts'
+import { enforceIntakeFacts, wantsBookings, ownerParagraphs as paragraphsOf } from './composerFacts'
 import { SECTION_SCHEMA, pageRecipesFor, tradeKindFor, type ComposerInput, type Section, type TradeKind } from './sectionComposer'
 import { getHeroLibrary } from '../config/heroLibrary'
 import { websiteTradeFor } from '../config/websiteTrades'
@@ -47,16 +47,6 @@ export function tradeLabelFor(businessType: string): string {
   return websiteTradeFor(businessType.toLowerCase().replace(/\s+/g, '_'))?.label || titleCase(businessType)
 }
 
-/** The owner's description, split into short paragraphs for about/story. */
-function paragraphsOf(text: string): string[] {
-  const parts = text.split(/\n\s*\n+/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
-  if (parts.length > 1) return parts.slice(0, 4)
-  // One block: break it into paragraphs of about three sentences.
-  const sentences = text.replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || []
-  const out: string[] = []
-  for (let i = 0; i < sentences.length; i += 3) out.push(sentences.slice(i, i + 3).join('').trim())
-  return out.filter(Boolean).slice(0, 4)
-}
 
 function firstSentence(text?: string): string {
   const t = (text || '').replace(/\s+/g, ' ').trim()
