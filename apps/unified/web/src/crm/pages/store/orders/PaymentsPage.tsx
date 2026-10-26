@@ -154,9 +154,9 @@ export default function PaymentsPage() {
             {viaConnect && stripe && stripe.connected && !stripe.chargesEnabled && <div className="text-amber-800 dark:text-amber-300">Stripe still needs a few details before it can take cards — finish them in <Link className="underline" to="/crm/settings/integrations">Settings › Integrations</Link>.</div>}
           </div>
           {/* A connected account is the business's, shared with its invoices: it is disconnected where it was connected. */}
-          {mayConnect && (viaConnect
-            ? <p className="mt-4 text-xs text-gray-600 dark:text-slate-300">To disconnect Stripe, open <Link className="underline" to="/crm/settings/integrations">Settings › Integrations</Link>.</p>
-            : <button onClick={disconnect} className="btn btn-danger mt-4 px-3 py-1.5 text-xs">Disconnect</button>)}
+          {viaConnect
+            ? mayConnect && <p className="mt-4 text-xs text-gray-600 dark:text-slate-300">To disconnect Stripe, open <Link className="underline" to="/crm/settings/integrations">Settings › Integrations</Link>.</p>
+            : <>{mayConnect && <button onClick={disconnect} className="btn btn-danger mt-4 px-3 py-1.5 text-xs">Disconnect</button>}</>}
         </div>
       ) : !error ? (
         <div className="card p-5">
