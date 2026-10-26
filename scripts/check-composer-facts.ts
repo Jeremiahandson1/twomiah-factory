@@ -25,7 +25,8 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { enforceIntakeFacts, extractNumbers, parseIntakeFacts } from '../apps/api/src/services/composerFacts.ts'
 import { SECTION_SCHEMA, sanitizeSections, pageRecipesFor, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
 
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+// Decoded: a checkout under a folder with a space read "%20" and found no files.
+const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 let passed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
@@ -316,7 +317,18 @@ const invented = (): Record<string, Section[]> => ({
   check(/function signupWebsiteEngine\(\)[\s\S]{0,200}process\.env\.SIGNUP_WEBSITE_ENGINE/.test(intakeSrc), 'intake.ts: signupWebsiteEngine() must read SIGNUP_WEBSITE_ENGINE')
   check(/const premium = body\.engine \? body\.engine === 'premium' : signupWebsiteEngine\(\) === 'premium'/.test(intakeSrc), 'intake.ts: the preview must follow the same switch as signups')
   check(/const premiumSite = signupWebsiteEngine\(\) === 'premium' && verticalFor\(body\.industry\) !== 'store'/.test(intakeSrc), "intake.ts: signups must follow the switch (and a store keeps its storefront)")
-  check(/preview_premium_pages: premiumPages/.test(intakeSrc) && /composeInstant\(\{\s*businessName: body\.name\.trim\(\)/.test(intakeSrc), 'intake.ts: a premium signup stores its instant composition for site-bootstrap')
+  // The signup's site (services/signupSite.ts): the template composition from the signup's own answers, stored for the
+  // build, with the AI's compose of the same answers pending beside it.
+  check(/preview_premium_pages: premiumPages/.test(intakeSrc) && /premiumPages = signupComposition\(\s*signupComposerInput\(body,/.test(intakeSrc), 'intake.ts: a premium signup stores its composition for site-bootstrap')
+  const signupSiteSrc = read('apps/api/src/services/signupSite.ts')
+  check(/\.\.\.toComposition\(composeInstant\(input\)\)/.test(signupSiteSrc), 'signupSite.ts: the composition stored at signup is the template composer\'s (enforceIntakeFacts inside it)')
+  // Every trade the template composer writes for: a real menu from the answers a signup carries, and nothing claimed.
+  for (const bt of ['general_contractor', 'roofing', 'hvac', 'plumbing', 'electrical', 'painting', 'landscaping', 'home_care', 'veterinary', 'rv', 'salon', 'restaurant', 'food_truck', 'bar', 'cleaning', 'pest_control', 'windows_doors', 'other']) {
+    const site = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI', email: 'acme@example.com' })
+    const published = Object.keys(site.pages).filter((s) => !site.heldPages.includes(s) && s !== 'home' && s !== 'contact')
+    check(published.length >= 1, `composeInstant(${bt}): a menu beyond Home and Contact from the signup's answers alone (published: ${published.join(', ') || 'none'})`)
+    check(site.removedClaims.length === 0, `composeInstant(${bt}): its own copy states nothing the facts check removes (${site.removedClaims.slice(0, 3).join(' | ')})`)
+  }
 }
 
 // Numbers: what counts as a claim.

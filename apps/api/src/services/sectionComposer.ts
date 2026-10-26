@@ -1428,43 +1428,47 @@ export function pageRecipesFor(businessType: string): Record<string, PageRecipe>
   const recipes = recipeSetFor(businessType)
   return Object.fromEntries(Object.entries(recipes).map(([page, r]) => [page, { ...r, allowed_types: r.allowed_types.filter(sectionReady) }]))
 }
-function recipeSetFor(businessType: string): Record<string, PageRecipe> {
+/**
+ * Which page plan a business type gets — the one ladder, read by the AI composer (recipeSetFor) and by the
+ * deterministic template composer (instantComposer.ts), so the two can never pick different plans for one trade.
+ * 'generic' is PAGE_RECIPES (home / about / services / contact).
+ */
+export type TradeKind =
+  | 'foodtruck' | 'vet' | 'rv' | 'dispensary' | 'roofing' | 'landscaping' | 'homecare' | 'fieldservice' | 'cafe'
+  | 'restaurant' | 'salon' | 'bar' | 'fitness' | 'hotel' | 'events' | 'contractor' | 'store' | 'generic'
+
+export function tradeKindFor(businessType: string): TradeKind {
   const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, bar, fitness, hotel, events, contractor, store } = tradeFlagsFor(businessType)
-  return ft
-    ? FOODTRUCK_PAGE_RECIPES
-    : vet
-      ? VET_PAGE_RECIPES
-      : rv
-        ? RV_PAGE_RECIPES
-        : dispensary
-      ? DISPENSARY_PAGE_RECIPES
-      : roofing
-        ? ROOFING_PAGE_RECIPES
-        : landscaping
-          ? LANDSCAPING_PAGE_RECIPES
-          : homecare
-            ? HOMECARE_PAGE_RECIPES
-            : fieldservice
-              ? FIELDSERVICE_PAGE_RECIPES
-              : cafe
-                ? CAFE_PAGE_RECIPES
-                : restaurant
-                  ? RESTAURANT_PAGE_RECIPES
-                  : salon
-                    ? SALON_PAGE_RECIPES
-                    : bar
-                      ? BAR_PAGE_RECIPES
-                    : fitness
-                      ? FITNESS_PAGE_RECIPES
-                      : hotel
-                        ? HOTEL_PAGE_RECIPES
-                        : events
-                          ? EVENTS_PAGE_RECIPES
-                          : contractor
-                            ? CONTRACTOR_PAGE_RECIPES
-                            : store
-                              ? STORE_PAGE_RECIPES
-                              : PAGE_RECIPES
+  return ft ? 'foodtruck'
+    : vet ? 'vet'
+    : rv ? 'rv'
+    : dispensary ? 'dispensary'
+    : roofing ? 'roofing'
+    : landscaping ? 'landscaping'
+    : homecare ? 'homecare'
+    : fieldservice ? 'fieldservice'
+    : cafe ? 'cafe'
+    : restaurant ? 'restaurant'
+    : salon ? 'salon'
+    : bar ? 'bar'
+    : fitness ? 'fitness'
+    : hotel ? 'hotel'
+    : events ? 'events'
+    : contractor ? 'contractor'
+    : store ? 'store'
+    : 'generic'
+}
+
+const RECIPES_BY_KIND: Record<TradeKind, Record<string, PageRecipe>> = {
+  foodtruck: FOODTRUCK_PAGE_RECIPES, vet: VET_PAGE_RECIPES, rv: RV_PAGE_RECIPES, dispensary: DISPENSARY_PAGE_RECIPES,
+  roofing: ROOFING_PAGE_RECIPES, landscaping: LANDSCAPING_PAGE_RECIPES, homecare: HOMECARE_PAGE_RECIPES,
+  fieldservice: FIELDSERVICE_PAGE_RECIPES, cafe: CAFE_PAGE_RECIPES, restaurant: RESTAURANT_PAGE_RECIPES,
+  salon: SALON_PAGE_RECIPES, bar: BAR_PAGE_RECIPES, fitness: FITNESS_PAGE_RECIPES, hotel: HOTEL_PAGE_RECIPES,
+  events: EVENTS_PAGE_RECIPES, contractor: CONTRACTOR_PAGE_RECIPES, store: STORE_PAGE_RECIPES, generic: PAGE_RECIPES,
+}
+
+function recipeSetFor(businessType: string): Record<string, PageRecipe> {
+  return RECIPES_BY_KIND[tradeKindFor(businessType)]
 }
 function buildSitePrompt(input: ComposerInput): string {
   const schemaSummary = Object.entries(composableSchema()).map(([type, variants]) =>

@@ -85,7 +85,8 @@ export function buildPremiumNav(
 
 /** A composition as the composer stores it (tenants.preview_premium_pages). */
 export type PremiumComposition = {
-  pages?: Record<string, { sections: any[] }>
+  /** A page's `title`, when the composer gave one (a service's own page: "Kitchen remodels"), names it on the site. */
+  pages?: Record<string, { sections: any[]; title?: string }>
   heldPages?: string[]
   contentGaps?: any[]
 }
@@ -112,7 +113,7 @@ export function premiumSitePages(composed: PremiumComposition | null | undefined
   const slugs = composedSlugs.length > 0 ? composedSlugs : FALLBACK_SLUGS
   return slugs.map((slug, i) => ({
     slug,
-    title: PAGE_TITLE_BY_SLUG[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
+    title: (typeof composedPages[slug]?.title === 'string' && composedPages[slug]!.title!.trim()) || PAGE_TITLE_BY_SLUG[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
     sections: composedPages[slug]?.sections || [],
     navOrder: i,
     isPublished: !heldPages.has(slug),
