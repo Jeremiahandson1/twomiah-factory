@@ -70,6 +70,10 @@ const store: VerticalSettings = {
     // The logins the owner hands out: manager or staff (the field rung) — a shop has no admin seat, and its one owner is
     // provisioned, never a button (templates/crm-store routes/users.ts ASSIGNABLE_ROLES). A login given no role is staff.
     team: { roles: ['manager', 'field'] },
+    // A shop's enquiries come from its own website (store recheck, 2026-10-26: the inbox's source filter offered Angi,
+    // HomeAdvisor, Thumbtack, Local Services and Houzz). Lead Sources, the forwarding guide, is hidden for a shop
+    // (screens.navHidden), so nothing else can arrive. Same ids as screens.leads.platforms.
+    leads: { platforms: ['website'] },
   },
   screens: {
     // The store's own home and screens (web/src/crm/verticals/store.tsx).
@@ -77,6 +81,14 @@ const store: VerticalSettings = {
     // The Lead Inbox is the store's for its website's enquiries (featureRegistry lead_inbox, store live test 2026-10-26);
     // Lead Sources is the marketplaces' forwarding guide (Angi, Thumbtack, booking apps), which a shop does not sell on.
     navHidden: ['/crm/lead-sources'],
+    leads: {
+      platforms: [{
+        value: 'website', label: 'Website contact form', color: '#2e7d32', tone: 'emerald',
+        description: 'Every message sent from your website\'s contact form becomes an enquiry here.',
+        instructions: ['Messages from the Contact page of your website arrive here by themselves'],
+      }],
+      jobTypeLabel: 'About',
+    },
     // Settings in a shop's words (store live test, 2026-10-26): no License # (not a licensed trade, as vet and restaurant),
     // and its two seats described as what each does in a shop — the shared list said "view jobs, log time". It replaces
     // the shared list; a shop hands out only these two (crm.team.roles).

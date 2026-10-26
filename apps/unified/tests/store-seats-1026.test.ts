@@ -156,3 +156,13 @@ describe("a store's orders, as the owner reads them", () => {
     expect(src('crm/pages/store/catalog/StoreSettingsPage.tsx')).toContain('value={form.currency.toUpperCase()}')
   })
 })
+
+// Store recheck (2026-10-26): the Lead Inbox's source filter offered Angi, HomeAdvisor, Thumbtack, Local Services and
+// Houzz to a shop. Its enquiries come from its own website; the server's list and the screen's are the same one.
+describe("a shop's enquiries come from its website, not a trade's marketplaces", () => {
+  test('crm.leads and screens.leads name the website alone', async () => {
+    const store: any = await loadVertical('store')
+    expect(store.crm.leads.platforms).toEqual(['website'])
+    expect(store.screens.leads.platforms.map((p: any) => p.value)).toEqual(store.crm.leads.platforms)
+  })
+})
