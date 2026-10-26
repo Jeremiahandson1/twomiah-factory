@@ -126,6 +126,19 @@ export async function uploadIntakeAsset(
   return { storageKey: key, storageType: 's3' }
 }
 
+/**
+ * A link to an intake asset by its slug and file name (the last part of the key uploadIntakeAsset made): a signed R2/S3
+ * link where the bucket is configured, else the local file's path (development). Null when neither has it.
+ */
+export async function intakeAssetLink(slug: string, file: string, expiresIn = 3600): Promise<{ url: string } | { path: string } | null> {
+  if (USE_S3 && s3Client && S3_BUCKET) {
+    const url = await getZipDownloadUrl(INTAKE_PREFIX + slug + '/' + file, 's3', expiresIn)
+    return url ? { url } : null
+  }
+  const local = path.join(process.cwd(), 'intake-uploads', slug, file)
+  return fs.existsSync(local) ? { path: local } : null
+}
+
 export async function deleteZip(storageKey: string, storageType: string): Promise<void> {
   try {
     if (storageType === 's3' && s3Client && S3_BUCKET) {

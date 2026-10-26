@@ -20,7 +20,8 @@ import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } 
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { engineForSignup, isUnifiedTenant, signupRefusal } from '../../unified/factory'
-import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes } from '../../services/signupSite'
+import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes, storeSignupPhoto, SIGNUP_PHOTO_FILE } from '../../services/signupSite'
+import { intakeAssetLink } from '../../services/factoryStorage'
 import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
@@ -269,6 +270,22 @@ factory.get('/public/signup/industry-open', rateLimit(10 * 60 * 1000, 60), (c) =
   return c.json(refusal ? { open: false, message: refusal } : { open: true })
 })
 
+// The owner's signup photo, by the lasting address the site's pages carry (services/signupSite.ts storeSignupPhoto):
+// a fresh signed link to the stored file each time, so the picture never outlives its link. Only the signup photo's
+// own name shape is served — nothing else in intake storage is reachable through it.
+factory.get('/public/signup-photo/:slug/:file', async (c) => {
+  const slug = c.req.param('slug') || '', file = c.req.param('file') || ''
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 100 || !SIGNUP_PHOTO_FILE.test(file)) return c.json({ error: 'Not found' }, 404)
+  const link = await intakeAssetLink(slug, file, 60 * 60).catch(() => null)
+  if (!link) return c.json({ error: 'Not found' }, 404)
+  if ('url' in link) {
+    c.header('Cache-Control', 'public, max-age=1800')
+    return c.redirect(link.url, 302)
+  }
+  const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+  return new Response(Bun.file(link.path), { headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=1800' } })
+})
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -349,11 +366,22 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // The site (services/signupSite.ts): the trade's template composition stored now — no model call, so neither the
     // signup nor the checkout waits — and the AI builder's composition of the same answers started after the insert;
     // the build uses the AI's when it is ready and the template one otherwise.
+    // The owner's photo ("It becomes the big picture at the top of your website") is stored with the intake's assets
+    // and reaches both composers by its lasting address — never as the data URL it arrived as.
     let premiumPages: Record<string, any> | null = null
+    let ownPhoto: Awaited<ReturnType<typeof storeSignupPhoto>> = null
     if (premiumSite || unifiedSite) {
-      const facts = body.facts && typeof body.facts === 'object' ? parseIntakeFacts(body.facts) : undefined
+      const heroPhoto = signupImages(body.branding).heroPhoto
+      if (heroPhoto) {
+        const factoryUrl = (process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || new URL(c.req.url).origin).replace(/\/+$/, '')
+        ownPhoto = await storeSignupPhoto(heroPhoto, slug, { upload: uploadIntakeAsset, factoryUrl })
+          .catch((e: any) => { console.warn('[Signup] Photo could not be stored (the site uses a library photo):', e?.message); return null })
+      }
       premiumPages = signupComposition(
-        signupComposerInput(body, { services: signupServices(body.services), goals: signupChoices(body).goals, facts }),
+        signupComposerInput(body, {
+          services: signupServices(body.services), goals: signupChoices(body).goals,
+          photos: ownPhoto ? [{ url: ownPhoto.url, tag: 'hero', alt: body.name.trim() }] : [],
+        }),
         { ai: true },
       )
     }
@@ -428,9 +456,13 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // The owner's answers, kept on the tenant (intake_data.signup — everything else reads
     // intake_data.intake, so a signup row is never mistaken for an intake). Non-fatal.
     const choices = signupChoices(body)
-    if (choices.goals.length || choices.addons.length || signupZone) {
+    if (choices.goals.length || choices.addons.length || signupZone || ownPhoto) {
       const { error: choiceErr } = await supabase.from('tenants')
-        .update({ intake_data: { signup: { ...choices, ...(signupZone ? { timezone: signupZone } : {}), at: new Date().toISOString() } } }).eq('id', tenant.id)
+        .update({ intake_data: {
+          signup: { ...choices, ...(signupZone ? { timezone: signupZone } : {}), at: new Date().toISOString() },
+          // The stored photo, where the build's seed-photos step reads intake photos: it lands in the business's own library.
+          ...(ownPhoto ? { photos: [{ storageKey: ownPhoto.storageKey, storageType: ownPhoto.storageType }] } : {}),
+        } }).eq('id', tenant.id)
       if (choiceErr) console.warn('[Signup] Could not save add-on choices:', choiceErr.message)
     }
 

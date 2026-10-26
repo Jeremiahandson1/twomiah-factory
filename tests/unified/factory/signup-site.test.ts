@@ -11,7 +11,7 @@ import { SECTION_SCHEMA, pageRecipesFor, type ComposerInput, type SiteResult } f
 import { premiumSitePages } from '../../../apps/api/src/services/premiumSitePages'
 import {
   signupComposition, signupComposerInput, composeSignupSite, settleSignupSite, composeDecision, resumeSignupComposes,
-  MAX_ATTEMPTS, type SignupSiteDeps,
+  MAX_ATTEMPTS, MAX_PHOTO_BYTES, SIGNUP_PHOTO_FILE, decodeSignupPhoto, storeSignupPhoto, type SignupSiteDeps,
 } from '../../../apps/api/src/services/signupSite'
 import {
   engineForSignup, signupRefusal, unifiedLiveVerticals, unifiedVerticalFor, UNIFIED_VERTICAL_IDS, deployUnifiedTenant, provisionSite,
@@ -160,10 +160,12 @@ function siteStage(opts: { compose?: (input: ComposerInput) => Promise<SiteResul
 describe('the signup\'s site', () => {
   test('the signup stores the template composition at once, with the AI compose pending and the answers it composes from', () => {
     const input = signupComposerInput(
-      { name: ' Acme Roofing ', industry: 'roofing', city: 'Eau Claire', state: 'WI', phone: '715-555-0100', email: 'o@acme.example', owner_first_name: 'Jo', owner_last_name: 'Tester', description: 'Family roofers.' },
+      { name: ' Acme Roofing ', industry: 'roofing', city: 'Eau Claire', state: 'WI', phone: '715-555-0100', email: 'o@acme.example', owner_first_name: 'Jo', owner_last_name: 'Tester', description: 'not a signup field' },
       { services: ['Roof repair'], goals: ['bookings'] },
     )
-    expect(input).toMatchObject({ businessName: 'Acme Roofing', businessType: 'roofing', ownerName: 'Jo Tester', description: 'Family roofers.', services: ['Roof repair'], goals: ['bookings'] })
+    expect(input).toMatchObject({ businessName: 'Acme Roofing', businessType: 'roofing', ownerName: 'Jo Tester', services: ['Roof repair'], goals: ['bookings'] })
+    // Only what the signup form sends is read: it has no description field.
+    expect(input.description).toBeUndefined()
     const stored = signupComposition(input, { ai: true })
     expect(stored.composer).toBe('template')
     expect(stored.aiCompose).toEqual({ status: 'pending', attempts: 0, input })
@@ -245,6 +247,70 @@ describe('the signup\'s site', () => {
     const run = deploy.slice(deploy.indexOf('export async function runDeploy('))
     expect(run.indexOf('settleSignupSite(')).toBeGreaterThan(0)
     expect(run.indexOf('settleSignupSite(')).toBeLessThan(run.indexOf('await generate('))
+  })
+})
+
+// ─── 2b. The owner's photo ───────────────────────────────────────────────────
+
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7)])
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 1)])
+const dataUrl = (mime: string, b: Buffer) => 'data:' + mime + ';base64,' + b.toString('base64')
+
+describe('the signup photo', () => {
+  test('only a real JPEG, PNG or WebP within the size limit is taken', () => {
+    expect(decodeSignupPhoto(dataUrl('image/jpeg', JPEG))).toMatchObject({ mime: 'image/jpeg', ext: 'jpg' })
+    expect(decodeSignupPhoto(dataUrl('image/png', PNG))).toMatchObject({ ext: 'png' })
+    // Bytes that are not what the header says, another type, too large, or not a data URL at all.
+    expect(decodeSignupPhoto(dataUrl('image/jpeg', PNG))).toBeNull()
+    expect(decodeSignupPhoto(dataUrl('image/svg+xml', Buffer.from('<svg onload=alert(1)>')))).toBeNull()
+    expect(decodeSignupPhoto(dataUrl('image/jpeg', Buffer.concat([JPEG, Buffer.alloc(MAX_PHOTO_BYTES)])))).toBeNull()
+    expect(decodeSignupPhoto('https://example.com/a.jpg')).toBeNull()
+    expect(decodeSignupPhoto(undefined)).toBeNull()
+  })
+
+  test('stored with the intake\'s assets and named by a lasting Factory address — never a data URL in the composition', async () => {
+    const uploads: any[] = []
+    const upload = async (bytes: Buffer, filename: string, contentType: string, slug: string) => {
+      uploads.push({ bytes, filename, contentType, slug })
+      return { storageKey: 'intake/' + slug + '/1761400000000-' + filename, storageType: 's3' as const }
+    }
+    const photo = await storeSignupPhoto(dataUrl('image/jpeg', JPEG), 'acme-roofing', { upload, factoryUrl: 'https://factory.test/' })
+    expect(photo).toEqual({ url: 'https://factory.test/api/v1/factory/public/signup-photo/acme-roofing/1761400000000-hero.jpg', storageKey: 'intake/acme-roofing/1761400000000-hero.jpg', storageType: 's3' })
+    expect(uploads).toHaveLength(1)
+    expect(uploads[0]).toMatchObject({ filename: 'hero.jpg', contentType: 'image/jpeg', slug: 'acme-roofing' })
+    expect(uploads[0].bytes.equals(JPEG)).toBe(true)
+    expect(SIGNUP_PHOTO_FILE.test('1761400000000-hero.jpg')).toBe(true)
+    // A bad photo stores nothing and costs the signup nothing.
+    expect(await storeSignupPhoto(dataUrl('image/jpeg', PNG), 'acme-roofing', { upload, factoryUrl: 'https://factory.test' })).toBeNull()
+    expect(uploads).toHaveLength(1)
+
+    // Both composers get it: the template site's hero is the owner's photo, and the AI compose's input carries it.
+    const input = signupComposerInput({ name: 'Acme Roofing', industry: 'roofing', city: 'Eau Claire', state: 'WI' },
+      { services: [], goals: [], photos: [{ url: photo!.url, tag: 'hero', alt: 'Acme Roofing' }] })
+    const stored = signupComposition(input, { ai: true })
+    const hero = stored.pages.home.sections.find((s: any) => s.type === 'hero')
+    expect(hero).toMatchObject({ variant: 'full-bleed', data: { image: photo!.url } })
+    expect(stored.aiCompose.input.customerPhotos).toEqual([{ url: photo!.url, tag: 'hero', alt: 'Acme Roofing' }])
+    expect(JSON.stringify(stored)).not.toContain('data:image')
+    // A hero photo may be of the team or the place: it never stands in a gallery of "our work".
+    expect(stored.heldPages).toContain('projects')
+
+    const s = siteStage()
+    s.row().preview_premium_pages = stored
+    await composeSignupSite('t-1', s.deps)
+    expect(s.calls[0].customerPhotos).toEqual([{ url: photo!.url, tag: 'hero', alt: 'Acme Roofing' }])
+  })
+
+  test('the signup route stores the photo before composing, records it for the library seed, and serves only that name', () => {
+    const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
+    const signup = intake.slice(intake.indexOf("factory.post('/public/signup'"), intake.indexOf("factory.get('/public/signup/:id/next'"))
+    expect(signup).toMatch(/storeSignupPhoto\(heroPhoto, slug, \{ upload: uploadIntakeAsset, factoryUrl \}\)/)
+    expect(signup.indexOf('storeSignupPhoto(')).toBeLessThan(signup.indexOf('premiumPages = signupComposition('))
+    expect(signup).toMatch(/photos: ownPhoto \? \[\{ url: ownPhoto\.url, tag: 'hero'/)
+    expect(signup).toMatch(/photos: \[\{ storageKey: ownPhoto\.storageKey, storageType: ownPhoto\.storageType \}\]/)
+    const route = intake.slice(intake.indexOf("factory.get('/public/signup-photo/:slug/:file'"), intake.indexOf("factory.post('/public/signup'"))
+    expect(route).toMatch(/SIGNUP_PHOTO_FILE\.test\(file\)/)
+    expect(route).toMatch(/intakeAssetLink\(slug, file/)
   })
 })
 
