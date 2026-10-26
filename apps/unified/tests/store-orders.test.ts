@@ -490,10 +490,13 @@ describe('labels', () => {
     expect(boughtOn.length).toBe(b0 + 1)
   })
 
-  test('the carrier account is the manager\'s, not staff\'s', async () => {
+  // The carrier's API key is a credential: the owner's (integrations:update), not the manager's or staff's (store live
+  // test, 2026-10-26; bda5a934a's rule).
+  test('the carrier account is the owner\'s: staff and the manager are refused it', async () => {
     const carrier = { provider: 'easypost', apiKey: 'EZTK_test_key', mode: 'test', fromAddress: ADDRESS }
     expect((await ST('POST', '/api/admin/shipping/config', carrier)).status).toBe(403)
-    const conn = await M('POST', '/api/admin/shipping/config', carrier)
+    expect((await M('POST', '/api/admin/shipping/config', carrier)).status).toBe(403)
+    const conn = await O('POST', '/api/admin/shipping/config', carrier)
     expect(conn.status).toBe(200)
     expect(conn.json).toEqual({ success: true, connected: true })
     expect((await ST('GET', '/api/admin/shipping/config')).json.connected).toBe(true)

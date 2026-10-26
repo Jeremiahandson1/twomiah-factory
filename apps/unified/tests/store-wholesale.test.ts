@@ -33,7 +33,9 @@ describe('the price rule', () => {
 })
 
 describe('customer groups', () => {
-  test('staff read them and may not change them; a manager makes one, adds a customer and an own price', async () => {
+  // Staff reach no group pricing (discounts:read, store live test 2026-10-26): it is the shop's prices given away.
+  test('staff may not read or change them; a manager makes one, adds a customer and an own price', async () => {
+    expect((await k.ST('GET', '/api/admin/customer-groups')).status).toBe(403)
     expect((await k.ST('POST', '/api/admin/customer-groups', { name: 'Wholesale', percentOff: 20 })).status).toBe(403)
     const made = await k.M('POST', '/api/admin/customer-groups', { name: 'Wholesale', percentOff: 20 })
     expect(made.status).toBe(201)
@@ -42,7 +44,7 @@ describe('customer groups', () => {
     expect((await k.ST('PUT', `/api/admin/customer-groups/${groupId}/members/${member}`)).status).toBe(403)
     expect((await k.M('PUT', `/api/admin/customer-groups/${groupId}/members/${member}`)).status).toBe(200)
     expect((await k.M('PUT', `/api/admin/customer-groups/${groupId}/prices/${mug.variant.id}`, { priceCents: 1500 })).status).toBe(200)
-    const list = await k.ST('GET', '/api/admin/customer-groups')
+    const list = await k.M('GET', '/api/admin/customer-groups')
     expect(list.status).toBe(200)
     expect(list.json.data[0].members.map((m: any) => m.contactId)).toEqual([member])
     expect(list.json.data[0].prices[0]).toMatchObject({ sku: 'MUG-1', priceCents: 1500, catalogueCents: 2000 })

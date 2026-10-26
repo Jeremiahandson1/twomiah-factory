@@ -193,9 +193,11 @@ describe('the amount charged is the order total', () => {
     await t.db.insert(S().storeProductImage).values({ productId: mug.id, url: 'data:image/svg+xml;base64,AAAA', isPrimary: true })
     const r = await checkout({}, 1)
     expect(r.r.status).toBe(200)
-    // The order exists, and its line carries no picture the payment page could not show.
+    // The order exists. Its line keeps the product's own picture, for the order-received page (store live test,
+    // 2026-10-26: a shop's own /media photo was dropped and the thank-you page showed an empty box); only the payment
+    // page is held to an https address (placeOrder.ts checkoutImageUrl at createCheckout).
     const [line] = await t.db.select().from(S().storeOrderItem).where(eq(S().storeOrderItem.orderId, r.order.id))
-    expect(line.imageUrl).toBeNull()
+    expect(line.imageUrl).toBe('data:image/svg+xml;base64,AAAA')
   })
 
   test('a refused cart: 400 with the template\'s sentence and the fields', async () => {

@@ -113,7 +113,7 @@ const codes = async () => Number((await db.select({ n: count() }).from(discountC
 }
 {
   check('the Factory says they subscribed again', (await push(sub({}))) === 200)
-  const r = await call(staff, 'GET', '/api/admin/discounts')
+  const r = await call(manager, 'GET', '/api/admin/discounts') /* unified: staff no longer read discount codes (store live test 2026-10-26); the manager's read shows the unlock */
   check(`unlocked: on the very next request (${r.status})`, r.status === 200)
   check('unlocked: nobody is told it is locked', (await call(staff, 'GET', '/api/auth/me')).json?.company?.settings?.accountLock === null) /* unified: the lock is company.settings.accountLock on the engine's /me */
   const st = await shopper('GET', '/api/public/status'), cat = await shopper('GET', '/api/public/products')

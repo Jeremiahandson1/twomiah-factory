@@ -229,10 +229,13 @@ describe('products: who may do what', () => {
 })
 
 describe('discount codes', () => {
-  test('staff read the codes and may not write one; the manager does', async () => {
+  // Staff reach no discount codes at all: the codes are money given away (store live test, 2026-10-26 — bda5a934a's
+  // "credentials, money and controls follow the seat"). The manager reads and writes them.
+  test('staff may not read or write a code; the manager does', async () => {
     const [code] = await t.db.insert(t.schema.discountCode).values({ companyId, code: 'SAVE10', type: 'percent', value: 10 } as any).returning()
     ids.save10 = code.id
-    const listed = await S('GET', '/api/admin/discounts')
+    expect((await S('GET', '/api/admin/discounts')).status).toBe(403)
+    const listed = await M('GET', '/api/admin/discounts')
     expect(listed.status).toBe(200)
     expect(listed.body.data.map((c: any) => c.code)).toEqual(['SAVE10'])
     expect((await S('POST', '/api/admin/discounts', { code: 'FREE', type: 'percent', value: 100 })).status).toBe(403)

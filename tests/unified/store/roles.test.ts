@@ -157,7 +157,7 @@ check('products: the manager deletes the product', (await M('DELETE', `/api/admi
 
 // ── Discount codes are money off ─────────────────────────────────────────────────────────────────
 const [code] = await db.insert(discountCodes).values({ code: 'SAVE10', type: 'percent', value: 10 } as any).returning()
-check('discounts: staff read the codes', (await S('GET', '/api/admin/discounts')).status === 200)
+check('discounts: staff do not reach the codes', (await S('GET', '/api/admin/discounts')).status === 403) /* unified: staff no longer read them — the codes are money given away (store live test 2026-10-26, bda5a934a "credentials, money and controls follow the seat") */
 check('discounts: staff cannot create one', (await S('POST', '/api/admin/discounts', { code: 'FREE', type: 'percent', value: 100 })).status === 403)
 check('discounts: staff cannot change one', (await S('PATCH', `/api/admin/discounts/${code.id}`, { value: 90 })).status === 403)
 check('discounts: staff cannot delete one', (await S('DELETE', `/api/admin/discounts/${code.id}`)).status === 403)
@@ -175,11 +175,14 @@ check('shipping: staff read the set-up', (await S('GET', '/api/admin/shipping/co
 const ratesS = await S('GET', `/api/admin/shipping/orders/${dropship.id}/rates`)
 check('shipping: staff get past the label gate', ratesS.status === 400, ratesS)
 check('shipping: staff cannot connect a carrier account', (await S('POST', '/api/admin/shipping/config', carrier)).status === 403)
-const conn = await M('POST', '/api/admin/shipping/config', carrier)
-check('shipping: the manager connects one', conn.status === 200, conn)
+/* unified: the carrier's API key is a credential — the owner's (integrations:update), not the manager's (store live test 2026-10-26, bda5a934a) */
+check('shipping: the manager cannot connect one', (await M('POST', '/api/admin/shipping/config', carrier)).status === 403)
+const conn = await O('POST', '/api/admin/shipping/config', carrier)
+check('shipping: the owner connects one', conn.status === 200, conn)
 check('shipping: staff cannot disconnect it', (await S('DELETE', '/api/admin/shipping/config')).status === 403)
+check('shipping: nor can the manager', (await M('DELETE', '/api/admin/shipping/config')).status === 403)
 check('shipping: ...it is still connected', (await db.select().from(shippingConfig))[0]?.connected === true)
-check('shipping: the manager can', (await M('DELETE', '/api/admin/shipping/config')).status === 200)
+check('shipping: the owner can', (await O('DELETE', '/api/admin/shipping/config')).status === 200)
 const labelS = await S('POST', `/api/admin/shipping/orders/${unpaid.id}/label`, { markShipped: true })
 check('shipping: no carrier → the label route says so before anything else', labelS.status === 400, labelS)
 
