@@ -69,12 +69,12 @@ const TERMINAL = new Set<ComposeStatus>(['done', 'failed', 'timed_out'])
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined)
 
 /**
- * The composer's input from the signup's answers. Everything here is the owner's own: name, trade, town, contact
- * details, the services they ticked or typed, their goals (bookings), their name, and — when the signup form sends
- * them — a description and the intake's optional facts. Photos are not taken: the signup carries them only as data
- * URLs, which the composer cannot use as image addresses.
+ * The composer's input from the signup's answers — exactly the fields the twomiah.com signup sends (signup.html
+ * getFormData): name, trade, town, phone and email, the services they ticked or typed, their goals (bookings), the
+ * owner's name, and their photo once stored (storeSignupPhoto). The signup asks for no description and none of the
+ * intake's optional facts, so none are read here.
  */
-export function signupComposerInput(body: any, extra: { services: string[]; goals: string[]; facts?: ComposerInput['facts'] }): ComposerInput {
+export function signupComposerInput(body: any, extra: { services: string[]; goals: string[]; photos?: ComposerInput['customerPhotos'] }): ComposerInput {
   const owner = [text(body?.owner_first_name, 80), text(body?.owner_last_name, 80)].filter(Boolean).join(' ')
   return {
     businessName: String(body?.name || '').trim(),
@@ -85,10 +85,57 @@ export function signupComposerInput(body: any, extra: { services: string[]; goal
     ...(text(body?.email, 200) ? { email: text(body.email, 200) } : {}),
     services: extra.services,
     goals: extra.goals,
-    ...(text(body?.description, 2000) ? { description: text(body.description, 2000) } : {}),
     ...(owner ? { ownerName: owner } : {}),
-    ...(extra.facts ? { facts: extra.facts } : {}),
+    ...(extra.photos?.length ? { customerPhotos: extra.photos } : {}),
   }
+}
+
+// ─── The owner's photo ──────────────────────────────────────────────────────
+//
+// The signup's "A real photo of your team, your place or your work. It becomes the big picture at the top of your
+// website" arrives as a data URL (signup.html shrinks it to a 2000px JPEG: body.branding.heroPhoto). A data URL is
+// never put in a composition: it is decoded, checked, stored with the intake's assets (factoryStorage.ts
+// uploadIntakeAsset — R2 in production), and the site refers to it by a lasting Factory address that hands out a fresh
+// signed link on each request (/public/signup-photo/:slug/:file, routes/factory/intake.ts). After the build the same
+// stored file is seeded into the business's own photo library (deploy.ts seedIntakePhotosIfPremium, intake_data.photos).
+
+/** The largest decoded photo taken (signup.html sends a 2000px JPEG; the intake form's own ceiling is 8 MB). */
+export const MAX_PHOTO_BYTES = 4 * 1024 * 1024
+const PHOTO_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+
+/** A photo data URL decoded and checked: a JPEG, PNG or WebP whose bytes ARE that format, within the size limit. */
+export function decodeSignupPhoto(dataUrl: unknown): { bytes: Buffer; mime: string; ext: string } | null {
+  if (typeof dataUrl !== 'string') return null
+  const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl)
+  if (!m) return null
+  const bytes = Buffer.from(m[2], 'base64')
+  if (!bytes.length || bytes.length > MAX_PHOTO_BYTES) return null
+  const mime = m[1]
+  const is = {
+    'image/jpeg': bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff,
+    'image/png': bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+    'image/webp': bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP',
+  } as Record<string, boolean>
+  return is[mime] ? { bytes, mime, ext: PHOTO_EXT[mime] } : null
+}
+
+/** The stored signup photo's file name, as the lasting address names it: "<timestamp>-hero.<ext>". */
+export const SIGNUP_PHOTO_FILE = /^\d{10,16}-hero\.(?:jpg|png|webp)$/
+
+/**
+ * Stores the signup's photo and returns its lasting address and storage record, or null when there is none or it is
+ * not a usable image (never a reason to fail the signup).
+ */
+export async function storeSignupPhoto(
+  dataUrl: unknown, slug: string,
+  deps: { upload: (bytes: Buffer, filename: string, contentType: string, slug: string) => Promise<{ storageKey: string; storageType: 's3' | 'local' }>; factoryUrl: string },
+): Promise<{ url: string; storageKey: string; storageType: 's3' | 'local' } | null> {
+  const photo = decodeSignupPhoto(dataUrl)
+  if (!photo || !deps.factoryUrl) return null
+  const stored = await deps.upload(photo.bytes, 'hero.' + photo.ext, photo.mime, slug)
+  const file = stored.storageKey.split(/[\\/]/).pop() || ''
+  if (!SIGNUP_PHOTO_FILE.test(file)) throw new Error('unexpected stored name ' + file)
+  return { url: deps.factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/public/signup-photo/' + slug + '/' + file, ...stored }
 }
 
 /**

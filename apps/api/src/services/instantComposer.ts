@@ -222,8 +222,11 @@ export function composeInstant(input: ComposerInput): SiteResult {
   // Their services, else one card for the trade (as the standard site does) — marked stand-in at the build
   // (unified/factory.ts markStandInServices), so the live site shows the business's own list there or nothing.
   const serviceNames = services.length ? services : label ? [websiteTradeFor(type.toLowerCase().replace(/\s+/g, '_'))?.service || label] : []
-  const ownPhotos = (input.customerPhotos || []).filter((p) => p?.url && p.tag !== 'misc' && !/\blogo\b/i.test(p.alt || '')).map((p) => p.url)
-  const heroImage = ownPhotos[0] || libraryHeroFor(type)
+  const own = (input.customerPhotos || []).filter((p) => p?.url && p.tag !== 'misc' && !/\blogo\b/i.test(p.alt || ''))
+  // The owner's picture for the top of the site (the signup's photo is tagged 'hero'), else their first photo, else the
+  // trade's library photo. A hero photo may be of the team or the place, so it never stands in a gallery of "our work".
+  const heroImage = own.find((p) => p.tag === 'hero')?.url || own[0]?.url || libraryHeroFor(type)
+  const ownPhotos = own.filter((p) => p.tag !== 'hero').map((p) => p.url)
   const contactCta = { label: 'Get in touch', href: 'contact' }
   const f = input.facts || {}
   const booking = wantsBookings(input) ? bookingCta(kind, f.freeEstimates === true) : null
