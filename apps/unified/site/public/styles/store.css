@@ -178,10 +178,16 @@
 .product-price__now { font-size: 1.15rem; font-weight: 800; color: var(--ink); }
 .product-price__was { font-size: 0.95rem; color: var(--muted); text-decoration: line-through; }
 
+/* Its own size: the base .btn has none (sizes come from --lg/--xl), and with none this rendered as a thin bar of
+   text under every product (store final check, 2026-10-26). */
 .product-card__add {
   position: relative;
   z-index: 2;
   margin: 0 18px 18px;
+  padding: 11px 18px;
+  font-size: 14px;
+  line-height: 1.2;
+  border-radius: 7px;
   text-transform: none;
   letter-spacing: 0;
 }
