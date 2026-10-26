@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    # engine too: the release (wait-ci.ts) waits for this scan before it merges engine into main (2026-10-26).
+    branches: [main, engine]
   schedule:
     # Re-scan main weekly so newly-published CVEs against pinned deps
     # show up even when no code changed.
