@@ -164,3 +164,14 @@ describe('the Payments page\'s server', () => {
     expect(src).toContain('/api/integrations/stripe/connect-url')
   })
 })
+
+describe("the store's own Connect buttons", () => {
+  // The Stripe doors were gated by Online Payments, which a store doesn't have (its checkout is Orders): the store's
+  // "I already have a Stripe account" answered "This module is not enabled" (store live test, 2026-10-26).
+  test('a store owner reaches the create and link doors (not refused for a missing feature)', async () => {
+    for (const path of ['/api/integrations/stripe/connect-url', '/api/integrations/stripe/link-url']) {
+      const r = await k.O('GET', path)
+      expect({ path, refusedForFeature: r.status === 403 && /not enabled/i.test(JSON.stringify(r.json)) }).toEqual({ path, refusedForFeature: false })
+    }
+  })
+})
