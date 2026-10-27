@@ -1,5 +1,5 @@
-/* The bar design: the whole look of templates/website-premium-bar/build/styles/main.css, moved as it was. A cover
-   design (server/core/vertical.ts COVER_DESIGNS): this sheet is laid over the base, which sits beneath it in a CSS
+/* The bar design: the whole look of templates/website-premium-bar/build/styles/main.css, moved as it was. A whole
+   look with the book frame (server/core/vertical.ts SITE_DESIGN_SPECS: build 'whole', frame 'book'): this sheet is laid over the base, which sits beneath it in a CSS
    layer and styles only what this sheet doesn't (the booking pages, sections the bar never had). */
 
 /* website-premium-bar — section-composition stylesheet.

@@ -222,7 +222,9 @@ describe('each design\'s stylesheet keeps every rule its template served', () =>
   // dark when the two are alike; it takes the ink that reads on the accent and a white ring (main.css).
   // And (2026-10-23, live test): the label over a full-bleed photo was the brand colour on the photograph — 1.33:1 median
   // measured in a real render; it has its own dark ground, white text, the brand as its edge (site-hero-label.test.ts).
-  const CHANGED = new Set(['.cta--banner .btn--primary', '.hero--full-bleed .hero__eyebrow'])
+  // And (2026-10-27, looks survey): the text-size buttons sat top right on every page, over the header's own button (and,
+  // on a phone, over its menu button); they sit bottom right now (main.css `.text-size-toggle`, homecare's only change).
+  const CHANGED = new Set(['.cta--banner .btn--primary', '.hero--full-bleed .hero__eyebrow', '.text-size-toggle'])
   for (const design of DESIGNS) {
     test(design, () => {
       const accent = SETTINGS.accentColor || DEFAULT_ACCENT

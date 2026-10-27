@@ -1,0 +1,58 @@
+/* What every whole look without a frame (SITE_DESIGN_SPECS build 'whole', no frame: foundry, heritage, studio) shares, so a
+ * fix is made once. Not a design: siteStylesheet lays it between the base and the look's own sheet, so the look wins.
+ *
+ * The base was written for a light page with white cards and the brand colour doing double duty — as a fill and as text. A
+ * look restyles for dark, and there the brand colour as text on a dark card (a price, a date, a chip) and white text placed
+ * on a fixed dark bar both stopped reading, whatever the owner's colour. Here each is given the form that reads:
+ *   --brand-text  the owner's colour as TEXT on the look's own grounds: its _ON_LIGHT form darkened a further step so it
+ *                 clears 4.5:1 on the darkest paper too, and its _ON_DARK form in dark mode
+ *   {{INK_ON_PRIMARY}} / {{INK_ON_ACCENT}}  the text that reads on a fill of the owner's colour
+ * Tokens the look defines: --bg --sf --tx --ln.
+ */
+:root {
+  --brand-text: color-mix(in srgb, {{PRIMARY_COLOR_ON_LIGHT}} 78%, #000000);
+  /* the before/after panel's ground (before_after/slider.ejs asks for var(--surface)) */
+  --surface: var(--bg);
+}
+@media (prefers-color-scheme: dark) { :root { --brand-text: {{PRIMARY_COLOR_ON_DARK}}; } }
+
+/* ── The brand colour as text ─────────────────────────────────────────────── */
+.menu-item__price, .schedule-strip__date, .deals-card__title, .deals__expires-label, .pr-card__price, .package-card__price-num,
+.cg-card__years, .cov-card__row--ours .cov-card__row-label, .quote__estimate-amount, .catering__sidebar-num, .cf-done h3,
+.cf-progress__step.is-current, .strain-card__stat .mono, .book-thanks__addcal a, .blog-post__body a, .book-submit--secondary,
+.book-linkbtn:hover, .service-card__cta { color: var(--brand-text); }
+.pr-card__includes li::before, .package-card__includes li::before, .catering__sidebar-list li::before { color: var(--brand-text); }
+.cg-chip:hover, .strain__filter:hover { color: var(--brand-text); }
+
+/* ── Text on a fill of the owner's colour ─────────────────────────────────── */
+.book-date.is-selected, .book-slot.is-selected, .book-submit:not(.book-submit--danger):not(.book-submit--secondary), .book-progress__step.is-active, .book-tip-btn.is-active,
+.deals-card__badge, .cf-progress__step.is-current span, .cf-progress__step.is-done span, .cg-chip.is-active,
+.package-card__badge, .text-size-toggle button.is-active, .emergency-bar:not(.emergency-bar--after-hours) .emergency-bar__call, .strain__filter.is-active { color: {{INK_ON_PRIMARY}}; }
+.emergency-bar--after-hours .emergency-bar__call { color: #ffffff; }
+.book-submit--secondary { color: var(--brand-text); }
+/* …and on the accent: the base put the brand's dark shade on it, which is dark on a dark accent */
+.menu__chip:not([class*="--"]), .strain__type:not([class*="--"]), .schedule-strip__tag--default, .package-card__badge--alt { color: {{INK_ON_ACCENT}}; }
+/* (the base's own rules sit in a CSS layer, which any unlayered rule beats whatever its weight — so a rule here that names a class with
+   variants must leave the variants out, or it would repaint them) */
+
+/* ── White text on a bar that is dark whichever mode it is ────────────────── */
+/* The base says var(--white) for it; a look points --white at the card ground (so cards go dark), which made it dark text. */
+.storm-alert__heading, .storm-alert__close:hover, .emergency-bar__heading { color: #ffffff; }
+
+/* ── Booking pages ───────────────────────────────────────────────────────── */
+/* "Cancel booking": red fill, white text (the base's .book-submit takes var(--white), which a look points at the card ground);
+   the confirmation tick: white on the base's #22c55e was 2.3:1 */
+.book-submit--danger { color: #ffffff; }
+.book-thanks__check { background: #15803d; color: #ffffff; }
+
+/* ── Before / after (before_after/slider.ejs: its own <style> comes after this sheet, so the class is doubled) ─ */
+.ba-chip.ba-chip { background: var(--sf); color: var(--tx); border-color: var(--ln); }
+.ba-chip.ba-chip.is-active { background: var(--tx); border-color: var(--tx); color: var(--bg); }
+.ba-meta__material.ba-meta__material { color: var(--brand-text); }
+
+/* The financing card is a dark panel in every whole look, in light and in dark. The base paints the slider thumb with
+   var(--white), which a look flips to a dark colour for dark mode: the thumb then vanished into the card. */
+.financing input[type="range"]::-webkit-slider-thumb { background: #ffffff; }
+.financing input[type="range"]::-moz-range-thumb { background: #ffffff; }
+.financing input[type="range"]::-webkit-slider-runnable-track { background: rgba(255, 255, 255, 0.38); }
+.financing input[type="range"]::-moz-range-track { background: rgba(255, 255, 255, 0.38); }

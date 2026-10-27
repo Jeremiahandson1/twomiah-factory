@@ -8,8 +8,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { barSettings, company, page, post, portfolioItem } from '../db/schema/index.ts'
 import { readFoodSettings, foodDefaults } from '../crm/bar/foodSettings.ts'
-import type { VerticalSettings } from '../core/vertical.ts'
-import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../core/brandColour.ts'
+import { SITE_DESIGN_SPECS, type VerticalSettings } from '../core/vertical.ts'
+import { accentOnLight, colourOnWhite, DEFAULT_ACCENT, ensureDark, ensureLight, inkOn } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
 import { loadSiteContext, type SiteContext } from './context.ts'
 import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin, escHtml, escXml, type PageMeta } from './render.ts'
@@ -39,10 +39,10 @@ for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f
 // A cover design's own files (the bar's, templates/website-premium-bar build/): its self-hosted faces and their sheet, the
 // speakeasy overlay's sheet (loaded on the first knock), and the scripts its sections name — the Tonight board's poller,
 // the speakeasy door, the story's book. Served to any site; only a page that has the section asks for them.
-// The base as a cover design's fallback layer. An !important inside a layer beats every unlayered !important, so the
+// The base as a whole look's fallback layer. An !important inside a layer beats every unlayered !important, so the
 // base's .mobile-nav__cta colour would win over the design's own; the base keeps its !important only on [hidden] rules,
 // where it hides a card the base itself displays.
-const BASE_CSS_UNDER_A_COVER = BASE_CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (m, sel: string, body: string) => /\[hidden\]/.test(sel) ? m : sel + '{' + body.replace(/\s*!important/g, '') + '}')
+const BASE_CSS_UNDER_A_WHOLE_LOOK = BASE_CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (m, sel: string, body: string) => /\[hidden\]/.test(sel) ? m : sel + '{' + body.replace(/\s*!important/g, '') + '}')
 const FONTS_DIR = path.join(SITE_DIR, 'public', 'fonts')
 const FONT_FILES = new Set(fs.readdirSync(FONTS_DIR).filter((f) => f.endsWith('.woff2')))
 const STYLES = new Map(['fonts.css', 'speakeasy.css'].map((f) => [f, fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', f), 'utf8')]))
@@ -77,19 +77,31 @@ const projectCard = (p: any) => {
 }
 
 /**
- * The stylesheet: the base, then the site's design, with the company's colours filled in. A cover design is a whole look
- * of its own (COVER_DESIGNS): the base goes beneath it as a CSS layer, so every rule of the design wins, in its own
- * order, and the base styles only what the design never does (the booking pages, a section its template lacked).
+ * The stylesheet: the base, then the site's design, with the company's colours filled in. A whole look (SITE_DESIGN_SPECS
+ * build 'whole') is complete in itself: the base goes beneath it as a CSS layer, so every rule of the design wins, in its
+ * own order, and the base styles only what the design never does (the booking pages, a section its look lacks).
+ * What a look may use of the owner's colours:
+ *   {{PRIMARY_COLOR}} / {{ACCENT_COLOR}}  as fills, rules and edges
+ *   {{INK_ON_PRIMARY}} / {{INK_ON_ACCENT}}  the text that reads on those fills
+ *   {{PRIMARY_COLOR_ON_LIGHT}} / {{ACCENT_COLOR_ON_LIGHT}}  as text on a light ground (4.5:1 on white or paper)
+ *   {{PRIMARY_COLOR_ON_DARK}} / {{ACCENT_COLOR_ON_DARK}}  as text on a near-black ground
+ *   {{SECONDARY_COLOR}}  a dark band, kept dark whatever the owner picked
  */
 export function siteStylesheet(ctx: SiteContext): string {
   const accent = ctx.colours.accent || DEFAULT_ACCENT
-  const base = ctx.options.cover ? '@layer base {\n' + BASE_CSS_UNDER_A_COVER + '\n}' : BASE_CSS
-  const css = base + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
+  const whole = SITE_DESIGN_SPECS[ctx.design]?.build === 'whole'
+  const base = whole ? '@layer base {\n' + BASE_CSS_UNDER_A_WHOLE_LOOK + '\n}' : BASE_CSS
+  // What every whole look without a frame shares (site/designs/_whole.css) sits between the base and the look, which wins.
+  const shared = whole && !ctx.options.cover ? '\n' + (DESIGN_CSS.get('_whole') ?? '') : ''
+  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
   return css
+    .replaceAll('{{PRIMARY_COLOR_ON_LIGHT}}', colourOnWhite(ctx.colours.primary))
+    .replaceAll('{{PRIMARY_COLOR_ON_DARK}}', ensureLight(ctx.colours.primary))
     .replaceAll('{{PRIMARY_COLOR}}', ctx.colours.primary)
     // The design's dark band, kept dark whatever the owner picked, as the Factory's generator filled it.
     .replaceAll('{{SECONDARY_COLOR}}', ensureDark(ctx.colours.secondary || '#1e3a5f'))
     .replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent))
+    .replaceAll('{{ACCENT_COLOR_ON_DARK}}', ensureLight(accent))
     // Text on a fill of the owner's colour: dark ink or white, whichever reads (brandColour.ts inkOn).
     .replaceAll('{{INK_ON_PRIMARY}}', inkOn(ctx.colours.primary))
     .replaceAll('{{INK_ON_ACCENT}}', inkOn(accent, '#0f172a'))

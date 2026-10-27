@@ -306,24 +306,63 @@ export interface CrmSettings {
 }
 
 /**
- * The site designs: the distinct looks of the premium template families (site/designs/<id>.css on top of the base).
- * 'classic' is the base alone — the contractor, RV and vet templates all served it, so it is one look, not three.
+ * The site designs: a design is the look a business's website wears (site/designs/<id>.css on top of the base). The
+ * first eight are the premium template families' looks; 'classic' is the base alone. The rest are whole looks of their
+ * own (SITE_DESIGN_SPECS: build 'whole').
  */
-export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase'] as const
+export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
 
-/** What the website settings call each design. */
-export const SITE_DESIGN_LABELS: Record<SiteDesign, string> = {
-  classic: 'Classic', bar: 'Bar & tavern', dispensary: 'Dispensary', fieldservice: 'Field service', homecare: 'Home care',
-  landscaping: 'Landscaping', roofing: 'Roofing', showcase: 'Showcase',
+/**
+ * How a design is built. One row per design, and nothing else in the app branches on a design's NAME: the stylesheet
+ * (server/site/routes.ts siteStylesheet) and the page around it (site/views/base.ejs, through siteOptions) read these
+ * fields. Two independent ideas, which used to be one ("cover"):
+ *
+ *   build  — 'overrides': the design adds a few rules to the base (the default). 'whole': the design is a complete look;
+ *            its stylesheet is laid over the base, which stays beneath it as a CSS layer and styles only what the design
+ *            never does (the booking pages, a section its look lacks).
+ *   frame  — the page the look is drawn on. 'book' is the bar's leather book (cover caps and corners, dark-first, its own
+ *            self-hosted faces, a one-page menu). Absent: the standard page. A whole look need not have a frame.
+ *
+ * A whole look brings its own type (`fonts`: the Google Fonts stylesheet the page loads in place of the base's Inter and
+ * Fraunces) and, when it restyles itself for light and dark (`schemes`: it follows the visitor's device setting,
+ * prefers-color-scheme), the page says so (color-scheme) so the browser's own form controls and scrollbars follow too.
+ */
+export interface SiteDesignSpec {
+  /** What the website settings call the design. */
+  label: string
+  build: 'overrides' | 'whole'
+  frame?: 'book'
+  fonts?: string
+  schemes?: boolean
 }
 
-/**
- * Designs that are a whole look of their own rather than the base with a few overrides: the bar's dark leather book
- * (templates/website-premium-bar). Its stylesheet is laid over the base, which is kept beneath it as a CSS layer only
- * for what it doesn't style; the page wears the book's cover frame and self-hosted faces (base.ejs `siteOptions.cover`).
- */
-export const COVER_DESIGNS: ReadonlySet<SiteDesign> = new Set<SiteDesign>(['bar'])
+export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
+  classic: { label: 'Classic', build: 'overrides' },
+  bar: { label: 'Bar & tavern', build: 'whole', frame: 'book' },
+  dispensary: { label: 'Dispensary', build: 'overrides' },
+  fieldservice: { label: 'Field service', build: 'overrides' },
+  homecare: { label: 'Home care', build: 'overrides' },
+  landscaping: { label: 'Landscaping', build: 'overrides' },
+  roofing: { label: 'Roofing', build: 'overrides' },
+  showcase: { label: 'Showcase', build: 'overrides' },
+  // Three looks for a contractor's site (docs/new-looks): industrial, editorial, modern studio.
+  foundry: {
+    label: 'Foundry', build: 'whole', schemes: true,
+    fonts: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
+  },
+  heritage: {
+    label: 'Heritage', build: 'whole', schemes: true,
+    fonts: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap',
+  },
+  studio: {
+    label: 'Studio', build: 'whole', schemes: true,
+    fonts: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
+  },
+}
+
+/** What the website settings call each design. */
+export const SITE_DESIGN_LABELS = Object.fromEntries(SITE_DESIGNS.map((id) => [id, SITE_DESIGN_SPECS[id].label])) as Record<SiteDesign, string>
 
 export interface SiteSettings {
   /** The design a new site starts with; the owner's site row can choose another. */
