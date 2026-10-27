@@ -1,9 +1,11 @@
 <%
-  // The page around the sections, for every design. A cover design (siteOptions.cover: the bar's leather book,
-  // server/core/vertical.ts COVER_DESIGNS) wears its own frame, as templates/website-premium-bar's base.ejs drew it:
+  // The page around the sections, for every design. A design with the book frame (siteOptions.cover: the bar's leather
+  // book, server/core/vertical.ts SITE_DESIGN_SPECS frame 'book') wears its own frame, as templates/website-premium-bar's
+  // base.ejs drew it:
   // dark first, its self-hosted faces, the owner's cover art, the brass caps and corners around the page, the header
   // that folds into its menu button when the row doesn't fit, and the one-page anchors. Every other design is the
-  // premium templates' shared layout, unchanged.
+  // premium templates' shared layout, unchanged. A whole look without the frame (SITE_DESIGN_SPECS build 'whole') takes
+  // the standard page and brings only its own type (siteOptions.fonts) and its light/dark (siteOptions.schemes).
   var cover = typeof siteOptions !== 'undefined' && siteOptions && siteOptions.cover;
   // The booking pages framed on another website (/scripts/book-embed.js, ?embed=1): the page alone — no header, menu,
   // footer or tracking (it would count the host's visitors twice), kept out of search, telling the frame its height.
@@ -61,6 +63,8 @@
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#121010" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+  <% } else if (typeof siteOptions !== 'undefined' && siteOptions && siteOptions.schemes) { %>
+  <meta name="color-scheme" content="light dark">
   <% } %>
   <%
     // Social cards need an absolute URL, and Facebook/X ignore SVG — so an SVG
@@ -156,7 +160,7 @@
     // the initial render — display=swap already keeps text visible while
     // fonts download, but the stylesheet itself was still a critical-path
     // request. Mobile LCP improves ~300-600ms in field testing.
-    var fontsHref = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@400;600;700;900&display=swap';
+    var fontsHref = (typeof siteOptions !== 'undefined' && siteOptions && siteOptions.fonts) || 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@400;600;700;900&display=swap';
   %>
   <link rel="stylesheet" href="<%= fontsHref %>" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="<%= fontsHref %>"></noscript>
