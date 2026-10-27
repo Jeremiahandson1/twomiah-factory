@@ -2,9 +2,6 @@
 
 Multi-tenant SaaS platform that generates, deploys, and manages CRM + website software for service businesses.
 
-**Read `docs/PROJECT_BRIEF.md` first** — the owner's goals, decisions, working rules, and the branch rules for
-cloud sessions (work on your own branch; never push to `engine` or `main`).
-
 ## Architecture
 
 - **Monorepo** — Turbo + Bun workspaces
