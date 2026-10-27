@@ -2,6 +2,7 @@
 // create/edit modal (also opened by /crm/contacts?edit=<id> from detail pages), delete with the
 // backend's "still has N invoices attached" guard surfaced, lead → client conversion, and the
 // duplicate guard: a 409 offers "open the existing record" or "create anyway".
+import { safeReturnPath } from '../shell/safeReturnPath'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, UserCheck, Search, Handshake } from 'lucide-react'
@@ -138,7 +139,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     return [...cfg.types, ...strays]
   })()
 
-  const returnTo = searchParams.get('returnTo')
+  // A path inside this app only (shell/safeReturnPath.ts): a link carrying returnTo=/\evil.example is an open redirect.
+  const returnTo = safeReturnPath(searchParams.get('returnTo'))
   const leaveModal = () => {
     setModalOpen(false)
     setDuplicate(null)
