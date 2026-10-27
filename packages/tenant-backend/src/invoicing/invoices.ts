@@ -16,6 +16,7 @@ import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
 import { customerLines } from './itemCodes'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
+import { partialOf } from '../partialOf'
 
 export interface InvoiceTables {
   invoice: any
@@ -818,7 +819,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const id = c.req.param('id')
     const cid = currentUser.companyId
     const raw = await c.req.json()
-    const data = invoiceSchema.partial().parse(raw)
+    const data = partialOf(invoiceSchema).parse(raw)
     const extra = await linkValues(cid, raw)
     if ('error' in extra) return c.json({ error: extra.error }, 404)
     const [existing] = await db.select().from(t.invoice).where(and(eq(t.invoice.id, id), eq(t.invoice.companyId, cid))).limit(1)
@@ -1069,11 +1070,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const creditSchema = z.object({
-      amount: z.number({ invalid_type_error: 'Credit amount must be a number' }).positive('Credit amount must be more than $0'),
-      reason: z.string({ required_error: 'Say why the credit is given' }).trim().min(1, 'Say why the credit is given').max(500, 'Keep the reason under 500 characters'),
+      amount: z.number({ error: 'Credit amount must be a number' }).positive('Credit amount must be more than $0'),
+      reason: z.string({ error: 'Say why the credit is given' }).trim().min(1, 'Say why the credit is given').max(500, 'Keep the reason under 500 characters'),
     })
     const parsed = creditSchema.safeParse(await c.req.json().catch(() => ({})))
-    if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid credit' }, 400)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid credit' }, 400)
     const amount = round2(parsed.data.amount)
     if (amount <= 0) return c.json({ error: 'Credit amount must be at least $0.01' }, 400)
     // The authenticated request carries the user's email (auth/middleware.ts), which is what the record names.

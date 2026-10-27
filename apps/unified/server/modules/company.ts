@@ -48,9 +48,7 @@ export interface CompanyModuleDeps {
  * state's" (companyRowTimeZone then decides). The same rule as home care's (crm/homecare/office/companyFields.ts).
  */
 export const companyTimezoneField = z.union([z.string().trim(), z.null()]).optional()
-  .refine((v) => v === undefined || v === null || v === '' || isValidTimeZone(v), (v) => ({
-    message: `"${String(v).slice(0, 64)}" is not a time zone — use a name such as America/Chicago`,
-  }))
+  .refine((v) => v === undefined || v === null || v === '' || isValidTimeZone(v), { error: (iss) => `"${String(iss.input).slice(0, 64)}" is not a time zone — use a name such as America/Chicago` })
   .transform((v) => (v === '' ? null : v))
 
 /** The Factory subscription's doors (packages/tenant-backend billing.ts createBillingRoutes). */

@@ -17,9 +17,7 @@ import { parseMileageRate, MILEAGE_RATE_REFUSAL } from '../core/mileageRate.ts'
 
 export const homecareCompanyFields: Record<string, z.ZodTypeAny> = {
   timezone: z.union([z.string(), z.null()]).optional()
-    .refine((v) => v === undefined || v === null || v === '' || isValidTimezone(v), (v) => ({
-      message: `"${String(v).slice(0, 64)}" is not a time zone — use an IANA name such as America/Chicago`,
-    }))
+    .refine((v) => v === undefined || v === null || v === '' || isValidTimezone(v), { error: (iss) => `"${String(iss.input).slice(0, 64)}" is not a time zone — use an IANA name such as America/Chicago` })
     .transform((v) => (v === '' ? null : v)),
   mileageRate: z.union([z.string(), z.number()]).optional()
     .refine((v) => v === undefined || parseMileageRate(v) !== null, MILEAGE_RATE_REFUSAL)
