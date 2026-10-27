@@ -36,6 +36,7 @@ import { wantsBookings } from '../services/composerFacts'
 import { signupQuestionsFor } from '../config/signupQuestions'
 import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
+import { requestedLook } from '../config/siteLooks'
 
 // ─── Which engine a signup gets ────────────────────────────────────────────────
 
@@ -211,6 +212,12 @@ export function markStandInServices(sections: any[], industry: string | null | u
   })
 }
 
+/** The look a signup chose (intake_data.signup.design), as the site row's `design`; nothing chosen, or a value no longer choosable: none. */
+function chosenLook(tenant: any): { design?: string } {
+  const look = requestedLook(tenant?.intake_data?.signup?.design)
+  return look.ok && look.design ? { design: look.design } : {}
+}
+
 /** The website part of the provision body: premium-site-bootstrap's pages, nav and settings for the same tenant. */
 export function provisionSite(tenant: any): Record<string, unknown> {
   const composed = compositionFor(tenant)
@@ -224,6 +231,8 @@ export function provisionSite(tenant: any): Record<string, unknown> {
     photoCredits: heroCreditsForUrls(collectImageUrls(pages)),
     contentGaps: Array.isArray(composed?.contentGaps) ? composed!.contentGaps : [],
     contactCtaLabel: 'Get in touch',
+    // The look the visitor chose in the preview, kept with the signup (intake_data.signup.design); none: the vertical's own.
+    ...chosenLook(tenant),
     ...(tenant.primary_color && HEX.test(tenant.primary_color) ? { accentColor: tenant.primary_color } : {}),
     pages: pages.map((p) => ({
       slug: p.slug, title: p.title, navOrder: p.navOrder, isPublished: p.isPublished,
