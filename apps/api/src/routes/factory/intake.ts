@@ -20,6 +20,8 @@ import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } 
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { engineForSignup, isUnifiedTenant, signupRefusal } from '../../unified/factory'
+import { renderUnifiedPreview, unifiedPreviewVertical } from '../../unified/preview'
+import { requestedLook } from '../../config/siteLooks'
 import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes, storeSignupPhoto, SIGNUP_PHOTO_FILE } from '../../services/signupSite'
 import { intakeAssetLink } from '../../services/factoryStorage'
 import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
@@ -298,6 +300,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
       return c.json({ error: 'Valid email is required' }, 400)
     }
+    // The look they chose in the preview (foundry, heritage or studio); anything else is refused, nothing sent is the trade's own.
+    const look = requestedLook(body.design)
+    if (!look.ok) return c.json({ error: 'Unknown design.' }, 400)
 
     // Going live per industry (unified/factory.ts signupRefusal): while UNIFIED_LIVE_VERTICALS is set, a real signup
     // for an industry not yet open is refused here, before anything is made, rather than started on the templates and
@@ -458,10 +463,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // The owner's answers, kept on the tenant (intake_data.signup — everything else reads
     // intake_data.intake, so a signup row is never mistaken for an intake). Non-fatal.
     const choices = signupChoices(body)
-    if (choices.goals.length || choices.addons.length || signupZone || ownPhoto) {
+    if (choices.goals.length || choices.addons.length || signupZone || ownPhoto || look.design) {
       const { error: choiceErr } = await supabase.from('tenants')
         .update({ intake_data: {
-          signup: { ...choices, ...(signupZone ? { timezone: signupZone } : {}), at: new Date().toISOString() },
+          signup: { ...choices, ...(signupZone ? { timezone: signupZone } : {}), ...(look.design ? { design: look.design } : {}), at: new Date().toISOString() },
           // The stored photo, where the build's seed-photos step reads intake photos: it lands in the business's own library.
           ...(ownPhoto ? { photos: [{ storageKey: ownPhoto.storageKey, storageType: ownPhoto.storageType }] } : {}),
         } }).eq('id', tenant.id)
@@ -984,14 +989,36 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
     return c.json({ error: 'Enter a business name and what you do (e.g. "Joe\'s Roofing" and "roofing").' }, 422)
   }
 
+  // The look the visitor chose (foundry, heritage or studio): refused when it is anything else. Nothing sent: the trade's own.
+  const look = requestedLook(body.design)
+  if (!look.ok) return c.json({ error: 'Unknown design.' }, 422)
+
+  // A trade the unified app is open to is drawn by the unified renderer — the page a signup of it really gets, in the
+  // chosen look (unified/preview.ts). Every other trade keeps the preview it has, below.
+  const unifiedVertical = unifiedPreviewVertical(businessType)
+
   // engine: 'premium' — the premium site, composed instantly from what they typed (no model call,
   // ~$0, milliseconds): the site the premium engine builds, not the standard template. The default
   // stays the standard preview until signups build premium too, so the preview never shows a
   // different site from the one a signup gets.
   const premium = body.engine ? body.engine === 'premium' : signupWebsiteEngine() === 'premium'
-  const cacheKey = [premium ? 'premium' : 'standard', businessName, businessType, city, state].join('|').toLowerCase()
+  const cacheKey = [unifiedVertical ? 'unified:' + (look.design ?? 'default') : premium ? 'premium' : 'standard', businessName, businessType, city, state].join('|').toLowerCase()
   const cached = cacheGet(cacheKey)
   if (cached) return c.html(cached)
+
+  if (unifiedVertical) {
+    if (!acquireInflight()) return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)
+    try {
+      const html = await renderUnifiedPreview({ businessName, businessType, city: city || undefined, state: state || undefined, vertical: unifiedVertical, design: look.design })
+      cacheSet(cacheKey, html)
+      return c.html(html)
+    } catch (err: any) {
+      console.error('[PublicPreview] Unified render failed:', err?.message || err)
+      return c.json({ error: 'Preview failed to render — please try again.' }, 500)
+    } finally {
+      releaseInflight()
+    }
+  }
 
   if (premium) {
     if (!acquireInflight()) return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)

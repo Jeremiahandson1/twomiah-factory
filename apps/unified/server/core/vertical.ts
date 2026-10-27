@@ -335,6 +335,8 @@ export interface SiteDesignSpec {
   frame?: 'book'
   fonts?: string
   schemes?: boolean
+  /** A visitor may pick this look for the site they sign up for (the free preview on twomiah.com, POST /public/signup). */
+  choosable?: boolean
 }
 
 export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
@@ -348,17 +350,25 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   showcase: { label: 'Showcase', build: 'overrides' },
   // Three looks for a contractor's site (docs/new-looks): industrial, editorial, modern studio.
   foundry: {
-    label: 'Foundry', build: 'whole', schemes: true,
+    label: 'Foundry', build: 'whole', schemes: true, choosable: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
   },
   heritage: {
-    label: 'Heritage', build: 'whole', schemes: true,
+    label: 'Heritage', build: 'whole', schemes: true, choosable: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap',
   },
   studio: {
-    label: 'Studio', build: 'whole', schemes: true,
+    label: 'Studio', build: 'whole', schemes: true, choosable: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
   },
+}
+
+/** The looks a visitor chooses between before they sign up: the designs whose row says `choosable`. */
+export const SITE_LOOKS = SITE_DESIGNS.filter((id) => SITE_DESIGN_SPECS[id].choosable === true)
+
+/** A look the visitor may choose, from whatever a request sent: the design's id, or null (not a choosable design). */
+export function siteLookOf(v: unknown): SiteDesign | null {
+  return typeof v === 'string' && (SITE_LOOKS as readonly string[]).includes(v) ? (v as SiteDesign) : null
 }
 
 /** What the website settings call each design. */

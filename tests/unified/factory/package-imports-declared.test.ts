@@ -24,12 +24,12 @@ const walk = (d: string, out: string[] = []) => {
 /** 'stripe' → stripe, '@aws-sdk/client-s3/x' → @aws-sdk/client-s3, 'react-dom/client' → react-dom. */
 const libOf = (spec: string) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0])
 
-export function undeclared(pkgDir: string): string[] {
+export function undeclared(pkgDir: string, srcDir = 'src'): string[] {
   const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
   const declared = new Set(Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.optionalDependencies }))
   const out = new Set<string>()
-  if (!existsSync(join(pkgDir, 'src'))) return []
-  for (const f of walk(join(pkgDir, 'src'))) {
+  if (!existsSync(join(pkgDir, srcDir))) return []
+  for (const f of walk(join(pkgDir, srcDir))) {
     const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
     const specs = [
       ...src.matchAll(/^\s*import\s+(?:type\s+)?[^'"]*?from\s+['"]([^'"]+)['"]/gm),
@@ -55,4 +55,13 @@ test('every shared package declares what its code imports (a tenant install give
     for (const u of undeclared(join(PKGS, dir))) problems.push(`packages/${dir}: ${u}`)
   }
   expect(problems).toEqual([])
+})
+
+// The Factory draws the free preview with the unified app's renderer (apps/api/src/unified/preview.ts imports
+// apps/unified/server/site). The Factory's build installs the workspace (`cd apps/api && bun install` puts the unified
+// app's own dependencies in apps/unified/node_modules — checked on a clean clone, 2026-10-27), and the renderer finds
+// its libraries there. So everything the unified server imports must be declared by the unified app, never left to
+// arrive by another package's hoisting.
+test('the unified app declares every library its server imports (the Factory’s preview resolves them from its install)', () => {
+  expect(undeclared(join(ROOT, 'apps', 'unified'), 'server').map((u) => 'apps/unified: ' + u)).toEqual([])
 })
