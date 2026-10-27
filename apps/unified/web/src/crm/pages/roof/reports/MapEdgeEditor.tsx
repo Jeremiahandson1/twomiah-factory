@@ -4,8 +4,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useMayWrite } from '../../../../shared'
 import { MousePointer2, Plus, Trash2, Undo2, Redo2, Save, RotateCcw, Sparkles, Loader2 } from 'lucide-react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+// MapLibre 5+ loads its worker as a module file next to itself, which a bundler does not copy: the build emits it as an
+// asset and the map is told where it is (served as JavaScript: server/http/adminScreens.ts TYPES '.mjs').
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { buildMapStyle, buildImageStyle } from '../lib/MapProvider'
 import { api } from '../../../../api'
 import { verticalScreens } from '../../../vertical'
@@ -107,6 +110,8 @@ const EDGE_LABELS: Record<EdgeType, string> = {
 const EDGE_TYPES: EdgeType[] = ['ridge', 'valley', 'hip', 'rake', 'eave']
 
 const SNAP_DISTANCE_METERS = 0.5
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
 let nextEdgeId = 1
 function makeEdgeId(): string { return `e-${nextEdgeId++}-${Date.now()}` }

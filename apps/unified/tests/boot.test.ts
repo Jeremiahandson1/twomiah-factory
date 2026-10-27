@@ -220,6 +220,7 @@ describe('the admin screens', () => {
   fs.mkdirSync(path.join(dist, 'assets'))
   fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><html><head><title>Admin</title><script type="module" src="/crm-assets/assets/app-1a2b.js"></script></head><body><div id="root"></div></body></html>')
   fs.writeFileSync(path.join(dist, 'assets', 'app-1a2b.js'), 'console.log(1)')
+  fs.writeFileSync(path.join(dist, 'assets', 'maplibre-gl-worker-9f9f.mjs'), 'self.onmessage=()=>{}')
   let a: Awaited<ReturnType<typeof bootTenant>>
   beforeAll(async () => {
     a = await bootTenant({ adminDist: dist })
@@ -242,6 +243,8 @@ describe('the admin screens', () => {
     expect(js.status).toBe(200)
     expect(js.headers.get('content-type')).toContain('text/javascript')
     expect(js.headers.get('cache-control')).toContain('immutable')
+    // MapLibre's worker is a module file: a module script refuses any type but JavaScript (roof map editor)
+    expect((await a.call('/crm-assets/assets/maplibre-gl-worker-9f9f.mjs')).headers.get('content-type')).toContain('text/javascript')
     expect((await a.call('/crm-assets/index.html')).status).toBe(404)
     expect((await a.call('/crm-assets/..%2F..%2Fpackage.json')).status).toBe(404)
     expect((await a.call('/crm-assets/assets/missing.js')).status).toBe(404)
