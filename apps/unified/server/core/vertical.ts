@@ -310,7 +310,7 @@ export interface CrmSettings {
  * first eight are the premium template families' looks; 'classic' is the base alone. The rest are whole looks of their
  * own (SITE_DESIGN_SPECS: build 'whole').
  */
-export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio'] as const
+export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
 
 /**
@@ -356,6 +356,11 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   heritage: {
     label: 'Heritage', build: 'whole', schemes: true, choosable: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap',
+  },
+  // A look made for a shop (docs/store-looks): the photograph first, a price you can read, one strong Add to cart.
+  market: {
+    label: 'Market', build: 'whole', schemes: true, choosable: true,
+    fonts: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Albert+Sans:wght@400;500;600;700;800&display=swap',
   },
   studio: {
     label: 'Studio', build: 'whole', schemes: true, choosable: true,

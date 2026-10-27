@@ -34,7 +34,7 @@ describe('the chosen look reaches the new site', () => {
   })
 
   test('only the looks a visitor may choose are choosable, and each is a known design', () => {
-    expect([...SITE_LOOKS]).toEqual(['foundry', 'heritage', 'studio'])
+    expect([...SITE_LOOKS]).toEqual(['foundry', 'heritage', 'studio', 'market'])
     for (const d of SITE_LOOKS) expect(SITE_DESIGNS).toContain(d)
     expect(siteLookOf('bar')).toBeNull()
     expect(siteLookOf('classic')).toBeNull()
@@ -48,7 +48,7 @@ describe('the signup preview is the site renderer', () => {
   const draw = (design: string | null) => renderSitePreview({ vertical: 'roofing', design, company: { name: 'Westridge Roofing', primaryColor: '#FF3D00' }, settings: { nav: [{ label: 'Contact', href: 'contact' }] }, sections, features: [] })
 
   test('each look draws with its own type and stylesheet inline, links going nowhere', async () => {
-    const fonts: Record<string, string> = { foundry: 'Barlow+Condensed', heritage: 'Instrument+Serif', studio: 'Plus+Jakarta' }
+    const fonts: Record<string, string> = { foundry: 'Barlow+Condensed', heritage: 'Instrument+Serif', studio: 'Plus+Jakarta', market: 'Bricolage+Grotesque' }
     for (const d of SITE_LOOKS) {
       const html = await draw(d)
       expect(html).toContain(fonts[d])

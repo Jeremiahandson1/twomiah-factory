@@ -43,6 +43,8 @@ for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f
 // base's .mobile-nav__cta colour would win over the design's own; the base keeps its !important only on [hidden] rules,
 // where it hides a card the base itself displays.
 const BASE_CSS_UNDER_A_WHOLE_LOOK = BASE_CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (m, sel: string, body: string) => /\[hidden\]/.test(sel) ? m : sel + '{' + body.replace(/\s*!important/g, '') + '}')
+// The shop's styles for a whole look: the same transform as the base's (no !important inside a layer).
+const STORE_CSS_UNDER_A_WHOLE_LOOK = STORE_CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (m, sel: string, body: string) => /\[hidden\]/.test(sel) ? m : sel + '{' + body.replace(/\s*!important/g, '') + '}')
 const FONTS_DIR = path.join(SITE_DIR, 'public', 'fonts')
 const FONT_FILES = new Set(fs.readdirSync(FONTS_DIR).filter((f) => f.endsWith('.woff2')))
 const STYLES = new Map(['fonts.css', 'speakeasy.css'].map((f) => [f, fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', f), 'utf8')]))
@@ -90,10 +92,14 @@ const projectCard = (p: any) => {
 export function siteStylesheet(ctx: SiteContext): string {
   const accent = ctx.colours.accent || DEFAULT_ACCENT
   const whole = SITE_DESIGN_SPECS[ctx.design]?.build === 'whole'
-  const base = whole ? '@layer base {\n' + BASE_CSS_UNDER_A_WHOLE_LOOK + '\n}' : BASE_CSS
+  // A store's shop pages (store.css) are part of the base: under a whole look they sit in the same layer, after the site's
+  // own base, so the look's rules win over them as they do over every other base rule. Added after the design (and
+  // unlayered) they overrode the look: a white shop page under a dark look, a header cart the look could not colour.
+  const shop = ctx.options.shop ? '\n' + (whole ? STORE_CSS_UNDER_A_WHOLE_LOOK : STORE_CSS) : ''
+  const base = whole ? '@layer base {\n' + BASE_CSS_UNDER_A_WHOLE_LOOK + shop + '\n}' : BASE_CSS
   // What every whole look without a frame shares (site/designs/_whole.css) sits between the base and the look, which wins.
   const shared = whole && !ctx.options.cover ? '\n' + (DESIGN_CSS.get('_whole') ?? '') : ''
-  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
+  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (whole ? '' : shop)
   return css
     .replaceAll('{{PRIMARY_COLOR_ON_LIGHT}}', colourOnWhite(ctx.colours.primary))
     .replaceAll('{{PRIMARY_COLOR_ON_DARK}}', ensureLight(ctx.colours.primary))

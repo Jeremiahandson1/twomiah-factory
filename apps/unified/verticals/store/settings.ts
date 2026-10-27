@@ -134,7 +134,8 @@ const store: VerticalSettings = {
     },
   },
   site: {
-    design: 'classic',
+    // Made for a shop (site/designs/market.css); the owner can choose any look in their website settings.
+    design: 'market',
     words: {
       contactAddressLabel: 'Address',
       contactMessageLabel: 'Your message',
