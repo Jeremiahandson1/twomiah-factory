@@ -56,3 +56,31 @@
 .financing input[type="range"]::-moz-range-thumb { background: #ffffff; }
 .financing input[type="range"]::-webkit-slider-runnable-track { background: rgba(255, 255, 255, 0.38); }
 .financing input[type="range"]::-moz-range-track { background: rgba(255, 255, 255, 0.38); }
+
+/* ── A store's shop pages (store.css, which sits under the look in the base layer) ─────────────────────────────────────────
+   The shop's surfaces follow the look's own: its page, its cards, its hairlines, in light and in dark. A look then gives the
+   shop its character in its own sheet (.product-card, .product-add, .cart-summary…). */
+:root {
+  --store-page: var(--bg);
+  --store-card: var(--sf);
+  --store-tint: var(--sf2);
+  --store-tint2: var(--sf2);
+  --store-line: var(--ln);
+  --store-edge: color-mix(in srgb, var(--tx) 34%, var(--sf));
+  --store-danger: #b91c1c;
+  --store-danger-bg: color-mix(in srgb, #dc2626 12%, var(--sf));
+  --store-ok-bg: color-mix(in srgb, #16a34a 18%, var(--sf));
+  --store-wait: #92400e;
+  --store-wait-bg: color-mix(in srgb, #d97706 16%, var(--sf));
+}
+@media (prefers-color-scheme: dark) {
+  :root { --store-danger: #fca5a5; --store-ok: #86efac; --store-wait: #fcd34d; }
+}
+/* the owner's colour as a fill carries its own ink; as a word it is the look's readable form */
+.header-cart__count, .product-badge--featured, .variant-option.is-selected { background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; border-color: {{PRIMARY_COLOR}}; }
+.header-cart:hover, .store-back-link:hover, .product-viewcart:hover, .cart-summary__continue:hover { color: var(--brand-text); }
+.product-eyebrow { color: var(--brand-text); }
+.product-badge--soldout { background: #1e293b; color: #ffffff; }
+.cart-summary__input, .qty-stepper__input, .product-review-form input[type="text"], .product-review-form input[type="email"], .product-review-form textarea { background: var(--store-card); color: var(--ink); }
+.qty-stepper__btn { color: var(--ink); }
+.product-viewcart__count { background: var(--store-tint); color: var(--ink); }

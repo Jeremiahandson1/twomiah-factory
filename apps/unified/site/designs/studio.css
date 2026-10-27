@@ -304,3 +304,41 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 /* a very dark brand colour as a fill would vanish into a dark page: its own light form draws the edge */
 @media (prefers-color-scheme: dark) { .btn--primary, .header-cta, .mobile-nav__cta { box-shadow: 0 0 0 1px {{PRIMARY_COLOR_ON_DARK}}, 0 12px 26px -12px {{PRIMARY_COLOR}}; } }
 @media (prefers-reduced-motion: reduce) { .btn, .header-cta, .service-card, .blog-card, .footer-contact a, .areas-list__grid a { transition: none; } }
+
+/* ═══ THE SHOP: soft rounded panels, mono numerals, a glow under the button ═══════════════════════════════════════════════ */
+.store-shop-head h1, .store-shop-head h2 { font-family: var(--f-display); font-weight: 800; font-size: clamp(42px, 5.6vw, 80px); line-height: 1; letter-spacing: -.045em; color: var(--tx); margin: 0 0 12px; }
+.store-shop-head p { color: var(--tx2); font-size: 18px; }
+.product-card { background: var(--sf); border: 1px solid var(--ln); border-radius: var(--r); padding: 10px; box-shadow: var(--shadow); overflow: visible; transition: transform .2s, box-shadow .2s; }
+.product-card:hover { transform: translateY(-5px); box-shadow: 0 34px 50px -30px rgba(14, 17, 22, .55); }
+.product-card__media { border-radius: 20px; background: var(--sf2); }
+.product-badge { top: 12px; left: 12px; border-radius: 999px; font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .06em; }
+.product-badge--soldout { left: auto; right: 12px; }
+.product-card__body { padding: 18px 10px 10px; }
+.product-card__name { font-family: var(--f-display); font-weight: 800; font-size: 20px; line-height: 1.1; letter-spacing: -.03em; color: var(--tx); }
+.product-card__tagline { color: var(--tx2); font-size: 14.5px; }
+.product-price__now { font-family: var(--f-mono); font-weight: 500; font-size: 18px; color: var(--tx); letter-spacing: -.02em; }
+.product-price__from, .product-price__was { font-family: var(--f-mono); color: var(--tx2); }
+.product-card__add { margin: 0 10px 10px; width: calc(100% - 20px); border-radius: 16px; }
+.product-gallery__main { border: 1px solid var(--ln); border-radius: 32px; box-shadow: var(--shadow); background: var(--sf2); }
+.product-gallery__thumb { border: 2px solid var(--ln); border-radius: 16px; }
+.product-gallery__thumb.is-active { border-color: var(--tx); }
+.product-info__name { font-family: var(--f-display); font-weight: 800; font-size: clamp(36px, 4.4vw, 62px); line-height: 1.02; letter-spacing: -.045em; color: var(--tx); }
+.product-info__price .product-price__now { font-size: 32px; }
+.variant-option { border: 1px solid var(--ln2); border-radius: 14px; background: var(--sf); color: var(--tx); font-weight: 700; }
+.variant-option:hover { border-color: var(--tx); }
+.variant-option.is-selected { color: {{INK_ON_PRIMARY}}; box-shadow: 0 10px 22px -12px {{PRIMARY_COLOR}}; }
+.qty-stepper { border: 1px solid var(--ln2); border-radius: 14px; background: var(--sf); }
+.qty-stepper__input { border-color: var(--ln); background: transparent; }
+.product-description { border-top: 1px solid var(--ln); }
+.product-description h2, .product-upsell__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.03em; color: var(--tx); }
+.product-review-form, .product-upsell__item { border: 1px solid var(--ln); border-radius: 22px; background: var(--sf); }
+.cart-title { font-family: var(--f-display); font-weight: 800; font-size: clamp(42px, 5.6vw, 76px); line-height: 1; letter-spacing: -.045em; color: var(--tx); }
+.cart-line { border-bottom: 1px solid var(--ln); }
+.cart-line__media { border-radius: 16px; }
+.cart-line__name { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; }
+.cart-summary { background: var(--sf); border: 1px solid var(--ln); border-radius: 28px; box-shadow: var(--shadow); }
+.cart-summary__title { font-family: var(--f-display); font-weight: 800; font-size: 22px; letter-spacing: -.03em; color: var(--tx); }
+.cart-summary__input { border: 1px solid var(--ln2); border-radius: 12px; }
+.order-confirm__title { font-family: var(--f-display); font-weight: 800; font-size: clamp(38px, 4.8vw, 64px); line-height: 1.02; letter-spacing: -.045em; color: var(--tx); }
+.order-confirm__icon { border-radius: 24px; }
+.order-card { background: var(--sf); border: 1px solid var(--ln); border-radius: 28px; box-shadow: var(--shadow); }

@@ -130,3 +130,68 @@ describe('what the looks survey found (2026-10-27) stays fixed', () => {
     }
   })
 })
+
+describe('a store\'s shop pages sit under a whole look, not over it (2026-10-27)', () => {
+  const shopCtx = (design: string, brand?: string) => { const c = ctx(design, brand); c.options.shop = true; return c }
+  const STORE_CSS = fs.readFileSync(path.resolve(import.meta.dir, '..', 'site', 'public', 'styles', 'store.css'), 'utf8')
+  /** The text of the first `@layer base { … }` block, by brace matching. */
+  const layerOf = (css: string): string => {
+    const start = css.indexOf('@layer base {') + '@layer base {'.length
+    let depth = 1, i = start
+    while (i < css.length && depth > 0) { const ch = css[i++]; if (ch === '{') depth++; else if (ch === '}') depth-- }
+    return css.slice(start, i - 1)
+  }
+  // a line only the shop's stylesheet has (the looks restyle .product-card and the rest, but never define this token)
+  const SHOP_RULE = '--store-done: #15803d'
+
+  test('for a whole look the shop\'s styles are inside the base layer, so the look\'s own rules win over them', () => {
+    for (const d of WHOLE) {
+      const css = siteStylesheet(shopCtx(d))
+      expect([d, layerOf(css).includes(SHOP_RULE)]).toEqual([d, true])
+    }
+  })
+
+  test('…and only the layered copy is the shop\'s: nothing of store.css is left unlayered after the look', () => {
+    for (const d of WHOLE) {
+      const css = siteStylesheet(shopCtx(d))
+      const outside = css.replace(layerOf(css), '')
+      // the shop's own rule for the page behind it would overrule a look's dark page if it were outside the layer
+      expect([d, outside.includes(SHOP_RULE), /\.store-page\s*\{[^}]*background:\s*var\(--store-page\)/.test(outside)]).toEqual([d, false, false])
+    }
+  })
+
+  test('a design that is not whole keeps the shop after it, as it was', () => {
+    const css = siteStylesheet(shopCtx('classic'))
+    expect(css.startsWith('@layer')).toBe(false)
+    expect(css.lastIndexOf('.store-page {')).toBeGreaterThan(css.indexOf('.site-header'))
+  })
+
+  test('no shop, no shop styles', () => {
+    for (const d of SITE_DESIGNS) expect([d, siteStylesheet(ctx(d)).includes(SHOP_RULE)]).toEqual([d, false])
+  })
+
+  test('every surface the shop paints is a token, and every frameless whole look points the tokens at its own surfaces', () => {
+    const tokens = [...STORE_CSS.matchAll(/^\s*(--store-[a-z0-9-]+):/gm)].map((m) => m[1])
+    expect(tokens.length).toBeGreaterThan(8)
+    // the shop never paints a surface with a literal light colour the look cannot reach
+    const outsideRoot = STORE_CSS.replace(/:root\s*\{[^}]*\}/, '')
+    expect(outsideRoot).not.toMatch(/background:\s*(#fff\b|#ffffff|#f[0-9a-f]{5}\b)/i)
+    const whole = fs.readFileSync(path.join(DESIGNS_DIR, '_whole.css'), 'utf8')
+    for (const t of ['--store-page', '--store-card', '--store-tint', '--store-line', '--store-edge', '--store-danger']) expect([t, whole.includes(t + ':')]).toEqual([t, true])
+  })
+
+  test('the brand colour on a shop fill carries its own ink for any brand colour', () => {
+    for (const brand of ['#facc15', '#0b3d2e', '#ffffff']) {
+      const css = siteStylesheet(shopCtx('market', brand))
+      expect(css).not.toMatch(/\{\{[A-Z_]+\}\}/)
+      expect(css).toMatch(/\.header-cart__count[^{}]*\{[^}]*color:\s*#/)
+    }
+  })
+
+  test('market is a look made for a shop: choosable, and a store starts in it', async () => {
+    const { default: store } = await import('../verticals/store/settings.ts')
+    expect(SITE_DESIGN_SPECS.market.build).toBe('whole')
+    expect(SITE_DESIGN_SPECS.market.choosable).toBe(true)
+    expect(store.site.design).toBe('market')
+  })
+})
