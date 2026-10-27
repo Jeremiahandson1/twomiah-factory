@@ -31,7 +31,7 @@ let cardWorks = true
 const stripeStandIn = { createWalletReloadInvoice: async (o: any) => { reloads.push(o); return cardWorks ? { invoiceId: 'in_' + reloads.length, paid: true } : { invoiceId: 'in_x', paid: false, hostedUrl: 'https://invoice.stripe.com/i/x', error: 'card declined' } } }
 
 const { withStripeFee } = await import('../../../apps/api/src/config/domainPricing.ts')
-const { creditOnce, reloadWallet, chargeMonthlyCampaignFees } = await import('../../../apps/api/src/services/messagingWallet.ts')
+const { creditOnce, reloadWallet } = await import('../../../apps/api/src/services/messagingWallet.ts')
 const { encryptJSON } = await import('../../../apps/api/src/lib/crypto.ts')
 
 const tenant = (over: any = {}) => ({ id: 't-1', name: 'Acme', email: 'owner@acme.example', stripe_customer_id: 'cus_1', messaging_enabled: true, messaging_wallet_cents: 0, a2p_status: 'approved', a2p_phone_number: 'PN1', a2p_number_monthly_cents: 115, factory_sync_key: 'acme-key', ...over })
@@ -65,20 +65,26 @@ describe('auto-reload from the card on file', () => {
     expect(await reloadWallet(tenant({ stripe_customer_id: null }), 100, stripeStandIn)).toMatchObject({ paid: false, error: 'no card on file' })
   })
 
-  test('the monthly charge reloads first when the wallet cannot cover it', async () => {
-    reloads.length = 0; ledger.length = 0
-    store.tables.tenants = [tenant({ messaging_wallet_cents: 300 })]
-    store.tables.messaging_ledger = ledger
-    await chargeMonthlyCampaignFees(stripeStandIn)
-    expect(reloads).toHaveLength(1)
-    expect(ledger.some((l) => l.reason === 'monthly_campaign')).toBe(true)
-  })
+})
 
-  test('a wallet that covers it is not reloaded', async () => {
-    reloads.length = 0; ledger.length = 0
-    store.tables.tenants = [tenant({ messaging_wallet_cents: 50000 })]
-    await chargeMonthlyCampaignFees(stripeStandIn)
-    expect(reloads).toHaveLength(0)
+describe('the $10 a month covers the line', () => {
+  // Owner, 2026-10-26: "i dont want to charge twice, so the 10 should cover it". The number's rental and the carriers'
+  // monthly campaign fee are paid out of the $10 subscription — nothing takes them from the wallet as well.
+  test('nothing debits a monthly line fee from the wallet', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const root = path.resolve(import.meta.dir, '../../../apps/api/src')
+    const hits: string[] = []
+    const walk = (dir: string) => {
+      for (const f of readdirSync(dir)) {
+        const p = path.join(dir, f)
+        if (statSync(p).isDirectory()) walk(p)
+        else if (/\.ts$/.test(f) && /debit\([^)]*'monthly_campaign'/.test(readFileSync(p, 'utf8'))) hits.push(path.relative(root, p))
+      }
+    }
+    walk(root)
+    expect(hits).toEqual([])
+    const costs = await import('../../../apps/api/src/config/messagingCosts.ts')
+    expect(Object.keys(costs.TWILIO_COSTS).sort()).toEqual(['brandRegistrationCents', 'campaignVettingCents', 'perSegmentCents'])
   })
 })
 

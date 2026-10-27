@@ -1,7 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
-import { getLedger, debit, chargeMonthlyCampaignFees, reloadWallet } from '../../services/messagingWallet'
+import { getLedger, debit, reloadWallet } from '../../services/messagingWallet'
 import { withStripeFee } from '../../config/domainPricing'
 import { MESSAGING_LOW_CENTS } from '../../config/messagingCosts'
 import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, aiCostCents } from '../../config/messagingCosts'
@@ -367,18 +367,6 @@ export function registerMessagingRoutes(factory: FactoryApp) {
       metadata: { addon: 'messaging_wallet_topup', tenant_id: t.id, topup_cents: String(cents) },
     })
     return c.json({ url })
-  })
-
-  // ─── Cron: charge the recurring at-cost monthly A2P campaign fee ─────────────
-  // Public path (/internal/*); does its own CRON_SECRET check.
-  factory.post('/internal/messaging/monthly', async (c) => {
-    if (!checkCronSecret(c)) return c.json({ error: 'Invalid cron secret' }, 401)
-    try {
-      const res = await chargeMonthlyCampaignFees()
-      return c.json({ success: true, ...res })
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500)
-    }
   })
 
   // ─── Cron: email a top-up nudge to tenants whose wallet is low/negative ───────

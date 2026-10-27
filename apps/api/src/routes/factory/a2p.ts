@@ -30,7 +30,7 @@ async function summary(t: any) {
     approvedAt: t.a2p_approved_at || null,
     messagingEnabled: !!t.messaging_enabled,
     walletCents: t.messaging_wallet_cents ?? 0,
-    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, monthlyCampaignCents: TWILIO_COSTS.monthlyCampaignCents, numberMonthlyCents: TWILIO_COSTS.numberMonthlyCents, startCents: MESSAGING_START_CENTS },
+    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, segmentCents: TWILIO_COSTS.perSegmentCents, startCents: MESSAGING_START_CENTS },
   }
 }
 

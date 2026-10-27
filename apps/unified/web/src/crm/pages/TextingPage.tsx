@@ -20,7 +20,7 @@ interface Registration {
   submittedAt: string | null
   messagingEnabled: boolean
   walletCents: number
-  fees: { brandCents: number; campaignVettingCents: number; monthlyCampaignCents: number; numberMonthlyCents: number; startCents?: number }
+  fees: { brandCents: number; campaignVettingCents: number; segmentCents: number; startCents?: number }
   error?: string
 }
 
@@ -104,7 +104,6 @@ export default function TextingPage() {
   if (loading) return <div className={MUTED}>Loading…</div>
 
   const upfront = reg ? reg.fees.brandCents + reg.fees.campaignVettingCents : 0
-  const monthly = reg ? reg.fees.monthlyCampaignCents + reg.fees.numberMonthlyCents : 0
   // What starts texting: the one-time registration and some to text with (the Factory's MESSAGING_START_CENTS).
   const start = Math.max(reg?.fees.startCents ?? 0, upfront)
   const short = reg ? Math.max(0, start - reg.walletCents) : 0
@@ -134,7 +133,7 @@ export default function TextingPage() {
       ) : reg && !reg.messagingEnabled ? (
         <div className={CARD}>
           <h2 className="font-semibold text-gray-900 dark:text-white">Turn on texting</h2>
-          <p className={MUTED + ' mt-1'}>Texting is $10 a month. To start, you add {money(start)} to your texting wallet — {money(upfront)} for the one-time carrier registration, the rest for your first texts. After that the wallet pays {money(monthly)} a month for the registration and your number, and a fraction of a cent per text. {reloadTerms}</p>
+          <p className={MUTED + ' mt-1'}>Texting is $10 a month, which covers your number and the carriers' monthly fee. To start, you add {money(start)} to your texting wallet — {money(upfront)} for the one-time carrier registration, the rest for your first texts. After that the wallet pays only for texts, {money(reg.fees.segmentCents)} each at cost. {reloadTerms}</p>
           {mayRegister ? <button type="button" className={BTN + ' mt-4'} onClick={openBilling}>Turn on texting</button> : <p className={MUTED + ' mt-3'}>An owner or admin can turn it on.</p>}
         </div>
       ) : inReview ? (
@@ -164,7 +163,7 @@ export default function TextingPage() {
             <div className={CARD + ' space-y-5'}>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-white">Register your business for texting</h2>
-                <p className={MUTED + ' mt-1'}>The phone carriers require every business that texts customers to register. Costs, from your texting wallet ({money(reg!.walletCents)} now): {money(upfront)} once, then {money(monthly)} a month. {reloadTerms}</p>
+                <p className={MUTED + ' mt-1'}>The phone carriers require every business that texts customers to register. Costs, from your texting wallet ({money(reg!.walletCents)} now): {money(upfront)} once, then {money(reg!.fees.segmentCents)} per text. Your number and the monthly carrier fee are covered by the $10 a month. {reloadTerms}</p>
                 {short > 0 && (
                   <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 text-sm">
                     Add {money(short)} to your texting wallet to register — {money(start)} starts texting.

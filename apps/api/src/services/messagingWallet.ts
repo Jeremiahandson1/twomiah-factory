@@ -1,11 +1,12 @@
 import { supabase } from '../middleware/auth'
-import { TWILIO_COSTS, MESSAGING_RELOAD_CENTS } from '../config/messagingCosts'
+import { MESSAGING_RELOAD_CENTS } from '../config/messagingCosts'
 import { withStripeFee } from '../config/domainPricing'
 
-// Prepaid messaging wallet — tenants pre-fund it, and Twilio costs (A2P
-// registration, monthly campaign, per-message segments) draw it down AT COST.
-// The $10/mo enable fee is billed separately on the subscription and must NEVER
-// be debited here (it carries the margin; the wallet is pass-through only).
+// Prepaid messaging wallet — tenants pre-fund it, and Twilio costs (the one-time
+// A2P registration, per-message segments) draw it down AT COST. The $10/mo enable
+// fee is billed separately on the subscription and covers the monthly line costs
+// (the number + the campaign fee), so those are NEVER debited here — that would
+// charge for the line twice (owner, 2026-10-26).
 //
 // All mutations go through the atomic messaging_wallet_apply() SQL function
 // (migrations/2026-07-20_messaging_wallet.sql) so concurrent per-message debits
@@ -100,48 +101,4 @@ export async function reloadWallet(
 
 export async function canCover(tenantId: string, cents: number): Promise<boolean> {
   return (await getBalance(tenantId)) >= Math.round(cents)
-}
-
-// Recurring at-cost Twilio campaign fee. Charged once per ~month per approved,
-// messaging-enabled tenant. "Due" is derived from the ledger (last
-// 'monthly_campaign' debit ≥ 27 days ago) — no extra column needed. Uses
-// allowNegative: Twilio already billed us, so we let the wallet go negative and
-// the tenant tops up to clear it (a negative balance blocks new A2P actions).
-export async function chargeMonthlyCampaignFees(deps: Parameters<typeof reloadWallet>[2] = {}): Promise<{ checked: number; charged: number }> {
-  const { data: tenants, error } = await supabase.from('tenants').select('id, name, email, stripe_customer_id, messaging_wallet_cents, a2p_phone_number, a2p_number_monthly_cents')
-    .eq('messaging_enabled', true).eq('a2p_status', 'approved')
-  if (error) throw new Error(error.message)
-  let charged = 0
-  for (const t of tenants || []) {
-    const { data: last } = await supabase.from('messaging_ledger')
-      .select('created_at').eq('tenant_id', t.id).eq('reason', 'monthly_campaign')
-      .order('created_at', { ascending: false }).limit(1)
-    const lastAt = last?.[0]?.created_at ? new Date(last[0].created_at).getTime() : 0
-    const daysSince = (Date.now() - lastAt) / 86_400_000
-    if (daysSince >= 27) {
-      // Monthly recurring = campaign fee + the number's real rental. Both channels
-      // billed the same ($10 campaign) for now, per owner decision.
-      const numberCost = t.a2p_phone_number ? (t.a2p_number_monthly_cents ?? TWILIO_COSTS.numberMonthlyCents) : 0
-      const amount = TWILIO_COSTS.monthlyCampaignCents + numberCost
-      // Not enough in the wallet: reload it from the card on file first, as Twilio bills its own customers — the wallet
-      // used to go negative, a debt for something Twomiah has already paid Twilio. A card that fails gets the owner the
-      // invoice to pay (and texting pauses at an empty wallet: sms.ts walletSufficient).
-      if ((t.messaging_wallet_cents ?? 0) < amount) {
-        try {
-          const r = await reloadWallet(t, amount - (t.messaging_wallet_cents ?? 0), deps)
-          if (!r.paid && t.email && r.hostedUrl) {
-            const { notifyMessagingLowBalance } = await import('./email')
-            await notifyMessagingLowBalance({ name: t.name, email: t.email }, r.hostedUrl || '', (t.messaging_wallet_cents ?? 0) - amount)
-          }
-        } catch (e: any) { console.error('[Messaging] auto-reload failed for', t.id, e?.message || e) }
-      }
-      try {
-        await debit(t.id, amount, 'monthly_campaign', { allowNegative: true })
-        charged++
-      } catch (e: any) {
-        console.error('[Messaging] monthly campaign debit failed for', t.id, e?.message || e)
-      }
-    }
-  }
-  return { checked: (tenants || []).length, charged }
 }

@@ -331,15 +331,6 @@ async function ensureMessagingService(t: TenantRow, name: string): Promise<strin
   return svc.sid
 }
 
-async function numberPriceCents(): Promise<number | null> {
-  try {
-    const p = await twilio('https://pricing.twilio.com/v1', '/PhoneNumbers/Countries/US', 'GET')
-    const local = (p?.phone_number_prices || []).find((x: any) => String(x.number_type).toLowerCase() === 'local')
-    const n = local ? Math.round(parseFloat(local.current_price) * 100) : NaN
-    return Number.isFinite(n) ? n : null
-  } catch { return null }
-}
-
 /** The business's own local number, in its Messaging Service. Bought in its area code where Twilio has one. */
 async function ensurePhoneNumber(t: TenantRow, d: A2pData): Promise<string> {
   if (t.a2p_phone_number) return t.a2p_phone_number
@@ -356,7 +347,7 @@ async function ensurePhoneNumber(t: TenantRow, d: A2pData): Promise<string> {
   }
   if (!bought?.sid) throw new Error('Twilio had no number to buy right now — it will be tried again.')
   await twilio(MESSAGING, `/Services/${t.a2p_messaging_service_sid}/PhoneNumbers`, 'POST', { PhoneNumberSid: bought.sid })
-  await patchTenant(t.id, { a2p_phone_number: bought.sid, a2p_number_monthly_cents: await numberPriceCents() })
+  await patchTenant(t.id, { a2p_phone_number: bought.sid })
   t.a2p_phone_number = bought.sid
   return bought.sid
 }

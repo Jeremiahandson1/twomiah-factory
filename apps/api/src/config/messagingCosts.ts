@@ -1,10 +1,11 @@
 // Messaging economics (v2 pricing model).
 //
-//   ENABLE  = flat $10/mo — carries the margin (number + integration). Billed on
-//             a separate Stripe subscription line, NOT drawn from the wallet.
-//   AT COST = A2P registration, monthly campaign fee, and per-message segments —
-//             all pass-through, debited from the prepaid wallet at Twilio's real
-//             cost, no markup.
+//   ENABLE  = flat $10/mo — covers the line's monthly costs (the number's rental
+//             + the A2P campaign fee, ~$3/mo) with room to spare. Billed on a
+//             separate Stripe subscription line, NOT drawn from the wallet, and
+//             those monthly costs are never charged again (owner, 2026-10-26).
+//   AT COST = the one-time A2P registration and per-message segments — pass-
+//             through, debited from the prepaid wallet at Twilio's real cost.
 //
 // ⚠️ CONFIRM EXACT 2026 TWILIO FEES before charging real money. These are
 // Twilio's published-ballpark A2P numbers; each is env-overridable so you can
@@ -26,10 +27,6 @@ export const TWILIO_COSTS = {
   // Low-Volume Standard brand (Twilio's fee table of 2025-08-01: $4.50; services/a2p.ts registers that kind).
   brandRegistrationCents: int('TWILIO_A2P_BRAND_CENTS', 450),
   campaignVettingCents:   int('TWILIO_A2P_CAMPAIGN_VET_CENTS', 1500), // ~$15 one-time
-  // Recurring monthly campaign fee (Low-Volume Mixed is cheaper than Standard).
-  monthlyCampaignCents:   int('TWILIO_A2P_CAMPAIGN_MONTHLY_CENTS', 200), // ~$2/mo
-  // Monthly rental for the tenant's local phone number.
-  numberMonthlyCents:     int('TWILIO_NUMBER_MONTHLY_CENTS', 115),       // ~$1.15/mo
   // Per outbound SMS segment: Twilio message price + carrier pass-through fee.
   perSegmentCents:        int('TWILIO_SMS_SEGMENT_CENTS', 1),      // ~$0.01/segment
 }

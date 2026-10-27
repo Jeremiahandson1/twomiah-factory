@@ -27,12 +27,10 @@ const JOBS: JobConfig[] = [
   { name: 'booking-reminders', path: '/api/v1/factory/internal/booking-reminders', schedule: 'hourly' },
   { name: 'booking-rebook-reminders', path: '/api/v1/factory/internal/booking-rebook-reminders', schedule: { dailyAtUtcHour: 14 } },
   { name: 'booking-review-requests', path: '/api/v1/factory/internal/booking-review-requests', schedule: { dailyAtUtcHour: 16 } },
-  // A2P vetting advances over hours–days; poll hourly. Monthly campaign fee is
-  // self-guarded to once/~27 days per tenant, so a daily tick is plenty.
+  // A2P vetting advances over hours–days; poll hourly.
   { name: 'a2p-poll', path: '/api/v1/factory/internal/a2p/poll', schedule: 'hourly' },
   // Tenants' branded addresses onto Cloudflare once their domain is active (services/emailAliasSync.ts).
   { name: 'email-alias-sweep', path: '/api/v1/factory/internal/email-alias-sweep', schedule: 'hourly' },
-  { name: 'messaging-monthly', path: '/api/v1/factory/internal/messaging/monthly', schedule: { dailyAtUtcHour: 9 } },
   { name: 'messaging-low-balance-nudge', path: '/api/v1/factory/internal/messaging/low-balance-nudge', schedule: { dailyAtUtcHour: 15 } },
   // A website preview whose compose died with a restart or failed (routes/factory/intake.ts). Soon after
   // boot — a deploy is exactly what kills one, and the prospect was promised it within 15 minutes —
