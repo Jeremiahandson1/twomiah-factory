@@ -36,7 +36,7 @@
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
     .tw-est { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; }
-    .tw-est-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .tw-est-card { color-scheme: light; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
     .tw-est-title { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 4px; }
     .tw-est-sub { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
     .tw-est-field { margin-bottom: 12px; }
@@ -44,7 +44,7 @@
     .tw-est-consent input { margin-top: 2px; }
     .tw-est-consent a { color: inherit; text-decoration: underline; }
     .tw-est-label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; font-weight: 500; }
-    .tw-est-input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .15s; }
+    .tw-est-input { width: 100%; padding: 8px 12px; background: #fff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .15s; }
     .tw-est-input:focus { border-color: var(--tw-color, #7c3aed); box-shadow: 0 0 0 3px rgba(124,58,237,.15); }
     .tw-est-row { display: flex; gap: 8px; }
     .tw-est-row > * { flex: 1; }
@@ -53,8 +53,8 @@
     .tw-est-btn:disabled { opacity: .5; cursor: not-allowed; }
     .tw-est-result { margin-top: 20px; padding: 16px; background: #f3f0ff; border-radius: 10px; text-align: center; }
     .tw-est-range { font-size: 28px; font-weight: 800; color: var(--tw-color, #7c3aed); }
-    .tw-est-detail { font-size: 12px; color: #6b7280; margin-top: 4px; }
-    .tw-est-disclaimer { font-size: 11px; color: #6b7280; margin-top: 12px; line-height: 1.4; }
+    .tw-est-detail { font-size: 12px; color: #4b5563; margin-top: 4px; }
+    .tw-est-disclaimer { font-size: 11px; color: #4b5563; margin-top: 12px; line-height: 1.4; }
     .tw-est-error { margin-top: 12px; padding: 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
     .tw-est-cta { display: block; margin-top: 12px; text-align: center; font-size: 13px; color: var(--tw-color, #7c3aed); font-weight: 600; text-decoration: none; }
     .tw-est-loader { display: inline-block; width: 16px; height: 16px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: tw-spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }

@@ -91,7 +91,9 @@ export function siteStylesheet(ctx: SiteContext): string {
   const accent = ctx.colours.accent || DEFAULT_ACCENT
   const whole = SITE_DESIGN_SPECS[ctx.design]?.build === 'whole'
   const base = whole ? '@layer base {\n' + BASE_CSS_UNDER_A_WHOLE_LOOK + '\n}' : BASE_CSS
-  const css = base + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
+  // What every whole look without a frame shares (site/designs/_whole.css) sits between the base and the look, which wins.
+  const shared = whole && !ctx.options.cover ? '\n' + (DESIGN_CSS.get('_whole') ?? '') : ''
+  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
   return css
     .replaceAll('{{PRIMARY_COLOR_ON_LIGHT}}', colourOnWhite(ctx.colours.primary))
     .replaceAll('{{PRIMARY_COLOR_ON_DARK}}', ensureLight(ctx.colours.primary))

@@ -134,9 +134,9 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 /* ── Services — cards: spec plates, numbered ────────────────────────────────── */
 .services { background: var(--bg); }
 .services--cards .services__grid { counter-reset: svc; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 28px; }
-.service-card { counter-increment: svc; position: relative; background: var(--sf); border: 3px solid var(--edge); border-radius: 0; box-shadow: 8px 8px 0 var(--edge); transition: transform .14s, box-shadow .14s; }
+.service-card { counter-increment: svc; position: relative; /* the number tab sits above the picture, in the flow: absolute, it covered the first letter of a card with no picture */ background: var(--sf); border: 3px solid var(--edge); border-radius: 0; box-shadow: 8px 8px 0 var(--edge); transition: transform .14s, box-shadow .14s; }
 .service-card:hover { transform: translate(-3px, -3px); box-shadow: 11px 11px 0 {{PRIMARY_COLOR}}; }
-.service-card::before { content: counter(svc, decimal-leading-zero); position: absolute; z-index: 1; top: 0; left: 0; background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; font-family: var(--f-mono); font-weight: 600; font-size: 15px; letter-spacing: .08em; padding: 8px 14px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); }
+.service-card::before { content: counter(svc, decimal-leading-zero); display: block; width: fit-content; background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; font-family: var(--f-mono); font-weight: 600; font-size: 15px; letter-spacing: .08em; padding: 8px 14px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); }
 .service-card__image { aspect-ratio: 4 / 3; border-bottom: 3px solid var(--edge); filter: grayscale(.55) contrast(1.05); transition: filter .25s; background-color: var(--sf2); }
 .service-card:hover .service-card__image { filter: none; }
 .service-card__body { padding: 22px 24px 26px; }

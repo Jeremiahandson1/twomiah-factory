@@ -78,3 +78,55 @@ describe('each whole look is built for any brand colour, light and dark', () => 
     })
   }
 })
+
+describe('what the looks survey found (2026-10-27) stays fixed', () => {
+  const blocks = (sheet: string, selector: string) => [...sheet.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}@]+)\{([^{}]*)\}/g)].filter((m) => m[1].trim() === selector).map((m) => m[2]).join(';')
+
+  test('the menu, week strip, deals strip and catering form have their own padding, in every design', () => {
+    for (const d of SITE_DESIGNS) {
+      const sheet = siteStylesheet(ctx(d))
+      expect([d, /padding:\s*var\(--space\)\s+0/.test(blocks(sheet, '.menu--cards, .schedule--strip, .deals--strip, .catering--inquiry'))]).toEqual([d, true])
+    }
+  })
+
+  test('the text-size buttons are fixed at the bottom, never over the header\'s buttons at the top', () => {
+    for (const d of SITE_DESIGNS) {
+      const rule = blocks(siteStylesheet(ctx(d)), '.text-size-toggle')
+      expect([d, /bottom:\s*16px/.test(rule), /\btop:/.test(rule)]).toEqual([d, true, false])
+    }
+  })
+
+  test('the ZIP box and the financing slider cannot push their neighbours off a phone, or vanish in dark', () => {
+    for (const d of SITE_DESIGNS) {
+      const sheet = siteStylesheet(ctx(d))
+      expect([d, /\.sa-input\s*\{\s*min-width:\s*0;?\s*\}/.test(sheet)]).toEqual([d, true])
+    }
+    const shared = siteStylesheet(ctx('heritage'))
+    expect(shared).toMatch(/\.financing input\[type="range"\]::-webkit-slider-thumb\s*\{\s*background:\s*#ffffff/)
+  })
+
+  test('the care finder\'s five steps fit a phone: only the current step keeps its label', () => {
+    for (const d of SITE_DESIGNS) {
+      const flat = siteStylesheet(ctx(d)).replace(/\s+/g, ' ')
+      expect([d, /\.cf-progress__step:not\(\.is-current\)\s*\{[^}]*font-size:\s*0/.test(flat)]).toEqual([d, true])
+    }
+  })
+
+  test('the shared sheet reaches the frameless whole looks and no other design', () => {
+    for (const d of SITE_DESIGNS) {
+      const has = siteStylesheet(ctx(d)).includes('--brand-text:')
+      expect([d, has]).toEqual([d, NO_FRAME.includes(d)])
+    }
+  })
+
+  test('brand colour as text and white-on-dark-bar are given the forms that read, for any brand colour', () => {
+    for (const brand of ['#facc15', '#0b3d2e', '#ffffff', '#b45309']) {
+      const sheet = siteStylesheet(ctx('heritage', brand))
+      expect(sheet).not.toMatch(/\{\{[A-Z_]+\}\}/)
+      // price / date / chip text never uses the raw fill
+      const flat = sheet.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')
+      expect(flat).toMatch(/\.menu-item__price[^{}]*\.schedule-strip__date[^{}]*\{\s*color:\s*var\(--brand-text\);\s*\}/)
+      expect(blocks(sheet, '.storm-alert__heading, .storm-alert__close:hover, .emergency-bar__heading')).toContain('#ffffff')
+    }
+  })
+})

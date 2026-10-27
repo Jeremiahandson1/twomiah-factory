@@ -136,12 +136,12 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 .service-card__desc { color: var(--tx2); font-size: 15.5px; }
 .service-card__link { align-self: flex-start; margin-top: auto; padding: 9px 16px; border-radius: 999px; background: var(--sf2); color: var(--tx); font-weight: 700; font-size: 14px; border: 1px solid var(--ln); }
 .service-card__link:hover { border-color: var(--tx); }
-.service-card:first-child:nth-last-child(n + 3) { grid-column: span 2; grid-row: span 2; }
-.service-card:first-child:nth-last-child(n + 3) .service-card__image { aspect-ratio: auto; flex: 1 1 340px; min-height: 340px; }
-.service-card:first-child:nth-last-child(n + 3) .service-card__body { flex: 0 0 auto; }
-.service-card:first-child:nth-last-child(n + 3) .service-card__title { font-size: 34px; letter-spacing: -.04em; }
+.service-card:first-child:nth-last-child(n + 3):has(.service-card__image) { grid-column: span 2; grid-row: span 2; }
+.service-card:first-child:nth-last-child(n + 3):has(.service-card__image) .service-card__image { aspect-ratio: auto; flex: 1 1 340px; min-height: 340px; }
+.service-card:first-child:nth-last-child(n + 3):has(.service-card__image) .service-card__body { flex: 0 0 auto; }
+.service-card:first-child:nth-last-child(n + 3):has(.service-card__image) .service-card__title { font-size: 34px; letter-spacing: -.04em; }
 @media (max-width: 960px) { .services--cards .services__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .services--cards .services__grid { grid-template-columns: minmax(0, 1fr); } .service-card:first-child:nth-last-child(n + 3) { grid-column: auto; grid-row: auto; } .service-card:first-child:nth-last-child(n + 3) .service-card__image { aspect-ratio: 4 / 3; min-height: 0; flex: none; } }
+@media (max-width: 640px) { .services--cards .services__grid { grid-template-columns: minmax(0, 1fr); } .service-card:first-child:nth-last-child(n + 3):has(.service-card__image) { grid-column: auto; grid-row: auto; } .service-card:first-child:nth-last-child(n + 3):has(.service-card__image) .service-card__image { aspect-ratio: 4 / 3; min-height: 0; flex: none; } }
 
 /* ── Services — alternating: each service one rounded panel ─────────────────── */
 .services--alternating .service-row { background: var(--sf); border: 1px solid var(--ln); border-radius: 36px; padding: 14px; gap: 0; grid-template-columns: 1.05fr 1fr; margin-bottom: 18px; box-shadow: var(--shadow); align-items: stretch; }
