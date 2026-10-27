@@ -10,6 +10,7 @@ import { NOT_GIVEN_WORK_ROLES } from './work'
 import { isValidPhone } from '../contacts/contacts'
 import { isRealCalendarDay } from '../invoicing/money'
 import { withinHorizon } from '../dateInput'
+import { partialOf } from '../partialOf'
 
 export interface TeamTables { teamMember: any; user: any
   /**
@@ -138,7 +139,7 @@ export function createTeamRoutes(deps: TeamDeps) {
     }
     return out
   }
-  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid team member', details: err.flatten().fieldErrors }, 400)
+  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid team member', details: err.flatten().fieldErrors }, 400)
 
   app.get('/', requirePermission('team:read'), async (c) => {
     const user = (c as any).get('user')
@@ -299,7 +300,7 @@ export function createTeamRoutes(deps: TeamDeps) {
   app.put('/:id', requirePermission('team:update'), async (c) => {
     const user = (c as any).get('user')
     const id = c.req.param('id')
-    const parsed = teamMemberSchema.partial().safeParse(normEmail(await c.req.json().catch(() => ({}))))
+    const parsed = partialOf(teamMemberSchema).safeParse(normEmail(await c.req.json().catch(() => ({}))))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const badBranch = await branchCheck(user.companyId, data)

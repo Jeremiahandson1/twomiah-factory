@@ -8,6 +8,7 @@ import { inspection, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 const schema = z.object({ type: z.string(), projectId: z.string(), scheduledDate: z.string().optional(), inspector: z.string().optional(), notes: z.string().optional() })
 
@@ -97,7 +98,7 @@ export function createInspectionRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('inspections:update'), async (c) => {
     const me = c.get('user') as any
     const id = c.req.param('id')
-    const data = schema.partial().parse(await c.req.json())
+    const data = partialOf(schema).parse(await c.req.json())
     // Scoped to the caller's company like the list above, not matched on id alone.
     const [item] = await db.update(inspection).set({
       ...data,
