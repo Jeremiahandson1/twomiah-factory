@@ -4,6 +4,7 @@
 // unified app serves every company from one build, so each message reads them from the company row when it is sent.
 // Each module's own messages (invoices, quotes, bookings…) move in with that module; this file holds the core ones.
 import nodemailer from 'nodemailer'
+import type { Transporter } from 'nodemailer'
 import { company } from '../db/schema/index.ts'
 import { colourOnWhite } from './brandColour.ts'
 import type { Logger } from './logger.ts'
@@ -20,7 +21,7 @@ function getProvider(): EmailProvider {
   return 'console'
 }
 
-function createTransporter(provider: EmailProvider): nodemailer.Transporter | null {
+function createTransporter(provider: EmailProvider): Transporter | null {
   switch (provider) {
     case 'sendgrid':
       return nodemailer.createTransport({ host: 'smtp.sendgrid.net', port: 587, auth: { user: 'apikey', pass: process.env.SENDGRID_API_KEY } })
