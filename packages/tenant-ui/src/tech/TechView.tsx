@@ -287,7 +287,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
             <h3 className={heading}>Customer</h3>
             <p className="font-semibold text-gray-900 text-lg dark:text-slate-100">{job.contact.name}</p>
             {job.contact.phone && <a href={`tel:${job.contact.phone}`} className="flex items-center gap-2 mt-2 py-2.5 px-4 bg-green-50 text-green-800 rounded-lg font-medium text-sm dark:text-green-300 dark:bg-green-950/40"><Phone className="w-4 h-4" />{job.contact.phone}</a>}
-            {job.contact.phone && <TextButton phone={job.contact.phone} name={job.contact.name} className="mt-2" />}
+            {job.contact.phone && <TextButton phone={job.contact.phone} name={job.contact.name} record={job.contact.id ? { entity: 'contact', id: job.contact.id } : undefined} className="mt-2" />}
           </div>
         )}
         {addr && (

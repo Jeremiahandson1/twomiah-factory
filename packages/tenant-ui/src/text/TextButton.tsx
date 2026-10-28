@@ -14,12 +14,19 @@ import { AuthContext } from '../auth/AuthContext'
 import { qrSvg } from './qr'
 import { canTextHere, deviceTarget, smsHref, smsNumber } from './smsLink'
 import { textMessages, type TextContext, type TextMessage } from './textMessages'
+import { hasTextRecorder, recordTextOpened, type TextEntity } from './record'
 
 export interface TextButtonProps extends Pick<TextContext, 'name' | 'invoice' | 'quote'> {
   /** The customer's number as the record has it. Not a usable number: the button is not drawn. */
   phone: string | null | undefined
   /** Overrides the business name (the app's company name is used when this is not given). */
   businessName?: string | null
+  /**
+   * The contact or lead this number belongs to: a press is recorded on it ("Text opened on your phone — not confirmed sent") and
+   * the button is drawn only for a seat that may read it (contacts:read / leads:read — the permission the server asks of the
+   * record route). Not given (a booking with no contact, a home care client): nothing is recorded.
+   */
+  record?: { entity: TextEntity; id: string }
   /** Called when a message is chosen and the texting app (or the QR dialog) opens — e.g. a lead marked as contacted. */
   onTexted?: () => void
   /** Smaller for a dense list row. */
@@ -29,38 +36,47 @@ export interface TextButtonProps extends Pick<TextContext, 'name' | 'invoice' | 
 
 const btn = 'inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
 
-export function TextButton({ phone, name, invoice, quote, businessName, onTexted, compact, className = '' }: TextButtonProps) {
+export function TextButton({ phone, name, invoice, quote, businessName, record, onTexted, compact, className = '' }: TextButtonProps) {
   const auth = useContext(AuthContext)
   const business = businessName ?? (auth?.company as { name?: string } | null | undefined)?.name ?? null
   const messages = useMemo(() => textMessages({ name, businessName: business, invoice, quote }), [name, business, invoice?.link, invoice?.number, quote?.link, quote?.number])
   const [menu, setMenu] = useState(false)
   const [chosen, setChosen] = useState<TextMessage | null>(null)
+  // Where the menu opens on a wide screen: fixed under the button, so a table or card that clips its overflow cannot cut it off
+  // (seen in home care's Clients table). On a phone it is a bottom sheet, placed by its classes.
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null)
   const root = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     if (!menu) return
     const away = (e: MouseEvent) => { if (root.current && !root.current.contains(e.target as Node)) setMenu(false) }
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false) }
+    const close = () => setMenu(false)
     document.addEventListener('mousedown', away); document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc) }
+    window.addEventListener('scroll', close, true); window.addEventListener('resize', close)
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
   }, [menu])
 
+  // Only to a seat that may read the record it would be written on (the server asks the same; where nothing records — a template —
+  // there is nothing to guard).
   if (!smsNumber(phone)) return null
+  if (record && hasTextRecorder() && auth && !auth.can(record.entity === 'lead' ? 'leads:read' : 'contacts:read')) return null
 
   const pick = (m: TextMessage) => {
     setMenu(false)
     onTexted?.()
+    if (record) recordTextOpened(record.entity, record.id, m)
     if (canTextHere()) { const href = smsHref(phone, m.body, deviceTarget()); if (href) window.location.href = href } else setChosen(m)
   }
 
   return (
     <span ref={root} className={`relative inline-block ${className}`}>
-      <button type="button" onClick={() => setMenu((o) => !o)} aria-haspopup="menu" aria-expanded={menu}
+      <button type="button" onClick={() => { if (!menu && root.current) { const r = root.current.getBoundingClientRect(); setAt({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 248)) }) } setMenu((o) => !o) }} aria-haspopup="menu" aria-expanded={menu}
         aria-label={`Text ${name || phone} from your own phone`}
         className={`${btn} ${compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium`}>
         <MessageSquare className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} aria-hidden="true" />Text
       </button>
       {menu && (
-        <div role="menu" aria-label="Choose a message" className="fixed inset-x-2 bottom-2 z-30 rounded-lg sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:mt-1 sm:min-w-[15rem] border border-gray-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900">
+        <div role="menu" aria-label="Choose a message" style={at && typeof window !== 'undefined' && window.innerWidth >= 640 ? { top: at.top, left: at.left } : undefined} className="fixed inset-x-2 bottom-2 z-50 rounded-lg sm:inset-x-auto sm:bottom-auto sm:w-60 border border-gray-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900">
           {messages.map((m) => (
             <button key={m.id} type="button" role="menuitem" onClick={() => pick(m)}
               className="block w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:text-slate-100 dark:hover:bg-slate-800 dark:focus:bg-slate-800">

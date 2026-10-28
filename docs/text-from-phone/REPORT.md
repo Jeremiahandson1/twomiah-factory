@@ -1,6 +1,31 @@
 # Free "Text" from your own phone (2026-10-28)
 
-Branch `cloud/text-from-phone`, from `engine`. Pushed only there. The brief I received ended at item 2 of its "Do" list; I built items 1–2 and the QR / "Open on this computer" behaviour from the goal paragraph. **Not built, because it was not asked for as a task: recording a text in the contact's Activity.** There is no way to know a text was actually sent (we only open the user's app), so that needs your decision.
+Branch `cloud/text-from-phone`, rebased onto the current `engine` (b486abce2 at the time) and pushed only there. Items 1–2 (the button, the messages, the QR / "Open on this computer") were reported first; items 3–5 (the record, permissions, the remaining renders) were sent afterwards and are below.
+
+## The record: "Text opened on your phone — not confirmed sent" (item 3)
+
+When a message is chosen in the Text menu — the texting app opened on a phone, **or the QR dialog shown on a computer** — an `activity` row is written: `entityType` contact or lead, `entityId`, `action` `text_started`, `description` the exact words above, the chosen message in `metadata` (`{ message: 'ready', label: "We're on our way" }`), the person who pressed it as `userId`. Twomiah cannot know whether the text was sent, so the row says only what is known.
+- **Server:** `apps/unified/server/crm/textActivity.ts`, mounted at `/api/text-activity` (feature `contacts`): `POST /contact/:id`, `POST /lead/:id`, `GET /contact/:id`.
+- **The contact's Activity card** (`ContactDetailPage.tsx`) now shows the real activity rows — newest first, each with its time on the company's clock and who — above the existing Created / Updated lines, and reloads when a Text button on the page records a press. A system without the route (a template) keeps Created / Updated only.
+- **What is kept of the message is its id and label, not its words.** An invoice or quote message carries the document's private `/d/<token>` link, which the quote routes deliberately keep from seats that do not administer quotes; the card is read by everyone who reads the contact. (A test checks no `/d/` reaches the table.) If you want the words kept anyway, say so.
+- **Where it records:** contacts (the contact page, Tech view's customer, invoice and quote detail, roof job detail, and a booking that has a contact) and leads (the Lead Inbox). **Not recorded: home care Clients, and a booking with no contact** — a home care client is not a contact or a lead (its own table), and you asked for contact or lead. The button works there; it simply writes nothing. A template's button (no api registered) also writes nothing.
+- The Lead Inbox still marks a `new` lead as contacted when a text is opened (as its old inline link did).
+
+## Permissions on both sides (item 4)
+
+- **Server:** the contact routes ask `contacts:read` — and the contact's own scope: a seat without `contacts:read-all` (a field seat) reads only the customers on its own jobs, and the contact answers 404 for the rest. The activity routes ask exactly that, through the **same function** (`ownContactScope`, extracted in `packages/tenant-backend/src/contacts/contacts.ts` and now used by both — one rule, no copy). The lead route asks `leads:read` (the Lead Inbox's own, `ownPermission`). Write and read both.
+- **Screen:** `TextButton` is not drawn for a seat without `contacts:read` (a contact) or `leads:read` (a lead), when it records.
+- **Tests** (`apps/unified/tests/text-activity.test.ts`, 10): the exact words; a row written with the message and the user; read back with its time; a lead recorded on the lead only; message words never stored; made-up message / no body / missing record refused, nothing written; **a field seat is refused the lead (403, nothing written); home care's caregiver seat (contacts:read withheld) is refused both the write and the read; a field seat refused a contact outside its jobs (404, read and write) and allowed it once the customer is on its job**; no sign-in 401; feature off: no route. `text-button.test.ts` (7, real DOM): hidden without the permission (contact and lead), the QR dialog records, a phone's sms: link records, a press with nothing to record on still works, a failing record never stops the text.
+
+## Rendered (item 5) — all opened
+
+Real server + browser, three tenants (contractor, roofing, home care), each seeded; phone = iPhone 13 emulation, desktop 1440; light and dark; one session per view. 63 images: page, menu open, and (desktop) the QR dialog, for Tech view, Lead Inbox, Booking detail, roof Job detail, a home care client, and the contact page with its Activity card (and a press recorded live: 14 → 15 rows). Text in the menu and dialog ≥ 4.5:1 in every view (measured in the browser). The folder keeps the key ones: `tech-view`, `lead-inbox`, `booking-detail`, `roof-job`, `homecare-client` (each a four-up: desktop light, desktop dark, phone light, phone dark, menu open), `homecare-client-desktop-menu`, `qr-dialog-tech`, `qr-dialog-lead`, and the two Activity cards.
+Found and fixed in these renders: in home care's Clients **table** the menu opened inside the table cell and was **clipped** (seen only on the desktop table); the menu now opens fixed under the button, on every screen, and closes on scroll or resize. The phone's menu stays a bottom sheet.
+Looked at and left: the Lead Inbox's phone layout squeezes the lead's name into a narrow column (the card's own layout, untouched); a few controls look dim in the dark booking page for a moment while it loads.
+
+## Also changed, because a guard asked
+
+- `check-unified-write-controls` flagged `main.tsx` for writing (`api.post`) with no permission question. The write now lives in the shared button's recorder (which asks `can(...)` where it is drawn); `main.tsx` only registers the api client (`registerTextApi`). Nothing in the guard was edited.
 
 ## What it is
 
@@ -35,7 +60,7 @@ Not added, and why: crews' foreman, adjusters (roof), caregivers, caregiver appl
 
 ## Proof
 
-- Real server + browser (desktop light/dark, iPhone 13, Pixel 7): the menu, the dialog, the invoice and quote menus; no page errors; every text in the menu and dialog ≥ 4.5:1 in light and dark. The menu on a phone is a bottom sheet (an earlier drop-down ran off the screen edge — seen, fixed).
+- Real server + browser (desktop light/dark, iPhone 13, Pixel 7): the menu, the dialog, the invoice and quote menus; no page errors; every text in the menu and dialog ≥ 4.5:1 in light and dark. The menu on a phone is a bottom sheet (an earlier drop-down ran off the screen edge — seen, fixed); on a desktop it is fixed under the button so a clipping table cannot cut it.
 - Tests (no live API): `apps/unified/tests/text-sms.test.ts` (22: links per platform, encoding, device detection, messages and links, every vertical's words, one button everywhere) and `text-qr.test.ts` (4: every QR version 1–20 read back by `jsqr`, too-long refused, SVG scannable in dark mode).
 - `check-unified-*.ts` all pass (types: 0 / 203 / 0 baseline); `check-shared-deps`; the templates' own frontend types (5 templates) pass; `bun run build:web` builds.
 
@@ -43,4 +68,4 @@ Not added, and why: crews' foreman, adjusters (roof), caregivers, caregiver appl
 
 - **No QR library.** `packages/tenant-ui` is vendored into every CRM template, which installs only what its own manifest declares, so a dependency here would break every template. `qr.ts` is a small encoder (byte mode, level M, versions 1–20, up to 666 bytes; longer is refused, never cut). `jsqr` is a dev-only dependency of `apps/unified` for the test.
 - The number is sent as typed (digits and a leading `+`); it does not add a country code (not guessed).
-- Screenshots in this folder: desktop menu light/dark, QR dialog light, invoice QR dark, invoice menu, iPhone and Android menus. Not rendered: Tech view, Lead Inbox, Booking, roof Job, home care screens (same component; compiled and type-checked).
+- Screenshots in this folder: desktop menu light/dark, QR dialog light, invoice QR dark, invoice menu, iPhone and Android menus. Rendered since: Tech view, Lead Inbox, Booking, roof Job, a home care client (see above).

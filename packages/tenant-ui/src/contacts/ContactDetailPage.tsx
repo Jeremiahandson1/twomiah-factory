@@ -15,6 +15,7 @@ import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 import { quickActionPermission } from './types'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import { TextButton } from '../text/TextButton'
+import { TEXT_RECORDED_EVENT, TEXT_STARTED_LABEL } from '../text/record'
 
 type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
@@ -154,6 +155,17 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
       setPortalStatus(status)
     } catch { /* panel stays "Disabled" */ }
   }
+  // The contact's recorded activity (the unified app's GET /api/text-activity/contact/:id — a template has none and the card keeps
+  // its Created / Updated lines). Reloaded when a Text button on this page records a press.
+  const [activity, setActivity] = useState<Array<{ id: string; action: string; description?: string | null; createdAt: string; by?: string | null }>>([])
+  const loadActivity = async () => {
+    try { const res = await api.get(`/api/text-activity/contact/${id}`); setActivity(Array.isArray(res?.data) ? res.data : []) } catch { /* no activity rows for this seat or this system */ }
+  }
+  useEffect(() => {
+    const again = () => { loadActivity() }
+    window.addEventListener(TEXT_RECORDED_EVENT, again)
+    return () => window.removeEventListener(TEXT_RECORDED_EVENT, again)
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   const loadSms = async () => {
     setSmsLoading(true)
     try {
@@ -169,6 +181,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   useEffect(() => {
     loadContact()
+    loadActivity()
     if (showPortal) loadPortalStatus()
     // only for a seat the thread is read for (sms:send) — the panel below asks the same; anyone else got a 403 (T62)
     if (sections.sms && cfg.can('sms:send') && textingOn) loadSms()
@@ -409,13 +422,13 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {contact.phone && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-green-500 dark:text-green-300" /></div>
-                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Phone</p><a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.phone}</a> <TextButton phone={contact.phone} name={contact.name} compact className="ml-2" /></div>
+                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Phone</p><a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.phone}</a> <TextButton phone={contact.phone} name={contact.name} record={{ entity: 'contact', id: contact.id }} compact className="ml-2" /></div>
                 </div>
               )}
               {contact.mobile && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-purple-500 dark:text-purple-300" /></div>
-                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p><a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.mobile}</a> <TextButton phone={contact.mobile} name={contact.name} compact className="ml-2" /></div>
+                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p><a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.mobile}</a> <TextButton phone={contact.mobile} name={contact.name} record={{ entity: 'contact', id: contact.id }} compact className="ml-2" /></div>
                 </div>
               )}
               {(contact.address || contact.city) && (
@@ -699,6 +712,15 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           <div className={cardPad}>
             <h2 className={`${h2} mb-4`}>Activity</h2>
             <div className="space-y-4">
+              {activity.map((a) => (
+                <div key={a.id} className="flex items-start gap-3 text-sm">
+                  <div className="mt-1.5 w-2 h-2 shrink-0 rounded-full bg-orange-500" />
+                  <div>
+                    <p className="text-gray-900 dark:text-slate-100">{a.action === 'text_started' ? TEXT_STARTED_LABEL : (a.description || a.action.replace(/_/g, ' '))}</p>
+                    <p className="text-gray-600 dark:text-slate-300">{dateTime(a.createdAt)}{a.by ? ` · ${a.by}` : ''}</p>
+                  </div>
+                </div>
+              ))}
               <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-gray-500 dark:text-slate-400">Created</span><span className="text-gray-900 dark:text-slate-100">{instantDay(contact.createdAt)}</span></div>
               <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-gray-500 dark:text-slate-400">Updated</span><span className="text-gray-900 dark:text-slate-100">{instantDay(contact.updatedAt)}</span></div>
             </div>

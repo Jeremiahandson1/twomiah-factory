@@ -69,6 +69,7 @@ import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
+import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
@@ -363,6 +364,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   return [
     // The core CRM: on for a business with the CRM, off for a website-only one.
     { path: '/api/contacts', access: 'user', feature: 'contacts', router: contacts },
+    // "Text opened on your phone — not confirmed sent": the Text button's record, and the contact's activity rows (crm/textActivity.ts).
+    { path: '/api/text-activity', access: 'user', feature: 'contacts', router: createTextActivityRoutes({ db, requirePermission, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId) }) },
     // A job's photos are photo_capture's, as the field-service and basic copies' index.ts gated /api/jobs/:id/photos.
     // Roofing's own job module over the same table (CrmSettings.roof; server/crm/roof/jobs.ts) — one mount, never two.
     { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.roof
