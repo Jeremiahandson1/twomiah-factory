@@ -11,6 +11,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 const lineSchema = z.object({
   description: z.string().min(1),
@@ -165,7 +166,7 @@ export function createPurchaseOrderRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('purchase-orders:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const body = poSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
+    const body = partialOf(poSchema).safeParse(((await c.req.json().catch(() => null)) ?? {}))
     if (!body.success) return invalid(c, body.error)
     const data = body.data
 

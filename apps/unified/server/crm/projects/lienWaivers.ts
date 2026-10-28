@@ -8,6 +8,7 @@ import { lienWaiver, project, contact } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 const WAIVER_TYPES = [
   'conditional_progress',
@@ -116,7 +117,7 @@ export function createLienWaiverRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('lien-waivers:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = lienWaiverSchema.partial().parse(await c.req.json())
+    const data = partialOf(lienWaiverSchema).parse(await c.req.json())
     const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
     if (data.throughDate) updateData.throughDate = new Date(data.throughDate)
     if (data.dueDate) updateData.dueDate = new Date(data.dueDate)

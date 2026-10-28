@@ -20,6 +20,7 @@
 // explicit `confirmSpend: true` in the body; launch additionally requires a saved business profile (the service takes
 // the monthly budget from it). The upstream request body is rebuilt from validated fields — nothing else is forwarded.
 import { Hono } from 'hono'
+import { zmsg } from '../zodMessage'
 import { z } from 'zod'
 import { eq, and, desc, sql, inArray, asc } from 'drizzle-orm'
 
@@ -118,9 +119,9 @@ const launchSchema = z.object({
   objective: z.enum(ADS_OBJECTIVES),
   campaignName: z.string().trim().min(1).max(200).optional(),
   google_campaign_type: z.enum(['SEARCH', 'PERFORMANCE_MAX']).optional(),
-  confirmSpend: z.literal(true, { errorMap: () => ({ message: 'Launching starts real ad spend: send confirmSpend: true' }) }),
+  confirmSpend: z.literal(true, zmsg('Launching starts real ad spend: send confirmSpend: true')),
 })
-const confirmSchema = z.object({ confirmSpend: z.literal(true, { errorMap: () => ({ message: 'This changes live ad spend: send confirmSpend: true' }) }) })
+const confirmSchema = z.object({ confirmSpend: z.literal(true, zmsg('This changes live ad spend: send confirmSpend: true')) })
 const profileSchema = z.object({
   business_name: z.string().trim().min(1).max(200),
   industry: z.string().trim().min(1).max(100),

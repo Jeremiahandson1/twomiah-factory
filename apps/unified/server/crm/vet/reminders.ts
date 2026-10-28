@@ -234,7 +234,7 @@ export function createReminderRoutes(d: CrmDeps) {
   })
   const settingsSchema = z.object({
     auto: z.boolean(),
-    leadDays: z.number({ invalid_type_error: 'Enter a whole number of days' }).int('Enter a whole number of days').min(1, 'At least 1 day ahead').max(90, 'At most 90 days ahead'),
+    leadDays: z.number({ error: 'Enter a whole number of days' }).int('Enter a whole number of days').min(1, 'At least 1 day ahead').max(90, 'At most 90 days ahead'),
     message: z.string().trim().min(1, 'Write the text owners receive').max(480, 'Keep the text under 480 characters'),
   })
   app.put('/settings', requirePermission('company:update'), async (c) => {

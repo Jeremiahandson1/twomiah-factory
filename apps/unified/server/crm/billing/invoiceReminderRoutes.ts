@@ -13,7 +13,7 @@ import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { reminderSettings, SEND_FROM_HOUR, type InvoiceReminders } from './invoiceReminders.ts'
 
-const days = z.number({ invalid_type_error: 'Enter a whole number of days' }).int('Enter a whole number of days')
+const days = z.number({ error: 'Enter a whole number of days' }).int('Enter a whole number of days')
 const settingsSchema = z.object({
   enabled: z.boolean(),
   dueSoonDays: days.min(0, 'Use 0 to send no "due soon" reminder').max(30, 'At most 30 days before the due date'),
@@ -21,7 +21,7 @@ const settingsSchema = z.object({
   lateFee: z.object({
     enabled: z.boolean(),
     type: z.enum(['percent', 'flat']),
-    amount: z.number({ invalid_type_error: 'Enter the fee' }).min(0, 'The fee cannot be negative'),
+    amount: z.number({ error: 'Enter the fee' }).min(0, 'The fee cannot be negative'),
     afterDays: days.min(1, 'At least 1 day late').max(365, 'At most 365 days late'),
   }).superRefine((f, ctx) => {
     if (f.enabled && !(f.amount > 0)) ctx.addIssue({ code: 'custom', path: ['amount'], message: 'Enter the fee to charge' })

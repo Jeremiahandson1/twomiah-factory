@@ -153,7 +153,9 @@ for (const t of terminal) {
     fail('…and the create route must use it')
   // the object and the cross-field rule stay apart: superRefine returns a ZodEffects with no
   // `.partial()`, so folding them together makes the edit route throw at runtime
-  if (!/export const aiRuleUpdateSchema = aiRuleFields\.partial\(\)/.test(schema) || !/const body = aiRuleUpdateSchema\.parse/.test(ai))
+  // (zod 4's `.partial()` also fills in a field's default, wiping what an edit did not send — so the shared code takes the
+  // partial through partialOf(), which keeps the absent keys absent on zod 3 and 4; either shape of the plain object passes)
+  if (!/export const aiRuleUpdateSchema = (aiRuleFields\.partial\(\)|partialOf\(aiRuleFields\))/.test(schema) || !/const body = aiRuleUpdateSchema\.parse/.test(ai))
     fail('…while the edit route partials the plain object, not the refined one')
 }
 
