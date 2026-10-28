@@ -411,3 +411,7 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 .blog-preview__post { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 22px; color: var(--tx); }
 .blog-preview__excerpt { color: var(--tx2); }
 .blog-preview__more { color: var(--tx); }
+
+/* Parts of a service: soft chips */
+.service-parts a { background: var(--sf2); border: 1px solid var(--ln); color: var(--tx2); font-size: 13px; padding: 5px 12px; }
+.service-parts a:hover, .service-parts a:focus-visible { border-color: var(--tx); color: var(--tx); }

@@ -61,6 +61,25 @@ describe('which services get a page', () => {
   })
 })
 
+describe('parts of a service link from the card', () => {
+  const list = servicePagesOf([{ slug: 'home', sections: HOME, isPublished: true }], [], '')
+  const linked = linkServiceCards(HOME, list, new Set(['home']))[1].data.items
+
+  test('each named part links to its spot on the service page; a card without parts has none', () => {
+    expect(linked[0].subLinks).toEqual([{ title: 'Cabinet refacing', href: '/services/kitchen-remodels#cabinet-refacing' }, { title: 'Countertops', href: '/services/kitchen-remodels#countertops' }])
+    expect(linked[1].subLinks).toEqual([])
+  })
+
+  test('home and the service page agree: every linked part is an anchor on the page, and a card with none shows no list', async () => {
+    const home = (await html('/')).body
+    expect(home).toContain('href="/services/kitchen-remodels#cabinet-refacing"')
+    expect(home.match(/class="service-parts"/g)?.length).toBe(1)
+    const page = (await html('/services/kitchen-remodels')).body
+    expect(page).toContain('id="cabinet-refacing"')
+    expect(page).toContain('id="countertops"')
+  })
+})
+
 describe('the page, through the real server', () => {
   test('/services/<slug>: hero, the rest of the description, what is included, sub-services, the quote form, other services', async () => {
     const r = await html('/services/kitchen-remodels')

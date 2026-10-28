@@ -119,7 +119,10 @@ export function linkServiceCards(sections: any[], pages: ServicePage[], publishe
       ...s, data: {
         ...s.data, items: s.data.items.map((it: any) => {
           const page = byTitle.get(str(it?.title).toLowerCase())
-          return page && !keepsLink(it?.href, published) ? { ...it, href: '', servicePage: '/services/' + page.slug } : it
+          if (!page || keepsLink(it?.href, published)) return it
+          const base = '/services/' + page.slug
+          // each part the owner named links to its spot on the page
+          return { ...it, href: '', servicePage: base, subLinks: page.subServices.map((p) => ({ title: p.title, href: base + '#' + p.slug })) }
         }),
       },
     }

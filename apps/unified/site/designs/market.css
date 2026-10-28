@@ -418,3 +418,8 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .blog-preview__post { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 21px; color: var(--tx); }
 .blog-preview__excerpt { color: var(--tx2); }
 .blog-preview__more { color: var(--tx); }
+
+/* Parts of a service: quiet links with a coloured underline on hover */
+.service-parts { gap: 6px 16px; }
+.service-parts a { border: 0; border-radius: 0; padding: 2px 0; color: var(--tx2); font-weight: 600; font-size: 14px; border-bottom: 2px solid var(--ln); }
+.service-parts a:hover, .service-parts a:focus-visible { color: var(--tx); border-bottom-color: {{PRIMARY_COLOR}}; }

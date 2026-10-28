@@ -1,7 +1,8 @@
 import { Plus, X } from 'lucide-react'
+import { SubServicesField } from './SubServicesField'
 import { Label, TextField, TextAreaField, ImageUrlField, Hint, StringListField } from '../Field'
 
-interface Item { title?: string; description?: string; image?: string; href?: string; bullets?: string[] }
+interface Item { title?: string; description?: string; image?: string; href?: string; bullets?: string[]; subServices?: unknown[] }
 interface Data { heading?: string; intro?: string; items?: Item[] }
 
 export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange: (d: Data) => void }) {
@@ -54,6 +55,7 @@ export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange
                   addLabel="Add item"
                 />
                 <Hint>Shown on this service's own page, with the description (a blank line starts a new paragraph). Only what you list appears.</Hint>
+                <SubServicesField values={item.subServices || []} onChange={(v) => updateItem(i, { subServices: v })} />
                 <TextField label="Learn more link (optional)" placeholder="leave empty for this service's own page" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
               </div>
             </div>

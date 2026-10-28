@@ -26,6 +26,11 @@
           <% } %>
           <% if (item.href && !/^(?:#?contact|\/contact)$/i.test(item.href)) { %><a class="service-row__link" href="<%= item.href %>">See projects &rarr;</a>
           <% } else if (item.servicePage) { %><a class="service-row__link" href="<%= item.servicePage %>">About this service &rarr;</a><% } %>
+          <% if (Array.isArray(item.subLinks) && item.subLinks.length) { %>
+            <ul class="service-parts" aria-label="Parts of <%= item.title %>">
+              <% for (const p of item.subLinks) { %><li><a href="<%= p.href %>"><%= p.title %></a></li><% } %>
+            </ul>
+          <% } %>
         </div>
       </div>
     <% }) %>

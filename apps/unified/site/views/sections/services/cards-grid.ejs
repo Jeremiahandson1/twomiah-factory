@@ -21,6 +21,11 @@
             <p class="service-card__desc"><%= item.description || '' %></p>
             <% const link = item.href || item.servicePage || '' %>
             <% if (link) { %><a class="service-card__link" href="<%= link %>">Learn more &rarr;</a><% } %>
+            <% if (Array.isArray(item.subLinks) && item.subLinks.length) { %>
+              <ul class="service-parts" aria-label="Parts of <%= item.title %>">
+                <% for (const p of item.subLinks) { %><li><a href="<%= p.href %>"><%= p.title %></a></li><% } %>
+              </ul>
+            <% } %>
           </div>
         </article>
       <% } %>

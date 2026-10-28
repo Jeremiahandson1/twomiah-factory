@@ -421,3 +421,7 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .blog-preview__excerpt { color: var(--tx2); font-size: 16.5px; }
 .blog-preview__more { font-family: var(--f-mono); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--tx); }
 .blog-preview__card:hover .blog-preview__more { text-decoration: none; }
+
+/* Parts of a service: square mono tags with the hard edge */
+.service-parts a { border-radius: 0; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-family: var(--f-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; }
+.service-parts a:hover, .service-parts a:focus-visible { border-color: var(--tx); background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; }
