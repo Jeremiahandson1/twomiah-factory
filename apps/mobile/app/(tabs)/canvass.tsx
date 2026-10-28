@@ -177,8 +177,8 @@ export default function CanvassScreen() {
               disabled={locLoading || busy}
               activeOpacity={0.85}
             >
-              <Ionicons name="play" size={22} color="#fff" />
-              <Text style={styles.startBtnText}>{locLoading ? 'Getting location...' : 'Start Canvassing'}</Text>
+              <Ionicons name="play" size={22} color={t.onPrimary} />
+              <Text style={[styles.startBtnText, { color: t.onPrimary }]}>{locLoading ? 'Getting location...' : 'Start Canvassing'}</Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.startSub, { color: t.textMuted }]}>Your role can view canvassing but not log doors.</Text>
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 32, paddingVertical: 16, borderRadius: 14,
   },
-  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  startBtnText: { fontSize: 17, fontWeight: '700' },
   statsBar: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16,
     borderBottomWidth: 1,

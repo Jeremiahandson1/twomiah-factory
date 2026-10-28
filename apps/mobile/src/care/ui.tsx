@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../theme/ThemeContext'
+import { ACTION_INK } from '../theme/actions'
 import { readableOn, contrast } from './rules'
 
 export type Tone = 'info' | 'success' | 'warning' | 'danger' | 'neutral'
@@ -189,5 +190,5 @@ const styles = StyleSheet.create({
   kvLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   kvValue: { fontSize: 15, marginTop: 2, lineHeight: 21 },
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  badgeText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
+  badgeText: { color: ACTION_INK, fontSize: 11, fontWeight: '800' },
 })

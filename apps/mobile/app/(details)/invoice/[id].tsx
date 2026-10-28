@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useTheme } from '../../../src/theme/ThemeContext'
+import { ACTION, ACTION_INK } from '../../../src/theme/actions'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
 import { useAuth } from '../../../src/auth/AuthContext'
@@ -211,26 +212,26 @@ export default function InvoiceDetailScreen() {
         {/* Actions */}
         <AnimatedCard index={4}>
           <View style={styles.actionsCol}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#475569' }]}
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.slate }]}
               onPress={async () => { const err = await openDownload(`/api/invoices/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }}>
-              <Ionicons name="document-outline" size={18} color="#fff" />
+              <Ionicons name="document-outline" size={18} color={ACTION_INK} />
               <Text style={styles.actionText}>View PDF</Text>
             </TouchableOpacity>
             {canUpdate && invoice.status === 'draft' && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]}
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.blue }]}
                 onPress={() => setShowSendConfirm(true)}>
-                <Ionicons name="send" size={18} color="#fff" />
+                <Ionicons name="send" size={18} color={ACTION_INK} />
                 <Text style={styles.actionText}>Send Invoice</Text>
               </TouchableOpacity>
             )}
             {canPay && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#22c55e' }]}
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.green }]}
                 onPress={() => {
                   setPayAmount(balance.toFixed(2))
                   setShowPayment(true)
                   paymentSheetRef.current?.expand()
                 }}>
-                <Ionicons name="cash" size={18} color="#fff" />
+                <Ionicons name="cash" size={18} color={ACTION_INK} />
                 <Text style={styles.actionText}>Record Payment</Text>
               </TouchableOpacity>
             )}
@@ -278,12 +279,12 @@ export default function InvoiceDetailScreen() {
                   style={[styles.methodChip, payMethod === m && { backgroundColor: t.primary, borderColor: t.primary }]}
                   onPress={() => setPayMethod(m)}
                 >
-                  <Text style={[styles.methodText, payMethod === m && { color: '#fff' }]}>{m.replace('_', ' ')}</Text>
+                  <Text style={[styles.methodText, payMethod === m && { color: t.onPrimary }]}>{m.replace('_', ' ')}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: '#22c55e', marginTop: 12 }]}
+              style={[styles.actionBtn, { backgroundColor: ACTION.green, marginTop: 12 }]}
               onPress={handleRecordPayment}
               disabled={paySubmitting}
             >
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 10,
   },
-  actionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  actionText: { color: ACTION_INK, fontSize: 15, fontWeight: '600' },
   // Payment sheet
   paymentSheet: { padding: 20 },
   fieldLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', marginBottom: 6, marginTop: 12 },

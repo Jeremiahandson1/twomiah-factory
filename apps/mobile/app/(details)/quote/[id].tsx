@@ -14,6 +14,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
+import { ACTION, ACTION_INK } from '../../../src/theme/actions'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
 import { useAuth } from '../../../src/auth/AuthContext'
@@ -182,40 +183,40 @@ export default function QuoteDetailScreen() {
         {/* Actions */}
         <AnimatedCard index={4}>
           <View style={styles.actionsCol}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#475569' }]}
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.slate }]}
               onPress={async () => { const err = await openDownload(`/api/quotes/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }}>
-              <Ionicons name="document-outline" size={18} color="#fff" />
+              <Ionicons name="document-outline" size={18} color={ACTION_INK} />
               <Text style={styles.actionText}>View PDF</Text>
             </TouchableOpacity>
             {canUpdate && quote.status === 'draft' && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]}
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.blue }]}
                 onPress={() => setConfirmAction({ title: 'Send Quote', desc: 'Send this quote to the customer?', label: 'Send', action: () => doAction('send', 'Quote sent') })}>
-                <Ionicons name="send" size={18} color="#fff" />
+                <Ionicons name="send" size={18} color={ACTION_INK} />
                 <Text style={styles.actionText}>Send Quote</Text>
               </TouchableOpacity>
             )}
             {canUpdate && quote.status === 'sent' && (
               <>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#22c55e' }]}
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.green }]}
                   onPress={() => setConfirmAction({ title: 'Approve Quote', desc: 'Mark this quote as approved?', label: 'Approve', action: () => doAction('approve', 'Quote approved') })}>
-                  <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                  <Ionicons name="checkmark-circle" size={18} color={ACTION_INK} />
                   <Text style={styles.actionText}>Approve</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ef4444' }]}
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.red }]}
                   onPress={() => setConfirmAction({ title: 'Reject Quote', desc: 'Reject this quote?', label: 'Reject', destructive: true, action: () => doAction('reject', 'Quote rejected') })}>
-                  <Ionicons name="close-circle" size={18} color="#fff" />
+                  <Ionicons name="close-circle" size={18} color={ACTION_INK} />
                   <Text style={styles.actionText}>Reject</Text>
                 </TouchableOpacity>
               </>
             )}
             {canInvoice && quote.status === 'approved' && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#8b5cf6' }]}
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.violet }]}
                 onPress={() => setConfirmAction({ title: 'Convert to Invoice', desc: 'Create an invoice from this quote?', label: 'Convert', action: async () => {
                   const res = await post(`/api/quotes/${id}/convert-to-invoice`)
                   if (res.ok) { haptics.success(); toast.success('Invoice created'); router.push(`/(details)/invoice/${res.data.id}`) }
                   else { haptics.error(); toast.error(res.error || 'Conversion failed') }
                 }})}>
-                <Ionicons name="receipt" size={18} color="#fff" />
+                <Ionicons name="receipt" size={18} color={ACTION_INK} />
                 <Text style={styles.actionText}>Convert to Invoice</Text>
               </TouchableOpacity>
             )}
@@ -262,5 +263,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 10,
   },
-  actionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  actionText: { color: ACTION_INK, fontSize: 15, fontWeight: '600' },
 })

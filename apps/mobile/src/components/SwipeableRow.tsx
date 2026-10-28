@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Swipeable } from 'react-native-gesture-handler'
 import { Ionicons } from '@expo/vector-icons'
 import { useHaptics } from '../hooks/useHaptics'
+import { inkOn } from '../theme/contrast'
 
 export interface SwipeAction {
   icon: string
@@ -34,8 +35,8 @@ export function SwipeableRow({ children, rightActions = [], leftAction }: Swipea
             style={[styles.actionBtn, { backgroundColor: action.color }]}
             onPress={() => { haptics.light(); action.onPress() }}
           >
-            <Ionicons name={action.icon as any} size={20} color="#fff" />
-            <Text style={styles.actionLabel}>{action.label}</Text>
+            <Ionicons name={action.icon as any} size={20} color={inkOn(action.color)} />
+            <Text style={[styles.actionLabel, { color: inkOn(action.color) }]}>{action.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -50,8 +51,8 @@ export function SwipeableRow({ children, rightActions = [], leftAction }: Swipea
           style={[styles.actionBtn, { backgroundColor: leftAction.color }]}
           onPress={() => { haptics.light(); leftAction.onPress() }}
         >
-          <Ionicons name={leftAction.icon as any} size={20} color="#fff" />
-          <Text style={styles.actionLabel}>{leftAction.label}</Text>
+          <Ionicons name={leftAction.icon as any} size={20} color={inkOn(leftAction.color)} />
+          <Text style={[styles.actionLabel, { color: inkOn(leftAction.color) }]}>{leftAction.label}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -76,5 +77,5 @@ const styles = StyleSheet.create({
   actionBtn: {
     width: 72, alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  actionLabel: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  actionLabel: { fontSize: 11, fontWeight: '600' },
 })

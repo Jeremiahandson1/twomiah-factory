@@ -21,6 +21,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../theme/ThemeContext'
+import { OVERLAY_INK } from '../theme/actions'
 import { get, upload, getApiUrl, getAccessToken } from '../api/client'
 import { useCamera } from '../hooks/useCamera'
 import { useToast } from './ToastProvider'
@@ -167,7 +168,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
       <Modal visible={!!viewPhoto} transparent animationType="fade" onRequestClose={() => setViewPhoto(null)}>
         <View style={styles.modal}>
           <TouchableOpacity style={[styles.modalClose, { top: insets.top + 12 }]} onPress={() => setViewPhoto(null)}>
-            <Ionicons name="close" size={28} color="#fff" />
+            <Ionicons name="close" size={28} color={OVERLAY_INK} />
           </TouchableOpacity>
           {viewPhoto && (
             <Image source={photoSource(viewPhoto)} style={styles.fullImage} resizeMode="contain" />
@@ -202,5 +203,5 @@ const styles = StyleSheet.create({
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
   modalClose: { position: 'absolute', right: 20, zIndex: 10, padding: 8 },
   fullImage: { width: SCREEN_WIDTH, height: SCREEN_WIDTH },
-  caption: { color: '#fff', fontSize: 14, marginTop: 12, textAlign: 'center' },
+  caption: { color: OVERLAY_INK, fontSize: 14, marginTop: 12, textAlign: 'center' },
 })

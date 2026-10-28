@@ -88,7 +88,7 @@ export default function DealWorksheetScreen() {
         </View>
 
         <TouchableOpacity style={[styles.fiBtn, { backgroundColor: t.primary }]} onPress={() => router.push({ pathname: '/(details)/deal/fi', params: { financed: String(financed), unit: params.unit || '', term: String(term) } })}>
-          <Text style={styles.fiBtnText}>Submit to F&I →</Text>
+          <Text style={[styles.fiBtnText, { color: t.onPrimary }]}>Submit to F&I →</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -106,5 +106,5 @@ const styles = StyleSheet.create({
   pay: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
   payNote: { fontSize: 12, textAlign: 'center', marginTop: 2 },
   fiBtn: { marginTop: 14, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  fiBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  fiBtnText: { fontSize: 15, fontWeight: '700' },
 })

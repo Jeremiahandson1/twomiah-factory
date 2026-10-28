@@ -61,8 +61,8 @@ export default function ThreadScreen() {
             return (
               <View style={[styles.bubble, mine ? { alignSelf: 'flex-end', backgroundColor: t.primary } : { alignSelf: 'flex-start', backgroundColor: t.surface, borderColor: t.border, borderWidth: 1 }]}>
                 {!mine && <Text style={[styles.sender, { color: t.textSecondary }]}>{item.senderName}</Text>}
-                <Text style={[styles.body, { color: mine ? '#ffffff' : t.text }]}>{item.body}</Text>
-                <Text style={[styles.when, { color: mine ? '#ffffff' : t.textSecondary }]}>{isNaN(d.getTime()) ? '' : `${formatYmdShort(ymdOf(d))} ${formatClock(d)}`}</Text>
+                <Text style={[styles.body, { color: mine ? t.onPrimary : t.text }]}>{item.body}</Text>
+                <Text style={[styles.when, { color: mine ? t.onPrimary : t.textSecondary }]}>{isNaN(d.getTime()) ? '' : `${formatYmdShort(ymdOf(d))} ${formatClock(d)}`}</Text>
               </View>
             )
           }}
@@ -78,7 +78,7 @@ export default function ThreadScreen() {
           style={[styles.input, { color: t.text, backgroundColor: t.background, borderColor: t.border }]}
         />
         <TouchableOpacity onPress={send} disabled={sending || !text.trim()} style={[styles.send, { backgroundColor: t.primary, opacity: sending || !text.trim() ? 0.5 : 1 }]} accessibilityLabel="Send">
-          {sending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
+          {sending ? <ActivityIndicator color={t.onPrimary} size="small" /> : <Ionicons name="send" size={18} color={t.onPrimary} />}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

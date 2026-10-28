@@ -12,6 +12,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Ale
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../theme/ThemeContext'
+import { ACTION_INK, OVERLAY_INK } from '../../theme/actions'
 import { useToast } from '../../components/ToastProvider'
 import { useCare } from '../CareContext'
 import { careGet, carePost, carePut, asList } from '../careApi'
@@ -275,8 +276,8 @@ export function VisitPhotos() {
           <View key={p.localId} style={[styles.photo, { borderColor: t.border }]}>
             <Image source={{ uri: p.uri }} style={styles.photoImg} />
             <View style={[styles.photoStatus, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
-              {p.status === 'sending' ? <ActivityIndicator size="small" color="#fff" />
-                : <Ionicons name={p.status === 'sent' ? 'checkmark-circle' : p.status === 'failed' ? 'alert-circle' : 'time'} size={16} color="#fff" />}
+              {p.status === 'sending' ? <ActivityIndicator size="small" color={OVERLAY_INK} />
+                : <Ionicons name={p.status === 'sent' ? 'checkmark-circle' : p.status === 'failed' ? 'alert-circle' : 'time'} size={16} color={OVERLAY_INK} />}
             </View>
             {p.status === 'failed' && (
               <TouchableOpacity style={styles.photoRetry} onPress={() => retryPhoto(p.localId)} accessibilityLabel="Retry upload">
@@ -285,7 +286,7 @@ export function VisitPhotos() {
             )}
             {p.status !== 'sent' && p.status !== 'sending' && (
               <TouchableOpacity style={styles.photoRemove} onPress={() => removePhoto(p.localId)} accessibilityLabel="Remove photo">
-                <Ionicons name="close" size={14} color="#fff" />
+                <Ionicons name="close" size={14} color={OVERLAY_INK} />
               </TouchableOpacity>
             )}
           </View>
@@ -320,6 +321,6 @@ const styles = StyleSheet.create({
   photoImg: { width: '100%', height: '100%' },
   photoStatus: { position: 'absolute', left: 4, bottom: 4, borderRadius: 10, padding: 3 },
   photoRetry: { position: 'absolute', right: 4, bottom: 4, backgroundColor: '#b91c1c', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  photoRetryText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  photoRetryText: { color: ACTION_INK, fontSize: 11, fontWeight: '800' },
   photoRemove: { position: 'absolute', right: 4, top: 4, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 10, padding: 3 },
 })

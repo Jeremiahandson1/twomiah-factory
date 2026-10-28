@@ -8,6 +8,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
+import { ACTION, ACTION_INK } from '../../../src/theme/actions'
 import { AnimatedCard } from '../../../src/components/AnimatedCard'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 
@@ -40,11 +41,11 @@ export default function UnitDetailScreen() {
 
         <AnimatedCard index={1}>
           <View style={styles.actionsCol}>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: '#0ea5e9' }]} onPress={() => router.push('/(tabs)/ai-trade')}>
-              <Ionicons name="cash" size={18} color="#fff" /><Text style={styles.btnText}>Appraise a Trade</Text>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: ACTION.sky }]} onPress={() => router.push('/(tabs)/ai-trade')}>
+              <Ionicons name="cash" size={18} color={ACTION_INK} /><Text style={[styles.btnText, { color: ACTION_INK }]}>Appraise a Trade</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, { backgroundColor: t.primary }]} onPress={() => router.push({ pathname: '/(details)/deal/worksheet', params: { price: p.price || '', unit: name } })}>
-              <Ionicons name="clipboard" size={18} color="#fff" /><Text style={styles.btnText}>Start a Deal</Text>
+              <Ionicons name="clipboard" size={18} color={t.onPrimary} /><Text style={[styles.btnText, { color: t.onPrimary }]}>Start a Deal</Text>
             </TouchableOpacity>
           </View>
         </AnimatedCard>
@@ -65,5 +66,5 @@ const styles = StyleSheet.create({
   cat: { fontSize: 13, marginTop: 2, textTransform: 'capitalize' },
   actionsCol: { gap: 10 },
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 10 },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  btnText: { fontSize: 15, fontWeight: '600' },
 })

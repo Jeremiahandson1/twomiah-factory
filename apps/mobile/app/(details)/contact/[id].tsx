@@ -242,8 +242,8 @@ export default function ContactDetailScreen() {
         {contact.type === 'lead' && canEdit && (
           <AnimatedCard index={6}>
             <TouchableOpacity style={[styles.convertBtn, { backgroundColor: t.primary }]} onPress={handleConvert}>
-              <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
-              <Text style={styles.convertText}>Convert to Customer</Text>
+              <Ionicons name="arrow-forward-circle" size={20} color={t.onPrimary} />
+              <Text style={[styles.convertText, { color: t.onPrimary }]}>Convert to Customer</Text>
             </TouchableOpacity>
           </AnimatedCard>
         )}
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 10, marginBottom: 12,
   },
-  convertText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  convertText: { fontSize: 15, fontWeight: '600' },
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 14, marginBottom: 20,

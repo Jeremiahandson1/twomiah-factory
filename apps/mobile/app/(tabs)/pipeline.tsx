@@ -17,6 +17,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { inkOn } from '../../src/theme/contrast'
 import { get } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
@@ -98,7 +99,7 @@ export default function PipelineScreen() {
             style={[styles.pill, !selectedStage && { backgroundColor: t.primary }]}
             onPress={() => setSelectedStage(null)}
           >
-            <Text style={[styles.pillText, { color: !selectedStage ? '#fff' : t.textSecondary }]}>All ({jobs.length})</Text>
+            <Text style={[styles.pillText, { color: !selectedStage ? t.onPrimary : t.textSecondary }]}>All ({jobs.length})</Text>
           </TouchableOpacity>
           {visible.map(stage => {
             const active = selectedStage === stage.key
@@ -109,7 +110,7 @@ export default function PipelineScreen() {
                 onPress={() => setSelectedStage(active ? null : stage.key)}
               >
                 <View style={[styles.pillDot, { backgroundColor: stage.color }]} />
-                <Text style={[styles.pillText, { color: active ? '#fff' : t.textSecondary }]}>
+                <Text style={[styles.pillText, { color: active ? inkOn(stage.color) : t.textSecondary }]}>
                   {stage.label} ({stage.items.length})
                 </Text>
               </TouchableOpacity>

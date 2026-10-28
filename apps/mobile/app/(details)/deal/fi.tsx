@@ -87,8 +87,8 @@ export default function MobileFIScreen() {
           </View>
           <View style={styles.amtRow}><Text style={{ color: t.textSecondary }}>Amount financed</Text><Text style={[styles.amt, { color: t.primaryText }]}>{money(amountFinanced)}</Text></View>
           <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, { backgroundColor: t.primary, opacity: loading ? 0.6 : 1 }]}>
-            {loading ? <ActivityIndicator color="#fff" /> : (
-              <View style={styles.btnInner}><Ionicons name="send" size={16} color="#fff" /><Text style={styles.btnText}>Submit credit app</Text></View>
+            {loading ? <ActivityIndicator color={t.onPrimary} /> : (
+              <View style={styles.btnInner}><Ionicons name="send" size={16} color={t.onPrimary} /><Text style={[styles.btnText, { color: t.onPrimary }]}>Submit credit app</Text></View>
             )}
           </TouchableOpacity>
         </View>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   amt: { fontSize: 20, fontWeight: '800' },
   btn: { borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
   btnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  btnText: { fontSize: 15, fontWeight: '700' },
   err: { color: '#ef4444', fontSize: 13, marginBottom: 12 },
   dec: { fontSize: 20, fontWeight: '800' },
   lender: { fontSize: 13, marginTop: 2 },

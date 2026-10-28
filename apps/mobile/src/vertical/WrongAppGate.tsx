@@ -93,7 +93,7 @@ export function WrongAppGate() {
           onPress={logout}
           activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>Sign Out</Text>
+          <Text style={[styles.buttonText, { color: inkOn(t.primary) }]}>Sign Out</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     marginTop: 32, paddingVertical: 14, paddingHorizontal: 32,
     borderRadius: 10, minWidth: 180, alignItems: 'center',
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { fontSize: 16, fontWeight: '600' },
   address: { marginTop: 12, fontSize: 13 },
   secondary: { marginTop: 20, paddingVertical: 12, paddingHorizontal: 24 },
   secondaryText: { fontSize: 15, fontWeight: '600' },

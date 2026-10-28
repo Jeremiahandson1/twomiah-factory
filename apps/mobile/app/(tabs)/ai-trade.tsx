@@ -89,7 +89,7 @@ export default function AiTradeScreen() {
           </View>
 
           <TouchableOpacity onPress={go} disabled={loading} style={[styles.btn, { backgroundColor: t.primary, opacity: loading ? 0.6 : 1 }]}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Appraise</Text>}
+            {loading ? <ActivityIndicator color={t.onPrimary} /> : <Text style={[styles.btnText, { color: t.onPrimary }]}>Appraise</Text>}
           </TouchableOpacity>
         </View>
 
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   btn: { marginTop: 14, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  btnText: { fontSize: 15, fontWeight: '700' },
   err: { color: '#ef4444', fontSize: 13, marginTop: 12 },
   resTitle: { fontSize: 13, fontWeight: '700' },
   rangeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },

@@ -7,7 +7,7 @@ import React, { createContext, useContext, useMemo } from 'react'
 import { useColorScheme } from 'react-native'
 import Constants from 'expo-constants'
 import { useAuth } from '../auth/AuthContext'
-import { readableAccent } from './contrast'
+import { readableAccent, inkOn } from './contrast'
 
 const VARIANT_PRIMARY: string =
   (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
@@ -18,6 +18,8 @@ interface Theme {
   primary: string
   /** The business colour as TEXT: lightened/darkened just enough to be 4.5:1 on this scheme's background and surface. */
   primaryText: string
+  /** Words and icons ON the business colour: white or near-black, whichever reads (contrast.ts inkOn). */
+  onPrimary: string
   primaryLight: string
   background: string
   surface: string
@@ -53,6 +55,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme = useMemo<Theme>(() => ({
     primary,
     primaryText: readableAccent(primary, isDark ? ['#0f1117', '#1a1d2e', '#242838'] : ['#f8fafc', '#ffffff', '#f1f5f9']),
+    onPrimary: inkOn(primary),
     primaryLight: hexToRgba(primary, 0.12),
     background: isDark ? '#0f1117' : '#f8fafc',
     surface: isDark ? '#1a1d2e' : '#ffffff',

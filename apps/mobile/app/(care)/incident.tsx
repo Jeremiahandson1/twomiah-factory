@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { OVERLAY_INK } from '../../src/theme/actions'
 import { useCare } from '../../src/care/CareContext'
 import { careGet, carePost, asList } from '../../src/care/careApi'
 import { CareScreen } from '../../src/care/screen'
@@ -116,7 +117,7 @@ export default function IncidentScreen() {
           <View key={i} style={[styles.photo, { borderColor: t.border }]}>
             <Image source={{ uri: p.uri }} style={styles.photoImg} />
             <TouchableOpacity style={styles.remove} onPress={() => setPhotos((l) => l.filter((_, j) => j !== i))} accessibilityLabel="Remove photo">
-              <Ionicons name="close" size={14} color="#fff" />
+              <Ionicons name="close" size={14} color={OVERLAY_INK} />
             </TouchableOpacity>
           </View>
         ))}

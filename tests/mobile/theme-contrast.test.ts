@@ -48,5 +48,27 @@ walk(path.join(root, 'app')); walk(path.join(root, 'src'))
 const raw = files.filter((f) => /(?<![A-Za-z])color:\s*t\.primary(?![A-Za-z])/.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f))
 check('no text style uses the raw business colour (use t.primaryText)', raw.length === 0, raw)
 
+// Words and icons ON a coloured fill (owner, 2026-10-28: "fix all those"). White was hard-coded on the business colour (unreadable
+// on a yellow one) and on light status greens and blues (#22c55e 2.3:1). The rule: on the business colour the ink is t.onPrimary
+// (inkOn); on a colour picked at runtime it is inkOn(that colour); on a status button the fill is an ACTION colour, measured
+// here, and the ink ACTION_INK; on a dark photo overlay OVERLAY_INK. White written anywhere else as a text/icon colour is refused.
+{
+  const { ACTION, ACTION_INK } = await import('../../apps/mobile/src/theme/actions.ts')
+  for (const [name, c] of Object.entries(ACTION)) check(`status colour ${name} ${c} reads 4.5:1 with its ink`, contrastRatio(ACTION_INK, c) >= 4.5, contrastRatio(ACTION_INK, c).toFixed(2))
+  const theme = src('src/theme/ThemeContext.tsx')
+  check('the theme gives onPrimary = inkOn(the business colour)', /onPrimary: inkOn\(primary\)/.test(theme))
+  const WHITE = /(?<![A-Za-z])(?:color|tintColor)\s*(?:=\s*\{?\s*|:\s*)(?:[^,}\n]*\?\s*)?['"](?:#fff|#ffffff|white)['"]/i
+  const hits = files.filter((f) => !f.includes(path.join('src', 'theme'))).flatMap((f) => {
+    const rel = path.relative(root, f)
+    return src(rel).split('\n').map((line, i) => (WHITE.test(line) ? `${rel}:${i + 1} ${line.trim().slice(0, 90)}` : '')).filter(Boolean)
+  })
+  check('no word or icon is hard-coded white (use t.onPrimary, inkOn(colour), ACTION_INK or OVERLAY_INK)', hits.length === 0, hits)
+  // A status button's fill is an ACTION colour, never a light literal that white cannot be read on.
+  const light = ['#22c55e', '#3b82f6', '#8b5cf6', '#0ea5e9', '#ef4444']
+  const fills = files.flatMap((f) => { const rel = path.relative(root, f); return light.filter((c) => new RegExp(`backgroundColor:\\s*'${c}'`, 'i').test(src(rel))).map((c) => `${rel} ${c}`) })
+    .filter((x) => !/\(tabs\)[\\/]_layout\.tsx #22c55e/.test(x)) // the tab bar's 8-point online dot: no text on it
+  check('no button is filled with a light status shade (use ACTION)', fills.length === 0, fills)
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

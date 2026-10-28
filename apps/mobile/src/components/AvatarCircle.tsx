@@ -5,6 +5,7 @@
 import React from 'react'
 import { View, Text, Image, StyleSheet } from 'react-native'
 import { useTheme } from '../theme/ThemeContext'
+import { inkOn } from '../theme/contrast'
 
 interface AvatarCircleProps {
   name?: string
@@ -16,7 +17,7 @@ interface AvatarCircleProps {
 export function AvatarCircle({ name, avatar, size = 40, color }: AvatarCircleProps) {
   const t = useTheme()
   const bgColor = color || t.primaryLight
-  const textColor = color ? '#fff' : t.primary
+  const textColor = color ? inkOn(color) : t.primaryText
   const initial = (name || '?')[0].toUpperCase()
 
   if (avatar) {

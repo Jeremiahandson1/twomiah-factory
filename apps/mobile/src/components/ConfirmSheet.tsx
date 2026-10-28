@@ -5,6 +5,8 @@
 import React from 'react'
 import { Modal, Pressable, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTheme } from '../theme/ThemeContext'
+import { inkOn } from '../theme/contrast'
+import { ACTION } from '../theme/actions'
 import { useHaptics } from '../hooks/useHaptics'
 
 interface ConfirmSheetProps {
@@ -30,7 +32,7 @@ export function ConfirmSheet({
 }: ConfirmSheetProps) {
   const t = useTheme()
   const haptics = useHaptics()
-  const btnColor = confirmColor || (destructive ? '#ef4444' : t.primary)
+  const btnColor = confirmColor || (destructive ? ACTION.red : t.primary)
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -53,7 +55,7 @@ export function ConfirmSheet({
                 style={[styles.btn, { backgroundColor: btnColor }]}
                 onPress={() => { haptics.medium(); onConfirm() }}
               >
-                <Text style={[styles.btnText, { color: '#fff' }]}>{confirmLabel}</Text>
+                <Text style={[styles.btnText, { color: inkOn(btnColor) }]}>{confirmLabel}</Text>
               </TouchableOpacity>
             </View>
           </View>

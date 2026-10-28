@@ -20,6 +20,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useTheme } from '../../../src/theme/ThemeContext'
+import { ACTION, ACTION_INK } from '../../../src/theme/actions'
 import { useVertical } from '../../../src/vertical/VerticalContext'
 import { get, post, put } from '../../../src/api/client'
 import { useAuth } from '../../../src/auth/AuthContext'
@@ -341,7 +342,7 @@ export default function JobDetailScreen() {
                   onPress={handleSaveNote}
                   disabled={savingNote || !noteReady}
                 >
-                  <Ionicons name={isRoof ? 'send' : 'checkmark'} size={16} color="#fff" />
+                  <Ionicons name={isRoof ? 'send' : 'checkmark'} size={16} color={t.onPrimary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -353,33 +354,33 @@ export default function JobDetailScreen() {
           <AnimatedCard index={7}>
             <View style={styles.actionsCol}>
               {!isRoof && (job.status === 'scheduled' || job.status === 'dispatched') && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#22c55e' }]} onPress={() => act('start', undefined, 'Job started')}>
-                  <Ionicons name="play" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.green }]} onPress={() => act('start', undefined, 'Job started')}>
+                  <Ionicons name="play" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>Start Job</Text>
                 </TouchableOpacity>
               )}
               {!isRoof && job.status === 'scheduled' && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#3b82f6' }]} onPress={() => act('dispatch', undefined, 'Job dispatched')}>
-                  <Ionicons name="paper-plane" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.blue }]} onPress={() => act('dispatch', undefined, 'Job dispatched')}>
+                  <Ionicons name="paper-plane" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>Dispatch</Text>
                 </TouchableOpacity>
               )}
               {!isRoof && job.status === 'in_progress' && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#8b5cf6' }]} onPress={() => setShowComplete(true)}>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.violet }]} onPress={() => setShowComplete(true)}>
+                  <Ionicons name="checkmark-circle" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>Complete Job</Text>
                 </TouchableOpacity>
               )}
 
               {isRoof && job.status === 'lead' && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#0ea5e9' }]} onPress={() => setShowInspection('date')}>
-                  <Ionicons name="calendar" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.sky }]} onPress={() => setShowInspection('date')}>
+                  <Ionicons name="calendar" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>{job.inspectionDate ? 'Reschedule Inspection' : 'Schedule Inspection'}</Text>
                 </TouchableOpacity>
               )}
               {isRoof && nextStage && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#22c55e' }]} onPress={() => act('advance', undefined, `Moved to ${label(nextStage)}`)}>
-                  <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.green }]} onPress={() => act('advance', undefined, `Moved to ${label(nextStage)}`)}>
+                  <Ionicons name="arrow-forward-circle" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>Advance to {label(nextStage)}</Text>
                 </TouchableOpacity>
               )}
@@ -404,8 +405,8 @@ export default function JobDetailScreen() {
                 </View>
               )}
               {roofClosed && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#3b82f6' }]} onPress={() => act('reopen', { status: 'lead' }, 'Job reopened')}>
-                  <Ionicons name="refresh" size={20} color="#fff" />
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.blue }]} onPress={() => act('reopen', { status: 'lead' }, 'Job reopened')}>
+                  <Ionicons name="refresh" size={20} color={ACTION_INK} />
                   <Text style={styles.actionBtnText}>Reopen as Lead</Text>
                 </TouchableOpacity>
               )}
@@ -495,6 +496,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 10,
   },
-  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  actionBtnText: { color: ACTION_INK, fontSize: 16, fontWeight: '600' },
   actionBtnSm: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
 })
