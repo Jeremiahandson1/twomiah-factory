@@ -371,9 +371,8 @@ if (import.meta.main && process.argv[2] !== '--menu') {
   } else {
     const md = render(maps) + '\n'
     if (process.argv[2] === '--check') {
-      if (!existsSync(OUT) || readFileSync(OUT, 'utf8').replace(/
-/g, '
-') !== md) { console.error('FAIL: docs/mobile/PARITY.md is not what the code now says — run `bun scripts/mobile-parity.ts` and commit it'); process.exit(1) }
+      // A Windows checkout writes CRLF; the map is the same either way.
+      if (!existsSync(OUT) || readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n') !== md) { console.error('FAIL: docs/mobile/PARITY.md is not what the code now says — run `bun scripts/mobile-parity.ts` and commit it'); process.exit(1) }
       console.log('PARITY.md is current')
     } else {
       mkdirSync(dirname(OUT), { recursive: true }); writeFileSync(OUT, md)
