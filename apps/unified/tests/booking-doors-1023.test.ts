@@ -11,6 +11,9 @@ import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { addDays, tzParts } from '@twomiah/tenant-backend'
 import { scheduleBookingsOf } from '../web/src/booking/scheduleBookings.ts'
+// A wall-clock time on a day in the salon's zone, as the instant it is — CDT or CST by the day itself. A fixed
+// "-05:00" was right only in summer: it failed the week clocks went back (2026-11-01 is UTC-6).
+import { localToUtc } from '../server/crm/bar/barHours.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let token = '', ownerId = '', companyId = '', serviceId = ''
@@ -319,7 +322,7 @@ describe("a salon's online booking lands in The Book (the salon's schedule), and
   test('a desk appointment in The Book takes that time off the booking page', async () => {
     expect(await times()).toContain('13:00')
     const walkIn = await (await as2('/api/contacts', { method: 'POST', json: { name: 'Walk In', type: 'client' } })).json()
-    const made = await as2('/api/appointments', { method: 'POST', json: { contactId: walkIn.id, stylistId, startTime: new Date(`${sday()}T13:00:00-05:00`).toISOString(), endTime: new Date(`${sday()}T14:00:00-05:00`).toISOString(), notes: 'Walk-in' } })
+    const made = await as2('/api/appointments', { method: 'POST', json: { contactId: walkIn.id, stylistId, startTime: localToUtc(sday(), '13:00', TZ).toISOString(), endTime: localToUtc(sday(), '14:00', TZ).toISOString(), notes: 'Walk-in' } })
     expect(made.status).toBe(201)
     expect(await times()).not.toContain('13:00')
   })
@@ -328,7 +331,7 @@ describe("a salon's online booking lands in The Book (the salon's schedule), and
     const [b] = await s2.db.select().from(s2.schema.booking)
     expect((await as2(`/api/booking/bookings/${b.id}`, { method: 'PATCH', json: { date: sday(), time: '15:00' } })).status).toBe(200)
     let [a] = await s2.db.select().from(s2.schema.appointment).where(eq(s2.schema.appointment.id, b.appointmentId!))
-    expect(a.startTime.toISOString()).toBe(new Date(`${sday()}T15:00:00-05:00`).toISOString())
+    expect(a.startTime.toISOString()).toBe(localToUtc(sday(), '15:00', TZ).toISOString())
     expect((await as2(`/api/booking/bookings/${b.id}`, { method: 'PATCH', json: { status: 'cancelled' } })).status).toBe(200)
     ;[a] = await s2.db.select().from(s2.schema.appointment).where(eq(s2.schema.appointment.id, b.appointmentId!))
     expect(a.status).toBe('cancelled')
