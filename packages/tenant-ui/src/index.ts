@@ -170,3 +170,9 @@ export { brandSurfaceUnderWhite, brandInkOn } from './brand'
 // The brand palette itself: the one generator tailwind.config.js builds with and the shell runs again over
 // company.primaryColor at runtime (useBrandPalette). A forked layout calls useBrandPalette; nothing else needs these.
 export { generatePalette, applyBrandPalette, normalizeHex, BRAND_SHADES } from './brandPalette.js'
+
+// "Text" — opens the user's own texting app (or, on a computer, a QR code for their phone) with a ready message; free, not Twilio.
+export { TextButton } from './text/TextButton'
+export type { TextButtonProps } from './text/TextButton'
+export { textMessages } from './text/textMessages'
+export { smsHref, smsNumber } from './text/smsLink'

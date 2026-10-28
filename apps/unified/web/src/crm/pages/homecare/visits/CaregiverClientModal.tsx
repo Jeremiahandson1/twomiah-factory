@@ -13,7 +13,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
-import { useToast } from '../../../../shared'
+import { TextButton, useToast } from '../../../../shared'
 
 /** GET /api/clients/:id/caregiver-view. */
 interface ClientCard {
@@ -123,7 +123,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
                 <div className="hc-card" style={{ background: 'var(--hc-subtle)', marginBottom: '1rem' }}>
                   <h4 style={{ marginTop: 0 }}>👤 Basic Information</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <p><strong>Phone:</strong> <a href={`tel:${client.phone || ''}`}>{client.phone || 'N/A'}</a></p>
+                    <p><strong>Phone:</strong> <a href={`tel:${client.phone || ''}`}>{client.phone || 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</p>
                     <p><strong>DOB:</strong> {client.dateOfBirth ? formatDate(client.dateOfBirth) : 'N/A'}</p>
                     <p style={{ gridColumn: '1 / -1' }}>
                       <strong>Address:</strong>{' '}

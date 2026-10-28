@@ -60,7 +60,7 @@ const STARTER: StarterContent = {
 const salon: VerticalSettings = {
   id: 'salon',
   label: 'Salon',
-  vocabulary: { customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a visit is checked out', gallery: 'Gallery', customerCompany: false },
+  vocabulary: { readyText: "we're ready for you.", customer: { one: 'client', many: 'clients' }, work: { one: 'appointment', many: 'appointments' }, team: { one: 'team member', many: 'team' }, reviewAfter: 'a visit is checked out', gallery: 'Gallery', customerCompany: false },
   mfaIssuer: 'Twomiah Salon',
   featureSet: 'crm-salon',
   starter: STARTER,

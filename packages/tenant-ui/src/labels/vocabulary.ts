@@ -35,6 +35,13 @@ export interface Vocabulary {
    * 2026-10-25: "Company {{company}}" sat among a salon's personalise buttons).
    */
   customerCompany: boolean
+  /**
+   * The line the Text button's "ready" message says — what this trade tells a customer when it is their turn: "we're on our
+   * way" (a field trade), "your unit is ready for pickup" (RV), "your table is ready" (a bar). Starts lower-case and ends with
+   * a full stop; it follows "Hi Sam, <business> here. ". It is the OWNER's sentence to send, so it states no fact about the
+   * business. null: the trade has no such message and the menu does not offer one.
+   */
+  readyText: string | null
 }
 
 /** The words the shared screens were written in: a contractor's. */
@@ -45,6 +52,7 @@ export const JOB_TRADE: Vocabulary = {
   reviewAfter: 'a job is completed',
   gallery: 'Portfolio',
   customerCompany: true,
+  readyText: "we're on our way.",
 }
 
 let current: Vocabulary = JOB_TRADE

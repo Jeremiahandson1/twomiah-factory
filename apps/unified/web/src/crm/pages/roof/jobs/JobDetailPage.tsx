@@ -31,7 +31,7 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton, TextButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
@@ -799,6 +799,9 @@ export default function JobDetailPage() {
                 <a href={`tel:${contactPhone}`} className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline mt-1.5">
                   <Phone className="w-3.5 h-3.5" /> {contactPhone}
                 </a>
+              )}
+              {contactPhone && (
+                <TextButton phone={contactPhone} name={contact?.name} compact className="mt-1.5" />
               )}
               {contact?.email && (
                 <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline mt-1">

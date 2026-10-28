@@ -14,6 +14,7 @@ import { resolveContactsConfig, RECORD_VIEW_PARAM } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 import { quickActionPermission } from './types'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
+import { TextButton } from '../text/TextButton'
 
 type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
@@ -408,13 +409,13 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {contact.phone && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-green-500 dark:text-green-300" /></div>
-                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Phone</p><a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.phone}</a></div>
+                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Phone</p><a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.phone}</a> <TextButton phone={contact.phone} name={contact.name} compact className="ml-2" /></div>
                 </div>
               )}
               {contact.mobile && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-purple-500 dark:text-purple-300" /></div>
-                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p><a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.mobile}</a></div>
+                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p><a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.mobile}</a> <TextButton phone={contact.mobile} name={contact.name} compact className="ml-2" /></div>
                 </div>
               )}
               {(contact.address || contact.city) && (

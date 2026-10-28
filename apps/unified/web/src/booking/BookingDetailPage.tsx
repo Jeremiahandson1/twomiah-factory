@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Mail, Phone, MapPin, Repeat, FileText, User, Briefcase, ShieldAlert, CalendarDays } from 'lucide-react'
 import { api } from '../api'
-import { PageError, useAuth, useConfirm, useMayWrite, useToast } from '../shared'
+import { PageError, TextButton, useAuth, useConfirm, useMayWrite, useToast } from '../shared'
 import { useBookingBasics, onClock, StatusPill, dollars, type Booking } from './common'
 import { TimePicker, type PickedTime } from './TimePicker'
 import { verticalScreens } from '../crm/vertical'
@@ -105,7 +105,7 @@ export function BookingDetailPage() {
             </div>
           )}
           <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-muted" aria-hidden="true" /><a href={`mailto:${b.customerEmail}`} className="underline">{b.customerEmail}</a></div>
-          {b.customerPhone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted" aria-hidden="true" /><a href={`tel:${b.customerPhone}`} className="underline">{b.customerPhone}</a></div>}
+          {b.customerPhone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted" aria-hidden="true" /><a href={`tel:${b.customerPhone}`} className="underline">{b.customerPhone}</a><TextButton phone={b.customerPhone} name={b.customerName} compact /></div>}
           {b.customerAddress && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted" aria-hidden="true" />{b.customerAddress}{b.customerZip ? ` ${b.customerZip}` : ''}</div>}
         </div>
         {b.customerNotes && <div className="mt-3 pt-3 border-t border-line"><h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1 flex items-center gap-1"><FileText className="w-3 h-3" aria-hidden="true" />Notes</h3><p className="text-sm text-ink whitespace-pre-wrap">{b.customerNotes}</p></div>}
