@@ -30,8 +30,8 @@ export interface VariantSpec {
   /**
    * Background location ("Always"), for the person's own "Share my location while working" switch
    * (src/location/tracking.ts): the iOS "Always" prompt text, or null for a variant that never tracks in
-   * the background. Only trade apps whose businesses can have gps_tracking carry it: Twomiah Build and the
-   * generic app. NOT Twomiah Care (a caregiver's location is recorded at clock-in / clock-out for EVV) and
+   * the background. Only trade apps whose businesses can have gps_tracking carry it: Twomiah Build (the generic app
+   * does not, in its first store version — see `generic` below). NOT Twomiah Care (a caregiver's location is recorded at clock-in / clock-out for EVV) and
    * NOT Twomiah Roofer (roofing is not offered gps_tracking, so the switch never shows; both stores refuse an
    * app that declares background location it never uses).
    */
@@ -107,10 +107,15 @@ export const VARIANTS: Record<Variant, VariantSpec> = {
     scheme: 'twomiah',
     primaryColor: '#1e40af',
     lockedVertical: null,
-    cameraPermission: 'Take job site photos and scan documents',
-    locationPermission: 'Clock in at job sites and verify field check-ins',
-    backgroundLocationPermission:
-      'Only if you turn on location sharing in the app: your business uses your location while you work, even when the app is closed, to clock you in and out at job sites and show the office where the crew is',
+    cameraPermission: 'Allow Twomiah to take job photos and scan documents for your business',
+    locationPermission: 'Allow Twomiah to record where you are when you clock in or out of a job or visit, and to fill in an address',
+    // NOT in the first store submission (owner decision pending; recommended in store/READY.md): Google reviews background
+    // location separately (a declaration form and a demo video) and Apple asks for a convincing reason, for one opt-in switch
+    // that only a business with the GPS add-on can use. Twomiah Build keeps it (the code is all there). To put it back in
+    // the store app, restore the text below, bump `version`, and fill Google's background-location form (READY.md §5):
+    //   'Only if you turn on location sharing in the app: your business uses your location while you work, even when the app
+    //    is closed, to clock you in and out at job sites and show the office where the crew is'
+    backgroundLocationPermission: null,
     easProjectId: 'd8c46085-a58c-4fd7-9913-6f33e95fa4f7',
   },
 }
@@ -182,8 +187,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         NSCameraUsageDescription: v.cameraPermission,
         NSLocationWhenInUseUsageDescription: v.locationPermission,
-        NSLocationAlwaysUsageDescription: bg || v.locationPermission,
-        ...(bg ? { NSLocationAlwaysAndWhenInUseUsageDescription: bg } : {}),
+        // Only a build that asks for "Always" carries its text; the others ask "while using" and nothing more.
+        ...(bg ? { NSLocationAlwaysUsageDescription: bg, NSLocationAlwaysAndWhenInUseUsageDescription: bg } : {}),
+        // The app talks to its server over HTTPS only (no encryption of its own): no export-compliance question on each upload.
+        ITSAppUsesNonExemptEncryption: false,
+      },
+      // Apple's required-reason API declarations for what the app and its libraries use (Expo's list for SDK 52).
+      privacyManifests: {
+        NSPrivacyAccessedAPITypes: [
+          { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults', NSPrivacyAccessedAPITypeReasons: ['CA92.1'] },
+          { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryFileTimestamp', NSPrivacyAccessedAPITypeReasons: ['C617.1'] },
+          { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime', NSPrivacyAccessedAPITypeReasons: ['35F9.1'] },
+          { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryDiskSpace', NSPrivacyAccessedAPITypeReasons: ['E174.1'] },
+        ],
       },
     },
     android: {
@@ -192,6 +208,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundColor: v.primaryColor,
       },
       package: v.bundleId,
+      // Added by the platform's defaults, not used by this app: no sound recording, no drawing over other apps.
+      blockedPermissions: ['android.permission.RECORD_AUDIO', 'android.permission.SYSTEM_ALERT_WINDOW'],
       permissions: [
         'CAMERA',
         'ACCESS_FINE_LOCATION',
@@ -208,8 +226,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       'expo-router',
-      'expo-secure-store',
-      ['expo-camera', { cameraPermission: v.cameraPermission }],
+      // No Face ID, no microphone: the app signs in with a password and takes photos, never video or sound. Each plugin adds
+      // its own default usage text (and Android's RECORD_AUDIO) unless told `false`, and a store reviewer reads every one.
+      ['expo-secure-store', { faceIDPermission: false }],
+      ['expo-camera', { cameraPermission: v.cameraPermission, microphonePermission: false, recordAudioAndroid: false }],
       [
         'expo-location',
         bg
@@ -221,7 +241,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
               isAndroidBackgroundLocationEnabled: true,
               isAndroidForegroundServiceEnabled: true,
             }
-          : { locationWhenInUsePermission: v.locationPermission },
+          // "While using" only: the plugin would otherwise add generic "Always" texts for a permission the app never asks.
+          : { locationWhenInUsePermission: v.locationPermission, locationAlwaysAndWhenInUsePermission: false, locationAlwaysPermission: false },
       ],
       [
         'expo-notifications',
@@ -236,8 +257,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           ? {
               photosPermission: 'Allow Twomiah Care to attach photos from your library to a visit or an incident report',
               cameraPermission: v.cameraPermission,
+              microphonePermission: false,
             }
-          : { photosPermission: `Allow ${v.appName} to access photos for documentation` },
+          : { photosPermission: `Allow ${v.appName} to attach photos from your library to jobs and records`, cameraPermission: v.cameraPermission, microphonePermission: false },
       ],
       '@react-native-community/datetimepicker',
     ],

@@ -13,3 +13,15 @@ export const isFieldRole = (role: unknown) => ['field', 'user', 'caregiver', 'st
 
 /** The office: a manager (office manager), an admin or the owner. */
 export const isOfficeRole = (role: unknown) => ['manager', 'admin', 'owner'].includes(norm(role))
+
+/**
+ * Whether the permission list the server sent (sign-in and /api/auth/me `permissions`) grants `permission`: `*`, a resource's
+ * `x:*`, or the exact `x:action` — the server's own rule (packages/tenant-backend auth/permissions.ts). An EMPTY list (a profile
+ * saved before the app kept one) grants everything: hiding is a courtesy, the server is the gate. Pure, so a test runs the same
+ * rule the screens do (AuthContext.can).
+ */
+export function permits(permissions: readonly string[], permission: string): boolean {
+  if (!permissions.length) return true
+  if (permissions.includes('*') || permissions.includes(permission)) return true
+  return permissions.includes(permission.split(':')[0] + ':*')
+}

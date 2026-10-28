@@ -13,6 +13,7 @@ import { useVertical } from '../../src/vertical/VerticalContext'
 import { useCareOptional } from '../../src/care/CareContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { usePushNotifications } from '../../src/hooks/usePushNotifications'
+import { visibleTabs } from '../../src/vertical/verticals'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
@@ -25,7 +26,7 @@ const ALL_TABS = [
 
 export default function TabLayout() {
   const t = useTheme()
-  const { tabs, vertical, hasFeature } = useVertical()
+  const { tabs, vertical, hasFeature, initialTab } = useVertical()
   // This phone's push token, for every vertical (POST /api/push/expo-token — apps/unified/server/core/phonePush.ts): a
   // tech is told of a job assigned or rescheduled, the office of a new lead, a caregiver of a visit. Registered here,
   // where every signed-in person passes, not on one vertical's first tab (roofing opens on the pipeline).
@@ -43,14 +44,18 @@ export default function TabLayout() {
     return undefined
   }
 
-  // A tab the seat may not use is not shown (a field tech has no quotes:read; the RV floor seat cannot appraise).
+  // Only the tabs this seat may use, and whose switch is on (verticals.ts visibleTabs).
   const { can } = useAuth()
-  // And a tab whose switch is off (TabDef.feature) is not shown either, as its screen and route are not on the web.
-  const activeNames = new Set(tabs.filter(tab => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature))).map(tab => tab.name))
+  const shown = visibleTabs(tabs, can, hasFeature)
+  const activeNames = new Set(shown.map(tab => tab.name))
+  // The tab the app opens on: the vertical's own first tab, or the first this seat can see. Without it Expo opens the FIRST
+  // screen file in this folder ('dashboard'), which is hidden for roofing, home care and a seat without dashboard access.
+  const firstTab = activeNames.has(initialTab) ? initialTab : shown[0]?.name
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (
     <Tabs
+      initialRouteName={firstTab}
       screenOptions={{
         headerStyle: { backgroundColor: t.surface },
         headerTintColor: t.text,

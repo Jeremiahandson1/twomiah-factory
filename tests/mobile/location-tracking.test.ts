@@ -130,7 +130,7 @@ console.log('app.config.ts')
   }
   const BG = ['ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION']
   const loc = (c: any) => (c.plugins.find((p: any) => Array.isArray(p) && p[0] === 'expo-location') || [])[1] || {}
-  for (const [variant, label] of [['build', 'Twomiah Build'], [undefined, 'generic']] as const) {
+  for (const [variant, label] of [['build', 'Twomiah Build']] as const) {
     const c = build(variant)
     const o = loc(c)
     check(`${label}: expo-location background on (iOS, Android, foreground service)`, o.isIosBackgroundLocationEnabled === true && o.isAndroidBackgroundLocationEnabled === true && o.isAndroidForegroundServiceEnabled === true, o)
@@ -138,11 +138,13 @@ console.log('app.config.ts')
     check(`${label}: Android background + foreground-service permissions`, BG.every((p) => c.android.permissions.includes(p)), c.android.permissions)
     check(`${label}: extra.backgroundLocation`, c.extra.backgroundLocation === true)
   }
-  for (const variant of ['care', 'roofer']) {
+  // The store app (generic) ships WITHOUT background location in its first version (app.config.ts, store/READY.md §5).
+  for (const variant of ['care', 'roofer', 'generic']) {
     const c = build(variant)
     const o = loc(c)
     check(`${variant}: no background location anywhere`, !o.isIosBackgroundLocationEnabled && !o.isAndroidBackgroundLocationEnabled && !o.isAndroidForegroundServiceEnabled
       && !BG.some((p) => c.android.permissions.includes(p)) && !c.ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription && !c.extra.backgroundLocation, { o, perms: c.android.permissions })
+    check(`${variant}: no "Always" text in the iOS plist at all`, !('NSLocationAlwaysUsageDescription' in c.ios.infoPlist))
     check(`${variant}: expo-location carries only the while-in-use text`, JSON.stringify(Object.keys(o)) === JSON.stringify(['locationWhenInUsePermission']))
   }
   check('care: location text is still the EVV one', /EVV/.test(build('care').ios.infoPlist.NSLocationWhenInUseUsageDescription))

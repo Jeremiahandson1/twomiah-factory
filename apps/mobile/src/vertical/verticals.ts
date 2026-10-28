@@ -23,6 +23,15 @@ export interface TabDef {
   feature?: string
 }
 
+/**
+ * The tabs a seat actually sees: a tab the seat may not use is not shown (a field tech has no quotes:read; the RV floor seat
+ * cannot appraise), and a tab whose switch is off (TabDef.feature) is not shown either, as its screen and route are not on the
+ * web. Order is the vertical's. The tab layout and the tests both ask this.
+ */
+export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean, hasFeature: (feature: string) => boolean): TabDef[] {
+  return tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature)))
+}
+
 const CONTRACTOR_TABS: TabDef[] = [
   { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
   { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
@@ -86,3 +95,9 @@ export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   rv: 'dashboard',
   unavailable: '',
 }
+
+/**
+ * Where a business signs in on the web: its own address's /login (the CRM's sign-in page, apps/unified web). The address is the
+ * one the person typed to sign in to the app, so the link needs nothing else. Shown to a business the app has no screens for.
+ */
+export const webSignInUrl = (apiUrl: string) => apiUrl.replace(/\/+$/, '') + '/login'

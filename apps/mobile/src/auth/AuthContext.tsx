@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { loadTokens, clearTokens, getApiUrl, getRefreshToken, post, get } from '../api/client'
 import { signInWithPassword, completeMfaSignIn, type MfaChallenge } from './signIn'
 import { stopTracking } from '../location/tracking'
+import { permits } from './roles'
+import { forgetPushToken } from '../hooks/pushToken'
 
 /** The last signed-in profile, so the app opens without a connection (tokens stay in SecureStore). */
 const PROFILE_KEY = 'twomiah_session_profile_v1'
@@ -130,6 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     // Location sharing ends with the session, before the tokens go (src/location/tracking.ts).
     await stopTracking()
+    // This phone stops getting this person's alerts (the token comes off the server while the session still works).
+    await forgetPushToken()
     // This device's refresh token: with none, the server signs the person out of EVERY device
     // (packages/tenant-backend auth.ts POST /logout).
     await post('/api/auth/logout', { refreshToken: getRefreshToken() }).catch(() => {})
@@ -145,13 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.ok && userOf(res.data)) await apply(res.data)
   }, [apply])
 
-  const can = useCallback((permission: string) => {
-    // No list (a profile saved before the app kept one): show, and let the server answer — hiding is a courtesy, the
-    // server is the gate.
-    if (!permissions.length) return true
-    if (permissions.includes('*') || permissions.includes(permission)) return true
-    return permissions.includes(permission.split(':')[0] + ':*')
-  }, [permissions])
+  const can = useCallback((permission: string) => permits(permissions, permission), [permissions])
 
   return (
     <AuthContext.Provider value={{ user, company, isAuthenticated: !!user, isLoading, login, completeMfa, logout, refresh, can }}>

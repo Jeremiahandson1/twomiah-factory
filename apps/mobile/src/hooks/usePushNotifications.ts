@@ -5,6 +5,7 @@ import * as Device from 'expo-device'
 import Constants from 'expo-constants'
 import { router } from 'expo-router'
 import { post } from '../api/client'
+import { rememberPushToken } from './pushToken'
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -124,7 +125,8 @@ async function registerForPush(registerWithServer: boolean): Promise<string | nu
 
   if (!registerWithServer) return token
 
-  await post('/api/push/expo-token', { token, platform: Platform.OS })
+  const saved = await post('/api/push/expo-token', { token, platform: Platform.OS })
+  if (saved.ok) await rememberPushToken(token)
 
   return token
 }
