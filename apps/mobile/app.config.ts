@@ -226,11 +226,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'VIBRATE',
         ...(bg ? ['ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION'] : []),
       ],
-      googleServicesFile: fs.existsSync(
+      // On EAS the file is a secret file variable (gitignored files are never uploaded): GOOGLE_SERVICES_JSON holds its path.
+      googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? (fs.existsSync(
         path.join(__dirname, `google-services.${variant}.json`),
       )
         ? `./google-services.${variant}.json`
-        : './google-services.json',
+        : './google-services.json'),
     },
     plugins: [
       'expo-router',

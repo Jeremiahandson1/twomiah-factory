@@ -10,6 +10,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 
 const root = path.resolve(import.meta.dir, '../../apps/mobile')
 const sharp = createRequire(import.meta.url)(path.resolve(root, '../unified/node_modules/sharp')) as typeof import('sharp')
@@ -86,7 +87,12 @@ console.log('eas.json — nothing is invented')
   for (const [k, re] of Object.entries(placeholders)) check(`submit.production.ios.${k} is the owner's TODO or a real-looking value, never something made up`, re.test(ios[k]), ios[k])
   check('production builds are numbered by EAS (store builds need an ever-higher number)', eas.build.production.autoIncrement === true && eas.cli.appVersionSource === 'remote')
   check('the Play upload starts as an internal-track draft', eas.submit.production.android.track === 'internal' && eas.submit.production.android.releaseStatus === 'draft')
-  check('the Play service-account key is a gitignored file, not in the repo', !fs.existsSync(path.join(root, 'google-play-service-account.json')) && /google-play-service-account/.test(fs.readFileSync(path.resolve(root, '../../.gitignore'), 'utf8') + (fs.existsSync(path.join(root, '.gitignore')) ? read('.gitignore') : '')))
+  // The keys sit on the owner's disk for `eas submit` / local builds; what must hold is that git ignores them and never tracks them.
+  for (const key of ['google-play-service-account.json', 'google-services.json']) {
+    const rel = `apps/mobile/${key}`
+    const git = (...args: string[]) => spawnSync('git', args, { cwd: path.resolve(root, '../..'), encoding: 'utf8' })
+    check(`${key} is gitignored and not in the repo`, git('check-ignore', '-q', '--no-index', rel).status === 0 && git('ls-files', '--error-unmatch', rel).status !== 0)
+  }
 }
 
 console.log('store/listing.md')
