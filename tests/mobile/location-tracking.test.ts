@@ -145,7 +145,8 @@ console.log('app.config.ts')
     check(`${variant}: no background location anywhere`, !o.isIosBackgroundLocationEnabled && !o.isAndroidBackgroundLocationEnabled && !o.isAndroidForegroundServiceEnabled
       && !BG.some((p) => c.android.permissions.includes(p)) && !c.ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription && !c.extra.backgroundLocation, { o, perms: c.android.permissions })
     check(`${variant}: no "Always" text in the iOS plist at all`, !('NSLocationAlwaysUsageDescription' in c.ios.infoPlist))
-    check(`${variant}: expo-location carries only the while-in-use text`, JSON.stringify(Object.keys(o)) === JSON.stringify(['locationWhenInUsePermission']))
+    // The plugin adds generic "Always" texts unless told `false`, so those two keys are present — as false.
+    check(`${variant}: expo-location carries only the while-in-use text (the Always texts are switched off)`, JSON.stringify(Object.keys(o).sort()) === JSON.stringify(['locationAlwaysAndWhenInUsePermission', 'locationAlwaysPermission', 'locationWhenInUsePermission']) && o.locationAlwaysPermission === false && o.locationAlwaysAndWhenInUsePermission === false && typeof o.locationWhenInUsePermission === 'string')
   }
   check('care: location text is still the EVV one', /EVV/.test(build('care').ios.infoPlist.NSLocationWhenInUseUsageDescription))
 }

@@ -1,117 +1,118 @@
-# Twomiah — App Store Listing Copy
+# Twomiah CRM — App Store and Google Play listing
 
-Copy for the **generic** (multi-vertical) variant. Per-variant builds (Twomiah Build, Twomiah Roofer) should use vertical-specific copy if/when they ship.
+For the store app (`APP_VARIANT` unset: bundle `com.twomiah.crm`, home-screen name "Twomiah"). Every sentence here says what the app
+does today — each feature named is a tab or screen in `apps/mobile` that runs against the unified server, checked by
+`apps/unified/tests/mobile-app-client.test.ts` and the per-trade `mobile-*.test.ts` files. `tests/mobile/store-ready.test.ts`
+checks the length limits below and that the copy names only the trades the app supports.
+
+The app is for the trades whose crews work away from a desk: **contractor, "Other" (general service), field service (HVAC, plumbing,
+electrical, cleaning, pest control and the like), home care, roofing, landscaping and RV/powersports dealers** — exactly
+`src/vertical/verticals.ts` `PHONE_VERTICALS`. Salons, restaurants, bars, stores and vets use the website CRM in their phone's
+browser; the app says so and opens that sign-in (`NoPhoneAppGate`).
 
 ---
 
-## App Name
+## App name
 
 - **iOS App Store name (≤30):** `Twomiah CRM`
 - **Google Play title (≤30):** `Twomiah CRM`
 
-## Subtitle / Short Description
+## Subtitle / short description
 
-- **iOS Subtitle (≤30):** `CRM for service businesses`
-- **Google Play short description (≤80):** `CRM for roofing, HVAC, home care, contractors. Manage jobs in the field.`
+- **iOS subtitle (≤30):** `Field CRM for service crews`
+- **Google Play short description (≤80):** `Jobs, quotes, contacts and visits for crews who work away from a desk.`
 
-## Promotional Text (iOS, ≤170)
+## Promotional text (iOS, ≤170)
 
-> Run jobs, quotes, contacts, and schedules from the field. Built for roofers, HVAC, plumbers, caregivers, and contractors. Sign in with your company URL to start.
+> Jobs, contacts, quotes and visits on your phone. For contractors, field service, roofing, landscaping, home care and RV dealers. Sign in with your company's address.
 
-## Keywords (iOS, ≤100 chars total, comma-separated)
+## Keywords (iOS, ≤100 characters including commas)
 
 ```
-crm,roofing,hvac,plumbing,homecare,contractor,fieldservice,dispatch,jobs,quotes,invoices,leads
+crm,contractor,roofing,hvac,plumbing,landscaping,home care,field service,jobs,quotes,invoices,crew
 ```
 
-(Exactly 100 chars including commas — verify before submitting.)
+## Full description (iOS and Google Play, ≤4000)
 
----
+Twomiah CRM is the phone app for businesses that run on Twomiah. It puts the work that happens away from a desk — today's jobs, a customer's phone number, a photo of the roof, a visit clock-in — in your pocket.
 
-## Full Description (iOS + Google Play, ≤4000)
+To sign in you need your company's Twomiah address (for example your-company.onrender.com), and the email and password your business set up for you. If your business does not use Twomiah yet, start at twomiah.com. The app does not sell anything and has no purchases.
 
-**Twomiah is the field CRM for service businesses — roofing, HVAC, plumbing, home care, general contracting, and more.**
+WHAT YOU SEE DEPENDS ON YOUR TRADE AND YOUR ROLE
 
-Sign in with your company's CRM URL to access jobs, quotes, contacts, and schedules from the field. Twomiah adapts to your industry: roofers see pipelines and canvassing, field service crews see service calls and dispatch schedules, caregivers see shifts and EVV clock-in, contractors see quotes and projects.
+Contractors and general service businesses
+• Dashboard with today's jobs
+• Jobs: start, complete, add notes and photos
+• Contacts: call, text, email or open directions with one tap
+• Quotes: build a quote, send it, turn it into an invoice, record a payment, open the PDF
 
-**For roofing contractors:**
-- Pipeline view — track leads from first contact to signed contract
-- Canvass mode — log door-to-door knocks with GPS, mark interested leads
-- Job photos — capture damage and progress shots, attached to the job
-- Storm leads, insurance claims, measurements
+Field service (HVAC, plumbing, electrical and similar)
+• Service calls and a day-by-day schedule
+• Customer details and history at each stop
+• Photos attached to the call
 
-**For HVAC, plumbing, and field service:**
-- Service call dispatch — see today's calls with directions and status
-- Schedule view — drag-and-drop your day, mark calls complete
-- On-site clock in with GPS verification
-- Customer history at every visit
+Roofing
+• Pipeline of jobs by stage, with notes and photos on each
+• Canvass mode: log doors as you walk a street, with your location, and turn interested homeowners into leads
+• Contacts and quick lead entry
 
-**For home care and home health:**
-- My Shifts — your day at a glance
-- EVV-compliant clock in / clock out with GPS
-- Client care plan access in the field
-- Direct messaging with the office
+Landscaping
+• Jobs and a daily schedule
+• Contacts, notes and photos
 
-**For contractors and general builders:**
-- Jobs — track active projects, schedule crews
-- Quotes — send, follow up, convert to invoice
-- Contacts — leads, customers, vendors in one place
-- Photo documentation, daily logs, change orders
+Home care
+• Today's visits and a two-week schedule
+• Clock in and out of a visit with your location; works without signal and sends the visit when you reconnect
+• The visit's task checklist, medication log, vitals and photos
+• Ask a coworker to swap a shift, ask the office to move one, or tell them you can't make it
+• Open shifts, messages with the office, documents to sign, mileage, incident reports
+• If your agency uses Sandata, the app reminds you to open the Sandata app after you clock in and out
 
-**For dispensaries and retail:**
-- Mobile POS — scan products, take payments, print receipts
-- Customer loyalty lookup by phone
-- AI Budtender chat for product recommendations
-- Delivery driver mode with GPS routing
+RV and powersports dealerships
+• Inventory search, customers and the day's numbers
 
-**Field-ready features across all verticals:**
-- Works offline — actions queue and sync when you reconnect
-- Push notifications for new jobs, messages, and assignments
-- Camera-first — capture and upload photos in seconds
-- One-tap call, email, and map directions to any contact
+FOR EVERYONE
+• Alerts when a job is assigned or changed (and, for the office, when a lead comes in)
+• Two-factor sign-in is supported
+• Light and dark appearance
 
-Twomiah requires an active CRM subscription. Visit twomiah.com to start a trial, or ask your administrator for your sign-in URL.
+Your business owner decides who can see and do what: the app shows only what your role allows. The app is a companion to the Twomiah website CRM, which has everything else.
 
----
+NOT FOR EVERY BUSINESS
+Salons, restaurants, bars, stores and veterinary practices use the Twomiah website CRM in their phone's browser. If you sign in to this app with one of those accounts, it tells you so and opens the website sign-in for you.
 
-## What's New (release notes, ≤4000)
+## What's new (release notes, ≤4000)
 
-> Initial release. Sign in with your company URL to access your CRM from the field. Supports roofing, HVAC, plumbing, home care, contractor, and dispensary verticals.
-
----
+> First release. Sign in with your company's Twomiah address to see your jobs, contacts, quotes and visits on your phone.
 
 ## Categories
 
-- **iOS Primary:** Business
-- **iOS Secondary:** Productivity
+- **iOS primary:** Business — **secondary:** Productivity
 - **Google Play:** Business
 
-## Age Rating
+## Age rating
 
-- 4+ / Everyone (no objectionable content; subscription required, login-gated)
+- 4+ / Everyone. No objectionable content; sign-in required; no purchases, no ads, no user-to-user content outside a business's own team.
 
-## URLs (TODO before submission)
+## URLs (all three answer 200 as of 2026-10-28)
 
-- Privacy Policy URL: `https://twomiah.com/privacy` *(verify exists)*
-- Support URL: `https://twomiah.com/support` *(verify exists)*
-- Marketing URL: `https://twomiah.com`
+- **Privacy policy:** `https://twomiah.com/privacy`
+- **Support:** `https://twomiah.com/support` (support@twomiah.com)
+- **Marketing:** `https://twomiah.com`
 
-## Demo Account (required for App Review)
+## Demo account for App Review
 
-Apple and Google reviewers need credentials to log in. Create a sandbox tenant and provide:
-
-- Server URL: `<demo-tenant>.onrender.com`
-- Email: `reviewer@twomiah.com`
-- Password: *(set strong; rotate after each review cycle)*
-
----
+Reviewers sign in for real; without working credentials the app is rejected. The owner creates a sandbox business (READY.md §3):
+the **roofing** or **contractor** trade, with a few jobs today, a contact, a quote, and one photo. Server URL, email and password go in
+App Store Connect → App Review Information and Google Play → App access. Rotate the password after each review.
 
 ## Notes for whoever submits
 
-1. **Keywords field doesn't need spaces after commas on iOS** — every char counts.
-2. **Don't use trademarked terms** like "QuickBooks" or "ServiceTitan" in keywords/copy.
-3. **Screenshots must show the actual app**, not concept mockups. Plan to show one set per vertical: roofing pipeline, field-service schedule, homecare shifts, contractor jobs.
-4. **Required device sizes:**
-   - iOS: 6.7" (iPhone 15 Pro Max), 6.5" (iPhone 11 Pro Max), 5.5" (iPhone 8 Plus), 12.9" iPad Pro
-   - Google Play: phone screenshots + 7" + 10" tablet screenshots
-5. **Login screen will be the first screenshot** for reviewers — make sure it's clearly branded.
+1. iOS keywords need no spaces after commas; every character counts (the list above is 98).
+2. Don't name other products (QuickBooks, ServiceTitan, Jobber…) in the listing or keywords.
+3. Screenshots must show the real app, signed in to the demo business: roofing pipeline, a job with photos, contacts, a quote, and a
+   caregiver's Today and Clock screens from a home care demo (READY.md §4).
+4. Sizes: iOS 6.9"/6.7" (1290×2796), 6.5" (1242×2688 or 1284×2778), 12.9"/13" iPad; Google Play phone 1080×1920 minimum, plus 7" and
+   10" tablet if you want tablet placement.
+5. The app has no account creation, so Apple's "delete account in the app" rule does not apply: accounts are made by the business
+   owner on the website. Say so in the review notes.
