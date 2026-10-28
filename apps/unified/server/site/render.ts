@@ -9,6 +9,7 @@ import type { Context } from 'hono'
 import type { SiteContext } from './context.ts'
 import type { PageFacts, SiteFacts } from './facts.ts'
 import { pageTitle, withBusinessServices } from './menu.ts'
+import { linkServiceCards } from './servicePages.ts'
 
 export const VIEWS = path.join(import.meta.dir, '..', '..', 'site', 'views')
 
@@ -62,7 +63,8 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   const stored = sectionsShown(ctx, Array.isArray(all) ? all : [])
   const { currentPath, origin, extraNav = [] } = o
   // "What we do" as the business has it now (site/menu.ts): the owner's cards, else its own services, else not shown.
-  const sections = withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? '')
+  // Each card then links to its service page (site/servicePages.ts), where the business has one for it.
+  const sections = linkServiceCards(withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? ''), ctx.servicePages ?? [], ctx.publishedSlugs ?? new Set())
   const settings = ctx.settings
   let nav: any[] = Array.isArray(settings.nav) ? settings.nav : []
   for (const item of extraNav) {

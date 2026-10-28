@@ -19,7 +19,8 @@
           <div class="service-card__body">
             <h3 class="service-card__title"><%= item.title %></h3>
             <p class="service-card__desc"><%= item.description || '' %></p>
-            <% if (item.href) { %><a class="service-card__link" href="<%= item.href %>">Learn more &rarr;</a><% } %>
+            <% const link = item.href || item.servicePage || '' %>
+            <% if (link) { %><a class="service-card__link" href="<%= link %>">Learn more &rarr;</a><% } %>
           </div>
         </article>
       <% } %>

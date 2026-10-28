@@ -19,7 +19,7 @@ export function ServicesAlternatingForm({ data, onChange }: { data: Data; onChan
     update({ items: next })
   }
   const removeItem = (i: number) => update({ items: items.filter((_, j) => j !== i) })
-  const addItem = () => update({ items: [...items, { title: '', description: '', image: '', bullets: [], href: 'contact' }] })
+  const addItem = () => update({ items: [...items, { title: '', description: '', image: '', bullets: [], href: '' }] })
 
   return (
     <div className="space-y-4">
@@ -36,7 +36,7 @@ export function ServicesAlternatingForm({ data, onChange }: { data: Data; onChan
       />
       <div>
         <Label>Services</Label>
-        <Hint>2–5 services work best for alternating rows. Each gets its own moment with photo + bullets.</Hint>
+        <Hint>2–5 services work best for alternating rows. Each gets its own moment with photo + bullets; the bullets are what is included on its own page.</Hint>
         <div className="mt-2 space-y-3">
           {items.map((item, i) => (
             <div key={i} className="card card-padding bg-paper relative">
@@ -54,7 +54,7 @@ export function ServicesAlternatingForm({ data, onChange }: { data: Data; onChan
                   placeholder="Specific deliverable or value"
                   addLabel="Add bullet"
                 />
-                <TextField label="See projects link" placeholder="contact, services/foo, https://…" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
+                <TextField label="See projects link (optional)" placeholder="leave empty for this service's own page" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
               </div>
             </div>
           ))}

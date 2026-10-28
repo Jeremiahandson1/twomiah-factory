@@ -308,6 +308,27 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return page200(c, ctx, '/service-areas/' + area.slug, sections, { title: area.name, metaDescription: lead })
   })
 
+  // A page for each of the business's own services (site/servicePages.ts): its hero, what is included, a quote form that
+  // posts to the enquiry endpoint, and the other services. Only what the owner gave is on it.
+  app.get('/services/:slug', async (c) => {
+    const ctx = await ctxOf()
+    const svc = ctx?.servicePages?.find((p) => p.slug === c.req.param('slug'))
+    if (!ctx || !svc) return c.notFound()
+    const s = ctx.settings as any
+    const name = ctx.settings.companyName
+    const paragraphs = svc.description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+    const lead = paragraphs[0] || ''
+    const others = (ctx.servicePages ?? []).filter((p) => p.slug !== svc.slug).map((p) => ({ title: p.title, href: '/services/' + p.slug }))
+    const hero = { eyebrow: 'Services', title: svc.title, subtitle: lead, primaryCta: { label: s.contactCtaLabel && s.contactCtaLabel !== 'Get in touch' ? s.contactCtaLabel : 'Request a quote', href: '#quote' } }
+    const sections: any[] = [
+      svc.image ? { type: 'hero', variant: 'split', data: { ...hero, image: svc.image, imageAlt: '' } } : { type: 'hero', variant: 'centered-stats', data: hero },
+      { type: 'service', variant: 'detail', data: { description: svc.description, bullets: svc.bullets, subServices: svc.subServices } },
+      { type: 'contact', variant: 'form-info', data: { id: 'quote', heading: 'Request a quote for ' + svc.title, service: svc.title, phone: s.phone || '', email: s.email || '', address: s.address || '' } },
+      { type: 'service', variant: 'others', data: { items: others } },
+    ]
+    return page200(c, ctx, '/services/' + svc.slug, sections, { title: svc.title, metaDescription: lead ? lead.slice(0, 300) : svc.title + ' from ' + name + '.' })
+  })
+
   // The owner's finished work (the site's "projects"; table portfolio_item).
   app.get('/projects', async (c) => {
     const ctx = await ctxOf()
@@ -574,6 +595,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
           for (const p of facts.sitemapPaths(f, new Set(pageRows.map((r: any) => r.slug)))) urls.push(`  <url><loc>${escXml(origin + p)}</loc></url>`)
         } catch { /* a sitemap never fails over the facts */ }
       }
+      for (const svc of ctx.servicePages ?? []) urls.push(`  <url><loc>${escXml(origin + '/services/' + svc.slug)}</loc></url>`)
       const areas = serviceAreasOf(ctx.settings)
       if (areas.length) {
         urls.push(`  <url><loc>${escXml(origin + '/service-areas')}</loc></url>`)
@@ -638,6 +660,11 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (pageRows.length) {
         lines.push('## Pages', '')
         for (const r of pageRows) { const d = oneLine(r.metaDescription); lines.push(`- [${linkText(r.title)}](${origin}${r.slug === 'home' ? '/' : '/' + r.slug})${d ? ': ' + d : ''}`) }
+        lines.push('')
+      }
+      if (ctx.servicePages?.length) {
+        lines.push('## Services', '')
+        for (const svc of ctx.servicePages) { const d = oneLine(svc.description); lines.push(`- [${linkText(svc.title)}](${origin}/services/${svc.slug})${d ? ': ' + d.slice(0, 200) : ''}`) }
         lines.push('')
       }
       const posts = await db.select().from(post).where(and(eq(post.companyId, ctx.companyId), eq(post.status, 'published'))).orderBy(desc(post.publishedAt))

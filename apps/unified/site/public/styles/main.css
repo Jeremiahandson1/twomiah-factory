@@ -956,3 +956,34 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 #book-waitlist { display: flex; flex-direction: column; gap: 14px; }
 #book-waitlist label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-soft); }
 #book-waitlist input[type="text"], #book-waitlist input[type="email"], #book-waitlist input[type="date"] { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-family: inherit; }
+
+/* ── A service's own page (views/sections/service/*, server/site/servicePages.ts) ──────────────────────────────────────── */
+.service-detail { container: service-detail / inline-size; padding: var(--space) 0 calc(var(--space) * .6); background: var(--paper); }
+.service-detail__grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 80px); align-items: start; }
+.service-detail__grid > * { min-width: 0; }
+.service-detail__main:only-child { grid-column: 1 / -1; max-width: 760px; }
+.service-detail__included:only-child { grid-column: 1 / -1; }
+.service-detail__text { font-size: 18px; line-height: 1.7; color: var(--ink-soft); margin: 0 0 18px; max-width: 62ch; }
+.service-detail__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(24px, 2.6vw, 32px); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; color: var(--ink); margin: 32px 0 16px; }
+.service-detail__main > .service-detail__title:first-child, .service-detail__included .service-detail__title { margin-top: 0; }
+.service-detail__included { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: clamp(22px, 3vw, 32px); }
+.service-detail__list { list-style: none; margin: 0; padding: 0; }
+.service-detail__list li { position: relative; padding: 12px 0 12px 34px; border-top: 1px solid var(--line); color: var(--ink); font-size: 16.5px; line-height: 1.45; }
+.service-detail__list li:first-child { border-top: 0; padding-top: 0; }
+.service-detail__list li::before { content: ''; position: absolute; left: 0; top: 14px; width: 20px; height: 20px; border-radius: 50%; background: var(--brand); }
+.service-detail__list li::after { content: ''; position: absolute; left: 7px; top: 18px; width: 5px; height: 9px; border: solid {{INK_ON_PRIMARY}}; border-width: 0 2.2px 2.2px 0; transform: rotate(45deg); }
+.service-detail__list li:first-child::after { top: 6px; }
+.service-detail__list li:first-child::before { top: 2px; }
+.service-detail__parts { margin: 0; }
+.service-detail__part { padding: 16px 0; border-top: 1px solid var(--line); scroll-margin-top: 110px; }
+.service-detail__part:last-child { border-bottom: 1px solid var(--line); }
+.service-detail__part dt { font-weight: 700; font-size: 18px; color: var(--ink); }
+.service-detail__part dd { margin: 6px 0 0; color: var(--ink-soft); font-size: 16.5px; line-height: 1.6; }
+.service-detail__part:target dt { text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+.service-others { padding: calc(var(--space) * .6) 0 var(--space); background: var(--paper); }
+.service-others__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(22px, 2.4vw, 28px); font-weight: 600; margin: 0 0 18px; color: var(--ink); }
+.service-others__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.service-others__link { display: inline-block; padding: 10px 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); font-weight: 600; font-size: 15px; }
+.service-others__link:hover { border-color: var(--ink); }
+/* each block lays itself out by its own width (a container query), not only the screen's */
+@container service-detail (max-width: 860px) { .service-detail__grid { grid-template-columns: 1fr; } }

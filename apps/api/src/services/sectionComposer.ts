@@ -109,12 +109,12 @@ export const SECTION_SCHEMA = {
     'cards-grid': {
       required: ['items'],
       optional: ['heading', 'intro'],
-      use_when: 'many similar services worth equal weight; reads as a menu',
+      use_when: 'many similar services worth equal weight; reads as a menu. Each card becomes its own page (/services/<slug>, built by the site): a card may carry `bullets` (what is included) ONLY from what the intake says that service includes, and `subServices` ([{ title, description }]) ONLY for parts of the service the intake names — leave both out otherwise; the site then shows no such list.',
     },
     alternating: {
       required: ['items'],
       optional: ['heading', 'intro'],
-      use_when: 'few services that each deserve their own moment with distinct photography',
+      use_when: 'few services that each deserve their own moment with distinct photography. `bullets` are what that service includes — ONLY what the intake says; each card also gets its own page (/services/<slug>, built by the site).',
     },
   },
   cta: {

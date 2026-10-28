@@ -50,7 +50,7 @@ export function sharedPhotoStore(): PhotoStore {
 // which the bar's facts make at /<menu-section>/<item>) aren't offered in "Add a section".
 // A store's product page, cart and order-received page, and pickup ordering's page and its done page, are the routes' own
 // (site/routes.ts /product/:slug, /cart, /checkout/success, /order, /order/done).
-export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator',
+export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'service/detail', 'service/others', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator',
   'shop/product', 'shop/cart', 'shop/receipt', 'order/page', 'order/done'])
 
 /**

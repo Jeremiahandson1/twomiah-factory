@@ -24,7 +24,8 @@
               <% for (const b of item.bullets) { %><li><%= b %></li><% } %>
             </ul>
           <% } %>
-          <% if (item.href) { %><a class="service-row__link" href="<%= item.href %>">See projects &rarr;</a><% } %>
+          <% if (item.href && !/^(?:#?contact|\/contact)$/i.test(item.href)) { %><a class="service-row__link" href="<%= item.href %>">See projects &rarr;</a>
+          <% } else if (item.servicePage) { %><a class="service-row__link" href="<%= item.servicePage %>">About this service &rarr;</a><% } %>
         </div>
       </div>
     <% }) %>

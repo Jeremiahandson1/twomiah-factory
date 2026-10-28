@@ -413,6 +413,25 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
   const biz = input.businessName
 
   switch (s.type) {
+    case 'services':
+      // A service's own page (/services/<slug>) states what the card lists: "what's included" and the sub-services are the
+      // owner's facts, so each line must trace to what they said; a list left empty is dropped from the card.
+      d.items = (Array.isArray(d.items) ? d.items : []).map((it: any) => {
+        if (!it || typeof it !== 'object') return it
+        const out: Record<string, any> = { ...it }
+        for (const key of ['bullets', 'subServices']) {
+          if (!Array.isArray(out[key])) continue
+          out[key] = out[key].filter((b: any) => {
+            const text = typeof b === 'string' ? b : [b?.title, b?.description].filter(Boolean).join(' ')
+            const keep = wordsTraceable(text, c)
+            if (!keep) removed.push(label + ' ' + key + ': ' + String(text).slice(0, 120))
+            return keep
+          })
+          if (!out[key].length) delete out[key]
+        }
+        return out
+      })
+      break
     case 'testimonials':
       keepItems('items', q => !!quoteMatch(q?.quote, c))
       d.items = (d.items || []).map((q: any) => {

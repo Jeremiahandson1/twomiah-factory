@@ -9,6 +9,7 @@ import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS, SITE_DESIGN_SPECS } from '../core/vertical.ts'
 import { previewing } from './drafts.ts'
+import { servicePagesOf, type ServicePage } from './servicePages.ts'
 
 export interface SiteContext {
   companyId: string
@@ -29,6 +30,9 @@ export interface SiteContext {
   /** The business's own services for "What we do", and the trade its home hero names (site/menu.ts). */
   services?: SiteService[]
   trade?: string
+  /** A page for each of the business's own services (/services/<slug>; site/servicePages.ts), and which pages are published. */
+  servicePages?: ServicePage[]
+  publishedSlugs?: ReadonlySet<string>
   /** The company's switched-on features: a section that IS a feature (the financing calculator) renders only with it on. */
   features: string[]
 }
@@ -85,6 +89,8 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: SITE_DESIGN_SPECS[design].frame === 'book', fonts: SITE_DESIGN_SPECS[design].fonts, schemes: !!SITE_DESIGN_SPECS[design].schemes, ctaHref: vertical.site.ctaHref || '/contact' },
     colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
     services, trade,
+    servicePages: servicePagesOf(pages, services, trade),
+    publishedSlugs: new Set(pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)),
     features,
     settings: {
       companyName: co.name,
