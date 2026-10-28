@@ -135,6 +135,11 @@ export const SECTION_SCHEMA = {
       optional: ['eyebrow', 'portrait', 'signature', 'stats'],
       use_when: 'lead an about page — 2-4 narrative paragraphs in the founder/principal voice, built ONLY from what the intake says about them (no invented history, apprenticeships, family trades or milestones). portrait ONLY from a Tier 1 customer photo — a stock face beside the founder\'s story reads as the founder, so leave it empty when there is none. signature is the intake\'s owner name only.',
     },
+    values: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'what the owner says they stand for, as 2-6 short titled rows — ONLY values the intake states in the owner\'s own words (e.g. "we show up when we say we will"); each `description` a sentence only if the intake says it. Never a generic value ("integrity", "quality") the owner did not put there; omit with fewer than two.',
+    },
   },
   team: {
     grid: {
@@ -826,7 +831,7 @@ const PAGE_RECIPES = {
   about: {
     purpose: 'Tell who they are. The voice page — read by qualified leads doing due diligence.',
     allowed_types: ['about', 'team', 'testimonials', 'cta'],
-    required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
+    required_sequence: '1 about/story, optional 1 about/values (ONLY values the intake states — omit with fewer than two), optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
   },
   services: {
     purpose: 'Full menu of what they do. Read by people who already know they want to hire and are scoping fit.',
@@ -853,7 +858,7 @@ const STORE_PAGE_RECIPES = {
   about: {
     purpose: 'Brand story — why this store exists and who it is for. The voice page.',
     allowed_types: ['about', 'team', 'testimonials', 'cta'],
-    required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
+    required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Customer questions about an order or a product. Form + business details — not a sales page.',
@@ -887,7 +892,7 @@ const CONTRACTOR_PAGE_RECIPES = {
   about: {
     purpose: 'Owner + crew + credentials + history. Where homeowners decide whether to hand you the keys to their house.',
     allowed_types: ['about', 'team', 'stats', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (the owner\'s WHY, from what the intake says about them — no invented apprenticeships, family trades or milestones; portrait only from Tier 1), optional 1 stats/bar (only numbers and credentials the intake states), optional 1 team/grid (only people the intake names), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (the owner\'s WHY, from what the intake says about them — no invented apprenticeships, family trades or milestones; portrait only from Tier 1), optional 1 stats/bar (only numbers and credentials the intake states), optional 1 team/grid (only people the intake names), optional 1 testimonials, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Conversion page for estimate requests + general contact.',
@@ -991,7 +996,7 @@ const SALON_PAGE_RECIPES = {
   about: {
     purpose: 'Owner + house + brands carried + history. Trust + voice.',
     allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner portrait + the WHY of the salon — what they specialize in, what brands they carry, what kind of clients fit), optional 1 stats/bar (years, stylists, brands carried, color education hours), optional 1 team/grid, optional 1 gallery (the room, the bar, the products), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (owner portrait + the WHY of the salon — what they specialize in, what brands they carry, what kind of clients fit), optional 1 stats/bar (years, stylists, brands carried, color education hours), optional 1 team/grid, optional 1 gallery (the room, the bar, the products), optional 1 testimonials, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Conversion page for non-booking contact (press, vendor, employment).',
@@ -1148,7 +1153,7 @@ const FIELDSERVICE_PAGE_RECIPES = {
   about: {
     purpose: 'Owner + crew + credentials + history. Where adult homeowners decide whether to trust you with their utility lines.',
     allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner portrait + why), optional 1 stats/bar (years, master licenses held, jobs done), optional 1 team/grid, optional 1 trust/badges (Master licenses, BBB, manufacturer certifications), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (owner portrait + why), optional 1 stats/bar (years, master licenses held, jobs done), optional 1 team/grid, optional 1 trust/badges (Master licenses, BBB, manufacturer certifications), optional 1 testimonials, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Conversion page for non-emergency contact.',
@@ -1182,7 +1187,7 @@ const VET_PAGE_RECIPES = {
   about: {
     purpose: 'Clinic story, philosophy, facility. The deep-trust page.',
     allowed_types: ['about', 'stats', 'trust', 'gallery', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (why the practice exists, in the owner-vet voice), optional 1 stats/bar with real numbers only, optional 1 trust/badges, optional 1 gallery of the actual facility (owners want to see where their animal stays), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (why the practice exists, in the owner-vet voice), optional 1 stats/bar with real numbers only, optional 1 trust/badges, optional 1 gallery of the actual facility (owners want to see where their animal stays), optional 1 testimonials, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Get seen. Hours, location, urgent-care routing.',
@@ -1210,7 +1215,7 @@ const RV_PAGE_RECIPES = {
   about: {
     purpose: 'Who the dealership is. Family-owned beats corporate in this vertical, when true.',
     allowed_types: ['about', 'stats', 'team', 'trust', 'testimonials', 'cta'],
-    required_sequence: '1 about/story, optional 1 stats/bar (years, units delivered, service bays — real numbers), optional 1 team/grid, optional 1 trust/badges, optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story, optional 1 stats/bar (years, units delivered, service bays — real numbers), optional 1 team/grid, optional 1 trust/badges, optional 1 testimonials, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Get them to the lot or on the phone.',
@@ -1243,7 +1248,7 @@ const HOMECARE_PAGE_RECIPES = {
   about: {
     purpose: 'Owner story + team + credentials. The deep-trust page.',
     allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner portrait + the "why this agency" — almost always personal/family), optional 1 team/grid (leadership not caregivers — that lives on /caregivers), optional 1 stats/bar (real numbers only), optional 1 trust/badges, optional 1 testimonials block, close with 1 cta',
+    required_sequence: '1 about/story (owner portrait + the "why this agency" — almost always personal/family), optional 1 team/grid (leadership not caregivers — that lives on /caregivers), optional 1 stats/bar (real numbers only), optional 1 trust/badges, optional 1 testimonials block, close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Conversion page. Quiet, direct, response promise.',
@@ -1280,7 +1285,7 @@ const LANDSCAPING_PAGE_RECIPES = {
   about: {
     purpose: 'Owner story + crew + equipment. The trust page.',
     allowed_types: ['about', 'team', 'stats', 'gallery', 'cta'],
-    required_sequence: '1 about/story (owner portrait + what got them into landscaping), optional 1 stats/bar (years, properties maintained, crew size, trucks), optional 1 team/grid, optional 1 gallery/grid (the trucks, the equipment, the shop), close with 1 cta',
+    required_sequence: '1 about/story (owner portrait + what got them into landscaping), optional 1 stats/bar (years, properties maintained, crew size, trucks), optional 1 team/grid, optional 1 gallery/grid (the trucks, the equipment, the shop), close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   contact: {
     purpose: 'Conversion page for one-off jobs and questions.',
@@ -1311,7 +1316,7 @@ const ROOFING_PAGE_RECIPES = {
   about: {
     purpose: 'Owner story + team + credentials. The trust page for prospects doing due diligence.',
     allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner portrait + the "why" of starting), optional 1 stats/bar (years, roofs done, crew size, owner-on-every-roof), optional 1 team/grid (the crew), optional 1 trust/badges, optional 1 testimonials block (real quotes only), close with 1 cta',
+    required_sequence: '1 about/story (owner portrait + the "why" of starting), optional 1 stats/bar (years, roofs done, crew size, owner-on-every-roof), optional 1 team/grid (the crew), optional 1 trust/badges, optional 1 testimonials block (real quotes only), close with 1 cta Optionally 1 about/values after the story — ONLY values the intake states in the owner\'s words; omit with fewer than two.',
   },
   projects: {
     purpose: 'Portfolio. Before/after gallery filterable by material + city + year.',

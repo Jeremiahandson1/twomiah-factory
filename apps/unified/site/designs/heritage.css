@@ -418,3 +418,10 @@ body { font-family: var(--f-body); font-size: 17.5px; line-height: 1.68; backgro
 .gallery-filter__btn:hover { color: var(--tx); border-color: var(--ln); background: transparent; }
 .gallery-filter__btn[aria-pressed="true"] { background: transparent; color: var(--brand-ink); border-bottom-color: var(--brand-ink); }
 .gallery-filter { gap: 12px 22px; }
+
+/* About values: a serif title over a hairline, the sentence beneath */
+.about-values { background: var(--bg); }
+.about-values__item { border-top: 1px solid var(--ln); padding: 26px 0; }
+.about-values__item:last-child { border-bottom: 1px solid var(--ln); }
+.about-values__title { font-family: var(--f-display); font-weight: 400; font-size: 30px; color: var(--tx); }
+.about-values__desc { color: var(--tx2); font-size: 17.5px; line-height: 1.7; }

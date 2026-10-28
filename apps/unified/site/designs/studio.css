@@ -420,3 +420,11 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 .gallery-filter__btn { background: var(--sf2); border: 1px solid var(--ln); color: var(--tx2); }
 .gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
 .gallery-filter__btn[aria-pressed="true"] { background: var(--tx); border-color: var(--tx); color: var(--bg); }
+
+/* About values: soft rounded rows that glow at the edge */
+.about-values { background: var(--bg); }
+.about-values__list { display: grid; gap: 12px; }
+.about-values__item { background: var(--sf); border: 1px solid var(--ln2); border-radius: 20px; padding: 20px 24px; }
+.about-values__item:last-child { border-bottom: 1px solid var(--ln2); }
+.about-values__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.01em; font-size: 22px; color: var(--tx); }
+.about-values__desc { color: var(--tx2); }

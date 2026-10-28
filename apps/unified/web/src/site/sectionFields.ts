@@ -67,6 +67,14 @@ export const TRADE_SECTIONS: TradeSection[] = [
     defaultData: { heading: 'Why choose us', intro: '', items: [] },
   },
   {
+    type: 'about', variant: 'values', label: 'About — What we stand for',
+    description: 'The values you run the business by, one short title each — in your own words.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'What we stand for' }, intro,
+      { key: 'items', label: 'Values', kind: 'list', itemLabel: 'value', max: 8, hint: 'Only what you really hold to: visitors will hold you to it.', item: [
+        { key: 'title', label: 'Value', kind: 'text', placeholder: 'e.g. We show up when we say we will' }, { key: 'description', label: 'A sentence about it (optional)', kind: 'textarea' }] }],
+    defaultData: { heading: 'What we stand for', intro: '', items: [] },
+  },
+  {
     type: 'map', variant: 'area', label: 'Map — Where to find us',
     description: 'Your address and the places you serve, with links to open it in a map. Loads nothing from any map company.',
     fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Find us' }, intro],

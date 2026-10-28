@@ -411,6 +411,18 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
   const ownPhoto = (url: unknown) => typeof url === 'string' && c.workPhotos.has(url)
   const drop = (why: string): null => { removed.push(label + ' — ' + why); return null }
   const biz = input.businessName
+  // Titled rows the owner stands behind (why_choose reasons, about values): a row is a claim about the business. The title must
+  // trace to what the owner said; so must its sentence, else only the sentence goes. Fewer than two left is not a section.
+  const titledFacts = (what: string): null | undefined => {
+    keepItems('items', r => wordsTraceable(String(r?.title || ''), c))
+    d.items = (d.items || []).map((r: any) => {
+      if (!r.description || wordsTraceable(String(r.description), c, 0.5)) return r
+      removed.push(label + ' sentence: ' + String(r.description).slice(0, 120))
+      const { description: _gone, ...rest } = r
+      return rest
+    })
+    return (d.items || []).length < 2 ? drop('fewer than two ' + what) : undefined
+  }
 
   switch (s.type) {
     case 'services':
@@ -443,16 +455,7 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
       if (!input.city && !(input.nearbyCities || []).some(Boolean)) return drop('the intake names no town')
       break
     case 'why_choose':
-      // A reason is a fact about the business. The title must trace to what the owner said; so must its sentence, else only
-      // the sentence goes. Fewer than two reasons left is not a section.
-      keepItems('items', r => wordsTraceable(String(r?.title || ''), c))
-      d.items = (d.items || []).map((r: any) => {
-        if (!r.description || wordsTraceable(String(r.description), c, 0.5)) return r
-        removed.push(label + ' sentence: ' + String(r.description).slice(0, 120))
-        const { description: _gone, ...rest } = r
-        return rest
-      })
-      if ((d.items || []).length < 2) return drop('fewer than two reasons the owner gave')
+      if (titledFacts('reasons the owner gave') === null) return null
       break
     case 'testimonials':
       keepItems('items', q => !!quoteMatch(q?.quote, c))
@@ -497,6 +500,7 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
       keepItems('stats', it => statTraceable(it, c))
       break
     case 'about':
+      if (s.variant === 'values') { if (titledFacts('values the owner stated') === null) return null; break }
       // The story is the owner's own words, exactly (store final check, 2026-10-26: the model's About for a print shop
       // added "a small retail shop" and "one piece at a time, by hand" — claims with no number or name in them, which
       // nothing below can catch). With no description there is no story to tell.

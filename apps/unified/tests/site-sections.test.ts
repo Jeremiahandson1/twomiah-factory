@@ -32,7 +32,7 @@ const HERO = { type: 'hero', variant: 'centered-stats', data: { title: 'T' } }
 
 describe('every look styles every new block, and each block asks its own width', () => {
   // [section class, the container name its base rule declares]
-  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel'], ['.map-area', 'map-area'], ['.blog-preview', 'blog-preview']]
+  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel'], ['.map-area', 'map-area'], ['.blog-preview', 'blog-preview'], ['.about-values', 'about-values']]
   for (const [cls, name] of BLOCKS) {
     test(cls, () => {
       const base = fs.readFileSync(path.resolve(DESIGNS_DIR, '..', 'public', 'styles', 'main.css'), 'utf8')
@@ -290,5 +290,20 @@ describe('gallery filter bar', () => {
     expect(doc.querySelector('[data-filter-status]').textContent).toBe('Showing 2 photos of Decks')
     btn('').click()
     expect([...doc.querySelectorAll('.gallery-grid__item')].some((e: any) => e.hidden)).toBe(false)
+  })
+})
+
+describe('about values', () => {
+  const sec = (items: any[]) => ({ type: 'about', variant: 'values', data: { heading: 'What we stand for', items } })
+  test('renders the owner\'s values, a sentence only where given, in every look', async () => {
+    for (const look of ['foundry', 'heritage', 'studio', 'market']) {
+      const html = await render(look, [HERO, sec([{ title: 'We show up when we say we will', description: 'Every time.' }, { title: 'We finish what we start' }])])
+      expect(html).toContain('We show up when we say we will')
+      expect(html).toContain('about-values__desc')
+      expect((html.match(/about-values__desc/g) || []).length).toBe(1)
+    }
+  })
+  test('nothing titled, nothing rendered', async () => {
+    for (const items of [[], [{ description: 'No title' }]]) expect(await render('foundry', [HERO, sec(items)])).not.toContain('about-values')
   })
 })

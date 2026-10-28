@@ -430,3 +430,11 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .gallery-filter__btn { border-radius: 0; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-family: var(--f-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
 .gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
 .gallery-filter__btn[aria-pressed="true"] { background: {{PRIMARY_COLOR}}; border-color: var(--tx); color: {{INK_ON_PRIMARY}}; box-shadow: 3px 3px 0 var(--tx); }
+
+/* About values: stamped titles on spec-sheet rows with a heavy rule */
+.about-values { background: var(--bg); }
+.about-values__item { border-top: 3px solid var(--edge); padding: 22px 0; }
+.about-values__item:last-child { border-bottom: 3px solid var(--edge); }
+.about-values__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; font-size: 28px; color: var(--tx); }
+.about-values__title::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 12px; background: {{PRIMARY_COLOR}}; border: 2px solid var(--edge); vertical-align: 2px; }
+.about-values__desc { color: var(--tx2); font-size: 16.5px; }

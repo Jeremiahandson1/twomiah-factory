@@ -130,3 +130,29 @@ describe('latest blog posts (the site fills them; the composer writes framing on
     expect(out.pages.home.find((s) => s.type === 'blog_preview')!.data).toEqual({ heading: 'From the blog', count: 3 })
   })
 })
+
+describe('about "values" (owner facts only)', () => {
+  const values = (items: any[]) => ({ type: 'about', variant: 'values', data: { heading: 'What we stand for', items } })
+  const about = (...s: any[]) => ({ about: [{ type: 'about', variant: 'story', data: { title: 'About', paragraphs: ['We answer the phone ourselves.'] } }, ...s] })
+  const facts = input({ description: 'We answer the phone ourselves and finish what we start. We show up when we say we will.' })
+
+  test('the AI builder accepts it and every about page plan allows it', () => {
+    expect(sanitizeSections([values([{ title: 'Finish what we start' }])])).toHaveLength(1)
+    expect(requiredOf('about', 'values')).toEqual(['items'])
+    for (const bt of ['roofing', 'general_contractor', 'hvac', 'veterinary', 'salon', 'rv', 'landscaping', 'home_care', 'other']) {
+      expect(pageRecipesFor(bt).about.required_sequence).toContain('about/values')
+    }
+  })
+
+  test('only values the owner stated stay; an invented one is removed', () => {
+    const out = enforce(about(values([{ title: 'Finish what we start' }, { title: 'We show up when we say we will' }, { title: 'Integrity above all' }])), facts)
+    expect(out.pages.about.find((s) => s.variant === 'values')!.data.items.map((i: any) => i.title)).toEqual(['Finish what we start', 'We show up when we say we will'])
+    expect(out.removedClaims.join('\n')).toContain('Integrity above all')
+  })
+
+  test('with fewer than two traceable values the section is left out', () => {
+    const out = enforce(about(values([{ title: 'Finish what we start' }, { title: 'Quality and care' }])), facts)
+    expect(out.pages.about.some((s) => s.variant === 'values')).toBe(false)
+    expect(out.removedClaims.join('\n')).toContain('fewer than two values')
+  })
+})

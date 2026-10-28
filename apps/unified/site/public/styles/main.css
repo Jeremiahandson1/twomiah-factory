@@ -1083,3 +1083,13 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .gallery-filter__btn:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 .gallery-filter__status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container gallery (min-width: 640px) { .gallery-filter { flex-wrap: wrap; justify-content: center; overflow: visible; } }
+
+/* About "values": the heading on one side, the owner's values as ruled rows on the other (stacked when the block is narrow) */
+.about-values { container: about-values / inline-size; padding: var(--space) 0; background: var(--paper); }
+.about-values__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+@container about-values (min-width: 760px) { .about-values__grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; } }
+.about-values__list { margin: 0; }
+.about-values__item { padding: 20px 0; border-top: 1px solid var(--line); }
+.about-values__item:last-child { border-bottom: 1px solid var(--line); }
+.about-values__title { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--ink); }
+.about-values__desc { margin: 8px 0 0; font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
