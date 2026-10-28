@@ -717,7 +717,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <div className="mt-1.5 w-2 h-2 shrink-0 rounded-full bg-orange-500" />
                   <div>
                     <p className="text-gray-900 dark:text-slate-100">{a.action === 'text_started' ? TEXT_STARTED_LABEL : (a.description || a.action.replace(/_/g, ' '))}</p>
-                    <p className="text-gray-600 dark:text-slate-300">{dateTime(a.createdAt)}{a.by ? ` · ${a.by}` : ''}</p>
+                    {/* Which message was opened (its name — the words aren't kept: an invoice's carries the customer's private link). */}
+                    <p className="text-gray-600 dark:text-slate-300">{a.action === 'text_started' && (a as any).metadata?.label ? `${(a as any).metadata.label} · ` : ''}{dateTime(a.createdAt)}{a.by ? ` · ${a.by}` : ''}</p>
                   </div>
                 </div>
               ))}
