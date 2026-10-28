@@ -77,7 +77,8 @@ Last updated: 2026-10-27.
   cloud/standard-looks-survey): service detail pages (/services/:slug), "why choose us", testimonial carousel, map,
   blog preview, floating call button.
 - Vet and RV live tests, then open them. Dispensary has no unified version.
-- Phone app (apps/mobile): built, never submitted — eas.json still has placeholder Apple IDs; test on real phones.
+- Phone app (apps/mobile): built, never submitted — Expo SDK 52 → 54 was required by the stores (2026-10-28, cloud/mobile-ready); icons, listing
+  and checks are done. Owner steps and the real-phone test list: apps/mobile/store/READY.md (eas.json still has the Apple TODO placeholders).
 - Claflin runs the old templates (old drizzle) — untouched until the owner names Claflin.
 - A real customer taken through signup → a month → renewal/cancel with the owner watching.
 - Alerts: memory is per-process (a restart can re-send one); credit running LOW and a thin AI site don't alert yet.

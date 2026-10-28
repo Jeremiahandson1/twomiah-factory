@@ -1,5 +1,9 @@
 # Mobile App Ship Handoff — what you need to do
 
+> **2026-10-28: start with `READY.md`** (what is done, what to test, what to do, in order). This file keeps the longer background; where they
+> differ, READY.md is newer. Done since this was written: §5 icons and splash (`assets/source/build-icons.ts`), §7 the privacy and support pages
+> exist (the privacy policy still needs a phone-app paragraph — READY.md §4 step 11), Expo SDK 52 → 54 (the stores require it).
+
 Code work is done. This file is the punch list of tasks that require your accounts, your assets, your wallet, or your signing approval.
 
 ## 1. Apple Developer Program
@@ -65,10 +69,10 @@ it and keeps a JS update from reaching a build without the native code it needs.
 
 Drop the following into `apps/mobile/assets/`:
 
-- [ ] `icon.png` — 1024×1024, no transparency, no rounded corners (Apple adds them)
-- [ ] `adaptive-icon.png` — 1024×1024, **safe zone is the inner 720×720** (Android crops aggressively)
-- [ ] `splash.png` — 1284×2778 ideal, must work on `backgroundColor: "#1e40af"`
-- [ ] `notification-icon.png` — 96×96, white silhouette on transparent background (Android requirement)
+- [x] `icon.png` — 1024×1024, no transparency, no rounded corners (Apple adds them)
+- [x] `adaptive-icon.png` — 1024×1024, **safe zone is the inner 720×720** (Android crops aggressively)
+- [x] `splash.png` — 1284×2778 ideal, must work on `backgroundColor: "#1e40af"`
+- [x] `notification-icon.png` — 96×96, white silhouette on transparent background (Android requirement)
 
 If you want per-variant artwork later (Twomiah Build, Twomiah Roofer), drop overrides into:
 - `apps/mobile/assets/build/<filename>.png`
@@ -104,8 +108,8 @@ You can take these on a real device or in the iOS Simulator / Android emulator.
 
 Apple and Google require working URLs (linked, not "Under Construction"):
 
-- [ ] Privacy policy at `https://twomiah.com/privacy`
-- [ ] Support page at `https://twomiah.com/support` (an email link is enough)
+- [x] Privacy policy at `https://twomiah.com/privacy`
+- [x] Support page at `https://twomiah.com/support` (an email link is enough)
 
 Both must exist before submission. `apps/mobile/store/listing.md` references these.
 
