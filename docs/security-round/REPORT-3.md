@@ -39,5 +39,5 @@ Unchanged code path: `PUPPETEER_EXECUTABLE_PATH` if set, else puppeteer's own br
 
 - build-check: all 289 `scripts/…` / `tests/…` commands pass; `apps/api` and `apps/platform` builds; `cart-dom`; mobile `tsc`; the 13 template suites (incl. `crm-roof`) exit 0.
 - unified.yml: all 11 `check-unified-*.ts` (fence: all 9 changes inside); `build:web`; `tests/unified/factory` (build + the rest); `bun run test` in `apps/unified`: **201 files, 2062 pass, 0 fail**; the roof tests (102) on their own earlier.
-- The 11 CRM suites on the unified app: see the note at the end of this file.
+- The 11 CRM suites on the unified app (crm, fieldservice, basic, landscaping, restaurant, bar, rv, salon, vet, homecare, adapted): all exit 0.
 - Not run here: the real GitHub Actions runs, and Windows.
