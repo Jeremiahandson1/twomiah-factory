@@ -103,6 +103,11 @@ modified or deleted. The existing files it may change:
 - `packages/*/package.json`, only to declare libraries the shared code imports.
 - `docs/SPEC_UNIFIED_PRODUCT.md`, the design this branch builds.
 - `bun.lock`, which the install regenerates.
+- **Security upgrades (owner's yes, 2026-10-28):** an EXISTING library version in `packages/*/package.json`, or an
+  override in the root `package.json`, may change only for a published security advisory recorded in
+  `docs/SECURITY_UPGRADES.json` — the same manifest, package and exact new range, with its GHSA id — in the same
+  commit. Nothing else in the root manifest may change. The templates vendor the shared code, so every existing check
+  (`build-check.yml`, the templates' suites) still runs on the upgrade before it reaches main.
 - **Cutover (owner's "go", 2026-10-20):** the live Factory (`apps/api/src`, `apps/api/schema.sql`, `apps/api/migrations`,
   `apps/platform/src`, `tests/shared`) gains the unified path behind a switch (`UNIFIED_SIGNUPS`: off, test, all) that
   starts **off**: merged and deployed, nothing changes for any business until it is turned.

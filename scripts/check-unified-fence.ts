@@ -62,14 +62,21 @@ const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'option
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {
   const out: FenceViolation[] = []
+  const ledger = readLedger(read('head', 'docs/SECURITY_UPGRADES.json'))
   for (const ch of changes) {
     const s = ch.status[0]
     if (s === 'A') {
       if (!ADD_ALLOWED.some((r) => r.test(ch.path))) out.push({ path: ch.path, detail: 'a new file outside the unified app\'s places' })
     } else if (s === 'M') {
+      // The root manifest: only its security overrides, each in the ledger (owner's yes, 2026-10-28).
+      if (ch.path === 'package.json') {
+        const why = onlyLedgeredOverrides(read('base', ch.path), read('head', ch.path), ledger)
+        if (why) out.push({ path: ch.path, detail: why })
+        continue
+      }
       if (!MODIFY_ALLOWED.some((r) => r.test(ch.path))) { out.push({ path: ch.path, detail: 'an existing file changed; the templates and the Factory are not touched during construction' }); continue }
       if (/^packages\/[^/]+\/package\.json$/.test(ch.path)) {
-        const why = onlyDeclaresMore(read('base', ch.path), read('head', ch.path))
+        const why = onlyDeclaresMore(read('base', ch.path), read('head', ch.path), ch.path, ledger)
         if (why) out.push({ path: ch.path, detail: why })
       }
       if (ch.path === '.github/workflows/build-check.yml') {
@@ -102,8 +109,25 @@ export function onlyTriggerChanged(baseText: string | null, headText: string | n
   return a === b ? null : 'a job changed; only the trigger may change'
 }
 
-/** A shared package's manifest may only gain library declarations: everything else, and every existing entry, unchanged. */
-function onlyDeclaresMore(baseText: string | null, headText: string | null): string | null {
+/**
+ * The security ledger (docs/SECURITY_UPGRADES.json, owner's yes 2026-10-28): the one way an EXISTING library version may
+ * change — a published advisory (GHSA id) naming this manifest, this package and exactly this new range. Anything else
+ * (another package, another range, no advisory id) keeps the rule below.
+ */
+export interface Upgrade { manifest: string; package: string; to: string; advisory: string }
+const GHSA = /^GHSA-[23456789cfghjmpqrvwx]{4}-[23456789cfghjmpqrvwx]{4}-[23456789cfghjmpqrvwx]{4}$/
+export function readLedger(text: string | null): Upgrade[] {
+  if (!text) return []
+  try { const j = JSON.parse(text); return Array.isArray(j?.upgrades) ? j.upgrades : [] } catch { return [] }
+}
+const ledgered = (ledger: Upgrade[], manifest: string, name: string, range: unknown) =>
+  ledger.some((u) => u.manifest === manifest && u.package === name && u.to === range && GHSA.test(String(u.advisory)))
+
+/**
+ * A shared package's manifest may only gain library declarations: everything else, and every existing entry, unchanged —
+ * except an existing version raised for a security advisory in the ledger.
+ */
+function onlyDeclaresMore(baseText: string | null, headText: string | null, manifest = '', ledger: Upgrade[] = []): string | null {
   if (baseText == null || headText == null) return 'could not read both versions'
   let base: any, head: any
   try { base = JSON.parse(baseText); head = JSON.parse(headText) } catch { return 'not valid JSON' }
@@ -113,8 +137,29 @@ function onlyDeclaresMore(baseText: string | null, headText: string | null): str
   }
   for (const k of DEP_KEYS) {
     for (const [name, range] of Object.entries(base[k] || {})) {
-      if (!head[k] || head[k][name] !== range) return `${k}.${name} changed or removed; only additions are allowed`
+      if (head[k] && head[k][name] === range) continue
+      if (head[k] && head[k][name] !== undefined && ledgered(ledger, manifest, name, head[k][name])) continue
+      return `${k}.${name} changed or removed; only additions are allowed (or a security advisory in docs/SECURITY_UPGRADES.json)`
     }
+  }
+  return null
+}
+
+/**
+ * The root manifest: only its `overrides` (and their "//overrides" note) may change, and every override added or changed
+ * must be a security advisory in the ledger. An override removed stays allowed (it un-pins; the lockfile shows the rest).
+ */
+function onlyLedgeredOverrides(baseText: string | null, headText: string | null, ledger: Upgrade[]): string | null {
+  if (baseText == null || headText == null) return 'could not read both versions'
+  let base: any, head: any
+  try { base = JSON.parse(baseText); head = JSON.parse(headText) } catch { return 'not valid JSON' }
+  for (const k of new Set([...Object.keys(base), ...Object.keys(head)])) {
+    if (k === 'overrides' || k === '//overrides') continue
+    if (JSON.stringify(base[k]) !== JSON.stringify(head[k])) return `"${k}" changed; the root manifest may only change its security overrides`
+  }
+  for (const [name, range] of Object.entries(head.overrides || {})) {
+    if ((base.overrides || {})[name] === range) continue
+    if (!ledgered(ledger, 'package.json', name, range)) return `overrides.${name} added or changed without a security advisory in docs/SECURITY_UPGRADES.json`
   }
   return null
 }

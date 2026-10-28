@@ -118,3 +118,35 @@ describe('refused', () => {
     expect(run([{ status: 'M', path: 'packages/tenant-backend/package.json' }], head)[0].detail).toContain('peerDependencies.hono')
   })
 })
+
+// The security ledger (docs/SECURITY_UPGRADES.json, owner's yes 2026-10-28): an existing version may change ONLY for a
+// published advisory naming that manifest, that package and exactly that new range.
+describe('security upgrades through the ledger', () => {
+  const MANIFEST = 'packages/tenant-backend/package.json'
+  const ledger = (upgrades: any[]) => JSON.stringify({ upgrades })
+  const fence = (changes: Change[], f: Record<string, { base?: string; head?: string }>) =>
+    checkFence(changes, (ref, p) => (ref === 'base' ? f[p]?.base : f[p]?.head) ?? null)
+  const pkg = (hono: string) => JSON.stringify({ name: '@twomiah/tenant-backend', main: './src/index.ts', peerDependencies: { hono } })
+  const root = (o: Record<string, string>, extra: Record<string, unknown> = {}) => JSON.stringify({ name: 'twomiah', overrides: o, ...extra })
+  const ok = { manifest: MANIFEST, package: 'hono', to: '^4.13.11', advisory: 'GHSA-mrhx-c7xc-m3w5' }
+
+  test('a version raised for a ledgered advisory passes', () => {
+    expect(fence([{ status: 'M', path: MANIFEST }], { [MANIFEST]: { base: pkg('^4.0.0'), head: pkg('^4.13.11') }, 'docs/SECURITY_UPGRADES.json': { head: ledger([ok]) } })).toEqual([])
+  })
+  test('no ledger entry, another range, another package, another manifest or no advisory id: refused', () => {
+    for (const entry of [null, { ...ok, to: '^4.13.10' }, { ...ok, package: 'zod' }, { ...ok, manifest: 'packages/tenant-ui/package.json' }, { ...ok, advisory: 'CVE-2026-1234' }, { ...ok, advisory: '' }]) {
+      const v = fence([{ status: 'M', path: MANIFEST }], { [MANIFEST]: { base: pkg('^4.0.0'), head: pkg('^4.13.11') }, 'docs/SECURITY_UPGRADES.json': { head: ledger(entry ? [entry] : []) } })
+      expect([JSON.stringify(entry), v.length]).toEqual([JSON.stringify(entry), 1])
+    }
+  })
+  test('a ledgered package removed is still refused (the ledger raises a version, it does not delete one)', () => {
+    const head = JSON.stringify({ name: '@twomiah/tenant-backend', main: './src/index.ts', peerDependencies: {} })
+    expect(fence([{ status: 'M', path: MANIFEST }], { [MANIFEST]: { base: pkg('^4.0.0'), head }, 'docs/SECURITY_UPGRADES.json': { head: ledger([ok]) } })).toHaveLength(1)
+  })
+  test('the root manifest: a ledgered override passes; an unledgered one, or any other key, is refused', () => {
+    const L = { 'docs/SECURITY_UPGRADES.json': { head: ledger([{ manifest: 'package.json', package: 'basic-ftp', to: '^6.2.3', advisory: 'GHSA-c475-qrg2-pj4r' }]) } }
+    expect(fence([{ status: 'M', path: 'package.json' }], { ...L, 'package.json': { base: root({ ws: '^8' }), head: root({ ws: '^8', 'basic-ftp': '^6.2.3' }, { '//overrides': 'note' }) } })).toEqual([])
+    expect(fence([{ status: 'M', path: 'package.json' }], { ...L, 'package.json': { base: root({}), head: root({ 'basic-ftp': '^6.2.2' }) } })).toHaveLength(1)
+    expect(fence([{ status: 'M', path: 'package.json' }], { ...L, 'package.json': { base: root({}), head: root({}, { scripts: { x: 'y' } }) } })).toHaveLength(1)
+  })
+})
