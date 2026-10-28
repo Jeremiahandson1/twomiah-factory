@@ -526,7 +526,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
         siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
         seoTitle: pageTitle(ctx.settings, { title }),
         seoDescription: title + ' for ' + ctx.settings.companyName + ', including how we text customers.',
-      }, pathname))
+      }, pathname, { title }))
     })
   }
 
@@ -555,7 +555,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
       seoTitle: pageTitle(ctx.settings, { title: 'Blog' }),
       seoDescription: ctx.settings.seoDescription || 'Recent posts from ' + ctx.settings.companyName + '.',
-    }, '/blog'))
+    }, '/blog', { title: 'Blog' }))
   })
 
   app.get('/blog/:slug', async (c) => {
@@ -580,7 +580,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
       seoTitle: pageTitle(ctx.settings, { own: p.metaTitle, title: p.title }),
       seoDescription: p.metaDescription || p.excerpt || '',
-    }, '/blog/' + p.slug))
+    }, '/blog/' + p.slug, { title: p.title }))
   })
 
   // ── For search engines and AI assistants ─────────────────────────────────

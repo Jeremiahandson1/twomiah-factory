@@ -92,32 +92,7 @@
   <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
   <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
   <% if (settings.appleTouchIconUrl) { %><link rel="apple-touch-icon" href="<%= settings.appleTouchIconUrl %>"><% } %>
-  <%
-    // Business markup for Google (schema.org LocalBusiness), unless the page brings its own (a vertical's facts: the
-    // bar's BarOrPub with its bar and kitchen hours, its menu and events; jsonLd, printed below). Only the facts in
-    // the owner's settings — name, phone, email, area, logo — and nothing is
-    // filled in when a field is empty. The AREA only (city, state): the street
-    // in settings.address is often the owner's home, and the site itself never
-    // shows it, so the markup must not publish it either. Hours are free text on the contact
-    // section, not the opening-hours format schema.org needs, so they are left
-    // out rather than guessed. The synthesized /images/logo.svg is a
-    // placeholder, never the business's logo.
-    var _ld = null;
-    if (!pageJsonLd && canonicalBase && settings.companyName) {
-      _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
-      if (settings.phone) _ld.telephone = settings.phone;
-      if (settings.email) _ld.email = settings.email;
-      var _areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return String((a && a.name) || a || '').trim(); }).filter(Boolean);
-      if (_areas.length) _ld.areaServed = _areas.map(function (n) { return { '@type': 'Place', name: n }; });
-      // The city and state from their own fields (site/context.ts); a line split only where they are not given.
-      var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-      if (settings.addressLocality && settings.addressRegion) _ld.address = { '@type': 'PostalAddress', addressLocality: settings.addressLocality, addressRegion: settings.addressRegion };
-      else if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
-      var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
-      if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
-    }
-  %>
-  <% if (_ld) { %><script type="application/ld+json"><%- JSON.stringify(_ld).replace(/</g, '\\u003c') %></script><% } %>
+  <%# The page's schema.org JSON-LD (the business, its services, hours, questions and breadcrumbs) is built in server/site/structuredData.ts and printed with the page's own below. %>
   <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>

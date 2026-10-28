@@ -35,7 +35,10 @@ const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ej
   // The "Text me" box on every form that asks for a phone (server/site/smsConsent.ts): carriers require it (2026-10-21).
   'sections/catering/inquiry-form.ejs', 'sections/parties/inquiry-form.ejs', 'sections/regulars/signup.ejs',
   // A menu item's photo, and the restaurant's live menu without the bar's own copy (10/25).
-  'sections/menu/sections.ejs'])
+  'sections/menu/sections.ejs',
+  // Site sections the old standard sites had (docs/site-sections/REPORT.md): a service card links to its service page and
+  // lists its parts; the gallery has a filter bar once photos are sorted into groups.
+  'sections/services/cards-grid.ejs', 'sections/services/alternating.ejs', 'sections/gallery/grid.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
@@ -130,6 +133,14 @@ const inlineFormMessages = (html: string) => html
   .replace(/\s*<p class="contact-form__error"[^>]*><\/p>/g, '')
   .replace(/(return;)\s*\/\/ The form's own words[\s\S]*?(f\.addEventListener\('submit', function\(e\)\{\s*e\.preventDefault\(\);)[\s\S]*?if \(first\) \{ first\.focus\(\); return; \}\s*(var b = )/, '$1 $2 $3')
 
+/**
+ * The site's own additions (docs/site-sections/REPORT.md), taken out for every design: the phone-only "Call now" button and its
+ * script (base.ejs), and the page's schema.org markup (server/site/structuredData.ts), which the templates printed their own way.
+ */
+const siteAdditions = (html: string) => html
+  .replace(/<a class="btn btn--primary call-now"[\s\S]*?<\/a>\s*<script>\(function\(\)\{\s*var a = document\.querySelector\('\[data-call-now\]'\)[\s\S]*?<\/script>/, '')
+  .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/g, '')
+
 const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
@@ -181,7 +192,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(barFixes(sameAssetVersion(trackingStandard(textingConsent(inlineFormMessages(mine))))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
+        expect(squash(barFixes(sameAssetVersion(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine)))))))).toBe(squash(barFixes(sameAssetVersion(siteAdditions(messageField(theirs))))))
       })
     }
   }
@@ -195,7 +206,7 @@ describe('the contact form in each vertical\'s words', () => {
       const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], smsConsent: consentBoxHtml, ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(formReset(trackingStandard(textingConsent(inlineFormMessages(mine)))))).toBe(squash(messageField(theirs)))
+      expect(squash(formReset(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine))))))).toBe(squash(siteAdditions(messageField(theirs))))
       // …and the box is there, unticked
       expect(mine).toContain('<input type="checkbox" name="smsConsent" value="yes">')
       expect(mine).toContain('name="message"')

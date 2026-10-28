@@ -10,6 +10,7 @@ import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS, SITE_DESIGN_SPECS } from '../core/vertical.ts'
 import { previewing } from './drafts.ts'
 import { servicePagesOf, type ServicePage } from './servicePages.ts'
+import { socialLinksOf } from './structuredData.ts'
 
 export interface SiteContext {
   companyId: string
@@ -33,6 +34,9 @@ export interface SiteContext {
   /** A page for each of the business's own services (/services/<slug>; site/servicePages.ts), and which pages are published. */
   servicePages?: ServicePage[]
   publishedSlugs?: ReadonlySet<string>
+  /** The vertical's id and the titles of the published pages: what the page's structured data (site/structuredData.ts) is typed and trailed from. */
+  vertical?: string
+  pageTitles?: Record<string, string>
   /** The company's switched-on features: a section that IS a feature (the financing calculator) renders only with it on. */
   features: string[]
 }
@@ -66,7 +70,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
   const design = (SITE_DESIGNS as readonly string[]).includes(s?.design) ? (s.design as SiteDesign) : vertical.site.design
   // The menu and "What we do" as visitors see them (site/menu.ts): from the pages, posts, work and services as they are now.
   const [pages, [aPost], [aWork], services] = await Promise.all([
-    db.select({ slug: page.slug, sections: page.sections, isPublished: page.isPublished }).from(page).where(eq(page.companyId, co.id)),
+    db.select({ slug: page.slug, title: page.title, sections: page.sections, isPublished: page.isPublished }).from(page).where(eq(page.companyId, co.id)),
     db.select({ id: post.id }).from(post).where(and(eq(post.companyId, co.id), eq(post.status, 'published'))).limit(1),
     db.select({ id: portfolioItem.id }).from(portfolioItem).where(and(eq(portfolioItem.companyId, co.id), eq(portfolioItem.status, 'published'))).limit(1),
     businessServices(db, co.id),
@@ -91,6 +95,8 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     services, trade,
     servicePages: servicePagesOf(pages, services, trade),
     publishedSlugs: new Set(pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)),
+    vertical: vertical.id,
+    pageTitles: Object.fromEntries(pages.filter((p: any) => p.isPublished && p.title).map((p: any) => [p.slug, p.title])),
     features,
     settings: {
       companyName: co.name,
@@ -115,6 +121,8 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
       photoCredits: Array.isArray(s?.photoCredits) ? s.photoCredits : [],
       contentGaps: Array.isArray(s?.contentGaps) ? s.contentGaps : [],
       serviceAreas,
+      // Profiles the owner linked from a "Follow us" section (the page's structured data lists them as sameAs).
+      socialLinks: socialLinksOf(pages),
       inventoryFeedUrl: s?.inventoryFeedUrl || '',
       contactCtaLabel: s?.contactCtaLabel || 'Get in touch',
       accentColor: s?.accentColor || '',
