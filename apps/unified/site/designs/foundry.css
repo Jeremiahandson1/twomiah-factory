@@ -373,3 +373,20 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .why-choose__mark { width: fit-content; background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; font-family: var(--f-mono); font-weight: 600; font-size: 15px; letter-spacing: .08em; padding: 8px 14px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); margin: 0 0 18px; }
 .why-choose__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; font-size: 29px; line-height: 1; letter-spacing: .01em; color: var(--tx); margin: 0 24px 10px; }
 .why-choose__desc { color: var(--tx2); font-size: 16.5px; margin: 0 24px; }
+
+/* ── Testimonials carousel ──────────────────────────────────────────────────── */
+.testimonials-carousel { background: var(--bg); }
+.testimonials-carousel__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; letter-spacing: .005em; line-height: .96; font-size: clamp(38px, 4.4vw, 60px); color: var(--tx); }
+.testimonials-carousel__intro { color: var(--tx2); }
+.testimonials-carousel__track { gap: 28px; padding: 4px 12px 14px 4px; }
+.testimonials-carousel__card { background: var(--sf); border: 3px solid var(--edge); border-left: 12px solid {{PRIMARY_COLOR}}; border-radius: 0; box-shadow: 6px 6px 0 var(--edge); }
+.testimonials-carousel__quote { font-family: var(--f-body); font-weight: 500; color: var(--tx); }
+.testimonials-carousel__author { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; color: var(--tx); }
+.testimonials-carousel__role { font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--tx3); }
+.testimonials-carousel__photo { border-radius: 0; border: 3px solid var(--edge); }
+.testimonials-carousel__btn { border: 3px solid var(--edge); border-radius: 0; background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; box-shadow: 4px 4px 0 var(--edge); transition: transform .12s, box-shadow .12s; }
+.testimonials-carousel__btn:hover { border-color: var(--edge); transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--edge); }
+.testimonials-carousel__btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--edge); }
+.testimonials-carousel__dot::before { border-radius: 0; background: var(--sf); border: 2px solid var(--edge); }
+.testimonials-carousel__dot[aria-current="true"]::before { background: {{PRIMARY_COLOR}}; border-color: var(--edge); }
+.testimonials-carousel__track:focus-visible, .testimonials-carousel__btn:focus-visible, .testimonials-carousel__dot:focus-visible { outline-color: var(--focus); }

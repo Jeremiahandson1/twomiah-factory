@@ -11,6 +11,7 @@ import { loadVertical } from '../server/core/vertical.ts'
 import { offersSection } from '../server/site/admin.ts'
 import { findTradeSection } from '../web/src/site/sectionFields.ts'
 import { findSectionDef } from '../web/src/site/sectionSchema.ts'
+import { Window } from 'happy-dom'
 
 const DESIGNS_DIR = path.resolve(import.meta.dir, '..', 'site', 'designs')
 const LOOKS = SITE_DESIGNS.filter((d) => SITE_DESIGN_SPECS[d].build === 'whole' && !SITE_DESIGN_SPECS[d].frame)
@@ -30,7 +31,7 @@ const HERO = { type: 'hero', variant: 'centered-stats', data: { title: 'T' } }
 
 describe('every look styles every new block, and each block asks its own width', () => {
   // [section class, the container name its base rule declares]
-  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose']]
+  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel']]
   for (const [cls, name] of BLOCKS) {
     test(cls, () => {
       const base = fs.readFileSync(path.resolve(DESIGNS_DIR, '..', 'public', 'styles', 'main.css'), 'utf8')
@@ -71,5 +72,92 @@ describe('why choose us', () => {
     for (const id of ['contractor', 'roofing', 'homecare', 'store']) expect([id, offersSection('why_choose/grid', await loadVertical(id))]).toEqual([id, true])
     const css = siteStylesheet(ctx('foundry'))
     expect(css).toContain('.why-choose__item')
+  })
+})
+
+describe('the testimonials carousel (real reviews only; keyboard and reduced-motion safe)', () => {
+  const REVIEWS = [{ quote: 'Rebuilt our deck in a week.', author: 'Pat K.', role: 'Verona' }, { quote: 'Fair price, clean site.', author: 'Dana R.' }, { quote: 'Answered the phone every time.' }]
+  const carousel = (items: any[]) => ({ type: 'testimonials', variant: 'carousel', data: { heading: 'What customers say', items } })
+
+  test('each real review is a labelled slide in every look; a review with no quote is not shown; no stars, no invented rating', async () => {
+    for (const look of LOOKS) {
+      const html = await render(look, [HERO, carousel([...REVIEWS, { author: 'No Quote' }, null as any])])
+      expect(html).toContain('aria-roledescription="carousel"')
+      expect((html.match(/testimonials-carousel__slide/g) || []).length).toBe(3)
+      for (const q of REVIEWS) expect(html).toContain(q.quote)
+      expect(html).toContain('Review 3 of 3')
+      expect(html).not.toContain('No Quote')
+      expect(html).not.toMatch(/★|&#9733;|star|rating|aggregateRating/i)
+    }
+  })
+
+  test('without script it still works: the track is a native scroll strip and the buttons stay hidden until the script runs', async () => {
+    const html = await render('foundry', [HERO, carousel(REVIEWS)])
+    expect(html.includes('hidden data-controls')).toBe(true)
+    expect(html).toContain('tabindex="0"')
+    const css = await siteStylesheet(ctx('foundry'))
+    expect(css).toContain('scroll-snap-type: x mandatory')
+  })
+
+  test('no reviews, nothing: the section renders nothing; one review has no buttons or script', async () => {
+    expect(await render('heritage', [HERO, carousel([])])).not.toContain('testimonials-carousel')
+    expect(await render('heritage', [HERO, carousel([{ author: 'x' }])])).not.toContain('testimonials-carousel')
+    const one = await render('heritage', [HERO, carousel([REVIEWS[0]])])
+    expect(one).toContain('Rebuilt our deck in a week.')
+    expect(one).not.toContain('data-controls')
+    expect(one).not.toContain('data-next')
+  })
+
+  test('it never moves by itself, and smooth scrolling is only for a visitor who has not asked for reduced motion', async () => {
+    const view = fs.readFileSync(path.resolve(import.meta.dir, '..', 'site', 'views', 'sections', 'testimonials', 'carousel.ejs'), 'utf8')
+    // the code, not the comment that explains it
+    expect(view.replace(/^<%[\s\S]*?%>/, '')).not.toMatch(/setInterval|setTimeout|autoplay/i)
+    const css = fs.readFileSync(path.resolve(DESIGNS_DIR, '..', 'public', 'styles', 'main.css'), 'utf8')
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{ \.testimonials-carousel__track \{ scroll-behavior: smooth; \} \}/)
+    // outside that media query nothing smooths the track
+    const outside = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[^\n]*\} \}/g, '')
+    expect(outside).not.toMatch(/\.testimonials-carousel__track[^{]*\{[^}]*scroll-behavior: smooth/)
+  })
+
+  function boot(html: string, reduced: boolean) {
+    const win: any = new Window({ url: 'https://site.example.com/', settings: { enableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true, suppressInsecureJavaScriptEnvironmentWarning: true } } as any)
+    for (const k of ['Number', 'Date', 'Math', 'JSON', 'String', 'Array', 'Object', 'RegExp', 'Boolean', 'Error', 'Promise']) if (typeof win[k] === 'undefined') win[k] = (globalThis as any)[k]
+    win.matchMedia = (q: string) => ({ matches: reduced && /reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {} })
+    win.document.write(html)
+    const doc = win.document
+    const track = doc.querySelector('[data-track]')
+    const slides = [...track.children]
+    slides.forEach((el: any, i: number) => { Object.defineProperty(el, 'offsetWidth', { value: 300 }); Object.defineProperty(el, 'offsetLeft', { value: i * 320 }) })
+    const calls: any[] = []
+    track.scrollTo = (o: any) => { calls.push(o); track.scrollLeft = o.left }
+    return { win, doc, track, calls }
+  }
+
+  test('with script: the buttons appear; the arrow keys, buttons and dots move one review; Home and End jump; the dot follows', async () => {
+    const html = await render('foundry', [HERO, carousel(REVIEWS)])
+    const { win, doc, track, calls } = boot(html, false)
+    expect(doc.querySelector('[data-controls]').hidden).toBe(false)
+    const key = (k: string) => track.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }))
+    key('ArrowRight')
+    expect(calls.pop()).toMatchObject({ left: 320, behavior: 'smooth' })
+    key('ArrowLeft'); expect(calls.pop()).toMatchObject({ left: 0 })
+    key('End'); expect(calls.pop()).toMatchObject({ left: 640 })
+    key('Home'); expect(calls.pop()).toMatchObject({ left: 0 })
+    doc.querySelector('[data-next]').click(); expect(calls.pop()).toMatchObject({ left: 320 })
+    doc.querySelectorAll('[data-dot]')[2].click(); expect(calls.pop()).toMatchObject({ left: 640 })
+    track.scrollLeft = 640
+    track.dispatchEvent(new win.Event('scroll'))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(doc.querySelectorAll('[data-dot]')[2].getAttribute('aria-current')).toBe('true')
+    expect(doc.querySelectorAll('[data-dot]')[0].getAttribute('aria-current')).toBe('false')
+    // past the ends it stays on the first or last review
+    track.scrollLeft = 0; key('ArrowLeft'); expect(calls.pop()).toMatchObject({ left: 0 })
+  })
+
+  test('a visitor who asked for reduced motion gets instant jumps, not a glide', async () => {
+    const html = await render('market', [HERO, carousel(REVIEWS)])
+    const { win, track, calls } = boot(html, true)
+    track.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    expect(calls.pop()).toMatchObject({ left: 320, behavior: 'auto' })
   })
 })

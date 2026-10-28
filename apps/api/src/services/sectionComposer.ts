@@ -163,6 +163,11 @@ export const SECTION_SCHEMA = {
       optional: ['heading', 'intro'],
       use_when: 'show 1-3 short customer testimonials. Only use when the intake actually provided quotes or named customers — never fabricate testimonials.',
     },
+    carousel: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'the same real reviews as testimonials/quotes, shown one at a time (a swipeable, keyboard-friendly carousel) — pick it when the intake gives THREE OR MORE reviews. Quotes word for word with the intake\'s attribution; never fabricate a review, a name or a rating.',
+    },
   },
   // "Why choose us": the reasons the OWNER gave (their credentials, year founded, free estimates, strengths in their words) as
   // short titled cards. A reason is a fact: nothing the intake does not say.

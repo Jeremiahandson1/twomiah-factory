@@ -72,3 +72,27 @@ describe('why choose us (owner facts only)', () => {
     expect(one.removedClaims.join('\n')).toContain('fewer than two reasons')
   })
 })
+
+describe('testimonials carousel (real reviews only)', () => {
+  const carousel = (items: any[]) => ({ type: 'testimonials', variant: 'carousel', data: { heading: 'Reviews', items } })
+  const home = (...s: any[]) => ({ home: [{ type: 'hero', variant: 'centered-stats', data: { title: 'Acme' } }, ...s] })
+  const withReviews = input({ facts: { testimonials: [{ quote: 'Rebuilt our deck in a week.', author: 'Pat K.' }, { quote: 'Fair price and a clean site.', author: 'Dana R.' }] } })
+
+  test('the AI builder accepts the variant', () => {
+    expect(sanitizeSections([carousel([{ quote: 'x', author: 'y' }])])).toHaveLength(1)
+    expect((SECTION_SCHEMA as any).testimonials.carousel.required).toEqual(['items'])
+  })
+  test('only the owner\'s own reviews survive, with the owner\'s attribution; an invented review or name is dropped', () => {
+    const out = enforce(home(carousel([
+      { quote: 'Rebuilt our deck in a week.', author: 'Someone Else' },
+      { quote: 'Fair price and a clean site.', author: 'Dana R.' },
+      { quote: 'The best contractor in the whole state, five stars.', author: 'Jo M.' },
+    ])), withReviews)
+    const items = out.pages.home.find((s) => s.type === 'testimonials')!.data.items
+    expect(items).toEqual([{ quote: 'Rebuilt our deck in a week.', author: 'Pat K.' }, { quote: 'Fair price and a clean site.', author: 'Dana R.' }])
+  })
+  test('with no reviews from the owner the section is left out', () => {
+    const out = enforce(home(carousel([{ quote: 'Wonderful team.', author: 'A. B.' }])), input())
+    expect(out.pages.home.some((s) => s.type === 'testimonials')).toBe(false)
+  })
+})

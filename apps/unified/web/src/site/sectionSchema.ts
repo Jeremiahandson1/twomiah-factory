@@ -172,6 +172,17 @@ export const SECTION_DEFS: SectionDef[] = [
     },
   },
 
+  {
+    type: 'testimonials', variant: 'carousel',
+    label: 'Testimonials — Carousel',
+    description: 'The same real reviews, one at a time: swipe, arrow keys, or the buttons. Best with three or more.',
+    defaultData: {
+      heading: 'What our customers say',
+      intro: '',
+      items: [{ quote: '', author: '', role: '', photo: '' }],
+    },
+  },
+
   // ── Stats bar ───────────────────────────────────────────────────────
   {
     type: 'stats', variant: 'bar',

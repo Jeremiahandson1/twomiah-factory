@@ -1,0 +1,4 @@
+[{ "type": "testimonials", "variant": "carousel", "data": { "heading": "What customers say", "items": [
+ { "quote": "Rebuilt our deck in a week and left the yard cleaner than they found it.", "author": "Pat K.", "role": "Verona" },
+ { "quote": "Fair price, clear schedule, and they answered the phone every time I called.", "author": "Dana R." },
+ { "quote": "The kitchen is exactly what we drew on the back of an envelope.", "author": "Sam & Lee T.", "role": "Madison" } ] } }]
