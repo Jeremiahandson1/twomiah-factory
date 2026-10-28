@@ -32,6 +32,14 @@
       "advisory": "GHSA-wrjc-x8rr-h8h6",
       "why": "open redirect via backslash in <Link> and useNavigate (>=6.0.0 <7.18.0). The workspace's dev copy of the router moves with the unified app's, so shared screens and their tests see one router; the peer range (^6, what the templates install) is unchanged",
       "at": "2026-10-28"
+    },
+    {
+      "manifest": "packages/roof-core/package.json",
+      "package": "puppeteer",
+      "to": "^25.16.0",
+      "advisory": "GHSA-mrhx-c7xc-m3w5",
+      "why": "removes the transitive zod 3.23.8: puppeteer 23 > chromium-bidi 0.11.0 pins zod exactly and no 3.x release has the fix; puppeteer 25 > chromium-bidi 157 uses zod ^4.6.5. It also drops extract-zip (GHSA-jmr9-qjv8-65gv, GHSA-7pqw-9j4j-h8q3): @puppeteer/browsers 3 unpacks with modern-tar",
+      "at": "2026-10-28"
     }
   ]
 }

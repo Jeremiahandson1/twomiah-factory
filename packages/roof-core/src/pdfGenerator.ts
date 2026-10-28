@@ -31,7 +31,8 @@ let browserInstance: any = null
 let browserLaunchPromise: Promise<any> | null = null
 
 async function getBrowser(): Promise<any> {
-  if (browserInstance?.isConnected?.()) return browserInstance
+  // `connected` (a property): Browser.isConnected() was removed in puppeteer 25; the property exists from 21.3 on.
+  if (browserInstance?.connected) return browserInstance
 
   // Prevent multiple simultaneous launches
   if (browserLaunchPromise) return browserLaunchPromise
