@@ -444,7 +444,7 @@ export function createAuthRoutes(deps: AuthDeps) {
   const isHttps = (c: any) => (c.req.header('x-forwarded-proto') || new URL(c.req.url).protocol.replace(':', '')).split(',')[0].trim() === 'https'
 
   app.post('/web-handoff', authenticate, async (c) => {
-    const currentUser = c.get('user') as any
+    const currentUser = (c as any).get('user')
     // HTTPS only in production: the code must never travel in the clear.
     if (process.env.NODE_ENV === 'production' && !isHttps(c)) return c.json({ error: 'A secure connection is required' }, 400)
     const body = await c.req.json().catch(() => ({} as any))

@@ -116,7 +116,7 @@ async function holdTilesToTheirLists(site: Site, home: Awaited<ReturnType<typeof
 async function seedJobsFamily(site: Site) {
   const { t, companyId } = site
   const S = t.schema
-  const ins = async (table: any, values: any) => (await t.db.insert(table).values(values).returning())[0]
+  const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
   const ann = await ins(S.contact, { companyId, name: 'Ann Customer', type: 'client' })
   // New leads: two inbox enquiries at `new` + one lead contact nobody has acted on = 3. Not: contacted / dismissed / converted
   // enquiries, a lead contact that has a quote, a customer.
@@ -202,7 +202,7 @@ if (want('roofing')) describe('roofing: every tile and every pipeline stage open
     site = await serve('roofing', ['dashboard', 'contacts', 'jobs', 'quotes', 'invoices', 'lead_inbox', 'canvassing_tool'], [['manager', 'manager'], ['field', 'field']])
     const { t, companyId } = site
     const S = t.schema
-    const ins = async (table: any, values: any) => (await t.db.insert(table).values(values).returning())[0]
+    const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
     const ann = await ins(S.contact, { companyId, name: 'Ann Roof', type: 'client' })
     await ins(S.lead, { companyId, sourcePlatform: 'website', homeownerName: 'Rae New', status: 'new' })
     const contacted = await ins(S.lead, { companyId, sourcePlatform: 'website', homeownerName: 'Cam Contacted', status: 'contacted' })
@@ -265,7 +265,7 @@ if (want('rv')) describe('rv: every tile opens exactly what it counts', () => {
     site = await serve('rv', ['dashboard', 'contacts', 'unit_inventory', 'deal_pipeline', 'service_dept'], [['manager', 'manager'], ['field', 'field']])
     const { t, companyId } = site
     const S = t.schema
-    const ins = async (table: any, values: any) => (await t.db.insert(table).values(values).returning())[0]
+    const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
     const ann = await ins(S.contact, { companyId, name: 'Ann Buyer', type: 'lead' })
     for (const [i, status] of ['available', 'available', 'sold', 'on_hold'].entries()) await ins(S.unit, { companyId, category: 'travel_trailer', status, make: 'Acme', modelName: `M${i}`, year: 2024, stockNumber: `S${i}` })
     const unit = await ins(S.unit, { companyId, category: 'motorhome', status: 'available', make: 'Acme', modelName: 'Big', year: 2025, stockNumber: 'S9' })
@@ -297,7 +297,7 @@ if (want('homecare')) describe('homecare: every office tile opens exactly what i
     site = await serve('homecare', ['dashboard', 'reports'], [['admin', 'admin'], ['manager', 'manager'], ['viewer', 'viewer'], ['cg', 'caregiver']])
     const { t, companyId } = site
     const S = t.schema
-    const ins = async (table: any, values: any) => (await t.db.insert(table).values(values).returning())[0]
+    const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
     const cl = async (first: string, extra: Record<string, unknown> = {}) => ins(S.clients, { companyId, firstName: first, lastName: 'Client', isActive: true, ...extra })
     const ada = await cl('Ada'), bea = await cl('Bea'), cal = await cl('Cal')
     const gone = await cl('Gus', { isActive: false })

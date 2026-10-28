@@ -102,7 +102,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     // Unconfigured companies resolve to UTC and are unaffected. (T24 N1, the shared surfaces)
     const tz = await companyTimeZone(db, companyId)
     const { start: today, end: tomorrow } = storeDayRange(tz)
-    const jobScope = await ownJobScope(db, t, deps.canSee, c.get('user') as any)
+    const jobScope = await ownJobScope(db, t, deps.canSee, (c as any).get('user'))
 
     const [contactRows, projectsByStatus, jobsByStatus, todayRows, completedTodayRows, quotes, invoices] = await Promise.all([
       safe(() => db.select({ value: count() }).from(t.contact).where(eq(t.contact.companyId, companyId)), [{ value: 0 }]),
