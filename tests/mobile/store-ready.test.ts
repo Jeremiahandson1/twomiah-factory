@@ -81,6 +81,9 @@ console.log('app.config.ts — the store app')
   const { TWOMIAH_FLAME } = await import('../../apps/mobile/app.config.ts')
   const { inkOn, contrastRatio } = await import('../../apps/mobile/src/theme/contrast.ts')
   check('the sign-in colour is Twomiah\'s flame, and its ink reaches 4.5:1', c.extra.signInColor === TWOMIAH_FLAME && contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME) >= 4.5, contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME).toFixed(2))
+  // A fresh launch opens "/" — with no screen there the phone showed Expo's "Unmatched Route" (owner's Android, 2026-10-28).
+  const start = fs.existsSync(path.join(root, 'app/index.tsx')) ? read('app/index.tsx') : ''
+  check('the start address "/" has a screen that sends the person to sign-in or to their tabs', /<Redirect href=\{isAuthenticated \? '\/\(tabs\)' : '\/\(auth\)\/login'\}/.test(start))
   const login = read('app/(auth)/login.tsx')
   check('the sign-in screen reads signInColor and never paints white on it', /extra as any\)\?\.signInColor/.test(login) && /const INK = inkOn\(PRIMARY\)/.test(login) && !/#fff\b|'white'/i.test(login.replace(/color: '#f1f5f9'/g, '')))
 }
