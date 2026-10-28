@@ -432,6 +432,10 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
         return out
       })
       break
+    case 'blog_preview':
+      // The posts are the business's own, filled in by the site; whatever else the model wrote is taken out.
+      for (const k of Object.keys(d)) if (!['heading', 'intro', 'count'].includes(k)) delete d[k]
+      break
     case 'map':
       // The address and the areas are the business's own settings; the composer supplies framing only, so anything else it
       // wrote is taken out — and with no town in the intake there is nothing to find.

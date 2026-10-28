@@ -72,6 +72,13 @@ export const TRADE_SECTIONS: TradeSection[] = [
     fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Find us' }, intro],
     defaultData: { heading: 'Find us', intro: '' },
   },
+  {
+    type: 'blog_preview', variant: 'latest', label: 'Blog — Latest posts',
+    description: 'Your newest blog posts, filled in for you. Shows nothing until you have published a post.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'From the blog' }, intro,
+      { key: 'count', label: 'How many posts', kind: 'select', hint: 'Three is usual.', options: [1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) })) }],
+    defaultData: { heading: 'From the blog', intro: '', count: '3' },
+  },
   // ── Dispensary ─────────────────────────────────────────────────────────
   {
     type: 'age', variant: 'modal', label: 'Age gate',

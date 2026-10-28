@@ -12,6 +12,7 @@ import { offersSection } from '../server/site/admin.ts'
 import { findTradeSection } from '../web/src/site/sectionFields.ts'
 import { findSectionDef } from '../web/src/site/sectionSchema.ts'
 import { Window } from 'happy-dom'
+import { bootTenant } from './harness.ts'
 
 const DESIGNS_DIR = path.resolve(import.meta.dir, '..', 'site', 'designs')
 const LOOKS = SITE_DESIGNS.filter((d) => SITE_DESIGN_SPECS[d].build === 'whole' && !SITE_DESIGN_SPECS[d].frame)
@@ -31,7 +32,7 @@ const HERO = { type: 'hero', variant: 'centered-stats', data: { title: 'T' } }
 
 describe('every look styles every new block, and each block asks its own width', () => {
   // [section class, the container name its base rule declares]
-  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel'], ['.map-area', 'map-area']]
+  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel'], ['.map-area', 'map-area'], ['.blog-preview', 'blog-preview']]
   for (const [cls, name] of BLOCKS) {
     test(cls, () => {
       const base = fs.readFileSync(path.resolve(DESIGNS_DIR, '..', 'public', 'styles', 'main.css'), 'utf8')
@@ -204,4 +205,51 @@ describe('map: where to find us', () => {
     expect(findTradeSection('map', 'area')).toBeDefined()
     for (const id of ['contractor', 'roofing', 'homecare']) expect([id, offersSection('map/area', await loadVertical(id))]).toEqual([id, true])
   })
+})
+
+describe('latest blog posts (only when posts exist)', () => {
+  const posts = (n: number) => Array.from({ length: n }, (_, i) => ({ slug: 'post-' + (i + 1), title: 'Post <b>' + (i + 1) + '</b>', excerpt: 'Excerpt ' + (i + 1), cover: i === 0 ? '/media/c.jpg' : '', date: '2026-09-0' + (i + 1) + 'T12:00:00Z' }))
+  const sec = (data: any) => ({ type: 'blog_preview', variant: 'latest', data })
+
+  test('the posts render in every look as links to /blog/<slug>, escaped, with a date and an "All posts" link', async () => {
+    for (const look of LOOKS) {
+      const html = await render(look, [HERO, sec({ heading: 'News', posts: posts(3) })])
+      expect(html).toContain('News')
+      expect(html).toContain('href="/blog/post-1"')
+      expect(html).toContain('Post &lt;b&gt;1&lt;/b&gt;')
+      expect(html).not.toContain('<b>1</b>')
+      expect(html).toContain('September 1, 2026')
+      expect(html).toContain('href="/blog"')
+      expect(html).toContain("background-image: url('/media/c.jpg')")
+    }
+  })
+  test('with no posts the section renders nothing — no heading over an empty list; count caps what is shown', async () => {
+    for (const data of [{}, { posts: [] }, { posts: [{ title: 'No slug' }] }]) expect(await render('foundry', [HERO, sec(data)])).not.toContain('blog-preview')
+    const two = await render('heritage', [HERO, sec({ count: 2, posts: posts(5) })])
+    expect((two.match(/blog-preview__item/g) || []).length).toBe(2)
+    expect((await render('heritage', [HERO, sec({ posts: posts(5) })]).then((h) => h.match(/blog-preview__item/g) || [])).length).toBe(3)
+  })
+
+  test('through the real server: the business\'s published posts, newest first; drafts never; none, nothing — and it follows the blog', async () => {
+    const t = await bootTenant()
+    const [co] = await t.db.insert(t.schema.company).values({ name: 'Westridge', slug: 'westridge', email: 'o@w.example', primaryColor: '#b45309' }).returning()
+    await t.db.insert(t.schema.website).values({ companyId: co.id, design: 'studio' })
+    await t.db.insert(t.schema.page).values({ companyId: co.id, slug: 'home', title: 'Home', sections: [HERO, sec({ heading: 'Latest news', count: 2 })] })
+    const home = async () => (await (await t.call('/')).text())
+    expect(await home()).not.toContain('Latest news')
+    await t.db.insert(t.schema.post).values([
+      { companyId: co.id, slug: 'old', title: 'Oldest post', status: 'published', publishedAt: new Date('2026-01-01T12:00:00Z') },
+      { companyId: co.id, slug: 'mid', title: 'Middle post', excerpt: 'About the middle.', status: 'published', publishedAt: new Date('2026-05-01T12:00:00Z') },
+      { companyId: co.id, slug: 'new', title: 'Newest post', status: 'published', publishedAt: new Date('2026-09-01T12:00:00Z') },
+      { companyId: co.id, slug: 'draft', title: 'Secret draft', status: 'draft' },
+    ])
+    const html = await home()
+    expect(html).toContain('Latest news')
+    expect(html.indexOf('Newest post')).toBeGreaterThan(-1)
+    expect(html.indexOf('Newest post')).toBeLessThan(html.indexOf('Middle post'))
+    expect(html).toContain('About the middle.')
+    expect(html).not.toContain('Oldest post')
+    expect(html).not.toContain('Secret draft')
+    expect((await t.call('/blog/new')).status).toBe(200)
+  }, 60_000)
 })

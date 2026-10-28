@@ -316,6 +316,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
     founded(),
     reviews(),
     gallery(3),
+    // The business's own latest posts, once it has any (the site fills them in; with none the section shows nothing).
+    kind === 'store' ? null : { type: 'blog_preview', variant: 'latest', data: { heading: 'From the blog' } },
     talkTo(),
   ]
   function careFinder(): Record<string, unknown> {

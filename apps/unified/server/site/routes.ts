@@ -204,6 +204,18 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       const products = await shop.catalogue(ctx.companyId)
       sections = sections.map((s) => s?.type === 'shop' && s.variant === 'grid' && !Array.isArray(s.data?.products) ? { ...s, data: { ...(s.data || {}), products, onPage: true } } : s)
     }
+    // The latest posts on a page that asks for them (blog_preview/latest): the business's published ones as they are now — a
+    // section placed once follows the blog, and shows nothing until there is a post (views/sections/blog_preview).
+    if (sections.some((s) => s?.type === 'blog_preview')) {
+      const want = sections.filter((s) => s?.type === 'blog_preview').map((s) => Math.min(6, Math.max(1, Math.floor(Number(s.data?.count)) || 3)))
+      const posts = await db.select().from(post).where(and(eq(post.companyId, ctx.companyId), eq(post.status, 'published'))).orderBy(desc(post.publishedAt)).limit(Math.max(...want))
+      let seen = 0
+      sections = sections.map((s) => {
+        if (s?.type !== 'blog_preview') return s
+        const n = want[seen++]
+        return { ...s, data: { ...(s.data || {}), posts: posts.slice(0, n).map((r: any) => ({ slug: r.slug, title: r.title, excerpt: r.excerpt || '', cover: r.coverImageUrl || '', date: r.publishedAt ? new Date(r.publishedAt).toISOString() : '' })) } }
+      })
+    }
     const f = pageFacts ?? await factsOf(ctx)
     return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
   }

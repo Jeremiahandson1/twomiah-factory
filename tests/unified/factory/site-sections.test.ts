@@ -4,6 +4,7 @@
 import { describe, test, expect } from 'bun:test'
 import { SECTION_SCHEMA, sanitizeSections, pageRecipesFor, type ComposerInput } from '../../../apps/api/src/services/sectionComposer'
 import { enforceIntakeFacts } from '../../../apps/api/src/services/composerFacts'
+import { composeInstant } from '../../../apps/api/src/services/instantComposer'
 
 const requiredOf = (type: string, variant: string) => (((SECTION_SCHEMA as any)[type]?.[variant]?.required) || []) as readonly string[]
 const allowedFor = (bt: string) => new Set(Object.values(pageRecipesFor(bt)).flatMap((r) => [...r.allowed_types]))
@@ -113,5 +114,19 @@ describe('map: where to find us (framing only; the site supplies the address)', 
     const out = enforce(contact(sec({ heading: 'Find us' })), input({ city: '', state: '', nearbyCities: [] }))
     expect(out.pages.contact.some((s) => s.type === 'map')).toBe(false)
     expect(out.removedClaims.join('\n')).toContain('names no town')
+  })
+})
+
+describe('latest blog posts (the site fills them; the composer writes framing only)', () => {
+  const sec = (data: any) => ({ type: 'blog_preview', variant: 'latest', data })
+  test('the AI builder and the template composer both place it on the trades\' homes', () => {
+    expect(sanitizeSections([sec({ heading: 'From the blog' })])).toHaveLength(1)
+    for (const bt of ['roofing', 'general_contractor', 'hvac', 'landscaping', 'veterinary', 'rv', 'salon', 'other']) expect([bt, pageRecipesFor(bt).home.allowed_types.includes('blog_preview' as never)]).toEqual([bt, true])
+    const site = composeInstant(input())
+    expect(site.pages.home.some((s) => s.type === 'blog_preview')).toBe(true)
+  })
+  test('a post title, excerpt or date the model wrote is removed; the heading stays', () => {
+    const out = enforce({ home: [{ type: 'hero', variant: 'centered-stats', data: { title: 'Acme' } }, sec({ heading: 'From the blog', posts: [{ slug: 'x', title: 'Invented post' }], count: 3, items: [{ title: 'x' }] })] }, input())
+    expect(out.pages.home.find((s) => s.type === 'blog_preview')!.data).toEqual({ heading: 'From the blog', count: 3 })
   })
 })

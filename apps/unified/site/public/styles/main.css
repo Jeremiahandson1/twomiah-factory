@@ -1048,3 +1048,22 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .map-area__halo { fill: color-mix(in srgb, var(--brand) 22%, transparent); }
 .map-area__pin path { fill: var(--brand); }
 .map-area__dot { fill: {{INK_ON_PRIMARY}}; }
+
+/* ── Latest blog posts (views/sections/blog_preview/latest.ejs) ───────────────────────────────────────────────────────── */
+.blog-preview { container: blog-preview / inline-size; padding: var(--space) 0; background: var(--paper); }
+.blog-preview__head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 32px; }
+.blog-preview__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(30px, 4.2cqi, 46px); font-weight: 600; line-height: 1.1; margin: 0; color: var(--ink); }
+.blog-preview__intro { margin: 10px 0 0; font-size: 18px; color: var(--ink-soft); max-width: 52ch; }
+.blog-preview__all { font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--brand); text-decoration-thickness: 2px; }
+.blog-preview__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@container blog-preview (min-width: 640px) { .blog-preview__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container blog-preview (min-width: 1000px) { .blog-preview__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.blog-preview__card { display: flex; flex-direction: column; height: 100%; background: var(--white); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; color: var(--ink); }
+.blog-preview__card:hover { border-color: var(--ink); }
+.blog-preview__cover { display: block; aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: var(--line); }
+.blog-preview__body { display: flex; flex-direction: column; gap: 8px; padding: 22px 24px 26px; flex: 1; }
+.blog-preview__date { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; color: var(--muted); }
+.blog-preview__post { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--ink); }
+.blog-preview__excerpt { font-size: 16px; line-height: 1.55; color: var(--ink-soft); }
+.blog-preview__more { margin-top: auto; padding-top: 6px; font-weight: 600; font-size: 15px; color: var(--ink); }
+.blog-preview__card:hover .blog-preview__more { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--brand); }

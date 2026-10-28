@@ -404,3 +404,20 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .map-area__roads path { stroke: var(--ln); }
 .map-area__blocks rect { fill: var(--sf2); }
 .map-area__pin path { fill: {{PRIMARY_COLOR}}; stroke: var(--edge); stroke-width: 3; }
+
+/* ── Latest blog posts ──────────────────────────────────────────────────────── */
+.blog-preview { background: var(--bg); }
+.blog-preview__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; letter-spacing: .005em; line-height: .96; font-size: clamp(38px, 5cqi, 60px); color: var(--tx); }
+.blog-preview__intro { color: var(--tx2); }
+.blog-preview__all { font-family: var(--f-mono); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; text-decoration: none; color: var(--tx); border-bottom: 4px solid {{PRIMARY_COLOR}}; padding-bottom: 3px; }
+.blog-preview__all:hover { background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; }
+.blog-preview__grid { gap: 28px; }
+.blog-preview__card { background: var(--sf); border: 3px solid var(--edge); border-radius: 0; box-shadow: 8px 8px 0 var(--edge); transition: transform .14s, box-shadow .14s; }
+.blog-preview__card:hover { border-color: var(--edge); transform: translate(-3px, -3px); box-shadow: 11px 11px 0 {{PRIMARY_COLOR}}; }
+.blog-preview__cover { border-bottom: 3px solid var(--edge); filter: grayscale(.55) contrast(1.05); background-color: var(--sf2); transition: filter .25s; }
+.blog-preview__card:hover .blog-preview__cover { filter: none; }
+.blog-preview__date { font-family: var(--f-mono); font-weight: 500; letter-spacing: .1em; color: var(--tx3); }
+.blog-preview__post { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; font-size: 29px; line-height: 1; letter-spacing: .01em; color: var(--tx); }
+.blog-preview__excerpt { color: var(--tx2); font-size: 16.5px; }
+.blog-preview__more { font-family: var(--f-mono); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--tx); }
+.blog-preview__card:hover .blog-preview__more { text-decoration: none; }

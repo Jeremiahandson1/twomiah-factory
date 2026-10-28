@@ -405,3 +405,16 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .map-area__roads path { stroke: var(--ln2); }
 .map-area__blocks rect { fill: var(--sf); }
 .map-area__pin path { fill: {{PRIMARY_COLOR}}; }
+
+/* ── Latest blog posts ──────────────────────────────────────────────────────── */
+.blog-preview { background: var(--bg); }
+.blog-preview__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(28px, 4cqi, 44px); color: var(--tx); }
+.blog-preview__intro { color: var(--tx2); }
+.blog-preview__all { color: var(--tx); text-decoration-color: {{PRIMARY_COLOR}}; }
+.blog-preview__card { background: var(--sf); border: 1px solid var(--ln); border-radius: 4px; }
+.blog-preview__card:hover { border-color: var(--tx); }
+.blog-preview__cover { background-color: var(--sf2); }
+.blog-preview__date { color: var(--tx3); }
+.blog-preview__post { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 21px; color: var(--tx); }
+.blog-preview__excerpt { color: var(--tx2); }
+.blog-preview__more { color: var(--tx); }
