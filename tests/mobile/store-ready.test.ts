@@ -82,7 +82,7 @@ console.log('eas.json — nothing is invented')
 {
   const eas = JSON.parse(read('eas.json'))
   const ios = eas.submit.production.ios
-  const placeholders = { appleId: /^TODO_/, ascAppId: /^TODO_|^\d{9,10}$/, appleTeamId: /^TODO_|^[A-Z0-9]{10}$/ } as const
+  const placeholders = { appleId: /^TODO_|^[^@s]+@[^@s]+.[a-z]{2,}$/, ascAppId: /^TODO_|^\d{9,10}$/, appleTeamId: /^TODO_|^[A-Z0-9]{10}$/ } as const
   for (const [k, re] of Object.entries(placeholders)) check(`submit.production.ios.${k} is the owner's TODO or a real-looking value, never something made up`, re.test(ios[k]), ios[k])
   check('production builds are numbered by EAS (store builds need an ever-higher number)', eas.build.production.autoIncrement === true && eas.cli.appVersionSource === 'remote')
   check('the Play upload starts as an internal-track draft', eas.submit.production.android.track === 'internal' && eas.submit.production.android.releaseStatus === 'draft')

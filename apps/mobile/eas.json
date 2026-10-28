@@ -71,9 +71,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "TODO_REPLACE_WITH_APPLE_ID@twomiah.com",
-        "ascAppId": "TODO_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "TODO_APPLE_TEAM_ID"
+        "appleId": "jeremiahandson1@gmail.com",
+        "ascAppId": "6828043536",
+        "appleTeamId": "63XSWU8M5Z"
       },
       "android": {
         "serviceAccountKeyPath": "./google-play-service-account.json",
