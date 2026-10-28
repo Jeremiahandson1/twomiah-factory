@@ -168,3 +168,9 @@ export async function buildBusinessExport(db: any, companyId: string, opts: { no
     filename, files, rows: total, tablesLeftOut,
   }
 }
+
+/** The business this database was built for (one per database): the oldest company row, or null on an empty one. */
+export async function soleCompanyId(db: any): Promise<string | null> {
+  const res: any = await db.execute(sql`SELECT id FROM company ORDER BY created_at ASC LIMIT 1`)
+  return ((res.rows ?? res)[0]?.id as string | undefined) ?? null
+}

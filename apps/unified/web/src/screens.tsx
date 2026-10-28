@@ -1,5 +1,6 @@
 // The shared screens (packages/tenant-ui), handed this app's client, toasts and session. Each CRM template kept a
 // wrapper file per screen; one file here.
+import { lazy, Suspense } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
   AppShell, AuditLogPage, isAccountLocked, BillingPage, EmailAliasesPage, FeaturesSettingsPage, ForgotPasswordPage, LeadInboxPage, NewLeadsPage,
@@ -75,7 +76,9 @@ export function Settings() {
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />
 export const MyAccount = () => <MyAccountPage api={api} toast={useToast()} />
-export const Billing = () => <BillingPage />
+// Settings › Billing, and under it the owner's "Buy it outright" (crm/pages/OwnItPanel.tsx — the owner only).
+const OwnItPanel = lazy(() => import('./crm/pages/OwnItPanel'))
+export const Billing = () => <><BillingPage /><Suspense fallback={null}><OwnItPanel /></Suspense></>
 export const EmailAliases = () => <EmailAliasesPage />
 // The vertical's lead platforms and words (screens.leads), as the Lead Sources page has them.
 // A new or changed lead shows at once (live.ts; the server announces lead:created / lead:updated).

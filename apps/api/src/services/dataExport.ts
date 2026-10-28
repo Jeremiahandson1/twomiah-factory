@@ -138,6 +138,14 @@ export async function exportTenantData(params: {
   }
 }
 
+/** A file a business is to download (the own-it licence's data export): stored under the customer-export prefix, shared for seven days. Null when R2 is not configured. */
+export async function storeForDownload(buf: Buffer, name: string, contentType: string): Promise<{ key: string; url: string; expiresAt: Date } | null> {
+  const key = EXPORT_PREFIX + name
+  if (!(await uploadBufferToR2(buf, key, contentType))) return null
+  const url = await signR2Url(key, SIGNED_URL_EXPIRES)
+  return url ? { key, url, expiresAt: new Date(Date.now() + SIGNED_URL_EXPIRES * 1000) } : null
+}
+
 // ─── R2/S3 helpers scoped to this file ──────────────────────────────────────
 // Separate from factoryStorage so we don't couple the zip upload pipeline
 // to data-export plumbing; both happen to use the same R2 bucket.

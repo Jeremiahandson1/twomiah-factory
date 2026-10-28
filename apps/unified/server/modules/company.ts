@@ -22,6 +22,7 @@ import type { Realtime } from '../core/realtime.ts'
 import { createProvisionRoute } from './provision.ts'
 import { createDomainRoutes } from './domain.ts'
 import { createExportEverythingRoute } from './exportEverything.ts'
+import { createLicenseRoutes, createHandoverExportRoute } from './license.ts'
 import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
 import { createCompanyLogoRoute } from './companyLogo.ts'
 import type { PhotoStore } from '../site/admin.ts'
@@ -206,6 +207,10 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       { path: '/api/account', access: 'user' as const, router: account },
       // Settings › Your data: every list the business has, one ZIP of CSVs (modules/exportEverything.ts).
       { path: '/api/export-everything', access: 'user' as const, router: createExportEverythingRoute({ db, audit, permissions }) },
+      // Buy it outright, from Settings › Billing (the owner's): the offer and the checkout, both through the Factory
+      // (modules/license.ts); and the Factory's own call for the data export once it is paid.
+      { path: '/api/license', access: 'user' as const, router: createLicenseRoutes({ db, audit, factoryApiClient }) },
+      { path: '/api/internal/handover-export', access: 'factory' as const, router: createHandoverExportRoute({ db, audit }) },
       { path: '/api/email-aliases', access: 'user' as const, router: emailAliases },
       // The business's own web address: buy one through the Factory or connect one it owns (modules/domain.ts, from the
       // store; the premium sites' Domain page used the same paths). Every tenant has the website, so every vertical.

@@ -18,6 +18,9 @@ interface FullFactoryApiClient extends FactoryApiClient {
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
   startRestartCheckout(returnPath?: string): Promise<{ url: string }>
+  // The own-it licence: the offer and price, then a checkout for it (Factory services/ownItLicense.ts).
+  getLicenseOffer(): Promise<any>
+  startLicenseCheckout(input: { githubUsername: string; acceptedTerms: boolean; termsVersion: string }): Promise<{ url: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
   registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
   // Linking an EXISTING Stripe account through the Factory's one registered Stripe redirect (apps/api stripeOAuth.ts).
@@ -103,6 +106,12 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async getBillingPortalLink() {
       return call('POST', tenantBase() + '/billing-portal-link')
+    },
+    async getLicenseOffer() {
+      return call('GET', tenantBase() + '/license')
+    },
+    async startLicenseCheckout(input) {
+      return call('POST', tenantBase() + '/license-checkout', input)
     },
     // A subscription that ended: a Stripe checkout for this company's plan, to pay and come back (lock page).
     // returnPath: this CRM's lock page, which Stripe sends the customer back to (/crm/paywall unless named).

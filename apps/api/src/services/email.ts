@@ -785,6 +785,29 @@ export async function notifyDataExportReady(
   return sendEmail(to, 'Your Twomiah data export is ready', wrap('Data Export Ready', body))
 }
 
+/** The own-it licence has been paid: what was set up (the GitHub invitation, the data export) and what to do next. */
+export async function notifyLicenseHandover(
+  tenant: { id?: string; name: string; email?: string; admin_email?: string | null },
+  o: { githubUsername: string; repoUrl: string; repoInvited: boolean; export?: { url: string; expiresAt: Date }; amountCents: number },
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const money = '$' + (o.amountCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const exp = o.export ? o.export.expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+  const body = `
+    ${greeting(await ownerOf(tenant))}
+    <p style="color:#333;line-height:1.6;">Thank you — your payment of <strong>${money}</strong> for ${tenant.name}'s own-it licence is in. Here is your handover.</p>
+    <p style="color:#333;line-height:1.6;"><strong>Your code.</strong> ${o.repoInvited
+      ? `We invited the GitHub account <strong>${o.githubUsername}</strong> to <a href="${o.repoUrl}">${o.repoUrl.replace('https://github.com/', '')}</a>. Accept the invitation from GitHub (it is in that account's email and at github.com/notifications), then clone it. You have read access.`
+      : `We could not add the GitHub account <strong>${o.githubUsername}</strong> automatically — our team has been told and will do it by hand and write to you.`}</p>
+    <p style="color:#333;line-height:1.6;"><strong>Your data.</strong> ${o.export
+      ? `Every list your business has — each as a spreadsheet file — plus your website pages and media list, in one ZIP:`
+      : `Your full data export is being prepared — our team has been told and you will get it by email.`}</p>
+    ${o.export ? btn(o.export.url, 'Download your data') + `<p style="color:#666;font-size:14px;margin-top:16px;">This link expires on <strong>${exp}</strong>. You can also make a fresh export any time from Settings → Your Data in your app.</p>` : ''}
+    <p style="color:#666;font-size:14px;margin-top:16px;">Reminder: the licence is to run the software for your own business — not to resell it (Terms of Service §7). Your hosted Twomiah subscription carries on until you end it from your billing page.</p>`
+  return sendEmail(to, 'Your Twomiah licence — your code and your data', wrap('Your Licence', body))
+}
+
 export async function notifyReactivated(
   tenant: { name: string; email?: string; admin_email?: string | null },
   // The owner's first name (services/tenantOwner.ts) — a person is welcomed back, not a company. Falls back to the company.

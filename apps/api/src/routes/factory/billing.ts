@@ -275,6 +275,29 @@ factory.post('/stripe/webhook', async (c) => {
       })
     }
 
+    // Own-it licence paid (services/ownItLicense.ts): record it once and hand over the repo and the data. Not a plan
+    // change — the session carries no factory_customer_id, so the billing above was left alone. The handover can take a
+    // minute (the export), so it runs after the ack; each step is kept on the licence row and retried, never repeated.
+    if (event.type === 'checkout.session.completed' && event.data?.object?.metadata?.purpose === 'own_it_license') {
+      const session = event.data.object
+      const tenantId = session.metadata?.tenant_id
+      if (tenantId && UUID_RE.test(tenantId) && session.payment_status === 'paid') {
+        import('../../services/ownItLicense').then(async ({ completeLicensePurchase }) => {
+          const { handoverDeps, LICENSE_TENANT_COLUMNS } = await import('../../services/ownItLicenseLive')
+          const { data: tenant } = await supabase.from('tenants').select(LICENSE_TENANT_COLUMNS).eq('id', tenantId).single()
+          if (!tenant) throw new Error('tenant ' + tenantId + ' not found')
+          const done = await completeLicensePurchase(session, tenant, handoverDeps)
+          console.log('[License] handover', tenantId, done.status, JSON.stringify(done.steps))
+        }).catch(async (err: any) => {
+          console.error('[License] handover failed:', err?.message || err)
+          const { notifyStaff } = await import('../../services/email')
+          await notifyStaff('Own-it licence paid — handover failed', 'A licence was paid but the handover threw: ' + String(err?.message || err), tenantId).catch(() => {})
+        })
+      } else {
+        console.warn('[License] checkout session without a tenant or not paid:', session.id, session.payment_status)
+      }
+    }
+
     // Domain registration: customer paid for a new domain via /admin/domain
     // → register at Namecheap → wire DNS infrastructure. If Namecheap fails,
     // we refund the customer so they're never paying for nothing.

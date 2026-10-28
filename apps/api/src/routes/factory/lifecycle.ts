@@ -8,6 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { restartRefusal } from '../../services/subscriptionRestart'
+import { licenseOffer, startLicenseCheckout, completeLicensePurchase, LICENSE_TERMS_VERSION } from '../../services/ownItLicense'
+import { licenseStore, checkoutDeps, handoverDeps, LICENSE_TENANT_COLUMNS } from '../../services/ownItLicenseLive'
 import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin, ourSiteOrigin, mayReturnTo } from '../../services/premiumSiteUrl'
@@ -210,6 +212,61 @@ factory.post('/customers/:id/restart-checkout', async (c) => {
   } catch (err: any) {
     console.error('[Restart] checkout failed:', err?.message || err)
     return c.json({ error: 'Could not open the checkout: ' + (err?.message || 'unknown error') }, 500)
+  }
+})
+
+// ─── Own-it licence (tenant → factory, X-Factory-Key auth) ──────────────────
+// "Buy it outright and take the code", from the owner's own Settings › Billing (services/ownItLicense.ts): the offer and
+// price, then a Stripe checkout for exactly that price. The payment itself is handled by the Stripe webhook
+// (routes/factory/billing.ts), which records the licence and hands over the repo and the data. Who in the business may ask
+// (the owner) is the tenant app's rule; the Factory knows the business by its key.
+const LICENSE_RETURN = '/crm/settings/billing'
+factory.get('/customers/:id/license', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error } = await supabase.from('tenants').select(LICENSE_TENANT_COLUMNS).eq('id', tenantId).single()
+    if (error && error.code !== 'PGRST116') { console.error('[License] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    return c.json(licenseOffer(tenant, await licenseStore.byTenant(tenant.id)))
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.post('/customers/:id/license-checkout', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error } = await supabase.from('tenants').select(LICENSE_TENANT_COLUMNS).eq('id', tenantId).single()
+    if (error && error.code !== 'PGRST116') { console.error('[License] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const crm = String(tenant.render_frontend_url || tenant.render_backend_url || '').replace(/\/$/, '')
+    if (!crm) return c.json({ error: 'This business has no app address to come back to — email support@twomiah.com.' }, 409)
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    const result = await startLicenseCheckout(tenant, await licenseStore.byTenant(tenant.id), { ...body, returnTo: crm + LICENSE_RETURN }, checkoutDeps)
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status)
+    if (result.stripeCustomerId && !tenant.stripe_customer_id) await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenant.id)
+    await logTenantAudit(tenant.id, 'license_checkout', { license_checkout: { old: null, new: `terms ${LICENSE_TERMS_VERSION} accepted; GitHub @${String(body.githubUsername || '').replace(/^@/, '')}` } }, 'tenant', 'Own-it licence checkout opened')
+    return c.json({ url: result.url })
+  } catch (err: any) {
+    console.error('[License] checkout failed:', err?.message || err)
+    return c.json({ error: 'Could not open the checkout: ' + (err?.message || 'unknown error') }, 500)
+  }
+})
+
+// Staff: run the handover again for a licence whose invitation or export failed (done steps are skipped, never repeated).
+factory.post('/customers/:id/license/retry-handover', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select(LICENSE_TENANT_COLUMNS).eq('id', tenantId).single()
+    const row = tenant ? await licenseStore.byTenant(tenantId) : null
+    if (!tenant || !row) return c.json({ error: 'No licence to hand over for this business' }, 404)
+    const done = await completeLicensePurchase({ id: row.stripe_session_id, payment_intent: row.stripe_payment_intent, amount_total: row.amount_cents, metadata: {} }, tenant, handoverDeps)
+    return c.json({ status: done.status, steps: done.steps })
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'failed' }, 500)
   }
 })
 

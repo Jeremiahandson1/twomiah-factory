@@ -190,6 +190,31 @@ export async function createLicenseCheckout(
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
+// ── Own-it licence checkout (one-time, the owner's own purchase) ─────────────
+// The amount is computed (36× the plan's monthly list price, services/ownItLicense.ts), so it is an inline price, not a
+// minted one. The session carries purpose own_it_license and NO factory_customer_id on purpose: handleFactoryWebhook then
+// leaves the tenant's billing alone (a licence is not a plan change) and the webhook route hands it to the licence handover.
+export async function createOwnItLicenseCheckout(o: {
+  tenant: { id: string; email?: string | null; name?: string | null; stripeCustomerId?: string | null }
+  priceCents: number; productName: string; description: string; termsNote: string
+  metadata: Record<string, string>; successUrl: string; cancelUrl: string
+}) {
+  if (!stripe) throw new Error('Stripe not configured')
+  const stripeCustomerId = await ensureCustomer({ id: o.tenant.id, email: o.tenant.email || undefined, name: o.tenant.name || undefined, stripeCustomerId: o.tenant.stripeCustomerId || undefined })
+  const session = await stripe.checkout.sessions.create({
+    customer: stripeCustomerId,
+    mode: 'payment',
+    line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: o.priceCents, product_data: { name: o.productName, description: o.description } } }],
+    success_url: o.successUrl,
+    cancel_url: o.cancelUrl,
+    metadata: o.metadata,
+    payment_intent_data: { metadata: o.metadata },
+    custom_text: { submit: { message: o.termsNote } },
+    invoice_creation: { enabled: true, invoice_data: { metadata: o.metadata } },
+  })
+  return { sessionId: session.id, url: session.url, stripeCustomerId }
+}
+
 // ── Premium-website checkout (subscription + one-time build fee) ────────────
 //
 // The standalone website at a flat $49/mo (STRIPE_PRICE_V2_WEBSITE), no
@@ -882,6 +907,7 @@ export default {
   createMessagingEnableCheckout,
   createAiEnableCheckout,
   createLicenseCheckout,
+  createOwnItLicenseCheckout,
   createDeployCheckout,
   createPremiumWebsiteCheckout,
   createBillingPortalSession,

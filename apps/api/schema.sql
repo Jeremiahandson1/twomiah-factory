@@ -489,3 +489,27 @@ begin
     alter table tenants add constraint tenants_engine_check check (engine in ('templates', 'unified'));
   end if;
 end $$;
+
+-- The own-it licence (migrations/2026-10-28_tenant_licenses.sql): one row per paid licence checkout.
+create table if not exists tenant_licenses (
+  id                    uuid primary key default gen_random_uuid(),
+  tenant_id             uuid not null references tenants(id) on delete cascade,
+  stripe_session_id     text not null unique,
+  stripe_payment_intent text,
+  amount_cents          integer not null,
+  monthly_cents         integer not null,
+  months                integer not null default 36,
+  plan                  text,
+  github_username       text not null,
+  repo                  text not null,
+  terms_version         text not null,
+  paid_at               timestamptz not null default now(),
+  repo_invited_at       timestamptz,
+  repo_invite_note      text,
+  export_sent_at        timestamptz,
+  export_note           text,
+  handover_status       text not null default 'paid',
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+create index if not exists tenant_licenses_tenant_idx on tenant_licenses(tenant_id);
