@@ -55,10 +55,11 @@ jobs:
         run: bun run build:web
       # The phone app (apps/mobile, changed with the unified app — the fence's note on it): what the stores check before a person does
       # (artwork, the store app's permission texts, eas.json's owner placeholders, store/listing.md), and where background location is on.
-      - name: Phone app — store readiness and location settings
+      - name: Phone app — store readiness, location settings, every screen address resolves
         run: |
           bun run tests/mobile/store-ready.test.ts
           bun run tests/mobile/location-tracking.test.ts
+          bun run tests/mobile/routes-resolve.test.ts
 
   # The app's own test files, split across parallel runners (runEach.ts SHARD=i/n): every file runs exactly once, each
   # in its own process, and any failing shard fails the push. One runner took ~40 min; six take a fraction (10/24).
