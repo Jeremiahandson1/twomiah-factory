@@ -137,6 +137,14 @@ export const hasEasProject = (v: VariantSpec) => !!v.easProjectId && v.easProjec
  */
 export const isEasBuild = (env: NodeJS.ProcessEnv = process.env) => env.EAS_BUILD === 'true' || env.EAS_BUILD === '1' || !!env.TWOMIAH_EAS_BUILD
 
+/**
+ * Twomiah's own colours behind the icon and on the splash (owner, 2026-10-28: the app should look like twomiah.com): its
+ * near-black ground (--dark) and the flame's middle orange for Android's notification tint. assets/source/build-icons.ts draws
+ * the artwork on the same ground. The app's buttons keep primaryColor; after sign-in they take the business's own colour.
+ */
+export const TWOMIAH_DARK = '#0D0D0D'
+export const TWOMIAH_FLAME = '#FF6D00'
+
 /** Use ./assets/<variant>/<file> if it exists, otherwise fall back to shared ./assets/<file>. */
 function asset(variant: Variant, file: string): string {
   const branded = path.join(__dirname, 'assets', variant, file)
@@ -179,7 +187,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     splash: {
       image: asset(variant, 'splash.png'),
       resizeMode: 'contain',
-      backgroundColor: v.primaryColor,
+      backgroundColor: TWOMIAH_DARK,
     },
     ios: {
       supportsTablet: true,
@@ -205,7 +213,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       adaptiveIcon: {
         foregroundImage: asset(variant, 'adaptive-icon.png'),
-        backgroundColor: v.primaryColor,
+        backgroundColor: TWOMIAH_DARK,
       },
       package: v.bundleId,
       // Added by the platform's defaults, not used by this app: no sound recording, no drawing over other apps.
@@ -248,7 +256,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-notifications',
         {
           icon: asset(variant, 'notification-icon.png'),
-          color: v.primaryColor,
+          color: TWOMIAH_FLAME,
         },
       ],
       [

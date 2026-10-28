@@ -10,15 +10,15 @@
 //                          background colour is app.config.ts's `adaptiveIcon.backgroundColor` (the app's primary colour).
 //   splash.png             1284×2778 on the app's splash background (app.config.ts `splash.backgroundColor`).
 //   notification-icon.png  96×96 solid white silhouette on transparent (Android tints it; any colour in it is lost).
-// The background is the app's primary colour (#1e40af) — the same value app.config.ts gives the splash and the adaptive icon,
-// so the artwork and the config agree.
+// The background is Twomiah's own near-black (#0D0D0D, twomiah.com's --dark — owner, 2026-10-28: the app should look like the
+// website) — the same value app.config.ts gives the splash and the adaptive icon (TWOMIAH_DARK), so the artwork and the config agree.
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import fs from 'node:fs'
 
 const sharp = createRequire(import.meta.url)(path.resolve(import.meta.dir, '../../../unified/node_modules/sharp')) as typeof import('sharp')
 const OUT = path.resolve(import.meta.dir, '..')
-const BACKGROUND = '#1e40af'
+const BACKGROUND = '#0D0D0D'
 
 // The flame's ink spans x 16..104, y 18..99 of its 120×120 drawing; crop to that so scaling is by the mark itself.
 const flame = fs.readFileSync(path.join(import.meta.dir, 'twomiah-flame.svg'), 'utf8').replace('viewBox="0 0 120 120"', 'viewBox="16 18 88 81"')
