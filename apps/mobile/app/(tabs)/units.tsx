@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
@@ -54,7 +53,7 @@ export default function UnitsScreen() {
               <Text style={[styles.sub, { color: t.textSecondary }]}>{[u.stockNumber ? 'Stock ' + u.stockNumber : '', u.category].filter(Boolean).join(' · ') || '—'}</Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
-              <Text style={[styles.price, { color: t.primary }]}>{money(price)}</Text>
+              <Text style={[styles.price, { color: t.primaryText }]}>{money(price)}</Text>
               {u.condition ? <StatusBadge status={u.condition} /> : null}
             </View>
           </View>
@@ -64,7 +63,7 @@ export default function UnitsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search inventory..." />
       {loading ? <SkeletonList count={6} /> : (
         <FlatList
@@ -76,7 +75,7 @@ export default function UnitsScreen() {
           ListEmptyComponent={<EmptyState icon="car-sport-outline" title="No units found" />}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

@@ -7,7 +7,9 @@ import React from 'react'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { View, StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { tabBarMetrics } from '../../src/theme/insets'
 import { useSocket } from '../../src/socket/SocketContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { useCareOptional } from '../../src/care/CareContext'
@@ -26,6 +28,10 @@ const ALL_TABS = [
 
 export default function TabLayout() {
   const t = useTheme()
+  // On Android 16 (API 36) the app is drawn edge-to-edge, behind the system navigation bar. The tab bar grows by that
+  // bar's height so its icons and labels sit above the system buttons (theme/insets.ts — never a fixed height).
+  const insets = useSafeAreaInsets()
+  const bar = tabBarMetrics(insets.bottom)
   const { tabs, vertical, hasFeature, initialTab } = useVertical()
   // This phone's push token, for every vertical (POST /api/push/expo-token — apps/unified/server/core/phonePush.ts): a
   // tech is told of a job assigned or rescheduled, the office of a new lead, a caregiver of a visit. Registered here,
@@ -64,10 +70,10 @@ export default function TabLayout() {
           backgroundColor: t.surface,
           borderTopColor: t.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingBottom: 4,
-          height: 56,
+          paddingBottom: bar.paddingBottom,
+          height: bar.height,
         },
-        tabBarActiveTintColor: t.primary,
+        tabBarActiveTintColor: t.primaryText,
         tabBarInactiveTintColor: t.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}

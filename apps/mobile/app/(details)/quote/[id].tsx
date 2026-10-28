@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
@@ -60,19 +59,19 @@ export default function QuoteDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Quote' }} />
         <SkeletonList count={4} />
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (!quote) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Quote' }} />
         <View style={styles.centered}><Text style={{ color: t.textMuted }}>{refused ? 'Quotes are not part of your role.' : 'Quote not found'}</Text></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -85,7 +84,7 @@ export default function QuoteDetailScreen() {
   const total = num(quote.total)
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{ title: quote.number || 'Quote' }} />
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -235,7 +234,7 @@ export default function QuoteDetailScreen() {
           destructive={confirmAction.destructive}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

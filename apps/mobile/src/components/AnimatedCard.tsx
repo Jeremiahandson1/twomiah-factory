@@ -1,5 +1,10 @@
 /**
  * Animated card wrapper — staggered fade-in on mount.
+ *
+ * The wrapper is the flex item of whatever row or grid holds the card. Its child cannot size it: a percentage width on
+ * the child resolves against a wrapper that has no width of its own, and the card collapses to the width of its
+ * longest word (the dashboard's stat cards drew one letter per line on the phone). So any width, flex or margin the
+ * card needs goes in `style` HERE, on the wrapper, and the child just fills it.
  */
 
 import React from 'react'

@@ -14,7 +14,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -84,14 +83,14 @@ export default function PipelineScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <SkeletonList count={5} />
-      </SafeAreaView>
+      </View>
     )
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       {/* Stage pills */}
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stagePills}>
@@ -180,7 +179,7 @@ export default function PipelineScreen() {
       </ScrollView>
 
       {canAddLead && <FAB icon="add" onPress={() => router.push('/(details)/lead/quick-add')} />}
-    </SafeAreaView>
+    </View>
   )
 }
 

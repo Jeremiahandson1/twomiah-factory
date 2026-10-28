@@ -14,7 +14,6 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
@@ -125,22 +124,22 @@ export default function ContactFormScreen() {
 
   if (loadingData) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Loading...' }} />
         <View style={styles.centered}><ActivityIndicator size="large" color={t.primary} /></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   const types = TYPE_OPTIONS[vertical] || TYPE_OPTIONS.contractor
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: isEdit ? 'Edit Contact' : 'New Contact',
         headerRight: () => (
           <TouchableOpacity onPress={() => handleSave()} disabled={saving}>
-            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
+            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primaryText, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),
       }} />
@@ -195,7 +194,7 @@ export default function ContactFormScreen() {
             multiline numberOfLines={4} textAlignVertical="top" />
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   )
 }
 

@@ -18,7 +18,6 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator, FlatList,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -192,20 +191,20 @@ export default function JobFormScreen() {
 
   if (loadingData) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Loading...' }} />
         <View style={styles.centered}><ActivityIndicator size="large" color={t.primary} /></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: isEdit ? 'Edit Job' : 'New Job',
         headerRight: () => (
           <TouchableOpacity onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
+            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primaryText, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),
       }} />
@@ -345,7 +344,7 @@ export default function JobFormScreen() {
           )}
         </BottomSheetView>
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   )
 }
 

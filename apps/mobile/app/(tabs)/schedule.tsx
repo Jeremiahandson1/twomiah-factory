@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -52,7 +51,7 @@ export default function ScheduleScreen() {
   const dateLabel = isToday ? 'Today' : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       {/* Date picker */}
       <View style={[styles.dateBar, { backgroundColor: t.surface, borderColor: t.border }]}>
         <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateBtn}>
@@ -82,7 +81,7 @@ export default function ScheduleScreen() {
                 <TouchableOpacity activeOpacity={0.7} onPress={() => router.push(`/(details)/job/${job.id}`)}
                   style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
                   <View style={styles.timeStrip}>
-                    <Text style={[styles.time, { color: t.primary }]}>
+                    <Text style={[styles.time, { color: t.primaryText }]}>
                       {job.scheduledTime || 'TBD'}
                     </Text>
                   </View>
@@ -112,7 +111,7 @@ export default function ScheduleScreen() {
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

@@ -14,7 +14,6 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, Stack } from 'expo-router'
 import * as Location from 'expo-location'
 import { Ionicons } from '@expo/vector-icons'
@@ -150,12 +149,12 @@ export default function QuickAddLeadScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: 'Quick Add Lead',
         headerRight: () => (
           <TouchableOpacity onPress={() => handleSave()} disabled={saving}>
-            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
+            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primaryText, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),
       }} />
@@ -210,7 +209,7 @@ export default function QuickAddLeadScreen() {
           {photo ? (
             <TouchableOpacity onPress={handleTakePhoto}>
               <Image source={{ uri: photo.uri }} style={styles.photoPreview} />
-              <Text style={{ color: t.primary, fontSize: 12, textAlign: 'center', marginTop: 4 }}>Tap to retake</Text>
+              <Text style={{ color: t.primaryText, fontSize: 12, textAlign: 'center', marginTop: 4 }}>Tap to retake</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[styles.photoBtn, { borderColor: t.border }]} onPress={handleTakePhoto}>
@@ -220,7 +219,7 @@ export default function QuickAddLeadScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   )
 }
 

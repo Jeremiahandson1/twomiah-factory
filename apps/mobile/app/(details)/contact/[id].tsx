@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Linking, Alert,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
@@ -79,21 +78,21 @@ export default function ContactDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Contact' }} />
         <SkeletonList count={4} />
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (!contact) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Contact' }} />
         <View style={styles.centered}>
           <Text style={{ color: t.textMuted }}>Contact not found</Text>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -101,7 +100,7 @@ export default function ContactDetailScreen() {
   const money = (v: unknown) => `$${(Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: name,
         headerRight: canEdit ? () => (
@@ -269,7 +268,7 @@ export default function ContactDetailScreen() {
         confirmLabel="Delete"
         destructive
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

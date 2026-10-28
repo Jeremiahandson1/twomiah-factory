@@ -2,14 +2,23 @@
  * Stack layout for detail screens (push navigation from tabs).
  */
 
+import React from 'react'
+import { View } from 'react-native'
 import { Stack } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../../src/theme/ThemeContext'
 
 export default function DetailsLayout() {
   const t = useTheme()
+  // Edge-to-edge (Android 16): a pushed screen has no tab bar, so its content would run under the system navigation
+  // bar. One rule for every screen in this stack: keep the bottom inset clear (theme/insets.ts).
+  const insets = useSafeAreaInsets()
 
   return (
     <Stack
+      screenLayout={({ children }: { children: React.ReactNode }) => (
+        <View style={{ flex: 1, paddingBottom: insets.bottom }}>{children}</View>
+      )}
       screenOptions={{
         headerStyle: { backgroundColor: t.surface },
         headerTintColor: t.text,

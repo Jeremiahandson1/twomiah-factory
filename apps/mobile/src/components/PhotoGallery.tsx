@@ -19,6 +19,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Modal, Dimensions, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../theme/ThemeContext'
 import { get, upload, getApiUrl, getAccessToken } from '../api/client'
 import { useCamera } from '../hooks/useCamera'
@@ -76,6 +77,8 @@ interface Props {
 
 export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const t = useTheme()
+  // The full-screen viewer draws under the status bar (edge-to-edge): the close button clears it.
+  const insets = useSafeAreaInsets()
   const toast = useToast()
   const haptics = useHaptics()
   const { vertical, hasFeature } = useVertical()
@@ -163,7 +166,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
       {/* Full-screen viewer */}
       <Modal visible={!!viewPhoto} transparent animationType="fade" onRequestClose={() => setViewPhoto(null)}>
         <View style={styles.modal}>
-          <TouchableOpacity style={styles.modalClose} onPress={() => setViewPhoto(null)}>
+          <TouchableOpacity style={[styles.modalClose, { top: insets.top + 12 }]} onPress={() => setViewPhoto(null)}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {viewPhoto && (
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20, marginBottom: 4,
   },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  modalClose: { position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 8 },
+  modalClose: { position: 'absolute', right: 20, zIndex: 10, padding: 8 },
   fullImage: { width: SCREEN_WIDTH, height: SCREEN_WIDTH },
   caption: { color: '#fff', fontSize: 14, marginTop: 12, textAlign: 'center' },
 })

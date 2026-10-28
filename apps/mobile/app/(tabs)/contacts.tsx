@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Linking,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -172,7 +171,7 @@ export default function ContactsScreen() {
     : 'Search contacts...'
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder={placeholder} />
       {filters.length > 1 && (
         <FilterChips options={filters} selected={typeFilter} onSelect={setTypeFilter} />
@@ -194,7 +193,7 @@ export default function ContactsScreen() {
       )}
 
       {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/contact/form')} />}
-    </SafeAreaView>
+    </View>
   )
 }
 

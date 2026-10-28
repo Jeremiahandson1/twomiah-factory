@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -144,21 +143,21 @@ export default function QuotesScreen() {
 
   if (!canRead) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <EmptyState icon="document-text-outline" title="Quotes are not part of your role" subtitle="Ask the office for a quote's details." />
-      </SafeAreaView>
+      </View>
     )
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       {/* Stats bar */}
       {stats && (
         <View style={[styles.statsBar, { backgroundColor: t.surface, borderColor: t.border }]}>
           <StatPill label="Total" value={stats.total} color={t.textSecondary} theme={t} />
           <StatPill label="Pending" value={(stats.draft ?? 0) + (stats.sent ?? 0)} color="#f59e0b" theme={t} />
           <StatPill label="Approved" value={stats.approved} color="#22c55e" theme={t} />
-          {stats.totalValue !== undefined && <StatPill label="Value" value={fmt(stats.totalValue)} color={t.primary} theme={t} />}
+          {stats.totalValue !== undefined && <StatPill label="Value" value={fmt(stats.totalValue)} color={t.primaryText} theme={t} />}
         </View>
       )}
 
@@ -180,7 +179,7 @@ export default function QuotesScreen() {
       )}
 
       {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/quote/form')} />}
-    </SafeAreaView>
+    </View>
   )
 }
 

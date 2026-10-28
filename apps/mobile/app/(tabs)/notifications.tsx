@@ -14,7 +14,6 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl,
   ActivityIndicator,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket, useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
@@ -111,7 +110,7 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       {/* Connection status */}
       <View style={[styles.statusBar, { backgroundColor: connected ? '#22c55e18' : '#ef444418' }]}>
         <View style={[styles.dot, { backgroundColor: connected ? '#22c55e' : '#ef4444' }]} />
@@ -140,7 +139,7 @@ export default function NotificationsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

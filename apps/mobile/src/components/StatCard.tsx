@@ -29,8 +29,10 @@ export function StatCard({ label, value, icon, color }: StatCardProps) {
 }
 
 const styles = StyleSheet.create({
+  // No width here: the card fills whatever its parent gives it. The dashboard sets the width on the AnimatedCard
+  // wrapper (theme/insets.ts statCardWidth) — a width on this inner view is measured against a wrapper with none.
   card: {
-    width: '47%', flexGrow: 1, borderRadius: 12, padding: 14,
+    borderRadius: 12, padding: 14,
     borderWidth: 1, gap: 6,
   },
   iconBg: {

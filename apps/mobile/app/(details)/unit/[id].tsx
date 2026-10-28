@@ -5,7 +5,6 @@
 
 import React from 'react'
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
@@ -21,7 +20,7 @@ export default function UnitDetailScreen() {
   const name = p.name || 'Unit'
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{ title: name }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <AnimatedCard index={0}>
@@ -34,7 +33,7 @@ export default function UnitDetailScreen() {
               </View>
               {p.condition ? <StatusBadge status={p.condition} /> : null}
             </View>
-            <Text style={[styles.price, { color: t.primary }]}>{money(p.price)}</Text>
+            <Text style={[styles.price, { color: t.primaryText }]}>{money(p.price)}</Text>
             {p.category ? <Text style={[styles.cat, { color: t.textMuted }]}>{p.category}</Text> : null}
           </View>
         </AnimatedCard>
@@ -50,7 +49,7 @@ export default function UnitDetailScreen() {
           </View>
         </AnimatedCard>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

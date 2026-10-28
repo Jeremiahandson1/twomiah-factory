@@ -5,7 +5,6 @@
 
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { post } from '../../src/api/client'
 
@@ -53,7 +52,7 @@ export default function AiTradeScreen() {
   const a = res?.appraisal
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Text style={[styles.h1, { color: t.text }]}>AI Trade Appraisal</Text>
         <Text style={[styles.sub, { color: t.textSecondary }]}>Instant market estimate for a trade-in.</Text>
@@ -116,7 +115,7 @@ export default function AiTradeScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

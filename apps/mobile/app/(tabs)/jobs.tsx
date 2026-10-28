@@ -12,7 +12,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, RefreshControl, Linking, TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -203,7 +202,7 @@ export default function JobsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search jobs..." />
       <FilterChips options={isRoof ? ROOF_FILTERS : STATUS_FILTERS} selected={filter} onSelect={setFilter} />
 
@@ -223,7 +222,7 @@ export default function JobsScreen() {
       )}
 
       {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/job/form')} />}
-    </SafeAreaView>
+    </View>
   )
 }
 

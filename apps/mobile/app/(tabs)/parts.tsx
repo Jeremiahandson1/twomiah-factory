@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { View, Text, FlatList, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
 import { SearchBar } from '../../src/components/SearchBar'
@@ -44,7 +43,7 @@ export default function PartsScreen() {
             {p.fitment ? <Text style={[styles.fit, { color: t.textMuted }]} numberOfLines={1}>{p.fitment}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end', gap: 3 }}>
-            <Text style={[styles.price, { color: t.primary }]}>{money(p.price)}</Text>
+            <Text style={[styles.price, { color: t.primaryText }]}>{money(p.price)}</Text>
             <Text style={[styles.avail, { color: /in stock/i.test(p.availability || '') ? '#22c55e' : t.textMuted }]}>{p.availability}</Text>
           </View>
         </View>
@@ -53,7 +52,7 @@ export default function PartsScreen() {
   )
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search parts (part #, name, unit)..." />
       {!live ? (
         <View style={[styles.demo, { borderColor: '#f59e0b', backgroundColor: '#f59e0b1f' }]}>
@@ -69,7 +68,7 @@ export default function PartsScreen() {
           ListEmptyComponent={<EmptyState icon="construct-outline" title="No parts found" />}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

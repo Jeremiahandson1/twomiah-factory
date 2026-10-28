@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react'
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
@@ -54,7 +53,7 @@ export default function MobileFIScreen() {
   const decLabel = d?.decision === 'not_submitted' ? 'NOT SUBMITTED' : String(d?.decision || '').toUpperCase()
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{ title: 'F&I' }} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -86,7 +85,7 @@ export default function MobileFIScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <View style={styles.amtRow}><Text style={{ color: t.textSecondary }}>Amount financed</Text><Text style={[styles.amt, { color: t.primary }]}>{money(amountFinanced)}</Text></View>
+          <View style={styles.amtRow}><Text style={{ color: t.textSecondary }}>Amount financed</Text><Text style={[styles.amt, { color: t.primaryText }]}>{money(amountFinanced)}</Text></View>
           <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, { backgroundColor: t.primary, opacity: loading ? 0.6 : 1 }]}>
             {loading ? <ActivityIndicator color="#fff" /> : (
               <View style={styles.btnInner}><Ionicons name="send" size={16} color="#fff" /><Text style={styles.btnText}>Submit credit app</Text></View>
@@ -112,7 +111,7 @@ export default function MobileFIScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

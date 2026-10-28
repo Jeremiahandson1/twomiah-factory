@@ -16,7 +16,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Linking, TextInput, Platform,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -118,19 +117,19 @@ export default function JobDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Job' }} />
         <SkeletonList count={4} />
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (!job) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Job' }} />
         <View style={styles.centered}><Text style={{ color: t.textMuted }}>Job not found</Text></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -148,7 +147,7 @@ export default function JobDetailScreen() {
   const noteReady = isRoof ? !!noteText.trim() : noteText !== savedNotes
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: job.number || 'Job',
         headerRight: canWork ? () => (
@@ -218,7 +217,7 @@ export default function JobDetailScreen() {
                 <Ionicons name="person-outline" size={16} color={t.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: t.textMuted }]}>{isRoof ? 'Homeowner' : 'Contact'}</Text>
-                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.contact.name}</Text>
+                  <Text style={[styles.infoValue, { color: t.primaryText }]}>{job.contact.name}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
               </TouchableOpacity>
@@ -228,7 +227,7 @@ export default function JobDetailScreen() {
                 <Ionicons name="call-outline" size={16} color={t.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: t.textMuted }]}>Phone</Text>
-                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.contact.phone}</Text>
+                  <Text style={[styles.infoValue, { color: t.primaryText }]}>{job.contact.phone}</Text>
                 </View>
               </TouchableOpacity>
             ) : null}
@@ -240,7 +239,7 @@ export default function JobDetailScreen() {
                 <Ionicons name="location-outline" size={16} color={t.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: t.textMuted }]}>Address</Text>
-                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.address}{job.city ? `, ${job.city}` : ''}</Text>
+                  <Text style={[styles.infoValue, { color: t.primaryText }]}>{job.address}{job.city ? `, ${job.city}` : ''}</Text>
                 </View>
                 <Ionicons name="navigate" size={16} color={t.textMuted} />
               </TouchableOpacity>
@@ -271,7 +270,7 @@ export default function JobDetailScreen() {
               {assignee ? (
                 <View style={styles.crewRow}>
                   <View style={[styles.crewAvatar, { backgroundColor: t.primaryLight }]}>
-                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: 13 }}>{assignee[0].toUpperCase()}</Text>
+                    <Text style={{ color: t.primaryText, fontWeight: '700', fontSize: 13 }}>{assignee[0].toUpperCase()}</Text>
                   </View>
                   <Text style={[styles.crewName, { color: t.text }]}>{assignee}</Text>
                 </View>
@@ -279,7 +278,7 @@ export default function JobDetailScreen() {
               {job.crew ? (
                 <View style={styles.crewRow}>
                   <View style={[styles.crewAvatar, { backgroundColor: t.primaryLight }]}>
-                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: 13 }}>{String(job.crew.name || '?')[0].toUpperCase()}</Text>
+                    <Text style={{ color: t.primaryText, fontWeight: '700', fontSize: 13 }}>{String(job.crew.name || '?')[0].toUpperCase()}</Text>
                   </View>
                   <View>
                     <Text style={[styles.crewName, { color: t.text }]}>{job.crew.name}</Text>
@@ -441,7 +440,7 @@ export default function JobDetailScreen() {
         description="Mark this job as completed?"
         confirmLabel="Complete"
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

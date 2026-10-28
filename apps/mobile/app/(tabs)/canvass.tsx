@@ -17,7 +17,6 @@ import React, { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -143,17 +142,17 @@ export default function CanvassScreen() {
 
   if (!enabled) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <EmptyState icon="walk-outline" title="Canvassing is not switched on" subtitle="The owner can turn on the canvassing tool in the web app." />
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (restoring) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <View style={styles.startContainer}><ActivityIndicator color={t.primary} /></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -161,7 +160,7 @@ export default function CanvassScreen() {
   const leads = stops.filter(s => s.jobId).length
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       {!session ? (
         <View style={styles.startContainer}>
           <View style={[styles.startCircle, { backgroundColor: t.primaryLight }]}>
@@ -190,7 +189,7 @@ export default function CanvassScreen() {
           {/* Stats bar */}
           <View style={[styles.statsBar, { backgroundColor: t.surface, borderColor: t.border }]}>
             <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: t.primary }]}>{stops.length}</Text>
+              <Text style={[styles.statValue, { color: t.primaryText }]}>{stops.length}</Text>
               <Text style={[styles.statLabel, { color: t.textMuted }]}>Doors</Text>
             </View>
             <View style={styles.stat}>
@@ -277,7 +276,7 @@ export default function CanvassScreen() {
           </ScrollView>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

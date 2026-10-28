@@ -12,7 +12,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, TextInput,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
@@ -99,19 +98,19 @@ export default function InvoiceDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Invoice' }} />
         <SkeletonList count={4} />
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (!invoice) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <Stack.Screen options={{ title: 'Invoice' }} />
         <View style={styles.centered}><Text style={{ color: t.textMuted }}>{refused ? 'Invoices are not part of your role.' : 'Invoice not found'}</Text></View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -124,7 +123,7 @@ export default function InvoiceDetailScreen() {
   const canPay = canUpdate && balance > 0 && !['void', 'draft'].includes(invoice.status)
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{ title: invoice.number || 'Invoice' }} />
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -293,7 +292,7 @@ export default function InvoiceDetailScreen() {
           </BottomSheetView>
         </BottomSheet>
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 

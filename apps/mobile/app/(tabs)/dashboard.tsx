@@ -4,9 +4,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl,
+  View, Text, ScrollView, StyleSheet, RefreshControl, useWindowDimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../src/auth/AuthContext'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
@@ -16,6 +15,7 @@ import { StatCard } from '../../src/components/StatCard'
 import { SkeletonList, SkeletonStatGrid } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
+import { statCardWidth } from '../../src/theme/insets'
 
 /**
  * What /api/dashboard/stats actually sends — which is NOT one shape. (T59)
@@ -50,6 +50,9 @@ export default function DashboardScreen() {
   const [todayJobs, setTodayJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // Two stat cards per row, a real width on each animated wrapper (see AnimatedCard).
+  const { width: screenWidth } = useWindowDimensions()
+  const cardWidth = statCardWidth(screenWidth)
 
   const load = useCallback(async () => {
     // Today's work is the shared jobs module's /api/jobs/today. Roofing's job module has no such route (it would read
@@ -73,12 +76,12 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+      <View style={[styles.safe, { backgroundColor: t.background }]}>
         <View style={{ padding: 16, gap: 8 }}>
           <SkeletonStatGrid />
           <SkeletonList count={3} />
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -86,7 +89,7 @@ export default function DashboardScreen() {
   const statCards = getStatCards(vertical, stats)
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
@@ -96,7 +99,7 @@ export default function DashboardScreen() {
 
         <View style={styles.statsGrid}>
           {statCards.map((card, i) => (
-            <AnimatedCard key={card.label} index={i}>
+            <AnimatedCard key={card.label} index={i} style={{ width: cardWidth }}>
               <StatCard {...card} />
             </AnimatedCard>
           ))}
@@ -128,7 +131,7 @@ export default function DashboardScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

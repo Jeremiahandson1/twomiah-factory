@@ -5,7 +5,6 @@
 
 import React, { useState } from 'react'
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useTheme } from '../../../src/theme/ThemeContext'
 
@@ -45,7 +44,7 @@ export default function DealWorksheetScreen() {
   ]
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{ title: params.unit ? 'Deal · ' + params.unit : 'Deal Worksheet' }} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -84,7 +83,7 @@ export default function DealWorksheetScreen() {
           <Row label="Less down + trade" v={'-' + money(d.down + d.trade)} t={t} />
           <Row label="Amount financed" v={money(financed)} t={t} big />
           <View style={{ height: 1, backgroundColor: t.border, marginVertical: 12 }} />
-          <Text style={[styles.pay, { color: t.primary }]}>{money(payment(financed, 9.99, term))}/mo</Text>
+          <Text style={[styles.pay, { color: t.primaryText }]}>{money(payment(financed, 9.99, term))}/mo</Text>
           <Text style={[styles.payNote, { color: t.textMuted }]}>estimated @ 9.99% / {term} months</Text>
         </View>
 
@@ -92,7 +91,7 @@ export default function DealWorksheetScreen() {
           <Text style={styles.fiBtnText}>Submit to F&I →</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

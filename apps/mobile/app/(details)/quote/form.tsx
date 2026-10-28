@@ -12,7 +12,6 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator, FlatList,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -132,12 +131,12 @@ export default function QuoteFormScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: t.background }]}>
       <Stack.Screen options={{
         title: 'New Quote',
         headerRight: () => (
           <TouchableOpacity onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
+            {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primaryText, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),
       }} />
@@ -180,7 +179,7 @@ export default function QuoteFormScreen() {
             <Text style={[styles.label, { color: t.textMuted, marginTop: 0 }]}>Line Items *</Text>
             <TouchableOpacity onPress={addLine} style={styles.addLineBtn}>
               <Ionicons name="add-circle" size={20} color={t.primary} />
-              <Text style={{ color: t.primary, fontSize: 13, fontWeight: '600' }}>Add Line</Text>
+              <Text style={{ color: t.primaryText, fontSize: 13, fontWeight: '600' }}>Add Line</Text>
             </TouchableOpacity>
           </View>
           {items.map((item, idx) => (
@@ -265,7 +264,7 @@ export default function QuoteFormScreen() {
           />
         </BottomSheetView>
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   )
 }
 
