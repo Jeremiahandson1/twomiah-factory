@@ -801,7 +801,7 @@ export default function JobDetailPage() {
                 </a>
               )}
               {contactPhone && (
-                <TextButton phone={contactPhone} name={contact?.name} compact className="mt-1.5" />
+                <TextButton phone={contactPhone} name={contact?.name} record={contact?.id ? { entity: 'contact', id: contact.id } : undefined} compact className="mt-1.5" />
               )}
               {contact?.email && (
                 <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline mt-1">

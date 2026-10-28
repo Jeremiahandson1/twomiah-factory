@@ -176,6 +176,18 @@ export interface ContactDeps {
   options?: ContactOptions
 }
 
+/**
+ * The condition narrowing a seat to its own customers, or null for every contact (contacts:read-all). One rule for every door
+ * that reads a contact or something hung on it — the contact routes here, and the unified app's Text activity (the record of a
+ * Text button press), which must refuse exactly what the contact itself refuses. A failed check narrows (fails closed).
+ */
+export async function ownContactScope(deps: Pick<ContactDeps, 'canSee' | 'ownContacts'>, u: any): Promise<any | null> {
+  if (!deps.ownContacts || !deps.canSee) return null
+  let all = false
+  try { all = await deps.canSee(u?.role, 'contacts:read-all', u?.userId) } catch { all = false }
+  return all ? null : deps.ownContacts(String(u?.userId || ''))
+}
+
 const PHONE_RE = /^[0-9+()\-.\s]+$/
 /** Offered until a manager saves the company's own list. Neutral across verticals: every business gets referrals. */
 /** The lists GET /api/contacts can be asked for by `audience`: 'customers' leaves vendors out (customer pickers). */
@@ -304,13 +316,7 @@ export function createContactRoutes(deps: ContactDeps) {
    * The condition narrowing this seat to its own customers, or null for every contact (contacts:read-all). A crew login
    * was shown every customer's name (landscaping live retest, 2026-10-24). A failed check narrows (fails closed).
    */
-  const ownScope = async (c: any): Promise<any | null> => {
-    if (!deps.ownContacts || !deps.canSee) return null
-    const u = c.get('user') as any
-    let all = false
-    try { all = await deps.canSee(u?.role, 'contacts:read-all', u?.userId) } catch { all = false }
-    return all ? null : deps.ownContacts(String(u?.userId || ''))
-  }
+  const ownScope = (c: any): Promise<any | null> => ownContactScope(deps, c.get('user'))
   // Every /:id door answers 404 for a contact outside the seat's own; a path word that is no contact id passes through.
   const ownContactOnly = async (c: any, next: any) => {
     const scope = await ownScope(c)

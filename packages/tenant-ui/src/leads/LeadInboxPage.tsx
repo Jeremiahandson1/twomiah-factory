@@ -257,7 +257,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                       )}
                       {tel && (
                         <span onClick={(e) => e.stopPropagation()}>
-                          <TextButton phone={lead.phone} name={lead.homeownerName} onTexted={() => { if (lead.status === 'new') updateStatus(lead.id, 'contacted') }} />
+                          <TextButton phone={lead.phone} name={lead.homeownerName} record={{ entity: 'lead', id: lead.id }} onTexted={() => { if (lead.status === 'new') updateStatus(lead.id, 'contacted') }} />
                         </span>
                       )}
                       {/* Convert raises a CONTACT, so it asks contacts:create; Dismiss and Reopen
