@@ -1,8 +1,21 @@
 {
   "_about": "RULEBOOK §10: the only way an EXISTING library version in a shared package's package.json (or an override in the root package.json) may change is a published security advisory recorded here. scripts/check-unified-fence.ts reads this file: a changed version passes only when this list names the same manifest, package and new range, with a GHSA advisory id. Add an entry in the same commit as the upgrade; never remove one (it is the record).",
   "upgrades": [
-    { "manifest": "packages/tenant-backend/package.json", "package": "zod", "to": "^4.6.6", "advisory": "GHSA-mrhx-c7xc-m3w5", "why": "memory exhaustion validating oversized constrained collections (<4.6.6)", "at": "2026-10-28" },
-    { "manifest": "packages/tenant-backend/package.json", "package": "drizzle-orm", "to": "^0.45.2", "advisory": "GHSA-gpj5-g38j-94v9", "why": "SQL injection via improperly escaped SQL identifiers (<0.45.2)", "at": "2026-10-28" },
-    { "manifest": "package.json", "package": "basic-ftp", "to": "^6.2.3", "advisory": "GHSA-c475-qrg2-pj4r", "why": "quadratic-time CPU denial of service in Client.list() (<=6.2.0); transitive via puppeteer > proxy-agent > get-uri", "at": "2026-10-28" }
+    {
+      "manifest": "packages/tenant-backend/package.json",
+      "package": "drizzle-orm",
+      "to": "^0.45.2",
+      "advisory": "GHSA-gpj5-g38j-94v9",
+      "why": "SQL injection via improperly escaped SQL identifiers (<0.45.2)",
+      "at": "2026-10-28"
+    },
+    {
+      "manifest": "package.json",
+      "package": "basic-ftp",
+      "to": "^6.2.3",
+      "advisory": "GHSA-c475-qrg2-pj4r",
+      "why": "quadratic-time CPU denial of service in Client.list() (<=6.2.0); transitive via puppeteer > proxy-agent > get-uri",
+      "at": "2026-10-28"
+    }
   ]
 }
