@@ -6,6 +6,7 @@
 // (T-series M1) and home care copied it (10/16); the other seven read the raw body. Unknown keys are dropped here,
 // and each service keeps only RULE_FIELDS / SETTINGS_FIELDS on top, so a body cannot move a row either way.
 import { z } from 'zod'
+import { partialOf } from '../partialOf'
 
 export const AI_RULE_TRIGGERS = ['after_hours', 'missed_call', 'voicemail', 'new_lead', 'booking_request', 'keyword'] as const
 export const AI_RULE_CHANNELS = ['sms', 'email', 'both'] as const
@@ -30,7 +31,7 @@ export const aiRuleCreateSchema = aiRuleFields.superRefine((r, ctx) => {
 })
 
 /** An edit: any subset of the fields. */
-export const aiRuleUpdateSchema = aiRuleFields.partial()
+export const aiRuleUpdateSchema = partialOf(aiRuleFields)
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 export const aiSettingsSchema = z.object({

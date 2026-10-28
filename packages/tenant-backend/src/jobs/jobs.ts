@@ -30,6 +30,7 @@ import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 import { onJob } from './onJob'
 import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
+import { partialOf } from '../partialOf'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -938,7 +939,7 @@ export function createJobRoutes(deps: JobDeps) {
     // The edit form posts back exactly what the API returned, including null for empty relations;
     // optional string fields reject null, so map null → undefined (clearing a field uses '').
     const raw = (await c.req.json().catch(() => null)) ?? {}
-    const data: any = jobSchema.partial().parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
+    const data: any = partialOf(jobSchema).parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
     // On an EDIT, '' (or null) on a link means "clear it" — the schema maps '' to undefined, which leaves the field
     // alone, so Unassign and clearing the customer/project silently did nothing. All three columns are nullable.
     for (const k of ['assignedToId', 'assignedToMemberId', 'contactId', 'projectId', ...(branches ? ['locationId'] as const : [])] as const) {

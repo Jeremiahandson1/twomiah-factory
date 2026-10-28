@@ -9,6 +9,7 @@ import { changeOrder, changeOrderLineItem, project, user } from '../../db/schema
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * THE LIFECYCLE. (T32 H2)
@@ -215,7 +216,7 @@ export function createChangeOrderRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('change-orders:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = changeOrderSchema.partial().parse(await c.req.json())
+    const data = partialOf(changeOrderSchema).parse(await c.req.json())
     const { lineItems, amount: sentAmount, ...coData } = data
     // PUT may move a change order between the working states and no further; /approve does approvals.
     if (coData.status !== undefined && !EDITABLE.includes(coData.status)) {

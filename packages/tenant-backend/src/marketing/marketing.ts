@@ -16,6 +16,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { publicApiBase } from '../publicOrigin'
 import { mailFailureReason } from '../integrations/mailError'
 import { sanitizeEmailHtml } from './emailHtml'
+import { partialOf } from '../partialOf'
 
 export interface MarketingTables { campaign: any; contact: any; emailLog: any }
 export interface MailMessage { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }
@@ -523,7 +524,7 @@ const campaignSchema = z.object({
   subject: z.string().trim().min(1, 'Subject line is required').max(300),
   body: z.string().max(500_000).transform(strip).optional(),
   audienceType: z.enum(AUDIENCE_TYPES).optional(),
-  audienceFilter: z.record(z.any()).nullable().optional(),
+  audienceFilter: z.record(z.string(), z.any()).nullable().optional(),
   scheduledFor: z.string().nullable().optional().refine((v) => !v || !isNaN(new Date(v).getTime()), { message: 'Enter a valid date and time' }),
 })
 const sequenceSchema = z.object({
@@ -543,7 +544,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   if (featureGate) app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : featureGate(c, next)))
   if (campaignsGate) for (const p of ['/campaigns', '/campaigns/*', '/templates', '/templates/*', '/audience/*']) app.use(p, campaignsGate)
   const user = (c: any) => (c as any).get('user')
-  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid request', details: err.flatten().fieldErrors }, 400)
+  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid request', details: err.flatten().fieldErrors }, 400)
   const guarded = (fn: (c: any) => Promise<Response>) => async (c: any) => {
     try { return await fn(c) }
     catch (e: any) { if (e instanceof MarketingError) return c.json({ error: e.message }, e.status as any); throw e }
@@ -559,7 +560,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
     return c.json(await m.getTemplates(user(c).companyId, { category: c.req.query('category'), active: active === 'false' ? false : active === 'all' ? null : true }))
   })
   app.post('/templates', requirePermission('marketing:create'), guarded(async (c) => { const p = templateSchema.safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.createTemplate(user(c).companyId, p.data), 201) }))
-  app.put('/templates/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = templateSchema.partial().safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateTemplate(c.req.param('id'), user(c).companyId, p.data)) }))
+  app.put('/templates/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = partialOf(templateSchema).safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateTemplate(c.req.param('id'), user(c).companyId, p.data)) }))
   app.post('/templates/:id/duplicate', requirePermission('marketing:create'), guarded(async (c) => c.json(await m.duplicateTemplate(c.req.param('id'), user(c).companyId), 201)))
   app.delete('/templates/:id', requirePermission('marketing:delete'), guarded(async (c) => { await m.deleteTemplate(c.req.param('id'), user(c).companyId); return c.body(null, 204) }))
 
@@ -568,7 +569,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.get('/campaigns/:id', requirePermission('marketing:read'), async (c) => { const row = await m.getCampaign(c.req.param('id'), user(c).companyId); return row ? c.json(row) : c.json({ error: 'Campaign not found' }, 404) })
   app.get('/campaigns/:id/recipients', requirePermission('marketing:read'), async (c) => { const r = await m.getCampaignRecipients(c.req.param('id'), user(c).companyId); return r === null ? c.json({ error: 'Campaign not found' }, 404) : c.json({ data: r }) })
   app.post('/campaigns', requirePermission('marketing:create'), guarded(async (c) => { const p = campaignSchema.safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.createCampaign(user(c).companyId, p.data), 201) }))
-  app.put('/campaigns/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = campaignSchema.partial().safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateCampaign(c.req.param('id'), user(c).companyId, p.data)) }))
+  app.put('/campaigns/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = partialOf(campaignSchema).safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateCampaign(c.req.param('id'), user(c).companyId, p.data)) }))
   app.post('/campaigns/:id/send', requirePermission('marketing:update'), guarded(async (c) => c.json(await m.sendCampaign(c.req.param('id'), user(c).companyId))))
   app.post('/campaigns/:id/schedule', requirePermission('marketing:update'), guarded(async (c) => c.json(await m.scheduleCampaign(c.req.param('id'), user(c).companyId, String((await body(c)).scheduledFor || '')))))
   app.post('/campaigns/:id/unschedule', requirePermission('marketing:update'), guarded(async (c) => c.json(await m.unscheduleCampaign(c.req.param('id'), user(c).companyId))))
@@ -582,7 +583,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.get('/sequences', requirePermission('marketing:read'), async (c) => c.json(await m.getSequences(user(c).companyId)))
   app.get('/sequences/:id/enrollments', requirePermission('marketing:read'), async (c) => { const r = await m.getEnrollments(c.req.param('id'), user(c).companyId); return r === null ? c.json({ error: 'Sequence not found' }, 404) : c.json({ data: r }) })
   app.post('/sequences', requirePermission('marketing:create'), guarded(async (c) => { const p = sequenceSchema.safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.createSequence(user(c).companyId, p.data), 201) }))
-  app.put('/sequences/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = sequenceSchema.partial().safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateSequence(c.req.param('id'), user(c).companyId, p.data)) }))
+  app.put('/sequences/:id', requirePermission('marketing:update'), guarded(async (c) => { const p = partialOf(sequenceSchema).safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.updateSequence(c.req.param('id'), user(c).companyId, p.data)) }))
   app.delete('/sequences/:id', requirePermission('marketing:delete'), guarded(async (c) => { await m.deleteSequence(c.req.param('id'), user(c).companyId); return c.body(null, 204) }))
   app.post('/sequences/:id/enroll', requirePermission('marketing:update'), guarded(async (c) => { const { contactId } = await body(c); if (!contactId || typeof contactId !== 'string') return c.json({ error: 'contactId is required' }, 400); return c.json(await m.enrollInSequence(c.req.param('id'), contactId, user(c).companyId), 201) }))
 

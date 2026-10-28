@@ -18,6 +18,7 @@ import { normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from '../address
 import { checkFilter } from '../listFilter'
 import { eq, ne, and, or, ilike, count, desc, asc, inArray, sql } from 'drizzle-orm'
 import { repointContactReferences, mergePatch } from './mergeContacts'
+import { partialOf } from '../partialOf'
 
 /** Thrown inside the merge transaction when a locked row turned out to be gone, to roll it back. */
 class MergeGone extends Error {}
@@ -479,7 +480,7 @@ export function createContactRoutes(deps: ContactDeps) {
 
     app.put('/sites/:siteId', requirePermission('contacts:update'), async (c) => {
       const currentUser = c.get('user') as any
-      const data = siteSchema.partial().parse(await c.req.json())
+      const data = partialOf(siteSchema).parse(await c.req.json())
       const existing = await findSite(c.req.param('siteId'), currentUser.companyId)
       if (!existing) return c.json({ error: 'Site not found' }, 404)
       const [updated] = await db.update(site).set({ ...data, updatedAt: new Date() }).where(eq(site.id, existing.id)).returning()
@@ -566,7 +567,7 @@ export function createContactRoutes(deps: ContactDeps) {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const body = normaliseBody(await c.req.json())
-    const data = contactSchema.partial().parse(body)
+    const data = partialOf(contactSchema).parse(body)
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Contact not found' }, 404)
 

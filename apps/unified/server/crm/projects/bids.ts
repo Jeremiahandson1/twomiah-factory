@@ -8,6 +8,7 @@ import { bid, project } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 /** Bid money cannot be negative: a −$500 bid flowed into the pipeline total as a negative (T32 H6). */
 const money = z.number().min(0, 'A bid amount cannot be negative').max(1_000_000_000)
@@ -115,7 +116,7 @@ export function createBidRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('bids:update'), async (c) => {
     const user = c.get('user') as any
     const id = c.req.param('id')
-    const data = schema.partial().parse(await c.req.json())
+    const data = partialOf(schema).parse(await c.req.json())
     const existing = await load(id, user.companyId)
     if (!existing) return fail(c, 404, 'Bid not found')
     // A decided bid's amount IS the number that was submitted (same rule as an approved change order, T32 H2).

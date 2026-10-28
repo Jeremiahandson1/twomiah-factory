@@ -25,6 +25,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, desc, sum, inArray, gte, lte, or, isNull, ne, asc, sql } from 'drizzle-orm'
+import { partialOf } from '../partialOf'
+import { zmsg } from '../zodMessage'
 
 export interface CommissionTables {
   commission: any
@@ -51,10 +53,10 @@ export interface CommissionRoutesDeps {
  * can exist before its rate is decided; 100 is the ceiling. A flat rate is money and has no upper bound.
  * Each tier is held to the same rule as the header field.
  */
-const percentRate = z.number({ invalid_type_error: 'A commission rate must be a number' })
+const percentRate = z.number(zmsg('A commission rate must be a number'))
   .min(0, 'A commission rate cannot be negative — that is a deduction, not a commission')
   .max(100, 'A commission rate is a percentage, so it cannot be more than 100')
-const money = z.number({ invalid_type_error: 'An amount must be a number' })
+const money = z.number(zmsg('An amount must be a number'))
   .min(0, 'A commission amount cannot be negative')
 
 export const COMMISSION_PLAN_TYPES = ['flat_rate', 'percent_of_invoice', 'percent_of_margin', 'tiered'] as const
@@ -233,7 +235,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   app.put('/plans/:id', requirePermission('commissions:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const parsed = planSchema.partial().safeParse(await c.req.json().catch(() => ({})))
+    const parsed = partialOf(planSchema).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const existing = await owned(t.commissionPlan, id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Commission plan not found' }, 404)

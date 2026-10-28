@@ -9,6 +9,8 @@ import { checkFilter } from '../listFilter'
 import { hasHappened } from '../dateInput'
 import { createStaffBalanceStore, SETTLE_ROUTES, payrollDeductionsAllowed, PAYROLL_DEDUCTION_SETTING, type SettleRoute } from '../team/staffBalance'
 import { sniffType } from '../files/storage'
+import { partialOf } from '../partialOf'
+import { zmsg } from '../zodMessage'
 
 export interface ExpenseTables {
   expense: any
@@ -108,8 +110,8 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     // RR4 L2: 'abc' fell through to zod's own "Expected number, received nan" — the type check fails
     // before .positive() ever runs, so the plain-English message never got a chance. Every number in
     // this module now says what it wants in words a person typed the box would recognise.
-    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 24.50' }).positive('Amount must be greater than 0').max(100_000_000),
-    taxAmount: z.coerce.number({ invalid_type_error: 'Tax must be a number, for example 4.90' }).min(0, 'Tax cannot be negative').max(100_000_000).optional(),
+    amount: z.coerce.number(zmsg('Amount must be a number, for example 24.50')).positive('Amount must be greater than 0').max(100_000_000),
+    taxAmount: z.coerce.number(zmsg('Tax must be a number, for example 4.90')).min(0, 'Tax cannot be negative').max(100_000_000).optional(),
     billable: z.boolean().default(false),
     reimbursable: z.boolean().default(false),
     receiptUrl: z.string().trim().url().max(2000).optional().nullable().or(z.literal('').transform(() => null)),
@@ -117,7 +119,7 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     jobId: fk,
     notes: z.string().max(5000).optional().nullable(),
   })
-  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid expense', details: err.flatten().fieldErrors }, 400)
+  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid expense', details: err.flatten().fieldErrors }, 400)
 
   /** Project / job pickers must point at this company's rows (a foreign id is a 400, not a FK 500). */
   const checkRefs = async (companyId: string, data: { projectId?: string | null; jobId?: string | null }) => {
@@ -464,7 +466,7 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   app.put('/:id', requirePermission('expenses:update'), async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
-    const parsed = schema.partial().safeParse(await c.req.json().catch(() => ({})))
+    const parsed = partialOf(schema).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const existing = await ownExpense(id, currentUser.companyId)
@@ -682,12 +684,12 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
    * more coming back than went out is not a correction, it is a different transaction.
    */
   const repaymentSchema = z.object({
-    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 10.00' })
+    amount: z.coerce.number(zmsg('Amount must be a number, for example 10.00'))
       .positive('A repayment has to be more than 0')
       .max(100_000_000),
     // required_error as well as min(1): a field that is simply ABSENT gets zod's own "Required",
     // which is the sort of message this module has spent three rounds replacing with English.
-    reason: z.string({ required_error: 'Say why the money came back — the sheet has to explain itself later' })
+    reason: z.string(zmsg('Say why the money came back — the sheet has to explain itself later'))
       .trim().min(1, 'Say why the money came back — the sheet has to explain itself later').max(500).transform(stripTags),
     date: dateField,
   })
@@ -890,12 +892,10 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
    *   write_off  the business stops chasing it. Still a decision somebody made, with a reason.
    */
   const settleSchema = z.object({
-    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 10.00' }).positive('A settlement has to be more than 0').max(100_000_000),
-    reason: z.string({ required_error: 'Say how this was settled — the balance has to explain itself later' })
+    amount: z.coerce.number(zmsg('Amount must be a number, for example 10.00')).positive('A settlement has to be more than 0').max(100_000_000),
+    reason: z.string(zmsg('Say how this was settled — the balance has to explain itself later'))
       .trim().min(1, 'Say how this was settled — the balance has to explain itself later').max(500).transform(stripTags),
-    via: z.enum(SETTLE_ROUTES as unknown as [SettleRoute, ...SettleRoute[]], {
-      errorMap: () => ({ message: `How it was settled has to be one of ${SETTLE_ROUTES.join(', ')}` }),
-    }),
+    via: z.enum(SETTLE_ROUTES as unknown as [SettleRoute, ...SettleRoute[]], zmsg(`How it was settled has to be one of ${SETTLE_ROUTES.join(', ')}`)),
     /** offset only: the claim of theirs it comes off. */
     againstExpenseId: z.string().optional().nullable(),
     /** payroll only: who authorised the deduction, and where that authorisation is recorded. */

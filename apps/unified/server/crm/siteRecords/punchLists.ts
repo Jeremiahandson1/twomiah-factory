@@ -9,6 +9,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { recordPhotos } from './recordPhotos.ts'
+import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * Signing off somebody else's work is manager and above. (T32 M2)
@@ -97,7 +98,7 @@ export function createPunchListRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('punch-lists:update'), async (c) => {
     const me = c.get('user') as any
     const id = c.req.param('id')
-    const data = schema.partial().parse(await c.req.json())
+    const data = partialOf(schema).parse(await c.req.json())
     // Scoped to the caller's company like the reads above, not matched on id alone.
     const [item] = await db.update(punchListItem).set({
       ...data,
