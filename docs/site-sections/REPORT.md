@@ -73,10 +73,10 @@ element screenshots in a few images are the page header, not a defect.
 
 ## Gate
 
-What `build-check.yml` and `unified.yml` run, once, at the end:
+Rebased on the current `engine` (which already fixes the two failures the first gate run showed: the TextButton light-card guard
+and the missing `jsqr` module), `bun install`, then:
 
-- 275 guard scripts (`scripts/check-*.ts`): all pass **except**
-  - `check-light-card-dark-text` — `packages/tenant-ui/src/text/TextButton.tsx:116`, a file this branch does not touch (the guard reads code unchanged here, so it is not caused by this work).
-  - `check-unified-types` — one error, `tests/text-qr.test.ts` cannot find the `jsqr` module (not installed in this environment; the shared-package count is at its baseline of 203, the web app has 0).
+- `check-composer-facts` (1834 checks), `check-light-card-dark-text` and `check-unified-types` (0 errors in the app, shared packages at their baseline): pass. The first gate run covered all 275 `scripts/check-*.ts` of both workflows; the only failures were those two engine ones and the composer-facts check this work changed (fixed, above).
 - `bun run build:web`: builds.
-- Unified tests and `tests/unified/factory`: see the result lines appended below.
+- Tests touched by this work, after the rebase: 216 pass, 0 fail across `site-service-pages`, `site-sections`, `site-section-fields`, `site-structured-data`, `site-parity`, `site-routes`, `signup-look`, `site-signup-preview` (unified), and 83 pass across `site-sections` and `signup-site` (Factory).
+- Not done: a complete run of every unified test file and every `tests/unified/factory` file. A full unified run was started but stopped at about half (100 of 211 files, none failing) so the rebase could proceed; it was not repeated.
