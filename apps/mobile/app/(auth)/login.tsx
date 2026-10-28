@@ -9,10 +9,14 @@ import Constants from 'expo-constants'
 import { useAuth } from '../../src/auth/AuthContext'
 import type { MfaChallenge } from '../../src/auth/signIn'
 import { getApiUrl } from '../../src/api/client'
+import { inkOn } from '../../src/theme/contrast'
 
 const APP_NAME: string = (Constants.expoConfig?.extra as any)?.appName || 'Twomiah'
 const VARIANT: string = (Constants.expoConfig?.extra as any)?.appVariant || ''
-const PRIMARY: string = (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
+// The sign-in screen is the app's own (no business yet): Twomiah orange in the store app, the variant's colour in a branded build.
+// Its ink is chosen by contrast, never assumed white — white on that orange is under 3:1.
+const PRIMARY: string = (Constants.expoConfig?.extra as any)?.signInColor || (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
+const INK = inkOn(PRIMARY)
 const VARIANT_ICON: 'home' | 'construct' | 'heart' =
   VARIANT === 'roofer' ? 'home' : VARIANT === 'care' ? 'heart' : 'construct'
 const TAGLINE =
@@ -109,7 +113,7 @@ export default function LoginScreen() {
           {/* Logo / Brand */}
           <View style={styles.brand}>
             <View style={[styles.logoCircle, { backgroundColor: PRIMARY }]}>
-              <Ionicons name={VARIANT_ICON} size={32} color="#fff" />
+              <Ionicons name={VARIANT_ICON} size={32} color={INK} />
             </View>
             <Text style={styles.brandName}>{APP_NAME}</Text>
             <Text style={styles.brandSub}>{TAGLINE}</Text>
@@ -160,9 +164,9 @@ export default function LoginScreen() {
 
             <TouchableOpacity style={[styles.button, { backgroundColor: PRIMARY }]} onPress={handleCode} disabled={loading || !code.trim()} activeOpacity={0.8}>
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={INK} />
               ) : (
-                <Text style={styles.buttonText}>Finish signing in</Text>
+                <Text style={[styles.buttonText, { color: INK }]}>Finish signing in</Text>
               )}
             </TouchableOpacity>
 
@@ -225,9 +229,9 @@ export default function LoginScreen() {
 
             <TouchableOpacity style={[styles.button, { backgroundColor: PRIMARY }]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={INK} />
               ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
+                <Text style={[styles.buttonText, { color: INK }]}>Sign In</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -249,7 +253,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   brand: { alignItems: 'center', marginBottom: 36 },
   logoCircle: {
-    width: 64, height: 64, borderRadius: 16, backgroundColor: '#1e40af',
+    width: 64, height: 64, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   brandName: { fontSize: 28, fontWeight: '700', color: '#f1f5f9' },
@@ -271,9 +275,9 @@ const styles = StyleSheet.create({
   linkText: { color: '#93c5fd', fontSize: 14 },
   centerText: { textAlign: 'center', color: '#94a3b8' },
   button: {
-    backgroundColor: '#1e40af', borderRadius: 10, paddingVertical: 16,
+    borderRadius: 10, paddingVertical: 16,
     alignItems: 'center', marginTop: 20,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { fontSize: 16, fontWeight: '600' },
   footer: { textAlign: 'center', color: '#94a3b8', fontSize: 12, marginTop: 24, lineHeight: 17 },
 })

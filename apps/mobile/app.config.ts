@@ -140,7 +140,8 @@ export const isEasBuild = (env: NodeJS.ProcessEnv = process.env) => env.EAS_BUIL
 /**
  * Twomiah's own colours behind the icon and on the splash (owner, 2026-10-28: the app should look like twomiah.com): its
  * near-black ground (--dark) and the flame's middle orange for Android's notification tint. assets/source/build-icons.ts draws
- * the artwork on the same ground. The app's buttons keep primaryColor; after sign-in they take the business's own colour.
+ * the artwork on the same ground. The sign-in screen's buttons are the flame (extra.signInColor, with dark ink); after sign-in
+ * they take the business's own colour.
  */
 export const TWOMIAH_DARK = '#0D0D0D'
 export const TWOMIAH_FLAME = '#FF6D00'
@@ -278,6 +279,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appVariant: variant,
       appName: v.appName,
       primaryColor: v.primaryColor,
+      // The sign-in screen (before any business's colour is known): the store app wears Twomiah's flame like twomiah.com.
+      signInColor: variant === 'generic' ? TWOMIAH_FLAME : v.primaryColor,
       // The app shows the location switch only in a build that declares background location.
       ...(bg ? { backgroundLocation: true } : {}),
       // Only emit lockedVertical for branded variants; generic stays multi-vertical.

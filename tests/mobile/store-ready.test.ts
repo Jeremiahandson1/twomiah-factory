@@ -77,6 +77,12 @@ console.log('app.config.ts — the store app')
   check('Apple\'s required-reason API list and the encryption flag are set', plist.ITSAppUsesNonExemptEncryption === false && (c.ios.privacyManifests?.NSPrivacyAccessedAPITypes || []).length >= 4)
   check('the store app has no locked vertical (any supported trade signs in)', c.extra.lockedVertical === undefined && c.extra.appVariant === 'generic')
   check('over-the-air updates point at the store app\'s own EAS project', c.updates?.url === `https://u.expo.dev/${c.extra.eas.projectId}` && c.updates.enabled === true)
+  // The sign-in screen wears Twomiah's flame (owner, 2026-10-28); its words, icon and spinner take inkOn — white there is <3:1.
+  const { TWOMIAH_FLAME } = await import('../../apps/mobile/app.config.ts')
+  const { inkOn, contrastRatio } = await import('../../apps/mobile/src/theme/contrast.ts')
+  check('the sign-in colour is Twomiah\'s flame, and its ink reaches 4.5:1', c.extra.signInColor === TWOMIAH_FLAME && contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME) >= 4.5, contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME).toFixed(2))
+  const login = read('app/(auth)/login.tsx')
+  check('the sign-in screen reads signInColor and never paints white on it', /extra as any\)\?\.signInColor/.test(login) && /const INK = inkOn\(PRIMARY\)/.test(login) && !/#fff\b|'white'/i.test(login.replace(/color: '#f1f5f9'/g, '')))
 }
 
 console.log('eas.json — nothing is invented')
