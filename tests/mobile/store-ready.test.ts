@@ -17,7 +17,8 @@ let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log(`  ok   ${name}`) } else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)) }
 }
-const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8')
+// Line endings normalised: a Windows checkout has CRLF, and the listing's patterns match \n (keywords read as empty).
+const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n')
 
 console.log('artwork')
 {
