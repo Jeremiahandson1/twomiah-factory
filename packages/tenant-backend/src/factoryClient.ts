@@ -20,7 +20,7 @@ interface FullFactoryApiClient extends FactoryApiClient {
   startRestartCheckout(returnPath?: string): Promise<{ url: string }>
   // The own-it licence: the offer and price, then a checkout for it (Factory services/ownItLicense.ts).
   getLicenseOffer(): Promise<any>
-  startLicenseCheckout(input: { githubUsername: string; acceptedTerms: boolean; termsVersion: string }): Promise<{ url: string }>
+  startLicenseCheckout(input: { githubUsername: string; hosting: 'twomiah' | 'self'; acceptedTerms: boolean; termsVersion: string }): Promise<{ url: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
   registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
   // Linking an EXISTING Stripe account through the Factory's one registered Stripe redirect (apps/api stripeOAuth.ts).

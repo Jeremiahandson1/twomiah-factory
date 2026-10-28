@@ -788,7 +788,7 @@ export async function notifyDataExportReady(
 /** The own-it licence has been paid: what was set up (the GitHub invitation, the data export) and what to do next. */
 export async function notifyLicenseHandover(
   tenant: { id?: string; name: string; email?: string; admin_email?: string | null },
-  o: { githubUsername: string; repoUrl: string; repoInvited: boolean; export?: { url: string; expiresAt: Date }; amountCents: number },
+  o: { githubUsername: string; repoUrl: string; repoInvited: boolean; export?: { url: string; expiresAt: Date }; amountCents: number; hosting?: 'twomiah' | 'self'; hostingEndsAt?: Date | null },
 ): Promise<boolean> {
   const to = tenant.admin_email || tenant.email
   if (!to) return false
@@ -804,7 +804,10 @@ export async function notifyLicenseHandover(
       ? `Every list your business has — each as a spreadsheet file — plus your website pages and media list, in one ZIP:`
       : `Your full data export is being prepared — our team has been told and you will get it by email.`}</p>
     ${o.export ? btn(o.export.url, 'Download your data') + `<p style="color:#666;font-size:14px;margin-top:16px;">This link expires on <strong>${exp}</strong>. You can also make a fresh export any time from Settings → Your Data in your app.</p>` : ''}
-    <p style="color:#666;font-size:14px;margin-top:16px;">Reminder: the licence is to run the software for your own business — not to resell it (Terms of Service §7). Your hosted Twomiah subscription carries on until you end it from your billing page.</p>`
+    <p style="color:#333;line-height:1.6;"><strong>Your hosting.</strong> ${o.hosting === 'self'
+      ? (o.hostingEndsAt ? `You chose to host it yourself, so your Twomiah subscription will end on <strong>${o.hostingEndsAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>, when the period you have already paid for ends. Everything keeps running until then — make sure your own copy is running before that day.` : `You chose to host it yourself. Our team is setting your Twomiah subscription to end when the period you have already paid for ends, and will write to you with the date.`)
+      : `Twomiah keeps hosting it, and your subscription carries on as before.`}</p>
+    <p style="color:#666;font-size:14px;margin-top:16px;">Reminder: the licence is to run the software for your own business — not to resell it (Terms of Service §7).</p>`
   return sendEmail(to, 'Your Twomiah licence — your code and your data', wrap('Your Licence', body))
 }
 

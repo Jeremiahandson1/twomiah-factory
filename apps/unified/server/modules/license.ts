@@ -1,6 +1,6 @@
 // The own-it licence, from the business's own app (Factory services/ownItLicense.ts holds the rules and the money):
 //   GET  /api/license           the offer — price (36× the monthly), what comes with it, the terms, and any licence bought
-//   POST /api/license/checkout  the owner's GitHub username + accepted terms → a Stripe checkout URL
+//   POST /api/license/checkout  the owner's GitHub username, hosting choice (Twomiah keeps hosting / the owner hosts it) and accepted terms → a Stripe checkout URL
 //   POST /api/internal/handover-export   (the Factory only) the business's full data export, for the handover after payment
 // Owner only: it is a purchase on the business's behalf. Stripe is never called from here; the Factory is.
 import { Hono } from 'hono'
@@ -12,7 +12,7 @@ import type { Audit } from '../core/audit.ts'
 export interface LicenseDeps {
   db: any
   audit: Audit
-  factoryApiClient: { getLicenseOffer(): Promise<any>; startLicenseCheckout(i: { githubUsername: string; acceptedTerms: boolean; termsVersion: string }): Promise<{ url: string }> }
+  factoryApiClient: { getLicenseOffer(): Promise<any>; startLicenseCheckout(i: { githubUsername: string; hosting: 'twomiah' | 'self'; acceptedTerms: boolean; termsVersion: string }): Promise<{ url: string }> }
 }
 
 const owner = (c: any, next: any) => {
@@ -23,7 +23,8 @@ const owner = (c: any, next: any) => {
 
 const checkoutBody = z.object({
   githubUsername: z.string().trim().min(1, 'Your GitHub username is needed — it is the account we invite to your code').max(60),
-  acceptedTerms: z.literal(true, { errorMap: () => ({ message: 'Read and accept what the licence is (and is not) before paying' }) }),
+  hosting: z.enum(['twomiah', 'self'], { error: 'Choose whether Twomiah keeps hosting it or you host it yourself' }),
+  acceptedTerms: z.literal(true, { error: 'Read and accept what the licence is (and is not) before paying' }),
   termsVersion: z.string().min(1).max(40),
 })
 

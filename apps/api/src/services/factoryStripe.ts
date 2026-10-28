@@ -215,6 +215,18 @@ export async function createOwnItLicenseCheckout(o: {
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
+/**
+ * Set a subscription to end when the period already paid for ends (cancel_at_period_end) — it keeps running, and billing
+ * nothing new, until then; nothing is refunded or cut off mid-period. Returns that end. Asking again is harmless.
+ */
+export async function endSubscriptionAtPeriodEnd(subscriptionId: string): Promise<Date> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const sub = await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true })
+  const end = subscriptionPeriodEnd(sub)
+  if (!end) throw new Error('Stripe did not say when the paid period ends')
+  return new Date(end * 1000)
+}
+
 // ── Premium-website checkout (subscription + one-time build fee) ────────────
 //
 // The standalone website at a flat $49/mo (STRIPE_PRICE_V2_WEBSITE), no
@@ -908,6 +920,7 @@ export default {
   createAiEnableCheckout,
   createLicenseCheckout,
   createOwnItLicenseCheckout,
+  endSubscriptionAtPeriodEnd,
   createDeployCheckout,
   createPremiumWebsiteCheckout,
   createBillingPortalSession,

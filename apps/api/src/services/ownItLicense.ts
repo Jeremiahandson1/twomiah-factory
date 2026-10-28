@@ -20,13 +20,17 @@ import { planFor } from '../config/planSeats'
 
 export const LICENSE_MONTHS = 36
 /** Bumped whenever the words shown before payment change; stored with the purchase. */
-export const LICENSE_TERMS_VERSION = '2026-10-28'
+export const LICENSE_TERMS_VERSION = '2026-10-29'
 /** What the owner is told before paying (shown in the app and, shortened, on the Stripe page). */
 export const LICENSE_TERMS = [
   'A licence lets you run this software for your own business. It is not a licence to resell it, rebrand it for other businesses, or offer it to others as a service (Terms of Service §7).',
   'You get your own copy of the code to run yourself. Twomiah keeps its rights in the code; updates we make after today are not part of the licence unless we say so.',
-  'Buying it does not cancel your hosted Twomiah service. That subscription carries on, billed monthly, until you end it from your billing portal.',
+  'Buying it does not by itself change your hosting. You choose at checkout: Twomiah keeps hosting it (your subscription carries on, billed monthly), or you host it yourself (your hosting subscription ends when the period you have already paid for ends — never before).',
 ]
+
+/** The choice made at checkout, and what each one does (shown before payment, recorded with the licence). */
+export type Hosting = 'twomiah' | 'self'
+export const isHosting = (v: unknown): v is Hosting => v === 'twomiah' || v === 'self'
 export const LICENSE_INCLUDES = [
   'Read access to your business’s own code repository on GitHub, for the GitHub username you give — invited the moment you pay.',
   'A full export of your business’s data: every list as a spreadsheet file, plus your website pages and media list — emailed to you as a download link that works for seven days.',
@@ -48,6 +52,9 @@ export interface LicenseTenant {
   render_backend_url?: string | null
   render_frontend_url?: string | null
   stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  /** The end of the period already paid for (kept current by the Stripe webhook). */
+  next_billing_date?: string | null
   factory_sync_key?: string | null
 }
 
@@ -63,6 +70,11 @@ export interface LicenseRow {
   github_username: string
   repo: string
   terms_version: string
+  /** 'twomiah' (Twomiah keeps hosting it) or 'self' (the owner hosts it; the subscription ends at the end of the paid period). */
+  hosting: Hosting
+  /** When the hosting subscription ends, once it has been set to end at the period's end ('self' only). */
+  hosting_end_at: string | null
+  hosting_note: string | null
   paid_at: string
   repo_invited_at: string | null
   repo_invite_note: string | null
@@ -95,8 +107,22 @@ export interface Offer {
   includes: string[]
   terms: string[]
   termsVersion: string
+  /** The two hosting choices and what each does, in words; `periodEnd` is when the period already paid for ends. */
+  hostingChoices: Array<{ id: Hosting; label: string; effect: string }>
+  periodEnd: string | null
   /** The licence already bought, if any (never the key to anything). */
-  license: { paidAt: string; githubUsername: string; amountCents: number; handoverStatus: LicenseRow['handover_status']; repoInvited: boolean; exportSent: boolean } | null
+  license: { paidAt: string; githubUsername: string; amountCents: number; hosting: Hosting; hostingEndAt: string | null; handoverStatus: LicenseRow['handover_status']; repoInvited: boolean; exportSent: boolean } | null
+}
+
+const longDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : null)
+
+/** The two choices in words. The end date is the period already paid for — hosting is never cut off before it. */
+export function hostingChoices(periodEnd: string | null | undefined): Offer['hostingChoices'] {
+  const when = longDate(periodEnd)
+  return [
+    { id: 'twomiah', label: 'Keep Twomiah hosting it', effect: 'Your website, app and texting stay on Twomiah, and your subscription carries on, billed monthly, until you end it yourself from the billing portal.' },
+    { id: 'self', label: 'I’ll host it myself', effect: `Your Twomiah subscription is set to end when the period you have already paid for ends${when ? ` (${when})` : ''} — you keep everything until then, and nothing is cut off before it. After that, your website, app and texting no longer run on Twomiah: they run only where you host your copy. Your code and data export are yours from today.` },
+  ]
 }
 
 /** The price and whether this business may buy now. 36× the plan's monthly list price; a discount on the subscription does not shrink it. */
@@ -107,7 +133,8 @@ export function licenseOffer(t: LicenseTenant, existing: LicenseRow | null): Off
     planName: plan?.name ?? null, monthlyCents, months: LICENSE_MONTHS,
     priceCents: monthlyCents === null ? null : monthlyCents * LICENSE_MONTHS,
     includes: LICENSE_INCLUDES, terms: LICENSE_TERMS, termsVersion: LICENSE_TERMS_VERSION,
-    license: existing ? { paidAt: existing.paid_at, githubUsername: existing.github_username, amountCents: existing.amount_cents, handoverStatus: existing.handover_status, repoInvited: !!existing.repo_invited_at, exportSent: !!existing.export_sent_at } : null,
+    hostingChoices: hostingChoices(t.next_billing_date), periodEnd: t.next_billing_date ?? null,
+    license: existing ? { paidAt: existing.paid_at, githubUsername: existing.github_username, amountCents: existing.amount_cents, hosting: existing.hosting ?? 'twomiah', hostingEndAt: existing.hosting_end_at ?? null, handoverStatus: existing.handover_status, repoInvited: !!existing.repo_invited_at, exportSent: !!existing.export_sent_at } : null,
   }
   const no = (reason: string): Offer => ({ ...base, eligible: false, reason })
   if (existing) return no('This business already owns its licence.')
@@ -140,11 +167,12 @@ export type CheckoutResult = { ok: true; url: string; sessionId: string; stripeC
 /** Start the purchase: refuses what the offer refuses, a bad GitHub name, and terms not accepted. No charge happens here. */
 export async function startLicenseCheckout(
   t: LicenseTenant, existing: LicenseRow | null,
-  input: { githubUsername?: unknown; acceptedTerms?: unknown; termsVersion?: unknown; returnTo: string },
+  input: { githubUsername?: unknown; hosting?: unknown; acceptedTerms?: unknown; termsVersion?: unknown; returnTo: string },
   deps: CheckoutDeps,
 ): Promise<CheckoutResult> {
   const offer = licenseOffer(t, existing)
   if (!offer.eligible || offer.priceCents === null) return { ok: false, status: 409, error: offer.reason || 'Not available.', code: 'not_available' }
+  if (!isHosting(input.hosting)) return { ok: false, status: 400, error: 'Choose whether Twomiah keeps hosting it or you host it yourself.', code: 'hosting_not_chosen' }
   if (input.acceptedTerms !== true || input.termsVersion !== LICENSE_TERMS_VERSION) return { ok: false, status: 400, error: 'Read and accept what the licence is (and is not) before paying.', code: 'terms_not_accepted' }
   const gh = typeof input.githubUsername === 'string' ? input.githubUsername.trim().replace(/^@/, '') : ''
   if (!isGithubUsername(gh)) return { ok: false, status: 400, error: 'That is not a GitHub username — letters, numbers and single hyphens, like "acme-builders".', code: 'bad_github_username' }
@@ -155,10 +183,10 @@ export async function startLicenseCheckout(
   const session = await deps.createSession({
     tenant: t, priceCents: offer.priceCents,
     productName: `Twomiah own-it licence — ${offer.planName}`,
-    description: `One-time: ${LICENSE_MONTHS} × $${(offer.monthlyCents! / 100).toFixed(0)}/month. Your own copy of the code to run for your business.`,
-    termsNote: 'A licence to run the software for your own business — not to resell it (Terms §7). Your hosted subscription is not cancelled.',
+    description: `One-time: ${LICENSE_MONTHS} × $${(offer.monthlyCents! / 100).toFixed(0)}/month. Your own copy of the code to run for your business. Hosting: ${input.hosting === 'self' ? 'you host it yourself — your Twomiah subscription ends at the end of the period already paid' : 'Twomiah keeps hosting it'}.`,
+    termsNote: `A licence to run the software for your own business — not to resell it (Terms §7). ${input.hosting === 'self' ? 'Your Twomiah subscription will end when the period already paid for ends.' : 'Twomiah keeps hosting it; your subscription continues.'}`,
     metadata: {
-      purpose: 'own_it_license', tenant_id: t.id, plan_id: String(t.plan || ''), github_username: gh, repo,
+      purpose: 'own_it_license', tenant_id: t.id, plan_id: String(t.plan || ''), github_username: gh, repo, hosting: input.hosting,
       monthly_cents: String(offer.monthlyCents), months: String(LICENSE_MONTHS), terms_version: LICENSE_TERMS_VERSION,
     },
     successUrl: base + '?license=paid', cancelUrl: base + '?license=cancelled',
@@ -172,8 +200,10 @@ export interface HandoverDeps {
   /** Add the user to the repo with read access. 'invited' (new invitation) | 'already' (already a collaborator). Throws on a refusal. */
   inviteCollaborator(repoFull: string, username: string): Promise<'invited' | 'already'>
   /** The full data export from the tenant's own app, stored and shared for seven days. Throws when it cannot be made. */
+  /** Set the hosting subscription to end at the END of the current paid period (never now). Returns when it ends, or null when there is no subscription to end. Throws on a refusal. */
+  endHostingAtPeriodEnd(t: LicenseTenant): Promise<{ endsAt: Date } | null>
   makeExport(t: LicenseTenant): Promise<{ url: string; expiresAt: Date; files: number; rows: number }>
-  sendEmail(t: LicenseTenant, o: { githubUsername: string; repoUrl: string; repoInvited: boolean; export?: { url: string; expiresAt: Date }; amountCents: number }): Promise<boolean>
+  sendEmail(t: LicenseTenant, o: { githubUsername: string; repoUrl: string; repoInvited: boolean; export?: { url: string; expiresAt: Date }; amountCents: number; hosting: Hosting; hostingEndsAt: Date | null }): Promise<boolean>
   alertStaff(subject: string, detail: string, tenantId: string): Promise<unknown>
   audit(tenantId: string, changes: Record<string, { old: unknown; new: unknown }>, note: string): Promise<void>
   now?: () => Date
@@ -198,7 +228,8 @@ export async function completeLicensePurchase(session: PaidSession, tenant: Lice
       tenant_id: tenant.id, stripe_session_id: session.id, stripe_payment_intent: session.payment_intent ?? null,
       amount_cents: Number(session.amount_total ?? 0), monthly_cents: Number.isFinite(monthly) ? monthly : 0,
       months: Number(meta.months) || LICENSE_MONTHS, plan: meta.plan_id || tenant.plan || null, github_username: String(meta.github_username || ''),
-      repo: String(meta.repo || licenseRepo(tenant) || ''), terms_version: String(meta.terms_version || ''), paid_at: now.toISOString(),
+      repo: String(meta.repo || licenseRepo(tenant) || ''), terms_version: String(meta.terms_version || ''),
+      hosting: isHosting(meta.hosting) ? meta.hosting : 'twomiah', hosting_end_at: null, hosting_note: null, paid_at: now.toISOString(),
       repo_invited_at: null, repo_invite_note: null, export_sent_at: null, export_note: null, handover_status: 'paid',
     })
     // A second delivery raced the first insert: the first one does the handover.
@@ -218,6 +249,14 @@ export async function completeLicensePurchase(session: PaidSession, tenant: Lice
       steps.push('repo: ' + patch.repo_invite_note)
     } catch (e: any) { patch.repo_invite_note = 'FAILED: ' + String(e?.message || e).slice(0, 300); steps.push('repo: ' + patch.repo_invite_note) }
   }
+  // 'I'll host it myself': the hosting subscription is set to end when the paid period ends — once, and never mid-period.
+  if (row.hosting === 'self' && !row.hosting_end_at && !row.hosting_note?.startsWith('no subscription')) {
+    try {
+      const r = await deps.endHostingAtPeriodEnd(tenant)
+      if (r) { patch.hosting_end_at = r.endsAt.toISOString(); patch.hosting_note = 'set to end at the end of the paid period'; steps.push('hosting: ends ' + patch.hosting_end_at) }
+      else { patch.hosting_note = 'no subscription to end'; steps.push('hosting: no subscription to end') }
+    } catch (e: any) { patch.hosting_note = 'FAILED: ' + String(e?.message || e).slice(0, 300); steps.push('hosting: ' + patch.hosting_note) }
+  }
   let exportInfo: { url: string; expiresAt: Date } | undefined
   if (!row.export_sent_at) {
     try {
@@ -230,9 +269,12 @@ export async function completeLicensePurchase(session: PaidSession, tenant: Lice
   // One email, once, whatever has been done: it says what was done and what will follow.
   const sent = (exportInfo || invited) && await deps.sendEmail(tenant, {
     githubUsername: row.github_username, repoUrl: 'https://github.com/' + row.repo, repoInvited: invited, export: exportInfo, amountCents: row.amount_cents,
+    hosting: row.hosting, hostingEndsAt: patch.hosting_end_at ? new Date(patch.hosting_end_at) : row.hosting_end_at ? new Date(row.hosting_end_at) : null,
   }).catch(() => false)
   if (exportInfo && sent) { patch.export_sent_at = now.toISOString(); patch.export_note = 'emailed' }
-  const done = invited && !!(row.export_sent_at || patch.export_sent_at)
+  const hostingNote = String(patch.hosting_note ?? row.hosting_note ?? '')
+  const hostingDone = row.hosting !== 'self' || !!(row.hosting_end_at || patch.hosting_end_at) || hostingNote.startsWith('no subscription')
+  const done = invited && hostingDone && !!(row.export_sent_at || patch.export_sent_at)
   patch.handover_status = done ? 'complete' : 'needs_attention'
   await deps.store.update(row.id, patch)
   row = { ...row, ...patch } as LicenseRow

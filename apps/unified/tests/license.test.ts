@@ -56,7 +56,7 @@ describe('the offer', () => {
       const res = await as('/api/license', tok)
       expect(res.status).toBe(403)
       expect((await res.json()).code).toBe('owner_only')
-      expect((await as('/api/license/checkout', tok, { method: 'POST', json: { githubUsername: 'x', acceptedTerms: true, termsVersion: 'v1' } })).status).toBe(403)
+      expect((await as('/api/license/checkout', tok, { method: 'POST', json: { githubUsername: 'x', acceptedTerms: true, hosting: 'twomiah', termsVersion: 'v1' } })).status).toBe(403)
     }
     expect((await t.call('/api/license')).status).toBe(401)
     expect(seen.length).toBe(before)
@@ -66,24 +66,37 @@ describe('the offer', () => {
 describe('the checkout', () => {
   const post = (json: unknown) => as('/api/license/checkout', owner, { method: 'POST', json })
   test('GitHub name and accepted terms go to the Factory; the owner is handed Stripe’s page', async () => {
-    const res = await post({ githubUsername: 'acme-owner', acceptedTerms: true, termsVersion: 'v1' })
+    const res = await post({ githubUsername: 'acme-owner', acceptedTerms: true, hosting: 'twomiah', termsVersion: 'v1' })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ url: 'https://checkout.stripe.example/c/test' })
     const call = seen.filter((s) => s.path.endsWith('/license-checkout')).pop()!
-    expect(call.body).toEqual({ githubUsername: 'acme-owner', acceptedTerms: true, termsVersion: 'v1' })
+    expect(call.body).toEqual({ githubUsername: 'acme-owner', acceptedTerms: true, hosting: 'twomiah', termsVersion: 'v1' })
   })
   test('terms not accepted, or no GitHub name: refused here, in the error shape with the field named; the Factory is not asked', async () => {
     const before = seen.length
-    const noTerms = await post({ githubUsername: 'acme-owner', acceptedTerms: false, termsVersion: 'v1' })
+    const noTerms = await post({ githubUsername: 'acme-owner', acceptedTerms: false, hosting: 'twomiah', termsVersion: 'v1' })
     expect(noTerms.status).toBe(400)
     expect((await noTerms.json()).fields.acceptedTerms).toMatch(/accept/i)
-    const noName = await post({ githubUsername: '  ', acceptedTerms: true, termsVersion: 'v1' })
+    const noName = await post({ githubUsername: '  ', acceptedTerms: true, hosting: 'twomiah', termsVersion: 'v1' })
     expect(noName.status).toBe(400)
     expect((await noName.json()).fields.githubUsername).toMatch(/GitHub/)
     expect(seen.length).toBe(before)
   })
+  test('the hosting choice is required and goes to the Factory as chosen (both ways)', async () => {
+    const before = seen.length
+    for (const hosting of [undefined, 'both']) {
+      const res = await post({ githubUsername: 'acme-owner', hosting, acceptedTerms: true, termsVersion: 'v1' })
+      expect(res.status).toBe(400)
+      expect((await res.json()).fields.hosting).toMatch(/hosting it/)
+    }
+    expect(seen.length).toBe(before)
+    for (const hosting of ['twomiah', 'self']) {
+      expect((await post({ githubUsername: 'acme-owner', hosting, acceptedTerms: true, termsVersion: 'v1' })).status).toBe(200)
+      expect(seen.filter((s) => s.path.endsWith('/license-checkout')).pop()!.body.hosting).toBe(hosting)
+    }
+  })
   test('the Factory’s own refusal (GitHub has no such user) keeps its sentence', async () => {
-    const res = await post({ githubUsername: 'nobody-here', acceptedTerms: true, termsVersion: 'v1' })
+    const res = await post({ githubUsername: 'nobody-here', acceptedTerms: true, hosting: 'twomiah', termsVersion: 'v1' })
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/no user called/)

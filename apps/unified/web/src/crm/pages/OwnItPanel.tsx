@@ -17,7 +17,9 @@ interface Offer {
   includes: string[]
   terms: string[]
   termsVersion: string
-  license: { paidAt: string; githubUsername: string; amountCents: number; handoverStatus: 'paid' | 'complete' | 'needs_attention'; repoInvited: boolean; exportSent: boolean } | null
+  hostingChoices: Array<{ id: 'twomiah' | 'self'; label: string; effect: string }>
+  periodEnd: string | null
+  license: { paidAt: string; githubUsername: string; amountCents: number; hosting: 'twomiah' | 'self'; hostingEndAt: string | null; handoverStatus: 'paid' | 'complete' | 'needs_attention'; repoInvited: boolean; exportSent: boolean } | null
 }
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
@@ -33,6 +35,8 @@ export default function OwnItPanel() {
   const [loadError, setLoadError] = useState('')
   const [github, setGithub] = useState('')
   const [accepted, setAccepted] = useState(false)
+  // No default: the owner picks, and sees what the pick does, before the button is live.
+  const [hosting, setHosting] = useState<'twomiah' | 'self' | ''>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -44,7 +48,7 @@ export default function OwnItPanel() {
       .catch((e: Error) => { if (alive) setLoadError(e.message || 'The licence could not be loaded.') })
     load()
     // Straight back from Stripe the payment may not have landed yet: look again for a couple of minutes.
-    const timer = justPaid ? setInterval(() => { tries++; if (tries > 24) clearInterval(timer); else load() }, 5000) : null
+    const timer: ReturnType<typeof setInterval> | null = justPaid ? setInterval(() => { tries++; if (tries > 24 && timer) clearInterval(timer); else load() }, 5000) : null
     return () => { alive = false; if (timer) clearInterval(timer) }
   }, [isOwner, justPaid])
 
@@ -55,7 +59,7 @@ export default function OwnItPanel() {
   const buy = async () => {
     setBusy(true); setError('')
     try {
-      const r: { url: string } = await api.post('/api/license/checkout', { githubUsername: github.trim().replace(/^@/, ''), acceptedTerms: true, termsVersion: offer.termsVersion })
+      const r: { url: string } = await api.post('/api/license/checkout', { githubUsername: github.trim().replace(/^@/, ''), hosting, acceptedTerms: true, termsVersion: offer.termsVersion })
       window.location.href = r.url
     } catch (e) {
       setError((e as Error).message || 'The checkout could not be opened.')
@@ -82,7 +86,11 @@ export default function OwnItPanel() {
                 {lic.handoverStatus === 'needs_attention' && (
                   <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />One step did not finish on its own. Our team has been told and will complete it and write to you.</p>
                 )}
-                <p className="text-gray-600 dark:text-slate-300">Your hosted Twomiah service carries on until you end it from the billing portal above.</p>
+                <p className="text-gray-600 dark:text-slate-300">
+                  {lic.hosting === 'self'
+                    ? (lic.hostingEndAt ? `You chose to host it yourself: your Twomiah subscription ends on ${new Date(lic.hostingEndAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}, when the period you already paid for ends. Everything keeps running until then.` : 'You chose to host it yourself: your Twomiah subscription is being set to end when the period you already paid for ends.')
+                    : 'You chose to keep Twomiah hosting it: your subscription carries on until you end it from the billing portal above.'}
+                </p>
               </div>
             ) : justPaid ? (
               <p role="status" className="mt-3 flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Payment received — setting up your handover. This page updates in a minute.</p>
@@ -99,6 +107,18 @@ export default function OwnItPanel() {
                 <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">What it is, and is not</h3>
                 <ul className="mt-1 list-disc space-y-1 rounded-lg border border-gray-200 bg-gray-50 py-3 pl-8 pr-4 text-sm text-gray-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">{offer.terms.map((t) => <li key={t}>{t}</li>)}</ul>
 
+                <fieldset className="mt-4">
+                  <legend className="text-sm font-semibold text-gray-900 dark:text-white">Who hosts it?</legend>
+                  <div className="mt-2 space-y-2">
+                    {offer.hostingChoices.map((h) => (
+                      <label key={h.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${hosting === h.id ? 'border-orange-600 bg-orange-50 dark:border-orange-400 dark:bg-orange-950/30' : 'border-gray-200 dark:border-slate-600'}`}>
+                        <input type="radio" name="own-it-hosting" value={h.id} checked={hosting === h.id} onChange={() => setHosting(h.id)} className="mt-1 h-4 w-4" />
+                        <span><span className="block font-medium text-gray-900 dark:text-white">{h.label}</span><span className="mt-0.5 block text-gray-700 dark:text-slate-200">{h.effect}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
                 <div className="mt-4 max-w-sm">
                   <label htmlFor="own-it-github" className="block text-sm font-medium text-gray-800 dark:text-slate-200">Your GitHub username</label>
                   <input id="own-it-github" value={github} onChange={(e) => setGithub(e.target.value)} autoComplete="off" spellCheck={false} placeholder="acme-builders"
@@ -107,10 +127,10 @@ export default function OwnItPanel() {
                 </div>
                 <label className="mt-4 flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200">
                   <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-1 h-4 w-4" />
-                  <span>I understand this is a licence to run the software for my own business, not to resell it, and that my hosted subscription is not cancelled.</span>
+                  <span>I understand this is a licence to run the software for my own business, not to resell it{hosting === 'self' ? ', and that my Twomiah subscription will end when the period I have already paid for ends.' : hosting === 'twomiah' ? ', and that Twomiah keeps hosting it and my subscription continues.' : '.'}</span>
                 </label>
                 {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">{error}</p>}
-                <button type="button" onClick={buy} disabled={busy || !accepted || !github.trim()}
+                <button type="button" onClick={buy} disabled={busy || !accepted || !github.trim() || !hosting}
                   className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-700 px-4 py-2 text-sm font-medium text-white hover:bg-orange-800 disabled:opacity-60">
                   {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}Buy it outright — {dollars(offer.priceCents!)}
                 </button>

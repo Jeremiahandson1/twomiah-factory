@@ -509,6 +509,9 @@ create table if not exists tenant_licenses (
   export_sent_at        timestamptz,
   export_note           text,
   handover_status       text not null default 'paid',
+  hosting               text not null default 'twomiah' check (hosting in ('twomiah', 'self')),
+  hosting_end_at        timestamptz,
+  hosting_note          text,
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );

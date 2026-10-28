@@ -7,7 +7,7 @@ import { notifyLicenseHandover, notifyStaff } from './email'
 import { logTenantAudit } from '../routes/factory/shared'
 import type { LicenseStore, LicenseRow, HandoverDeps, CheckoutDeps, LicenseTenant } from './ownItLicense'
 
-export const LICENSE_TENANT_COLUMNS = 'id, slug, name, email, admin_email, plan, engine, billing_status, status, is_test_tenant, github_repo, render_backend_url, render_frontend_url, stripe_customer_id, factory_sync_key'
+export const LICENSE_TENANT_COLUMNS = 'id, slug, name, email, admin_email, plan, engine, billing_status, status, is_test_tenant, github_repo, render_backend_url, render_frontend_url, stripe_customer_id, stripe_subscription_id, next_billing_date, factory_sync_key'
 
 const GITHUB = 'https://api.github.com'
 const gh = (p: string, init: RequestInit = {}) => fetch(GITHUB + p, {
@@ -59,6 +59,12 @@ export const handoverDeps: HandoverDeps = {
     if (res.status === 201) return 'invited'
     if (res.status === 204) return 'already'
     throw new Error('GitHub ' + res.status + ' ' + (await res.text().catch(() => '')).slice(0, 200))
+  },
+  async endHostingAtPeriodEnd(t: LicenseTenant) {
+    // At the END of the paid period, never now: Stripe keeps the subscription (and the service) running until then.
+    if (!t.stripe_subscription_id) return null
+    const end = await factoryStripe.endSubscriptionAtPeriodEnd(t.stripe_subscription_id)
+    return { endsAt: end }
   },
   async makeExport(t: LicenseTenant) {
     if (!t.render_backend_url || !t.factory_sync_key) throw new Error('the business app has no address or key on file')
