@@ -5,7 +5,7 @@ import factoryStripe from './factoryStripe'
 import { storeForDownload } from './dataExport'
 import { notifyLicenseHandover, notifyStaff } from './email'
 import { logTenantAudit } from '../routes/factory/shared'
-import type { LicenseStore, LicenseRow, HandoverDeps, CheckoutDeps, LicenseTenant } from './ownItLicense'
+import { readOnlyInviteRefusal, type LicenseStore, type LicenseRow, type HandoverDeps, type CheckoutDeps, type LicenseTenant } from './ownItLicense'
 
 export const LICENSE_TENANT_COLUMNS = 'id, slug, name, email, admin_email, plan, engine, billing_status, status, is_test_tenant, github_repo, render_backend_url, render_frontend_url, stripe_customer_id, stripe_subscription_id, next_billing_date, factory_sync_key'
 
@@ -55,6 +55,11 @@ export const handoverDeps: HandoverDeps = {
   store: licenseStore,
   async inviteCollaborator(repoFull, username) {
     // Read access ('pull'): enough to clone and run it, and the Factory keeps pushing the app's updates to this repo.
+    // Only an organization's repo can give read-only access; anywhere else the invite would grant write — so it is refused.
+    const repo = await gh('/repos/' + repoFull)
+    if (!repo.ok) throw new Error('GitHub ' + repo.status + ' reading ' + repoFull)
+    const refusal = readOnlyInviteRefusal(((await repo.json()) as any)?.owner?.type)
+    if (refusal) throw new Error(refusal)
     const res = await gh('/repos/' + repoFull + '/collaborators/' + encodeURIComponent(username), { method: 'PUT', body: JSON.stringify({ permission: 'pull' }) })
     if (res.status === 201) return 'invited'
     if (res.status === 204) return 'already'

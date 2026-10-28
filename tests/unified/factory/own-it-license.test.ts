@@ -250,3 +250,29 @@ describe('wiring', () => {
     expect(fn).not.toMatch(/factory_customer_id/)
   })
 })
+
+describe('the GitHub invite is read-only or not made', () => {
+  test('only an organization’s repo may be invited to — a personal account’s repo would give the buyer write access', () => {
+    expect(L.readOnlyInviteRefusal('Organization')).toBeNull()
+    expect(L.readOnlyInviteRefusal('User')).toMatch(/cannot give read-only access/)
+    expect(L.readOnlyInviteRefusal(undefined)).toMatch(/cannot give read-only access/)
+  })
+  test('the live invite reads the repo’s owner first and refuses before any PUT', async () => {
+    process.env.SUPABASE_URL ||= 'http://localhost:1'; process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test'
+    const { handoverDeps } = await import('../../../apps/api/src/services/ownItLicenseLive.ts')
+    const real = globalThis.fetch, seen: string[] = []
+    for (const [type, expectPut] of [['User', false], ['Organization', true]] as const) {
+      seen.length = 0
+      globalThis.fetch = (async (url: string, init: any = {}) => {
+        seen.push((init.method || 'GET') + ' ' + String(url).replace('https://api.github.com', ''))
+        return String(url).includes('/collaborators/') ? new Response(null, { status: 201 }) : Response.json({ owner: { type } })
+      }) as any
+      try {
+        const r = handoverDeps.inviteCollaborator('twomiah-apps/acme-app', 'acme-owner')
+        if (expectPut) expect(await r).toBe('invited'); else await expect(r).rejects.toThrow(/read-only/)
+      } finally { globalThis.fetch = real }
+      expect(seen[0]).toBe('GET /repos/twomiah-apps/acme-app')
+      expect(seen.some((x) => x.startsWith('PUT '))).toBe(expectPut)
+    }
+  })
+})

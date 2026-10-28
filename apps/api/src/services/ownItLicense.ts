@@ -195,6 +195,16 @@ export async function startLicenseCheckout(
   return { ok: true, url: session.url, sessionId: session.sessionId, stripeCustomerId: session.stripeCustomerId }
 }
 
+/**
+ * Why a read-only invite cannot be made, or null when it can. GitHub honours `permission: 'pull'` only on a repo an
+ * ORGANIZATION owns; on a personal account's repo every collaborator gets write (docs: "Collaborators can't have read-only
+ * access to repositories owned by a personal account") — a buyer could then push to the repo their live app deploys from.
+ */
+export function readOnlyInviteRefusal(repoOwnerType: string | null | undefined): string | null {
+  return repoOwnerType === 'Organization' ? null
+    : `the repo is owned by a ${repoOwnerType || 'unknown'} account, where GitHub cannot give read-only access — move it to the Twomiah organization first`
+}
+
 export interface HandoverDeps {
   store: LicenseStore
   /** Add the user to the repo with read access. 'invited' (new invitation) | 'already' (already a collaborator). Throws on a refusal. */
