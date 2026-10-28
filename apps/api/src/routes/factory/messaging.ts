@@ -1,10 +1,9 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
-import { getLedger, debit, reloadWallet } from '../../services/messagingWallet'
+import { getLedger, debitHc, reloadWallet } from '../../services/messagingWallet'
 import { withStripeFee } from '../../config/domainPricing'
-import { MESSAGING_LOW_CENTS } from '../../config/messagingCosts'
-import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, aiCostCents } from '../../config/messagingCosts'
+import { MESSAGING_LOW_CENTS, MESSAGING_ENABLE_MONTHLY_CENTS, AI_ENABLE_MONTHLY_CENTS, aiCostHc, smsSegmentHc, smsPriceSummary, centsToHc, hcToCents, walletCentsOf } from '../../config/messagingCosts'
 import { verifyPortalToken, portalUrlFor } from '../../lib/portal'
 import { notifyMessagingLowBalance } from '../../services/email'
 
@@ -58,7 +57,7 @@ const SMS_BILLING_HTML = `<!doctype html>
   var q = new URLSearchParams(location.search);
   var tenant = q.get('tenant'), t = q.get('t');
   var API = location.origin + '/api/v1/factory/internal/messaging/self/' + tenant;
-  function money(c){ return (c<0?'-$':'$') + (Math.abs(c)/100).toFixed(2); }
+  function money(c){ return (c<0?'-$':'$') + (Math.abs(c)/100).toFixed(Number.isInteger(c)?2:4); } // a text is part of a cent
   var LABEL = { topup:'Top-up', auto_reload:'Auto-reload', a2p_registration:'SMS registration', a2p_brand:'Carrier registration (business)', a2p_campaign_vetting:'Carrier review (texting)', monthly_campaign:'Monthly fee', sms_segment:'SMS segments', ai_tokens:'AI tokens', test_grant:'Credit from Twomiah' };
   function el(h){ var d=document.createElement('div'); d.innerHTML=h; return d.firstElementChild; }
   async function api(path, method, body){
@@ -113,14 +112,14 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: t, error } = await supabase.from('tenants')
-      .select('messaging_enabled, messaging_enabled_at, messaging_wallet_cents, ai_enabled, ai_enabled_at').eq('id', id).single()
+      .select('messaging_enabled, messaging_enabled_at, messaging_wallet_hc, ai_enabled, ai_enabled_at').eq('id', id).single()
     if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
     let ledger: any[] = []
     try { ledger = await getLedger(id, 50) } catch { /* table may be empty */ }
     return c.json({
       enabled: !!t.messaging_enabled,
       enabledAt: t.messaging_enabled_at || null,
-      walletCents: t.messaging_wallet_cents ?? 0,
+      walletCents: walletCentsOf(t),
       enableMonthlyCents: MESSAGING_ENABLE_MONTHLY_CENTS,
       aiEnabled: !!t.ai_enabled,
       aiEnabledAt: t.ai_enabled_at || null,
@@ -250,14 +249,14 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const outTok = Math.round(Number(parsed.data?.outputTokens) || 0)
     if (inTok < 0 || outTok < 0 || (inTok === 0 && outTok === 0)) return c.json({ error: 'inputTokens/outputTokens required' }, 400)
     const model = typeof parsed.data?.model === 'string' ? parsed.data.model : undefined
-    const cents = aiCostCents(inTok, outTok, model)
+    const hc = aiCostHc(inTok, outTok, model)
     try {
       let balance: number | undefined
-      if (cents > 0) balance = await debit(tenantId, cents, 'ai_tokens', {
+      if (hc > 0) balance = await debitHc(tenantId, hc, 'ai_tokens', {
         twilioRef: model,
         allowNegative: true,
       })
-      return c.json({ success: true, cents, balance })
+      return c.json({ success: true, cents: hcToCents(hc), hc, balance })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
@@ -277,12 +276,15 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     if (parsed.error) return parsed.error
     const segments = Math.round(Number(parsed.data?.segments))
     if (!Number.isFinite(segments) || segments <= 0 || segments > 1000) return c.json({ error: 'segments must be 1–1000' }, 400)
+    // `carrier` is optional: named, the text is charged that carrier's fee; not named, the blended fee
+    // (config/messagingCosts.ts says why). The price is exact — hundredths of a cent, never rounded.
+    const hc = segments * smsSegmentHc(parsed.data?.carrier)
     try {
-      const balance = await debit(tenantId, segments * TWILIO_COSTS.perSegmentCents, 'sms_segment', {
+      const balance = await debitHc(tenantId, hc, 'sms_segment', {
         twilioRef: typeof parsed.data?.twilioSid === 'string' ? parsed.data.twilioSid : undefined,
         allowNegative: true,
       })
-      return c.json({ success: true, balance })
+      return c.json({ success: true, balance, chargedHc: hc })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
@@ -292,9 +294,9 @@ export function registerMessagingRoutes(factory: FactoryApp) {
   factory.get('/internal/messaging/balance/:tenantId', async (c) => {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, messaging_wallet_cents, messaging_enabled').eq('id', tenantId).single()
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, messaging_wallet_hc, messaging_enabled').eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
-    return c.json({ walletCents: tenant.messaging_wallet_cents ?? 0, enabled: !!tenant.messaging_enabled })
+    return c.json({ walletCents: walletCentsOf(tenant), walletHc: Number(tenant.messaging_wallet_hc ?? 0), enabled: !!tenant.messaging_enabled })
   })
 
   // ─── Tenant self-serve billing (CRM → factory, X-Factory-Key) ────────────────
@@ -329,8 +331,9 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     try { ledger = await getLedger(t.id, 50) } catch { /* empty */ }
     return c.json({
       enabled: !!t.messaging_enabled, aiEnabled: !!t.ai_enabled,
-      walletCents: t.messaging_wallet_cents ?? 0,
+      walletCents: walletCentsOf(t),
       enableMonthlyCents: MESSAGING_ENABLE_MONTHLY_CENTS, aiEnableMonthlyCents: AI_ENABLE_MONTHLY_CENTS,
+      textPrice: smsPriceSummary(),
       ledger,
     })
   })
@@ -377,19 +380,19 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     try {
       const cutoff = new Date(Date.now() - 3 * 86_400_000).toISOString()
       const { data: rows } = await supabase.from('tenants')
-        .select('id, name, email, stripe_customer_id, messaging_wallet_cents, messaging_nudged_at')
-        .eq('messaging_enabled', true).lt('messaging_wallet_cents', MESSAGING_LOW_CENTS)
+        .select('id, name, email, stripe_customer_id, messaging_wallet_hc, messaging_nudged_at')
+        .eq('messaging_enabled', true).lt('messaging_wallet_hc', centsToHc(MESSAGING_LOW_CENTS))
       let nudged = 0, reloaded = 0
       for (const t of rows || []) {
         if (t.messaging_nudged_at && t.messaging_nudged_at > cutoff) continue
         try {
           // Reload from the card on file first (services/messagingWallet.ts reloadWallet); only a business without a
           // card, or whose card failed, is asked by email — with the Stripe invoice to pay when there is one.
-          const r = await reloadWallet(t, Math.max(0, -(t.messaging_wallet_cents ?? 0)))
+          const r = await reloadWallet(t, Math.max(0, -walletCentsOf(t)))
           await supabase.from('tenants').update({ messaging_nudged_at: new Date().toISOString() }).eq('id', t.id)
           if (r.paid) { reloaded++; continue }
           if (!t.email) continue
-          await notifyMessagingLowBalance({ name: t.name, email: t.email }, r.hostedUrl || portalUrlFor(t.id), t.messaging_wallet_cents ?? 0)
+          await notifyMessagingLowBalance({ name: t.name, email: t.email }, r.hostedUrl || portalUrlFor(t.id), walletCentsOf(t))
           nudged++
         } catch (e: any) { console.error('[Messaging] low-balance nudge failed for', t.id, e?.message || e) }
       }

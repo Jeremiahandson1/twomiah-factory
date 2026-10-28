@@ -30,7 +30,7 @@ const sid = (p: string) => p + String(++seq).padStart(32 - p.length + 2, '0')
 const realFetch = globalThis.fetch
 beforeEach(() => {
   // the wallet's own database call (messaging_wallet_apply), recorded — the wallet module itself is the real one
-  supabase.rpc = async (_fn: string, a: any) => { debits.push({ tenantId: a.p_tenant, cents: a.p_amount, reason: a.p_reason }); return { data: 0, error: null } }
+  supabase.rpc = async (_fn: string, a: any) => { debits.push({ tenantId: a.p_tenant, cents: a.p_amount / 100, reason: a.p_reason }); return { data: 0, error: null } }
   calls = []; seq = 0; debits.length = 0
   brand = { status: 'PENDING', identity_status: 'UNVERIFIED' }; campaignStatus = 'PENDING'; evaluation = 'compliant'
   globalThis.fetch = (async (input: any, init: any = {}) => {
@@ -76,7 +76,7 @@ const seed = (data: any) => {
   // one store for the whole file (the module under test holds it): reseeded, never replaced
   supabase.tables.tenants = [{
     id: 't-1', name: 'Acme Remodeling', phone: '715-555-0100', domain: 'acme.example', render_backend_url: 'https://acme-app.test',
-    factory_sync_key: 'acme-key', messaging_enabled: true, messaging_wallet_cents: 5000, a2p_status: 'collected', a2p_data: encryptJSON(data),
+    factory_sync_key: 'acme-key', messaging_enabled: true, messaging_wallet_hc: 500000, a2p_status: 'collected', a2p_data: encryptJSON(data),
   }]
 }
 const tenant = () => supabase.tables.tenants[0]

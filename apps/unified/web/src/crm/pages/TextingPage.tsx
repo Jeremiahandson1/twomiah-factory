@@ -20,7 +20,9 @@ interface Registration {
   submittedAt: string | null
   messagingEnabled: boolean
   walletCents: number
-  fees: { brandCents: number; campaignVettingCents: number; segmentCents: number; startCents?: number }
+  fees: { brandCents: number; campaignVettingCents: number; segmentCents: number; segmentHc?: number; startCents?: number }
+  /** What one text segment costs, in hundredths of a cent (the Factory's config/messagingCosts.ts). */
+  textPrice?: { segmentHc: number; minHc: number; maxHc: number; twilioHc: number; carrierFeeHc: number; checked: string }
   error?: string
 }
 
@@ -34,6 +36,14 @@ const INDUSTRIES: Array<[string, string]> = [
   ['TRANSPORTATION', 'Transportation'], ['NOT_FOR_PROFIT', 'Not for profit'],
 ]
 const money = (c: number) => formatMoney((c / 100))
+/** Hundredths of a cent → "1.26¢" (a text costs part of a cent, so no rounding to whole cents). */
+const hcLabel = (hc: number) => `${+(hc / 100).toFixed(2)}¢`
+/** The real price of one text, said plainly. */
+function textPriceLine(reg: Registration): string {
+  const p = reg.textPrice
+  if (!p) return `${hcLabel(reg.fees.segmentHc ?? reg.fees.segmentCents * 100)} per text`
+  return `${hcLabel(p.segmentHc)} per text segment (Twilio ${hcLabel(p.twilioHc)} + the carrier's fee ${hcLabel(p.carrierFeeHc)}; ${hcLabel(p.minHc)}–${hcLabel(p.maxHc)} by carrier)`
+}
 const pretty = (e164: string) => e164.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3')
 
 const CARD = 'bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-6'
@@ -127,13 +137,14 @@ export default function TextingPage() {
           <div className="flex items-center gap-2 text-green-800 dark:text-green-300 font-semibold"><CheckCircle2 className="w-5 h-5" />Texting is live</div>
           <p className="mt-2 text-gray-900 dark:text-slate-100 text-lg">{sender.phoneNumber ? pretty(sender.phoneNumber) : 'Your number'}</p>
           <p className={MUTED + ' mt-1'}>Texts to your customers go out from this number, and their replies arrive in Messages.</p>
+          {reg && !reg.error && <p className={MUTED + ' mt-3'} data-testid="text-price">Each text is paid from your texting wallet ({money(reg.walletCents)} now), at cost: {textPriceLine(reg)}. A long message is more than one segment.</p>}
         </div>
       ) : reg?.error ? (
         <div className={CARD}><p className={MUTED}>Texting setup isn't available right now ({reg.error}).</p></div>
       ) : reg && !reg.messagingEnabled ? (
         <div className={CARD}>
           <h2 className="font-semibold text-gray-900 dark:text-white">Turn on texting</h2>
-          <p className={MUTED + ' mt-1'}>Texting is $10 a month, which covers your number and the carriers' monthly fee. To start, you add {money(start)} to your texting wallet — {money(upfront)} for the one-time carrier registration, the rest for your first texts. After that the wallet pays only for texts, {money(reg.fees.segmentCents)} each at cost. {reloadTerms}</p>
+          <p className={MUTED + ' mt-1'}>Texting is $10 a month, which covers your number and the carriers' monthly fee. To start, you add {money(start)} to your texting wallet — {money(upfront)} for the one-time carrier registration, the rest for your first texts. After that the wallet pays only for texts, at cost: {textPriceLine(reg)}. {reloadTerms}</p>
           {mayRegister ? <button type="button" className={BTN + ' mt-4'} onClick={openBilling}>Turn on texting</button> : <p className={MUTED + ' mt-3'}>An owner or admin can turn it on.</p>}
         </div>
       ) : inReview ? (
@@ -163,7 +174,7 @@ export default function TextingPage() {
             <div className={CARD + ' space-y-5'}>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-white">Register your business for texting</h2>
-                <p className={MUTED + ' mt-1'}>The phone carriers require every business that texts customers to register. Costs, from your texting wallet ({money(reg!.walletCents)} now): {money(upfront)} once, then {money(reg!.fees.segmentCents)} per text. Your number and the monthly carrier fee are covered by the $10 a month. {reloadTerms}</p>
+                <p className={MUTED + ' mt-1'}>The phone carriers require every business that texts customers to register. Costs, from your texting wallet ({money(reg!.walletCents)} now): {money(upfront)} once, then {textPriceLine(reg!)}. Your number and the monthly carrier fee are covered by the $10 a month. {reloadTerms}</p>
                 {short > 0 && (
                   <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 text-sm">
                     Add {money(short)} to your texting wallet to register — {money(start)} starts texting.

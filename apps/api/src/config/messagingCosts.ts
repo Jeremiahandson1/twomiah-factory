@@ -27,8 +27,77 @@ export const TWILIO_COSTS = {
   // Low-Volume Standard brand (Twilio's fee table of 2025-08-01: $4.50; services/a2p.ts registers that kind).
   brandRegistrationCents: int('TWILIO_A2P_BRAND_CENTS', 450),
   campaignVettingCents:   int('TWILIO_A2P_CAMPAIGN_VET_CENTS', 1500), // ~$15 one-time
-  // Per outbound SMS segment: Twilio message price + carrier pass-through fee.
-  perSegmentCents:        int('TWILIO_SMS_SEGMENT_CENTS', 1),      // ~$0.01/segment
+}
+
+// ── Money units ──────────────────────────────────────────────────────────────
+// The wallet and its ledger are kept in HUNDREDTHS OF A CENT ("hc"; $1 = 10,000 hc), the finest unit Twilio quotes
+// ($0.0083 = 83 hc), as whole integers — so a text costs exactly what it costs and thousands of them add up with no
+// rounding. Everything else in the Factory speaks whole cents; HC_PER_CENT converts at the wallet's edge.
+export const HC_PER_CENT = 100
+export const HC_PER_DOLLAR = 10_000
+export const centsToHc = (cents: number): number => Math.round(cents * HC_PER_CENT)
+/** Hundredths of a cent → cents, possibly fractional (2499.57 = $24.9957). Exact: hc is an integer. */
+export const hcToCents = (hc: number): number => hc / HC_PER_CENT
+
+/** A dollar amount from the environment ("0.0083") → hc. Anything that is not a non-negative number is the fallback. */
+const usdHc = (envKey: string, fallbackHc: number): number => {
+  const v = parseFloat(process.env[envKey] || '')
+  return Number.isFinite(v) && v >= 0 ? Math.round(v * HC_PER_DOLLAR) : fallbackHc
+}
+
+/**
+ * What one outbound US text segment costs us, from Twilio's US SMS price page (checked 2026-10-27):
+ *   Twilio's own price   $0.0083 per segment (every carrier)
+ *   + the carrier's fee  AT&T $0.0035 · T-Mobile $0.0045 · Verizon $0.0050
+ * Each is env-overridable in DOLLARS, so a price change is a setting, not a deploy:
+ *   TWILIO_SMS_SEGMENT_USD, CARRIER_FEE_ATT_USD, CARRIER_FEE_TMOBILE_USD, CARRIER_FEE_VERIZON_USD,
+ *   CARRIER_FEE_BLENDED_USD.
+ *
+ * WHICH carrier a text went through is not something the send tells us: Twilio's Message resource carries no carrier,
+ * and a Lookup per text would cost more than the fee it settles. So a usage report that names the carrier is charged
+ * that carrier's fee, and one that does not (today: every one) is charged the BLENDED fee — the plain average of the
+ * three, $0.0043 (rounded to the hundredth of a cent), unless CARRIER_FEE_BLENDED_USD says otherwise. A blended text
+ * is therefore up to 0.07¢ under or over its true cost; over many texts the difference is the carrier mix.
+ */
+const CARRIER_FEES_DEFAULT_HC = { att: 35, tmobile: 45, verizon: 50 }
+export const SMS_PRICING = {
+  checked: '2026-10-27',
+  twilioSegmentHc: usdHc('TWILIO_SMS_SEGMENT_USD', 83),
+  carrierFeeHc: {
+    att:     usdHc('CARRIER_FEE_ATT_USD', CARRIER_FEES_DEFAULT_HC.att),
+    tmobile: usdHc('CARRIER_FEE_TMOBILE_USD', CARRIER_FEES_DEFAULT_HC.tmobile),
+    verizon: usdHc('CARRIER_FEE_VERIZON_USD', CARRIER_FEES_DEFAULT_HC.verizon),
+  },
+  blendedCarrierFeeHc: 0,
+}
+SMS_PRICING.blendedCarrierFeeHc = usdHc('CARRIER_FEE_BLENDED_USD',
+  Math.round((SMS_PRICING.carrierFeeHc.att + SMS_PRICING.carrierFeeHc.tmobile + SMS_PRICING.carrierFeeHc.verizon) / 3))
+
+export type SmsCarrier = keyof typeof CARRIER_FEES_DEFAULT_HC
+
+/** Carrier names → one of the three the fee table prices (Sprint is T-Mobile now). Unknown → null (blended). */
+export function normalizeCarrier(name?: unknown): SmsCarrier | null {
+  const n = String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!n) return null
+  if (n.startsWith('att') || n.includes('cingular')) return 'att'
+  if (n.includes('tmobile') || n.includes('sprint')) return 'tmobile'
+  if (n.includes('verizon')) return 'verizon'
+  return null
+}
+
+/** One segment, in hc: Twilio's price plus the named carrier's fee, or the blended fee when it is not named. */
+export function smsSegmentHc(carrier?: unknown): number {
+  const c = normalizeCarrier(carrier)
+  return SMS_PRICING.twilioSegmentHc + (c ? SMS_PRICING.carrierFeeHc[c] : SMS_PRICING.blendedCarrierFeeHc)
+}
+
+/** What the Texting page shows: the blended price per segment and the range over the three carriers, in hc. */
+export function smsPriceSummary() {
+  const fees = Object.values(SMS_PRICING.carrierFeeHc).map((f) => SMS_PRICING.twilioSegmentHc + f)
+  return {
+    segmentHc: smsSegmentHc(), minHc: Math.min(...fees), maxHc: Math.max(...fees),
+    twilioHc: SMS_PRICING.twilioSegmentHc, carrierFeeHc: SMS_PRICING.blendedCarrierFeeHc, checked: SMS_PRICING.checked,
+  }
 }
 
 /**
@@ -86,3 +155,12 @@ export function aiCostCents(inputTokens: number, outputTokens: number, model?: s
     + (Math.max(0, outputTokens) / 1e6) * rate.out
   return Math.round(cents)
 }
+
+/** The same cost in hundredths of a cent — what the wallet is debited, so a sub-cent call is not rounded to 0 or 1¢. */
+export function aiCostHc(inputTokens: number, outputTokens: number, model?: string): number {
+  const rate = aiRateForModel(model)
+  return Math.round(((Math.max(0, inputTokens) / 1e6) * rate.in + (Math.max(0, outputTokens) / 1e6) * rate.out) * HC_PER_CENT)
+}
+
+/** A tenants row wallet in cents (fractional when it holds part of a cent). */
+export const walletCentsOf = (t: { messaging_wallet_hc?: unknown } | null | undefined): number => hcToCents(Number(t?.messaging_wallet_hc ?? 0))

@@ -3,7 +3,7 @@ import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecre
 import { encryptJSON, decryptJSON, maskTail } from '../../lib/crypto'
 import { provisionA2p, pollA2pStatus, pollAllPendingA2p, resendOwnerConfirmation, a2pDataProblem, e164, type A2pData } from '../../services/a2p'
 import { debit } from '../../services/messagingWallet'
-import { TWILIO_COSTS, MESSAGING_START_CENTS } from '../../config/messagingCosts'
+import { TWILIO_COSTS, MESSAGING_START_CENTS, hcToCents, smsSegmentHc, smsPriceSummary, walletCentsOf } from '../../config/messagingCosts'
 
 // Each business's own texting registration (A2P 10DLC) — services/a2p.ts has the Twilio flow.
 //
@@ -29,8 +29,8 @@ async function summary(t: any) {
     submittedAt: t.a2p_submitted_at || null,
     approvedAt: t.a2p_approved_at || null,
     messagingEnabled: !!t.messaging_enabled,
-    walletCents: t.messaging_wallet_cents ?? 0,
-    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, segmentCents: TWILIO_COSTS.perSegmentCents, startCents: MESSAGING_START_CENTS },
+    walletCents: walletCentsOf(t),
+    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, segmentCents: hcToCents(smsSegmentHc()), segmentHc: smsSegmentHc(), startCents: MESSAGING_START_CENTS }, textPrice: smsPriceSummary(),
   }
 }
 
@@ -68,8 +68,8 @@ async function submitRegistration(tenantId: string, body: any, actor: string): P
   // $25 — owner, 2026-10-21). Resuming a registration whose fees are already paid needs only what is still owed.
   const upfront = (t.a2p_brand_sid ? 0 : TWILIO_COSTS.brandRegistrationCents) + (t.a2p_campaign_sid ? 0 : TWILIO_COSTS.campaignVettingCents)
   const needed = t.a2p_brand_sid ? upfront : Math.max(MESSAGING_START_CENTS, upfront)
-  if ((t.messaging_wallet_cents ?? 0) < needed) {
-    const short = needed - (t.messaging_wallet_cents ?? 0)
+  if (walletCentsOf(t) < needed) {
+    const short = Math.ceil(needed - walletCentsOf(t))
     return { code: 402, json: { error: `Add $${(short / 100).toFixed(2)} to your texting wallet first: $${(needed / 100).toFixed(2)} starts texting — $${(upfront / 100).toFixed(2)} for the one-time carrier registration, the rest for your first texts.`, code: 'insufficient_wallet', requiredCents: needed } }
   }
   const hadBrand = !!t.a2p_brand_sid

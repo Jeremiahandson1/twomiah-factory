@@ -15,10 +15,10 @@ const store: any = sharedFactoryDb
 const ledger: any[] = []
 const walletRpc = async (_fn: string, a: any) => {
   const t = store.tables.tenants.find((r: any) => r.id === a.p_tenant)
-  const next = (t.messaging_wallet_cents ?? 0) + (a.p_kind === 'credit' ? a.p_amount : -a.p_amount)
+  const next = (t.messaging_wallet_hc ?? 0) + (a.p_kind === 'credit' ? a.p_amount : -a.p_amount)
   if (next < 0 && !a.p_allow_negative) return { data: null, error: { message: 'insufficient balance' } }
-  t.messaging_wallet_cents = next
-  const row = { id: 'l' + ledger.length, tenant_id: a.p_tenant, kind: a.p_kind, amount_cents: a.p_amount, reason: a.p_reason, stripe_ref: a.p_stripe_ref, created_at: new Date().toISOString() }
+  t.messaging_wallet_hc = next
+  const row = { id: 'l' + ledger.length, tenant_id: a.p_tenant, kind: a.p_kind, amount_hc: a.p_amount, balance_after_hc: next, reason: a.p_reason, stripe_ref: a.p_stripe_ref, created_at: new Date().toISOString() }
   ledger.push(row); store.tables.messaging_ledger = ledger
   return { data: next, error: null }
 }
@@ -34,7 +34,7 @@ const { withStripeFee } = await import('../../../apps/api/src/config/domainPrici
 const { creditOnce, reloadWallet } = await import('../../../apps/api/src/services/messagingWallet.ts')
 const { encryptJSON } = await import('../../../apps/api/src/lib/crypto.ts')
 
-const tenant = (over: any = {}) => ({ id: 't-1', name: 'Acme', email: 'owner@acme.example', stripe_customer_id: 'cus_1', messaging_enabled: true, messaging_wallet_cents: 0, a2p_status: 'approved', a2p_phone_number: 'PN1', a2p_number_monthly_cents: 115, factory_sync_key: 'acme-key', ...over })
+const tenant = (over: any = {}) => ({ id: 't-1', name: 'Acme', email: 'owner@acme.example', stripe_customer_id: 'cus_1', messaging_enabled: true, messaging_wallet_hc: 0, a2p_status: 'approved', a2p_phone_number: 'PN1', a2p_number_monthly_cents: 115, factory_sync_key: 'acme-key', ...over })
 
 test('a $25 top-up charges $26.06 — the card fee on top — and the wallet is credited $25', () => {
   expect(withStripeFee(2500)).toBe(2606)
@@ -43,11 +43,11 @@ test('a $25 top-up charges $26.06 — the card fee on top — and the wallet is 
 
 describe('one Stripe payment, one credit', () => {
   test('the same payment delivered twice credits once', async () => {
-    store.tables.tenants = [tenant({ messaging_wallet_cents: 0 })]
+    store.tables.tenants = [tenant({ messaging_wallet_hc: 0 })]
     ledger.length = 0
     expect(await creditOnce('t-1', 2500, 'topup', 'pi_1')).toBe(2500)
     expect(await creditOnce('t-1', 2500, 'topup', 'pi_1')).toBeNull()
-    expect(store.tables.tenants[0].messaging_wallet_cents).toBe(2500)
+    expect(store.tables.tenants[0].messaging_wallet_hc).toBe(250000)
     expect(await creditOnce('t-1', 2500, 'topup', 'pi_2')).toBe(5000)
   })
 })
@@ -84,7 +84,7 @@ describe('the $10 a month covers the line', () => {
     walk(root)
     expect(hits).toEqual([])
     const costs = await import('../../../apps/api/src/config/messagingCosts.ts')
-    expect(Object.keys(costs.TWILIO_COSTS).sort()).toEqual(['brandRegistrationCents', 'campaignVettingCents', 'perSegmentCents'])
+    expect(Object.keys(costs.TWILIO_COSTS).sort()).toEqual(['brandRegistrationCents', 'campaignVettingCents'])
   })
 })
 
@@ -100,7 +100,7 @@ describe('$25 starts texting', () => {
   const submit = () => app.request('/internal/messaging/self/11111111-1111-4111-8111-111111111111/registration', { method: 'POST', headers: { 'X-Factory-Key': 'acme-key', 'content-type': 'application/json' }, body: '{}' })
 
   test('$19.50 in the wallet is not enough to start; the answer says why and how much to add', async () => {
-    store.tables.tenants = [tenant({ id: '11111111-1111-4111-8111-111111111111', a2p_status: 'collected', a2p_data: details, messaging_wallet_cents: 1950 })]
+    store.tables.tenants = [tenant({ id: '11111111-1111-4111-8111-111111111111', a2p_status: 'collected', a2p_data: details, messaging_wallet_hc: 195000 })]
     const r = await submit()
     expect(r.status).toBe(402)
     const j = await r.json()
@@ -111,7 +111,7 @@ describe('$25 starts texting', () => {
   })
 
   test('$25 is: the registration goes ahead (to Twilio — which this test never reaches)', async () => {
-    store.tables.tenants = [tenant({ id: '11111111-1111-4111-8111-111111111111', a2p_status: 'collected', a2p_data: details, messaging_wallet_cents: 2500 })]
+    store.tables.tenants = [tenant({ id: '11111111-1111-4111-8111-111111111111', a2p_status: 'collected', a2p_data: details, messaging_wallet_hc: 250000 })]
     const realFetch = globalThis.fetch
     const asked: string[] = []
     globalThis.fetch = (async (u: any) => { asked.push(String(u)); return new Response('{"message":"no network in tests"}', { status: 503 }) }) as any

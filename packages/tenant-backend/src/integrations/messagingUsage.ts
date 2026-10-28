@@ -9,14 +9,15 @@ function cfg() {
   return { url: process.env.FACTORY_URL, key: process.env.FACTORY_SYNC_KEY, tenantId: process.env.TENANT_ID }
 }
 
-export function reportSmsUsage(segments: number, twilioSid?: string): void {
+/** `carrier` (AT&T, T-Mobile, Verizon) is passed only when the caller knows it; the Factory prices an unnamed one at the blended rate. */
+export function reportSmsUsage(segments: number, twilioSid?: string, carrier?: string): void {
   const { url, key, tenantId } = cfg()
   const seg = Math.max(1, Math.round(Number(segments) || 1))
   if (!url || !key || !tenantId) return
   fetch(`${url}/api/v1/factory/internal/messaging/usage/${tenantId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Factory-Key': key },
-    body: JSON.stringify({ segments: seg, twilioSid }),
+    body: JSON.stringify({ segments: seg, twilioSid, carrier }),
     signal: AbortSignal.timeout(5000),
   }).then(r => (r.ok ? r.json() : null)).then(d => {
     if (d && typeof d.balance === 'number') { _balanceCents = d.balance; _at = Date.now() }

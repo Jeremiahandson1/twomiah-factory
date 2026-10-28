@@ -18,7 +18,8 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
     let limit = Infinity
     const within: Array<[string, any[]]> = []
     const atLeast: Array<[string, any]> = []
-    const match = (r: Row) => where.every(([k, v]) => r[k] === v) && within.every(([k, vs]) => vs.includes(r[k])) && atLeast.every(([k, v]) => r[k] >= v)
+    const below: Array<[string, any]> = []
+    const match = (r: Row) => where.every(([k, v]) => r[k] === v) && within.every(([k, vs]) => vs.includes(r[k])) && atLeast.every(([k, v]) => r[k] >= v) && below.every(([k, v]) => r[k] < v)
     const run = (): { data: any; error: any } => {
       if (op === 'insert') return { data: inserted, error: null }
       if (op === 'delete') {
@@ -51,6 +52,7 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
       eq: (k: string, v: any) => { where.push([k, v]); return q },
       in: (k: string, vs: any[]) => { within.push([k, vs]); return q },
       gte: (k: string, v: any) => { atLeast.push([k, v]); return q },
+      lt: (k: string, v: any) => { below.push([k, v]); return q },
       order: (k: string, o: { ascending?: boolean } = {}) => { order = [k, o.ascending !== false]; return q },
       limit: (x: number) => { limit = x; return q },
       single: async () => { const { data } = run(); const r = Array.isArray(data) ? data[0] : data; return r ? { data: { ...r }, error: null } : { data: null, error: { code: 'PGRST116', message: 'no row' } } },

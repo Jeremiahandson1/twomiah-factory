@@ -22,7 +22,8 @@ type Props = {
 }
 
 const INPUT = 'w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500'
-const money = (cents: number) => (cents < 0 ? '-$' : '$') + (Math.abs(cents) / 100).toFixed(2)
+// A text costs part of a cent, so a fractional amount shows its four decimals ($0.0126).
+const money = (cents: number) => (cents < 0 ? '-$' : '$') + (Math.abs(cents) / 100).toFixed(Number.isInteger(cents) ? 2 : 4)
 const REASON_LABEL: Record<string, string> = {
   topup: 'Top-up', a2p_registration: 'A2P registration', monthly_campaign: 'Monthly campaign fee',
   sms_segment: 'SMS segments', ai_tokens: 'AI tokens',

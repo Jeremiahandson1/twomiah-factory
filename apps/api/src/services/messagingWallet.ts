@@ -1,5 +1,5 @@
 import { supabase } from '../middleware/auth'
-import { MESSAGING_RELOAD_CENTS } from '../config/messagingCosts'
+import { MESSAGING_RELOAD_CENTS, centsToHc, hcToCents } from '../config/messagingCosts'
 import { withStripeFee } from '../config/domainPricing'
 
 // Prepaid messaging wallet — tenants pre-fund it, and Twilio costs (the one-time
@@ -11,26 +11,34 @@ import { withStripeFee } from '../config/domainPricing'
 // All mutations go through the atomic messaging_wallet_apply() SQL function
 // (migrations/2026-07-20_messaging_wallet.sql) so concurrent per-message debits
 // can't lose updates. Balance + ledger stay consistent in one transaction.
+//
+// MONEY UNIT. The wallet and ledger hold HUNDREDTHS OF A CENT (messaging_wallet_hc, messaging_ledger.amount_hc /
+// balance_after_hc — whole integers, so nothing is ever rounded: config/messagingCosts.ts). The functions here that
+// take or return "cents" convert at the edge; a balance in cents can therefore be fractional (2499.57). The
+// *_cents columns still exist as whole-cent copies (generated from the hc ones) for anything that reads them in SQL.
 
 export type LedgerEntry = {
   id: string
   kind: 'credit' | 'debit'
+  /** Cents, possibly fractional (1.26 for one text). Exact: amount_hc / 100. */
   amount_cents: number
+  amount_hc: number
   reason: string
   twilio_ref: string | null
   stripe_ref: string | null
   balance_after_cents: number
+  balance_after_hc: number
   created_at: string
 }
 
 async function apply(
   tenantId: string,
   kind: 'credit' | 'debit',
-  cents: number,
+  hc: number,
   reason: string,
   refs: { twilioRef?: string; stripeRef?: string; allowNegative?: boolean } = {},
 ): Promise<number> {
-  const amount = Math.round(cents)
+  const amount = Math.round(hc)
   const { data, error } = await supabase.rpc('messaging_wallet_apply', {
     p_tenant: tenantId,
     p_kind: kind,
@@ -44,25 +52,35 @@ async function apply(
     // Surface the SQL RAISE messages ('insufficient balance', 'tenant not found')
     throw new Error(error.message || 'wallet operation failed')
   }
-  return data as number // new balance in cents
+  return Number(data) // new balance in hundredths of a cent
 }
 
-export async function getBalance(tenantId: string): Promise<number> {
-  const { data, error } = await supabase.from('tenants').select('messaging_wallet_cents').eq('id', tenantId).single()
+/** The wallet in hundredths of a cent. */
+export async function getBalanceHc(tenantId: string): Promise<number> {
+  const { data, error } = await supabase.from('tenants').select('messaging_wallet_hc').eq('id', tenantId).single()
   if (error) throw new Error(error.message)
-  return data?.messaging_wallet_cents ?? 0
+  return Number(data?.messaging_wallet_hc ?? 0)
+}
+
+/** The wallet in cents (fractional when it holds part of a cent). */
+export async function getBalance(tenantId: string): Promise<number> {
+  return hcToCents(await getBalanceHc(tenantId))
 }
 
 export async function getLedger(tenantId: string, limit = 50): Promise<LedgerEntry[]> {
   const { data, error } = await supabase.from('messaging_ledger')
-    .select('id, kind, amount_cents, reason, twilio_ref, stripe_ref, balance_after_cents, created_at')
+    .select('id, kind, amount_hc, reason, twilio_ref, stripe_ref, balance_after_hc, created_at')
     .eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(limit)
   if (error) throw new Error(error.message)
-  return (data as LedgerEntry[]) || []
+  return ((data as any[]) || []).map((r) => ({
+    ...r,
+    amount_hc: Number(r.amount_hc), balance_after_hc: Number(r.balance_after_hc),
+    amount_cents: hcToCents(Number(r.amount_hc)), balance_after_cents: hcToCents(Number(r.balance_after_hc)),
+  }))
 }
 
-export function credit(tenantId: string, cents: number, reason: string, refs?: { twilioRef?: string; stripeRef?: string }): Promise<number> {
-  return apply(tenantId, 'credit', cents, reason, refs)
+export async function credit(tenantId: string, cents: number, reason: string, refs?: { twilioRef?: string; stripeRef?: string }): Promise<number> {
+  return hcToCents(await apply(tenantId, 'credit', centsToHc(cents), reason, refs))
 }
 
 /**
@@ -72,14 +90,19 @@ export function credit(tenantId: string, cents: number, reason: string, refs?: {
 export async function creditOnce(tenantId: string, cents: number, reason: string, stripeRef: string): Promise<number | null> {
   const { data: prior } = await supabase.from('messaging_ledger').select('id').eq('tenant_id', tenantId).eq('kind', 'credit').eq('stripe_ref', stripeRef).limit(1)
   if (prior && prior.length) return null
-  return apply(tenantId, 'credit', cents, reason, { stripeRef })
+  return hcToCents(await apply(tenantId, 'credit', centsToHc(cents), reason, { stripeRef }))
 }
 
 // Debit at cost. Throws 'insufficient balance' if it would overdraw (unless
 // allowNegative — used for post-paid costs Twilio already charged us, where we
 // let the wallet go negative and the tenant tops up to clear it).
-export function debit(tenantId: string, cents: number, reason: string, refs?: { twilioRef?: string; allowNegative?: boolean }): Promise<number> {
-  return apply(tenantId, 'debit', cents, reason, refs)
+export async function debit(tenantId: string, cents: number, reason: string, refs?: { twilioRef?: string; allowNegative?: boolean }): Promise<number> {
+  return hcToCents(await apply(tenantId, 'debit', centsToHc(cents), reason, refs))
+}
+
+/** The same, in hundredths of a cent — what a text or an AI call is debited, exactly. Returns the balance in cents. */
+export async function debitHc(tenantId: string, hc: number, reason: string, refs?: { twilioRef?: string; allowNegative?: boolean }): Promise<number> {
+  return hcToCents(await apply(tenantId, 'debit', hc, reason, refs))
 }
 
 /**
@@ -100,5 +123,5 @@ export async function reloadWallet(
 }
 
 export async function canCover(tenantId: string, cents: number): Promise<boolean> {
-  return (await getBalance(tenantId)) >= Math.round(cents)
+  return (await getBalanceHc(tenantId)) >= centsToHc(cents)
 }

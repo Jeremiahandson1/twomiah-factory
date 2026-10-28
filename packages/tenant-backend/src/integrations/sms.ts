@@ -14,7 +14,7 @@ import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest,
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
   /** crew roster — present → a roster-only assignee's first name is used for {{tech_name}} (T21 M12) */
   teamMember?: any }
-export interface SmsUsage { reportSmsUsage: (segments: number, twilioSid?: string) => void; walletSufficient: () => Promise<boolean> }
+export interface SmsUsage { reportSmsUsage: (segments: number, twilioSid?: string, carrier?: string) => void; walletSufficient: () => Promise<boolean> }
 export interface SmsServiceDeps {
   db: any
   tables: SmsTables
