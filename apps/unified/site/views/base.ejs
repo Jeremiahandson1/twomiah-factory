@@ -334,6 +334,22 @@
   </div>
   <% } %>
   </footer>
+  <%# "Call now", phones only (the stylesheet shows it under 768px): the business's own number, and only when it has one. It steps
+      aside while a form is on screen or a box has focus, so it never covers a form's buttons. %>
+  <% if (settings.phone && String(settings.phone).replace(/[^\d]/g, '').length >= 7) { %>
+  <a class="btn btn--primary call-now" href="tel:<%= String(settings.phone).replace(/[^\d+]/g, '') %>" data-call-now aria-label="Call <%= settings.companyName || 'us' %> on <%= settings.phone %>"><svg class="call-now__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg><span>Call now</span></a>
+  <script>(function(){
+    var a = document.querySelector('[data-call-now]'); if (!a) return;
+    var seen = 0, typing = false;
+    function sync(){ a.classList.toggle('call-now--away', seen > 0 || typing); }
+    if (window.IntersectionObserver) {
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { seen += e.isIntersecting ? 1 : -1; }); if (seen < 0) seen = 0; sync(); });
+      document.querySelectorAll('form').forEach(function (f) { io.observe(f); });
+    }
+    document.addEventListener('focusin', function (e) { typing = !!(e.target && e.target.closest && e.target.closest('form')); sync(); });
+    document.addEventListener('focusout', function () { typing = false; sync(); });
+  })();</script>
+  <% } %>
   <% if (cover) { %>
   </div>
   <% } %>

@@ -307,3 +307,43 @@ describe('about values', () => {
     for (const items of [[], [{ description: 'No title' }]]) expect(await render('foundry', [HERO, sec(items)])).not.toContain('about-values')
   })
 })
+
+describe('floating "Call now" on phones', () => {
+  const has = (html: string) => html.includes('data-call-now')
+
+  test('only when the business has a phone number, and it dials that number', async () => {
+    for (const look of ['foundry', 'heritage', 'studio', 'market']) {
+      const html = String(await render(look, [HERO], { phone: '(608) 555-0142' }))
+      expect(has(html)).toBe(true)
+      expect(html).toContain('href="tel:6085550142"')
+    }
+    for (const phone of ['', undefined, 'n/a']) expect(has(String(await render('foundry', [HERO], { phone })))).toBe(false)
+  })
+
+  test('the stylesheet shows it under 768px only, keeps room under the page, and every look styles it', () => {
+    const base = fs.readFileSync(path.join(import.meta.dir, '../site/public/styles/main.css'), 'utf8')
+    expect(base).toMatch(/\.call-now \{ display: none; \}/)
+    expect(base).toMatch(/@media \(max-width: 767px\) \{[^@]*\.call-now \{ display: inline-flex;[^}]*position: fixed/)
+    expect(base).toMatch(/body:has\(\.call-now\) \{ padding-bottom: \d+px; \}/)
+    for (const look of ['foundry', 'heritage', 'studio', 'market']) expect(fs.readFileSync(path.join(import.meta.dir, `../site/designs/${look}.css`), 'utf8')).toContain('.call-now')
+  })
+
+  test('the script steps the button aside while a form is on screen or a box has focus, and brings it back', async () => {
+    const out = String(await render('foundry', [HERO, { type: 'contact', variant: 'form-info', data: {} }], { phone: '(608) 555-0142' }))
+    const win: any = new Window({ url: 'https://site.example.com/', settings: { enableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true, suppressInsecureJavaScriptEnvironmentWarning: true } } as any)
+    for (const k of ['Number', 'Date', 'Math', 'JSON', 'String', 'Array', 'Object', 'RegExp', 'Boolean', 'Error', 'Promise']) if (typeof win[k] === 'undefined') win[k] = (globalThis as any)[k]
+    let notify: (es: any[]) => void = () => {}
+    win.IntersectionObserver = class { constructor(cb: any) { notify = cb } observe() {} disconnect() {} }
+    win.document.write('<body><form id="f"><input id="i"></form>' + out.slice(out.indexOf('<a class="btn btn--primary call-now"')))
+    const a = win.document.querySelector('[data-call-now]')
+    expect(a.classList.contains('call-now--away')).toBe(false)
+    notify([{ isIntersecting: true }])
+    expect(a.classList.contains('call-now--away')).toBe(true)
+    notify([{ isIntersecting: false }])
+    expect(a.classList.contains('call-now--away')).toBe(false)
+    win.document.getElementById('i').dispatchEvent(new win.FocusEvent('focusin', { bubbles: true }))
+    expect(a.classList.contains('call-now--away')).toBe(true)
+    win.document.getElementById('i').dispatchEvent(new win.FocusEvent('focusout', { bubbles: true }))
+    expect(a.classList.contains('call-now--away')).toBe(false)
+  })
+})

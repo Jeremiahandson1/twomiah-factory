@@ -435,3 +435,6 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .about-values__item:last-child { border-bottom: 1px solid var(--ln); }
 .about-values__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.01em; font-size: 22px; color: var(--tx); }
 .about-values__desc { color: var(--tx2); }
+
+/* Call now: the look's plain button, with just enough shadow to lift it off the page */
+.call-now { box-shadow: 0 10px 20px -12px rgba(0,0,0,.5); }

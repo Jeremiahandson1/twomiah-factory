@@ -425,3 +425,6 @@ body { font-family: var(--f-body); font-size: 17.5px; line-height: 1.68; backgro
 .about-values__item:last-child { border-bottom: 1px solid var(--ln); }
 .about-values__title { font-family: var(--f-display); font-weight: 400; font-size: 30px; color: var(--tx); }
 .about-values__desc { color: var(--tx2); font-size: 17.5px; line-height: 1.7; }
+
+/* Call now: a rounded serif-site pill with the look's soft shadow */
+.call-now { box-shadow: 0 12px 26px -12px rgba(30, 20, 8, .65); }

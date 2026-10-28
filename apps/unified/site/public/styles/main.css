@@ -1093,3 +1093,14 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .about-values__item:last-child { border-bottom: 1px solid var(--line); }
 .about-values__title { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--ink); }
 .about-values__desc { margin: 8px 0 0; font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+
+/* "Call now": a button fixed to the corner of a phone's screen; nowhere else. The page keeps room beneath its last line, so the
+   footer is never under it, and it slides away while a form is on screen (base.ejs script). */
+.call-now { display: none; }
+@media (max-width: 767px) {
+  .call-now { display: inline-flex; align-items: center; gap: 8px; position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90; min-height: 48px; padding: 0 20px; box-shadow: 0 8px 22px -8px rgba(0,0,0,.45); text-decoration: none; transition: opacity .18s, transform .18s; }
+  .call-now--away { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  body:has(.call-now) { padding-bottom: 80px; }
+}
+@media (prefers-reduced-motion: reduce) { .call-now { transition: none; } }
+@media print { .call-now { display: none; } }

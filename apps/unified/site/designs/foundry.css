@@ -438,3 +438,7 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .about-values__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; font-size: 28px; color: var(--tx); }
 .about-values__title::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 12px; background: {{PRIMARY_COLOR}}; border: 2px solid var(--edge); vertical-align: 2px; }
 .about-values__desc { color: var(--tx2); font-size: 16.5px; }
+
+/* Call now: the hard-edged button with its offset shadow, never softer than the rest of the look */
+.call-now { box-shadow: 5px 5px 0 var(--edge); }
+.call-now--away { box-shadow: none; }

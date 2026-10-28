@@ -428,3 +428,6 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 .about-values__item:last-child { border-bottom: 1px solid var(--ln2); }
 .about-values__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.01em; font-size: 22px; color: var(--tx); }
 .about-values__desc { color: var(--tx2); }
+
+/* Call now: the look's glowing pill */
+.call-now { border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 14px 28px -10px {{PRIMARY_COLOR}}; }
