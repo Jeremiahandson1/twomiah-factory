@@ -12,7 +12,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, RefreshControl, Linking, TouchableOpacity,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTile } from '../../src/home/useTile'
+import { FilterBanner } from '../../src/home/FilterBanner'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
@@ -69,7 +71,12 @@ export default function JobsScreen() {
   const [jobs, setJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [filter, setFilter] = useState('all')
+  const { tile, clear } = useTile()
+  const [tileTotal, setTileTotal] = useState<number | undefined>(undefined)
+  // A pipeline stage row on the roofing home opens this list already on that stage (?status=).
+  const { status: statusParam } = useLocalSearchParams<{ status?: string }>()
+  const [filter, setFilter] = useState(statusParam ? String(statusParam) : 'all')
+  useEffect(() => { if (statusParam) setFilter(String(statusParam)) }, [statusParam])
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
   const [page, setPage] = useState(1)
@@ -77,7 +84,8 @@ export default function JobsScreen() {
 
   const loadJobs = useCallback(async (p = 1, append = false) => {
     const params = new URLSearchParams({ page: String(p), limit: '25' })
-    if (filter !== 'all') params.set('status', filter)
+    if (tile) Object.entries(tile.list.query || {}).forEach(([k, v]) => params.set(k, v))
+    else if (filter !== 'all') params.set('status', filter)
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
     const res = await get(`/api/jobs?${params}`)
     if (res.ok) {
@@ -85,9 +93,10 @@ export default function JobsScreen() {
       if (append) setJobs(prev => [...prev, ...data])
       else setJobs(data)
       setHasMore(data.length === 25)
+      setTileTotal(typeof res.data?.pagination?.total === 'number' ? res.data.pagination.total : undefined)
     }
     setLoading(false)
-  }, [filter, debouncedSearch])
+  }, [filter, debouncedSearch, tile?.id])
 
   useEffect(() => { setLoading(true); setPage(1); loadJobs(1) }, [loadJobs])
 
@@ -204,7 +213,8 @@ export default function JobsScreen() {
   return (
     <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search jobs..." />
-      <FilterChips options={isRoof ? ROOF_FILTERS : STATUS_FILTERS} selected={filter} onSelect={setFilter} />
+      {tile ? <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}><FilterBanner label={tile.banner} count={tileTotal} onClear={clear} /></View> : null}
+      {tile ? null : <FilterChips options={isRoof ? ROOF_FILTERS : STATUS_FILTERS} selected={filter} onSelect={setFilter} />}
 
       {loading ? (
         <SkeletonList count={5} />

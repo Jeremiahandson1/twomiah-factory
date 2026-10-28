@@ -9,7 +9,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Linking,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTile } from '../../src/home/useTile'
+import { FilterBanner } from '../../src/home/FilterBanner'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
@@ -46,7 +48,10 @@ export default function ServiceCallsScreen() {
   const [calls, setCalls] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [filter, setFilter] = useState('all')
+  const { tile, clear } = useTile()
+  const [tileTotal, setTileTotal] = useState<number | undefined>(undefined)
+  const { status: statusParam } = useLocalSearchParams<{ status?: string }>()
+  const [filter, setFilter] = useState(statusParam ? String(statusParam) : 'all')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
   const [page, setPage] = useState(1)
@@ -54,7 +59,8 @@ export default function ServiceCallsScreen() {
 
   const loadCalls = useCallback(async (p = 1, append = false) => {
     const params = new URLSearchParams({ page: String(p), limit: '25' })
-    if (filter !== 'all') params.set('status', filter)
+    if (tile) Object.entries(tile.list.query || {}).forEach(([k, v]) => params.set(k, v))
+    else if (filter !== 'all') params.set('status', filter)
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
     const res = await get(`/api/jobs?${params}`)
     if (res.ok) {
@@ -62,9 +68,10 @@ export default function ServiceCallsScreen() {
       if (append) setCalls(prev => [...prev, ...data])
       else setCalls(data)
       setHasMore(data.length === 25)
+      setTileTotal(typeof res.data?.pagination?.total === 'number' ? res.data.pagination.total : undefined)
     }
     setLoading(false)
-  }, [filter, debouncedSearch])
+  }, [filter, debouncedSearch, tile?.id])
 
   useEffect(() => { setLoading(true); setPage(1); loadCalls(1) }, [loadCalls])
 
@@ -148,7 +155,8 @@ export default function ServiceCallsScreen() {
   return (
     <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search service calls..." />
-      <FilterChips options={FILTERS} selected={filter} onSelect={setFilter} />
+      {tile ? <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}><FilterBanner label={tile.banner} count={tileTotal} onClear={clear} /></View> : null}
+      {tile ? null : <FilterChips options={FILTERS} selected={filter} onSelect={setFilter} />}
 
       {loading ? (
         <SkeletonList count={5} />

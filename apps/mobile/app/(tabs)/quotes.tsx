@@ -11,7 +11,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTile } from '../../src/home/useTile'
+import { FilterBanner } from '../../src/home/FilterBanner'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
@@ -50,7 +52,11 @@ export default function QuotesScreen() {
   const [quotes, setQuotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [filter, setFilter] = useState('all')
+  const { tile, clear } = useTile()
+  const [tileTotal, setTileTotal] = useState<number | undefined>(undefined)
+  const { status: statusParam } = useLocalSearchParams<{ status?: string }>()
+  const [filter, setFilter] = useState(statusParam ? String(statusParam) : 'all')
+  useEffect(() => { if (statusParam) setFilter(String(statusParam)) }, [statusParam])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [stats, setStats] = useState<any>(null)
@@ -58,7 +64,8 @@ export default function QuotesScreen() {
   const loadQuotes = useCallback(async (p = 1, append = false) => {
     if (!canRead) { setLoading(false); return }
     const params = new URLSearchParams({ page: String(p), limit: '25' })
-    if (filter !== 'all') params.set('status', filter)
+    if (tile) Object.entries(tile.list.query || {}).forEach(([k, v]) => params.set(k, v))
+    else if (filter !== 'all') params.set('status', filter)
     const [res, statsRes] = await Promise.all([
       get(`/api/quotes?${params}`),
       p === 1 ? get('/api/quotes/stats') : Promise.resolve(null),
@@ -68,10 +75,11 @@ export default function QuotesScreen() {
       if (append) setQuotes(prev => [...prev, ...data])
       else setQuotes(data)
       setHasMore(data.length === 25)
+      setTileTotal(typeof res.data?.pagination?.total === 'number' ? res.data.pagination.total : undefined)
     }
     if (statsRes?.ok) setStats(statsRes.data)
     setLoading(false)
-  }, [filter, canRead])
+  }, [filter, canRead, tile?.id])
 
   useEffect(() => { setLoading(true); setPage(1); loadQuotes(1) }, [loadQuotes])
 
@@ -161,7 +169,8 @@ export default function QuotesScreen() {
         </View>
       )}
 
-      <FilterChips options={FILTERS} selected={filter} onSelect={setFilter} />
+      {tile ? <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}><FilterBanner label={tile.banner} count={tileTotal} onClear={clear} /></View> : null}
+      {tile ? null : <FilterChips options={FILTERS} selected={filter} onSelect={setFilter} />}
 
       {loading ? (
         <SkeletonList count={5} />

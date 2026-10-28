@@ -1,48 +1,41 @@
 /**
- * Invoice Detail — line items, payment history, record payment, send.
+ * Invoice — what it totals, what is paid, what is owed; "Record payment" and "Send invoice".
  *
- * GET /api/invoices/:id (packages/tenant-backend invoicing/invoices.ts) answers total, amountPaid, amountRefunded and the
- * server's own `balance`, `lineItems` [{ description, quantity, unitPrice, total }] and `payments` [{ amount, method,
- * paidAt }] — every figure decimal DOLLARS. POST /:id/payments takes { amount, method } in DOLLARS too: $12.34 is 12.34
- * (sending cents recorded a payment 100 times too big). Sending and recording a payment need invoices:update. The PDF
- * opens in the phone's browser on a one-time download link (src/api/download.ts openDownload).
+ * GET /api/invoices/:id answers total, amountPaid, amountRefunded and the server's own `balance`, `lineItems` and `payments` —
+ * every figure decimal DOLLARS. "Record payment" is POST /:id/payments { amount, method } for money ALREADY received (cash, check,
+ * card, bank transfer, other) — it takes nothing from anyone's card. "Send invoice" is POST /:id/send: the customer's email with the
+ * invoice's own pay link. Both need invoices:update. The PDF opens in the phone's browser on a one-time link (openDownload).
  */
-
 import React, { useState, useEffect, useCallback } from 'react'
-import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, TextInput,
-} from 'react-native'
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
-import { useTheme } from '../../../src/theme/ThemeContext'
-import { ACTION, ACTION_INK } from '../../../src/theme/actions'
+import { View } from 'react-native'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
 import { useAuth } from '../../../src/auth/AuthContext'
-import { StatusBadge } from '../../../src/components/StatusBadge'
-import { SkeletonList } from '../../../src/components/SkeletonLoader'
-import { AnimatedCard } from '../../../src/components/AnimatedCard'
-import { ConfirmSheet } from '../../../src/components/ConfirmSheet'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { useRealTimeEvent, EVENTS } from '../../../src/socket/SocketContext'
+import {
+  Screen, Card, Group, ListRow, SectionHeader, DText, Badge, Button, BottomSheet, TextField, Chip, ChipRow, EmptyState, SkeletonRows, space, layout,
+} from '../../../src/design'
 
-// Methods the server accepts for a payment recorded by hand (invoices.ts PAYMENT_METHODS, less stripe and account_balance).
-const PAYMENT_METHODS = ['cash', 'check', 'card', 'bank_transfer', 'other']
+// What the server accepts for a payment recorded by hand (invoices.ts PAYMENT_METHODS, less stripe and account_balance).
+const METHODS: { id: string; label: string }[] = [
+  { id: 'cash', label: 'Cash' }, { id: 'check', label: 'Check' }, { id: 'card', label: 'Card' }, { id: 'bank_transfer', label: 'Bank transfer' }, { id: 'other', label: 'Other' },
+]
 const num = (v: unknown) => Number(v) || 0
 const money = (v: unknown) => `$${num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 /** What was typed, as dollars to the cent — or null when it is not an amount. */
-const paymentDollars = (typed: string): number | null => {
+export const paymentDollars = (typed: string): number | null => {
   const n = Number(String(typed).replace(/[$,\s]/g, ''))
   if (!Number.isFinite(n) || n <= 0) return null
   return Math.round(n * 100) / 100
 }
+const STATUS_TONE: Record<string, any> = { paid: 'success', draft: 'neutral', void: 'neutral', refunded: 'neutral', overdue: 'danger', partial: 'warning' }
 
 export default function InvoiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
   const { can } = useAuth()
@@ -51,13 +44,10 @@ export default function InvoiceDetailScreen() {
   const [refused, setRefused] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [showSendConfirm, setShowSendConfirm] = useState(false)
-  // Payment sheet
-  const [showPayment, setShowPayment] = useState(false)
-  const [payAmount, setPayAmount] = useState('')
-  const [payMethod, setPayMethod] = useState('cash')
-  const [paySubmitting, setPaySubmitting] = useState(false)
-  const paymentSheetRef = React.useRef<BottomSheet>(null)
+  const [sheet, setSheet] = useState<'pay' | 'send' | null>(null)
+  const [amount, setAmount] = useState('')
+  const [method, setMethod] = useState('cash')
+  const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     const res = await get(`/api/invoices/${id}`)
@@ -65,266 +55,104 @@ export default function InvoiceDetailScreen() {
     setRefused(res.status === 403)
     setLoading(false)
   }, [id])
-
   useEffect(() => { load() }, [load])
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
   useRealTimeEvent(EVENTS.INVOICE_UPDATED, load, [load])
   useRealTimeEvent(EVENTS.INVOICE_PAID, load, [load])
   useRealTimeEvent(EVENTS.PAYMENT_RECEIVED, load, [load])
 
-  const handleSend = async () => {
+  const total = num(invoice?.total)
+  const paid = num(invoice?.amountPaid) - num(invoice?.amountRefunded)
+  const balance = invoice?.balance !== undefined ? num(invoice.balance) : total - paid
+  const canPay = canUpdate && balance > 0 && !['void', 'draft', 'refunded'].includes(invoice?.status)
+  const canSend = canUpdate && !['void', 'refunded', 'paid'].includes(invoice?.status)
+
+  const openPay = () => { setAmount(balance > 0 ? balance.toFixed(2) : ''); setMethod('cash'); setSheet('pay') }
+  const recordPayment = async () => {
+    const dollars = paymentDollars(amount)
+    if (dollars === null) { toast.error('Enter an amount greater than zero'); return }
+    setBusy(true)
+    const res = await post(`/api/invoices/${id}/payments`, { amount: dollars, method })
+    setBusy(false)
+    if (res.ok) { haptics.success(); toast.success('Payment recorded'); setSheet(null); load() }
+    else { haptics.error(); toast.error(res.error || 'Could not record the payment') }
+  }
+  const sendInvoice = async () => {
+    setBusy(true)
     const res = await post(`/api/invoices/${id}/send`)
-    if (res.ok) { haptics.success(); toast.success('Invoice sent'); load() }
-    else { haptics.error(); toast.error(res.error || 'Send failed') }
+    setBusy(false)
+    if (res.ok) { haptics.success(); toast.success('Invoice sent'); setSheet(null); load() }
+    else { haptics.error(); toast.error(res.error || 'Could not send the invoice') }
   }
 
-  const handleRecordPayment = async () => {
-    const amount = paymentDollars(payAmount)
-    if (amount === null) { toast.error('Enter a valid amount'); return }
-    setPaySubmitting(true)
-    const res = await post(`/api/invoices/${id}/payments`, { amount, method: payMethod })
-    if (res.ok) {
-      haptics.success()
-      toast.success('Payment recorded')
-      setShowPayment(false)
-      setPayAmount('')
-      paymentSheetRef.current?.close()
-      load()
-    } else {
-      haptics.error()
-      toast.error(res.error || 'Failed to record payment')
-    }
-    setPaySubmitting(false)
-  }
-
-  if (loading) {
-    return (
-      <View style={[styles.safe, { backgroundColor: t.background }]}>
-        <Stack.Screen options={{ title: 'Invoice' }} />
-        <SkeletonList count={4} />
-      </View>
-    )
-  }
-
-  if (!invoice) {
-    return (
-      <View style={[styles.safe, { backgroundColor: t.background }]}>
-        <Stack.Screen options={{ title: 'Invoice' }} />
-        <View style={styles.centered}><Text style={{ color: t.textMuted }}>{refused ? 'Invoices are not part of your role.' : 'Invoice not found'}</Text></View>
-      </View>
-    )
-  }
+  if (loading) return <Screen title="Invoice" onBack={() => router.back()}><SkeletonRows count={4} /></Screen>
+  if (!invoice) return <Screen title="Invoice" onBack={() => router.back()}><EmptyState icon="receipt" title={refused ? 'Not part of your role' : 'Invoice not found'} body={refused ? 'Your role does not include invoices.' : undefined} /></Screen>
 
   const items: any[] = Array.isArray(invoice.lineItems) ? invoice.lineItems : []
   const payments: any[] = Array.isArray(invoice.payments) ? invoice.payments : []
-  const total = num(invoice.total)
-  // Paid net of refunds; the balance is the server's (invoiceBalance), never re-derived here.
-  const paid = num(invoice.amountPaid) - num(invoice.amountRefunded)
-  const balance = invoice.balance !== undefined ? num(invoice.balance) : total - paid
-  const canPay = canUpdate && balance > 0 && !['void', 'draft'].includes(invoice.status)
 
   return (
-    <View style={[styles.safe, { backgroundColor: t.background }]}>
-      <Stack.Screen options={{ title: invoice.number || 'Invoice' }} />
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
-      >
-        {/* Header */}
-        <AnimatedCard index={0}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <View style={styles.headerRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.title, { color: t.text }]}>{invoice.number}</Text>
-                {invoice.createdAt && <Text style={[styles.sub, { color: t.textSecondary }]}>Created {new Date(invoice.createdAt).toLocaleDateString()}</Text>}
-              </View>
-              <StatusBadge status={invoice.status} />
+    <Screen title={invoice.number || 'Invoice'} subtitle={invoice.contact?.name} onBack={() => router.back()} refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      footer={(canPay || canSend) ? (
+        <View style={{ flexDirection: 'row', gap: space[2] }}>
+          {canPay ? <View style={{ flex: 1 }}><Button label="Record payment" icon="cash" size="lg" fullWidth onPress={openPay} /></View> : null}
+          {canSend ? <View style={{ flex: 1 }}><Button label={invoice.status === 'draft' ? 'Send invoice' : 'Send again'} icon="paper-plane" size="lg" fullWidth variant={canPay ? 'secondary' : 'primary'} onPress={() => setSheet('send')} /></View> : null}
+        </View>
+      ) : undefined}>
+      <View style={{ gap: layout.sectionGap }}>
+        <Card>
+          <View style={{ gap: space[3] }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <DText variant="callout" tone="textSecondary">{invoice.createdAt ? `Created ${new Date(invoice.createdAt).toLocaleDateString()}` : 'Invoice'}</DText>
+              <Badge label={String(invoice.status).replace(/_/g, ' ')} tone={STATUS_TONE[invoice.status] || 'info'} />
             </View>
-            <View style={styles.amountRow}>
-              <View>
-                <Text style={[styles.amountLabel, { color: t.textMuted }]}>Total</Text>
-                <Text style={[styles.amount, { color: t.text }]}>{money(total)}</Text>
-              </View>
-              <View>
-                <Text style={[styles.amountLabel, { color: t.textMuted }]}>Paid</Text>
-                <Text style={[styles.amount, { color: '#22c55e' }]}>{money(paid)}</Text>
-              </View>
-              <View>
-                <Text style={[styles.amountLabel, { color: t.textMuted }]}>Balance</Text>
-                <Text style={[styles.amount, { color: balance > 0 ? '#ef4444' : '#22c55e' }]}>{money(balance)}</Text>
-              </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <View><DText variant="caption" tone="textSecondary">Total</DText><DText variant="headline">{money(total)}</DText></View>
+              <View><DText variant="caption" tone="textSecondary">Paid</DText><DText variant="headline">{money(paid)}</DText></View>
+              <View><DText variant="caption" tone="textSecondary">Owed</DText><DText variant="headline" tone={balance > 0 ? 'danger' : 'success'}>{money(balance)}</DText></View>
             </View>
           </View>
-        </AnimatedCard>
+        </Card>
 
-        {/* Contact */}
-        {invoice.contact && (
-          <AnimatedCard index={1}>
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, flexDirection: 'row', alignItems: 'center', gap: 10 }]}
-              onPress={() => router.push(`/(details)/contact/${invoice.contact.id || invoice.contactId}`)}
-            >
-              <Ionicons name="person-circle-outline" size={24} color={t.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>
-                  {invoice.contact.name}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
-            </TouchableOpacity>
-          </AnimatedCard>
-        )}
+        {invoice.contact ? (
+          <Group><ListRow icon="person" title={invoice.contact.name} subtitle="Customer" divider={false} onPress={() => router.push(`/(details)/contact/${invoice.contact.id || invoice.contactId}` as any)} /></Group>
+        ) : null}
 
-        {/* Line Items */}
-        <AnimatedCard index={2}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Text style={[styles.sectionTitle, { color: t.text }]}>Line Items</Text>
-            {items.map((item: any, i: number) => (
-              <View key={item.id || i} style={[styles.lineItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '500', color: t.text }}>{item.description}</Text>
-                  <Text style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{num(item.quantity)} x {money(item.unitPrice)}</Text>
-                </View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>{money(item.total)}</Text>
-              </View>
-            ))}
+        {items.length > 0 ? (
+          <View>
+            <SectionHeader title="Line items" />
+            <Group>{items.map((it, i) => <ListRow key={it.id || i} title={it.description} subtitle={`${num(it.quantity)} × ${money(it.unitPrice)}`} meta={money(it.total)} divider={i < items.length - 1} />)}</Group>
           </View>
-        </AnimatedCard>
+        ) : null}
 
-        {/* Payment History */}
-        {payments.length > 0 && (
-          <AnimatedCard index={3}>
-            <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.sectionTitle, { color: t.text }]}>Payment History</Text>
-              {payments.map((pay: any, i: number) => (
-                <View key={pay.id || i} style={[styles.paymentRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: t.text }}>{money(pay.amount)}</Text>
-                    <Text style={{ fontSize: 12, color: t.textMuted, marginTop: 2, textTransform: 'capitalize' }}>{String(pay.method || 'payment').replace(/_/g, ' ')}</Text>
-                  </View>
-                  <Text style={{ fontSize: 12, color: t.textMuted }}>{new Date(pay.paidAt || pay.createdAt).toLocaleDateString()}</Text>
-                </View>
-              ))}
-            </View>
-          </AnimatedCard>
-        )}
-
-        {/* Actions */}
-        <AnimatedCard index={4}>
-          <View style={styles.actionsCol}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.slate }]}
-              onPress={async () => { const err = await openDownload(`/api/invoices/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }}>
-              <Ionicons name="document-outline" size={18} color={ACTION_INK} />
-              <Text style={styles.actionText}>View PDF</Text>
-            </TouchableOpacity>
-            {canUpdate && invoice.status === 'draft' && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.blue }]}
-                onPress={() => setShowSendConfirm(true)}>
-                <Ionicons name="send" size={18} color={ACTION_INK} />
-                <Text style={styles.actionText}>Send Invoice</Text>
-              </TouchableOpacity>
-            )}
-            {canPay && (
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACTION.green }]}
-                onPress={() => {
-                  setPayAmount(balance.toFixed(2))
-                  setShowPayment(true)
-                  paymentSheetRef.current?.expand()
-                }}>
-                <Ionicons name="cash" size={18} color={ACTION_INK} />
-                <Text style={styles.actionText}>Record Payment</Text>
-              </TouchableOpacity>
-            )}
+        {payments.length > 0 ? (
+          <View>
+            <SectionHeader title="Payments" />
+            <Group>{payments.map((p, i) => (
+              <ListRow key={p.id || i} title={money(p.amount)} subtitle={String(p.method || 'payment').replace(/_/g, ' ')} meta={new Date(p.paidAt || p.createdAt).toLocaleDateString()} divider={i < payments.length - 1} />
+            ))}</Group>
           </View>
-        </AnimatedCard>
-      </ScrollView>
+        ) : null}
 
-      {/* Send Confirm */}
-      <ConfirmSheet
-        visible={showSendConfirm}
-        onClose={() => setShowSendConfirm(false)}
-        onConfirm={handleSend}
-        title="Send Invoice"
-        description="Send this invoice to the customer?"
-        confirmLabel="Send"
-      />
+        <Button label="View PDF" icon="document" variant="secondary" onPress={async () => { const err = await openDownload(`/api/invoices/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }} />
+      </View>
 
-      {/* Payment Bottom Sheet */}
-      {showPayment && (
-        <BottomSheet
-          ref={paymentSheetRef}
-          index={0}
-          snapPoints={[320]}
-          onClose={() => setShowPayment(false)}
-          enablePanDownToClose
-          backgroundStyle={{ backgroundColor: t.surface }}
-          handleIndicatorStyle={{ backgroundColor: t.textMuted }}
-        >
-          <BottomSheetView style={styles.paymentSheet}>
-            <Text style={[styles.sectionTitle, { color: t.text }]}>Record Payment</Text>
-            <Text style={[styles.fieldLabel, { color: t.textMuted }]}>Amount</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: t.background, color: t.text, borderColor: t.border }]}
-              value={payAmount}
-              onChangeText={setPayAmount}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor={t.textMuted}
-            />
-            <Text style={[styles.fieldLabel, { color: t.textMuted }]}>Method</Text>
-            <View style={styles.methodRow}>
-              {PAYMENT_METHODS.map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.methodChip, payMethod === m && { backgroundColor: t.primary, borderColor: t.primary }]}
-                  onPress={() => setPayMethod(m)}
-                >
-                  <Text style={[styles.methodText, payMethod === m && { color: t.onPrimary }]}>{m.replace('_', ' ')}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: ACTION.green, marginTop: 12 }]}
-              onPress={handleRecordPayment}
-              disabled={paySubmitting}
-            >
-              <Text style={styles.actionText}>{paySubmitting ? 'Saving...' : 'Save Payment'}</Text>
-            </TouchableOpacity>
-          </BottomSheetView>
-        </BottomSheet>
-      )}
-    </View>
+      <BottomSheet visible={sheet === 'pay'} title="Record payment" onClose={() => setSheet(null)}>
+        <View style={{ gap: space[3] }}>
+          <DText variant="callout" tone="textSecondary">Record a payment you already received.</DText>
+          <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" prefix="$" />
+          <DText variant="captionStrong" tone="textSecondary">How was it paid?</DText>
+          <ChipRow>{METHODS.map((m) => <Chip key={m.id} label={m.label} selected={method === m.id} onPress={() => setMethod(m.id)} />)}</ChipRow>
+          <Button label="Record payment" size="lg" fullWidth loading={busy} onPress={recordPayment} />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={sheet === 'send'} title={invoice.status === 'draft' ? 'Send invoice' : 'Send again'} onClose={() => setSheet(null)}>
+        <View style={{ gap: space[3] }}>
+          <DText variant="body">{`Email ${invoice.number} to ${invoice.contact?.name || 'the customer'}, with a link where they can view it and pay.`}</DText>
+          <Button label="Send invoice" icon="paper-plane" size="lg" fullWidth loading={busy} onPress={sendInvoice} />
+        </View>
+      </BottomSheet>
+    </Screen>
   )
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { padding: 16, paddingBottom: 40 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  card: { borderRadius: 12, borderWidth: 1, padding: 16, marginBottom: 12 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 20, fontWeight: '700' },
-  sub: { fontSize: 13, marginTop: 2 },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' },
-  amountLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
-  amount: { fontSize: 20, fontWeight: '700', marginTop: 2 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
-  lineItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  paymentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  actionsCol: { gap: 10, marginBottom: 20 },
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 10,
-  },
-  actionText: { color: ACTION_INK, fontSize: 15, fontWeight: '600' },
-  // Payment sheet
-  paymentSheet: { padding: 20 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', marginBottom: 6, marginTop: 12 },
-  input: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  methodChip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-    borderWidth: 1, borderColor: '#d1d5db',
-  },
-  methodText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize', color: '#6b7280' },
-})

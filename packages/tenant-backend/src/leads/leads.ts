@@ -384,6 +384,31 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return row
   }
 
+  // One enquiry, for the phone's lead screen (the list carries the same rows). The company's own; anything else is not found.
+  app.get('/:id', mayRead, async (c) => {
+    const currentUser = (c as any).get('user')
+    const row = await ownLead(c.req.param('id'), currentUser.companyId)
+    if (!row) return c.json({ error: 'Lead not found' }, 404)
+    return c.json(row)
+  })
+
+  // A note on an enquiry: one dated line added under what the enquirer wrote (`description`), so it travels with the lead into the
+  // contact on Convert (which copies the description into the contact's notes). An enquiry has no notes of its own; this adds none.
+  app.post('/:id/notes', mayWork, async (c) => {
+    const currentUser = (c as any).get('user')
+    const id = c.req.param('id')
+    const parsed = z.object({ text: z.string().trim().min(1, 'Write the note first').max(1000, 'A note is at most 1,000 characters') }).safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Write the note first' }, 400)
+    const existing = await ownLead(id, currentUser.companyId)
+    if (!existing) return c.json({ error: 'Lead not found' }, 404)
+    const line = `Note, ${new Date().toISOString().slice(0, 10)}: ${parsed.data.text}`
+    const description = [existing.description, line].filter(Boolean).join('\n\n').slice(0, 20000)
+    const [updated] = await db.update(t.lead).set({ description, updatedAt: new Date() }).where(and(eq(t.lead.id, id), eq(t.lead.companyId, currentUser.companyId))).returning()
+    await audit.log({ action: 'update', entity: 'lead', entityId: id, metadata: { note: true }, req: { user: currentUser } })
+    emitToCompany(currentUser.companyId, EVENTS.LEAD_UPDATED, { id, status: updated.status })
+    return c.json(updated)
+  })
+
   app.put('/:id/status', mayWork, async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
