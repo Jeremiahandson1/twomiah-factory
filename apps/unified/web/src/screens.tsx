@@ -12,7 +12,7 @@ import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
 import { useLiveConnection, subscribeLive } from './live'
-import { MessageSquare, BellRing } from 'lucide-react'
+import { MessageSquare, BellRing, FileArchive } from 'lucide-react'
 import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
@@ -23,6 +23,9 @@ const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: 
  * business invoices — the Invoices feature, or home care's own Billing.
  */
 const INVOICE_REMINDER_SETTINGS = { to: '/crm/settings/invoice-reminders', label: 'Invoice Reminders', icon: BellRing, permission: 'company:update', ...(isHomecare ? {} : { feature: 'invoices' }) }
+
+/** Settings › Your data (crm/pages/ExportEverythingPage.tsx): every list the business has, one ZIP — the owner's and the admins'. */
+const EXPORT_SETTINGS = { to: '/crm/settings/export', label: 'Your Data', icon: FileArchive, permission: 'settings:update' }
 
 /** Where the admin opens. */
 export const HOME = '/crm'
@@ -67,7 +70,7 @@ export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
   // userActions: "View as <person>" on each row (crm/viewAs.tsx), every vertical.
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

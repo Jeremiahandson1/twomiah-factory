@@ -21,6 +21,7 @@ import type { AppEnv } from '../http/env.ts'
 import type { Realtime } from '../core/realtime.ts'
 import { createProvisionRoute } from './provision.ts'
 import { createDomainRoutes } from './domain.ts'
+import { createExportEverythingRoute } from './exportEverything.ts'
 import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
 import { createCompanyLogoRoute } from './companyLogo.ts'
 import type { PhotoStore } from '../site/admin.ts'
@@ -203,6 +204,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       // its root, as the template's billing router did — so it is mounted there, once.
       ...(vertical.crm?.homecare ? [] : [{ path: '/api/billing', access: 'user' as const, router: billing }]),
       { path: '/api/account', access: 'user' as const, router: account },
+      // Settings › Your data: every list the business has, one ZIP of CSVs (modules/exportEverything.ts).
+      { path: '/api/export-everything', access: 'user' as const, router: createExportEverythingRoute({ db, audit, permissions }) },
       { path: '/api/email-aliases', access: 'user' as const, router: emailAliases },
       // The business's own web address: buy one through the Factory or connect one it owns (modules/domain.ts, from the
       // store; the premium sites' Domain page used the same paths). Every tenant has the website, so every vertical.

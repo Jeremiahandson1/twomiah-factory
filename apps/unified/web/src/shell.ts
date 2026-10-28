@@ -179,6 +179,7 @@ export const SHELL: ShellConfig = {
     '/crm/settings/integrations': 'admin',
     '/crm/settings/migration': 'admin',
     '/crm/settings/import': 'admin',
+    '/crm/settings/export': 'admin',
     '/crm/email': 'admin',
     '/crm/google-reviews': 'admin',
   },

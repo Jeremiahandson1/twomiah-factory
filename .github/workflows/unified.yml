@@ -46,6 +46,8 @@ jobs:
         run: bun run scripts/check-unified-feature-has-screen.ts
       - name: Every Delete is gated where it is drawn; every writing screen asks a permission
         run: bun run scripts/check-unified-write-controls.ts
+      - name: Export everything covers every table, for one business, with no secrets
+        run: bun run scripts/check-unified-export-everything.ts
       - name: Types — none in the unified app; shared packages not above their baseline
         run: bun run scripts/check-unified-types.ts
       - name: Admin screens build
