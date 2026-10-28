@@ -208,14 +208,17 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
               <Button variant="secondary" onClick={exportGusto} disabled={gustoBusy}><Download className="w-4 h-4 mr-2 inline" />{gustoBusy ? 'Making file…' : 'Hours for Gusto'}</Button>
             </div>
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Hours for Gusto downloads each person's regular and overtime hours (over 40 in a Sunday–Saturday week) for these dates. In Gusto, run payroll and upload the file.</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Overtime is hours over 40 in a work week (weeks start on {payRun?.workWeekStartName || 'the day set in Settings › Company'}). Hours for Gusto downloads each person's regular and overtime hours the same way — upload the file in Gusto's payroll. “Earned” is straight time (hours × rate); the overtime rate is applied in Gusto.</p>
           {payError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{payError}</p>}
+          {payRun?.overtimeNotice && (
+            <p role="note" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">{payRun.overtimeNotice}</p>
+          )}
           {payRun && (
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-slate-800/60">
                   <tr>
-                    {['Person', 'Hours', 'Earned', 'Recovered', 'To pay', 'Still owed'].map((h, i) => (
+                    {['Person', 'Regular', 'Overtime', 'Earned', 'Recovered', 'To pay', 'Still owed'].map((h, i) => (
                       <th key={h} className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-slate-300 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
                     ))}
                   </tr>
@@ -224,7 +227,8 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
                   {(payRun.users || []).map((u: any) => (
                     <tr key={u.user?.id || u.user?.name}>
                       <td className="px-3 py-2 text-gray-900 dark:text-slate-100">{u.user?.name || 'Unnamed'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(u.totalHours || 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(u.regularHours ?? u.totalHours ?? 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(u.overtimeHours || 0) > 0 ? <span className="font-medium text-amber-700 dark:text-amber-300">{Number(u.overtimeHours).toFixed(2)}</span> : '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{money(u.totalPay)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {Number(u.deductions || 0) > 0 ? (
@@ -244,14 +248,15 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
                     </tr>
                   ))}
                   {(payRun.users || []).length === 0 && (
-                    <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500 dark:text-slate-400">No hours logged in that period.</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500 dark:text-slate-400">No hours logged in that period.</td></tr>
                   )}
                 </tbody>
                 {payRun.totals && (payRun.users || []).length > 0 && (
                   <tfoot>
                     <tr className="border-t border-gray-200 dark:border-slate-700">
                       <td className="px-3 py-2 font-medium text-gray-900 dark:text-slate-100">Total</td>
-                      <td />
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(payRun.totals.regularHours ?? 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(payRun.totals.overtimeHours || 0) > 0 ? Number(payRun.totals.overtimeHours).toFixed(2) : '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{money(payRun.totals.pay)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{Number(payRun.totals.deductions || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">−{money(payRun.totals.deductions)}</span> : '-'}</td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900 dark:text-slate-100">{money(payRun.totals.net)}</td>

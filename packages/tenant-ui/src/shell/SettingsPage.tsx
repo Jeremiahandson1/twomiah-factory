@@ -106,6 +106,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   // the contractor's was only under Booking settings).
   const showZone = !!config?.timeZone
   const [zone, setZone] = useState('')
+  // The day the pay week starts (config.workWeek; the pay run's overtime and the Gusto file count hours over 40 in each such week).
+  const showWorkWeek = !!config?.workWeek
+  const [workWeekStart, setWorkWeekStart] = useState('0')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
@@ -142,6 +145,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       })
       setHours(hoursFrom(company.settings?.businessHours))
       setZone(typeof company.timezone === 'string' ? company.timezone : '')
+      setWorkWeekStart(String(Number.isInteger(Number(company.workWeekStart)) ? company.workWeekStart : 0))
     }
     loadUsers()
   }, [company]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -185,6 +189,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       const payload: any = { ...fields, settings }
       if (!showLicense) delete payload.licenseNumber
       if (showZone) payload.timezone = zone || null
+      if (showWorkWeek) payload.workWeekStart = Number(workWeekStart)
       const updated = await api.put('/api/company', payload)
       updateCompany(updated)
       toast.success('Company updated')
@@ -472,6 +477,13 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                     <option value="">From your state{!zone && (company?.effectiveTimezone || company?.timeZone) ? ` (${zoneName(company.effectiveTimezone || company.timeZone)})` : ''}</option>
                     {US_ZONES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                     {zone && !US_ZONES.some(([id]) => id === zone) && <option value={zone}>{zoneName(zone)}</option>}
+                  </select>
+                </Field>
+              )}
+              {showWorkWeek && (
+                <Field label="Work week starts on" hint="Overtime is hours over 40 in each work week. The pay run and the Gusto file both count weeks from this day.">
+                  <select aria-label="Work week starts on" value={workWeekStart} onChange={(e) => setWorkWeekStart(e.target.value)} className={inputCls}>
+                    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => <option key={d} value={String(i)}>{d}</option>)}
                   </select>
                 </Field>
               )}

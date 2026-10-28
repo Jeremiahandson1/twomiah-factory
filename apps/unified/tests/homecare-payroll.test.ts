@@ -205,6 +205,23 @@ describe('the Gusto preview answers in camelCase', () => {
   })
 })
 
+describe('the agency’s work week (company setting, same as every trade’s pay run)', () => {
+  test('overtime is hours over 40 in the week that starts on the agency’s chosen day — the Gusto file follows', async () => {
+    const S = t.schema
+    const [cl] = await t.db.insert(S.clients).values({ companyId: coA, firstName: 'Wes', lastName: 'Week' }).returning()
+    // cg2: Sat 12, Sun 13, Mon 14, Tue 15, Wed 16 Sep, 9 h each = 45 h. Sunday weeks: Sat alone (9 h), Sun–Wed 36 h → none over 40.
+    // Saturday weeks: all five days are one week → 45 h = 40 + 5.
+    await t.db.insert(S.payrollShiftReviews).values(['2026-09-12', '2026-09-13', '2026-09-14', '2026-09-15', '2026-09-16'].map((d) => ({
+      companyId: coA, payPeriodStart: '2026-09-06', payPeriodEnd: '2026-09-19', caregiverId: ids.cg2, clientId: cl.id, shiftDate: d, payableMinutes: 540, status: 'approved',
+    })))
+    const csv = async () => (await (await as('ownerA', 'GET', '/api/gusto/export-csv?startDate=2026-09-06&endDate=2026-09-19')).text()).split('\n')
+    expect((await csv()).find((l) => l.includes('cg2'))).toContain(',45.00,0.00,45.00')
+    await t.db.update(S.company).set({ workWeekStart: 6 }).where(eq(S.company.id, coA))
+    expect((await csv()).find((l) => l.includes('cg2'))).toContain(',40.00,5.00,45.00')
+    await t.db.update(S.company).set({ workWeekStart: 0 }).where(eq(S.company.id, coA))
+  })
+})
+
 describe('time off of every kind the payroll screen offers', () => {
   test('personal, bereavement, jury duty and unpaid are recorded (the template refused them); an unknown kind is not', async () => {
     for (const type of ['personal', 'bereavement', 'jury_duty', 'unpaid']) {

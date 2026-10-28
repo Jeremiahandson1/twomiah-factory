@@ -260,6 +260,13 @@
       "when": 1792963287484,
       "tag": "0036_menu_bookings_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793163103912,
+      "tag": "0037_work_week_start",
+      "breakpoints": true
     }
   ]
 }

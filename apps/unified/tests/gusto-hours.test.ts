@@ -10,7 +10,8 @@
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant } from './harness.ts'
-import { gustoHoursCsv, GUSTO_HOURS_HEADER, splitWeeklyHours } from '../server/crm/payrollExport/gustoHours.ts'
+import { gustoHoursCsv, GUSTO_HOURS_HEADER } from '../server/crm/payrollExport/gustoHours.ts'
+import { splitByWorkWeek, workweekStartOn, stateCode, dailyOvertimeNotice } from '../server/crm/payrollExport/workWeek.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 const tokens: Record<string, string> = {}
@@ -93,7 +94,77 @@ describe('the shared builder (home care’s file uses it too)', () => {
     expect([...GUSTO_HOURS_HEADER].join(',')).toBe(HEADER)
     expect(gustoHoursCsv([{ firstName: 'A "Q"', lastName: null, email: 'a@b.c', regularHours: 40, overtimeHours: '2.5', totalHours: 42.5 }]))
       .toBe(`${HEADER}\n"A ""Q""","","a@b.c",40.00,2.50,42.50`)
-    expect(splitWeeklyHours([45, 8])).toEqual({ regularHours: 48, overtimeHours: 5, totalHours: 53 })
-    expect(splitWeeklyHours([39.99])).toEqual({ regularHours: 39.99, overtimeHours: 0, totalHours: 39.99 })
+    const at = (date: string, hours: number) => ({ date: `${date}T17:00:00Z`, hours })
+    // Mon 7 – Fri 11 Sep, 9 h each = 45 h in one Sunday-start week; plus 8 h the next week.
+    const week = ['07', '08', '09', '10', '11'].map((d) => at(`2026-09-${d}`, 9))
+    expect(splitByWorkWeek([...week, at('2026-09-14', 8)], 'America/Chicago', 0)).toEqual({ regularHours: 48, overtimeHours: 5, totalHours: 53 })
+    expect(splitByWorkWeek([at('2026-09-08', 39.99)], 'America/Chicago', 0)).toEqual({ regularHours: 39.99, overtimeHours: 0, totalHours: 39.99 })
+    // Exactly 40 is regular; the first minute over is overtime.
+    expect(splitByWorkWeek([at('2026-09-08', 40)], 'America/Chicago', 0).overtimeHours).toBe(0)
+    expect(splitByWorkWeek([at('2026-09-08', 40.01)], 'America/Chicago', 0).overtimeHours).toBe(0.01)
+  })
+  test('the work week: the day it starts, and the states that pay overtime by the day', () => {
+    // Wed 9 Sep 2026: its week starts Sun 6, Mon 7, Sat 5 (a Wednesday start would be today).
+    expect([0, 1, 6, 3].map((d) => workweekStartOn('2026-09-09', d))).toEqual(['2026-09-06', '2026-09-07', '2026-09-05', '2026-09-09'])
+    expect(workweekStartOn('2026-09-06', 1)).toBe('2026-08-31') // a Sunday belongs to the week that began the Monday before
+    expect(['CA', 'ca', 'California', ' alaska ', 'NV', 'Colorado'].map(stateCode)).toEqual(['CA', 'CA', 'CA', 'AK', 'NV', 'CO'])
+    for (const st of ['CA', 'AK', 'NV', 'CO']) expect(dailyOvertimeNotice(st)).toMatch(/does not calculate daily overtime/)
+    for (const st of ['TX', 'WI', '', null]) expect(dailyOvertimeNotice(st)).toBeNull()
+  })
+})
+
+// The pay run shows regular vs overtime exactly as the file splits it, by the company's work week; a state with daily
+// overtime is told so (never a guess).
+describe('the pay run’s overtime, and the company’s work week', () => {
+  const run = async (who = 'ownerA') => (await (await get(who, `/api/payroll/summary?${PERIOD}`)).json()) as any
+  const person = (r: any, name: string) => r.users.find((u: any) => u.user.name === name)
+  const putCompany = (who: string, json: unknown) => t.call('/api/company', { method: 'PUT', json, headers: { Authorization: `Bearer ${tokens[who]}` } })
+
+  test('a week crossing the 40-hour line: regular and overtime, the same numbers as the Gusto file', async () => {
+    const r = await run()
+    expect(r.workWeekStartName).toBe('Sunday')
+    const ann = person(r, 'Ann Tech')
+    expect(ann).toMatchObject({ totalHours: 55, regularHours: 48, overtimeHours: 7 })
+    expect(person(r, '=SUM(1) Formula')).toMatchObject({ regularHours: 7.5, overtimeHours: 0 })
+    expect(r.totals).toMatchObject({ regularHours: 55.5, overtimeHours: 7 })
+    const file = (await (await get('ownerA', `/api/payroll/gusto-hours?${PERIOD}`)).text()).split('\n')
+    expect(file).toContain('"Ann","Tech","techa@shop.example",48.00,7.00,55.00')
+    expect(r.overtimeNotice).toBeNull() // no state set
+  })
+
+  test('a non-Sunday work week moves the line: starting Monday, the same hours have no overtime — in the pay run and the file', async () => {
+    expect((await putCompany('ownerA', { workWeekStart: 1 })).status).toBe(200)
+    const r = await run()
+    expect(r.workWeekStart).toBe(1)
+    expect(r.workWeekStartName).toBe('Monday')
+    // Sun 6 (9 h) is the end of the week that began Mon 31 Aug; Mon 7 – Sun 13 is 36 + 2 = 38 h; then 8 h.
+    expect(person(r, 'Ann Tech')).toMatchObject({ totalHours: 55, regularHours: 55, overtimeHours: 0 })
+    const file = (await (await get('ownerA', `/api/payroll/gusto-hours?${PERIOD}`)).text()).split('\n')
+    expect(file).toContain('"Ann","Tech","techa@shop.example",55.00,0.00,55.00')
+    // The other company is untouched (still Sunday).
+    expect((await run('ownerB')).workWeekStartName).toBe('Sunday')
+  })
+
+  test('the setting: only a day from Sunday to Saturday, and a field technician cannot change it', async () => {
+    for (const bad of [7, -1, 'tuesday', 2.5]) expect((await putCompany('ownerA', { workWeekStart: bad })).status).toBe(400)
+    expect((await putCompany('techA', { workWeekStart: 3 })).status).toBe(403)
+    expect((await run()).workWeekStart).toBe(1)
+    const company = await (await get('ownerA', '/api/company')).json() as any
+    expect(company.workWeekStart).toBe(1)
+    await putCompany('ownerA', { workWeekStart: 0 })
+    expect((await run()).workWeekStart).toBe(0)
+  })
+
+  test('in a state with daily overtime (CA, AK, NV, CO) the pay run says daily overtime is not calculated; elsewhere it is silent', async () => {
+    for (const state of ['CA', 'Colorado', 'AK', 'NV']) {
+      await putCompany('ownerA', { state })
+      const r = await run()
+      expect(r.overtimeNotice).toMatch(/does not calculate daily overtime/)
+      expect(r.overtimeNotice).toMatch(/by the week only/)
+      // Never a guess: the hours are still the weekly split.
+      expect(person(r, 'Ann Tech')).toMatchObject({ regularHours: 48, overtimeHours: 7 })
+    }
+    await putCompany('ownerA', { state: 'WI' })
+    expect((await run()).overtimeNotice).toBeNull()
   })
 })

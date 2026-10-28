@@ -12,12 +12,12 @@ const quoted = (vals: readonly string[]) => sql.raw(vals.map((s) => `'${s.replac
  * and shift counts, for reviews whose status is one of `payable` and whose payable minutes are positive. Optionally
  * one caregiver's. Sorted by caregiver, week.
  */
-export async function payableReviewWeeks(q: Q, companyId: string, startDate: string, endDate: string, payable: readonly string[], caregiverId: string | null): Promise<{
+export async function payableReviewWeeks(q: Q, companyId: string, startDate: string, endDate: string, payable: readonly string[], caregiverId: string | null, startDay = 0): Promise<{
   caregiverId: string; weekStart: string; minutes: number; weekendMinutes: number; shifts: number
 }[]> {
   return camelRows(await q.execute(sql`
     SELECT psr.caregiver_id,
-           to_char(psr.shift_date - EXTRACT(DOW FROM psr.shift_date)::int, 'YYYY-MM-DD') AS week_start,
+           to_char(psr.shift_date - ((EXTRACT(DOW FROM psr.shift_date)::int - ${startDay}::int + 7) % 7), 'YYYY-MM-DD') AS week_start,
            SUM(psr.payable_minutes)::int AS minutes,
            COALESCE(SUM(psr.payable_minutes) FILTER (WHERE EXTRACT(DOW FROM psr.shift_date) IN (0, 6)), 0)::int AS weekend_minutes,
            COUNT(*)::int AS shifts

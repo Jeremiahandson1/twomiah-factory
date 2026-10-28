@@ -9,7 +9,6 @@
 // (support.gusto.com answered 403 to a script on 2026-10-27, so the exact wording was read through search summaries,
 // not the page: the owner should upload one real file in Gusto once and confirm the columns map.)
 import { gustoSyncLog } from '../../db/schema/index.ts'
-import { OT_WEEKLY_HOURS } from '../homecare/core/payrollPay.ts'
 import type { CrmDeps } from '../deps.ts'
 
 export const GUSTO_HOURS_HEADER = ['First Name', 'Last Name', 'Email', 'Regular Hours', 'Overtime Hours', 'Total Hours'] as const
@@ -37,21 +36,6 @@ export function gustoHoursCsv(rows: GustoHoursRow[]): string {
 }
 
 export const gustoHoursFilename = (start: string, end: string) => `gusto-hours-${start}-to-${end}.csv`
-
-/**
- * Each Sunday–Saturday week's decimal hours → regular and overtime hours, by the FLSA rule payroll uses: over 40 a week is
- * overtime. In hundredths of an hour (what the file carries), so 39.99 stays 39.99.
- */
-export function splitWeeklyHours(weekHours: number[]) {
-  const cap = OT_WEEKLY_HOURS * 100
-  let regular = 0, overtime = 0
-  for (const h of weekHours) {
-    const n = Math.max(0, Math.round((Number(h) || 0) * 100))
-    regular += Math.min(n, cap)
-    overtime += Math.max(n - cap, 0)
-  }
-  return { regularHours: regular / 100, overtimeHours: overtime / 100, totalHours: (regular + overtime) / 100 }
-}
 
 /** Download the file, and record it: a gusto_sync_log row (what home care's screen lists) and an audit row (who took it). */
 export async function sendGustoHoursCsv(c: any, d: CrmDeps, start: string, end: string, rows: GustoHoursRow[]) {

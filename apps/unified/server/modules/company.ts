@@ -23,7 +23,7 @@ import { createProvisionRoute } from './provision.ts'
 import { createDomainRoutes } from './domain.ts'
 import { createExportEverythingRoute } from './exportEverything.ts'
 import { createLicenseRoutes, createHandoverExportRoute } from './license.ts'
-import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
+import { homecareCompanyFields, describeAgency, workWeekStartField } from '../crm/homecare/office/companyFields.ts'
 import { createCompanyLogoRoute } from './companyLogo.ts'
 import type { PhotoStore } from '../site/admin.ts'
 
@@ -103,7 +103,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     // NPI, Medicaid id) and its agency rule for the zone (server/crm/homecare/office/companyFields.ts).
     ...(vertical.crm?.homecare
       ? { fields: homecareCompanyFields, describe: describeAgency }
-      : { fields: { timezone: companyTimezoneField }, describe: (row: any) => ({ effectiveTimezone: companyRowTimeZone(row) }) }),
+      : { fields: { timezone: companyTimezoneField, workWeekStart: workWeekStartField }, describe: (row: any) => ({ effectiveTimezone: companyRowTimeZone(row) }) }),
     // The roles a login may hold here (CrmSettings.team.roles; the store's manager and staff). 'user' is the old
     // spelling of field — the shared POST /users defaults to it and stores it as field — so it rides along with field.
     ...(vertical.crm?.team?.roles?.length

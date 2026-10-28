@@ -13,19 +13,16 @@
 // Change: the company's reviews, caregivers and rates only (companyId first).
 import { payableReviewWeeks, caregiverPayRates, reviewCountWithStatus } from '../../../data/homecarePayroll.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { OT_WEEKLY_HOURS as WEEKLY_CAP, workweekStartOn, companyWorkWeek } from '../../payrollExport/workWeek.ts'
 
 export const PAYABLE_REVIEW_STATUSES = ['verified', 'approved', 'manual_entry'] as const
 export const UNRESOLVED_REVIEW_STATUSES = ['pending', 'flagged', 'missing_punch'] as const
-export const OT_WEEKLY_HOURS = 40
+export const OT_WEEKLY_HOURS = WEEKLY_CAP
 export const OT_MULTIPLIER = 1.5
 export const FALLBACK_PAY_RATE = 15
 
-/** The Sunday that starts the Sun–Sat workweek holding `ymd` (both YYYY-MM-DD). */
-export function workweekStart(ymd: string): string {
-  const d = new Date(`${ymd}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay())
-  return d.toISOString().slice(0, 10)
-}
+/** The day that starts the workweek holding `ymd` (both YYYY-MM-DD): a Sunday unless the company sets another start day. */
+export const workweekStart = (ymd: string, startDay = 0): string => workweekStartOn(ymd, startDay)
 
 /** Regular and overtime minutes for a caregiver's weeks: each week's minutes over the threshold are overtime. */
 export function splitOvertime(weekMinutes: number[], thresholdHours = OT_WEEKLY_HOURS) {
@@ -74,7 +71,8 @@ export function createPayrollPay(d: CrmDeps) {
     const multiplier = Number.isFinite(Number(opts.otMultiplier)) && Number(opts.otMultiplier) >= 1 ? Number(opts.otMultiplier) : OT_MULTIPLIER
     const cg = opts.caregiverId || null
 
-    const weeks = await payableReviewWeeks(d.db, companyId, startDate, endDate, PAYABLE_REVIEW_STATUSES, cg)
+    const { startDay } = await companyWorkWeek(d.db, companyId)
+    const weeks = await payableReviewWeeks(d.db, companyId, startDate, endDate, PAYABLE_REVIEW_STATUSES, cg, startDay)
     if (!weeks.length) return []
 
     const ids = [...new Set(weeks.map((w) => String(w.caregiverId)))]

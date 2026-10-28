@@ -71,7 +71,7 @@ export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
   // userActions: "View as <person>" on each row (crm/viewAs.tsx), every vertical.
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

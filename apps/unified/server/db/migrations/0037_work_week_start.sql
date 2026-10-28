@@ -1,0 +1,1 @@
+ALTER TABLE "company" ADD COLUMN "work_week_start" integer DEFAULT 0 NOT NULL;

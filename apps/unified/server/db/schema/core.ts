@@ -64,6 +64,8 @@ export const company = pgTable('company', {
   sandataApiUrl: text('sandata_api_url'),
   sandataAgencyId: text('sandata_agency_id'),
   timezone: text('timezone'),
+  /** The day the pay week starts (0 Sunday … 6 Saturday): overtime is hours over 40 in each such week — the pay run and the Gusto file both. */
+  workWeekStart: integer('work_week_start').default(0).notNull(),
   mileageRate: decimal('mileage_rate', { precision: 6, scale: 3 }).default('0.67').notNull(),
   // Roof reports a roofer may still order free, and the price of each after (templates/crm-roof company).
   reportCredits: integer('report_credits').default(3).notNull(),
