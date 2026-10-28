@@ -1,0 +1,56 @@
+<%
+  // Where to find us: the business's own address and the places it serves, with plain links to open it in a map. It loads
+  // NOTHING from any map provider — no embedded map, no tiles, no script, no key — so there is no tracking and no cost: the
+  // picture is a drawing, and the buttons are ordinary links that work without JavaScript. The address and the areas are the
+  // business's own settings (Settings › Company, Website settings); the section holds nothing of its own, so it cannot say
+  // what the owner did not. With neither an address nor a service area, it renders nothing.
+  const clean = function (v) { return String(v || '').trim() }
+  const parts = [clean(settings.streetAddress), [clean(settings.addressLocality), clean(settings.addressRegion)].filter(Boolean).join(', ') + (settings.postalCode ? ' ' + clean(settings.postalCode) : '')].filter(function (p) { return p && p.trim() })
+  const full = parts.length ? parts.join(', ') : clean(settings.address)
+  const areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return clean(a && typeof a === 'object' ? a.name : a) }).filter(Boolean).slice(0, 12)
+  if (!full && !areas.length) return
+  const name = clean(settings.companyName)
+  const near = encodeURIComponent(full || (areas[0] || ''))
+  const withName = encodeURIComponent((name ? name + ', ' : '') + (full || areas[0]))
+  const osm = 'https://www.openstreetmap.org/search?query=' + near
+  const gmaps = 'https://www.google.com/maps/search/?api=1&query=' + withName
+  const amaps = 'https://maps.apple.com/?q=' + withName
+  const heading = data.heading || (full ? 'Find us' : 'Where we work')
+%>
+<section class="map-area" id="map" aria-labelledby="map-area-title">
+  <div class="container">
+    <div class="map-area__grid">
+      <div class="map-area__copy">
+        <h2 class="map-area__title" id="map-area-title"><%= heading %></h2>
+        <% if (data.intro) { %><p class="map-area__intro"><%= data.intro %></p><% } %>
+        <% if (full) { %>
+          <address class="map-area__address"><span class="map-area__label">Address</span><span class="map-area__lines"><%= full %></span></address>
+        <% } %>
+        <% if (areas.length) { %>
+          <div class="map-area__areas"><span class="map-area__label">We serve</span>
+            <ul class="map-area__list"><% areas.forEach(function (a) { %><li><%= a %></li><% }) %></ul>
+            <a class="map-area__all" href="/service-areas">All service areas</a>
+          </div>
+        <% } %>
+        <div class="map-area__links">
+          <a class="btn btn--primary btn--lg" href="<%= osm %>" rel="noopener noreferrer" target="_blank">Open the map<span class="map-area__sr"> (OpenStreetMap, opens in a new tab)</span></a>
+          <a class="map-area__alt" href="<%= gmaps %>" rel="noopener noreferrer" target="_blank">Google Maps</a>
+          <a class="map-area__alt" href="<%= amaps %>" rel="noopener noreferrer" target="_blank">Apple Maps</a>
+        </div>
+      </div>
+      <a class="map-area__art" href="<%= osm %>" rel="noopener noreferrer" target="_blank" aria-hidden="true" tabindex="-1">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" focusable="false">
+          <g class="map-area__roads" fill="none" stroke-linecap="round">
+            <path d="M-10 210 C 90 190, 140 120, 230 130 S 360 60, 420 40" stroke-width="14"/>
+            <path d="M60 -10 C 80 80, 150 120, 160 200 S 150 280, 170 320" stroke-width="10"/>
+            <path d="M-10 90 L 420 150" stroke-width="7"/>
+            <path d="M260 -10 L 300 320" stroke-width="7"/>
+            <path d="M-10 270 L 420 250" stroke-width="5"/>
+          </g>
+          <g class="map-area__blocks"><rect x="190" y="150" width="46" height="34" rx="4"/><rect x="100" y="40" width="40" height="30" rx="4"/><rect x="310" y="180" width="52" height="40" rx="4"/><rect x="20" y="130" width="44" height="32" rx="4"/></g>
+          <g class="map-area__pin" transform="translate(205 118)"><circle class="map-area__halo" r="30"/><path d="M0 28 C-14 10 -20 2 -20 -8 a20 20 0 1 1 40 0 c0 10 -6 18 -20 36z"/><circle class="map-area__dot" cx="0" cy="-8" r="7"/></g>
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,37 @@
+<%
+  // The latest blog posts, on a page of the owner's choosing (usually the home page). The posts are the business's own
+  // published ones — the site fills `posts` at render time (server/site/routes.ts), so this section is placed once and then
+  // follows the blog: with no published post it renders nothing, no heading over an empty list.
+  const shown = Math.min(6, Math.max(1, Math.floor(Number(data.count)) || 3))
+  const posts = (Array.isArray(data.posts) ? data.posts.filter(function (p) { return p && p.title && p.slug }) : []).slice(0, shown)
+  if (!posts.length) return
+  const heading = data.heading || 'From the blog'
+  const intro = data.intro || ''
+  const fmt = function (d) { if (!d) return ''; const t = new Date(d); return isNaN(t.getTime()) ? '' : t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) }
+%>
+<section class="blog-preview" aria-labelledby="blog-preview-title">
+  <div class="container">
+    <div class="blog-preview__head">
+      <div>
+        <h2 class="blog-preview__title" id="blog-preview-title"><%= heading %></h2>
+        <% if (intro) { %><p class="blog-preview__intro"><%= intro %></p><% } %>
+      </div>
+      <a class="blog-preview__all" href="/blog">All posts</a>
+    </div>
+    <ul class="blog-preview__grid">
+      <% posts.forEach(function (p) { %>
+        <li class="blog-preview__item">
+          <a class="blog-preview__card" href="/blog/<%= encodeURIComponent(p.slug) %>">
+            <% if (p.cover) { %><span class="blog-preview__cover" style="background-image: url('<%= p.cover %>')" role="img" aria-label=""></span><% } %>
+            <span class="blog-preview__body">
+              <% if (fmt(p.date)) { %><span class="blog-preview__date"><%= fmt(p.date) %></span><% } %>
+              <span class="blog-preview__post"><%= p.title %></span>
+              <% if (p.excerpt) { %><span class="blog-preview__excerpt"><%= p.excerpt %></span><% } %>
+              <span class="blog-preview__more">Read the post &rarr;</span>
+            </span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</section>

@@ -356,3 +356,85 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 /* a very dark brand colour as a fill would vanish into a dark page: its own light form draws the edge */
 @media (prefers-color-scheme: dark) { .btn--primary, .product-add, .product-card__add { box-shadow: 0 0 0 1px {{PRIMARY_COLOR_ON_DARK}}; } }
 @media (prefers-reduced-motion: reduce) { .btn, .header-cta, .service-card, .blog-card, .product-card__media img { transition: none; } }
+
+/* ── A service's own page ───────────────────────────────────────────────────── */
+.service-detail { background: var(--bg); }
+.service-detail__title, .service-others__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(26px, 3vw, 40px); color: var(--tx); }
+.service-detail__text { color: var(--tx2); }
+.service-detail__included { background: var(--sf2); border: 1px solid var(--ln); border-radius: 4px; }
+.service-detail__list li { border-top: 1px solid var(--ln); color: var(--tx); }
+.service-detail__list li::before { border-radius: 4px; }
+.service-detail__parts { border-top: 2px solid var(--tx); }
+.service-detail__part { border-top: 1px solid var(--ln); }
+.service-detail__part:last-child { border-bottom: 1px solid var(--ln); }
+.service-detail__part dt { font-family: var(--f-display); font-weight: 700; color: var(--tx); }
+.service-detail__part dd { color: var(--tx2); }
+.service-others { background: var(--bg); }
+.service-others__link { background: var(--sf); color: var(--tx); border: 1px solid var(--ln2); border-radius: 4px; font-weight: 600; }
+.service-others__link:hover { border-color: var(--tx); text-decoration: underline; text-underline-offset: 4px; }
+
+/* ── Why choose us ──────────────────────────────────────────────────────────── */
+.why-choose { background: var(--bg); }
+.why-choose__item { background: var(--sf); border: 1px solid var(--ln); border-radius: 4px; padding: 24px; }
+.why-choose__mark { font-family: var(--f-display); font-weight: 800; font-size: 34px; letter-spacing: -.03em; color: var(--tx); border-bottom: 3px solid {{PRIMARY_COLOR}}; display: inline-block; padding-bottom: 4px; margin-bottom: 16px; }
+.why-choose__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 22px; color: var(--tx); }
+.why-choose__desc { color: var(--tx2); }
+
+/* ── Testimonials carousel ──────────────────────────────────────────────────── */
+.testimonials-carousel { background: var(--bg); }
+.testimonials-carousel__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(28px, 3.6vw, 44px); color: var(--tx); }
+.testimonials-carousel__intro { color: var(--tx2); }
+.testimonials-carousel__card { background: var(--sf2); border: 0; border-radius: 4px; }
+.testimonials-carousel__quote { font-family: var(--f-display); font-weight: 700; letter-spacing: -.015em; line-height: 1.35; color: var(--tx); }
+.testimonials-carousel__author { color: var(--tx); }
+.testimonials-carousel__btn { border: 1px solid var(--ln2); border-radius: 4px; background: var(--sf); color: var(--tx); }
+.testimonials-carousel__btn:hover { border-color: var(--tx); }
+.testimonials-carousel__dot::before { border-radius: 2px; background: var(--ln); border: 0; }
+.testimonials-carousel__dot[aria-current="true"]::before { background: var(--tx); }
+.testimonials-carousel__track:focus-visible, .testimonials-carousel__btn:focus-visible, .testimonials-carousel__dot:focus-visible { outline-color: var(--focus); }
+
+/* ── Map: where to find us ──────────────────────────────────────────────────── */
+.map-area { background: var(--bg); }
+.map-area__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(28px, 4cqi, 44px); color: var(--tx); }
+.map-area__intro, .map-area__lines { color: var(--tx2); }
+.map-area__lines { color: var(--tx); font-weight: 600; }
+.map-area__label { color: var(--tx3); }
+.map-area__list li { background: var(--sf); color: var(--tx); border: 1px solid var(--ln2); border-radius: 4px; }
+.map-area__all, .map-area__alt { color: var(--tx); text-decoration-color: {{PRIMARY_COLOR}}; }
+.map-area__art { border: 1px solid var(--ln); border-radius: 4px; background: var(--sf2); }
+.map-area__roads path { stroke: var(--ln2); }
+.map-area__blocks rect { fill: var(--sf); }
+.map-area__pin path { fill: {{PRIMARY_COLOR}}; }
+
+/* ── Latest blog posts ──────────────────────────────────────────────────────── */
+.blog-preview { background: var(--bg); }
+.blog-preview__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(28px, 4cqi, 44px); color: var(--tx); }
+.blog-preview__intro { color: var(--tx2); }
+.blog-preview__all { color: var(--tx); text-decoration-color: {{PRIMARY_COLOR}}; }
+.blog-preview__card { background: var(--sf); border: 1px solid var(--ln); border-radius: 4px; }
+.blog-preview__card:hover { border-color: var(--tx); }
+.blog-preview__cover { background-color: var(--sf2); }
+.blog-preview__date { color: var(--tx3); }
+.blog-preview__post { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 21px; color: var(--tx); }
+.blog-preview__excerpt { color: var(--tx2); }
+.blog-preview__more { color: var(--tx); }
+
+/* Parts of a service: quiet links with a coloured underline on hover */
+.service-parts { gap: 6px 16px; }
+.service-parts a { border: 0; border-radius: 0; padding: 2px 0; color: var(--tx2); font-weight: 600; font-size: 14px; border-bottom: 2px solid var(--ln); }
+.service-parts a:hover, .service-parts a:focus-visible { color: var(--tx); border-bottom-color: {{PRIMARY_COLOR}}; }
+
+/* Gallery filter: quiet pills with a clean 4px radius */
+.gallery-filter__btn { border-radius: 4px; background: transparent; border: 1px solid var(--ln); color: var(--tx2); }
+.gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
+.gallery-filter__btn[aria-pressed="true"] { background: var(--tx); border-color: var(--tx); color: var(--bg); }
+
+/* About values: clean ruled rows */
+.about-values { background: var(--bg); }
+.about-values__item { border-top: 1px solid var(--ln); }
+.about-values__item:last-child { border-bottom: 1px solid var(--ln); }
+.about-values__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.01em; font-size: 22px; color: var(--tx); }
+.about-values__desc { color: var(--tx2); }
+
+/* Call now: the look's plain button, with just enough shadow to lift it off the page */
+.call-now { box-shadow: 0 10px 20px -12px rgba(0,0,0,.5); }

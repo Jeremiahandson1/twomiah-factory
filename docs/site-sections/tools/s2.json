@@ -1,0 +1,5 @@
+[{ "type": "why_choose", "variant": "grid", "data": { "heading": "Why choose Westridge", "items": [
+  { "title": "Licensed and insured", "description": "Our license is on file and our insurance covers every job." },
+  { "title": "Free estimates", "description": "We come to the house, look at the work, and put the number in writing." },
+  { "title": "Family-run since 2009", "description": "The same two brothers answer the phone and run the jobs." },
+  { "title": "We finish what we start" } ] } }]

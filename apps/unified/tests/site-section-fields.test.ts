@@ -47,6 +47,7 @@ const NO_FIELD: Record<string, Record<string, string>> = {
     products: "the store's catalogue, drawn live by the site (site/routes.ts) — products are edited on Products",
     onPage: 'set by the site when the grid sits on a composed page under its hero (an h2), not on /shop (the h1)',
   },
+  'blog_preview/latest': { posts: "the business's own published posts, filled in by the site (site/routes.ts) — they are edited on Blog" },
   'social/feed': { limit: 'how many posts the grid shows, from settings.recentInstagramPosts, which nothing in the app fills: the section is a follow link' },
 }
 

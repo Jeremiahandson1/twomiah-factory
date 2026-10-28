@@ -19,9 +19,13 @@
   const responsePromise = data.responsePromise || ''
   // Always the enquiry endpoint (saved where the business works its leads, and emailed to the owner).
   const formAction = '/api/leads'
+  // A service's own page asks for a quote for that service: `service` rides with the enquiry (it is read as an answer
+  // the form asked for, and `source` names the page), and `id` is the anchor the page's button goes to.
+  const service = data.service || ''
+  const anchor = data.id ? String(data.id).replace(/[^a-z0-9_-]/gi, '') : ''
   const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
 %>
-<section class="contact-section">
+<section class="contact-section"<% if (anchor) { %> id="<%= anchor %>"<% } %>>
   <div class="container contact-section__grid">
     <div class="contact-section__copy">
       <<%= H %> class="contact-section__title"><%= heading %></<%= H %>>
@@ -68,6 +72,7 @@
         <input id="cf-website" name="website" type="text" tabindex="-1" autocomplete="off">
       </div>
       <input type="hidden" name="t" value="" data-form-stamp>
+      <% if (service) { %><input type="hidden" name="service" value="<%= service %>"><input type="hidden" name="source" value="Service page: <%= service %>"><% } %>
       <script>(function(){var s=document.currentScript.previousElementSibling;if(s&&s.name==='t')s.value=Date.now();})();</script>
       <div class="contact-form__row">
         <label for="cf-name">Your name</label>

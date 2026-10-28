@@ -49,11 +49,11 @@ const prose = (pages: Record<string, any[]>) => JSON.stringify(pages)
 describe('the template composer (the fallback), for every trade the signup offers', () => {
   for (const bt of TRADES) {
     test(bt + ': linked pages from the signup\'s answers, no hollow page, nothing invented', () => {
-      // With the services the signup's picker collects, a real menu: a Services page and a page per service, where the
-      // trade's plan lists services.
+      // With the services the signup's picker collects, no page is composed per service: the live site builds each one's own
+      // page (/services/<slug>, apps/unified site/servicePages.ts) from the card, so no card links to a composed page either.
       const withServices = composeInstant(signupAnswers(bt, { services: ['Signature service'] }))
-      const extras = Object.keys(withServices.pages).filter((s) => !withServices.heldPages.includes(s) && s !== 'home' && s !== 'contact')
-      if (!['dispensary', 'restaurant', 'store', 'food_truck', 'bar'].includes(bt)) expect(extras).toEqual(expect.arrayContaining(['signature-service']))
+      expect(Object.keys(withServices.pages)).not.toContain('signature-service')
+      expect(JSON.stringify(withServices.pages)).not.toContain('"href":"signature-service"')
       // With nothing but the name, trade and town, no page published beyond Home and Contact is hollow: only the
       // trade's own functions (a care finder, an events enquiry, a visit page, a bar's live pages), general guidance
       // (home care's coverage), or the Services page whose stand-in card the live site fills with the business's own
@@ -98,7 +98,7 @@ describe('the template composer (the fallback), for every trade the signup offer
     })
   }
 
-  test('the owner\'s services each get a page, linked from their card; the facts they gave appear, and only those', () => {
+  test('the owner\'s services are plain cards (the site builds each one\'s page); the facts they gave appear, and only those', () => {
     const input = signupAnswers('general_contractor', {
       services: ['Kitchen remodels', 'Decks', 'Blog'],
       description: 'Two brothers who grew up in Texas. Interior and exterior remodeling.',
@@ -106,14 +106,12 @@ describe('the template composer (the fallback), for every trade the signup offer
       facts: { credentials: ['Licensed and insured'], freeEstimates: true, hours: 'Mon-Fri 8-5', testimonials: [{ quote: 'Rebuilt our deck in a week.', author: 'Pat K.' }] },
     })
     const site = composeInstant(input)
-    expect(site.pages['kitchen-remodels']).toBeDefined()
-    expect(site.pages.decks).toBeDefined()
-    // A service named like one of the site's own addresses gets a page of its own name, not the site's.
-    expect(site.pages['blog-service']).toBeDefined()
-    expect(site.titles).toMatchObject({ 'kitchen-remodels': 'Kitchen remodels', decks: 'Decks', 'blog-service': 'Blog' })
+    expect(site.pages['kitchen-remodels']).toBeUndefined()
     const cards = site.pages.services.find((s) => s.type === 'services' && s.data.heading === 'What we do')!
-    expect(cards.data.items).toEqual([{ title: 'Kitchen remodels', href: 'kitchen-remodels' }, { title: 'Decks', href: 'decks' }, { title: 'Blog', href: 'blog-service' }])
-    expect(site.heldPages).not.toContain('kitchen-remodels')
+    expect(cards.data.items).toEqual([{ title: 'Kitchen remodels' }, { title: 'Decks' }, { title: 'Blog' }])
+    // The steps are marked: a list of steps is never a list of services (no page per step).
+    const steps = site.pages.services.find((s) => s.type === 'services' && s.data.heading === 'How it works')
+    if (steps) expect(steps.data.kind).toBe('steps')
     // Their facts: the review, the free estimate on the booking button, the hours, the owner's own words.
     const all = prose(site.pages)
     expect(all).toContain('Rebuilt our deck in a week.')
@@ -121,9 +119,9 @@ describe('the template composer (the fallback), for every trade the signup offer
     expect(all).toContain('Two brothers who grew up in Texas.')
     expect(JSON.stringify(site.pages.contact)).toContain('Mon-Fri 8-5')
     expect(JSON.stringify(site.pages.about)).toContain('Wesley Higgs')
-    // The titles reach the site's pages.
+    // No composed page per service: the site's own /services/<slug> pages are built from the cards at render time.
     const pages = premiumSitePages(toComposition(site))
-    expect(pages.find((p) => p.slug === 'kitchen-remodels')?.title).toBe('Kitchen remodels')
+    expect(pages.find((p) => p.slug === 'kitchen-remodels')).toBeUndefined()
   })
 
   test('with no services listed, one stand-in card for the trade, no page for it, and nothing but its title', () => {
@@ -386,17 +384,17 @@ describe('the unified build', () => {
     expect(r.errors).toEqual([])
     const site = s.provisioned[0].site
     const live = site.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)
-    expect(live).toEqual(expect.arrayContaining(['home', 'services', 'contact', 'roof-repair']))
+    expect(live).toEqual(expect.arrayContaining(['home', 'services', 'contact']))
+    expect(live).not.toContain('roof-repair')
     // No story from the owner, no storm work named: About and Storm damage start held, as the live tests decided.
     expect(live).not.toContain('about')
     expect(live).not.toContain('storm')
     expect(site.nav.map((n: any) => n.label)).toEqual(['Services'])
-    expect(site.pages.find((p: any) => p.slug === 'roof-repair').title).toBe('Roof repair')
   }, 180_000)
 
   test('provisionSite: a tenant with no stored composition gets the template composer\'s', () => {
     const body: any = provisionSite({ name: 'Acme Lawn', industry: 'landscaping', city: 'Eau Claire', state: 'WI', intake_data: { intake: { services: ['Mowing'] } } })
-    expect(body.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)).toEqual(expect.arrayContaining(['home', 'services', 'packages', 'contact', 'mowing']))
+    expect(body.pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)).toEqual(expect.arrayContaining(['home', 'services', 'packages', 'contact']))
   })
 
   test('the AI\'s site is held to the same rules: What we do lists only the owner\'s services, and no story is written for them', () => {

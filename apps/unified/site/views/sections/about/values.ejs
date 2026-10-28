@@ -1,0 +1,25 @@
+<%
+  // About "values": what the owner says they stand for — each a short title and, if they gave one, a sentence. A value is a
+  // claim about the business, so the site states only the owner's own (the AI builder drops one it cannot trace to the
+  // intake; the owner types the rest in the editor). With nothing titled the section renders nothing.
+  const heading = data.heading || 'What we stand for'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(function (i) { return i && i.title }) : []
+  if (!items.length) return
+%>
+<section class="about-values" aria-labelledby="about-values-title">
+  <div class="container about-values__grid">
+    <div class="about-values__head">
+      <h2 class="section-title" id="about-values-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <dl class="about-values__list">
+      <% items.forEach(function (item) { %>
+        <div class="about-values__item">
+          <dt class="about-values__title"><%= item.title %></dt>
+          <% if (item.description) { %><dd class="about-values__desc"><%= item.description %></dd><% } %>
+        </div>
+      <% }) %>
+    </dl>
+  </div>
+</section>

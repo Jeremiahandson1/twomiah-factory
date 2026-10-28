@@ -145,9 +145,10 @@ describe('for search engines and AI assistants', () => {
 
   test("Google's business markup gets the city and the state, never the street or a ZIP in the state", async () => {
     const page = (await html('/')).body
-    const ld = JSON.parse(page.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1])
+    const doc = JSON.parse(page.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1])
+    const ld = doc['@graph'].find((n: any) => n['@id'].endsWith('/#business'))
     expect(ld.address).toEqual({ '@type': 'PostalAddress', addressLocality: 'Verona', addressRegion: 'WI' })
-    expect(JSON.stringify(ld)).not.toContain('12 Main St')
+    expect(JSON.stringify(doc)).not.toContain('12 Main St')
   })
 
   test('robots.txt points at the sitemap; llms.txt gives the area, never the street', async () => {

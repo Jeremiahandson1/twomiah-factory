@@ -333,8 +333,11 @@ const invented = (): Record<string, Section[]> => ({
     check(bare.heldPages.includes('about') || !('about' in bare.pages), `composeInstant(${bt}): no About is published without the owner's story`)
     check(bare.removedClaims.length === 0, `composeInstant(${bt}): its own copy states nothing the facts check removes (${bare.removedClaims.slice(0, 3).join(' | ')})`)
     const site = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI', email: 'acme@example.com', services: ['Repairs', 'Installs'] })
+    // Each service is a card on a published page of the plan; its own page (/services/<slug>) is then built by the site itself
+    // from that card (apps/unified/server/site/servicePages.ts), so the composer writes no page per service.
     const published = Object.keys(site.pages).filter((s) => !site.heldPages.includes(s))
-    check(['repairs', 'installs'].every((s) => published.includes(s)), `composeInstant(${bt}): each service the owner names gets a published page (published: ${published.join(', ')})`)
+    const cards = published.flatMap((p) => (site.pages[p] as any[]).flatMap((sec) => (Array.isArray(sec?.data?.items) ? sec.data.items.map((i: any) => String(i?.title || '').toLowerCase()) : [])))
+    check(['repairs', 'installs'].every((s) => cards.includes(s)), `composeInstant(${bt}): each service the owner names is a card on a published page (published: ${published.join(', ')})`)
     check(site.removedClaims.length === 0, `composeInstant(${bt}, services): its own copy states nothing the facts check removes (${site.removedClaims.slice(0, 3).join(' | ')})`)
   }
 }

@@ -9,6 +9,8 @@ import type { Context } from 'hono'
 import type { SiteContext } from './context.ts'
 import type { PageFacts, SiteFacts } from './facts.ts'
 import { pageTitle, withBusinessServices } from './menu.ts'
+import { linkServiceCards } from './servicePages.ts'
+import { structuredDataFor } from './structuredData.ts'
 
 export const VIEWS = path.join(import.meta.dir, '..', '..', 'site', 'views')
 
@@ -62,7 +64,8 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   const stored = sectionsShown(ctx, Array.isArray(all) ? all : [])
   const { currentPath, origin, extraNav = [] } = o
   // "What we do" as the business has it now (site/menu.ts): the owner's cards, else its own services, else not shown.
-  const sections = withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? '')
+  // Each card then links to its service page (site/servicePages.ts), where the business has one for it.
+  const sections = linkServiceCards(withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? ''), ctx.servicePages ?? [], ctx.publishedSlugs ?? new Set())
   const settings = ctx.settings
   let nav: any[] = Array.isArray(settings.nav) ? settings.nav : []
   for (const item of extraNav) {
@@ -95,13 +98,15 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
     site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
   }) as string
   const jsonLd = facts && o.facts ? o.facts.source.jsonLd(facts, { slug: currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections, settings: effective, about: o.facts.about }) : ''
-  return wrap(ctx, body, effective, currentPath, lcpImage, jsonLd)
+  return wrap(ctx, body, effective, currentPath, lcpImage, jsonLd || structuredDataFor(ctx, effective, { origin, path: currentPath, title: meta.title || '', sections }))
 }
 
 /** A body already built (the blog) inside the site's layout. */
 /** A page from its body. `embed`: framed on another website — the page alone (views/base.ejs). */
-export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string, opts: { embed?: boolean } = {}): Promise<string> {
-  return wrap(ctx, body, { ...ctx.settings, ...settingsOverrides }, currentPath, '', '', !!opts.embed)
+export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string, opts: { embed?: boolean; title?: string } = {}): Promise<string> {
+  const settings = { ...ctx.settings, ...settingsOverrides }
+  const ld = opts.embed ? '' : structuredDataFor(ctx, settings, { origin: String(settings.siteOrigin || ''), path: currentPath, title: opts.title || '', sections: [] })
+  return wrap(ctx, body, settings, currentPath, '', ld, !!opts.embed)
 }
 
 async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, jsonLd: string, embed = false): Promise<string> {

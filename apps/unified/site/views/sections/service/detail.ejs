@@ -1,0 +1,36 @@
+<%
+  // The body of a service's own page (/services/<slug>, server/site/servicePages.ts): the rest of the owner's description,
+  // what is included, and the smaller services this one covers — each only when the owner gave it. Built by the site from the
+  // service's card, never composed. A page that has none of the three renders nothing.
+  const paragraphs = String(data.description || '').split(/\n{2,}/).map(function (p) { return p.trim() }).filter(Boolean)
+  const body = paragraphs.slice(1)
+  const bullets = Array.isArray(data.bullets) ? data.bullets.filter(Boolean) : []
+  const subs = Array.isArray(data.subServices) ? data.subServices.filter(function (s) { return s && s.title }) : []
+  if (!body.length && !bullets.length && !subs.length) return
+%>
+<section class="service-detail">
+  <div class="container service-detail__grid">
+    <div class="service-detail__main">
+      <% body.forEach(function (p) { %><p class="service-detail__text"><%= p %></p><% }) %>
+      <% if (subs.length) { %>
+        <h2 class="service-detail__title" id="parts">What this covers</h2>
+        <dl class="service-detail__parts">
+          <% subs.forEach(function (s) { %>
+            <div class="service-detail__part" id="<%= s.slug %>">
+              <dt><%= s.title %></dt>
+              <% if (s.description) { %><dd><%= s.description %></dd><% } %>
+            </div>
+          <% }) %>
+        </dl>
+      <% } %>
+    </div>
+    <% if (bullets.length) { %>
+      <aside class="service-detail__included" aria-labelledby="included-title">
+        <h2 class="service-detail__title" id="included-title">What&rsquo;s included</h2>
+        <ul class="service-detail__list">
+          <% bullets.forEach(function (b) { %><li><%= b %></li><% }) %>
+        </ul>
+      </aside>
+    <% } %>
+  </div>
+</section>

@@ -37,7 +37,7 @@ function previewSettings(i: SitePreviewInput): Record<string, any> {
     primaryColor: i.company.primaryColor, secondaryColor: i.company.secondaryColor ?? null,
     tagline: '', seoTitle: '', seoDescription: '',
     nav: i.settings.nav ?? [], photoCredits: i.settings.photoCredits ?? [], contentGaps: i.settings.contentGaps ?? [],
-    serviceAreas: i.settings.serviceAreas ?? [], inventoryFeedUrl: '', contactCtaLabel: i.settings.contactCtaLabel || 'Get in touch',
+    serviceAreas: i.settings.serviceAreas ?? [], socialLinks: [], inventoryFeedUrl: '', contactCtaLabel: i.settings.contactCtaLabel || 'Get in touch',
     accentColor: i.settings.accentColor || '', faviconUrl: '',
     googleTagManagerId: '', googleAnalyticsId: '', googleAdsId: '', facebookPixelId: '', microsoftClarityId: '',
   }

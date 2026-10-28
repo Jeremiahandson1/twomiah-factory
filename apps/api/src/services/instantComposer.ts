@@ -23,7 +23,6 @@ import { enforceIntakeFacts, wantsBookings, ownerParagraphs as paragraphsOf } fr
 import { SECTION_SCHEMA, pageRecipesFor, tradeKindFor, type ComposerInput, type Section, type TradeKind } from './sectionComposer'
 import { getHeroLibrary } from '../config/heroLibrary'
 import { websiteTradeFor } from '../config/websiteTrades'
-import { RESERVED_SLUGS } from '../../../unified/server/site/slugs'
 
 type SiteResult = {
   pages: Record<string, Section[]>
@@ -173,15 +172,6 @@ const STORM_STEPS: Step[] = [
 // ─── The pages ─────────────────────────────────────────────────────────────
 
 /** A service page's address: its name as a slug, never one the site or this site's plan already uses. */
-function serviceSlug(title: string, taken: Set<string>): string {
-  const base = title.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56).replace(/-+$/, '')
-  if (!base) return ''
-  let slug = RESERVED_SLUGS.has(base) || taken.has(base) ? base + '-service' : base
-  for (let i = 2; taken.has(slug); i++) slug = base + '-' + i
-  taken.add(slug)
-  return slug
-}
-
 /** The booking button a trade's plan asks for (the reservation/cta labels in its recipes). */
 function bookingCta(kind: TradeKind, free: boolean): { heading: string; buttonLabel: string } | null {
   switch (kind) {
@@ -263,29 +253,21 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const planSlugs = Object.keys(recipe)
   const servicesHome = ['services', 'service', 'classes', 'rooms'].find((s) => planSlugs.includes(s))
     || ((kind === 'landscaping' || kind === 'homecare' || kind === 'roofing') ? 'services' : undefined)
-  // Each service the owner named gets a page of its own, linked from its card (the standard sites' /services/<name>).
-  // Food businesses' "services" are not dishes, and a store's are product categories: no pages for them.
-  const taken = new Set<string>([...planSlugs, 'services'])
+  // Each service the owner named gets its own page — /services/<slug> — built by the site itself from the card
+  // (apps/unified site/servicePages.ts), so the composer writes no page per service and no link to one.
   const titles: Record<string, string> = {}
-  const servicePages: Array<{ slug: string; title: string }> = []
-  if (servicesHome && services.length && !['restaurant', 'cafe', 'foodtruck', 'store', 'events'].includes(kind)) {
-    for (const title of services.slice(0, 12)) {
-      const slug = serviceSlug(title, taken)
-      if (slug) { servicePages.push({ slug, title }); titles[slug] = title }
-    }
-  }
-  const hrefOf = (title: string) => servicePages.find((p) => p.title === title)?.slug
   // "What we do": the owner's services, or the one stand-in card for the trade, which the build marks standIn so the
   // live site shows the business's own list there (price book, a salon's service menu, a venue's spaces and packages)
   // or nothing — never the trade as a service (apps/unified/server/site/menu.ts; site-menu-1022.test.ts). The card is
   // a title only, and only the Services page's cards link to each service's own page.
-  const serviceCards = (heading: string, linked = false): Section | null => serviceNames.length
-    ? { type: 'services', variant: 'cards-grid', data: { heading, items: serviceNames.map((title) => (linked && hrefOf(title) ? { title, href: hrefOf(title) } : { title })) } }
+  const serviceCards = (heading: string): Section | null => serviceNames.length
+    ? { type: 'services', variant: 'cards-grid', data: { heading, items: serviceNames.map((title) => ({ title })) } }
     : null
   // What the owner said they do, in their own words: a page that implies an offering (storm-damage help, catering) is
   // written only when these words name it — otherwise it would be a promise the owner never made.
   const ownWords = [input.description || '', ...services].join(' ').toLowerCase()
-  const steps = (which: keyof typeof STEPS, heading = 'How it works'): Section => ({ type: 'services', variant: 'cards-grid', data: { heading, items: STEPS[which] } })
+  // `kind: 'steps'` marks a list of steps, which is not the business's services (no page per step: servicePages.ts).
+  const steps = (which: keyof typeof STEPS, heading = 'How it works'): Section => ({ type: 'services', variant: 'cards-grid', data: { heading, kind: 'steps', items: STEPS[which] } })
   const stepKind: keyof typeof STEPS = kind === 'fieldservice' ? 'fieldservice' : kind === 'homecare' ? 'homecare' : kind === 'salon' ? 'salon' : kind === 'vet' ? 'vet' : 'generic'
   const faqItems = (FAQS[kind] || FAQS.generic)
   const faq = (heading = 'Common questions', items: Faq[] = faqItems): Section => ({ type: 'faq', variant: 'accordion', data: { heading, items } })
@@ -334,6 +316,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
     founded(),
     reviews(),
     gallery(3),
+    // The business's own latest posts, once it has any (the site fills them in; with none the section shows nothing).
+    kind === 'store' ? null : { type: 'blog_preview', variant: 'latest', data: { heading: 'From the blog' } },
     talkTo(),
   ]
   function careFinder(): Record<string, unknown> {
@@ -345,7 +329,7 @@ export function composeInstant(input: ComposerInput): SiteResult {
   // "how it works" and a general FAQ do not make a page of services (the live tests' "Services" link to nothing).
   const servicesPage = (eyebrow = 'Services'): Array<Section | null> => [
     pageHero(eyebrow, label ? (place ? label + ' in ' + place : label) : 'What we do'),
-    serviceCards('What we do', true),
+    serviceCards('What we do'),
     services.length ? steps(stepKind) : null,
     // A home-care site answers its questions on its coverage page.
     services.length && kind !== 'homecare' ? faq() : null,
@@ -417,15 +401,6 @@ export function composeInstant(input: ComposerInput): SiteResult {
     ? [planSlugs[0], servicesHome, ...planSlugs.slice(1)]
     : planSlugs
   for (const slug of order) build(slug, (builders[slug] || (() => framed(titleCase(slug), titleCase(slug))))())
-  for (const p of servicePages) {
-    build(p.slug, [
-      pageHero(label || 'Services', p.title, place ? p.title + ' in ' + place + '.' : undefined),
-      steps(stepKind),
-      bookingSection(),
-      { type: 'cta', variant: 'banner', data: { heading: 'Ask about ' + p.title, primaryCta: contactCta } },
-    ])
-  }
-
   // Sections a trade's site opens with: the age gate (dispensary), the urgent-care or emergency call
   // bar (vet, field service). The facts gate drops a bar the owner gave no facts for.
   if (/\bage\/modal\b/.test(homeSeq)) pages.home.unshift({ type: 'age', variant: 'modal', data: { gateAge: 21 } })

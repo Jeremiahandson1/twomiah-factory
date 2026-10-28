@@ -1,0 +1,13 @@
+<%
+  // "Other services": links to the business's other service pages. Built by the site; renders nothing without another one.
+  const items = Array.isArray(data.items) ? data.items.filter(function (i) { return i && i.title && i.href }) : []
+  if (!items.length) return
+%>
+<section class="service-others" aria-labelledby="service-others-title">
+  <div class="container">
+    <h2 class="service-others__title" id="service-others-title"><%= data.heading || 'Other services' %></h2>
+    <ul class="service-others__list">
+      <% items.forEach(function (i) { %><li><a class="service-others__link" href="<%= i.href %>"><%= i.title %></a></li><% }) %>
+    </ul>
+  </div>
+</section>

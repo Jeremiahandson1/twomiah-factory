@@ -264,8 +264,14 @@ export function withPreviewSamples(real: any[], vertical: string, factoryBase = 
   const services = t.services.map((s) => { const image = pic(s.photo); return { title: s.title, description: s.description, ...(image ? { image } : {}) } })
   const servicesSection = mark({ type: 'services', variant: 'cards-grid', data: { heading: 'What we do (sample services)', intro: 'Sample services — yours appear here with your own photos.', items: services } })
 
+  // "Why choose us": sample reasons, marked — a real site carries only the reasons its owner gives (composerFacts.ts).
+  const why = mark({ type: 'why_choose', variant: 'grid', data: { heading: 'Why choose us (sample)', intro: 'Sample reasons — your real site lists your own.', items: [
+    { title: 'Sample reason one', description: 'Example only: a real reason is something true of your business that you tell us.' },
+    { title: 'Sample reason two', description: 'Example only: nothing here is about your business.' },
+    { title: 'Sample reason three', description: 'Example only.' },
+  ] } })
   const gallery = (t.gallery ?? []).map((g) => ({ url: pic(g.photo), alt: g.alt, caption: g.caption })).filter((g) => g.url)
-  const extras: Section[] = []
+  const extras: Section[] = [why]
   if (gallery.length >= 3) extras.push(mark({ type: 'gallery', variant: 'grid', data: { heading: t.galleryHeading || 'Recent work (sample)', intro: 'Sample photos — your real site shows your own work.', photos: gallery } }))
   extras.push(mark({ type: 'about', variant: 'story', data: { eyebrow: 'Sample · About us', title: 'About us (sample)', paragraphs: t.about } }))
   extras.push(mark({ type: 'testimonials', variant: 'quotes', data: { heading: 'What customers say (sample reviews)', items: REVIEWS } }))

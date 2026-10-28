@@ -58,6 +58,35 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'bookingPath', label: 'Booking link', kind: 'text', hint: 'Leave blank for /book.' }],
     defaultData: { heading: 'Book online', intro: '', buttonLabel: 'See open times', note: '' },
   },
+  {
+    type: 'why_choose', variant: 'grid', label: 'Why choose us — Reasons',
+    description: 'Short cards, one per reason to hire you — in your own words.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Why choose us' }, intro,
+      { key: 'items', label: 'Reasons', kind: 'list', itemLabel: 'reason', max: 8, hint: 'Only what is true of your business: it is what visitors will hold you to.', item: [
+        { key: 'title', label: 'Reason', kind: 'text', placeholder: 'e.g. Licensed and insured' }, { key: 'description', label: 'A sentence about it (optional)', kind: 'textarea' }] }],
+    defaultData: { heading: 'Why choose us', intro: '', items: [] },
+  },
+  {
+    type: 'about', variant: 'values', label: 'About — What we stand for',
+    description: 'The values you run the business by, one short title each — in your own words.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'What we stand for' }, intro,
+      { key: 'items', label: 'Values', kind: 'list', itemLabel: 'value', max: 8, hint: 'Only what you really hold to: visitors will hold you to it.', item: [
+        { key: 'title', label: 'Value', kind: 'text', placeholder: 'e.g. We show up when we say we will' }, { key: 'description', label: 'A sentence about it (optional)', kind: 'textarea' }] }],
+    defaultData: { heading: 'What we stand for', intro: '', items: [] },
+  },
+  {
+    type: 'map', variant: 'area', label: 'Map — Where to find us',
+    description: 'Your address and the places you serve, with links to open it in a map. Loads nothing from any map company.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Find us' }, intro],
+    defaultData: { heading: 'Find us', intro: '' },
+  },
+  {
+    type: 'blog_preview', variant: 'latest', label: 'Blog — Latest posts',
+    description: 'Your newest blog posts, filled in for you. Shows nothing until you have published a post.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'From the blog' }, intro,
+      { key: 'count', label: 'How many posts', kind: 'select', hint: 'Three is usual.', options: [1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) })) }],
+    defaultData: { heading: 'From the blog', intro: '', count: '3' },
+  },
   // ── Dispensary ─────────────────────────────────────────────────────────
   {
     type: 'age', variant: 'modal', label: 'Age gate',

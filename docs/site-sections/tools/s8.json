@@ -1,0 +1,4 @@
+[{ "type": "about", "variant": "values", "data": { "heading": "What we stand for", "intro": "The few things we hold ourselves to on every job.", "items": [
+ {"title":"We show up when we say we will","description":"If the crew is running late, you hear it from us first."},
+ {"title":"We finish what we start"},
+ {"title":"One price, in writing","description":"The quote is the price unless you change the plan."}] } }]

@@ -92,32 +92,7 @@
   <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
   <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
   <% if (settings.appleTouchIconUrl) { %><link rel="apple-touch-icon" href="<%= settings.appleTouchIconUrl %>"><% } %>
-  <%
-    // Business markup for Google (schema.org LocalBusiness), unless the page brings its own (a vertical's facts: the
-    // bar's BarOrPub with its bar and kitchen hours, its menu and events; jsonLd, printed below). Only the facts in
-    // the owner's settings — name, phone, email, area, logo — and nothing is
-    // filled in when a field is empty. The AREA only (city, state): the street
-    // in settings.address is often the owner's home, and the site itself never
-    // shows it, so the markup must not publish it either. Hours are free text on the contact
-    // section, not the opening-hours format schema.org needs, so they are left
-    // out rather than guessed. The synthesized /images/logo.svg is a
-    // placeholder, never the business's logo.
-    var _ld = null;
-    if (!pageJsonLd && canonicalBase && settings.companyName) {
-      _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
-      if (settings.phone) _ld.telephone = settings.phone;
-      if (settings.email) _ld.email = settings.email;
-      var _areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return String((a && a.name) || a || '').trim(); }).filter(Boolean);
-      if (_areas.length) _ld.areaServed = _areas.map(function (n) { return { '@type': 'Place', name: n }; });
-      // The city and state from their own fields (site/context.ts); a line split only where they are not given.
-      var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-      if (settings.addressLocality && settings.addressRegion) _ld.address = { '@type': 'PostalAddress', addressLocality: settings.addressLocality, addressRegion: settings.addressRegion };
-      else if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
-      var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
-      if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
-    }
-  %>
-  <% if (_ld) { %><script type="application/ld+json"><%- JSON.stringify(_ld).replace(/</g, '\\u003c') %></script><% } %>
+  <%# The page's schema.org JSON-LD (the business, its services, hours, questions and breadcrumbs) is built in server/site/structuredData.ts and printed with the page's own below. %>
   <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>
@@ -334,6 +309,22 @@
   </div>
   <% } %>
   </footer>
+  <%# "Call now", phones only (the stylesheet shows it under 768px): the business's own number, and only when it has one. It steps
+      aside while a form is on screen or a box has focus, so it never covers a form's buttons. %>
+  <% if (settings.phone && String(settings.phone).replace(/[^\d]/g, '').length >= 7) { %>
+  <a class="btn btn--primary call-now" href="tel:<%= String(settings.phone).replace(/[^\d+]/g, '') %>" data-call-now aria-label="Call <%= settings.companyName || 'us' %> on <%= settings.phone %>"><svg class="call-now__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg><span>Call now</span></a>
+  <script>(function(){
+    var a = document.querySelector('[data-call-now]'); if (!a) return;
+    var seen = 0, typing = false;
+    function sync(){ a.classList.toggle('call-now--away', seen > 0 || typing); }
+    if (window.IntersectionObserver) {
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { seen += e.isIntersecting ? 1 : -1; }); if (seen < 0) seen = 0; sync(); });
+      document.querySelectorAll('form').forEach(function (f) { io.observe(f); });
+    }
+    document.addEventListener('focusin', function (e) { typing = !!(e.target && e.target.closest && e.target.closest('form')); sync(); });
+    document.addEventListener('focusout', function () { typing = false; sync(); });
+  })();</script>
+  <% } %>
   <% if (cover) { %>
   </div>
   <% } %>

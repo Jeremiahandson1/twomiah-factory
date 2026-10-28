@@ -39,7 +39,8 @@ export function SectionFormDispatcher({ type, variant, data, onChange }: Props) 
     case 'team/grid':             return <TeamGridForm data={data} onChange={onChange} />
     case 'contact/form-info':     return <ContactFormInfoForm data={data} onChange={onChange} />
     case 'gallery/grid':          return <GalleryGridForm data={data} onChange={onChange} />
-    case 'testimonials/quotes':   return <TestimonialsQuotesForm data={data} onChange={onChange} />
+    case 'testimonials/quotes':
+    case 'testimonials/carousel': return <TestimonialsQuotesForm data={data} onChange={onChange} />
     case 'faq/accordion':         return <FaqAccordionForm data={data} onChange={onChange} />
     case 'stats/bar':             return <StatsBarForm data={data} onChange={onChange} />
     default: {

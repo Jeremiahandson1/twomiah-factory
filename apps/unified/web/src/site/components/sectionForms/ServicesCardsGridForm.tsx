@@ -1,7 +1,8 @@
 import { Plus, X } from 'lucide-react'
-import { Label, TextField, TextAreaField, ImageUrlField, Hint } from '../Field'
+import { SubServicesField } from './SubServicesField'
+import { Label, TextField, TextAreaField, ImageUrlField, Hint, StringListField } from '../Field'
 
-interface Item { title?: string; description?: string; image?: string; href?: string }
+interface Item { title?: string; description?: string; image?: string; href?: string; bullets?: string[]; subServices?: unknown[] }
 interface Data { heading?: string; intro?: string; items?: Item[] }
 
 export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange: (d: Data) => void }) {
@@ -13,7 +14,7 @@ export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange
     update({ items: next })
   }
   const removeItem = (i: number) => update({ items: items.filter((_, j) => j !== i) })
-  const addItem = () => update({ items: [...items, { title: '', description: '', image: '', href: 'contact' }] })
+  const addItem = () => update({ items: [...items, { title: '', description: '', image: '', href: '' }] })
 
   return (
     <div className="space-y-4">
@@ -46,7 +47,16 @@ export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange
                 <TextField label="Title" value={item.title || ''} onChange={(e) => updateItem(i, { title: e.target.value })} />
                 <TextAreaField label="Description" rows={2} value={item.description || ''} onChange={(e) => updateItem(i, { description: e.target.value })} />
                 <ImageUrlField label="Image" value={item.image || ''} onChange={(v) => updateItem(i, { image: v })} uploadTag="services" />
-                <TextField label="Learn more link" placeholder="contact, services/foo, https://…" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
+                <StringListField
+                  label="What's included"
+                  values={item.bullets || []}
+                  onChange={(v) => updateItem(i, { bullets: v })}
+                  placeholder="Something that is part of this service"
+                  addLabel="Add item"
+                />
+                <Hint>Shown on this service's own page, with the description (a blank line starts a new paragraph). Only what you list appears.</Hint>
+                <SubServicesField values={item.subServices || []} onChange={(v) => updateItem(i, { subServices: v })} />
+                <TextField label="Learn more link (optional)" placeholder="leave empty for this service's own page" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
               </div>
             </div>
           ))}
