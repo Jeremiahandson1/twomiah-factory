@@ -13,7 +13,6 @@ import { z } from 'zod'
 import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
 import { companyTimeZone, storeDateString, storeDayStart, dayMarker } from './businessDay'
 import { hasHappened } from '../dateInput'
-import { partialOf } from '../partialOf'
 
 export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any
   /**
@@ -206,17 +205,17 @@ export function createTimeRoutes(deps: TimeDeps) {
     (updates.hours !== undefined && !sameNumber(updates.hours, existing?.hours))
     || (updates.date !== undefined && !sameDay(updates.date, existing?.date))
     || (updates.hourlyRate !== undefined && !sameNumber(updates.hourlyRate, existing?.hourlyRate))
-  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
+  const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
   const entrySchema = z.object({
     date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }).refine(notFuture, { message: 'Time can only be logged for a date that has happened' }),
     // RR4 L2's rule, applied here too: the type check fires before .positive(), so without its own
     // message a typed word answers with zod's "Expected number, received nan".
-    hours: z.coerce.number({ error: 'Hours must be a number, for example 2.5' }).positive('Hours must be greater than 0').max(maxHours, `Hours cannot exceed ${maxHours} for one entry`).optional(),
+    hours: z.coerce.number({ invalid_type_error: 'Hours must be a number, for example 2.5' }).positive('Hours must be greater than 0').max(maxHours, `Hours cannot exceed ${maxHours} for one entry`).optional(),
     startTime: z.string().regex(TIME_RE, 'Start time must be HH:MM').optional(),
     endTime: z.string().regex(TIME_RE, 'End time must be HH:MM').optional(),
-    breakMinutes: z.coerce.number({ error: 'Break must be a number of minutes, for example 30' }).int('Break must be a whole number of minutes').min(0, 'Break cannot be negative').max(24 * 60).optional(),
-    hourlyRate: z.coerce.number({ error: 'An hourly rate must be a number, for example 18.00' }).min(0, 'An hourly rate cannot be negative').max(100000).optional().nullable(),
+    breakMinutes: z.coerce.number({ invalid_type_error: 'Break must be a number of minutes, for example 30' }).int('Break must be a whole number of minutes').min(0, 'Break cannot be negative').max(24 * 60).optional(),
+    hourlyRate: z.coerce.number({ invalid_type_error: 'An hourly rate must be a number, for example 18.00' }).min(0, 'An hourly rate cannot be negative').max(100000).optional().nullable(),
     description: z.string().max(2000).transform(stripTags).optional().nullable(),
     notes: z.string().max(2000).transform(stripTags).optional().nullable(),
     billable: z.boolean().optional(),
@@ -514,7 +513,7 @@ export function createTimeRoutes(deps: TimeDeps) {
   app.put('/:id', requirePermission('time:update'), async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
-    const parsed = partialOf(entrySchema.extend({ approved: z.boolean().optional() })).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.extend({ approved: z.boolean().optional() }).partial().safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const existing = await ownEntry(id, currentUser.companyId)

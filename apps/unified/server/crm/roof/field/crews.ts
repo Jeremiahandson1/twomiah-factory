@@ -19,7 +19,6 @@ import { phone } from '../validation.ts'
 import { loginsOn, setLoginsOn } from '../../crewLogins.ts'
 import { ownJobsWhere } from '../../ownWork.ts'
 import { canSeeWith } from '../../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const crewSchema = z.object({
   name: z.string().min(1),
@@ -88,7 +87,7 @@ export function createCrewRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('crews:update'), async (c) => {
     const { companyId } = c.get('user')
     const id = c.req.param('id')
-    const parsed = partialOf(crewSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = crewSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     if (!(await ownCrew(companyId, id))) return fail(c, 404, 'Crew not found')
     const [updated] = await db.update(crew).set({ ...parsed.data, updatedAt: new Date() } as any)

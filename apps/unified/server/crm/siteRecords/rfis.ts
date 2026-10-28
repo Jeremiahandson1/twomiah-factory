@@ -8,7 +8,6 @@ import { rfi, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const rfiSchema = z.object({
   subject: z.string().min(1),
@@ -98,7 +97,7 @@ export function createRfiRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('rfis:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = partialOf(rfiSchema).parse(await c.req.json())
+    const data = rfiSchema.partial().parse(await c.req.json())
 
     const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
     if (data.dueDate) updateData.dueDate = new Date(data.dueDate)

@@ -118,9 +118,9 @@ const launchSchema = z.object({
   objective: z.enum(ADS_OBJECTIVES),
   campaignName: z.string().trim().min(1).max(200).optional(),
   google_campaign_type: z.enum(['SEARCH', 'PERFORMANCE_MAX']).optional(),
-  confirmSpend: z.literal(true, { error: () => 'Launching starts real ad spend: send confirmSpend: true' }),
+  confirmSpend: z.literal(true, { errorMap: () => ({ message: 'Launching starts real ad spend: send confirmSpend: true' }) }),
 })
-const confirmSchema = z.object({ confirmSpend: z.literal(true, { error: () => 'This changes live ad spend: send confirmSpend: true' }) })
+const confirmSchema = z.object({ confirmSpend: z.literal(true, { errorMap: () => ({ message: 'This changes live ad spend: send confirmSpend: true' }) }) })
 const profileSchema = z.object({
   business_name: z.string().trim().min(1).max(200),
   industry: z.string().trim().min(1).max(100),

@@ -10,7 +10,6 @@ import { unit } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 // Strip HTML tags from free-text so a stored <script> payload can never reach an un-escaped render path (a PDF quote,
 // an email, a partner feed) — M-05. These fields never legitimately contain markup.
@@ -28,18 +27,18 @@ const money = z.string()
 
 // A unit that goes to the public marketplace feed needs a real identity (RV T19 M1).
 export const UNIT_CATEGORIES = ['motorhome', 'towable', 'motorcycle', 'atv', 'utv', 'sxs', 'pwc', 'snowmobile', 'boat'] as const
-const requiredText = (label: string) => z.string({ error: `${label} is required` })
+const requiredText = (label: string) => z.string({ required_error: `${label} is required` })
   .transform(s => s.replace(/<[^>]*>/g, '').trim())
   .refine(s => s.length > 0, `${label} is required`)
 
 const unitSchema = z.object({
-  category: z.enum(UNIT_CATEGORIES, { error: () => `Category must be one of: ${UNIT_CATEGORIES.join(', ')}` }),
+  category: z.enum(UNIT_CATEGORIES, { errorMap: () => ({ message: `Category must be one of: ${UNIT_CATEGORIES.join(', ')}` }) }),
   vin: z.string()
     .transform(s => s.trim().toUpperCase())
     .refine(v => /^[A-HJ-NPR-Z0-9]{17}$/.test(v) || /^[A-Z0-9]{5,16}$/.test(v), 'VIN must be a 17-character VIN (letters and digits, no I, O or Q) or a 5–16 character serial number')
     .optional(),
   stockNumber: requiredText('Stock number'),
-  year: z.number({ error: (iss) => (iss.input === undefined ? 'Year is required' : 'Year must be a number') }).int().min(1900).max(2030),
+  year: z.number({ required_error: 'Year is required', invalid_type_error: 'Year must be a number' }).int().min(1900).max(2030),
   make: requiredText('Make'),
   modelName: requiredText('Model'),
   trim: noTags,
@@ -89,7 +88,7 @@ const unitSchema = z.object({
   trailerIncluded: z.boolean().optional(),
 })
 // an edit validates the fields it sends with the same rules
-const unitUpdateSchema = partialOf(unitSchema)
+const unitUpdateSchema = unitSchema.partial()
 
 const EDITABLE = ['category', 'condition', 'stockNumber', 'vin', 'year', 'make', 'modelName', 'trim', 'status', 'msrp', 'listedPrice', 'internetPrice', 'cost', 'photos', 'floorplanImg', 'description', 'features', 'exteriorColor', 'interiorColor', 'rvClass', 'towableType', 'lengthFt', 'sleeps', 'slideOuts', 'gvwr', 'dryWeight', 'hitchWeight', 'chassis', 'freshTankGal', 'greyTankGal', 'blackTankGal', 'generatorHours', 'awnings', 'fuelType', 'engine', 'engineCc', 'mileage', 'hours', 'transmission', 'drivetrain', 'hin', 'beamFt', 'draftFt', 'hullMaterial', 'engineType', 'engineCount', 'engineHp', 'fuelCapacityGal', 'maxPersons', 'trailerIncluded'] as const
 

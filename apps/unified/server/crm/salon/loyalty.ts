@@ -49,8 +49,8 @@ const configSchema = z.object({
   // Member tiers: each a name, the lifetime points that reach it, its multiplier and an optional perk.
   loyaltyTiers: z.array(z.object({
     name: z.string().trim().min(1, 'Give the tier a name, like Silver').max(40, 'Keep the tier name under 40 characters'),
-    minPoints: z.number({ error: 'Enter the points that reach this tier' }).int('Whole points only').min(1, 'A tier starts at 1 point or more'),
-    multiplier: z.number({ error: 'Enter the multiplier' }).min(1, 'A tier earns at least the normal rate (1×)').max(MAX_TIER_MULTIPLIER, `At most ${MAX_TIER_MULTIPLIER}×`),
+    minPoints: z.number({ invalid_type_error: 'Enter the points that reach this tier' }).int('Whole points only').min(1, 'A tier starts at 1 point or more'),
+    multiplier: z.number({ invalid_type_error: 'Enter the multiplier' }).min(1, 'A tier earns at least the normal rate (1×)').max(MAX_TIER_MULTIPLIER, `At most ${MAX_TIER_MULTIPLIER}×`),
     perk: z.string().trim().max(120, 'Keep the perk under 120 characters').optional(),
   })).max(MAX_TIERS, `At most ${MAX_TIERS} tiers`).superRefine((tiers, ctx) => {
     const seen = new Set<number>()

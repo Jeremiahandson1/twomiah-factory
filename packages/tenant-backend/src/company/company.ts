@@ -311,7 +311,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // a CSS value and silently did nothing. The booking colour grew this same check in T27 N11 and
       // this one — the one customers actually see — was missed. (Salon T28 L1)
       primaryColor: z.string().trim().optional().refine((v: string | undefined) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v), 'Brand colour must be a hex value like #1d4ed8.'),
-      website: safeUrl.optional().nullable(), licenseNumber: z.string().optional(), settings: z.record(z.string(), z.any()).optional(),
+      website: safeUrl.optional().nullable(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
       ...(deps.fields || {}),
     })
     const body = await readBody(c)

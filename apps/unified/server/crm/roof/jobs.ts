@@ -40,7 +40,6 @@ import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
@@ -100,7 +99,7 @@ export const REQUIRED_JOB_FIELDS: Record<string, string> = {
 }
 const needed = (k: string) => {
   const say = `Enter the ${REQUIRED_JOB_FIELDS[k]}.`
-  return z.string({ error: say }).trim().min(1, say)
+  return z.string({ required_error: say, invalid_type_error: say }).trim().min(1, say)
 }
 
 /** "a", "a and b", "a, b and c". */
@@ -405,7 +404,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const id = c.req.param('id')
     const raw = (await c.req.json().catch(() => null)) ?? {}
     const cleaned = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v]))
-    const parsed = partialOf(jobSchema).safeParse(cleaned)
+    const parsed = jobSchema.partial().safeParse(cleaned)
     if (!parsed.success) return refuseJob(c, parsed.error)
     const data = parsed.data
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))

@@ -23,7 +23,6 @@ import { fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { lineItemInput, materialOrderStatus, normaliseLineItems, optional } from '../validation.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const MATERIAL_MONEY = ['totalCost'] as const
 /** The money inside a line item. The canonical line is {code?, description, qty, unit, unitPrice, total}. */
@@ -144,7 +143,7 @@ export function createMaterialRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('inventory:update'), async (c) => {
     const { companyId } = c.get('user')
     const id = c.req.param('id')
-    const parsed = partialOf(materialSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = materialSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     if (!(await ownOrder(companyId, id))) return fail(c, 404, 'Material order not found')

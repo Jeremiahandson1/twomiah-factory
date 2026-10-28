@@ -10,7 +10,6 @@ import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const submittalSchema = z.object({
   projectId: z.string(),
@@ -126,7 +125,7 @@ export function createSubmittalRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('submittals:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const { subject, dueDate, attachments: _attachments, ...rest } = partialOf(submittalSchema).parse(await c.req.json())
+    const { subject, dueDate, attachments: _attachments, ...rest } = submittalSchema.partial().parse(await c.req.json())
     const updateData: Partial<typeof submittal.$inferInsert> = { ...rest, updatedAt: new Date() }
     if (subject !== undefined) updateData.title = subject
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null

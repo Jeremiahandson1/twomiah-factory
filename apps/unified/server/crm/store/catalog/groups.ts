@@ -13,7 +13,6 @@ import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const groupSchema = z.object({
   name: z.string().trim().min(1, 'Name the group').max(80),
@@ -63,7 +62,7 @@ export function createCustomerGroupRoutes(d: CrmDeps) {
   })
 
   app.patch('/:id', requirePermission('discounts:update'), async (c) => {
-    const parsed = partialOf(groupSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = groupSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const companyId = own(c)
     const before = await groupOf(companyId, c.req.param('id'))

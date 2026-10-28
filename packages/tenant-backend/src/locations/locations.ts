@@ -21,7 +21,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, ne } from 'drizzle-orm'
 import { zipField } from '../address'
-import { partialOf } from '../partialOf'
 
 export interface LocationTables { location: any; user: any }
 export interface LocationRoutesDeps {
@@ -107,7 +106,7 @@ export function createLocationRoutes(deps: LocationRoutesDeps) {
   app.put('/:id', requirePermission('locations:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const parsed = partialOf(locationSchema).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = locationSchema.partial().safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the location', issues: parsed.error.issues }, 400)
     const data = parsed.data
     const refusal = await managerRefusal(currentUser.companyId, data.managerUserId)

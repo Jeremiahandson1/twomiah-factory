@@ -8,7 +8,6 @@ import { scheduleOfValues, drawRequest, project } from '../../db/schema/index.ts
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const drawScheduleSchema = z.object({
   projectId: z.string().min(1, 'Project is required'),
@@ -124,7 +123,7 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('draw-schedules:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = partialOf(drawScheduleSchema).parse(await c.req.json())
+    const data = drawScheduleSchema.partial().parse(await c.req.json())
     const updateData: Record<string, any> = { updatedAt: new Date() }
     if (data.contractAmount !== undefined) updateData.contractAmount = String(data.contractAmount)
     if (data.retainagePercent !== undefined) updateData.retainagePercent = String(data.retainagePercent)

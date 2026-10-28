@@ -14,7 +14,6 @@ import { and, asc, count, eq, ilike, inArray, max, or, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 // One numbering rule for every code in the product — locked, and only ever forwards.
 import { nextNumber } from '../invoicing/money'
-import { partialOf } from '../partialOf'
 
 export interface PricebookTables { company: any; pricebookCategory: any; pricebookItem: any; pricebookGoodBetterBest: any }
 export interface PricebookServiceDeps { db: any; tables: PricebookTables }
@@ -69,9 +68,9 @@ const itemFields = {
   laborHours: z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/), z.literal(''), z.null()]).transform((v) => (v === '' || v === null ? null : Number(v))).pipe(z.number().min(0).max(1000).nullable()).optional(),
 }
 export const itemCreateSchema = z.object(itemFields)
-export const itemUpdateSchema = partialOf(z.object(itemFields))
+export const itemUpdateSchema = z.object(itemFields).partial()
 export const categorySchema = z.object({ name: text(120).min(1), description: text(500).nullable().optional(), parentId: z.string().trim().max(64).nullable().optional() })
-export const categoryUpdateSchema = partialOf(categorySchema).extend({ active: z.boolean().optional(), sortOrder: z.number().int().min(0).max(100000).optional() })
+export const categoryUpdateSchema = categorySchema.partial().extend({ active: z.boolean().optional(), sortOrder: z.number().int().min(0).max(100000).optional() })
 export const optionsSchema = z.object({
   options: z.array(z.object({
     tier: z.enum(PRICEBOOK_TIERS),

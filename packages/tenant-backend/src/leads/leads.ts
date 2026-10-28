@@ -222,12 +222,12 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const sourceCreateSchema = z.object({
     platform: z.string().trim().regex(PLATFORM_RE, 'Invalid platform'),
     label: z.string().trim().max(80).optional(),
-    config: z.record(z.string(), z.any()).optional(),
+    config: z.record(z.any()).optional(),
   })
   const sourceUpdateSchema = z.object({
     label: z.string().trim().min(1).max(80).optional(),
     enabled: z.boolean().optional(),
-    config: z.record(z.string(), z.any()).optional(),
+    config: z.record(z.any()).optional(),
   })
   const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
 
@@ -274,7 +274,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   app.post('/sources', requirePermission('leads:create'), async (c) => {
     const currentUser = (c as any).get('user')
     const parsed = sourceCreateSchema.safeParse(await c.req.json().catch(() => ({})))
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid source' }, 400)
+    if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid source' }, 400)
     const { platform, config } = parsed.data
     // Say which ones there are — "Unknown lead source" left the user guessing what to type. (Landscaping T21 L6)
     if (!platforms.includes(platform)) return c.json({ error: `"${platform}" is not a lead source we connect to. Choose one of: ${platforms.join(', ')}.`, platforms }, 400)
@@ -301,7 +301,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const parsed = sourceUpdateSchema.safeParse(await c.req.json().catch(() => ({})))
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid update' }, 400)
+    if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid update' }, 400)
     const [existing] = await db.select().from(t.leadSource)
       .where(and(eq(t.leadSource.id, id), eq(t.leadSource.companyId, currentUser.companyId))).limit(1)
     if (!existing) return c.json({ error: 'Source not found' }, 404)

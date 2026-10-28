@@ -18,7 +18,6 @@ import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
 import { includedLines, depositProblem, chooseOptionalLine } from './quoteOptions'
-import { partialOf } from '../partialOf'
 
 
 export interface QuoteTables {
@@ -464,7 +463,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const cid = currentUser.companyId
     const id = c.req.param('id')
-    const data = partialOf(quoteSchema).parse(await c.req.json()) as any
+    const data = quoteSchema.partial().parse(await c.req.json()) as any
     const existing = await findOwn(cid, id)
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
     // A seat that is not shown a line's cost sends its lines back without one, and the lines are replaced

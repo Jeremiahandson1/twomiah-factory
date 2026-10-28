@@ -26,7 +26,6 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { changedKeys } from './audit.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * A CODE IS SOMETHING A SHOPPER TYPES. (Store QA T1, L2: 'POST discount "T1 SP ACE" returned 201; unlikely to be
@@ -88,7 +87,7 @@ export function createDiscountRoutes(d: CrmDeps, core: StoreCore) {
 
   app.patch('/:id', requirePermission('discounts:update'), async (c) => {
     const u = c.get('user')
-    const parsed = partialOf(codeSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = codeSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const mine = and(eq(discountCode.id, c.req.param('id')), eq(discountCode.companyId, u.companyId))
     const [current] = await db.select().from(discountCode).where(mine).limit(1)

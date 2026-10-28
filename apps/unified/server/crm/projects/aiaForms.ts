@@ -8,7 +8,6 @@ import { aiaForm, project } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 // One G703 row: a schedule-of-values item with its scheduled value, work to date, percent, balance and retainage.
 const lineItemSchema = z.object({
@@ -144,7 +143,7 @@ export function createAiaFormRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('aia-forms:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = partialOf(aiaFormSchema).parse(await c.req.json())
+    const data = aiaFormSchema.partial().parse(await c.req.json())
 
     const updateData: Record<string, any> = { updatedAt: new Date() }
     if (data.notes !== undefined) updateData.notes = data.notes

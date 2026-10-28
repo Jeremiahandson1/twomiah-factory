@@ -9,7 +9,6 @@ import { changeOrderTotalsByStatus, projectActivity } from '../../data/projects.
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * WHO MAY SEE WHAT A PROJECT IS WORTH (T34): `invoices:read` is the line between the people who see money and
@@ -95,7 +94,7 @@ const projectFields = z.object({
   notes: z.string().optional(),
 })
 
-// The cross-field rule lives on the create schema; updates use partialOf(projectFields).
+// The cross-field rule lives on the create schema; updates use projectFields.partial().
 const dateOrderCheck = (d: { startDate?: string; endDate?: string }) =>
   !d.startDate || !d.endDate || new Date(d.endDate) >= new Date(d.startDate)
 const projectSchema = projectFields.refine(dateOrderCheck, {
@@ -274,7 +273,7 @@ export function createProjectRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('projects:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = partialOf(projectFields).parse(await c.req.json())
+    const data = projectFields.partial().parse(await c.req.json())
 
     const [existing] = await db.select().from(project).where(and(eq(project.id, id), eq(project.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Project not found')

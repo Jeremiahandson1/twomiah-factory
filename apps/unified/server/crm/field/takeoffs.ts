@@ -14,7 +14,7 @@ const assemblyBody = z.object({ name: z.string().min(1, 'Name is required') }).p
 const sheetBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 const itemBody = z.object({ assemblyId: z.string().min(1, 'Pick an assembly') }).passthrough()
 /** A price is a number of dollars, 0 or more, to the cent; the screen sends what was typed. */
-const price = z.coerce.number({ error: 'A price must be a number' }).finite().min(0, 'A price cannot be negative').transform((n) => Math.round(n * 100) / 100)
+const price = z.coerce.number({ invalid_type_error: 'A price must be a number' }).finite().min(0, 'A price cannot be negative').transform((n) => Math.round(n * 100) / 100)
 const assemblyUpdateBody = z.object({
   materials: z.array(z.object({ id: z.string().min(1), unitCost: price.optional(), unitPrice: price.optional() })).optional(),
 }).passthrough()
@@ -23,7 +23,7 @@ const assemblyUpdateBody = z.object({
 const settingsBody = z.object({
   markupPercent: z.union([
     z.null(),
-    z.coerce.number({ error: 'The markup must be a number' }).finite().min(0, 'The markup cannot be negative').max(1000, 'The markup is a percent of the cost, at most 1000').transform((n) => Math.round(n * 100) / 100),
+    z.coerce.number({ invalid_type_error: 'The markup must be a number' }).finite().min(0, 'The markup cannot be negative').max(1000, 'The markup is a percent of the cost, at most 1000').transform((n) => Math.round(n * 100) / 100),
   ]),
 })
 

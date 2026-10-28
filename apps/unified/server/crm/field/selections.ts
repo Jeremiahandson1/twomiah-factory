@@ -21,7 +21,7 @@ const categoryBody = z.object({ name: z.string().min(1, 'Name is required') }).p
 const optionBody = z.object({
   categoryId: z.string().min(1, 'Pick a category'),
   name: z.string().trim().min(1, 'Name is required').max(200, 'Name is too long (200 characters max).'),
-  price: z.coerce.number({ error: 'Price must be a number' }).min(0, 'Price cannot be negative').max(10_000_000, 'That price is too large')
+  price: z.coerce.number({ invalid_type_error: 'Price must be a number' }).min(0, 'Price cannot be negative').max(10_000_000, 'That price is too large')
     .transform((v) => Math.round((v + Number.EPSILON) * 100) / 100).default(0),
   imageUrl: z.string().trim().max(2000).refine((v) => v === '' || /^https?:\/\/[^\s]+$/i.test(v) || /^\/media\/[^\s]+$/.test(v), 'The picture must be a web address (https://…)').optional(),
   manufacturer: z.string().trim().max(200).optional(),

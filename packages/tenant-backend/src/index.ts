@@ -7,7 +7,6 @@
 
 /** Timestamps leave this API with their zone — see instants.ts for the owner report behind it. */
 export { asInstant, withInstants } from './instants'
-export { partialOf } from './partialOf'
 
 export { createEmailAliasesRoutes, createEmailAliasesInternalRoute } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'

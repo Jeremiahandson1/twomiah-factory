@@ -44,7 +44,6 @@ import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { email as emailField, money, optional, phone as phoneField } from '../validation.ts'
 import { SCOPE_FILES, generateXactimateScopeDocument, scopeKey, type ScopeFile } from './xactimate.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * WHAT THE CARRIER PAYS IS THE BOOKS. (T63; owner's decision 2026-10-09.) invoices:read, the rule /api/jobs applies to
@@ -524,7 +523,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
     const raw = (await c.req.json().catch(() => null)) ?? {}
     if (typeof raw !== 'object' || Array.isArray(raw)) return fail(c, 400, 'Send the adjuster as an object.')
     const cleaned = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v]))
-    const parsed = partialOf(adjusterSchema).safeParse(cleaned)
+    const parsed = adjusterSchema.partial().safeParse(cleaned)
     if (!parsed.success) return invalid(c, parsed.error)
 
     const [adj] = await db.select({ id: adjusterContact.id }).from(adjusterContact)
@@ -558,7 +557,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
     const parsed = z.object({
       activityType: z.enum(['note', 'call', 'email', 'inspection', 'document_uploaded']),
       body: z.string().min(1),
-      metadata: z.record(z.string(), z.any()).optional(),
+      metadata: z.record(z.any()).optional(),
     }).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data

@@ -9,7 +9,6 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { recordPhotos } from './recordPhotos.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 const schema = z.object({ date: z.string().optional(), projectId: z.string(), weather: z.string().optional(), temperature: z.number().optional(), conditions: z.string().optional(), crewSize: z.number().optional(), hoursWorked: z.number().optional(), workPerformed: z.string().optional(), materials: z.string().optional(), equipment: z.string().optional(), visitors: z.string().optional(), delays: z.string().optional(), safetyNotes: z.string().optional(), notes: z.string().optional() })
 
@@ -143,7 +142,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('daily-logs:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = partialOf(schema).parse(await c.req.json())
+    const data = schema.partial().parse(await c.req.json())
 
     // Scoped to the caller's company like the reads above, not matched on id alone.
     const [existing] = await db.select().from(dailyLog)

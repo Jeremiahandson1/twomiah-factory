@@ -45,7 +45,6 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { changedKeys } from './audit.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -83,7 +82,7 @@ const variantSchema = z.object({
   weightOz: z.number().int().nonnegative().max(2147483647).optional().nullable(),
   // Inventory can't go negative — this was accepted and stored as -99. (BUG-03)
   inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
-  options: z.record(z.string(), z.string()).optional().nullable(),
+  options: z.record(z.string()).optional().nullable(),
   position: z.number().int().optional(),
   // The feeds' identifiers: a barcode (GTIN: UPC, EAN or ISBN, 8 to 14 digits) and the maker's part number.
   gtin: z.string().trim().regex(/^(\d{8}|\d{12,14})$/, 'A GTIN is 8, 12, 13 or 14 digits').optional().nullable().or(z.literal('').transform(() => null)),
@@ -98,7 +97,7 @@ const variantSchema = z.object({
  * while the count still reads that. Otherwise nothing in the save is applied and the caller is told the count as it
  * stands now. A save without `inventoryFrom` sets the count outright, as before; the admin screen always sends it.
  */
-const variantPatchSchema = partialOf(variantSchema).extend({
+const variantPatchSchema = variantSchema.partial().extend({
   inventoryFrom: z.number().int().nullable().optional(),
 })
 
@@ -215,7 +214,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
 
   app.patch('/:id', requirePermission('products:update'), async (c) => {
     const u = c.get('user')
-    const parsed = partialOf(productSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = productSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const before = await productOf(u.companyId, c.req.param('id'))
     if (!before) return fail(c, 404, 'Not found')
@@ -326,7 +325,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
 
   app.patch('/images/:imageId', requirePermission('products:update'), async (c) => {
     const u = c.get('user')
-    const parsed = partialOf(imageSchema).safeParse(await c.req.json().catch(() => null))
+    const parsed = imageSchema.partial().safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const img = await imageOf(u.companyId, c.req.param('imageId'))
     if (!img) return fail(c, 404, 'Not found')

@@ -10,7 +10,6 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
 
 /**
  * Which bill statuses are SPEND. One list, used by the job roll-up, the PO commitment relief and the over-billing
@@ -243,7 +242,7 @@ export function createBillRoutes(d: CrmDeps) {
   app.put('/:id', requirePermission('bills:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const body = partialOf(billSchema).safeParse(((await c.req.json().catch(() => null)) ?? {}))
+    const body = billSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
     if (!body.success) return invalid(c, body.error)
     const data = body.data
 

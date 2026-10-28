@@ -21,7 +21,7 @@ const text = (max: number) => z.string().trim().min(1).max(max)
 const optional = (max: number) => z.string().trim().max(max).nullish().transform((v) => v || null)
 const colour = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'a colour like #1a2b3c')
 
-const sectionSchema = z.object({ type: text(80), variant: z.string().max(80).optional(), data: z.record(z.string(), z.unknown()).default({}) }).passthrough()
+const sectionSchema = z.object({ type: text(80), variant: z.string().max(80).optional(), data: z.record(z.unknown()).default({}) }).passthrough()
 
 export const provisionSchema = z.object({
   company: z.object({
