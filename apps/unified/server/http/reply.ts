@@ -27,9 +27,13 @@ export const DEFAULT_PAGE_LIMIT = 50
  * 2 rows said limit 2; an empty list said 0).
  */
 export function listAll<T>(c: Context, data: T[]) {
+  return list(c, data, allPagination(c, data.length))
+}
+/** The `pagination` of a whole list (see listAll) — for a reply that carries more than the rows (a sum beside them). */
+export function allPagination(c: Context, rows: number) {
   const asked = Number(c.req.query('limit'))
-  const limit = Math.max(Number.isInteger(asked) && asked > 0 ? asked : DEFAULT_PAGE_LIMIT, data.length)
-  return list(c, data, { page: 1, limit, total: data.length })
+  const limit = Math.max(Number.isInteger(asked) && asked > 0 ? asked : DEFAULT_PAGE_LIMIT, rows)
+  return { page: 1, limit, total: rows }
 }
 
 /** One record, as it is. */

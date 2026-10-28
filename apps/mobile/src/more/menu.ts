@@ -1,6 +1,6 @@
 /**
  * THE MORE MENU: every item the desktop's menu gives THIS seat in THIS business, from menu.generated.ts (written by
- * scripts/mobile-parity.ts out of the desktop's own menu definitions — never a hand list). Pure, so tests/mobile/more-menu.test.ts
+ * apps/unified/scripts/mobile-parity.ts out of the desktop's own menu definitions — never a hand list). Pure, so tests/mobile/more-menu.test.ts
  * runs the very same rule against the desktop's maySeeRoute for every trade and seat.
  *
  * An item shows when the desktop would show it AND let the seat open it:

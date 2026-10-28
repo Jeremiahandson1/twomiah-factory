@@ -2,7 +2,7 @@
 
 Status: **for the owner's approval.** Nothing here changes the store app: the mock-ups live in a development-only route and a test
 proves a store build cannot reach them. Screenshots are in the review pack (not in the repo). The map this plan is built on is
-[PARITY.md](PARITY.md), generated from the desktop's own menus, permissions and dashboards (`bun scripts/mobile-parity.ts`).
+[PARITY.md](PARITY.md), generated from the desktop's own menus, permissions and dashboards (`bun apps/unified/scripts/mobile-parity.ts`).
 
 ## What the map found
 

@@ -8,7 +8,7 @@
 // The seed holds rows that must NOT be counted — a cancelled job today, a paid invoice, an approved quote, a contacted lead, a
 // completed project, a closed repair order, a resolved no-show… — and no list may contain them. A tile that disagrees with its
 // list, a list that includes a row the tile does not count, or a seat that gets a tile it cannot open fails here.
-// scripts/mutation-tiles.ts takes each condition out in turn and requires this file to fail.
+// apps/unified/scripts/mutation-tiles.ts takes each condition out in turn and requires this file to fail.
 //
 //   cd apps/unified && bun test --timeout 240000 tests/mobile-home-tiles.test.ts      (ONLY=contractor,homecare … to run some)
 import { plugin } from 'bun'

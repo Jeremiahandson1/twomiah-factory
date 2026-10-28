@@ -2,7 +2,7 @@
 //
 //   bun run tests/mobile/more-menu.test.ts
 //
-// The phone's rule (apps/mobile/src/more/menu.ts) reads apps/mobile/src/more/menu.generated.ts, which scripts/mobile-parity.ts writes
+// The phone's rule (apps/mobile/src/more/menu.ts) reads apps/mobile/src/more/menu.generated.ts, which apps/unified/scripts/mobile-parity.ts writes
 // from the desktop's own menu definitions. This test does not trust either: it builds each trade's desktop menu again from the
 // desktop's shell, applies the DESKTOP's own functions (packages/tenant-ui shell/types.ts: meetsRole, allowsPermission, maySeeRoute
 // — the sidebar's filter, then the route's own gate) with the seat's real permission list, and requires
@@ -13,7 +13,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { TRADES, SEATS, seatPermissions, canWith, MORE_GROUP_ORDER, moreGroupOf } from '../../scripts/mobile-parity.ts'
+import { TRADES, SEATS, seatPermissions, canWith, MORE_GROUP_ORDER, moreGroupOf } from '../../apps/unified/scripts/mobile-parity.ts'
 import { itemsFor, sectionsFor, mayOpenRow } from '../../apps/mobile/src/more/menu.ts'
 import { MENU } from '../../apps/mobile/src/more/menu.generated.ts'
 import { pageAddress, isOwnAddress } from '../../apps/mobile/src/more/webTarget.ts'
@@ -26,12 +26,12 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log('  ok  ', name) } else { failed++; console.log('  FAIL', name, detail === undefined ? '' : JSON.stringify(detail).slice(0, 700)) }
 }
 const ROOT = path.resolve(import.meta.dir, '../..')
-const SCRIPT = path.join(ROOT, 'scripts/mobile-parity.ts')
+const SCRIPT = path.join(ROOT, 'apps/unified/scripts/mobile-parity.ts')
 const OWN = 'https://acme-roofing.example.com'
 
 {
   const r = spawnSync(process.execPath, [SCRIPT, '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 300_000 })
-  check('menu.generated.ts and PARITY.md are exactly what scripts/mobile-parity.ts generates now', r.status === 0, (r.stderr || r.stdout || '').trim().slice(-300))
+  check('menu.generated.ts and PARITY.md are exactly what apps/unified/scripts/mobile-parity.ts generates now', r.status === 0, (r.stderr || r.stdout || '').trim().slice(-300))
 }
 
 const rawMenu = (dir: string) => {

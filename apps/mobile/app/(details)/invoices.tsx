@@ -15,7 +15,7 @@ export default function InvoicesScreen() {
   const router = useRouter()
   const { tile, clear } = useTile()
   const [status, setStatus] = useState('')
-  const url = tile ? reqUrl(tile.list) : `/api/invoices${status ? `?status=${status}` : ''}`
+  const url = tile ? reqUrl(tile.list) : (status ? '/api/invoices?status=' + status : '/api/invoices')
   const { rows, total, loading, error, refresh, loadMore } = useList(url)
   const [refreshing, setRefreshing] = useState(false)
   return (

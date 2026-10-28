@@ -2,7 +2,7 @@
  * THE HOME SCREEN'S TILES — which a seat gets, what number each says, and the list it opens.
  *
  * Pure (no React, no native modules), so the home screen draws from it and tests/mobile + apps/unified/tests/mobile-home-tiles
- * run the very same rules against a real server. The rules are the desktop's (scripts/mobile-parity.ts JOBS_TILES /
+ * run the very same rules against a real server. The rules are the desktop's (apps/unified/scripts/mobile-parity.ts JOBS_TILES /
  * HOMECARE_OFFICE_TILES read the desktop's own source and hold this file to it):
  *   · a tile the seat may not open is absent — its permission (`any`), its business switch (`feature`);
  *   · the server leaves out a figure the seat may not see (money, the lead inbox), and a tile with no figure is absent too —

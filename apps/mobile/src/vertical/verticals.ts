@@ -93,9 +93,10 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
   rv: [
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
     { name: 'units', title: 'Inventory', icon: 'car-sport-outline', activeIcon: 'car-sport' },
-    { name: 'parts', title: 'Parts', icon: 'construct-outline', activeIcon: 'construct' },
     { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash', permission: 'contacts:update', feature: 'trade_in' },
     { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
+    // Parts moved into More (the last bar slot): it is still a screen, reached from the menu's Parts Catalog row.
+    { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
   unavailable: [],
 }

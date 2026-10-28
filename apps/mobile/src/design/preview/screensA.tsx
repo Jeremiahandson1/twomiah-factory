@@ -2,7 +2,7 @@ import React from 'react'
 import { View } from 'react-native'
 import { Screen, SearchField, ChipRow, Chip, Card, Group, ListRow, DText, Badge, Button, Icon, Avatar, SectionHeader, BottomSheet, TextField, BottomBar, space, radius, layout, useDesign } from '..'
 import { LEADS, JOBS_TODAY, VISITS } from './sample'
-import { barFor } from './homes'
+import { barFor } from './bars'
 
 const noop = () => {}
 const bar = (active: string) => <BottomBar items={barFor('contractor', 'owner')} active={active} />
@@ -27,44 +27,6 @@ function Actions4({ items }: { items: { icon: string; label: string }[] }) {
         </View>
       ))}
     </View>
-  )
-}
-
-export function LeadsList() {
-  return (
-    <Screen title="Leads" subtitle="4 waiting for an answer" actions={[{ icon: 'add', label: 'New lead' }]} bottomBar={bar('more')}>
-      <Banner text="From the New leads tile: 4 leads that nobody has answered yet." />
-      <SearchField value="" onChangeText={noop} placeholder="Search leads" />
-      <View style={{ marginHorizontal: -layout.gutter }}><ChipRow><Chip label="New" count={4} selected /><Chip label="Contacted" count={6} /><Chip label="Quoted" count={3} /><Chip label="Won" count={12} /><Chip label="Lost" count={2} /></ChipRow></View>
-      {LEADS.map((l) => (
-        <Card key={l.id} onPress={noop} accessibilityLabel={`${l.name}, ${l.what}, ${l.source}, ${l.age}`}>
-          <View style={{ flexDirection: 'row', gap: space[3], alignItems: 'center' }}>
-            <Avatar name={l.name} size={44} />
-            <View style={{ flex: 1 }}><DText variant="bodyStrong">{l.name}</DText><DText variant="callout" tone="textSecondary">{l.what}</DText></View>
-            <Badge label={l.age} tone={l.tone} icon={l.tone === 'danger' ? 'time' : undefined} />
-          </View>
-          <View style={{ height: space[3] }} />
-          <View style={{ flexDirection: 'row', gap: space[2], alignItems: 'center' }}>
-            <Icon name="link" size={16} tone="subtle" /><DText variant="caption" tone="textSubtle" style={{ flex: 1 }}>{l.source}</DText>
-            <Button label="Call" variant="tonal" icon="call" /><Button label="Text" variant="tonal" icon="chatbubble" />
-          </View>
-        </Card>
-      ))}
-    </Screen>
-  )
-}
-
-export function LeadDetail() {
-  return (
-    <Screen title="Alex Example" subtitle="Lead · Website form · Today" onBack={noop} actions={[{ icon: 'ellipsis-horizontal', label: 'More options' }]}
-      footer={<View style={{ flexDirection: 'row', gap: space[2] }}><View style={{ flex: 1 }}><Button label="Create quote" icon="document-text" size="lg" fullWidth /></View></View>}>
-      <View style={{ flexDirection: 'row', gap: space[2], alignItems: 'center' }}><Badge label="New" tone="info" /><DText variant="caption" tone="textSubtle">Nobody has answered yet</DText></View>
-      <Actions4 items={[{ icon: 'call', label: 'Call' }, { icon: 'chatbubble', label: 'Text' }, { icon: 'mail', label: 'Email' }, { icon: 'navigate', label: 'Directions' }]} />
-      <Group><KV k="Phone" v="(555) 010-0142" /><KV k="Email" v="alex@example.test" /><KV k="Address" v="100 Example St" last /></Group>
-      <View><SectionHeader title="What they asked for" /><Card><DText variant="body">Looking for an estimate to redo a small kitchen: new counters, sink and a backsplash. Would like someone to visit this week.</DText></Card></View>
-      <View><SectionHeader title="Status" /><View style={{ marginHorizontal: -layout.gutter }}><ChipRow><Chip label="New" selected /><Chip label="Contacted" /><Chip label="Quoted" /><Chip label="Won" /><Chip label="Lost" /></ChipRow></View></View>
-      <TextField label="Add a note" value="" placeholder="Spoke with them, visit set for Friday…" multiline />
-    </Screen>
   )
 }
 
@@ -153,48 +115,6 @@ export function QuoteDetail() {
       <LineItems rows={[['Countertop supply and install', '$2,400.00'], ['Sink and faucet', '$680.00'], ['Backsplash tile, 28 sq ft', '$740.00']]} total={[['Subtotal', '$3,820.00'], ['Tax', '$460.00'], ['Total', '$4,280.00']]} />
       <Group><KV k="Customer" v="Alex Example" /><KV k="Prepared by" v="Morgan Manager" last /></Group>
     </Screen>
-  )
-}
-
-const INV = [
-  { n: 'INV-5107', c: 'Jordan Sample', a: '$2,150.00', s: 'Overdue', tone: 'danger' as const, d: 'Due Oct 12' },
-  { n: 'INV-5106', c: 'Riley Placeholder', a: '$640.00', s: 'Sent', tone: 'info' as const, d: 'Due Nov 8' },
-  { n: 'INV-5104', c: 'Casey Demo', a: '$3,050.00', s: 'Overdue', tone: 'danger' as const, d: 'Due Oct 20' },
-  { n: 'INV-5101', c: 'Quinn Sample', a: '$1,280.00', s: 'Sent', tone: 'info' as const, d: 'Due Nov 15' },
-  { n: 'INV-5099', c: 'Avery Example', a: '$905.00', s: 'Partly paid', tone: 'warning' as const, d: 'Due Nov 2' },
-]
-export function InvoicesList() {
-  return (
-    <Screen title="Invoices" subtitle="7 unpaid · $18,430 outstanding" actions={[{ icon: 'add', label: 'New invoice' }]} bottomBar={bar('more')}>
-      <Banner text="From the Open invoices tile: the 7 unpaid invoices." />
-      <Card><View style={{ flexDirection: 'row' }}><Money label="Outstanding" value="$18,430" /><Money label="Overdue" value="$5,200" tone="danger" /></View></Card>
-      <View style={{ marginHorizontal: -layout.gutter }}><ChipRow><Chip label="Unpaid" count={7} selected /><Chip label="Overdue" count={2} /><Chip label="Paid" count={41} /><Chip label="Draft" count={1} /></ChipRow></View>
-      <Group>{INV.map((r, i) => <ListRow key={r.n} title={r.c} subtitle={`${r.n} · ${r.d}`} meta={r.a} badge={r.s} badgeTone={r.tone} onPress={noop} divider={i < INV.length - 1} />)}</Group>
-    </Screen>
-  )
-}
-
-export function InvoiceDetail({ paying }: { paying?: boolean }) {
-  const { c } = useDesign()
-  const [m, setM] = React.useState('card')
-  return (
-    <View style={{ flex: 1 }}>
-      <Screen title="INV-5107" subtitle="Water heater · Jordan Sample" onBack={noop} actions={[{ icon: 'share-outline', label: 'Share' }]}
-        footer={<Button label="Take payment" icon="card" size="lg" fullWidth />}>
-        <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Badge label="Overdue 16 days" tone="danger" icon="time" /><DText variant="caption" tone="textSubtle">Due Oct 12</DText></View>
-          <DText variant="caption" tone="textSubtle" style={{ marginTop: space[2] }}>Balance due</DText><DText variant="stat">$2,150.00</DText></Card>
-        <LineItems rows={[['Water heater, 40 gal', '$1,450.00'], ['Install and haul-away', '$520.00']]} total={[['Subtotal', '$1,970.00'], ['Tax', '$180.00'], ['Total', '$2,150.00'], ['Paid so far', '$0.00']]} />
-        <Group><KV k="Customer" v="Jordan Sample" /><KV k="Job" v="J-1043" last /></Group>
-      </Screen>
-      <BottomSheet visible={!!paying} inline title="Take payment" onClose={noop}>
-        <TextField label="Amount" value="2,150.00" prefix="$" keyboardType="decimal-pad" helper="Balance due. Change it to take a part payment." />
-        <Group>
-          {[['card', 'Card reader', 'Tap, insert or swipe', 'card'], ['cash', 'Cash', 'Record cash received', 'cash'], ['check', 'Check', 'Record a check', 'create'], ['link', 'Send payment link', 'Text or email a secure link', 'link']].map(([k, t, s, ic], i) => (
-            <ListRow key={k} title={t} subtitle={s} icon={ic} iconTone={m === k ? 'accent' : 'neutral'} badge={m === k ? 'Selected' : undefined} badgeTone="accent" onPress={() => setM(k)} divider={i < 3} />))}
-        </Group>
-        <Button label="Charge $2,150.00" icon="lock-closed" size="lg" fullWidth />
-      </BottomSheet>
-    </View>
   )
 }
 

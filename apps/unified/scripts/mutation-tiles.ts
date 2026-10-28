@@ -1,8 +1,8 @@
 // MUTATION CHECK for the home-screen tiles: take one condition out of the server, run the real-server tile test, and require it
 // to FAIL. A test that still passes with a condition gone is not protecting that condition.
 //
-//   bun scripts/mutation-tiles.ts            every mutation
-//   bun scripts/mutation-tiles.ts 3 4        only mutations 3 and 4
+//   bun apps/unified/scripts/mutation-tiles.ts            every mutation
+//   bun apps/unified/scripts/mutation-tiles.ts 3 4        only mutations 3 and 4
 //
 // Each mutation rewrites one source file, runs apps/unified/tests/mobile-home-tiles.test.ts for the trade it affects, and puts the file
 // back (also on Ctrl-C or a crash). Not part of CI (it boots a database per run); run it when a tile condition changes.
@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
-const ROOT = join(import.meta.dir, '..')
+const ROOT = join(import.meta.dir, '../../..')
 interface Mutation { name: string; file: string; find: string; replace: string; trade: string }
 const TB = 'packages/tenant-backend/src'
 const SV = 'apps/unified/server'

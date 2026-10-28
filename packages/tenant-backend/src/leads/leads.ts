@@ -22,6 +22,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { eq, and, or, ilike, count, desc, gte, sql, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import crypto from 'crypto'
+import { companyTimeZone, storeDateString } from '../time/businessDay'
 
 export interface LeadsTables { lead: any; leadSource: any; contact: any }
 export interface LeadsOptions {
@@ -401,7 +402,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Write the note first' }, 400)
     const existing = await ownLead(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Lead not found' }, 404)
-    const line = `Note, ${new Date().toISOString().slice(0, 10)}: ${parsed.data.text}`
+    // The note is dated on the business's own calendar, not the server's.
+    const line = `Note, ${storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId))}: ${parsed.data.text}`
     const description = [existing.description, line].filter(Boolean).join('\n\n').slice(0, 20000)
     const [updated] = await db.update(t.lead).set({ description, updatedAt: new Date() }).where(and(eq(t.lead.id, id), eq(t.lead.companyId, currentUser.companyId))).returning()
     await audit.log({ action: 'update', entity: 'lead', entityId: id, metadata: { note: true }, req: { user: currentUser } })

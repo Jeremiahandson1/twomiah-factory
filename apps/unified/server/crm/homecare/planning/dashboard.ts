@@ -10,7 +10,7 @@
 // (the schedule area's write — a caregiver holds only its read); a caregiver's hours, ratings and reliability ask care-hr:read.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { one, listAll, fail } from '../../../http/reply.ts'
+import { one, listAll, fail, allPagination } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
 import { addDays } from '../core/agencyTime.ts'
@@ -143,7 +143,7 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
     const tz = await core.time.timezone(companyId)
     const today = await core.time.today(companyId, tz)
     const rows = await homecareTileRows(d.db, companyId, id, today, tz)
-    return one(c, { data: rows, pagination: { page: 1, limit: rows.length, total: rows.length, pages: 1 }, ...(id === 'month-revenue' ? { total: Math.round(rows.reduce((s, r) => s + (r.amount || 0), 0) * 100) / 100 } : {}) })
+    return one(c, { data: rows, pagination: { ...allPagination(c, rows.length), pages: 1 }, ...(id === 'month-revenue' ? { total: Math.round(rows.reduce((s, r) => s + (r.amount || 0), 0) * 100) / 100 } : {}) })
   })
 
   // GET /action-items — the office's to-do list; each entry has a count and the page that clears it. Only non-zero items.

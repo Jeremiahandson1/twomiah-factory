@@ -2,7 +2,7 @@
 //
 //   bun run tests/mobile/parity-map.test.ts
 //
-// The map is generated (scripts/mobile-parity.ts), so this test does not trust the generator's own row list: it builds each
+// The map is generated (apps/unified/scripts/mobile-parity.ts), so this test does not trust the generator's own row list: it builds each
 // trade's desktop menu again straight from the desktop's shell, keeps the items the trade is offered (no switch, or a switch
 // its template offers — the registry), and requires every one of them to be a line in that trade's section of the file.
 // It also holds the file to the code (--check), holds PHONE_HAS to the phone's real tabs, and holds the plan to the rules in
@@ -10,7 +10,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { TRADES, PHONE_HAS, SEATS, caregiverPages } from '../../scripts/mobile-parity.ts'
+import { TRADES, PHONE_HAS, SEATS, caregiverPages } from '../../apps/unified/scripts/mobile-parity.ts'
 import { VERTICAL_TABS } from '../../apps/mobile/src/vertical/verticals.ts'
 import { getAdvertisableFeaturesForTemplate } from '../../packages/tenant-backend/src/featureRegistry.ts'
 
@@ -19,13 +19,13 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log('  ok  ', name) } else { failed++; console.log('  FAIL', name, detail === undefined ? '' : JSON.stringify(detail).slice(0, 600)) }
 }
 const ROOT = path.resolve(import.meta.dir, '../..')
-const SCRIPT = path.join(ROOT, 'scripts/mobile-parity.ts')
+const SCRIPT = path.join(ROOT, 'apps/unified/scripts/mobile-parity.ts')
 const md = fs.readFileSync(path.join(ROOT, 'docs/mobile/PARITY.md'), 'utf8')
 
 // The file is current: what the code says now is what is committed.
 {
   const r = spawnSync(process.execPath, [SCRIPT, '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 300_000 })
-  check('PARITY.md is exactly what scripts/mobile-parity.ts generates now', r.status === 0, (r.stderr || r.stdout || '').trim().slice(-300))
+  check('PARITY.md is exactly what apps/unified/scripts/mobile-parity.ts generates now', r.status === 0, (r.stderr || r.stdout || '').trim().slice(-300))
 }
 
 // Split the file into trade sections.

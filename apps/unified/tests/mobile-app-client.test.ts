@@ -125,7 +125,7 @@ async function signInAs(site: Site, who: 'owner' | 'field') {
   const features: string[] = (d.company?.enabledFeatures || []).map((f: string) => f.toLowerCase())
   const vertical = app.detect.detectVertical(d.company?.vertical, d.company?.enabledFeatures)
   const can = (p: string) => app.roles.permits(perms, p)
-  const tabs = visibleTabs(VERTICAL_TABS[vertical], can, (f) => features.includes(f.toLowerCase())).map((x) => x.name)
+  const tabs = visibleTabs(VERTICAL_TABS[vertical], can, (f) => features.includes(f.toLowerCase()), app.roles.isFieldRole(d.user?.role)).map((x) => x.name)
   return { data: d, vertical, tabs, can }
 }
 
@@ -143,17 +143,17 @@ interface Trade {
   quotes: boolean
 }
 const TRADES: Trade[] = [
-  { id: 'contractor', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'contacts', 'quotes', 'notifications'], fieldTabs: ['dashboard', 'jobs', 'contacts', 'notifications'], photos: 'documents', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
+  { id: 'contractor', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'contacts', 'quotes', 'more'], fieldTabs: ['dashboard', 'jobs', 'contacts', 'more'], photos: 'documents', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
     job: (c, f) => ({ title: 'Deck repair', contactId: c, address: '12 Oak St', city: 'Madison', state: 'WI', zip: '53703', scheduledDate: today, scheduledTime: '14:30', assignedToId: f }) },
-  { id: 'basic', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'contacts', 'quotes', 'notifications'], fieldTabs: ['dashboard', 'jobs', 'contacts', 'notifications'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
+  { id: 'basic', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'contacts', 'quotes', 'more'], fieldTabs: ['dashboard', 'jobs', 'contacts', 'more'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
     job: (c, f) => ({ title: 'Fix the gate', contactId: c, scheduledDate: today, scheduledTime: '10:00', assignedToId: f }) },
-  { id: 'fieldservice', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'service-calls', 'schedule', 'contacts', 'notifications'], fieldTabs: ['dashboard', 'service-calls', 'schedule', 'contacts', 'notifications'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
+  { id: 'fieldservice', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'service-calls', 'schedule', 'contacts', 'more'], fieldTabs: ['dashboard', 'service-calls', 'schedule', 'contacts', 'more'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
     job: (c, f) => ({ title: 'No heat', contactId: c, scheduledDate: today, scheduledTime: '09:00', assignedToId: f }) },
-  { id: 'landscaping', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'notifications'], fieldTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'notifications'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
+  { id: 'landscaping', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'more'], fieldTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'more'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
     job: (c, f) => ({ title: 'Spring cleanup', contactId: c, scheduledDate: today, scheduledTime: '08:00', assignedToId: f }) },
-  { id: 'roofing', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture', 'canvassing_tool'], ownerTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'notifications'], fieldTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'notifications'], photos: 'job', today: ['/api/jobs?limit=500'], quotes: true,
+  { id: 'roofing', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture', 'canvassing_tool'], ownerTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'more'], fieldTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'more'], photos: 'job', today: ['/api/jobs?limit=500'], quotes: true,
     job: (c, f) => ({ contactId: c, jobType: 'retail', propertyAddress: '9 Elm Ave', city: 'Akron', state: 'OH', zip: '44301', assignedSalesRepId: f }) },
-  { id: 'rv', features: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'trade_in'], ownerTabs: ['dashboard', 'units', 'parts', 'ai-trade', 'contacts'], fieldTabs: ['dashboard', 'units', 'parts', 'contacts'], photos: 'none', today: ['/api/dashboard/stats', '/api/units?limit=100'], quotes: false },
+  { id: 'rv', features: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'trade_in'], ownerTabs: ['dashboard', 'units', 'ai-trade', 'contacts', 'more'], fieldTabs: ['dashboard', 'units', 'contacts', 'more'], photos: 'none', today: ['/api/dashboard/stats', '/api/units?limit=100'], quotes: false },
 ]
 
 // The server's vertical ids are not the phone's for every trade; the phone reads company.vertical.
@@ -353,6 +353,13 @@ describe('homecare: the caregiver\'s day, through the app\'s own request code', 
     const cg = await signInAs(site, 'field')
     expect(cg.tabs).toEqual(['shifts', 'care-schedule', 'time-clock', 'messages', 'more-homecare'])
     expect(app.verticals.VERTICAL_INITIAL_TAB.homecare).toBe('shifts')
+  })
+
+  test('sign-in: the office gets Home, Messages, More — and opens on Home', async () => {
+    const office = await signInAs(site, 'owner')
+    expect(office.tabs).toEqual(['dashboard', 'messages', 'more'])
+    const first = app.verticals.firstTab(VERTICAL_TABS.homecare, app.verticals.VERTICAL_INITIAL_TAB.homecare, office.can, () => true, false)
+    expect(first).toBe('dashboard')
   })
 
   test('today\'s visits, the client, then clock in and clock out — with the location the phone sends', async () => {
