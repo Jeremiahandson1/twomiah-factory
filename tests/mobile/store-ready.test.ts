@@ -116,5 +116,15 @@ console.log('store/listing.md')
   check('no other product is named', !/quickbooks|servicetitan|jobber|housecall/i.test(claims + kw))
 }
 
+console.log('the "not available" screen')
+{
+  const { inkOn, contrastRatio } = await import('../../apps/mobile/src/theme/contrast.ts')
+  // A business chooses its own colour; the button's words must be readable on any of them (4.5:1), light or dark.
+  const colours = ['#1e40af', '#b45309', '#dc2626', '#0f766e', '#ffab00', '#fde047', '#ffffff', '#000000', '#60a5fa', '#7c3aed']
+  check('the button\'s ink reaches 4.5:1 on any brand colour a business might pick', colours.every((c) => contrastRatio(inkOn(c), c) >= 4.5), colours.map((c) => [c, contrastRatio(inkOn(c), c).toFixed(1)]))
+  const gate = read('src/vertical/WrongAppGate.tsx')
+  check('the screen says the business uses the website, opens its sign-in, and still offers Sign out', /uses the website/.test(gate) && /Linking\.openURL\(url\)/.test(gate) && /Sign out/.test(gate) && /webSignInUrl\(getApiUrl\(\)\)/.test(gate))
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

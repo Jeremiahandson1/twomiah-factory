@@ -13,6 +13,7 @@ import { useTheme } from '../theme/ThemeContext'
 import { useVertical } from './VerticalContext'
 import { getApiUrl } from '../api/client'
 import { webSignInUrl } from './verticals'
+import { inkOn } from '../theme/contrast'
 
 const VERTICAL_LABEL: Record<string, string> = {
   contractor: 'Twomiah Build',
@@ -52,11 +53,11 @@ export function NoPhoneAppGate() {
           accessibilityRole="link"
           accessibilityLabel="Open the website sign-in in your browser"
         >
-          <Text style={styles.buttonText}>Open the website sign-in</Text>
+          <Text style={[styles.buttonText, { color: inkOn(t.primary) }]}>Open the website sign-in</Text>
         </TouchableOpacity>
         <Text style={[styles.address, { color: t.textSecondary }]} selectable>{url.replace(/^https?:\/\//, '')}</Text>
         <TouchableOpacity style={styles.secondary} onPress={logout} activeOpacity={0.7} accessibilityRole="button">
-          <Text style={[styles.secondaryText, { color: t.primary }]}>Sign out</Text>
+          <Text style={[styles.secondaryText, { color: t.text }]}>Sign out</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
