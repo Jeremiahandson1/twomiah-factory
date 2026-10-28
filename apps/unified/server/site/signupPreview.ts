@@ -24,6 +24,8 @@ export interface SitePreviewInput {
   /** The features the business starts with: a section that IS a feature draws only while it is on. */
   features: string[]
   title?: string
+  /** A notice drawn across the top of the page (the free preview's "example content" line). Plain text. */
+  banner?: string
 }
 
 /** Every key of the settings object a real request builds (context.ts), empty: the views read them all. */
@@ -45,6 +47,16 @@ function previewSettings(i: SitePreviewInput): Record<string, any> {
 export const PREVIEW_SETTINGS_KEYS = Object.keys(previewSettings({ vertical: '', company: { name: '', primaryColor: '' }, settings: {}, sections: [], features: [] }))
 
 /**
+ * The notice as a bar at the top of the page. Its own colours, pinned with !important, so no look (and no dark mode) can
+ * make it unreadable: white on #1f2937 is 14:1 in any scheme.
+ */
+function bannerHtml(text: string): string {
+  const safe = text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
+  return '<style>#twomiah-sample-banner{display:block!important;box-sizing:border-box!important;width:100%!important;margin:0!important;padding:10px 16px!important;background:#1f2937!important;color:#ffffff!important;font:600 14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif!important;text-align:center!important;letter-spacing:0!important;text-transform:none!important}</style>' +
+    '<div id="twomiah-sample-banner" role="note">' + safe + '</div>'
+}
+
+/**
  * The page as one self-contained document for an iframe's srcdoc: the stylesheet inline (the visitor's browser has no
  * /styles/main.css on twomiah.com) and every internal link and form pointing nowhere ('#'), as the premium preview did.
  */
@@ -64,6 +76,7 @@ export async function renderSitePreview(i: SitePreviewInput): Promise<string> {
   // A function as the replacement: the stylesheet holds `$` sequences that a string replacement would read as groups.
   html = html.replace(link, () => '<style>' + css + '</style>')
   html = html.replace(/<a\s[^>]*>/g, (tag) => tag.replace(/\shref="(?!#)[^"]*"/, ' href="#"'))
+  if (i.banner) html = html.replace(/<body[^>]*>/, (open) => open + bannerHtml(i.banner as string))
   html = html.replace(/<form\s[^>]*>/g, (tag) => tag.replace(/\saction="[^"]*"/, ' action="#"'))
   return html
 }
