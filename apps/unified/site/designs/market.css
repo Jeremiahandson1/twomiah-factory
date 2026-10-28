@@ -392,3 +392,16 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .testimonials-carousel__dot::before { border-radius: 2px; background: var(--ln); border: 0; }
 .testimonials-carousel__dot[aria-current="true"]::before { background: var(--tx); }
 .testimonials-carousel__track:focus-visible, .testimonials-carousel__btn:focus-visible, .testimonials-carousel__dot:focus-visible { outline-color: var(--focus); }
+
+/* ── Map: where to find us ──────────────────────────────────────────────────── */
+.map-area { background: var(--bg); }
+.map-area__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(28px, 4cqi, 44px); color: var(--tx); }
+.map-area__intro, .map-area__lines { color: var(--tx2); }
+.map-area__lines { color: var(--tx); font-weight: 600; }
+.map-area__label { color: var(--tx3); }
+.map-area__list li { background: var(--sf); color: var(--tx); border: 1px solid var(--ln2); border-radius: 4px; }
+.map-area__all, .map-area__alt { color: var(--tx); text-decoration-color: {{PRIMARY_COLOR}}; }
+.map-area__art { border: 1px solid var(--ln); border-radius: 4px; background: var(--sf2); }
+.map-area__roads path { stroke: var(--ln2); }
+.map-area__blocks rect { fill: var(--sf); }
+.map-area__pin path { fill: {{PRIMARY_COLOR}}; }

@@ -178,6 +178,15 @@ export const SECTION_SCHEMA = {
       use_when: 'a "Why choose us" block of 2-6 short cards, { title, description? }, one per reason the intake gives — a credential, the year founded, free estimates, a strength the owner states in their own words. Each title and sentence must come from the intake (never an invented guarantee, count, speed or award); with fewer than two real reasons leave this section out.',
     },
   },
+  // Where to find the business: its address and the places it serves, as a drawing with plain links — nothing loads from a map
+  // provider. The address and areas are the business's settings, so the composer writes framing only.
+  map: {
+    area: {
+      required: [],
+      optional: ['heading', 'intro'],
+      use_when: 'a "Find us" block on the contact page: the business\'s address and service areas from its own settings, with links to open it in a map. Framing only — heading and, at most, a one-line intro in the owner\'s words; NEVER type an address, a place or directions here. Only when the intake gives a town (or nearby towns); otherwise omit.',
+    },
+  },
   stats: {
     bar: {
       required: ['items'],
@@ -817,8 +826,8 @@ const PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page. Form + business details + response promise.',
-    allowed_types: ['hero', 'contact', 'faq'],
-    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info, optional 1 faq if it answers common pre-contact questions',
+    allowed_types: ['hero', 'contact', 'map', 'faq'],
+    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info, optional 1 faq if it answers common pre-contact questions Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -873,8 +882,8 @@ const CONTRACTOR_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for estimate requests + general contact.',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq', 'cta'],
-    required_sequence: 'optional 1 hero (short, copy-only — "free estimates" only if the intake says so; no response time it did not state), 1 contact/form-info, 1 reservation/cta with heading "Or grab a time on the calendar" and buttonLabel "Schedule an estimate" (Twomiah Bookings — for homeowners who would rather book directly than wait for a callback), optional 1 faq (only questions the intake answers), close with 1 cta',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (short, copy-only — "free estimates" only if the intake says so; no response time it did not state), 1 contact/form-info, 1 reservation/cta with heading "Or grab a time on the calendar" and buttonLabel "Schedule an estimate" (Twomiah Bookings — for homeowners who would rather book directly than wait for a callback), optional 1 faq (only questions the intake answers), close with 1 cta Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -977,8 +986,8 @@ const SALON_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for non-booking contact (press, vendor, employment).',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget for "or book instead", optional 1 faq',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget for "or book instead", optional 1 faq Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1134,8 +1143,8 @@ const FIELDSERVICE_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for non-emergency contact.',
-    allowed_types: ['hero', 'contact', 'reservation', 'service_area', 'faq', 'emergency'],
-    required_sequence: 'optional 1 emergency/bar (if emergency-first vertical), 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a service call" (Twomiah Bookings), optional 1 service_area/zip-check, optional 1 faq',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'service_area', 'faq', 'emergency'],
+    required_sequence: 'optional 1 emergency/bar (if emergency-first vertical), 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a service call" (Twomiah Bookings), optional 1 service_area/zip-check, optional 1 faq Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1168,8 +1177,8 @@ const VET_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Get seen. Hours, location, urgent-care routing.',
-    allowed_types: ['urgent', 'hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 urgent/bar, optional 1 hero (short), 1 contact/form-info with hours and parking/entrance detail, optional 1 reservation/cta with buttonLabel "Request an appointment" (Twomiah Bookings), optional 1 faq about after-hours emergencies and which ER hospital the clinic refers to',
+    allowed_types: ['urgent', 'hero', 'contact', 'map', 'reservation', 'faq'],
+    required_sequence: 'optional 1 urgent/bar, optional 1 hero (short), 1 contact/form-info with hours and parking/entrance detail, optional 1 reservation/cta with buttonLabel "Request an appointment" (Twomiah Bookings), optional 1 faq about after-hours emergencies and which ER hospital the clinic refers to Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1196,8 +1205,8 @@ const RV_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Get them to the lot or on the phone.',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short), 1 contact/form-info with lot hours and directions, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), optional 1 faq about trade appraisals',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info with lot hours and directions, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), optional 1 faq about trade appraisals Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1229,8 +1238,8 @@ const HOMECARE_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page. Quiet, direct, response promise.',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 reservation/cta with heading "Or schedule a call directly" and buttonLabel "Schedule a free consultation" if the intake says consultations are free, otherwise "Schedule a consultation" (Twomiah Bookings), optional 1 faq',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 reservation/cta with heading "Or schedule a call directly" and buttonLabel "Schedule a free consultation" if the intake says consultations are free, otherwise "Schedule a consultation" (Twomiah Bookings), optional 1 faq Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1266,8 +1275,8 @@ const LANDSCAPING_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for one-off jobs and questions.',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or just book a time" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings), optional 1 faq',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or just book a time" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings), optional 1 faq Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 
@@ -1302,8 +1311,8 @@ const ROOFING_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page. Form + business details + response promise.',
-    allowed_types: ['hero', 'contact', 'reservation', 'faq', 'banner'],
-    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings), optional 1 faq covering pre-call questions',
+    allowed_types: ['hero', 'contact', 'map', 'reservation', 'faq', 'banner'],
+    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings), optional 1 faq covering pre-call questions Optionally 1 map/area after the contact block — framing only (the site fills in the address and areas); omit if the intake names no town.',
   },
 } as const
 

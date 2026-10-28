@@ -432,6 +432,12 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
         return out
       })
       break
+    case 'map':
+      // The address and the areas are the business's own settings; the composer supplies framing only, so anything else it
+      // wrote is taken out — and with no town in the intake there is nothing to find.
+      for (const k of Object.keys(d)) if (k !== 'heading' && k !== 'intro') delete d[k]
+      if (!input.city && !(input.nearbyCities || []).some(Boolean)) return drop('the intake names no town')
+      break
     case 'why_choose':
       // A reason is a fact about the business. The title must trace to what the owner said; so must its sentence, else only
       // the sentence goes. Fewer than two reasons left is not a section.

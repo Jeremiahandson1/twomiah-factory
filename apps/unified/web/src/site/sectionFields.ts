@@ -66,6 +66,12 @@ export const TRADE_SECTIONS: TradeSection[] = [
         { key: 'title', label: 'Reason', kind: 'text', placeholder: 'e.g. Licensed and insured' }, { key: 'description', label: 'A sentence about it (optional)', kind: 'textarea' }] }],
     defaultData: { heading: 'Why choose us', intro: '', items: [] },
   },
+  {
+    type: 'map', variant: 'area', label: 'Map — Where to find us',
+    description: 'Your address and the places you serve, with links to open it in a map. Loads nothing from any map company.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Find us' }, intro],
+    defaultData: { heading: 'Find us', intro: '' },
+  },
   // ── Dispensary ─────────────────────────────────────────────────────────
   {
     type: 'age', variant: 'modal', label: 'Age gate',

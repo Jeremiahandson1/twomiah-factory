@@ -96,3 +96,22 @@ describe('testimonials carousel (real reviews only)', () => {
     expect(out.pages.home.some((s) => s.type === 'testimonials')).toBe(false)
   })
 })
+
+describe('map: where to find us (framing only; the site supplies the address)', () => {
+  const sec = (data: any) => ({ type: 'map', variant: 'area', data })
+  const contact = (...s: any[]) => ({ contact: [{ type: 'contact', variant: 'form-info', data: {} }, ...s] })
+
+  test('the AI builder accepts it, and the contact pages of the trades allow it', () => {
+    expect(sanitizeSections([sec({ heading: 'Find us' })])).toHaveLength(1)
+    for (const bt of ['roofing', 'general_contractor', 'hvac', 'landscaping', 'veterinary', 'salon', 'other']) expect([bt, pageRecipesFor(bt).contact.allowed_types.includes('map' as never)]).toEqual([bt, true])
+  })
+  test('whatever address or places the model wrote are removed — only the heading and intro survive', () => {
+    const out = enforce(contact(sec({ heading: 'Find us', intro: 'Come by.', address: '1 Fake Ln, Nowhere', serviceAreas: ['Atlantis'], lat: 1, lng: 2, embed: 'https://maps.example/x' })), input())
+    expect(out.pages.contact.find((s) => s.type === 'map')!.data).toEqual({ heading: 'Find us', intro: 'Come by.' })
+  })
+  test('with no town in the intake there is nothing to find: the section is left out', () => {
+    const out = enforce(contact(sec({ heading: 'Find us' })), input({ city: '', state: '', nearbyCities: [] }))
+    expect(out.pages.contact.some((s) => s.type === 'map')).toBe(false)
+    expect(out.removedClaims.join('\n')).toContain('names no town')
+  })
+})

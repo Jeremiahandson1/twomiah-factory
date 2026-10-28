@@ -31,7 +31,7 @@ const HERO = { type: 'hero', variant: 'centered-stats', data: { title: 'T' } }
 
 describe('every look styles every new block, and each block asks its own width', () => {
   // [section class, the container name its base rule declares]
-  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel']]
+  const BLOCKS: Array<[string, string]> = [['.why-choose', 'why-choose'], ['.testimonials-carousel', 'testimonials-carousel'], ['.map-area', 'map-area']]
   for (const [cls, name] of BLOCKS) {
     test(cls, () => {
       const base = fs.readFileSync(path.resolve(DESIGNS_DIR, '..', 'public', 'styles', 'main.css'), 'utf8')
@@ -159,5 +159,49 @@ describe('the testimonials carousel (real reviews only; keyboard and reduced-mot
     const { win, track, calls } = boot(html, true)
     track.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
     expect(calls.pop()).toMatchObject({ left: 320, behavior: 'auto' })
+  })
+})
+
+describe('map: where to find us', () => {
+  const map = (data: any = {}) => ({ type: 'map', variant: 'area', data })
+  const ADDRESS = { streetAddress: '12 Main St', addressLocality: 'Verona', addressRegion: 'WI', postalCode: '53593', serviceAreas: ['Verona', { name: 'Madison' }] }
+
+  test('the business\'s own address and areas, in every look, with plain links — no embed, no script, no third-party request', async () => {
+    for (const look of LOOKS) {
+      const html = await render(look, [HERO, map({ intro: 'Come by.' })], ADDRESS)
+      const section = html.slice(html.indexOf('class="map-area"'), html.indexOf('</section>', html.indexOf('class="map-area"')))
+      expect(section).toContain('12 Main St, Verona, WI 53593')
+      expect(section).toContain('Come by.')
+      expect(section).toContain('>Verona<')
+      expect(section).toContain('>Madison<')
+      expect(section).toContain('href="/service-areas"')
+      // links only, each opened on the visitor's own click
+      expect(section).toContain('href="https://www.openstreetmap.org/search?query=12%20Main%20St%2C%20Verona%2C%20WI%2053593"')
+      expect(section).toContain('https://www.google.com/maps/search/?api=1&amp;query=')
+      expect(section).toContain('https://maps.apple.com/?q=')
+      expect((section.match(/rel="noopener noreferrer"/g) || []).length).toBe(4)
+      // nothing loads from a map provider: no iframe, no script, no tile or image request, no key
+      expect(section).not.toMatch(/<iframe|<script|<img|src=|tile|api[_-]?key|mapbox|googleapis/i)
+    }
+  })
+
+  test('with no address and no area the section renders nothing; an address alone, or areas alone, is enough', async () => {
+    expect(await render('market', [HERO, map()], {})).not.toContain('map-area')
+    expect(await render('market', [HERO, map()], { address: '   ' })).not.toContain('map-area')
+    const only = await render('market', [HERO, map()], { address: '5 Elm Rd, Eau Claire, WI' })
+    expect(only).toContain('5 Elm Rd, Eau Claire, WI')
+    expect(only).not.toContain('We serve')
+    const areas = await render('market', [HERO, map()], { serviceAreas: ['Altoona'] })
+    expect(areas).toContain('We serve')
+    expect(areas).toContain('Where we work')
+    expect(areas).not.toContain('>Address<')
+  })
+
+  test('the owner cannot type an address into it (the section reads the business\'s settings), and the editor offers it', async () => {
+    const html = await render('foundry', [HERO, map({ address: '1 Fake Ln, Nowhere', serviceAreas: ['Atlantis'] })], ADDRESS)
+    expect(html).not.toContain('Fake Ln')
+    expect(html).not.toContain('Atlantis')
+    expect(findTradeSection('map', 'area')).toBeDefined()
+    for (const id of ['contractor', 'roofing', 'homecare']) expect([id, offersSection('map/area', await loadVertical(id))]).toEqual([id, true])
   })
 })

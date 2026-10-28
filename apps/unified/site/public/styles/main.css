@@ -1024,3 +1024,27 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .testimonials-carousel__dot { width: 24px; height: 24px; border: 0; background: none; padding: 0; cursor: pointer; position: relative; }
 .testimonials-carousel__dot::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--line); border: 1px solid var(--muted); box-sizing: border-box; }
 .testimonials-carousel__dot[aria-current="true"]::before { background: var(--brand); border-color: var(--brand); }
+
+/* ── Map: where to find us (views/sections/map/area.ejs) — a drawing and plain links; nothing loads from a map provider ──── */
+.map-area { container: map-area / inline-size; padding: var(--space) 0; background: var(--paper); }
+.map-area__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(24px, 5cqi, 56px); align-items: stretch; }
+@container map-area (min-width: 760px) { .map-area__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.map-area__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(30px, 4.2cqi, 46px); font-weight: 600; line-height: 1.1; margin: 0 0 14px; color: var(--ink); }
+.map-area__intro { margin: 0 0 22px; font-size: 18px; color: var(--ink-soft); max-width: 46ch; }
+.map-area__address, .map-area__areas { display: block; font-style: normal; margin: 0 0 20px; }
+.map-area__label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .12em; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.map-area__lines { display: block; font-size: 19px; color: var(--ink); }
+.map-area__list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.map-area__list li { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); font-size: 15px; }
+.map-area__all { font-weight: 600; font-size: 15px; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--brand); text-decoration-thickness: 2px; }
+.map-area__links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 26px; }
+.map-area__alt { font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.map-area__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.map-area__art { display: block; min-height: 240px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--white); }
+.map-area__art svg { display: block; width: 100%; height: 100%; min-height: 240px; }
+.map-area__roads { stroke: var(--line); }
+.map-area__roads path { stroke: color-mix(in srgb, var(--muted) 38%, var(--white)); }
+.map-area__blocks rect { fill: color-mix(in srgb, var(--muted) 14%, var(--white)); }
+.map-area__halo { fill: color-mix(in srgb, var(--brand) 22%, transparent); }
+.map-area__pin path { fill: var(--brand); }
+.map-area__dot { fill: {{INK_ON_PRIMARY}}; }
