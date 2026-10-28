@@ -115,7 +115,7 @@ export type { BusinessHours, DayHours, WeekDay } from './company/businessHours'
 export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES, JOB_STATUSES } from './jobs/jobs'
 export type { JobDeps, JobOptions, JobTables, JobHook, JobPhotoStorage } from './jobs/jobs'
 export { JOB_MONEY, jobMoneyWithheld, withoutJobMoney } from './jobs/jobMoney'
-export { onJob } from './jobs/onJob'
+export { onJob, ownJobScope } from './jobs/onJob'
 export { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './jobs/dispatch'
 export { travelMinutes, metresBetween } from './jobs/travel'
 export type { CanSee } from './jobs/jobMoney'
@@ -292,3 +292,4 @@ export { AUTH_MODE_HEADER, ACCESS_COOKIE, REFRESH_COOKIE, VIEW_AS_COOKIE, wantsC
 export { publicApiBase } from './publicOrigin'
 // A not-ready feature's words taken out of copy a customer reads (notReadyCopy.ts).
 export { mentionsNotReady, withoutNotReadySentences, withoutNotReadyCopy } from './notReadyCopy'
+export { JOB_TILES, QUOTE_TILES, INVOICE_TILES, PENDING_QUOTE_STATUSES, isPendingQuote, pendingQuoteCondition, openInvoiceCondition, openInvoiceStatuses, jobsTodayCondition } from './reporting/tileConditions'

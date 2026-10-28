@@ -22,12 +22,13 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { resolveCustomer } from '../contacts/customer'
 import { companyTimeZone, storeDayRange, jobLocalDay, storeDateString, markerDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
+import { JOB_TILES, jobsTodayCondition } from '../reporting/tileConditions'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
 import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
 import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
-import { onJob } from './onJob'
+import { onJob, ownJobScope } from './onJob'
 import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
 import { partialOf } from '../partialOf'
@@ -318,14 +319,7 @@ export function createJobRoutes(deps: JobDeps) {
    * seat since 2026-10-24).
    * Answers the condition to narrow by, or null for all. Not wired (no canSee) → all; a failed check narrows (fails closed).
    */
-  const ownScope = async (c: any): Promise<any | null> => {
-    if (!deps.canSee) return null
-    const u = c.get('user') as any
-    const uid = String(u?.userId || '')
-    let all = false
-    try { all = !!(await deps.canSee(u?.role, 'jobs:read-all', u?.userId)) } catch { all = false }
-    return all ? null : onJob(db, t, uid)
-  }
+  const ownScope = async (c: any): Promise<any | null> => ownJobScope(db, t, deps.canSee, c.get('user') as any)
   // Every /:id door (read, edit, photos, notes, status, invoice…) answers 404 for a job this seat may not read, as if it
   // were not there. A path word that is no job id ('today') finds no row and passes through to its own route.
   const ownJobOnly = async (c: any, next: any) => {
@@ -620,7 +614,11 @@ export function createJobRoutes(deps: JobDeps) {
     const conditions: any[] = [eq(t.job.companyId, currentUser.companyId)]
     const scope = await ownScope(c)
     if (scope) conditions.push(scope)
+    // ?tile= is a home-screen tile's own rows (reporting/tileConditions.ts — the dashboard's count uses the same condition).
+    const badTile = checkFilter(c, 'tile', q.tile, JOB_TILES)
+    if (badTile) return badTile
     if (q.status) conditions.push(eq(t.job.status, q.status))
+    if (q.tile === 'today') conditions.push(jobsTodayCondition(t.job, await companyTimeZone(db, currentUser.companyId)))
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
     // A person's jobs: the ones they lead or are on (./onJob.ts) — the Schedule's and the Dispatch Board's lanes read this.

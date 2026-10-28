@@ -3,11 +3,13 @@
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
-import { companyTimeZone, storeDayRange, jobLocalDay, markerDayIsOver } from '../time/businessDay'
+import { companyTimeZone, storeDayRange, markerDayIsOver } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 import { countNewLeads, listNewLeads, type NewLeads } from './newLeads'
+import { jobsTodayCondition, isPendingQuote } from './tileConditions'
+import { ownJobScope } from '../jobs/onJob'
 
-export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any }
+export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any; jobAssignee?: any; crewLogin?: any }
 export interface JobsDashboardDeps {
   db: any
   tables: JobsDashboardTables
@@ -99,7 +101,8 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     // rolled over at 8pm in Ohio and "completed today" counted only what was finished after 7pm.
     // Unconfigured companies resolve to UTC and are unaffected. (T24 N1, the shared surfaces)
     const tz = await companyTimeZone(db, companyId)
-    const { start: today, end: tomorrow, date: localToday } = storeDayRange(tz)
+    const { start: today, end: tomorrow } = storeDayRange(tz)
+    const jobScope = await ownJobScope(db, t, deps.canSee, c.get('user') as any)
 
     const [contactRows, projectsByStatus, jobsByStatus, todayRows, completedTodayRows, quotes, invoices] = await Promise.all([
       safe(() => db.select({ value: count() }).from(t.contact).where(eq(t.contact.companyId, companyId)), [{ value: 0 }]),
@@ -108,8 +111,10 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       // Today's board: work scheduled for today that is still live.
       // scheduled_date holds a calendar-day marker for a job made here and a real instant for one made
       // by a booking, so the day is taken per row — see jobLocalDay.
+      // …and a seat that reads only its own jobs (no jobs:read-all) counts only those: the tile opens /api/jobs?tile=today,
+      // which that seat's list narrows the same way (jobs/onJob.ts ownJobScope), so the number is the rows.
       safe(() => db.select({ status: t.job.status, c: count() }).from(t.job)
-        .where(and(eq(t.job.companyId, companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, sql`${t.job.status} <> 'cancelled'`)).groupBy(t.job.status), [] as any[]),
+        .where(and(eq(t.job.companyId, companyId), jobsTodayCondition(t.job, tz), jobScope ?? undefined)).groupBy(t.job.status), [] as any[]),
       safe(() => db.select({ value: count() }).from(t.job)
         .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), gte(t.job.completedAt, today), lt(t.job.completedAt, tomorrow))), [{ value: 0 }]),
       safe(() => db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, companyId)), [] as any[]),
@@ -144,7 +149,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     for (const q of quotes) {
       const v = num(q.total)
       quoteStats.totalValue = r2(quoteStats.totalValue + v)
-      if (q.status === 'draft' || q.status === 'sent' || q.status === 'viewed') quoteStats.pending++
+      if (isPendingQuote(q.status)) quoteStats.pending++
       if (q.status === 'approved') { quoteStats.approved++; quoteStats.approvedValue = r2(quoteStats.approvedValue + v) }
     }
 

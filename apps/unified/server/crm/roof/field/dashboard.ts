@@ -22,16 +22,15 @@
 //   · the balance owed is the CRM's invoice balance (invoiceBalance: total less what was paid, net of refunds), where
 //     roofing's invoice kept a `balance` column; the same invoices count (issued: not draft, void or paid; something owed).
 import { Hono } from 'hono'
-import { and, count, eq, gte, inArray, lt, notInArray } from 'drizzle-orm'
-import { companyTimeZone, invoiceBalance, storeDayRange, countNewLeads, listNewLeads } from '@twomiah/tenant-backend'
+import { and, count, eq, inArray, notInArray } from 'drizzle-orm'
+import { companyTimeZone, invoiceBalance, countNewLeads, listNewLeads, pendingQuoteCondition, openInvoiceCondition } from '@twomiah/tenant-backend'
 import { contact, invoice, job, lead, quote } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { one, fail } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
-import { TERMINAL_STATUSES } from '../validation.ts'
-
-const NOT_OPEN = ['collected', ...TERMINAL_STATUSES]
+import { inspectionsTodayCondition, installsTodayCondition, openJobCondition } from '../tiles.ts'
+import { ownJobsWhere } from '../../ownWork.ts'
 
 export function createRoofDashboardRoutes(d: CrmDeps) {
   const { db } = d
@@ -58,23 +57,31 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
     const u = c.get('user')
     const companyId = u.companyId
     const tz = await companyTimeZone(db, companyId)
-    const { start, end } = storeDayRange(tz)
-    const mine = eq(job.companyId, companyId)
+    // A seat without jobs:read-all lists only its own jobs (jobs.ts ownScope), so it counts only those: the tile opens
+    // GET /api/jobs?tile=…, and the number is the rows.
+    let own: any = undefined
+    try { own = (await canSee(u.role, 'jobs:read-all', u.userId)) ? undefined : ownJobsWhere(db, String(u.userId)) } catch { own = ownJobsWhere(db, String(u.userId)) }
+    const mine = and(eq(job.companyId, companyId), own)
 
-    const [contacts, inspectionsToday, installsToday, openJobs, inProduction, pendingQuotes] = await Promise.all([
+    const [contacts, inspectionsToday, installsToday, openJobs, inProduction, pendingQuotes, byStatusRows] = await Promise.all([
       safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(job).where(and(mine, gte(job.inspectionDate, start), lt(job.inspectionDate, end))), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(job).where(and(mine, gte(job.installDate, start), lt(job.installDate, end))), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(job).where(and(mine, notInArray(job.status, NOT_OPEN))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(job).where(and(mine, inspectionsTodayCondition(tz))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(job).where(and(mine, installsTodayCondition(tz))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(job).where(and(mine, openJobCondition())), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(job).where(and(mine, eq(job.status, 'in_production'))), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(quote).where(and(eq(quote.companyId, companyId), inArray(quote.status, ['draft', 'sent', 'viewed']))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(quote).where(and(eq(quote.companyId, companyId), pendingQuoteCondition(quote))), [{ value: 0 }]),
+      // The pipeline board: one count per stage. Each stage opens GET /api/jobs?status=<stage>.
+      safe(() => db.select({ status: job.status, c: count() }).from(job).where(mine).groupBy(job.status), [] as any[]),
     ])
 
     let invoices: { outstanding: number; outstandingValue: number } | undefined
     if (await may(u, 'invoices:read')) {
+      // Open = issued and not settled — the one condition (tenant-backend reporting/tileConditions.ts) the Open invoices list
+      // uses (GET /api/invoices?tile=open). It said "not draft / void / paid, with a balance" before; the same rows, bar an
+      // open invoice with nothing owing, which the list could not have filtered.
       const rows = await safe(() => db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded })
-        .from(invoice).where(and(eq(invoice.companyId, companyId), notInArray(invoice.status, ['draft', 'void', 'paid']))), [] as any[])
-      const owed = rows.map((inv: any) => invoiceBalance(inv)).filter((b: number) => b > 0)
+        .from(invoice).where(and(eq(invoice.companyId, companyId), openInvoiceCondition(invoice))), [] as any[])
+      const owed = rows.map((inv: any) => invoiceBalance(inv))
       invoices = { outstanding: owed.length, outstandingValue: r2(owed.reduce((s: number, b: number) => s + b, 0)) }
     }
 
@@ -89,7 +96,7 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
     return one(c, {
       contacts: n(contacts),
       ...(leads ? { newLeads: leads.total, newLeadsFrom: { inbox: leads.inbox, contacts: leads.contacts } } : {}),
-      jobs: { open: n(openJobs), inProduction: n(inProduction), inspectionsToday: n(inspectionsToday), installsToday: n(installsToday) },
+      jobs: { open: n(openJobs), inProduction: n(inProduction), inspectionsToday: n(inspectionsToday), installsToday: n(installsToday), byStatus: Object.fromEntries(byStatusRows.map((r: any) => [r.status, Number(r.c)])) },
       quotes: { pending: n(pendingQuotes) },
       ...(invoices ? { invoices } : {}),
     })

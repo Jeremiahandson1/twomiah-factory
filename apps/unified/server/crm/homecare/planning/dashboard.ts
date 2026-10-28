@@ -10,7 +10,7 @@
 // (the schedule area's write — a caregiver holds only its read); a caregiver's hours, ratings and reliability ask care-hr:read.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { one, listAll } from '../../../http/reply.ts'
+import { one, listAll, fail } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
 import { addDays } from '../core/agencyTime.ts'
@@ -20,6 +20,7 @@ import {
   openNoshowAlerts, authorizationsEndingBy, caregiversWithCertificationExpiry, dashboardSummary, actionItemCounts,
   referralSourceTotals, caregiverHoursAndRatings, liveBoardShifts,
   absencesByWeekday, noShowsByWeekday, lateArrivalsByWeekday, completedShiftsByWeekday,
+  homecareTileRows, HOMECARE_TILES, type HomecareTile,
 } from '../../../data/homecarePlanning.ts'
 
 const int = (v: unknown) => parseInt(String(v ?? '')) || 0
@@ -120,6 +121,29 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
       remainingShifts: int(s.remainingShifts),
       coverageGaps: int(s.coverageGaps),
     })
+  })
+
+  // GET /tile/:id — the rows ONE tile counts (the same FROM/WHERE the counts above use: data/homecarePlanning.ts tileSource),
+  // so the phone's tile opens exactly its number. Each tile asks the permission the desktop gives its card
+  // (OfficeHome.tsx): the counts are care-billing:read or care-office:read; the invoices and the month's money
+  // care-billing:read; no-show alerts care-schedule:update; incident responses care-compliance:read.
+  const TILE_PERMISSION: Record<HomecareTile, string[]> = {
+    'active-clients': ['care-billing:read', 'care-office:read'], 'active-caregivers': ['care-billing:read', 'care-office:read'],
+    'shifts-today': ['care-billing:read', 'care-office:read'], 'clocked-in-now': ['care-billing:read', 'care-office:read'],
+    'shifts-remaining': ['care-billing:read', 'care-office:read'], 'coverage-gaps': ['care-billing:read', 'care-office:read'],
+    'pending-invoices': ['care-billing:read'], 'month-revenue': ['care-billing:read'],
+    'noshow-alerts': ['care-schedule:update'], 'incident-responses': ['care-compliance:read'],
+  }
+  app.get('/tile/:id', async (c) => {
+    const { companyId, role, userId } = c.get('user') as any
+    const id = c.req.param('id') as HomecareTile
+    if (!(HOMECARE_TILES as readonly string[]).includes(id)) return fail(c, 400, `"${id}" is not a tile this CRM uses. Choose one of: ${HOMECARE_TILES.join(', ')}.`)
+    const extra = await d.permissions.getExtraPermissions(userId)
+    if (!TILE_PERMISSION[id].some((p) => d.permissions.hasPermission(role, p, extra))) return fail(c, 403, 'Permission denied', 'forbidden')
+    const tz = await core.time.timezone(companyId)
+    const today = await core.time.today(companyId, tz)
+    const rows = await homecareTileRows(d.db, companyId, id, today, tz)
+    return one(c, { data: rows, pagination: { page: 1, limit: rows.length, total: rows.length, pages: 1 }, ...(id === 'month-revenue' ? { total: Math.round(rows.reduce((s, r) => s + (r.amount || 0), 0) * 100) / 100 } : {}) })
   })
 
   // GET /action-items — the office's to-do list; each entry has a count and the page that clears it. Only non-zero items.

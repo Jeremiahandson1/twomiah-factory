@@ -10,6 +10,7 @@ import { advisoryLock } from '../../data/rvDealership.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { RV_RO_TILES, openRepairOrderCondition } from './tiles.ts'
 
 // Customer-facing repair-order milestones → automated status text.
 const RO_STATUS_TEXT: Record<string, string> = {
@@ -80,7 +81,10 @@ export function createRepairOrderRoutes(d: CrmDeps) {
     const page = +(c.req.query('page') || '1')
     const limit = +(c.req.query('limit') || '25')
     const conditions = [eq(repairOrder.companyId, currentUser.companyId)]
+    const tile = c.req.query('tile')
+    if (tile && !(RV_RO_TILES as readonly string[]).includes(tile)) return fail(c, 400, `"${tile}" is not a tile this CRM uses. Choose one of: ${RV_RO_TILES.join(', ')}.`)
     if (status) conditions.push(eq(repairOrder.status, status))
+    if (tile === 'open') conditions.push(openRepairOrderCondition())
     const where = and(...conditions)
     const data = await db.select({
       ro: repairOrder,

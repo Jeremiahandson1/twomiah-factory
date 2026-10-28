@@ -426,12 +426,14 @@ describe('roofing\'s dashboard', () => {
     expect(owner.body).toEqual({
       // newLeads: the inbox enquiry; Hank (a lead by the column's default) has quotes, so is not new (newLeads.ts).
       contacts: 1, newLeads: 1, newLeadsFrom: { inbox: 1, contacts: 0 },
-      jobs: { open: 3, inProduction: 1, inspectionsToday: 1, installsToday: 1 },
+      jobs: { open: 3, inProduction: 1, inspectionsToday: 1, installsToday: 1, byStatus: { cancelled: 1, collected: 1, in_production: 1, inspection_scheduled: 1, lost: 1, proposal_sent: 1 } },
       quotes: { pending: 2 },
       invoices: { outstanding: 2, outstandingValue: 1600 },
     })
     const crew = await stats(people.crew)
-    expect(crew.body.jobs.open).toBe(3)
+    // A seat without jobs:read-all lists only its own jobs, so its tile counts only those (the tile opens GET /api/jobs?tile=open);
+    // this crew login is on none of the three open jobs.
+    expect(crew.body.jobs.open).toBe(0)
     expect(crew.body).not.toHaveProperty('invoices') // absent, not $0 (T42)
     // New leads are the Lead Inbox's (leads:read — managers and up), not the crew's (live role check, 2026-10-23).
     expect(crew.body).not.toHaveProperty('newLeads')

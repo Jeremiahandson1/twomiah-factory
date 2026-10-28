@@ -8,8 +8,7 @@ import { contact, unit, salesLead, repairOrder } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-
-const CLOSED = ['closed_won', 'closed_lost']
+import { CLOSED_LEAD_STAGES as CLOSED, openLeadCondition, openRepairOrderCondition } from './tiles.ts'
 
 export function createDealershipDashboardRoutes(d: CrmDeps) {
   const { db } = d
@@ -33,12 +32,12 @@ export function createDealershipDashboardRoutes(d: CrmDeps) {
       safe(() => db.select({ category: unit.category, c: count() }).from(unit).where(eq(unit.companyId, companyId)).groupBy(unit.category), [] as { category: string; c: number }[]),
       // what is for sale now, by category — the panel under the "available" tile (RV T19 L7)
       safe(() => db.select({ category: unit.category, c: count() }).from(unit).where(and(eq(unit.companyId, companyId), eq(unit.status, 'available'))).groupBy(unit.category), [] as { category: string; c: number }[]),
-      safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), notInArray(salesLead.stage, CLOSED))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), openLeadCondition())), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), gte(salesLead.createdAt, startOfMonth), lt(salesLead.createdAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), eq(salesLead.stage, 'closed_won'), gte(salesLead.closedAt, startOfMonth), lt(salesLead.closedAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), eq(salesLead.stage, 'closed_lost'), gte(salesLead.closedAt, startOfMonth), lt(salesLead.closedAt, startOfNextMonth))), [{ value: 0 }]),
       // Open ROs = work not finished: not 'ready' (done, awaiting pickup) and not 'closed'.
-      safe(() => db.select({ value: count() }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), notInArray(repairOrder.status, ['ready', 'closed']))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), openRepairOrderCondition())), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), gte(repairOrder.createdAt, startOfMonth), lt(repairOrder.createdAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ amt: repairOrder.actualTotal }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), gte(repairOrder.completedAt, startOfMonth), lt(repairOrder.completedAt, startOfNextMonth))), [] as { amt: string | null }[]),
     ])

@@ -10,6 +10,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { dealInput } from './deal.ts'
+import { RV_LEAD_TILES, openLeadCondition } from './tiles.ts'
 
 // A unit is sold by closing its deal (stage closed_won, shown as "Sold"). Closing marks the unit sold, which also takes
 // it off the syndication feed. A unit already sold on another deal can't be sold again. Reopening the deal, or moving
@@ -136,7 +137,11 @@ export function createSalesLeadRoutes(d: CrmDeps) {
     const page = +(c.req.query('page') || '1')
     const limit = +(c.req.query('limit') || '50')
     const conditions = [eq(salesLead.companyId, currentUser.companyId)]
+    // ?tile=open is the home screen's "Open leads" rows (./tiles.ts — the dashboard's count uses the same condition).
+    const tile = c.req.query('tile')
+    if (tile && !(RV_LEAD_TILES as readonly string[]).includes(tile)) return fail(c, 400, `"${tile}" is not a tile this CRM uses. Choose one of: ${RV_LEAD_TILES.join(', ')}.`)
     if (stage) conditions.push(eq(salesLead.stage, stage))
+    if (tile === 'open') conditions.push(openLeadCondition())
     if (assignedTo) conditions.push(eq(salesLead.assignedTo, assignedTo))
     const where = and(...conditions)
     const data = await db.select({

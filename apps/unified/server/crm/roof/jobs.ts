@@ -38,6 +38,7 @@ import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
+import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -297,6 +298,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const page = Math.max(parseInt(q.page || '1') || 1, 1)
     const limit = Math.max(parseInt(q.limit || '50') || 50, 1)
     const conditions: any[] = [eq(job.companyId, me.companyId)]
+    // ?tile= is a home-screen tile's own rows (./tiles.ts — the dashboard's count uses the same conditions).
+    if (q.tile && !(ROOF_JOB_TILES as readonly string[]).includes(q.tile)) return fail(c, 400, `"${q.tile}" is not a tile this CRM uses. Choose one of: ${ROOF_JOB_TILES.join(', ')}.`)
+    if (q.tile) conditions.push(roofTileCondition(q.tile, await companyTimeZone(db, me.companyId))!)
     if (q.status) conditions.push(eq(job.status, q.status))
     if (q.jobType) conditions.push(eq(job.jobType, q.jobType))
     if (q.assignedSalesRepId) conditions.push(eq(job.assignedSalesRepId, q.assignedSalesRepId))

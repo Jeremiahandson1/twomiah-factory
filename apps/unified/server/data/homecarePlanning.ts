@@ -114,14 +114,131 @@ const punchForOcc = (companyId: string, tz: string): SQL => sql`te.company_id = 
 
 // ═══════════════════════════════ Dashboard (routes/dashboard.ts) ══════════════════════════════
 
+const dec = (v: unknown) => parseFloat(String(v ?? '')) || 0
+
+// ═══════════════════════════ The home tiles' conditions (one definition for count AND list) ═══════════════════════════
+//
+// A tile on the dashboard says a number and (on the phone) opens a list of exactly those rows. Each tile's FROM and WHERE
+// are written once here: dashboardStats / dashboardSummary / actionItemCounts count them, and homecareTileRows (GET
+// /api/dashboard/tile/:id) lists them — so the number is the rows by construction. apps/unified/tests/mobile-home-tiles
+// seeds rows that must not count and holds the two together.
+
+export const HOMECARE_TILES = [
+  'active-clients', 'active-caregivers', 'pending-invoices', 'month-revenue', 'shifts-today', 'clocked-in-now',
+  'shifts-remaining', 'coverage-gaps', 'noshow-alerts', 'incident-responses',
+] as const
+export type HomecareTile = (typeof HOMECARE_TILES)[number]
+
+/** `{ from, where }` of each countable tile. `from` carries the alias the count and the list both use. */
+const tileSource = {
+  activeClients: (co: string): { from: SQL; where: SQL } => ({ from: sql`clients c`, where: sql`c.company_id = ${co} AND c.is_active = true` }),
+  activeCaregivers: (co: string) => ({ from: sql`"user" u`, where: sql`u.company_id = ${co} AND ${isCaregiver()} AND u.is_active = true` }),
+  // Pending = RELEASED invoices with a balance still owed; drafts are counted apart.
+  pendingInvoices: (co: string) => ({ from: sql`invoices i`, where: sql`i.company_id = ${co} AND ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005` }),
+  // Caregivers clocked in right now: an open entry started on the agency's today.
+  clockedInNow: (co: string, today: string, tz: string) => ({ from: sql`time_entries te`, where: sql`te.company_id = ${co} AND te.end_time IS NULL AND ${localDate(sql`te.start_time`, tz)} = (${today})::date` }),
+  // Call-outs still needing a caregiver (the list Emergency Coverage opens on).
+  coverageGaps: (co: string, today: string) => ({ from: sql`absences a`, where: sql`a.company_id = ${co} AND a.type = 'call_out' AND a.coverage_needed = true AND a.coverage_assigned_to IS NULL AND a.date >= (${today})::date` }),
+  openNoshows: (co: string) => ({ from: sql`noshow_alerts na`, where: sql`na.company_id = ${co} AND na.status = 'open'` }),
+  // Payer/MCO incident responses due within 3 days (or overdue) and not yet sent (GET /api/incidents/responses-due's rule).
+  incidentResponsesDue: (co: string, today: string) => ({ from: sql`incidents inc`, where: sql`inc.company_id = ${co} AND COALESCE(inc.investigation_status, 'open') <> 'closed'
+          AND inc.response_due_date IS NOT NULL AND inc.response_sent_date IS NULL
+          AND inc.response_due_date <= (${today})::date + 3` }),
+}
+const countOf = (src: { from: SQL; where: SQL }, what: SQL = sql`COUNT(*)::int`): SQL => sql`(SELECT ${what} FROM ${src.from} WHERE ${src.where})`
+/** Today's visits not started yet: no punch at all for that visit (the CTE `occ` must be in scope). */
+const noPunchForOcc = (co: string, tz: string): SQL => sql`NOT EXISTS (SELECT 1 FROM time_entries te WHERE ${punchForOcc(co, tz)})`
+/** The agency's calendar month of `today`, as a condition on a date column. */
+const inMonthOf = (col: SQL, today: string): SQL => sql`${col} >= date_trunc('month', (${today})::date)::date AND ${col} < (date_trunc('month', (${today})::date) + INTERVAL '1 month')::date`
+
+const fullName = (first: unknown, last: unknown) => [first, last].filter(Boolean).join(' ').trim()
+
+/**
+ * The rows a tile counts — GET /api/dashboard/tile/:id. Every row is `{ id, title, subtitle, amount?, at? }`, so the phone
+ * draws any tile's list with one component. `month-revenue` lists the payments whose SUM is the tile's figure.
+ */
+export async function homecareTileRows(q: Q, companyId: string, tile: HomecareTile, today: string, tz: string): Promise<Array<{ id: string; title: string; subtitle: string; amount?: number; at?: string | null; kind: string }>> {
+  const day = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null)
+  switch (tile) {
+    case 'active-clients': {
+      const src = tileSource.activeClients(companyId)
+      const rows = await all(q, sql`SELECT c.id, c.first_name, c.last_name, c.phone, c.city, c.service_type FROM ${src.from} WHERE ${src.where} ORDER BY c.last_name, c.first_name, c.id`)
+      return rows.map((r) => ({ kind: 'client', id: r.id, title: fullName(r.firstName, r.lastName), subtitle: [r.serviceType, r.city].filter(Boolean).join(' · '), at: null }))
+    }
+    case 'active-caregivers': {
+      const src = tileSource.activeCaregivers(companyId)
+      const rows = await all(q, sql`SELECT u.id, u.first_name, u.last_name, u.phone FROM ${src.from} WHERE ${src.where} ORDER BY u.last_name, u.first_name, u.id`)
+      return rows.map((r) => ({ kind: 'caregiver', id: r.id, title: fullName(r.firstName, r.lastName), subtitle: r.phone || '', at: null }))
+    }
+    case 'pending-invoices': {
+      const src = tileSource.pendingInvoices(companyId)
+      const rows = await all(q, sql`SELECT i.id, i.invoice_number, i.total, ${invoiceBalanceSql()} AS balance, i.payment_due_date, c.first_name, c.last_name
+        FROM ${src.from} LEFT JOIN clients c ON c.id = i.client_id AND c.company_id = ${companyId} WHERE ${src.where} ORDER BY i.created_at DESC, i.id`)
+      return rows.map((r) => ({ kind: 'care-invoice', id: r.id, title: r.invoiceNumber || 'Invoice', subtitle: fullName(r.firstName, r.lastName), amount: dec(r.balance), at: day(r.paymentDueDate) }))
+    }
+    case 'month-revenue': {
+      // The two ledgers dashboardSummary adds: a client's payment on a visit invoice, and a payer's check or EFT.
+      const rows = await all(q, sql`SELECT * FROM (
+          SELECT 'invoice-payment' AS kind, ip.id, ip.amount AS amount, ip.payment_date AS at, ip.payment_method AS method, c.first_name, c.last_name, i.invoice_number AS ref
+            FROM invoice_payments ip LEFT JOIN invoices i ON i.id = ip.invoice_id AND i.company_id = ${companyId} LEFT JOIN clients c ON c.id = i.client_id AND c.company_id = ${companyId}
+            WHERE ip.company_id = ${companyId} AND ${inMonthOf(sql`ip.payment_date`, today)}
+          UNION ALL
+          SELECT 'payer-payment', pp.id, pp.check_amount, pp.payment_date, pp.payment_method, NULL, NULL, pp.payer_name
+            FROM payments pp WHERE pp.company_id = ${companyId} AND ${inMonthOf(sql`pp.payment_date`, today)}
+        ) x ORDER BY at DESC, id`)
+      return rows.map((r) => ({ kind: r.kind, id: r.id, title: r.kind === 'payer-payment' ? (r.ref || 'Payer payment') : (fullName(r.firstName, r.lastName) || 'Payment'), subtitle: [r.method, r.kind === 'invoice-payment' ? r.ref : ''].filter(Boolean).join(' · '), amount: dec(r.amount), at: day(r.at) }))
+    }
+    case 'shifts-today':
+    case 'shifts-remaining': {
+      const remaining = tile === 'shifts-remaining'
+      const rows = await all(q, sql`WITH ${occurrencesCte(companyId, today, today)}
+        SELECT occ.schedule_id, occ.caregiver_id, occ.client_id, occ.occ_date, to_char(occ.start_time, 'HH24:MI') AS start_at, to_char(occ.end_time, 'HH24:MI') AS end_at,
+               u.first_name AS cg_first, u.last_name AS cg_last, c.first_name AS cl_first, c.last_name AS cl_last
+        FROM occ LEFT JOIN "user" u ON u.id = occ.caregiver_id AND u.company_id = ${companyId} LEFT JOIN clients c ON c.id = occ.client_id AND c.company_id = ${companyId}
+        ${remaining ? sql`WHERE ${noPunchForOcc(companyId, tz)}` : sql``}
+        ORDER BY occ.start_time, occ.schedule_id`)
+      return rows.map((r) => ({ kind: 'shift', id: r.scheduleId, title: fullName(r.clFirst, r.clLast) || 'Visit', subtitle: `${r.startAt}–${r.endAt}${fullName(r.cgFirst, r.cgLast) ? ' · ' + fullName(r.cgFirst, r.cgLast) : ''}`, at: day(r.occDate) }))
+    }
+    case 'clocked-in-now': {
+      const src = tileSource.clockedInNow(companyId, today, tz)
+      const rows = await all(q, sql`SELECT DISTINCT ON (te.caregiver_id) te.id, te.caregiver_id, te.start_time, u.first_name, u.last_name, c.first_name AS cl_first, c.last_name AS cl_last
+        FROM ${src.from} LEFT JOIN "user" u ON u.id = te.caregiver_id AND u.company_id = ${companyId} LEFT JOIN clients c ON c.id = te.client_id AND c.company_id = ${companyId}
+        WHERE ${src.where} ORDER BY te.caregiver_id, te.start_time DESC`)
+      return rows.map((r) => ({ kind: 'punch', id: r.id, title: fullName(r.firstName, r.lastName) || 'Caregiver', subtitle: fullName(r.clFirst, r.clLast), at: r.startTime instanceof Date ? r.startTime.toISOString() : r.startTime }))
+    }
+    case 'coverage-gaps': {
+      const src = tileSource.coverageGaps(companyId, today)
+      const rows = await all(q, sql`SELECT a.id, a.date, a.reason, u.first_name, u.last_name, c.first_name AS cl_first, c.last_name AS cl_last
+        FROM ${src.from} LEFT JOIN "user" u ON u.id = a.caregiver_id AND u.company_id = ${companyId} LEFT JOIN clients c ON c.id = a.client_id AND c.company_id = ${companyId}
+        WHERE ${src.where} ORDER BY a.date, a.id`)
+      return rows.map((r) => ({ kind: 'absence', id: r.id, title: fullName(r.clFirst, r.clLast) || 'Visit needing cover', subtitle: fullName(r.firstName, r.lastName) ? `${fullName(r.firstName, r.lastName)} called out` : 'Called out', at: day(r.date) }))
+    }
+    case 'noshow-alerts': {
+      const src = tileSource.openNoshows(companyId)
+      const rows = await all(q, sql`SELECT na.id, na.shift_date, na.expected_start, u.first_name, u.last_name, c.first_name AS cl_first, c.last_name AS cl_last
+        FROM ${src.from} LEFT JOIN "user" u ON u.id = na.caregiver_id AND u.company_id = ${companyId} LEFT JOIN clients c ON c.id = na.client_id AND c.company_id = ${companyId}
+        WHERE ${src.where} ORDER BY na.created_at DESC, na.id`)
+      return rows.map((r) => ({ kind: 'noshow', id: r.id, title: fullName(r.clFirst, r.clLast) || 'Visit', subtitle: fullName(r.firstName, r.lastName) ? `${fullName(r.firstName, r.lastName)} has not arrived` : 'Not arrived', at: day(r.shiftDate) }))
+    }
+    case 'incident-responses': {
+      const src = tileSource.incidentResponsesDue(companyId, today)
+      const rows = await all(q, sql`SELECT inc.id, inc.incident_number, inc.incident_type, inc.response_due_date, c.first_name, c.last_name
+        FROM ${src.from} LEFT JOIN clients c ON c.id = inc.client_id AND c.company_id = ${companyId}
+        WHERE ${src.where} ORDER BY inc.response_due_date, inc.id`)
+      return rows.map((r) => ({ kind: 'incident', id: r.id, title: r.incidentNumber || 'Incident report', subtitle: [r.incidentType, fullName(r.firstName, r.lastName)].filter(Boolean).join(' · '), at: day(r.responseDueDate) }))
+    }
+  }
+}
+
+
 /** GET /stats: the office's tiles. `in30` = today + 30 days. "Today" is the agency's day. */
 export async function dashboardStats(q: Q, companyId: string, today: string, in30: string, tz: string) {
   const startedToday = sql`te.start_time >= ${dayStartUtc(today, tz)} AND te.start_time < ${dayEndUtc(today, tz)}`
   return first(q, sql`SELECT
-      (SELECT COUNT(*)::int FROM clients c WHERE c.company_id = ${companyId} AND c.is_active = true) AS active_clients,
-      (SELECT COUNT(*)::int FROM "user" u WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true) AS active_caregivers,
+      ${countOf(tileSource.activeClients(companyId))} AS active_clients,
+      ${countOf(tileSource.activeCaregivers(companyId))} AS active_caregivers,
       (SELECT COUNT(*)::int FROM open_shifts os WHERE os.company_id = ${companyId} AND os.status = 'open' AND os.date >= (${today})::date) AS open_shifts,
-      (SELECT COUNT(*)::int FROM noshow_alerts na WHERE na.company_id = ${companyId} AND na.status = 'open') AS open_noshows,
+      ${countOf(tileSource.openNoshows(companyId))} AS open_noshows,
       (SELECT COUNT(*)::int FROM client_onboarding co WHERE co.company_id = ${companyId} AND co.all_completed = false) AS incomplete_onboarding,
       -- Outstanding = released invoices' open balance; drafts are not owed yet.
       (SELECT COALESCE(SUM(${invoiceBalanceSql()}), 0) FROM invoices i
@@ -204,11 +321,11 @@ export async function caregiversWithCertificationExpiry(q: Q, companyId: string)
 export async function dashboardSummary(q: Q, companyId: string, today: string, tz: string) {
   return first(q, sql`WITH ${occurrencesCte(companyId, today, today)}
     SELECT
-      (SELECT COUNT(*)::int FROM clients c WHERE c.company_id = ${companyId} AND c.is_active = true) AS total_clients,
-      (SELECT COUNT(*)::int FROM "user" u WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true) AS active_caregivers,
+      ${countOf(tileSource.activeClients(companyId))} AS total_clients,
+      ${countOf(tileSource.activeCaregivers(companyId))} AS active_caregivers,
       -- Pending = RELEASED invoices with a balance still owed, at that balance; drafts are counted apart.
-      (SELECT COUNT(*)::int FROM invoices i WHERE i.company_id = ${companyId} AND ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005) AS pending_count,
-      (SELECT COALESCE(SUM(${invoiceBalanceSql()}), 0) FROM invoices i WHERE i.company_id = ${companyId} AND ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005) AS pending_amount,
+      ${countOf(tileSource.pendingInvoices(companyId))} AS pending_count,
+      ${countOf(tileSource.pendingInvoices(companyId), sql`COALESCE(SUM(${invoiceBalanceSql()}), 0)`)} AS pending_amount,
       (SELECT COUNT(*)::int FROM invoices d WHERE d.company_id = ${companyId} AND NOT ${releasedInvoiceSql('d')}) AS draft_count,
       (SELECT COALESCE(SUM(d.total), 0) FROM invoices d WHERE d.company_id = ${companyId} AND NOT ${releasedInvoiceSql('d')}) AS draft_amount,
       -- Money received this calendar month (the agency's month: today is the agency's day), by payment date: every
@@ -216,22 +333,16 @@ export async function dashboardSummary(q: Q, companyId: string, today: string, t
       -- EFT on the claims (Billing Engine's Record Payment, /api/payments). The tile counted only the first, so an agency
       -- paid by its payers read $0.00 collected (live test 2026-10-22). The two ledgers never write each other (a payer
       -- payment marks claims paid; it records no invoice payment), so nothing is counted twice.
-      ((SELECT COALESCE(SUM(ip.amount), 0) FROM invoice_payments ip WHERE ip.company_id = ${companyId}
-         AND ip.payment_date >= date_trunc('month', (${today})::date)::date
-         AND ip.payment_date <  (date_trunc('month', (${today})::date) + INTERVAL '1 month')::date)
-       + (SELECT COALESCE(SUM(pp.check_amount), 0) FROM payments pp WHERE pp.company_id = ${companyId}
-         AND pp.payment_date >= date_trunc('month', (${today})::date)::date
-         AND pp.payment_date <  (date_trunc('month', (${today})::date) + INTERVAL '1 month')::date)) AS this_month_revenue,
+      ((SELECT COALESCE(SUM(ip.amount), 0) FROM invoice_payments ip WHERE ip.company_id = ${companyId} AND ${inMonthOf(sql`ip.payment_date`, today)})
+       + (SELECT COALESCE(SUM(pp.check_amount), 0) FROM payments pp WHERE pp.company_id = ${companyId} AND ${inMonthOf(sql`pp.payment_date`, today)})) AS this_month_revenue,
       -- Caregivers clocked in right now (an open entry started on the agency's today).
-      (SELECT COUNT(DISTINCT te.caregiver_id)::int FROM time_entries te
-        WHERE te.company_id = ${companyId} AND te.end_time IS NULL AND ${localDate(sql`te.start_time`, tz)} = (${today})::date) AS clocked_in_now,
+      ${countOf(tileSource.clockedInNow(companyId, today, tz), sql`COUNT(DISTINCT te.caregiver_id)::int`)} AS clocked_in_now,
       (SELECT COUNT(*)::int FROM occ) AS today_shifts,
       -- Today's shifts not started yet: no punch at all for that visit.
-      (SELECT COUNT(*)::int FROM occ WHERE NOT EXISTS (SELECT 1 FROM time_entries te WHERE ${punchForOcc(companyId, tz)})) AS remaining_shifts,
+      (SELECT COUNT(*)::int FROM occ WHERE ${noPunchForOcc(companyId, tz)}) AS remaining_shifts,
       -- Call-outs still needing a caregiver: the list Emergency Coverage opens on (data/homecareClients.ts openCallOuts),
       -- so the dashboard's "Find Coverage" and that page agree. The template sent a fixed 0, so the alert never showed.
-      (SELECT COUNT(*)::int FROM absences a WHERE a.company_id = ${companyId} AND a.type = 'call_out' AND a.coverage_needed = true
-         AND a.coverage_assigned_to IS NULL AND a.date >= (${today})::date) AS coverage_gaps`)
+      ${countOf(tileSource.coverageGaps(companyId, today))} AS coverage_gaps`)
 }
 
 /** GET /action-items: the office's to-do counts. */
@@ -245,10 +356,7 @@ export async function actionItemCounts(q: Q, companyId: string, today: string) {
       (SELECT COUNT(*)::int FROM time_entries WHERE company_id = ${companyId} AND is_complete = false AND start_time < ${nowUtc} - INTERVAL '24 hours') AS stuck_punches,
       (SELECT COUNT(*)::int FROM payroll_shift_reviews WHERE company_id = ${companyId} AND status IN ('pending', 'flagged', 'missing_punch') AND created_at > ${nowUtc} - INTERVAL '30 days') AS pending_payroll_reviews,
       -- Payer/MCO incident responses due within 3 days (or overdue) and not yet sent (GET /api/incidents/responses-due's rule).
-      (SELECT COUNT(*)::int FROM incidents
-        WHERE company_id = ${companyId} AND COALESCE(investigation_status, 'open') <> 'closed'
-          AND response_due_date IS NOT NULL AND response_sent_date IS NULL
-          AND response_due_date <= (${today})::date + 3) AS incident_responses_due`)
+      ${countOf(tileSource.incidentResponsesDue(companyId, today))} AS incident_responses_due`)
 }
 
 /** GET /referrals: client count and paid revenue per active referral source, aggregated separately. */

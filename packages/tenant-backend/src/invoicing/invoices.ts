@@ -14,6 +14,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { resolveCustomer } from '../contacts/customer'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
+import { INVOICE_TILES, openInvoiceCondition } from '../reporting/tileConditions'
 import { customerLines } from './itemCodes'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { partialOf } from '../partialOf'
@@ -644,6 +645,12 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (status === 'overdue') { conditions.push(inArray(t.invoice.status, openStatuses)); conditions.push(lt(t.invoice.dueDate, now)) }
     else if (status && openStatuses.includes(status)) { conditions.push(eq(t.invoice.status, status)); conditions.push(or(isNull(t.invoice.dueDate), gte(t.invoice.dueDate, now))) }
     else if (status) conditions.push(eq(t.invoice.status, status))
+    // ?tile=open is the home screen's "Open invoices" / "Outstanding" rows: issued and not settled, past due or not
+    // (reporting/tileConditions.ts — the dashboard's count uses the same condition, with this template's open statuses).
+    const tile = c.req.query('tile')
+    const badTile = checkFilter(c, 'tile', tile, INVOICE_TILES)
+    if (badTile) return badTile
+    if (tile === 'open') conditions.push(openInvoiceCondition(t.invoice, openStatuses))
     if (contactId) conditions.push(eq(t.invoice.contactId, contactId))
     for (const col of linkCols) { const v = c.req.query(col); if (v) conditions.push(eq(t.invoice[col], v)) }
 

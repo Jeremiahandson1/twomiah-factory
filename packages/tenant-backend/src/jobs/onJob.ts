@@ -45,3 +45,21 @@ export function onJob(db: any, t: OnJobTables, id: string): any {
   }
   return conds.length === 1 ? conds[0] : or(...conds)!
 }
+
+/**
+ * WHOSE WORK THIS SEAT READS: everyone's with `jobs:read-all`, else only the jobs they are on (onJob above). Answers the
+ * condition to narrow the job table by, or null for all. Not wired (no canSee) → all; a failed check narrows (fails closed).
+ * The jobs list, /today, every /:id door AND the home screen's "Jobs today" count ask this one function, so a field seat's
+ * tile counts exactly the jobs its list shows.
+ */
+export async function ownJobScope(
+  db: any, t: OnJobTables,
+  canSee: ((role: string, permission: string, userId?: string) => Promise<boolean> | boolean) | undefined,
+  user: { role?: string; userId?: string } | undefined,
+): Promise<any | null> {
+  if (!canSee) return null
+  const uid = String(user?.userId || '')
+  let all = false
+  try { all = !!(await canSee(user?.role as string, 'jobs:read-all', user?.userId)) } catch { all = false }
+  return all ? null : onJob(db, t, uid)
+}

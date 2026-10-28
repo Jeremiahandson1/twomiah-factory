@@ -1,0 +1,30 @@
+// ROOFING'S HOME TILES — the conditions behind each count, written once for the dashboard's figure (field/dashboard.ts)
+// and the job list the tile opens (jobs.ts, GET /api/jobs?tile=…). A roofing job has no scheduled_date: its days are the
+// inspection and the install, read on the company's own calendar day.
+import { and, gte, lt, notInArray } from 'drizzle-orm'
+import { storeDayRange } from '@twomiah/tenant-backend'
+import { job } from '../../db/schema/index.ts'
+import { TERMINAL_STATUSES } from './validation.ts'
+
+/** Statuses that are not "still running": paid in full, or closed as lost / cancelled. */
+export const NOT_OPEN = ['collected', ...TERMINAL_STATUSES] as string[]
+
+/** The `?tile=` values GET /api/jobs accepts on a roofing business. */
+export const ROOF_JOB_TILES = ['inspections-today', 'installs-today', 'open'] as const
+
+export const inspectionsTodayCondition = (timeZone: string) => {
+  const { start, end } = storeDayRange(timeZone)
+  return and(gte(job.inspectionDate, start), lt(job.inspectionDate, end))!
+}
+export const installsTodayCondition = (timeZone: string) => {
+  const { start, end } = storeDayRange(timeZone)
+  return and(gte(job.installDate, start), lt(job.installDate, end))!
+}
+export const openJobCondition = () => notInArray(job.status, NOT_OPEN)
+
+export function roofTileCondition(tile: string, timeZone: string) {
+  if (tile === 'inspections-today') return inspectionsTodayCondition(timeZone)
+  if (tile === 'installs-today') return installsTodayCondition(timeZone)
+  if (tile === 'open') return openJobCondition()
+  return null
+}

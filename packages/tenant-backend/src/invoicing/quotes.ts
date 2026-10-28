@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray, sql } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions, money } from './money'
 import { checkFilter } from '../listFilter'
+import { QUOTE_TILES, pendingQuoteCondition } from '../reporting/tileConditions'
 // A quote carries its customer's record, and that record carries their portal credential. Stripped
 // on the way out with the same helper the contact routes use — one definition, so a column added to
 // the credential set is removed everywhere at once. (T43)
@@ -348,7 +349,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const badStatus = checkFilter(c, 'status', status, QUOTE_STATUSES)
     if (badStatus) return badStatus
     const conditions: any[] = [eq(t.quote.companyId, currentUser.companyId)]
+    // ?tile=pending is the home screen's "Pending quotes" rows (reporting/tileConditions.ts — the count's own condition).
+    const tile = c.req.query('tile')
+    const badTile = checkFilter(c, 'tile', tile, QUOTE_TILES)
+    if (badTile) return badTile
     if (status) conditions.push(eq(t.quote.status, status))
+    if (tile === 'pending') conditions.push(pendingQuoteCondition(t.quote))
     if (contactId) conditions.push(eq(t.quote.contactId, contactId))
     if (jobId) conditions.push(eq(t.quote.jobId, jobId))
     if (search) { const p = `%${search}%`; conditions.push(or(ilike(t.quote.number, p), ilike(t.quote.name, p))) }

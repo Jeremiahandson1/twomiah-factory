@@ -404,7 +404,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : v.dashboard === 'homecare' ? createHomecareDashboardRoutes(own)
       // The roofer's (templates/crm-roof routes/dashboard.ts).
       : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
-      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
+      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
     { path: '/api/time', access: 'user', feature: 'time_tracking', router: createTimeRoutes({ db, tables: { timeEntry, user, job, project, teamMember }, authenticate, requirePermission, audit } as any) },
