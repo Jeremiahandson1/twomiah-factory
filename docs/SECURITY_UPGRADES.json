@@ -24,6 +24,14 @@
       "advisory": "GHSA-mrhx-c7xc-m3w5",
       "why": "memory exhaustion on oversized collections (zod 3). The shared code now runs under zod 3 (the CRM templates) and zod 4 (the unified app): see packages/tenant-backend/src/zodMessage.ts and partialOf.ts",
       "at": "2026-10-28"
+    },
+    {
+      "manifest": "packages/tenant-ui/package.json",
+      "package": "react-router-dom",
+      "to": "^7.18.2",
+      "advisory": "GHSA-wrjc-x8rr-h8h6",
+      "why": "open redirect via backslash in <Link> and useNavigate (>=6.0.0 <7.18.0). The workspace's dev copy of the router moves with the unified app's, so shared screens and their tests see one router; the peer range (^6, what the templates install) is unchanged",
+      "at": "2026-10-28"
     }
   ]
 }
