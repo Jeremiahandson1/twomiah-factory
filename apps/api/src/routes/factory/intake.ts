@@ -1021,9 +1021,12 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
     try {
       const html = await renderUnifiedPreview({ businessName, businessType, city: city || undefined, state: state || undefined, vertical: unifiedVertical, design: look.design })
       cacheSet(cacheKey, html)
+      clearAlert('route:preview')
       return c.html(html)
     } catch (err: any) {
       console.error('[PublicPreview] Unified render failed:', err?.message || err)
+      // The preview every open trade gets (the unified renderer): the same alert as the other preview paths.
+      void raiseAlert({ key: 'route:preview', what: 'The homepage preview is failing (500) — visitors see "Preview failed to render"', business: businessName, detail: err?.message || String(err) })
       return c.json({ error: 'Preview failed to render — please try again.' }, 500)
     } finally {
       releaseInflight()
