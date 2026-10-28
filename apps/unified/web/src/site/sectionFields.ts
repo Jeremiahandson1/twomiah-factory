@@ -58,6 +58,14 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'bookingPath', label: 'Booking link', kind: 'text', hint: 'Leave blank for /book.' }],
     defaultData: { heading: 'Book online', intro: '', buttonLabel: 'See open times', note: '' },
   },
+  {
+    type: 'why_choose', variant: 'grid', label: 'Why choose us — Reasons',
+    description: 'Short cards, one per reason to hire you — in your own words.',
+    fields: [{ key: 'heading', label: 'Heading', kind: 'text', placeholder: 'Why choose us' }, intro,
+      { key: 'items', label: 'Reasons', kind: 'list', itemLabel: 'reason', max: 8, hint: 'Only what is true of your business: it is what visitors will hold you to.', item: [
+        { key: 'title', label: 'Reason', kind: 'text', placeholder: 'e.g. Licensed and insured' }, { key: 'description', label: 'A sentence about it (optional)', kind: 'textarea' }] }],
+    defaultData: { heading: 'Why choose us', intro: '', items: [] },
+  },
   // ── Dispensary ─────────────────────────────────────────────────────────
   {
     type: 'age', variant: 'modal', label: 'Age gate',

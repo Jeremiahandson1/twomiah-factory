@@ -359,3 +359,12 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 .service-others { background: var(--bg); }
 .service-others__link { background: var(--sf); color: var(--tx); border: 1px solid var(--ln2); border-radius: 999px; font-family: var(--f-mono); font-size: 13px; letter-spacing: .02em; transition: transform .15s, box-shadow .15s; }
 .service-others__link:hover { transform: translateY(-2px); border-color: var(--ln2); box-shadow: 0 10px 24px -14px {{PRIMARY_COLOR}}; }
+
+/* ── Why choose us ──────────────────────────────────────────────────────────── */
+.why-choose { background: var(--bg); }
+.why-choose__item { background: var(--sf); border: 1px solid var(--ln2); border-radius: var(--r); box-shadow: var(--shadow), 0 0 0 1px var(--ln); position: relative; overflow: hidden; padding: 28px; }
+.why-choose__item::before { content: ''; position: absolute; inset: -50% -30% auto auto; width: 80%; height: 80%; background: radial-gradient(closest-side, var(--glow), transparent); pointer-events: none; }
+.why-choose__item > * { position: relative; }
+.why-choose__mark { display: inline-block; width: fit-content; font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .06em; color: var(--tx2); background: var(--sf2); border: 1px solid var(--ln2); border-radius: 999px; padding: 4px 12px; margin-bottom: 16px; }
+.why-choose__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 22px; color: var(--tx); }
+.why-choose__desc { color: var(--tx2); }

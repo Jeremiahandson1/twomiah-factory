@@ -33,3 +33,42 @@ describe('a service card (each becomes /services/<slug>)', () => {
     expect(s.data.items[0]).toMatchObject({ bullets: ['x'], subServices: [{ title: 'B' }] })
   })
 })
+
+describe('why choose us (owner facts only)', () => {
+  const sec = (items: any[]) => ({ type: 'why_choose', variant: 'grid', data: { heading: 'Why us', items } })
+  const home = (...s: any[]) => ({ home: [{ type: 'hero', variant: 'centered-stats', data: { title: 'Acme' } }, ...s] })
+  const facts = input({ facts: { credentials: ['Licensed and insured'], freeEstimates: true, yearFounded: 2009 }, description: 'We answer the phone ourselves and finish what we start.' })
+
+  test('the AI builder accepts it and the trades\' home plans allow it', () => {
+    expect(sanitizeSections([sec([{ title: 'Licensed and insured' }])])).toHaveLength(1)
+    for (const bt of ['roofing', 'general_contractor', 'hvac', 'landscaping', 'veterinary', 'rv', 'salon', 'other']) {
+      expect([bt, pageRecipesFor(bt).home.allowed_types.includes('why_choose' as never)]).toEqual([bt, true])
+    }
+  })
+
+  test('each reason must trace to what the owner said; an invented one is removed', () => {
+    const out = enforce(home(sec([
+      { title: 'Licensed and insured', description: 'Licensed and insured, with free estimates.' },
+      { title: 'Free estimates' },
+      { title: 'Fastest response in the county' },
+      { title: 'Voted best roofer 2024' },
+    ])), facts)
+    expect(out.pages.home.find((s) => s.type === 'why_choose')!.data.items.map((i: any) => i.title)).toEqual(['Licensed and insured', 'Free estimates'])
+    expect(out.removedClaims.join('\n')).toContain('Fastest response')
+    expect(out.removedClaims.join('\n')).toContain('Voted best roofer')
+  })
+
+  test('a reason\'s untraceable sentence goes, the traceable title stays', () => {
+    const out = enforce(home(sec([{ title: 'Free estimates', description: 'We cover every county in the state and never charge a trip fee.' }, { title: 'Licensed and insured' }])), facts)
+    const items = out.pages.home.find((s) => s.type === 'why_choose')!.data.items
+    expect(items[0]).toEqual({ title: 'Free estimates' })
+  })
+
+  test('no facts, no section: with fewer than two traceable reasons it is left out', () => {
+    const none = enforce(home(sec([{ title: 'Honest pricing' }, { title: 'Quality workmanship' }])), input())
+    expect(none.pages.home.some((s) => s.type === 'why_choose')).toBe(false)
+    const one = enforce(home(sec([{ title: 'Free estimates' }, { title: 'Quality workmanship' }])), facts)
+    expect(one.pages.home.some((s) => s.type === 'why_choose')).toBe(false)
+    expect(one.removedClaims.join('\n')).toContain('fewer than two reasons')
+  })
+})

@@ -1,7 +1,10 @@
-// Fill the stand-in site (serve-site.ts) with the owner's facts the screens need: bun seed-home.ts <base-url>
+// Fill the stand-in site (serve-site.ts) with the owner's facts the screens need: bun seed-home.ts <base-url> [extra-sections.json]
 // Everything here is plainly sample text for the screens; nothing is a claim about a real business.
+import fs from 'node:fs'
 const base = process.argv[2] || 'http://localhost:4320'
+const extra: any[] = process.argv[3] ? JSON.parse(fs.readFileSync(process.argv[3], 'utf8')) : []
 const post = (p: string, body: unknown) => fetch(base + p, { method: 'POST', body: JSON.stringify(body) })
+const contact = { type: 'contact', variant: 'form-info', data: { heading: 'Get in touch', phone: '(608) 555-0142', email: 'hello@westridge.example', address: '12 Main St, Verona, WI 53593' } }
 await post('/__page/home', { title: 'Home', sections: [
   { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Remodeling · Verona, WI', title: 'Built right in Verona', subtitle: 'Kitchens, baths and additions for homes around Madison.', primaryCta: { label: 'Get in touch', href: 'contact' } } },
   { type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: [
@@ -12,7 +15,8 @@ await post('/__page/home', { title: 'Home', sections: [
     { title: 'Additions', description: 'A new room that looks like it was always part of the house.', image: '/__img/3.png' },
     { title: 'Decks and porches', description: '', href: 'contact' },
   ] } },
-  { type: 'contact', variant: 'form-info', data: { heading: 'Get in touch', phone: '(608) 555-0142', email: 'hello@westridge.example', address: '12 Main St, Verona, WI 53593' } },
+  ...extra,
+  contact,
 ] })
-await post('/__page/contact', { title: 'Contact', sections: [{ type: 'contact', variant: 'form-info', data: { heading: 'Get in touch', phone: '(608) 555-0142', email: 'hello@westridge.example', address: '12 Main St, Verona, WI 53593' } }] })
+await post('/__page/contact', { title: 'Contact', sections: [contact] })
 console.log('seeded')

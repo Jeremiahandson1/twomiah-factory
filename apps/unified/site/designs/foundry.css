@@ -364,3 +364,12 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .service-others { background: var(--bg); }
 .service-others__link { font-family: var(--f-mono); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; background: var(--sf); color: var(--tx); border: 3px solid var(--edge); border-radius: 0; box-shadow: 4px 4px 0 var(--edge); padding: 10px 16px; transition: transform .12s, box-shadow .12s; }
 .service-others__link:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 {{PRIMARY_COLOR}}; border-color: var(--edge); }
+
+/* ── Why choose us ──────────────────────────────────────────────────────────── */
+.why-choose { background: var(--bg); }
+.why-choose__grid { gap: 28px; }
+.why-choose__item { background: var(--sf); border: 3px solid var(--edge); border-radius: 0; box-shadow: 8px 8px 0 var(--edge); padding: 0 0 26px; transition: transform .14s, box-shadow .14s; }
+.why-choose__item:hover { transform: translate(-3px, -3px); box-shadow: 11px 11px 0 {{PRIMARY_COLOR}}; }
+.why-choose__mark { width: fit-content; background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; font-family: var(--f-mono); font-weight: 600; font-size: 15px; letter-spacing: .08em; padding: 8px 14px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); margin: 0 0 18px; }
+.why-choose__title { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; font-size: 29px; line-height: 1; letter-spacing: .01em; color: var(--tx); margin: 0 24px 10px; }
+.why-choose__desc { color: var(--tx2); font-size: 16.5px; margin: 0 24px; }

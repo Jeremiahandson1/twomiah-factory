@@ -432,6 +432,18 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
         return out
       })
       break
+    case 'why_choose':
+      // A reason is a fact about the business. The title must trace to what the owner said; so must its sentence, else only
+      // the sentence goes. Fewer than two reasons left is not a section.
+      keepItems('items', r => wordsTraceable(String(r?.title || ''), c))
+      d.items = (d.items || []).map((r: any) => {
+        if (!r.description || wordsTraceable(String(r.description), c, 0.5)) return r
+        removed.push(label + ' sentence: ' + String(r.description).slice(0, 120))
+        const { description: _gone, ...rest } = r
+        return rest
+      })
+      if ((d.items || []).length < 2) return drop('fewer than two reasons the owner gave')
+      break
     case 'testimonials':
       keepItems('items', q => !!quoteMatch(q?.quote, c))
       d.items = (d.items || []).map((q: any) => {

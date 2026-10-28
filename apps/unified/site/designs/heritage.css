@@ -356,3 +356,11 @@ body { font-family: var(--f-body); font-size: 17.5px; line-height: 1.68; backgro
 .service-others { background: var(--bg); }
 .service-others__link { font-family: var(--f-display); font-size: 20px; font-weight: 400; background: transparent; color: var(--tx); border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 4px 2px; }
 .service-others__link:hover { border-bottom-color: {{PRIMARY_COLOR}}; border-bottom-width: 3px; }
+
+/* ── Why choose us ──────────────────────────────────────────────────────────── */
+.why-choose { background: var(--bg); }
+.why-choose__grid { gap: 44px 36px; }
+.why-choose__item { background: transparent; border: 0; border-top: 1px solid var(--rule); border-radius: 0; padding: 22px 0 0; }
+.why-choose__mark { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 26px; letter-spacing: 0; color: var(--brand-ink); margin-bottom: 8px; }
+.why-choose__title { font-family: var(--f-display); font-weight: 400; font-size: 28px; line-height: 1.1; letter-spacing: -.005em; color: var(--tx); }
+.why-choose__desc { color: var(--tx2); font-size: 17.5px; line-height: 1.7; }

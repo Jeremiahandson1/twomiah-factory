@@ -1,0 +1,26 @@
+<%
+  // "Why choose us": the reasons the owner gave — each a short title and, if they gave one, a sentence. A reason is a fact
+  // about the business, so the site states only the owner's own (the AI builder drops one it cannot trace to the intake; the
+  // owner types the rest in the editor). With no reasons the section renders nothing.
+  const heading = data.heading || 'Why choose us'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(function (i) { return i && i.title }) : []
+  if (!items.length) return
+%>
+<section class="why-choose" aria-labelledby="why-choose-title">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title" id="why-choose-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ol class="why-choose__grid">
+      <% items.forEach(function (item, idx) { %>
+        <li class="why-choose__item">
+          <span class="why-choose__mark" aria-hidden="true"><%= String(idx + 1).padStart(2, '0') %></span>
+          <h3 class="why-choose__title"><%= item.title %></h3>
+          <% if (item.description) { %><p class="why-choose__desc"><%= item.description %></p><% } %>
+        </li>
+      <% }) %>
+    </ol>
+  </div>
+</section>

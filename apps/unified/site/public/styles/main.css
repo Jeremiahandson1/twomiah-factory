@@ -987,3 +987,13 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .service-others__link:hover { border-color: var(--ink); }
 /* each block lays itself out by its own width (a container query), not only the screen's */
 @container service-detail (max-width: 860px) { .service-detail__grid { grid-template-columns: 1fr; } }
+
+/* ── Why choose us (views/sections/why_choose/grid.ejs): the owner's own reasons, laid out by the block's own width ───── */
+.why-choose { container: why-choose / inline-size; padding: var(--space) 0; background: var(--paper); }
+.why-choose__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@container why-choose (min-width: 620px) { .why-choose__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container why-choose (min-width: 980px) { .why-choose__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.why-choose__item { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 26px 26px 28px; }
+.why-choose__mark { display: block; font-family: 'Fraunces', Georgia, serif; font-size: 15px; font-weight: 600; letter-spacing: .1em; color: var(--accent-ink); margin-bottom: 14px; }
+.why-choose__title { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.2; margin: 0 0 8px; color: var(--ink); }
+.why-choose__desc { margin: 0; font-size: 16px; line-height: 1.6; color: var(--ink-soft); }

@@ -372,3 +372,10 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .service-others { background: var(--bg); }
 .service-others__link { background: var(--sf); color: var(--tx); border: 1px solid var(--ln2); border-radius: 4px; font-weight: 600; }
 .service-others__link:hover { border-color: var(--tx); text-decoration: underline; text-underline-offset: 4px; }
+
+/* ── Why choose us ──────────────────────────────────────────────────────────── */
+.why-choose { background: var(--bg); }
+.why-choose__item { background: var(--sf); border: 1px solid var(--ln); border-radius: 4px; padding: 24px; }
+.why-choose__mark { font-family: var(--f-display); font-weight: 800; font-size: 34px; letter-spacing: -.03em; color: var(--tx); border-bottom: 3px solid {{PRIMARY_COLOR}}; display: inline-block; padding-bottom: 4px; margin-bottom: 16px; }
+.why-choose__title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 22px; color: var(--tx); }
+.why-choose__desc { color: var(--tx2); }

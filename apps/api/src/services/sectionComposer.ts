@@ -164,6 +164,15 @@ export const SECTION_SCHEMA = {
       use_when: 'show 1-3 short customer testimonials. Only use when the intake actually provided quotes or named customers — never fabricate testimonials.',
     },
   },
+  // "Why choose us": the reasons the OWNER gave (their credentials, year founded, free estimates, strengths in their words) as
+  // short titled cards. A reason is a fact: nothing the intake does not say.
+  why_choose: {
+    grid: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'a "Why choose us" block of 2-6 short cards, { title, description? }, one per reason the intake gives — a credential, the year founded, free estimates, a strength the owner states in their own words. Each title and sentence must come from the intake (never an invented guarantee, count, speed or award); with fewer than two real reasons leave this section out.',
+    },
+  },
   stats: {
     bar: {
       required: ['items'],
@@ -788,8 +797,8 @@ export interface SiteResult {
 const PAGE_RECIPES = {
   home: {
     purpose: 'Front door. Build trust fast, show what they do, close with a CTA.',
-    allowed_types: ['hero', 'services', 'gallery', 'testimonials', 'faq', 'cta'],
-    required_sequence: '1 hero, then 1 services, then ADD 1 faq (proactively — questions the intake can actually answer), optionally 1 gallery (only with Tier 1 customer photos) or 1 testimonials (ONLY if real quotes are in the intake — never fabricate), close with 1 cta',
+    allowed_types: ['hero', 'services', 'why_choose', 'gallery', 'testimonials', 'faq', 'cta'],
+    required_sequence: '1 hero, then 1 services, then ADD 1 faq (proactively — questions the intake can actually answer), optionally 1 gallery (only with Tier 1 customer photos) or 1 testimonials (ONLY if real quotes are in the intake — never fabricate), close with 1 cta Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   about: {
     purpose: 'Tell who they are. The voice page — read by qualified leads doing due diligence.',
@@ -839,8 +848,8 @@ const STORE_PAGE_RECIPES = {
 const CONTRACTOR_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a contractor. Hero takes a position about their specialty. Portfolio preview → services → about. SEO targets: "[city] kitchen remodel", "[city] general contractor", "[city] deck builder".',
-    allowed_types: ['hero', 'services', 'reservation', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
-    required_sequence: '1 hero/full-bleed (a Tier 1 photo of their work if there is one; otherwise a stock photo of the KIND of work they do — never presented as their project, NOT generic stock tools), 1 services/cards-grid (3-6 specialties from the intake), 1 reservation/cta with heading "Ready to talk about your project?" and buttonLabel "Schedule a free estimate" if the intake says estimates are free, otherwise "Schedule an estimate" (Twomiah Bookings — this is the primary conversion for contractors; homeowners want to book a walkthrough, not call), 1 gallery/grid ONLY when there are Tier 1 photos of their work (portfolio is the conversion driver — but a stock portfolio is a lie), optional 1 stats/bar (only numbers the intake states), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
+    allowed_types: ['hero', 'services', 'why_choose', 'reservation', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
+    required_sequence: '1 hero/full-bleed (a Tier 1 photo of their work if there is one; otherwise a stock photo of the KIND of work they do — never presented as their project, NOT generic stock tools), 1 services/cards-grid (3-6 specialties from the intake), 1 reservation/cta with heading "Ready to talk about your project?" and buttonLabel "Schedule a free estimate" if the intake says estimates are free, otherwise "Schedule an estimate" (Twomiah Bookings — this is the primary conversion for contractors; homeowners want to book a walkthrough, not call), 1 gallery/grid ONLY when there are Tier 1 photos of their work (portfolio is the conversion driver — but a stock portfolio is a lie), optional 1 stats/bar (only numbers the intake states), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   services: {
     purpose: 'The full services menu — what they build, install, remodel. Each service with description + scope.',
@@ -938,8 +947,8 @@ const CAFE_PAGE_RECIPES = {
 const SALON_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a salon/spa/barbershop. Bookings widget above-fold + services + stylist profiles + gallery. SEO targets: "[city] hair salon", "[city] barber", "best [service] [city]".',
-    allowed_types: ['hero', 'reservation', 'services', 'team', 'gallery', 'about', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (real-client-portrait, the chair at golden hour, a signature color/cut — NOT generic stock model), 1 reservation/widget above-the-fold (Twomiah Bookings — this is the conversion engine), 1 services/cards-grid (signature services; prices only from the intake), optional 1 team/grid (only stylists the intake names, with specialties + booking links per-stylist), optional 1 gallery/grid of actual work (NOT stock), optional 1 about/story snippet, optional 1 testimonials, close with 1 cta',
+    allowed_types: ['hero', 'reservation', 'services', 'why_choose', 'team', 'gallery', 'about', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (real-client-portrait, the chair at golden hour, a signature color/cut — NOT generic stock model), 1 reservation/widget above-the-fold (Twomiah Bookings — this is the conversion engine), 1 services/cards-grid (signature services; prices only from the intake), optional 1 team/grid (only stylists the intake names, with specialties + booking links per-stylist), optional 1 gallery/grid of actual work (NOT stock), optional 1 about/story snippet, optional 1 testimonials, close with 1 cta Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   services: {
     purpose: 'Full services menu with transparent pricing. SEO targets: "[city] balayage cost", "men\'s cut [city]".',
@@ -1095,8 +1104,8 @@ const EVENTS_PAGE_RECIPES = {
 const FIELDSERVICE_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for HVAC / plumbing / electrical / cleaning. Emergency-first if applicable, then prove you actually answer the phone, then transparent pricing, then book.',
-    allowed_types: ['emergency', 'hero', 'service_area', 'trust', 'services', 'pricing', 'reservation', 'before_after', 'stats', 'cta'],
-    required_sequence: 'For HVAC/plumbing/electrical: optional 1 emergency/bar at the very top if 24/7 service, 1 hero/full-bleed (specific specialty headline — NOT "premier HVAC service"), 1 service_area/zip-check, optional 1 trust/badges (licenses, master plumber, BBB), 1 services/cards-grid, 1 pricing/flat-rate-menu (the conversion lever), 1 reservation/cta with heading "Book the next available tech" and buttonLabel "Schedule a service call" (Twomiah Bookings — non-emergency customers want to pick a slot, not wait on hold), close with 1 cta/split. For cleaning: skip emergency/bar, lead with packages-style recurring contracts using services/alternating instead of pricing/flat-rate-menu, and use reservation/cta with buttonLabel "Schedule your first clean".',
+    allowed_types: ['emergency', 'hero', 'service_area', 'trust', 'services', 'why_choose', 'pricing', 'reservation', 'before_after', 'stats', 'cta'],
+    required_sequence: 'For HVAC/plumbing/electrical: optional 1 emergency/bar at the very top if 24/7 service, 1 hero/full-bleed (specific specialty headline — NOT "premier HVAC service"), 1 service_area/zip-check, optional 1 trust/badges (licenses, master plumber, BBB), 1 services/cards-grid, 1 pricing/flat-rate-menu (the conversion lever), 1 reservation/cta with heading "Book the next available tech" and buttonLabel "Schedule a service call" (Twomiah Bookings — non-emergency customers want to pick a slot, not wait on hold), close with 1 cta/split. For cleaning: skip emergency/bar, lead with packages-style recurring contracts using services/alternating instead of pricing/flat-rate-menu, and use reservation/cta with buttonLabel "Schedule your first clean". Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   emergency: {
     purpose: 'Dedicated emergency landing — for after-hours / weekend / holiday calls. SEO-targeted to "emergency plumber near me" / "AC repair tonight".',
@@ -1134,8 +1143,8 @@ const FIELDSERVICE_PAGE_RECIPES = {
 const VET_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a veterinary clinic. Answer "can you see my animal, and can I trust you with it" in that order — urgency first, then the people.',
-    allowed_types: ['urgent', 'hero', 'trust', 'services', 'team', 'reservation', 'testimonials', 'stats', 'cta'],
-    required_sequence: '1 urgent/bar first (open-now state + phone — the highest-intent visitor has a sick animal RIGHT NOW and will not scroll), 1 hero/split or hero/full-bleed (real clinic or staff-with-animal photography, never stock of a stranger hugging a dog), 1 trust/badges (AAHA accreditation, Fear Free certification, state license, years serving the area — only badges the clinic actually holds), 1 services/cards-grid (wellness, dental, surgery, diagnostics, urgent care — by SERVICE not by species unless the clinic is species-specific), 1 reservation/cta with heading "Book an appointment" and buttonLabel "Request a time" (Twomiah Bookings), optional 1 team/grid (owners choose a vet, not a building — faces matter more here than in most verticals), optional 1 testimonials, close with 1 cta',
+    allowed_types: ['urgent', 'hero', 'trust', 'services', 'why_choose', 'team', 'reservation', 'testimonials', 'stats', 'cta'],
+    required_sequence: '1 urgent/bar first (open-now state + phone — the highest-intent visitor has a sick animal RIGHT NOW and will not scroll), 1 hero/split or hero/full-bleed (real clinic or staff-with-animal photography, never stock of a stranger hugging a dog), 1 trust/badges (AAHA accreditation, Fear Free certification, state license, years serving the area — only badges the clinic actually holds), 1 services/cards-grid (wellness, dental, surgery, diagnostics, urgent care — by SERVICE not by species unless the clinic is species-specific), 1 reservation/cta with heading "Book an appointment" and buttonLabel "Request a time" (Twomiah Bookings), optional 1 team/grid (owners choose a vet, not a building — faces matter more here than in most verticals), optional 1 testimonials, close with 1 cta Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   services: {
     purpose: 'What the clinic treats and how care actually works. Reassurance plus practical detail.',
@@ -1162,8 +1171,8 @@ const VET_PAGE_RECIPES = {
 const RV_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for an RV / marine / powersports dealership. Units sell units — lead with inventory, then the reasons to buy here instead of the dealer two hours away.',
-    allowed_types: ['hero', 'inventory', 'trust', 'services', 'stats', 'testimonials', 'reservation', 'cta'],
-    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, years in business — real ones only), optional 1 services/cards-grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
+    allowed_types: ['hero', 'inventory', 'trust', 'services', 'why_choose', 'stats', 'testimonials', 'reservation', 'cta'],
+    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, years in business — real ones only), optional 1 services/cards-grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   inventory: {
     purpose: 'The full featured-unit page. Browsing surface for buyers who are already shopping.',
@@ -1227,8 +1236,8 @@ const HOMECARE_PAGE_RECIPES = {
 const LANDSCAPING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a landscaping / lawn-care business. Lead with the seasonally-relevant package, then property quote, then proof.',
-    allowed_types: ['hero', 'packages', 'quote', 'reservation', 'services', 'before_after', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted; prices only from the intake), 1 quote/instant-address ONLY if the intake gives their price per square foot, 1 reservation/cta with heading "Prefer to talk it through?" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings deep-link — gives customers who don\'t want an instant quote a path to a real conversation), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split',
+    allowed_types: ['hero', 'packages', 'quote', 'reservation', 'services', 'why_choose', 'before_after', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted; prices only from the intake), 1 quote/instant-address ONLY if the intake gives their price per square foot, 1 reservation/cta with heading "Prefer to talk it through?" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings deep-link — gives customers who don\'t want an instant quote a path to a real conversation), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   packages: {
     purpose: 'The recurring-service catalog. Compare tiers, see what is in each. This is the page that closes the subscription sale.',
@@ -1263,8 +1272,8 @@ const LANDSCAPING_PAGE_RECIPES = {
 const ROOFING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a roofer. Insurance-claim positioning first, instant-quote second, trust badges third, work proof fourth.',
-    allowed_types: ['hero', 'banner', 'quote', 'reservation', 'trust', 'services', 'before_after', 'stats', 'cta'],
-    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split. The quote/instant-address above needs the business\'s own price per square foot — omit it without one.',
+    allowed_types: ['hero', 'banner', 'quote', 'reservation', 'trust', 'services', 'why_choose', 'before_after', 'stats', 'cta'],
+    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split. The quote/instant-address above needs the business\'s own price per square foot — omit it without one. Optionally 1 why_choose/grid after the services — ONLY reasons the intake gives (credentials, year founded, free estimates, strengths in the owner\'s words); omit with fewer than two.',
   },
   quote: {
     purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
