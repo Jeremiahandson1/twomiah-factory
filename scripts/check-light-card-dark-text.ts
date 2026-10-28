@@ -98,6 +98,21 @@ for (const root of roots) {
       // ink on, whatever the rest of the page does. Only the element that leaves its text to the
       // theme while fixing its surface is wrong.
       if (/\btext-(?:gray|slate|zinc|neutral)-(?:800|900)\b|\btext-black\b/.test(line) && !/dark:text-/.test(line)) return
+      /**
+       * A SELF-CLOSING ELEMENT HOLDS NOTHING. (the free Text button's QR code, 2026-10-28)
+       *
+       * The QR code sits on `bg-white` on purpose — a phone's camera needs black on white in dark mode too — and the
+       * element is `<div className="… bg-white …" dangerouslySetInnerHTML={…} />`: it closes on its own line, so no
+       * heading or text can be inside it. The 12-line window below then read the NEXT paragraph's dark text as its
+       * contents. So when the tag carrying bg-white ends in `/>` on this line (the first `>` that is not an arrow's
+       * `=>`), it has no children and there is nothing in it to be unreadable. A tag that stays open keeps the rule.
+       */
+      {
+        const from = opaque.search(/\bbg-white\b/)
+        let end = -1
+        for (let k = from; k < opaque.length; k++) if (opaque[k] === '>' && opaque[k - 1] !== '=') { end = k; break }
+        if (end > 0 && opaque[end - 1] === '/') return
+      }
       // …and light dark-mode text inside the next few lines, which is where a card's heading sits.
       const window = lines.slice(i, i + 12).join('\n')
       if (!DARK_LIGHT_TEXT.test(window)) return
