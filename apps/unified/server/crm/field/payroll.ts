@@ -5,11 +5,13 @@
 // (the template's T32 H1, on the mount). There is deliberately no GET /expenses (see the template).
 import { Hono } from 'hono'
 import { and, eq, gte, lt } from 'drizzle-orm'
-import { createStaffBalanceStore, companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
+import { createStaffBalanceStore, companyTimeZone, storeDayRange, storeDateString } from '@twomiah/tenant-backend'
 import { timeEntry, user, staffAccountEntry } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { sendGustoHoursCsv, splitWeeklyHours } from '../payrollExport/gustoHours.ts'
+import { workweekStart } from '../homecare/core/payrollPay.ts'
 
 export function createPayrollRoutes(d: CrmDeps) {
   const { db } = d
@@ -84,6 +86,45 @@ export function createPayrollRoutes(d: CrmDeps) {
     }), { pay: 0, deductions: 0, net: 0, unrecovered: 0 })
 
     return one(c, { payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
+  })
+
+  /**
+   * GET /gusto-hours?startDate=&endDate= — the period's hours as the file Gusto's hours upload reads, for every trade
+   * but home care (its own, /api/gusto/export-csv). Same permission as the pay run above, the same entries (whole days on
+   * the shop's clock, approved or not, running clock-ins left out as they have no hours yet), and the same builder as
+   * home care's file (payrollExport/gustoHours.ts). Overtime is hours over 40 in a Sunday–Saturday week on the shop's
+   * calendar — the rule home care's payroll pays — so Gusto is told the split and applies its own overtime rate.
+   */
+  app.get('/gusto-hours', async (c) => {
+    const me = c.get('user')
+    const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
+    const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
+    if (!isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
+    const tz = await companyTimeZone(db, me.companyId)
+    const rows = await db.select({
+      date: timeEntry.date, hours: timeEntry.hours, clockIn: timeEntry.clockIn, clockOut: timeEntry.clockOut,
+      userId: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email,
+    })
+      .from(timeEntry)
+      .innerJoin(user, eq(timeEntry.userId, user.id))
+      .where(and(
+        eq(timeEntry.companyId, me.companyId),
+        gte(timeEntry.date, storeDayRange(tz, startDate!).start),
+        lt(timeEntry.date, storeDayRange(tz, endDate!).end),
+      ))
+    const people = new Map<string, { person: any; weeks: Map<string, number> }>()
+    for (const r of rows as any[]) {
+      if (r.clockIn && !r.clockOut) continue
+      const p = people.get(r.userId) ?? { person: r, weeks: new Map<string, number>() }
+      people.set(r.userId, p)
+      const week = workweekStart(storeDateString(new Date(r.date), tz))
+      p.weeks.set(week, (p.weeks.get(week) ?? 0) + Number(r.hours || 0))
+    }
+    const out = [...people.values()]
+      .map(({ person, weeks }) => ({ firstName: person.firstName, lastName: person.lastName, email: person.email, ...splitWeeklyHours([...weeks.values()]) }))
+      .filter((r) => r.totalHours > 0)
+      .sort((a, b) => String(a.lastName).localeCompare(String(b.lastName)) || String(a.firstName).localeCompare(String(b.firstName)))
+    return sendGustoHoursCsv(c, d, startDate!, endDate!, out)
   })
 
   return app

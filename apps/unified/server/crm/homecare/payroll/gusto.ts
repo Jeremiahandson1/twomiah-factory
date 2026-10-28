@@ -21,6 +21,7 @@ import { gustoExportWarnings, personByEmailOrName } from '../../../data/homecare
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { sendGustoHoursCsv } from '../../payrollExport/gustoHours.ts'
 import type { HomecareCore } from '../core/index.ts'
 
 const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
@@ -166,17 +167,8 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     if (!isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
     const result = await gustoRows(me.companyId, startDate!, endDate!)
 
-    const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const lines = ['First Name,Last Name,Email,Regular Hours,Overtime Hours,Total Hours']
-    for (const r of result) lines.push([q(r.firstName), q(r.lastName), q(r.email), r.regularHours, r.overtimeHours, r.totalHours].join(','))
-    await db.insert(gustoSyncLog).values({
-      companyId: me.companyId, syncType: 'csv_export', status: 'success', payPeriodStart: startDate, payPeriodEnd: endDate,
-      recordsExported: result.length, createdById: me.userId || null,
-    }).catch(() => {})
-    return c.body(lines.join('\n'), 200, {
-      'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="gusto-hours-${startDate}-to-${endDate}.csv"`,
-    })
+    // The file, its sync-log row and its audit row are the shared builder's (server/crm/payrollExport/gustoHours.ts).
+    return sendGustoHoursCsv(c, d, startDate!, endDate!, result)
   })
 
   // GET /sync-log — the last 20.

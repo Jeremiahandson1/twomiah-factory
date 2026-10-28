@@ -3,8 +3,8 @@
 // backend had it, no routed page ever exposed it), managers approve. Before: two copies of a hours-only table, plus an
 // unrouted TimesheetPage/TimeClock pair that called endpoints under a different mount.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit, Trash2, Check, Play, Square, Clock } from 'lucide-react'
-import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money } from '../invoicing/ui'
+import { Plus, Edit, Trash2, Check, Play, Square, Clock, Download } from 'lucide-react'
+import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money, downloadFile } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
@@ -92,6 +92,16 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
       setPayRun(res && Array.isArray(res.users) ? res : { users: [] })
     } catch (e) { setPayError(errMsg(e, 'Could not work out the pay run')); setPayRun(null) }
     finally { setPayLoading(false) }
+  }
+  // The period's hours as the file Gusto's hours upload reads (GET /api/payroll/gusto-hours): regular and overtime hours
+  // per person, from the same entries as the figures above. Its own button, not after Show — it needs only the two dates.
+  const [gustoBusy, setGustoBusy] = useState(false)
+  const exportGusto = async () => {
+    if (!payFrom || !payTo || payFrom > payTo) { setPayError('Pick a From date that is not after the To date.'); return }
+    setGustoBusy(true); setPayError('')
+    try { await downloadFile(`/api/payroll/gusto-hours?startDate=${payFrom}&endDate=${payTo}`, `gusto-hours-${payFrom}-to-${payTo}.csv`); toast.success('Hours file downloaded — upload it in Gusto') }
+    catch (e) { setPayError(errMsg(e, 'Could not make the Gusto file')) }
+    finally { setGustoBusy(false) }
   }
   useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [active])
 
@@ -195,8 +205,10 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
               <Field label="From"><input type="date" value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className={inputCls} /></Field>
               <Field label="To"><input type="date" value={payTo} onChange={(e) => setPayTo(e.target.value)} className={inputCls} /></Field>
               <Button variant="secondary" onClick={loadPayRun} disabled={payLoading}>{payLoading ? 'Working…' : 'Show'}</Button>
+              <Button variant="secondary" onClick={exportGusto} disabled={gustoBusy}><Download className="w-4 h-4 mr-2 inline" />{gustoBusy ? 'Making file…' : 'Hours for Gusto'}</Button>
             </div>
           </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Hours for Gusto downloads each person's regular and overtime hours (over 40 in a Sunday–Saturday week) for these dates. In Gusto, run payroll and upload the file.</p>
           {payError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{payError}</p>}
           {payRun && (
             <div className="mt-3 overflow-x-auto">
