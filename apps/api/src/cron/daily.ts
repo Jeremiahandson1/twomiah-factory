@@ -9,6 +9,8 @@
 // Runs both endpoints and fails loudly if either does. Both are idempotent
 // (sentinel columns per tenant per window), so a retry never double-emails.
 
+import { raiseAlert } from '../services/alerts'
+
 const rawUrl = process.env.RENDER_API_URL || process.env.API_URL || 'https://twomiah-factory-api.onrender.com'
 // Render wires API_URL from the web service's hostport — an INTERNAL address
 // like "twomiah-factory-api:3001", which serves plain HTTP. Prefixing https://
@@ -56,10 +58,14 @@ async function run() {
       console.log(`[Cron] ${path}:`, ok ? 'ok' : 'FAILED', JSON.stringify(body))
       // The endpoints collect their own per-tenant errors rather than throwing,
       // so surface those too instead of reporting a false success.
-      if (!ok || (Array.isArray(body?.errors) && body.errors.length > 0)) failed = true
+      if (!ok || (Array.isArray(body?.errors) && body.errors.length > 0)) {
+        failed = true
+        await raiseAlert({ key: 'cron:' + path, what: `The daily "${path.split('/').pop()}" job reported errors`, detail: JSON.stringify(body).slice(0, 500) })
+      }
     } catch (err: any) {
       console.error(`[Cron] ${path} error:`, err?.message || err)
       failed = true
+      await raiseAlert({ key: 'cron:' + path, what: `The daily "${path.split('/').pop()}" job could not run`, detail: err?.message || String(err) })
     }
   }
 

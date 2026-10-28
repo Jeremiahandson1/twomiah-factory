@@ -21,6 +21,7 @@
 import crypto from 'node:crypto'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { raiseAlert, clearAlert } from '../services/alerts'
 import { buildUnifiedTenant, type BuildIo, type Owned, type Step } from './build'
 import { updateUnifiedTenant, type UpdateResult } from './update'
 import { createHosts, hostConfigFromEnv, type EnvVar } from './hosts'
@@ -447,6 +448,8 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
 
   const stillWorking = setTimeout(() => {
     deps.notify.stillWorking(tenant).catch((e: any) => console.warn('[Unified] Still-working email failed:', e?.message))
+    // The owner is told the build is stuck while the customer is still waiting, not after they write in.
+    void raiseAlert({ key: 'deploy-stalled:' + tenant.id, what: 'A new customer\'s build is taking over 15 minutes', business: tenant.name || tenant.slug, detail: 'still building; the customer was sent a "still working" email', tenantId: tenant.id })
   }, deps.stillWorkingMs ?? 15 * 60_000)
   ;(stillWorking as any).unref?.()
 
@@ -551,7 +554,10 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
       }
       if (!tenant.admin_email && tenant.email) critical.admin_email = tenant.email
       const { error: cErr } = await db.from('tenants').update(critical).eq('id', tenant.id)
-      if (cErr) console.error('[Unified] CRITICAL tenant update failed:', cErr.message, Object.keys(critical).join(', '))
+      if (cErr) {
+        console.error('[Unified] CRITICAL tenant update failed:', cErr.message, Object.keys(critical).join(', '))
+        void raiseAlert({ key: 'deploy-record:' + tenant.id, what: 'A build finished but its address could not be saved — the platform will not know where it lives', business: tenant.name || tenant.slug, detail: cErr.message, tenantId: tenant.id })
+      }
       else await deps.audit(tenant.id, 'deploy', {
         render_frontend_url: { old: tenant.render_frontend_url || null, new: rec.serviceUrl },
         render_backend_url: { old: tenant.render_backend_url || null, new: rec.serviceUrl },
@@ -590,8 +596,11 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
           body: JSON.stringify({ features }), signal: AbortSignal.timeout(15_000),
         })
         if (res.ok) deps.pushSubscription(tenant.id).catch(() => {})
-        else console.warn('[Unified] Feature sync HTTP', res.status, 'for', tenant.slug)
-      } catch (e: any) { console.warn('[Unified] Feature sync failed:', e?.message) }
+        else {
+          console.warn('[Unified] Feature sync HTTP', res.status, 'for', tenant.slug)
+          void raiseAlert({ key: 'feature-sync:' + tenant.id, what: 'A new build is live but its features could not be switched on', business: tenant.name || tenant.slug, detail: 'HTTP ' + res.status, tenantId: tenant.id })
+        }
+      } catch (e: any) { console.warn('[Unified] Feature sync failed:', e?.message); void raiseAlert({ key: 'feature-sync:' + tenant.id, what: 'A new build is live but its features could not be switched on', business: tenant.name || tenant.slug, detail: e?.message, tenantId: tenant.id }) }
     }
 
     // The tenant's own domain: @, www and app.<domain> at its one service (services/deploy.ts unifiedDomainTargets).
@@ -610,14 +619,20 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
             const { error } = await db.from('tenants').update(domainUpdate).eq('id', tenant.id)
             if (error && error.code !== '42703') console.warn('[Unified] Domain ids persist failed:', error.message)
           }
-          if (d.errors.length) console.warn('[Unified] Domain errors:', d.errors.join('; '))
+          if (d.errors.length) {
+            console.warn('[Unified] Domain errors:', d.errors.join('; '))
+            void raiseAlert({ key: 'domain-wiring:' + tenant.id, what: 'A customer\'s own domain was not fully connected to their new site', business: tenant.name || tenant.slug, detail: d.errors.join('; '), tenantId: tenant.id })
+          }
           deps.domains.reconcileAliases({
             id: tenant.id, slug: tenant.slug, domain: tenant.domain, engine: 'unified',
             cloudflare_zone_id: d.cloudflareZoneId || tenant.cloudflare_zone_id, render_backend_url: rec.serviceUrl,
             factory_sync_key: rec.factorySyncKey, products: tenant.products, website_url: wantsWebsite(tenant) ? rec.serviceUrl : tenant.website_url,
           })
         }
-      } catch (e: any) { console.error('[Unified] Domain wiring threw:', e?.message) }
+      } catch (e: any) {
+        console.error('[Unified] Domain wiring threw:', e?.message)
+        void raiseAlert({ key: 'domain-wiring:' + tenant.id, what: 'A customer\'s own domain was not connected to their new site', business: tenant.name || tenant.slug, detail: e?.message, tenantId: tenant.id })
+      }
     }
 
     // The intake's photos into the tenant's own library (its one service answers POST /api/internal/seed-photos), for a
@@ -644,6 +659,7 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
     return await fail(e?.message || String(e))
   } finally {
     clearTimeout(stillWorking)
+    clearAlert('deploy-stalled:' + tenant.id)
   }
 }
 

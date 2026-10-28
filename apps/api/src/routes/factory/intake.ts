@@ -3,6 +3,7 @@ import { generate, type GenerateConfig } from '../../services/generator'
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { uploadZip, getZipDownloadUrl, uploadIntakeAsset } from '../../services/factoryStorage'
+import { raiseAlert, clearAlert, raiseIfAiAccountProblem } from '../../services/alerts'
 import { notifyWelcome, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyTrialWarning, notifyTrialExpired, notifyProvisionFailure } from '../../services/email'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
@@ -287,10 +288,12 @@ factory.get('/public/signup-photo/:slug/:file', async (c) => {
 })
 
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
+  let signupName: string | null = null
   try {
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
     const body = parsed.data
+    signupName = typeof body.name === 'string' ? body.name.trim().slice(0, 80) || null : null
 
     if (!body.name || typeof body.name !== 'string' || body.name.trim().length < 2) {
       return c.json({ error: 'Company name is required (min 2 characters)' }, 400)
@@ -443,6 +446,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     }
     if (insertErr || !tenant) {
       console.error('[Signup] Insert error:', insertErr?.message)
+      void raiseAlert({ key: 'route:signup', what: 'New signups are failing (500) — the account could not be created', business: signupName, detail: insertErr?.message })
       return c.json({ error: 'Failed to create account. Please try again.' }, 500)
     }
 
@@ -612,9 +616,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       if (!checkoutUrl) throw new Error('Stripe returned no checkout URL')
     } catch (payErr: any) {
       console.error('[Signup] Checkout creation failed for', tenant.slug, ':', payErr?.message || payErr)
+      void raiseAlert({ key: 'route:signup-checkout', what: 'New signups cannot get to payment (checkout failed, 502)', business: tenant.name, detail: payErr?.message || String(payErr), tenantId: tenant.id })
       return c.json({ error: 'Account created, but we could not start checkout. Please try again or contact support.', tenantId: tenant.id }, 502)
     }
 
+    clearAlert('route:signup'); clearAlert('route:signup-checkout')
     return c.json({
       success: true,
       tenantId: tenant.id,
@@ -624,6 +630,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     })
   } catch (err: any) {
     console.error('[Signup] Error:', err.message)
+    void raiseAlert({ key: 'route:signup', what: 'New signups are failing (500)', business: signupName, detail: err?.message || String(err) })
     return c.json({ error: 'Something went wrong. Please try again.' }, 500)
   }
 })
@@ -890,6 +897,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     }
     if (insertErr || !tenant) {
       console.error('[Intake] Insert failed:', { code: insertErr?.code, message: insertErr?.message, details: (insertErr as any)?.details, hint: (insertErr as any)?.hint })
+      void raiseAlert({ key: 'route:intake', what: 'The website-intake form is failing (500) — submissions are being lost', business: getStr('businessName') || null, detail: insertErr?.message })
       return c.json({ error: 'Failed to save your submission. Please try again or email support@twomiah.com directly.' }, 500)
     }
 
@@ -920,6 +928,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
         console.warn('[AutoCompose] Failed for ' + tenant.id + ':', e.message))
     }, 200)
 
+    clearAlert('route:intake')
     return c.json({
       success: true,
       intakeId: tenant.id,
@@ -927,6 +936,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     })
   } catch (err: any) {
     console.error('[Intake] Error:', err.message || err)
+    void raiseAlert({ key: 'route:intake', what: 'The website-intake form is failing (500)', detail: err?.message || String(err) })
     return c.json({ error: 'Submission failed. Please try again.' }, 500)
   }
 })
@@ -1007,9 +1017,11 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
       // Links inside the preview go nowhere ('#'): it's one page in an iframe on twomiah.com.
       const { html } = await renderPremiumPage({ slug: 'home', title: businessName, sections: site.pages.home }, settings as any, '#', pickPremiumTemplateDir(businessType), { intakeWidgets: false })
       cacheSet(cacheKey, html)
+      clearAlert('route:preview')
       return c.html(html)
     } catch (err: any) {
       console.error('[PublicPreview] Premium render failed:', err?.message || err)
+      void raiseAlert({ key: 'route:preview', what: 'The homepage preview is failing (500) — visitors see "Preview failed to render"', business: businessName, detail: err?.message || String(err) })
       return c.json({ error: 'Preview failed to render — please try again.' }, 500)
     } finally {
       releaseInflight()
@@ -1040,9 +1052,11 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
   try {
     const preview = await renderHomepagePreview(config)
     cacheSet(cacheKey, preview.html)
+    clearAlert('route:preview')
     return c.html(preview.html)
   } catch (err: any) {
     console.error('[PublicPreview] Render failed:', err?.message || err)
+    void raiseAlert({ key: 'route:preview', what: 'The homepage preview is failing (500) — visitors see "Preview failed to render"', business: businessName, detail: err?.message || String(err) })
     return c.json({ error: 'Preview failed to render — please try again.' }, 500)
   } finally {
     releaseInflight()
@@ -1253,6 +1267,7 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
     })
   } catch (err: any) {
     console.error('[PremiumPreview] Compose failed:', err?.message || err)
+    raiseIfAiAccountProblem(err, null, c.req.param('id'))
     return c.json({ error: 'Failed to compose preview', detail: err?.message }, 500)
   }
 })
@@ -1947,8 +1962,10 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
   try {
     await noteCompose(tenantId, { attempts: attempt, lastAttemptAt: new Date().toISOString() })
     await composeIntakePreview(tenantId)
+    clearAlert('ai:credit'); clearAlert('ai:auth')
   } catch (err: any) {
     const msg = String(err?.message || err).slice(0, 500)
+    raiseIfAiAccountProblem(err, (row as any).name, tenantId)
     await noteCompose(tenantId, { lastError: msg }).catch(() => {})
     if (attempt >= MAX_COMPOSE_ATTEMPTS) await giveUpOnPreview(row, attempt, msg)
     throw err
@@ -2344,11 +2361,13 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
             await supabase.from('factory_jobs').insert(jobRecord)
           } else {
             console.error('[CheckoutPremium] Build-row insert failed:', jobErr.message)
+            void raiseAlert({ key: 'route:checkout-premium', what: 'Buying a website is failing (500) — the build could not be recorded', business: tenant.name, detail: jobErr.message, tenantId: id })
             return c.json({ error: 'Could not record the build. Try again or email support@twomiah.com.' }, 500)
           }
         }
       } catch (genErr: any) {
         console.error('[CheckoutPremium] generate() failed:', genErr.message)
+        void raiseAlert({ key: 'route:checkout-premium', what: 'Buying a website is failing (500) — the build could not be generated', business: tenant.name, detail: genErr.message, tenantId: id })
         return c.json({ error: 'Could not generate the build for checkout. ' + (genErr.message || '') }, 500)
       }
     }
@@ -2376,15 +2395,20 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
         cancelUrl: `${publicBase}/api/v1/factory/public/intake/${id}/preview-premium`,
       }
     )
-    if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout URL' }, 502)
+    if (!checkout.url) {
+      void raiseAlert({ key: 'route:checkout-premium', what: 'Buying a website is failing (502) — Stripe returned no checkout link', business: tenant.name, tenantId: id })
+      return c.json({ error: 'Stripe did not return a checkout URL' }, 502)
+    }
 
     if (!tenant.stripe_customer_id && checkout.stripeCustomerId) {
       await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', id)
     }
 
+    clearAlert('route:checkout-premium')
     return c.json({ ok: true, url: checkout.url, billingCycle })
   } catch (err: any) {
     console.error('[CheckoutPremium] Failed:', err?.message || err)
+    void raiseAlert({ key: 'route:checkout-premium', what: 'Buying a website is failing (500)', detail: err?.message || String(err), tenantId: c.req.param('id') })
     return c.json({ error: err?.message || 'Could not start checkout' }, 500)
   }
 })

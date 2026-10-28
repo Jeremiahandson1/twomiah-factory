@@ -3,6 +3,7 @@ import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../servic
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { forwardConnectEvent, responseStatusFor } from '../../services/connectWebhook'
+import { raiseAlert, clearAlert } from '../../services/alerts'
 import { notifyBillingPastDue, notifyMessagingEnabled, notifyReactivated } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
@@ -178,8 +179,10 @@ factory.post('/stripe/connect-webhook', async (c) => {
     event = await factoryStripe.verifyConnectWebhookSignature(body, sig)
   } catch (err: any) {
     console.error('[StripeConnect] Webhook signature verification failed:', err.message)
+    if (!/Missing signature/.test(err.message)) void raiseAlert({ key: 'stripe-connect-signature', what: 'Stripe Connect events are being rejected (signature check failed) — customers\' card payments may not be recorded', detail: err.message })
     return c.json({ error: 'Signature verification failed' }, 400)
   }
+  clearAlert('stripe-connect-signature')
   const result = await forwardConnectEvent(event, {
     findTenantByAccount: async (accountId) => {
       const { data } = await supabase.from('tenants').select('id, slug, render_backend_url, factory_sync_key').eq('stripe_connect_account_id', accountId).limit(1).maybeSingle()
@@ -206,9 +209,11 @@ factory.post('/stripe/webhook', async (c) => {
     event = await factoryStripe.verifyWebhookSignature(body, sig)
   } catch (err: any) {
     console.error('[Stripe] Webhook signature verification failed:', err.message)
+    void raiseAlert({ key: 'stripe-webhook-signature', what: 'Stripe payment notifications are being rejected (signature check failed) — payments may not be recorded', detail: err.message })
     return c.json({ error: 'Signature verification failed' }, 400)
   }
 
+  clearAlert('stripe-webhook-signature')
   try {
     const result = await factoryStripe.handleFactoryWebhook(event)
 
@@ -216,6 +221,7 @@ factory.post('/stripe/webhook', async (c) => {
       // Fetch old values for audit diff
       const { data: preTenant } = await supabase.from('tenants').select('*').eq('id', result.factoryCustomerId).single()
       await applyTenantUpdates({ field: 'id', value: result.factoryCustomerId }, result.updates)
+      if (result.updates.billing_status === 'active') clearAlert('payment-failed:' + result.factoryCustomerId)
       // The tenant CRM mirrors this state (Settings → Billing, trial gate) — push it, never block on it.
       pushSubscriptionToTenant(result.factoryCustomerId).catch(() => {})
       // A subscription paid by a company that was offboarding is a RESTART (the lock page's checkout): stop the
@@ -263,9 +269,10 @@ factory.post('/stripe/webhook', async (c) => {
     if (result.handled && result.factoryCustomerId && event.type === 'checkout.session.completed' &&
         result.updates?.billing_type && result.updates.billing_type !== 'deploy_service') {
       // Fire-and-forget: trigger deploy pipeline if tenant has a build and isn't already deploying
-      triggerAutoDeploy(result.factoryCustomerId).catch(err =>
+      triggerAutoDeploy(result.factoryCustomerId).catch(err => {
         console.error('[Stripe] Auto-deploy trigger error:', err.message)
-      )
+        void raiseAlert({ key: 'deploy-crashed:' + result.factoryCustomerId, what: 'A customer paid but their build did not start', detail: err.message, tenantId: result.factoryCustomerId })
+      })
     }
 
     // Domain registration: customer paid for a new domain via /admin/domain
@@ -280,7 +287,10 @@ factory.post('/stripe/webhook', async (c) => {
       const paymentIntent = session.payment_intent
       if (tenantId && domain) {
         handleDomainRegistration({ tenantId, domain, years, paymentIntent, sessionId: session.id })
-          .catch(err => console.error('[Domain] Post-payment registration failed:', err.message))
+          .catch(err => {
+            console.error('[Domain] Post-payment registration failed:', err.message)
+            void raiseAlert({ key: 'domain-register:' + tenantId, what: 'A customer paid for a domain and registering it crashed', business: domain, detail: err.message, tenantId })
+          })
       } else {
         console.warn('[Domain] Webhook missing required metadata:', JSON.stringify(meta))
       }
@@ -324,7 +334,10 @@ factory.post('/stripe/webhook', async (c) => {
           // Once per payment: Stripe may deliver this event again, and each delivery used to credit again.
           import('../../services/messagingWallet').then(({ creditOnce }) =>
             creditOnce(meta.tenant_id, cents, 'topup', String(session.payment_intent || session.id))
-          ).catch(err => console.error('[Wallet] Top-up credit failed:', err?.message || err))
+          ).catch(err => {
+            console.error('[Wallet] Top-up credit failed:', err?.message || err)
+            void raiseAlert({ key: 'wallet-topup:' + meta.tenant_id, what: 'A customer paid to top up their texting wallet and it was not credited', detail: err?.message || String(err), tenantId: meta.tenant_id })
+          })
           // Wallet recovered → clear the low-balance nudge so a future dip re-nudges.
           supabase.from('tenants').update({ messaging_nudged_at: null }).eq('id', meta.tenant_id).then(() => {}, () => {})
         }
@@ -335,7 +348,7 @@ factory.post('/stripe/webhook', async (c) => {
           messaging_sub_id: session.subscription || null,
         }).eq('id', meta.tenant_id).then(
           () => { logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'); emailEnabled(meta.tenant_id, 'SMS / Messaging') },
-          (err: any) => console.error('[Messaging] Enable mark failed:', err?.message || err),
+          (err: any) => { console.error('[Messaging] Enable mark failed:', err?.message || err); void raiseAlert({ key: 'addon-enable:messaging:' + meta.tenant_id, what: 'A customer paid for texting and it was not switched on', detail: err?.message || String(err), tenantId: meta.tenant_id }) },
         )
       } else if (meta.addon === 'ai_enable' && meta.tenant_id) {
         supabase.from('tenants').update({
@@ -344,7 +357,7 @@ factory.post('/stripe/webhook', async (c) => {
           ai_sub_id: session.subscription || null,
         }).eq('id', meta.tenant_id).then(
           () => { logTenantAudit(meta.tenant_id, 'ai_enable', { ai_enabled: { old: false, new: true } }, 'stripe-webhook', 'AI enabled'); emailEnabled(meta.tenant_id, 'AI Assistant') },
-          (err: any) => console.error('[AI] Enable mark failed:', err?.message || err),
+          (err: any) => { console.error('[AI] Enable mark failed:', err?.message || err); void raiseAlert({ key: 'addon-enable:ai:' + meta.tenant_id, what: 'A customer paid for the AI assistant and it was not switched on', detail: err?.message || String(err), tenantId: meta.tenant_id }) },
         )
       }
     }
@@ -373,21 +386,24 @@ factory.post('/stripe/webhook', async (c) => {
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId
-        ? supabase.from('tenants').select('name, email, stripe_subscription_id').eq('id', result.factoryCustomerId).single()
+        ? supabase.from('tenants').select('id, name, email, stripe_subscription_id').eq('id', result.factoryCustomerId).single()
         : result.lookupField && result.lookupValue
-          ? supabase.from('tenants').select('name, email, stripe_subscription_id').eq(result.lookupField, result.lookupValue).single()
+          ? supabase.from('tenants').select('id, name, email, stripe_subscription_id').eq(result.lookupField, result.lookupValue).single()
           : null
       if (lookupQuery) {
         const { data: pastDueTenant } = await lookupQuery
         if (pastDueTenant) {
+          void raiseAlert({ key: 'payment-failed:' + (result.factoryCustomerId || (pastDueTenant as any).id), what: 'A customer\'s payment failed — their account is past due', business: pastDueTenant.name, detail: event.type, tenantId: result.factoryCustomerId || (pastDueTenant as any).id })
           notifyBillingPastDue(pastDueTenant).catch(e => console.warn('[Email] Billing past-due notification failed:', e.message))
         }
       }
     }
 
+    clearAlert('stripe-webhook:' + event.type)
     return c.json({ received: true })
   } catch (err: any) {
     console.error('[Stripe] Webhook handler error:', err.message)
+    void raiseAlert({ key: 'stripe-webhook:' + event?.type, what: `Stripe payment events are failing to process (${event?.type || 'unknown'}, 500) — Stripe will retry`, detail: err.message })
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -517,6 +533,7 @@ async function handleDomainRegistration(opts: {
         // be recorded — a silent failure here looks like a working purchase
         // and is discovered by the customer.
         console.error('[Domain] SETTING NAMESERVERS FAILED for', domain, '-', ns.error)
+        void raiseAlert({ key: 'domain-nameservers:' + tenantId, what: 'A new domain was bought but will not work yet — its nameservers could not be set', business: domain, detail: ns.error, tenantId })
         await supabase.from('tenants').update({
           domain_status: 'nameservers_failed',
         }).eq('id', tenantId)
@@ -547,11 +564,13 @@ async function refundAndEmail(opts: {
   // refund path passes through, and the detail is about to be kept out of the
   // customer's email on purpose.
   console.error('[Domain] Refunding', opts.domain, '- reason:', opts.reason, '- detail:', opts.detail || '(none)')
+  void raiseAlert({ key: 'domain-register:' + opts.tenant.id, what: 'A domain a customer paid for could not be registered — they are being refunded', business: opts.domain, detail: opts.reason + (opts.detail ? ': ' + opts.detail : ''), tenantId: opts.tenant.id })
   try {
     const r = await factoryStripe.refundPaymentIntent(opts.paymentIntent, 'requested_by_customer')
     console.log('[Domain] Refund issued:', r.refundId, r.status)
   } catch (e: any) {
     console.error('[Domain] Refund failed:', e.message)
+    void raiseAlert({ key: 'domain-refund:' + opts.paymentIntent, what: 'A refund for a failed domain purchase did not go through — refund by hand', business: opts.domain, detail: e.message, tenantId: opts.tenant.id })
   }
   const to = opts.tenant.admin_email || opts.tenant.email
   if (!to) return

@@ -6,6 +6,7 @@ import factoryRoutes from './routes/factory.ts'
 import qbwcRoutes from './routes/qbwc.ts'
 import briefRoutes from './routes/brief.ts'
 import { startScheduler } from './services/scheduler.ts'
+import { unhandledErrorHandler, installCrashAlerts } from './services/unhandledAlerts.ts'
 import { STATUS_PAGE_HTML } from './services/statusPageHtml.ts'
 
 const app = new Hono()
@@ -80,6 +81,11 @@ app.route('/api/v1/brief', briefRoutes)
 // these URLs without a /api/v1/factory prefix; the prefixed mount
 // above is retained for the platform admin SPA's existing calls.
 app.route('/', factoryRoutes)
+
+// An error nothing caught. The reply is Hono's own default (what a visitor saw before this existed); the owner is
+// told once per route + message, not once per request (services/alerts.ts).
+app.onError(unhandledErrorHandler)
+installCrashAlerts()
 
 const port = Number(process.env.PORT || '3001') || 3001
 console.log(`[API] Twomiah Factory API running on port ${port}`)

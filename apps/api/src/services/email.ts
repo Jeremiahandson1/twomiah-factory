@@ -694,9 +694,10 @@ export async function notifyDomainRenewalPaymentNeeded(
 }
 
 /** Something staff must resolve by hand. Goes to STAFF_NOTIFY_EMAIL (else the intake inbox, else support@). */
-export async function notifyStaff(subject: string, detail: string, tenantId: string): Promise<boolean> {
+export async function notifyStaff(subject: string, detail: string, tenantId: string | null): Promise<boolean> {
   const to = process.env.STAFF_NOTIFY_EMAIL || process.env.INTAKE_NOTIFY_EMAIL || 'support@twomiah.com'
-  return sendEmail(to, subject, '<p>' + detail + '</p><p>Tenant: <code>' + tenantId + '</code></p>')
+  // No tenant (a Factory-wide failure — services/alerts.ts) → no "Tenant:" line.
+  return sendEmail(to, subject, '<p>' + detail + '</p>' + (tenantId ? '<p>Tenant: <code>' + tenantId + '</code></p>' : ''))
 }
 
 export async function notifySubscriptionRenewal(
