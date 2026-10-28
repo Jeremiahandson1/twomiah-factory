@@ -1,7 +1,7 @@
 // Moved from templates/crm-homecare/frontend/src/components/admin/ClientsManagement.tsx — the office's client list:
 // add a client, search and filter, and open a client's record, care tasks, report and service pause.
 import { useState, useEffect, type FormEvent } from 'react'
-import { useAuth, useToast } from '../../../../shared'
+import { TextButton, useAuth, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import EditClientModal from './EditClientModal'
@@ -64,7 +64,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, on
       <div>
         <span style={{ color: 'var(--hc-muted)' }}>📞</span>{' '}
         {client.phone ? (
-          <a href={`tel:${client.phone}`}>{client.phone}</a>
+          <><a href={`tel:${client.phone}`}>{client.phone}</a>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>
         ) : (
           <span style={{ color: 'var(--hc-muted)' }}>N/A</span>
         )}
@@ -558,7 +558,7 @@ const ClientsManagement = () => {
                     <strong>{client.firstName} {client.lastName}</strong>
                     {client.dateOfBirth && (<small style={{ display: 'block', color: 'var(--hc-muted)' }}>DOB: {formatDate(client.dateOfBirth)}</small>)}
                   </td>
-                  <td><a href={`tel:${client.phone}`}>{client.phone || 'N/A'}</a></td>
+                  <td><a href={`tel:${client.phone}`}>{client.phone || 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</td>
                   <td><AddressLink address={client.address} city={client.city} state={client.state} zip={client.zip} /></td>
                   <td>{client.isPrivatePay ? (<span className="text-muted">-</span>) : (getReferralSourceName(client.referredById))}</td>
                   <td>{getCareTypeName(client.careTypeId)}</td>

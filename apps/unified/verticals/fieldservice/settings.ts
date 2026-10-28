@@ -34,7 +34,7 @@ const STARTER: StarterContent = {
 const fieldservice: VerticalSettings = {
   id: 'fieldservice',
   label: 'Field Service',
-  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'service call', many: 'service calls' }, team: { one: 'technician', many: 'technicians' }, reviewAfter: 'a service call is completed', gallery: 'Gallery', customerCompany: true },
+  vocabulary: { readyText: "we're on our way.", customer: { one: 'customer', many: 'customers' }, work: { one: 'service call', many: 'service calls' }, team: { one: 'technician', many: 'technicians' }, reviewAfter: 'a service call is completed', gallery: 'Gallery', customerCompany: true },
   mfaIssuer: 'Twomiah Field Service',
   featureSet: 'crm-fieldservice',
   starter: STARTER,

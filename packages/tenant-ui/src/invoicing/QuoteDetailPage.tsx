@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { TextButton } from '../text/TextButton'
+import { documentLink } from '../text/textMessages'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
@@ -159,7 +161,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3">
-              {quote.contact && <div><p className="text-gray-500 dark:text-slate-400">{cfg.clientLabel}</p><NavLink to={cfg.clientPath(quote.contact.id)} className="text-orange-600 dark:text-orange-200 hover:underline">{quote.contact.name}</NavLink></div>}
+              {quote.contact && <div><p className="text-gray-500 dark:text-slate-400">{cfg.clientLabel}</p><NavLink to={cfg.clientPath(quote.contact.id)} className="text-orange-600 dark:text-orange-200 hover:underline">{quote.contact.name}</NavLink><TextButton phone={quote.contact.mobile || quote.contact.phone} name={quote.contact.name} quote={{ number: quote.number, link: documentLink(quote.publicToken) }} compact className="mt-1" /></div>}
               {cfg.projects && quote.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${quote.project.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{quote.project.name}</NavLink></div>}
               {cfg.quoteEquipment && quote.equipment && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><Wrench className="w-3 h-3" /> Equipment</p><p>{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p></div>}
               {cfg.quoteSites && quote.site && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><MapPinned className="w-3 h-3" /> {cfg.siteLabels?.singular || 'Location'}</p><p>{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p></div>}

@@ -35,7 +35,7 @@ const STARTER: StarterContent = {
 const landscaping: VerticalSettings = {
   id: 'landscaping',
   label: 'Landscaping',
-  vocabulary: { customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio', customerCompany: true },
+  vocabulary: { readyText: "we're on our way.", customer: { one: 'customer', many: 'customers' }, work: { one: 'job', many: 'jobs' }, team: { one: 'crew member', many: 'crew' }, reviewAfter: 'a job is completed', gallery: 'Portfolio', customerCompany: true },
   mfaIssuer: 'Twomiah Landscaping',
   featureSet: 'crm-landscaping',
   starter: STARTER,

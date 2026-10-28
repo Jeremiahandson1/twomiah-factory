@@ -4,9 +4,10 @@
 // no-op. Now every call goes through the api client (refresh + retry), errors are shown, and the inbox refreshes live
 // on lead:created / lead:updated when the template passes its socket subscribe.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Inbox, Phone, MessageSquare, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink } from 'lucide-react'
+import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
+import { TextButton } from '../text/TextButton'
 import { TRADES_LEAD_PLATFORMS, BUILT_IN_LEAD_PLATFORMS } from './types'
 import { useLeadPalette, chipColors } from './theme'
 import type { LeadPalette } from './theme'
@@ -255,10 +256,9 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                         </a>
                       )}
                       {tel && (
-                        <a href={`sms:${tel}`} onClick={(e) => { e.stopPropagation(); if (lead.status === 'new') updateStatus(lead.id, 'contacted') }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#1565c0', color: '#fff', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
-                          <MessageSquare size={14} /> Text
-                        </a>
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <TextButton phone={lead.phone} name={lead.homeownerName} onTexted={() => { if (lead.status === 'new') updateStatus(lead.id, 'contacted') }} />
+                        </span>
                       )}
                       {/* Convert raises a CONTACT, so it asks contacts:create; Dismiss and Reopen
                           move the lead's own status and ask contacts:update. A seat with neither
