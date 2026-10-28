@@ -140,6 +140,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // Per address: a ceiling on a flood from one place. The per-person lock (10 failures) lives in shared auth.
   app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
   app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
+  app.use('/api/auth/web-handoff/*', createRateLimiter(15 * 60 * 1000, 60))
 
   // `commit` is the tenant repo's commit this instance runs (Render sets it): Update Code waits for the commit it
   // pushed, because Render reports a deploy live while the old instance still answers. `version` is the unified app's.

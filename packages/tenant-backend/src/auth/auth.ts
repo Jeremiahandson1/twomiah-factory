@@ -18,7 +18,7 @@ import { companyRowTimeZone } from '../time/businessDay'
 // The same one-line heal GET /api/company uses — see company/logoAddress.ts for how the column came
 // to hold "https:///logo.svg" in the first place.
 import { healLogo } from '../company/logoAddress'
-import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies } from './cookieSession'
+import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies, accessCookie } from './cookieSession'
 import { sessionEnded } from './middleware'
 
 export interface AuthTables { user: any; company: any }
@@ -119,6 +119,30 @@ const parseTokenList = (raw: string | null | undefined): string[] => {
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
 }
 const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_REFRESH_SECRET!); return true } catch { return false } }
+
+
+/**
+ * THE PHONE APP -> THE DESKTOP PAGE, SIGNED IN (More menu: an item with no native screen opens the real page inside the app).
+ *
+ * The app's long-lived tokens never go into an address or a page. Instead the signed-in app asks POST /web-handoff for a CODE:
+ * random, good for 60 seconds, usable once, bound to the person AND the business, and carrying only where to land. The app opens
+ * the business's own address /api/auth/web-handoff/<code> in its in-app browser; the server takes the code (gone whether or not
+ * it works), checks the person is still active in this business and their sessions have not been ended, and answers with the
+ * ordinary cookie web session (httpOnly, Secure, SameSite=Strict — script on the page never sees a credential) and a redirect to
+ * the page. That web session is tied to the app's own device sign-in: signing out of the app (POST /logout with that device's
+ * refresh token) ends it too.
+ */
+export const HANDOFF_MS = 60_000
+interface Handoff { userId: string; companyId: string; next: string; deviceToken: string | null; expires: number }
+
+/** Where a handoff may land: a page of this site (one slash, no host, no control characters), never an API path or another origin. */
+export function handoffLanding(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length < 1 || raw.length > 500) return null
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\') || /[\u0000-\u001f\u007f]/.test(raw)) return null
+  if (raw === '/api' || raw.startsWith('/api/')) return null
+  try { const u = new URL(raw, 'https://handoff.invalid'); if (u.origin !== 'https://handoff.invalid') return null } catch { return null }
+  return raw
+}
 
 export function createAuthRoutes(deps: AuthDeps) {
   const { db, tables: { user, company }, authenticate, permissions, emailService, logger, options } = deps
@@ -411,12 +435,63 @@ export function createAuthRoutes(deps: AuthDeps) {
     return c.json({ accessToken: tokens.accessToken, refreshToken })
   })
 
+
+  // ── phone app → desktop page (see the note on HANDOFF_MS) ────────────────────────────────────────────
+  const handoffs = new Map<string, Handoff>()
+  /** The web sessions opened from each app sign-in (keyed by the app's refresh token), so signing out of the app ends them. */
+  const webSessions = new Map<string, string[]>()
+  const sweepHandoffs = () => { const t = Date.now(); for (const [k, v] of handoffs) if (v.expires <= t) handoffs.delete(k) }
+  const isHttps = (c: any) => (c.req.header('x-forwarded-proto') || new URL(c.req.url).protocol.replace(':', '')).split(',')[0].trim() === 'https'
+
+  app.post('/web-handoff', authenticate, async (c) => {
+    const currentUser = c.get('user') as any
+    // HTTPS only in production: the code must never travel in the clear.
+    if (process.env.NODE_ENV === 'production' && !isHttps(c)) return c.json({ error: 'A secure connection is required' }, 400)
+    const body = await c.req.json().catch(() => ({} as any))
+    const next = handoffLanding(body?.path)
+    if (!next) return c.json({ error: 'That page cannot be opened this way' }, 400)
+    const deviceToken = typeof body?.refreshToken === 'string' ? body.refreshToken : null
+    sweepHandoffs()
+    const code = crypto.randomBytes(32).toString('base64url')
+    handoffs.set(code, { userId: currentUser.userId, companyId: currentUser.companyId, next, deviceToken, expires: Date.now() + HANDOFF_MS })
+    return c.json({ url: `/api/auth/web-handoff/${code}`, expiresInSeconds: HANDOFF_MS / 1000 }, 201)
+  })
+
+  app.get('/web-handoff/:code', async (c) => {
+    const noStore = () => { c.header('Cache-Control', 'no-store'); c.header('Referrer-Policy', 'no-referrer') }
+    noStore()
+    const code = c.req.param('code')
+    const held = handoffs.get(code)
+    handoffs.delete(code) // used once, whatever happens next
+    if (!held || held.expires <= Date.now()) return c.json({ error: 'This link has expired. Open the page again from the app.' }, 410)
+    if (process.env.NODE_ENV === 'production' && !isHttps(c)) return c.json({ error: 'A secure connection is required' }, 400)
+    const [found] = await db.select().from(user).where(eq(user.id, held.userId)).limit(1)
+    // Bound to the person AND the business: the account must still be there, active, in the business the code was made for.
+    if (!found || !found.isActive || found.companyId !== held.companyId) return c.json({ error: 'This link is no longer valid' }, 403)
+    if (sessionEnded(found.sessionsValidFrom, Math.floor((held.expires - HANDOFF_MS) / 1000))) return c.json({ error: 'This link is no longer valid' }, 403)
+    // A browser already signed in as SOMEONE ELSE is not switched silently.
+    const existing = accessCookie(c)
+    if (existing) {
+      let who: any = null
+      try { who = jwt.verify(existing, process.env.JWT_SECRET!) } catch { /* an expired cookie is just replaced */ }
+      if (who && who.userId !== held.userId) return c.json({ error: 'Another person is signed in here. Sign out first.' }, 403)
+    }
+    const tokens = generateTokens(found.id, found.companyId, found.email, found.role)
+    await storeRefreshToken(found.id, tokens.refreshToken)
+    if (held.deviceToken) webSessions.set(held.deviceToken, [...(webSessions.get(held.deviceToken) || []), tokens.refreshToken])
+    setSessionCookies(c, tokens)
+    logAuth(c, deps.audit?.ACTIONS?.LOGIN ?? 'login', { id: found.id, email: found.email, companyId: found.companyId }, 'Opened a desktop page from the phone app', { next: held.next })
+    return c.redirect(held.next, 302)
+  })
+
   app.post('/logout', authenticate, async (c) => {
     const currentUser = c.get('user') as any
     const body = await c.req.json().catch(() => ({} as any))
     // This device's refresh token: from the body, or a cookie-session browser's cookie. None = every device.
     const deviceToken = typeof body?.refreshToken === 'string' ? body.refreshToken : (wantsCookieSession(c) ? refreshCookie(c) ?? null : null)
     await revokeRefreshToken(currentUser.userId, deviceToken)
+    // The web sessions this device opened for desktop pages end with it.
+    if (deviceToken) { for (const t of webSessions.get(deviceToken) || []) await revokeRefreshToken(currentUser.userId, t); webSessions.delete(deviceToken) }
     if (wantsCookieSession(c)) clearSessionCookies(c)
     logAuth(c, deps.audit?.ACTIONS?.LOGOUT ?? 'logout',
       { id: currentUser.userId, email: currentUser.email, companyId: currentUser.companyId },
