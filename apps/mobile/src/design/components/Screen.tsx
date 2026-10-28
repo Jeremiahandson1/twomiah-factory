@@ -10,7 +10,7 @@ export interface HeaderAction { icon: string; label: string; onPress?: () => voi
 /**
  * The screen scaffold. A header (back button when there is somewhere to go back to, a title that wraps instead of clipping, a
  * subtitle, up to two icon actions of 44×44), then a body that scrolls with the gutter and the bottom system inset built in, and an
- * optional pinned footer (the primary action — "Take payment") that sits above the system buttons.
+ * optional pinned footer (the primary action — e.g. "Record payment") that sits above the system buttons.
  * Top inset: the status bar. Bottom inset: the gesture bar / buttons — the same rule as theme/insets.ts.
  */
 export function Screen({ title, subtitle, onBack, actions, children, footer, scroll = true, refreshing, onRefresh, bottomBar, topInset }: {

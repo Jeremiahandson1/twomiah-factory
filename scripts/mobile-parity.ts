@@ -98,18 +98,18 @@ if (process.argv[2] === '--menu') {
  */
 export interface PhoneHas { paths: string[]; trades?: string[]; how: 'tab' | 'screen' | 'partial'; what: string; files: string[] }
 export const PHONE_HAS: PhoneHas[] = [
-  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'rv'], how: 'tab', what: 'Dashboard tab: fixed stat cards, not tappable', files: ['app/(tabs)/dashboard.tsx'] },
-  { paths: ['/crm/dashboard'], trades: ['homecare'], how: 'tab', what: 'Today tab (the caregiver\'s day); no office overview', files: ['app/(tabs)/shifts.tsx'] },
-  { paths: ['/crm/pipeline'], trades: ['roofing'], how: 'tab', what: 'Pipeline tab (stage list)', files: ['app/(tabs)/pipeline.tsx'] },
+  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'rv'], how: 'tab', what: 'Home tab: tiles for the seat, each opens the list it counts', files: ['app/(tabs)/dashboard.tsx'] },
+  { paths: ['/crm/dashboard'], trades: ['homecare'], how: 'tab', what: 'Today tab (the caregiver\'s day); the office seats get a Home tab with the overview tiles', files: ['app/(tabs)/shifts.tsx', 'app/(tabs)/dashboard.tsx'] },
+  { paths: ['/crm/pipeline'], trades: ['roofing'], how: 'tab', what: 'Pipeline tab (stage list) and the tiles; each opens what it counts', files: ['app/(tabs)/pipeline.tsx'] },
   { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], how: 'tab', what: 'Jobs tab + job detail + new/edit job form', files: ['app/(tabs)/jobs.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/jobs'], trades: ['fieldservice'], how: 'tab', what: 'Service Calls tab + job detail + form', files: ['app/(tabs)/service-calls.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], how: 'tab', what: 'Contacts tab + contact detail + form', files: ['app/(tabs)/contacts.tsx', 'app/(details)/contact/[id].tsx', 'app/(details)/contact/form.tsx'] },
   { paths: ['/crm/quotes'], trades: ['contractor', 'basic'], how: 'tab', what: 'Quotes tab + quote detail + form', files: ['app/(tabs)/quotes.tsx', 'app/(details)/quote/[id].tsx', 'app/(details)/quote/form.tsx'] },
-  { paths: ['/crm/quotes'], trades: ['fieldservice', 'landscaping', 'roofing'], how: 'partial', what: 'Quote detail and form open from a contact or job; no quotes list', files: ['app/(details)/quote/[id].tsx', 'app/(details)/quote/form.tsx'] },
-  { paths: ['/crm/invoices'], how: 'partial', what: 'Invoice detail opens from a contact, job or quote; no invoices list, no payment', files: ['app/(details)/invoice/[id].tsx'] },
+  { paths: ['/crm/quotes'], trades: ['fieldservice', 'landscaping', 'roofing'], how: 'screen', what: 'Quotes list (More, or the Pending quotes tile) + quote detail + form', files: ['app/(tabs)/quotes.tsx', 'app/(details)/quote/[id].tsx', 'app/(details)/quote/form.tsx'] },
+  { paths: ['/crm/invoices'], how: 'screen', what: 'Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice', files: ['app/(details)/invoices.tsx', 'app/(details)/invoice/[id].tsx'] },
   { paths: ['/crm/schedule'], trades: ['fieldservice', 'landscaping'], how: 'tab', what: 'Schedule tab', files: ['app/(tabs)/schedule.tsx'] },
   { paths: ['/crm/schedule'], trades: ['homecare'], how: 'tab', what: 'Schedule tab (two weeks: swap, move, miss)', files: ['app/(tabs)/care-schedule.tsx'] },
-  { paths: ['/crm/leads', '/crm/new-leads'], how: 'partial', what: 'Lead detail and quick-add exist; no leads list and no way in except a push alert', files: ['app/(details)/lead/[id].tsx', 'app/(details)/lead/quick-add.tsx'] },
+  { paths: ['/crm/leads', '/crm/new-leads'], how: 'screen', what: 'Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add', files: ['app/(details)/leads/index.tsx', 'app/(details)/leads/[id].tsx', 'app/(details)/lead/quick-add.tsx'] },
   { paths: ['/crm/canvassing'], trades: ['roofing'], how: 'tab', what: 'Canvass tab (door-to-door)', files: ['app/(tabs)/canvass.tsx'] },
   { paths: ['/crm/time'], trades: ['homecare'], how: 'tab', what: 'Clock tab (clock in/out, open visit)', files: ['app/(tabs)/time-clock.tsx'] },
   { paths: ['/crm/messages'], trades: ['homecare'], how: 'tab', what: 'Messages tab + thread + compose', files: ['app/(tabs)/messages.tsx', 'app/(care)/thread/[id].tsx', 'app/(care)/compose.tsx'] },
@@ -123,6 +123,242 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/incidents', '/crm/incident-reporting'], trades: ['homecare'], how: 'screen', what: 'Report an incident (More)', files: ['app/(care)/incident.tsx'] },
   { paths: ['/crm/documents'], trades: ['homecare'], how: 'screen', what: 'Documents to sign (More)', files: ['app/(care)/documents.tsx'] },
   { paths: ['/crm/notifications', '/crm/notification-center'], trades: ['homecare'], how: 'screen', what: 'Notifications (More)', files: ['app/(care)/notifications.tsx'] },
+]
+
+// ── the phone's More menu: grouping, icons, and which rows open a phone screen ───────────────────────────────────────
+/** Groups, in the order the menu lists them. Settled with the owner (2026-10-28): Sell / Work / Projects / … , not the desktop's section names. */
+export const MORE_GROUP_ORDER = ['Home', 'Sell', 'Work', 'Projects', 'Clients & care', 'Scheduling', 'Caregivers', 'Visit records', 'Billing & payroll', 'Compliance', 'Communication', 'Money & reports', 'Customers', 'Equipment & records', 'Business & website', 'Help'] as const
+/** Home care's desktop sections are its own; each becomes one group (never a name that sounds medical). */
+const HOMECARE_SECTION_GROUP: Record<string, string> = { Operations: 'Clients & care', Scheduling: 'Scheduling', Clinical: 'Visit records', Caregivers: 'Caregivers', Financial: 'Billing & payroll', Compliance: 'Compliance', Communication: 'Communication', Settings: 'Business & website' }
+const SECTION_GROUP: Record<string, string> = { Website: 'Business & website', Bookings: 'Customers', Projects: 'Projects' }
+const GROUP_BY_PATH: Record<string, string> = {
+  '/crm/accounting': 'Money & reports',
+  '/crm/adjusters': 'Customers',
+  '/crm/agreements': 'Equipment & records',
+  '/crm/ai-leads': 'Sell',
+  '/crm/ai-receptionist': 'Customers',
+  '/crm/ai-reports': 'Money & reports',
+  '/crm/ai-trade': 'Sell',
+  '/crm/aia-forms': 'Projects',
+  '/crm/alerts': 'Work',
+  '/crm/area-pricing': 'Money & reports',
+  '/crm/audit': 'Business & website',
+  '/crm/bids': 'Sell',
+  '/crm/bills': 'Projects',
+  '/crm/bookings': 'Customers',
+  '/crm/bookings/calendar': 'Customers',
+  '/crm/bookings/insights': 'Customers',
+  '/crm/bookings/settings': 'Customers',
+  '/crm/bookings/waitlist': 'Customers',
+  '/crm/call-tracking': 'Customers',
+  '/crm/canvassing': 'Sell',
+  '/crm/change-orders': 'Projects',
+  '/crm/commissions': 'Money & reports',
+  '/crm/contact-support': 'Help',
+  '/crm/contacts': 'Customers',
+  '/crm/crews': 'Work',
+  '/crm/daily-logs': 'Work',
+  '/crm/dashboard': 'Home',
+  '/crm/desking': 'Sell',
+  '/crm/dispatch': 'Work',
+  '/crm/documents': 'Equipment & records',
+  '/crm/domain': 'Business & website',
+  '/crm/draw-schedules': 'Projects',
+  '/crm/email': 'Business & website',
+  '/crm/equipment': 'Equipment & records',
+  '/crm/expenses': 'Work',
+  '/crm/fi': 'Sell',
+  '/crm/fleet': 'Equipment & records',
+  '/crm/floorplan': 'Money & reports',
+  '/crm/gantt': 'Projects',
+  '/crm/geofences': 'Equipment & records',
+  '/crm/google-reviews': 'Customers',
+  '/crm/help': 'Help',
+  '/crm/inspections': 'Work',
+  '/crm/inventory': 'Equipment & records',
+  '/crm/invoices': 'Sell',
+  '/crm/job-costing': 'Money & reports',
+  '/crm/jobs': 'Work',
+  '/crm/labor-guide': 'Work',
+  '/crm/lead-sources': 'Sell',
+  '/crm/leads': 'Sell',
+  '/crm/lien-waivers': 'Projects',
+  '/crm/locations': 'Business & website',
+  '/crm/maintenance': 'Work',
+  '/crm/marketing': 'Customers',
+  '/crm/materials': 'Work',
+  '/crm/messages': 'Sell',
+  '/crm/parts': 'Work',
+  '/crm/parts-catalog': 'Work',
+  '/crm/pipeline': 'Sell',
+  '/crm/pricebook': 'Money & reports',
+  '/crm/pricebook-rates': 'Money & reports',
+  '/crm/projects': 'Projects',
+  '/crm/punch-lists': 'Work',
+  '/crm/purchase-orders': 'Projects',
+  '/crm/quotes': 'Sell',
+  '/crm/recurring': 'Sell',
+  '/crm/recurring-routes': 'Work',
+  '/crm/rentals': 'Work',
+  '/crm/reports': 'Money & reports',
+  '/crm/reviews': 'Customers',
+  '/crm/rfis': 'Projects',
+  '/crm/sales-pipeline': 'Sell',
+  '/crm/schedule': 'Work',
+  '/crm/selections': 'Sell',
+  '/crm/service': 'Work',
+  '/crm/snow-billing': 'Money & reports',
+  '/crm/storm-leads': 'Sell',
+  '/crm/submittals': 'Projects',
+  '/crm/support': 'Customers',
+  '/crm/takeoffs': 'Sell',
+  '/crm/tasks': 'Work',
+  '/crm/team': 'Business & website',
+  '/crm/tech': 'Work',
+  '/crm/time': 'Work',
+  '/crm/title-reg': 'Sell',
+  '/crm/units': 'Sell',
+  '/crm/visualizer': 'Equipment & records',
+  '/crm/warranties': 'Equipment & records',
+  '/crm/website': 'Business & website',
+  '/crm/website/blog': 'Business & website',
+  '/crm/website/pages': 'Business & website',
+  '/crm/website/photos': 'Business & website',
+  '/crm/website/portfolio': 'Business & website',
+  '/crm/website/settings': 'Business & website',
+}
+export function moreGroupOf(trade: string, section: string, path: string): string {
+  if (trade === 'homecare' && HOMECARE_SECTION_GROUP[section]) return HOMECARE_SECTION_GROUP[section]
+  return SECTION_GROUP[section] || GROUP_BY_PATH[path] || (() => { throw new Error(`More menu: ${path} (${trade}, section ${section}) has no group — add it to GROUP_BY_PATH in scripts/mobile-parity.ts`) })()
+}
+const ICON_BY_PATH: Record<string, string> = {
+  '/crm/accounting': 'cash',
+  '/crm/adjusters': 'person',
+  '/crm/agreements': 'document-attach',
+  '/crm/ai-leads': 'sparkles',
+  '/crm/ai-receptionist': 'headset',
+  '/crm/ai-reports': 'analytics',
+  '/crm/ai-trade': 'cash',
+  '/crm/aia-forms': 'document',
+  '/crm/alerts': 'notifications',
+  '/crm/area-pricing': 'map',
+  '/crm/audit': 'eye',
+  '/crm/bids': 'pricetag',
+  '/crm/bills': 'card',
+  '/crm/bookings': 'calendar-number',
+  '/crm/bookings/calendar': 'ellipse',
+  '/crm/bookings/insights': 'ellipse',
+  '/crm/bookings/settings': 'ellipse',
+  '/crm/bookings/waitlist': 'ellipse',
+  '/crm/call-tracking': 'call',
+  '/crm/canvassing': 'walk',
+  '/crm/change-orders': 'swap-horizontal',
+  '/crm/commissions': 'ribbon',
+  '/crm/contact-support': 'chatbubble-ellipses',
+  '/crm/contacts': 'people',
+  '/crm/crews': 'people-circle',
+  '/crm/daily-logs': 'journal',
+  '/crm/dashboard': 'home',
+  '/crm/desking': 'calculator',
+  '/crm/dispatch': 'git-network',
+  '/crm/documents': 'folder',
+  '/crm/domain': 'link',
+  '/crm/draw-schedules': 'trending-up',
+  '/crm/email': 'mail',
+  '/crm/equipment': 'build',
+  '/crm/expenses': 'wallet',
+  '/crm/fi': 'shield-checkmark',
+  '/crm/fleet': 'car',
+  '/crm/floorplan': 'business',
+  '/crm/gantt': 'stats-chart',
+  '/crm/geofences': 'locate',
+  '/crm/google-reviews': 'logo-google',
+  '/crm/help': 'information-circle',
+  '/crm/inspections': 'search',
+  '/crm/inventory': 'cube',
+  '/crm/invoices': 'receipt',
+  '/crm/job-costing': 'calculator',
+  '/crm/jobs': 'hammer',
+  '/crm/labor-guide': 'time',
+  '/crm/lead-sources': 'link',
+  '/crm/leads': 'mail-unread',
+  '/crm/lien-waivers': 'document-lock',
+  '/crm/locations': 'location',
+  '/crm/maintenance': 'construct',
+  '/crm/marketing': 'megaphone',
+  '/crm/materials': 'layers',
+  '/crm/messages': 'chatbubbles',
+  '/crm/parts': 'construct',
+  '/crm/parts-catalog': 'construct',
+  '/crm/pipeline': 'funnel',
+  '/crm/pricebook': 'book',
+  '/crm/pricebook-rates': 'pricetags',
+  '/crm/projects': 'folder-open',
+  '/crm/punch-lists': 'list',
+  '/crm/purchase-orders': 'cart',
+  '/crm/quotes': 'document-text',
+  '/crm/recurring': 'repeat',
+  '/crm/recurring-routes': 'repeat',
+  '/crm/rentals': 'key',
+  '/crm/reports': 'bar-chart',
+  '/crm/reviews': 'star',
+  '/crm/rfis': 'help-circle',
+  '/crm/sales-pipeline': 'funnel',
+  '/crm/schedule': 'calendar',
+  '/crm/selections': 'color-palette',
+  '/crm/service': 'build',
+  '/crm/snow-billing': 'snow',
+  '/crm/storm-leads': 'thunderstorm',
+  '/crm/submittals': 'send',
+  '/crm/support': 'help-buoy',
+  '/crm/takeoffs': 'resize',
+  '/crm/tasks': 'checkbox',
+  '/crm/team': 'people-circle',
+  '/crm/tech': 'phone-portrait',
+  '/crm/time': 'time',
+  '/crm/title-reg': 'document-text',
+  '/crm/units': 'car-sport',
+  '/crm/visualizer': 'image',
+  '/crm/warranties': 'shield-checkmark',
+  '/crm/website': 'globe',
+  '/crm/website/blog': 'ellipse',
+  '/crm/website/pages': 'ellipse',
+  '/crm/website/photos': 'ellipse',
+  '/crm/website/portfolio': 'ellipse',
+  '/crm/website/settings': 'ellipse',
+}
+export const moreIconOf = (path: string) => ICON_BY_PATH[path] || 'ellipse'
+
+/**
+ * Where a More row opens ON THE PHONE when a screen exists: the expo-router path. `for` limits it to the field seat (the
+ * caregiver's own screens) or the office seats. A row with no entry opens the real desktop page inside the app.
+ */
+export interface PhoneRoute { paths: string[]; trades?: string[]; for?: 'field' | 'office'; route: string }
+const JOBS_TRADES = ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing']
+export const PHONE_ROUTES: PhoneRoute[] = [
+  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'rv'], route: '/(tabs)/dashboard' },
+  { paths: ['/crm/dashboard'], trades: ['homecare'], for: 'office', route: '/(tabs)/dashboard' },
+  { paths: ['/crm/dashboard'], trades: ['homecare'], for: 'field', route: '/(tabs)/shifts' },
+  { paths: ['/crm/pipeline'], trades: ['roofing'], route: '/(tabs)/pipeline' },
+  { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], route: '/(tabs)/jobs' },
+  { paths: ['/crm/jobs'], trades: ['fieldservice'], route: '/(tabs)/service-calls' },
+  { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], route: '/(tabs)/contacts' },
+  { paths: ['/crm/quotes'], trades: JOBS_TRADES, route: '/(tabs)/quotes' },
+  { paths: ['/crm/invoices'], trades: JOBS_TRADES, route: '/(details)/invoices' },
+  { paths: ['/crm/leads', '/crm/new-leads'], trades: JOBS_TRADES, route: '/(details)/leads' },
+  { paths: ['/crm/schedule'], trades: ['fieldservice', 'landscaping'], route: '/(tabs)/schedule' },
+  { paths: ['/crm/schedule'], trades: ['homecare'], for: 'field', route: '/(tabs)/care-schedule' },
+  { paths: ['/crm/canvassing'], trades: ['roofing'], route: '/(tabs)/canvass' },
+  { paths: ['/crm/time'], trades: ['homecare'], for: 'field', route: '/(tabs)/time-clock' },
+  { paths: ['/crm/messages'], trades: ['homecare'], route: '/(tabs)/messages' },
+  { paths: ['/crm/units'], trades: ['rv'], route: '/(tabs)/units' },
+  { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], route: '/(tabs)/parts' },
+  { paths: ['/crm/ai-trade'], trades: ['rv'], route: '/(tabs)/ai-trade' },
+  { paths: ['/crm/clients'], trades: ['homecare'], for: 'field', route: '/(care)/clients' },
+  { paths: ['/crm/open-shifts'], trades: ['homecare'], for: 'field', route: '/(care)/open-shifts' },
+  { paths: ['/crm/incidents', '/crm/incident-reporting'], trades: ['homecare'], for: 'field', route: '/(care)/incident' },
+  { paths: ['/crm/documents'], trades: ['homecare'], for: 'field', route: '/(care)/documents' },
+  { paths: ['/crm/notifications', '/crm/notification-center'], trades: ['homecare'], for: 'field', route: '/(care)/notifications' },
 ]
 
 // ── the plan ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -238,6 +474,8 @@ export interface Row {
   trade: string; section: string; label: string; path: string
   permission: string; minRole: string; features: string[]; featureState: string
   seats: string[]; phone: string; phoneHow: string; phase: Phase; why: string; external: boolean
+  /** The raw gates, for the phone's menu: nav permission / minRole, and the route's own (maySeeRoute reads both). */
+  perm: string | string[] | null; routeRole: string | null; routePerm: string | string[] | null
 }
 export interface TradeMap { trade: Trade; featureSet: string; rows: Row[]; tiles: TileSet }
 export interface TileSet { kind: 'jobs' | 'roofing' | 'homecare' | 'rv'; bySeat: Record<string, string[]>; note: string }
@@ -315,6 +553,7 @@ export async function collect(): Promise<TradeMap[]> {
         permission: Array.isArray(i.permission) ? i.permission.join(' or ') : (i.permission || ''), minRole: i.minRole || '',
         features: i.features,
         featureState: !i.features.length ? 'core' : i.features.some((f) => onByDefault.has(f)) ? 'on by default' : 'off by default (add-on or opt-in)',
+        perm: i.permission, routeRole: b.routeRoles[i.to] ?? null, routePerm: b.routePermissions[i.to] ?? null,
         seats, phone: has ? has.what : 'none', phoneHow: has ? has.how : 'none', phase: has && ph.phase === 'C' && false ? 'C' : ph.phase, why: ph.why, external: i.external,
       })
     }
@@ -364,18 +603,52 @@ export function render(maps: TradeMap[]): string {
   return L.join('\n')
 }
 
+// ── the phone's menu data, generated from the same rows ─────────────────────────────────────────────────────────────
+const APP_OUT = join(ROOT, 'apps/mobile/src/more/menu.generated.ts')
+const routeFile = (route: string) => [`app${route}.tsx`, `app${route}/index.tsx`].map((f) => join(ROOT, 'apps/mobile', f)).find(existsSync)
+export function appMenu(maps: TradeMap[]): string {
+  const lines: string[] = [
+    '// GENERATED by `bun scripts/mobile-parity.ts` from the desktop\'s own menu definitions (the same rows as docs/mobile/PARITY.md).',
+    '// Do not edit: tests/mobile/more-menu.test.ts fails when this file is not what the code now says.',
+    "import type { MenuRow } from './menu'",
+    '',
+    'export const MENU: Record<string, MenuRow[]> = {',
+  ]
+  for (const m of maps) {
+    lines.push(`  ${m.trade.phone}: [`)
+    for (const r of m.rows) {
+      const routes = PHONE_ROUTES.filter((x) => x.paths.includes(r.path) && (!x.trades || x.trades.includes(m.trade.phone))).map((x) => {
+        if (!routeFile(x.route)) fail(`PHONE_ROUTES: ${x.route} has no screen file under apps/mobile/app`)
+        return { for: x.for, route: x.route }
+      })
+      const row: Record<string, unknown> = {
+        label: r.label, path: r.path, group: moreGroupOf(m.trade.phone, r.section, r.path), icon: moreIconOf(r.path),
+        minRole: r.minRole || undefined, permission: r.perm ?? undefined, routeRole: r.routeRole ?? undefined, routePermission: r.routePerm ?? undefined,
+        features: r.features.length ? r.features : undefined, native: routes.length ? routes : undefined,
+      }
+      lines.push('    ' + JSON.stringify(row) + ',')
+    }
+    lines.push('  ],')
+  }
+  lines.push('}', '')
+  return lines.join('\n')
+}
+
 if (import.meta.main && process.argv[2] !== '--menu') {
   const maps = await collect()
   if (process.argv[2] === '--json') {
     process.stdout.write('@@ROWS@@' + JSON.stringify(maps.map((m) => ({ trade: m.trade.phone, featureSet: m.featureSet, rows: m.rows, tiles: m.tiles }))) + '\n')
   } else {
     const md = render(maps) + '\n'
+    const app = appMenu(maps)
     if (process.argv[2] === '--check') {
+      if (!existsSync(APP_OUT) || readFileSync(APP_OUT, 'utf8').replace(/\r\n/g, '\n') !== app) { console.error('FAIL: apps/mobile/src/more/menu.generated.ts is not what the code now says — run `bun scripts/mobile-parity.ts` and commit it'); process.exit(1) }
       // A Windows checkout writes CRLF; the map is the same either way.
       if (!existsSync(OUT) || readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n') !== md) { console.error('FAIL: docs/mobile/PARITY.md is not what the code now says — run `bun scripts/mobile-parity.ts` and commit it'); process.exit(1) }
       console.log('PARITY.md is current')
     } else {
       mkdirSync(dirname(OUT), { recursive: true }); writeFileSync(OUT, md)
+      mkdirSync(dirname(APP_OUT), { recursive: true }); writeFileSync(APP_OUT, app)
       console.log('wrote ' + OUT)
       for (const m of maps) console.log(`${m.trade.phone}: ${m.rows.length} items, phone has ${m.rows.filter((r) => r.phone !== 'none').length}`)
     }

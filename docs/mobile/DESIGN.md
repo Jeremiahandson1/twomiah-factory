@@ -66,7 +66,7 @@ is reachable.
 
 | Phase | Screens | Notes |
 |---|---|---|
-| **A** — daily work | Home per seat · Leads list and detail · Jobs list (with tile filters) and detail · Schedule (day) · Contacts · Quotes · Invoices list/detail and **take payment** · Time clock · Photos on a job · Messages · Home care visits and shifts | Roughly 10–12 menu items per trade (PARITY.md). The mock-ups show these. |
+| **A** — daily work | Home per seat · Leads list and detail · Jobs list (with tile filters) and detail · Schedule (day) · Contacts · Quotes · Invoices list/detail with **Record payment** and **Send invoice** · Time clock · Photos on a job · Messages · Home care visits and shifts | Roughly 10–12 menu items per trade (PARITY.md). The mock-ups show these. |
 | **B** — projects and estimating | Projects · Bids · Change orders · Daily logs · Punch lists · Inspections · Price book · Reports and job costing | 1–9 items per trade. |
 | **C** — the rest that works on a phone | Expenses, documents, equipment, fleet, inventory, tasks, agreements, warranties, reviews, bookings, support, team, home care office pages (care plans, compliance, hiring) | Largest group; built in order of use. |
 | **D** — desktop only (with reasons) | Website builder pages and domain, audit log, geofence set-up, email-inbox and integration set-up, Gantt, takeoffs, AIA forms, bulk billing/payroll runs, the Exterior Visualizer | The phone links to the web page; set-up and wide-canvas work stays on a computer. |

@@ -293,7 +293,8 @@ console.log('the care variant (app.config.ts, eas.json) and the homecare tabs')
 
   const verticals = readFileSync(join(mobile, 'src/vertical/verticals.ts'), 'utf8')
   const homecare = /homecare: \[([\s\S]*?)\]/.exec(verticals)?.[1] || ''
-  const names = Array.from(homecare.matchAll(/name: '([^']+)'/g)).map((m) => m[1])
+  // The caregiver's bar: the tabs that are not office-only (the office seats get Home, Messages and the whole menu — see verticals.ts).
+  const names = homecare.split('\n').filter((l) => !l.includes("seat: 'office'")).flatMap((l) => Array.from(l.matchAll(/name: '([^']+)'/g)).map((m) => m[1]))
   const layout = readFileSync(join(mobile, 'app/(tabs)/_layout.tsx'), 'utf8')
   check('homecare has five tabs', names.length === 5, names)
   check('every homecare tab has its screen file and is in ALL_TABS', names.every((n) => existsSync(join(mobile, `app/(tabs)/${n}.tsx`)) && layout.includes(`'${n}'`)), names)

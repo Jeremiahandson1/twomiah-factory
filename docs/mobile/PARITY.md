@@ -34,12 +34,12 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Dashboard tab: fixed stat cards, not tappable | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
@@ -97,7 +97,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | C |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -118,11 +118,11 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Dashboard tab: fixed stat cards, not tappable | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
@@ -162,7 +162,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | C |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -183,12 +183,12 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Dashboard tab: fixed stat cards, not tappable | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Service Calls | `/crm/jobs` | jobs:read | jobs (on by default) | all | Service Calls tab + job detail + form | A — the day's work |
 | Business | Tech View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
-| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quote detail and form open from a contact or job; no quotes list | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule tab | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
@@ -231,7 +231,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | C |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -252,12 +252,12 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Dashboard tab: fixed stat cards, not tappable | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Crew View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
-| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quote detail and form open from a contact or job; no quotes list | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule tab | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
@@ -300,7 +300,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | C |
 | Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | C |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -324,15 +324,15 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Pipeline | `/crm/pipeline` | jobs:read | jobs (on by default) | all | Pipeline tab (stage list) | A — the home screen |
+| Business | Pipeline | `/crm/pipeline` | jobs:read | jobs (on by default) | all | Pipeline tab (stage list) and the tiles; each opens what it counts | A — the home screen |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
-| Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Business | Storm Leads | `/crm/storm-leads` | — | storm_lead_gen (on by default) | all | none | C |
 | Business | Crews | `/crm/crews` | — | crews (on by default) | all | none | C |
 | Business | Materials | `/crm/materials` | — | materials (on by default) | all | none | C |
-| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quote detail and form open from a contact or job; no quotes list | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Adjusters | `/crm/adjusters` | — | insurance_workflow (on by default) | all | none | C |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
@@ -373,7 +373,7 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Today tab (the caregiver's day); no office overview | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Today tab (the caregiver's day); the office seats get a Home tab with the overview tiles | A — the home screen |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
@@ -386,7 +386,7 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — building the public website is a desk job |
 | Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — building the public website is a desk job |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -472,11 +472,11 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Dashboard tab: fixed stat cards, not tappable | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | none | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | none | A — quote on site, take payment on site |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoice detail opens from a contact, job or quote; no invoices list, no payment | A — quote on site, take payment on site |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
@@ -497,7 +497,7 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 | Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — building the public website is a desk job |
 | Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — building the public website is a desk job |
-| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Lead detail and quick-add exist; no leads list and no way in except a push alert | A — leads are answered from the phone |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |

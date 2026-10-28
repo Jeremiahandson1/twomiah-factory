@@ -11,7 +11,7 @@ import { Screen, ListRow, Group, ChipRow, Chip, SearchField, EmptyState, Skeleto
 import { useList } from '../../../src/home/useList'
 import { useTile } from '../../../src/home/useTile'
 import { FilterBanner } from '../../../src/home/FilterBanner'
-import { callPhone, textPhone, emailTo } from '../../../src/home/links'
+import { callPhone, textPhone, emailTo } from '../../../src/home/phoneActions'
 import { reqUrl } from '../../../src/home/tiles'
 import { useDebounce } from '../../../src/hooks/useDebounce'
 

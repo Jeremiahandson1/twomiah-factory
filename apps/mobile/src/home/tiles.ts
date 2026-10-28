@@ -159,3 +159,18 @@ export function resolveTiles(vertical: Vertical, ctx: Ctx, answers: Record<strin
   }
   return out
 }
+
+/** Where a tile's list lives on the phone (expo-router paths) — one rule for the home screen and the tests. */
+export function tileRoute(def: TileDef, vertical: string): { pathname: string; params: { tile: string } } {
+  const params = { tile: def.id }
+  switch (def.screen) {
+    case 'new-leads': return { pathname: '/(details)/leads', params }
+    case 'jobs': return { pathname: vertical === 'fieldservice' ? '/(tabs)/service-calls' : '/(tabs)/jobs', params }
+    case 'quotes': return { pathname: '/(tabs)/quotes', params }
+    case 'invoices': return { pathname: '/(details)/invoices', params }
+    default: return { pathname: '/(details)/rows', params } // projects, home care and the dealership's rows
+  }
+}
+
+/** The short banner over a tile's list: "New leads · 4". The × beside it clears the filter. */
+export const bannerText = (label: string, count?: number) => (count == null ? label : `${label} · ${count}`)

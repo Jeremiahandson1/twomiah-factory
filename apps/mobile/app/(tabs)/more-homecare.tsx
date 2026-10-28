@@ -57,6 +57,12 @@ export default function MoreHomecareScreen() {
       ],
     },
     {
+      title: 'Everything else',
+      items: [
+        { icon: 'apps-outline', label: 'All menu items', desc: 'Every page your agency gives you on the full site', to: '/(tabs)/more' },
+      ],
+    },
+    {
       title: 'Your office',
       items: [
         { icon: 'chatbubbles-outline', label: 'Message the office', desc: 'Send a message in the app', to: '/(care)/compose' },

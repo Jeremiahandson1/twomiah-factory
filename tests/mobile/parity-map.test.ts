@@ -59,9 +59,9 @@ for (const t of TRADES) {
   check(`${t.phone}: the section lists dashboard tiles for all five seats`, SEATS.every((s) => new RegExp(`- \\*\\*${s.name}\\*\\* \\(\\d+\\)`).test(sec)))
 }
 
-// The phone column is honest: every tab a trade's bottom bar has (except Alerts, which has no desktop page) is a PHONE_HAS entry.
+// The phone column is honest: every tab a trade's bottom bar has (except Alerts and More, which have no desktop page of their own) is a PHONE_HAS entry.
 for (const t of TRADES) {
-  const tabs = VERTICAL_TABS[t.phone as keyof typeof VERTICAL_TABS].filter((x) => x.name !== 'notifications' && x.name !== 'more-homecare')
+  const tabs = VERTICAL_TABS[t.phone as keyof typeof VERTICAL_TABS].filter((x) => x.name !== 'notifications' && x.name !== 'more-homecare' && x.name !== 'more')
   const unmapped = tabs.filter((tab) => !PHONE_HAS.some((h) => (!h.trades || h.trades.includes(t.phone)) && h.files.includes(`app/(tabs)/${tab.name}.tsx`)))
   check(`${t.phone}: every bottom tab is in the map's "phone has" list`, unmapped.length === 0, unmapped.map((x) => x.name))
 }

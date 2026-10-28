@@ -16,10 +16,12 @@ import { useCareOptional } from '../../src/care/CareContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 import { visibleTabs, firstTab } from '../../src/vertical/verticals'
+import { isFieldRole } from '../../src/auth/roles'
+import { HeaderBell } from '../../src/more/HeaderBell'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
-  'dashboard', 'jobs', 'contacts', 'quotes', 'notifications',
+  'dashboard', 'jobs', 'contacts', 'quotes', 'notifications', 'more',
   'service-calls', 'schedule',
   'shifts', 'care-schedule', 'time-clock', 'messages', 'more-homecare',
   'pipeline', 'canvass',
@@ -51,12 +53,13 @@ export default function TabLayout() {
   }
 
   // Only the tabs this seat may use, and whose switch is on (verticals.ts visibleTabs).
-  const { can } = useAuth()
-  const shown = visibleTabs(tabs, can, hasFeature)
+  const { can, user } = useAuth()
+  const field = isFieldRole(user?.role)
+  const shown = visibleTabs(tabs, can, hasFeature, field)
   const activeNames = new Set(shown.map(tab => tab.name))
   // The tab the app opens on (verticals.ts firstTab — the same rule the redirects use). Without it Expo opens the FIRST
   // screen file in this folder ('dashboard'), which is hidden for roofing, home care and a seat without dashboard access.
-  const openOn = firstTab(tabs, initialTab, can, hasFeature)
+  const openOn = firstTab(tabs, initialTab, can, hasFeature, field)
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (
@@ -66,6 +69,8 @@ export default function TabLayout() {
         headerStyle: { backgroundColor: t.surface },
         headerTintColor: t.text,
         headerShadowVisible: false,
+        // Alerts are the bell in the header (the last bar slot is More).
+        headerRight: () => <HeaderBell />,
         tabBarStyle: {
           backgroundColor: t.surface,
           borderTopColor: t.border,
@@ -78,7 +83,8 @@ export default function TabLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
-      {ALL_TABS.map(name => {
+      {/* The bar follows the vertical's own order (verticals.ts); hidden screens come after. */}
+      {[...shown.map(tab => tab.name), ...ALL_TABS.filter(n => !activeNames.has(n))].map(name => {
         const def = tabMap.get(name)
         const isActive = activeNames.has(name)
 

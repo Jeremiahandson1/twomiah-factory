@@ -38,10 +38,12 @@ for (const w of [320, 360, 375, 390, 393, 411, 430]) {
 check('a zero or missing width never gives a negative card', statCardWidth(0) >= 0 && statCardWidth(NaN as any) >= 0)
 
 // ── where the number goes ───────────────────────────────────────────────────
-const dash = read('app/(tabs)/dashboard.tsx')
-check('the dashboard asks for the screen width (useWindowDimensions) and computes statCardWidth', /useWindowDimensions\(\)/.test(dash) && /statCardWidth\(\s*screenWidth\s*\)/.test(dash))
-check('the width goes on the AnimatedCard wrapper that is the flex item', /<AnimatedCard[^>]*style=\{\{\s*width:\s*cardWidth\s*\}\}[^>]*>\s*<StatCard/.test(dash))
-check('the dashboard grid is a wrapping row (so the widths decide the columns)', /statsGrid:\s*\{[^}]*flexWrap:\s*'wrap'/.test(dash))
+// The home screen (src/home/HomeScreen.tsx) draws the tiles; dashboard.tsx only mounts it.
+const dash = read('src/home/HomeScreen.tsx')
+check('the dashboard tab mounts the home screen', /HomeScreen/.test(read('app/(tabs)/dashboard.tsx')))
+check('the dashboard asks for the screen width (useWindowDimensions) and computes statCardWidth', /useWindowDimensions\(\)/.test(dash) && /statCardWidth\(\s*width\s*\)/.test(dash))
+check('the width goes on each tile (StatTile takes the computed width)', /<StatTile[^>]*width=\{w\}/.test(dash))
+check('the tile grid is a wrapping row (so the widths decide the columns)', /flexDirection:\s*'row',\s*flexWrap:\s*'wrap'/.test(dash))
 const stat = read('src/components/StatCard.tsx')
 const cardStyle = /card:\s*\{([\s\S]*?)\}/.exec(stat)?.[1] ?? ''
 check('StatCard.card was found', cardStyle.length > 10, cardStyle)

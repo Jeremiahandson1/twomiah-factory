@@ -12,7 +12,7 @@ import { useAuth } from '../../../src/auth/AuthContext'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { Screen, Card, Group, ListRow, SectionHeader, DText, Badge, Button, TextField, ChipRow, Chip, EmptyState, SkeletonRows, space, layout } from '../../../src/design'
-import { callPhone, textPhone, emailTo } from '../../../src/home/links'
+import { callPhone, textPhone, emailTo } from '../../../src/home/phoneActions'
 import { LEAD_STATUS_LABEL } from './index'
 
 const SETTABLE = ['new', 'contacted', 'dismissed']

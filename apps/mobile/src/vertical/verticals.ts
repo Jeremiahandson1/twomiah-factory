@@ -21,6 +21,8 @@ export interface TabDef {
   permission?: string
   /** Shown only while this switch (Settings › Features) is on — the API behind the tab is gated on the same one. */
   feature?: string
+  /** Only this kind of seat: 'field' (a technician / caregiver) or 'office' (owner, admin, manager, viewer). Absent: both. */
+  seat?: 'field' | 'office'
 }
 
 /**
@@ -28,8 +30,9 @@ export interface TabDef {
  * cannot appraise), and a tab whose switch is off (TabDef.feature) is not shown either, as its screen and route are not on the
  * web. Order is the vertical's. The tab layout and the tests both ask this.
  */
-export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean, hasFeature: (feature: string) => boolean): TabDef[] {
-  return tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature)))
+export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean, hasFeature: (feature: string) => boolean, field?: boolean): TabDef[] {
+  return tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature))
+    && (field === undefined || !tab.seat || (tab.seat === 'field') === field))
 }
 
 /**
@@ -37,8 +40,8 @@ export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean
  * the tab bar's initialRouteName and every redirect into the tabs — a bare '/(tabs)' names no screen (there is no index), and
  * Expo answered it with "Unmatched Route" (owner's Android, 2026-10-28).
  */
-export function firstTab(tabs: TabDef[], initialTab: string, can: (permission: string) => boolean, hasFeature: (feature: string) => boolean): string | undefined {
-  const shown = visibleTabs(tabs, can, hasFeature)
+export function firstTab(tabs: TabDef[], initialTab: string, can: (permission: string) => boolean, hasFeature: (feature: string) => boolean, field?: boolean): string | undefined {
+  const shown = visibleTabs(tabs, can, hasFeature, field)
   return shown.some((tab) => tab.name === initialTab) ? initialTab : shown[0]?.name
 }
 
@@ -47,7 +50,7 @@ const CONTRACTOR_TABS: TabDef[] = [
   { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
   { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
   { name: 'quotes', title: 'Quotes', icon: 'document-text-outline', activeIcon: 'document-text', permission: 'quotes:read' },
-  { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+  { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
 ]
 
 export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
@@ -58,31 +61,34 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'service-calls', title: 'Service Calls', icon: 'build-outline', activeIcon: 'build', permission: 'jobs:read' },
     { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', permission: 'jobs:read' },
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
-    { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+    { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
-  // Twomiah Care — the caregiver's day: Today (next visit, alerts), Schedule (two weeks: swap, move,
+  // Twomiah Care — the caregiver's day (office seats: Home, Messages, More): Today (next visit, alerts), Schedule (two weeks: swap, move,
   // client not available, miss), Clock (clock in, the open visit, clock out), Messages, More.
   // Clients, open shifts, documents, incidents, mileage and notifications live under More.
   homecare: [
-    { name: 'shifts', title: 'Today', icon: 'home-outline', activeIcon: 'home' },
-    { name: 'care-schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar' },
-    { name: 'time-clock', title: 'Clock', icon: 'finger-print-outline', activeIcon: 'finger-print' },
+    { name: 'shifts', title: 'Today', icon: 'home-outline', activeIcon: 'home', seat: 'field' },
+    { name: 'dashboard', title: 'Home', icon: 'home-outline', activeIcon: 'home', seat: 'office' },
+    { name: 'care-schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', seat: 'field' },
+    { name: 'time-clock', title: 'Clock', icon: 'finger-print-outline', activeIcon: 'finger-print', seat: 'field' },
     { name: 'messages', title: 'Messages', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles' },
-    { name: 'more-homecare', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
+    // The caregiver's own More (their visits, swaps, mileage …) ends with a row into the whole menu; the office seats go straight to it.
+    { name: 'more-homecare', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal', seat: 'field' },
+    { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal', seat: 'office' },
   ],
   roofing: [
     { name: 'pipeline', title: 'Pipeline', icon: 'funnel-outline', activeIcon: 'funnel', permission: 'jobs:read' },
     { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
     { name: 'canvass', title: 'Canvass', icon: 'walk-outline', activeIcon: 'walk', permission: 'canvassing:create' },
-    { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+    { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
   landscaping: [
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
     { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
     { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', permission: 'jobs:read' },
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
-    { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+    { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
   rv: [
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },

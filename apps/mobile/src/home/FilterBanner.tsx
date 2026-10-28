@@ -2,10 +2,11 @@
 import React from 'react'
 import { Pressable, View } from 'react-native'
 import { DText, Icon, useDesign, MIN_TARGET, radius, space } from '../design'
+import { bannerText } from './tiles'
 
 export function FilterBanner({ label, count, onClear }: { label: string; count?: number; onClear: () => void }) {
   const { c } = useDesign()
-  const text = count == null ? label : `${label} · ${count}`
+  const text = bannerText(label, count)
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.accentSoft, borderRadius: radius.pill, paddingLeft: space[4], minHeight: MIN_TARGET, alignSelf: 'flex-start' }}>
       <DText variant="bodyStrong" tone="accentText">{text}</DText>
