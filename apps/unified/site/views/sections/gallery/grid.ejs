@@ -5,8 +5,13 @@
   const intro = data.intro || ''
   const photos = Array.isArray(data.photos) ? data.photos.filter(p => p && p.url) : []
   if (photos.length === 0) return
+  // A filter bar only when the owner has sorted photos into two or more groups (each photo's own `category`, typed in the
+  // editor — never composed). Without it, or without JavaScript, every photo shows and there is no bar.
+  const cats = []
+  photos.forEach(function (p) { const c = String(p.category || '').trim(); if (c && cats.indexOf(c) < 0) cats.push(c) })
+  const filterable = cats.length >= 2
 %>
-<section class="gallery-section">
+<section class="gallery-section<%= filterable ? ' gallery-section--filter' : '' %>">
   <div class="container">
     <% if (heading || intro) { %>
       <div class="gallery-section__head">
@@ -14,13 +19,33 @@
         <% if (intro) { %><p class="gallery-section__intro"><%= intro %></p><% } %>
       </div>
     <% } %>
+    <% if (filterable) { %>
+      <div class="gallery-filter" role="group" aria-label="Filter photos" data-filter hidden>
+        <button type="button" class="gallery-filter__btn" aria-pressed="true" data-cat="">All</button>
+        <% cats.forEach(function (c) { %><button type="button" class="gallery-filter__btn" aria-pressed="false" data-cat="<%= c %>"><%= c %></button><% }) %>
+      </div>
+      <p class="gallery-filter__status" role="status" aria-live="polite" data-filter-status hidden></p>
+    <% } %>
     <div class="gallery-grid">
       <% photos.forEach(function(p) { %>
-        <figure class="gallery-grid__item">
+        <figure class="gallery-grid__item"<% if (filterable) { %> data-cat="<%= String(p.category || '').trim() %>"<% } %>>
           <img src="<%= p.url %>" alt="<%= p.alt || '' %>" loading="lazy">
           <% if (p.caption) { %><figcaption><%= p.caption %></figcaption><% } %>
         </figure>
       <% }) %>
     </div>
   </div>
+  <% if (filterable) { %>
+  <script>(function(){
+    var s = document.currentScript.parentNode, bar = s.querySelector('[data-filter]'); if (!bar) return;
+    var items = s.querySelectorAll('.gallery-grid__item'), say = s.querySelector('[data-filter-status]'), btns = bar.querySelectorAll('button');
+    bar.hidden = false;
+    btns.forEach(function (b) { b.addEventListener('click', function () {
+      var cat = b.getAttribute('data-cat'), n = 0;
+      btns.forEach(function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false') });
+      items.forEach(function (it) { var on = !cat || it.getAttribute('data-cat') === cat; it.hidden = !on; if (on) n++ });
+      say.hidden = false; say.textContent = 'Showing ' + n + (n === 1 ? ' photo' : ' photos') + (cat ? ' of ' + cat : '');
+    }) });
+  })();</script>
+  <% } %>
 </section>

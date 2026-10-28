@@ -415,3 +415,8 @@ body { font-family: var(--f-display); font-size: 17px; line-height: 1.65; backgr
 /* Parts of a service: soft chips */
 .service-parts a { background: var(--sf2); border: 1px solid var(--ln); color: var(--tx2); font-size: 13px; padding: 5px 12px; }
 .service-parts a:hover, .service-parts a:focus-visible { border-color: var(--tx); color: var(--tx); }
+
+/* Gallery filter: soft pills, the chosen one filled */
+.gallery-filter__btn { background: var(--sf2); border: 1px solid var(--ln); color: var(--tx2); }
+.gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
+.gallery-filter__btn[aria-pressed="true"] { background: var(--tx); border-color: var(--tx); color: var(--bg); }

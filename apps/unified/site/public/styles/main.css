@@ -1072,3 +1072,14 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .service-parts { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .service-parts a { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--ink-soft); text-decoration: none; }
 .service-parts a:hover, .service-parts a:focus-visible { border-color: var(--brand); color: var(--brand); }
+
+/* Gallery filter bar: shown by the section's script once it runs; narrow, one swipeable row; wide, wrapped and centred */
+.gallery-section--filter { container: gallery / inline-size; }
+.gallery-filter[hidden], .gallery-grid__item[hidden], .gallery-filter__status[hidden] { display: none; }
+.gallery-filter { display: flex; gap: 8px; margin: 0 0 24px; overflow-x: auto; padding-bottom: 4px; }
+.gallery-filter__btn { flex: none; min-height: 44px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.gallery-filter__btn:hover { border-color: var(--ink); color: var(--ink); }
+.gallery-filter__btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.gallery-filter__btn:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.gallery-filter__status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@container gallery (min-width: 640px) { .gallery-filter { flex-wrap: wrap; justify-content: center; overflow: visible; } }

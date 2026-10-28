@@ -425,3 +425,8 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 /* Parts of a service: square mono tags with the hard edge */
 .service-parts a { border-radius: 0; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-family: var(--f-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; }
 .service-parts a:hover, .service-parts a:focus-visible { border-color: var(--tx); background: {{PRIMARY_COLOR}}; color: {{INK_ON_PRIMARY}}; }
+
+/* Gallery filter: square mono tabs, the owner's colour on the one chosen */
+.gallery-filter__btn { border-radius: 0; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-family: var(--f-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
+.gallery-filter__btn[aria-pressed="true"] { background: {{PRIMARY_COLOR}}; border-color: var(--tx); color: {{INK_ON_PRIMARY}}; box-shadow: 3px 3px 0 var(--tx); }

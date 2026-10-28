@@ -1,7 +1,7 @@
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../Field'
 
-interface Photo { url: string; alt?: string; caption?: string }
+interface Photo { url: string; alt?: string; caption?: string; category?: string }
 
 interface Props {
   data: { heading?: string; intro?: string; photos?: Photo[] }
@@ -33,7 +33,7 @@ export function GalleryGridForm({ data, onChange }: Props) {
 
       <div>
         <Label>Photos</Label>
-        <p className="text-xs text-muted mb-3">Best with 6–12 images. They auto-flow into a responsive 3-column grid.</p>
+        <p className="text-xs text-muted mb-3">Best with 6–12 images. They auto-flow into a responsive 3-column grid. Give photos a group and visitors get filter buttons — shown once there are two or more groups.</p>
         <div className="space-y-3">
           {photos.map((p, i) => (
             <div key={i} className="border border-line rounded-lg p-3 bg-paper">
@@ -50,6 +50,7 @@ export function GalleryGridForm({ data, onChange }: Props) {
                 <TextField label="Alt text" value={p.alt || ''} onChange={(e) => updatePhoto(i, { alt: e.target.value })} />
                 <TextField label="Caption (optional)" value={p.caption || ''} onChange={(e) => updatePhoto(i, { caption: e.target.value })} />
               </div>
+              <TextField label="Group (optional)" placeholder="Kitchens, Decks, Baths…" value={p.category || ''} onChange={(e) => updatePhoto(i, { category: e.target.value })} />
             </div>
           ))}
           {photos.length === 0 && (

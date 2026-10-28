@@ -423,3 +423,8 @@ body { font-family: var(--f-body); font-size: 17px; line-height: 1.6; background
 .service-parts { gap: 6px 16px; }
 .service-parts a { border: 0; border-radius: 0; padding: 2px 0; color: var(--tx2); font-weight: 600; font-size: 14px; border-bottom: 2px solid var(--ln); }
 .service-parts a:hover, .service-parts a:focus-visible { color: var(--tx); border-bottom-color: {{PRIMARY_COLOR}}; }
+
+/* Gallery filter: quiet pills with a clean 4px radius */
+.gallery-filter__btn { border-radius: 4px; background: transparent; border: 1px solid var(--ln); color: var(--tx2); }
+.gallery-filter__btn:hover { border-color: var(--tx); color: var(--tx); }
+.gallery-filter__btn[aria-pressed="true"] { background: var(--tx); border-color: var(--tx); color: var(--bg); }

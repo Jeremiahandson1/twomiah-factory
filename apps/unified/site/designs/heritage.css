@@ -412,3 +412,9 @@ body { font-family: var(--f-body); font-size: 17.5px; line-height: 1.68; backgro
 .service-parts a { border: 0; border-radius: 0; padding: 0; font-family: var(--f-display); font-style: italic; font-size: 18px; color: var(--tx2); border-bottom: 1px solid var(--ln); }
 .service-parts a:hover, .service-parts a:focus-visible { color: var(--brand-ink); border-bottom-color: var(--brand-ink); }
 .service-row__copy .service-parts { justify-content: flex-start; }
+
+/* Gallery filter: italic serif words, the chosen one underlined */
+.gallery-filter__btn { border: 0; border-radius: 0; background: transparent; padding: 4px 6px; min-height: 44px; font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 20px; color: var(--tx2); border-bottom: 1px solid transparent; }
+.gallery-filter__btn:hover { color: var(--tx); border-color: var(--ln); background: transparent; }
+.gallery-filter__btn[aria-pressed="true"] { background: transparent; color: var(--brand-ink); border-bottom-color: var(--brand-ink); }
+.gallery-filter { gap: 12px 22px; }

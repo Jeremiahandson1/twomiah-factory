@@ -154,7 +154,7 @@ export const SECTION_SCHEMA = {
     grid: {
       required: ['photos'],
       optional: ['heading', 'intro'],
-      use_when: 'showcase the owner\'s OWN photos of their work — Tier 1 customer photos only, never stock (a stock photo in a gallery of "our work" is a claim the business did that job). No captions: you cannot see the photos, so any caption is a guess about what, where and when. Omit this section when there are no Tier 1 photos.',
+      use_when: 'showcase the owner\'s OWN photos of their work — Tier 1 customer photos only, never stock (a stock photo in a gallery of "our work" is a claim the business did that job). No captions: you cannot see the photos, so any caption is a guess about what, where and when. Omit this section when there are no Tier 1 photos. Never set a photo `category`: the owner sorts photos into groups in the editor, and the filter bar appears from those.',
     },
   },
   testimonials: {

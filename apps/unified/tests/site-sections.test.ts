@@ -253,3 +253,42 @@ describe('latest blog posts (only when posts exist)', () => {
     expect((await t.call('/blog/new')).status).toBe(200)
   }, 60_000)
 })
+
+describe('gallery filter bar', () => {
+  const photo = (n: number, category?: string) => ({ url: `/img/${n}.jpg`, alt: `Photo ${n}`, ...(category ? { category } : {}) })
+  const gallery = async (photos: any[]) => String(await render('foundry', [HERO, { type: 'gallery', variant: 'grid', data: { heading: 'Our work', photos } }]))
+
+  test('no bar, no script and no data attributes when the owner has sorted nothing, or only one group', async () => {
+    for (const photos of [[photo(1), photo(2)], [photo(1, 'Decks'), photo(2, 'Decks'), photo(3)]]) {
+      const out = await gallery(photos)
+      expect(out).not.toContain('data-filter')
+      expect(out).not.toContain('gallery-filter')
+    }
+  })
+
+  test('two or more groups: a labelled bar with an All button, one button per group, every photo still in the page', async () => {
+    const out = await gallery([photo(1, 'Decks'), photo(2, 'Kitchens'), photo(3, 'Decks')])
+    expect(out).toContain('role="group" aria-label="Filter photos"')
+    expect((out.match(/class="gallery-filter__btn"/g) || []).length).toBe(3)
+    expect(out).toContain('data-cat="Kitchens"')
+    expect((out.match(/<figure/g) || []).length).toBe(3)
+    expect(out).toMatch(/data-filter hidden/) // revealed by the script, so a page without JavaScript shows the photos and no dead buttons
+  })
+
+  test('the script reveals the bar; a button shows only its group, keeps its pressed state and says how many are showing', async () => {
+    const out = await gallery([photo(1, 'Decks'), photo(2, 'Kitchens'), photo(3, 'Decks')])
+    const win: any = new Window({ url: 'https://site.example.com/', settings: { enableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true, suppressInsecureJavaScriptEnvironmentWarning: true } } as any)
+    for (const k of ['Number', 'Date', 'Math', 'JSON', 'String', 'Array', 'Object', 'RegExp', 'Boolean', 'Error', 'Promise']) if (typeof win[k] === 'undefined') win[k] = (globalThis as any)[k]
+    win.document.write(out.slice(out.indexOf('<section class="gallery-section')))
+    const doc = win.document
+    expect(doc.querySelector('[data-filter]').hidden).toBe(false)
+    const btn = (c: string) => doc.querySelector(`.gallery-filter__btn[data-cat="${c}"]`)
+    btn('Decks').click()
+    expect([...doc.querySelectorAll('.gallery-grid__item')].map((e: any) => e.hidden)).toEqual([false, true, false])
+    expect(btn('Decks').getAttribute('aria-pressed')).toBe('true')
+    expect(btn('').getAttribute('aria-pressed')).toBe('false')
+    expect(doc.querySelector('[data-filter-status]').textContent).toBe('Showing 2 photos of Decks')
+    btn('').click()
+    expect([...doc.querySelectorAll('.gallery-grid__item')].some((e: any) => e.hidden)).toBe(false)
+  })
+})
