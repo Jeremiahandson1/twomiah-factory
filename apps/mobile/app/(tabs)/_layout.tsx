@@ -13,7 +13,7 @@ import { useVertical } from '../../src/vertical/VerticalContext'
 import { useCareOptional } from '../../src/care/CareContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { usePushNotifications } from '../../src/hooks/usePushNotifications'
-import { visibleTabs } from '../../src/vertical/verticals'
+import { visibleTabs, firstTab } from '../../src/vertical/verticals'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
@@ -48,14 +48,14 @@ export default function TabLayout() {
   const { can } = useAuth()
   const shown = visibleTabs(tabs, can, hasFeature)
   const activeNames = new Set(shown.map(tab => tab.name))
-  // The tab the app opens on: the vertical's own first tab, or the first this seat can see. Without it Expo opens the FIRST
+  // The tab the app opens on (verticals.ts firstTab — the same rule the redirects use). Without it Expo opens the FIRST
   // screen file in this folder ('dashboard'), which is hidden for roofing, home care and a seat without dashboard access.
-  const firstTab = activeNames.has(initialTab) ? initialTab : shown[0]?.name
+  const openOn = firstTab(tabs, initialTab, can, hasFeature)
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (
     <Tabs
-      initialRouteName={firstTab}
+      initialRouteName={openOn}
       screenOptions={{
         headerStyle: { backgroundColor: t.surface },
         headerTintColor: t.text,

@@ -83,7 +83,18 @@ console.log('app.config.ts — the store app')
   check('the sign-in colour is Twomiah\'s flame, and its ink reaches 4.5:1', c.extra.signInColor === TWOMIAH_FLAME && contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME) >= 4.5, contrastRatio(inkOn(TWOMIAH_FLAME), TWOMIAH_FLAME).toFixed(2))
   // A fresh launch opens "/" — with no screen there the phone showed Expo's "Unmatched Route" (owner's Android, 2026-10-28).
   const start = fs.existsSync(path.join(root, 'app/index.tsx')) ? read('app/index.tsx') : ''
-  check('the start address "/" has a screen that sends the person to sign-in or to their tabs', /<Redirect href=\{isAuthenticated \? '\/\(tabs\)' : '\/\(auth\)\/login'\}/.test(start))
+  check('the start address "/" has a screen that sends the person to sign-in or to their first tab', /<Redirect href=\{isAuthenticated \? home : '\/\(auth\)\/login'\}/.test(start) && /useHomeHref\(\)/.test(start))
+  // …and after sign-in the same page came back: '/(tabs)' names no screen. Every navigation into the tabs names its tab.
+  const sources: string[] = []
+  const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.tsx?$/.test(e.name)) sources.push(p) } }
+  walk(path.join(root, 'app')); walk(path.join(root, 'src'))
+  const code = (p: string) => fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const bare = sources.filter((p) => /['"`]\/\(tabs\)\/?['"`]/.test(code(p))).map((p) => path.relative(root, p))
+  check('nothing navigates to a bare "/(tabs)" (it has no screen) — the sign-in redirect uses useHomeHref', bare.length === 0 && /router\.replace\(home\)/.test(read('app/_layout.tsx')), bare)
+  const { firstTab } = await import('../../apps/mobile/src/vertical/verticals.ts')
+  const tabs = [{ name: 'dashboard', permission: 'dashboard:read' }, { name: 'jobs' }, { name: 'pipeline', feature: 'pipeline' }] as any
+  check('the first tab is the vertical\'s own when the seat sees it, else the first it can see', firstTab(tabs, 'pipeline', () => true, () => true) === 'pipeline'
+    && firstTab(tabs, 'pipeline', () => true, () => false) === 'dashboard' && firstTab(tabs, 'dashboard', () => false, () => false) === 'jobs')
   const login = read('app/(auth)/login.tsx')
   check('the sign-in screen reads signInColor and never paints white on it', /extra as any\)\?\.signInColor/.test(login) && /const INK = inkOn\(PRIMARY\)/.test(login) && !/#fff\b|'white'/i.test(login.replace(/color: '#f1f5f9'/g, '')))
 }

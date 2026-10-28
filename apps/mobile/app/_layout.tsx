@@ -20,6 +20,7 @@ import { WrongAppGate, NoPhoneAppGate } from '../src/vertical/WrongAppGate'
 import '../src/location/tracking'
 import { useTrackingSync } from '../src/location/useTrackingSync'
 import { CareProvider } from '../src/care/CareContext'
+import { useHomeHref } from '../src/vertical/useHomeHref'
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -27,6 +28,7 @@ function AuthGate() {
   const segments = useSegments()
   const router = useRouter()
   const t = useTheme()
+  const home = useHomeHref()
 
   // Location sharing follows the person's own switch (Alerts → Location): running when they turned it
   // on and the phone allows "Always", stopped otherwise. Never for home care — a caregiver's location
@@ -39,9 +41,9 @@ function AuthGate() {
     if (!isAuthenticated && !inAuth) {
       router.replace('/(auth)/login')
     } else if (isAuthenticated && inAuth) {
-      router.replace('/(tabs)')
+      router.replace(home)
     }
-  }, [isAuthenticated, isLoading, segments])
+  }, [isAuthenticated, isLoading, segments, home])
 
   if (isLoading) {
     return (

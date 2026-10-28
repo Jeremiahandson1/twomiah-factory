@@ -32,6 +32,16 @@ export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean
   return tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature)))
 }
 
+/**
+ * The tab the app opens on: the vertical's own first tab when this seat can see it, else the first it can see. One rule for
+ * the tab bar's initialRouteName and every redirect into the tabs — a bare '/(tabs)' names no screen (there is no index), and
+ * Expo answered it with "Unmatched Route" (owner's Android, 2026-10-28).
+ */
+export function firstTab(tabs: TabDef[], initialTab: string, can: (permission: string) => boolean, hasFeature: (feature: string) => boolean): string | undefined {
+  const shown = visibleTabs(tabs, can, hasFeature)
+  return shown.some((tab) => tab.name === initialTab) ? initialTab : shown[0]?.name
+}
+
 const CONTRACTOR_TABS: TabDef[] = [
   { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
   { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
