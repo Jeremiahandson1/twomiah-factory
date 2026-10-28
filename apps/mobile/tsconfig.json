@@ -1,5 +1,5 @@
 {
-  "//": "Spelled out rather than `extends: expo/tsconfig.base`: the installed expo package ships no tsconfig.base.json, so the extends resolved to nothing and tsc ran with defaults — no JSX, no esModuleInterop — and reported 2,168 errors that said nothing about the code. These are exactly the options expo@52.0.49 tsconfig.base.json provides (read from the published package). `react` is pinned to this app's own @types/react (18, matching react-native 0.76): the monorepo also hoists @types/react 19, some libraries resolved that copy, and TypeScript refuses to mix two ReactNode types — 213 'cannot be used as a JSX component' errors, every one of them that. (T59)",
+  "//": "Spelled out rather than `extends: expo/tsconfig.base`: the installed expo package ships no tsconfig.base.json, so the extends resolved to nothing and tsc ran with defaults \u2014 no JSX, no esModuleInterop \u2014 and reported thousands of errors that said nothing about the code. These are the options expo's tsconfig.base provides. Until SDK 54 this file also pinned `react` to this app's own @types/react (18) because the monorepo hoisted a different @types/react (19) and TypeScript refuses to mix two ReactNode types; the app is on React 19 / @types/react 19 now, so there is nothing to pin \u2014 and Metro reads these `paths`, so a pin to @types/react makes it try to bundle a types package as `react`. (T59)",
   "compilerOptions": {
     "target": "ESNext",
     "moduleResolution": "node",
@@ -20,12 +20,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "react": [
-        "./node_modules/@types/react"
-      ],
-      "react/*": [
-        "./node_modules/@types/react/*"
       ]
     }
   },

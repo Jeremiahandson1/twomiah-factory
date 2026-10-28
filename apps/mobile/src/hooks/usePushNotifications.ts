@@ -9,7 +9,9 @@ import { rememberPushToken } from './pushToken'
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // SDK 54 split `shouldShowAlert` into a banner and the notification list: both, as before.
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -25,8 +27,8 @@ export function usePushNotifications(opts: { registerWithServer?: boolean; fallb
   const fallbackRoute = opts.fallbackRoute || '/(tabs)/notifications'
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null)
   const [notification, setNotification] = useState<Notifications.Notification | null>(null)
-  const notificationListener = useRef<any>()
-  const responseListener = useRef<any>()
+  const notificationListener = useRef<{ remove: () => void } | null>(null)
+  const responseListener = useRef<{ remove: () => void } | null>(null)
 
   useEffect(() => {
     registerForPush(registerWithServer).then(setExpoPushToken).catch(() => {})
@@ -90,8 +92,8 @@ export function usePushNotifications(opts: { registerWithServer?: boolean; fallb
     })
 
     return () => {
-      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current)
-      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current)
+      notificationListener.current?.remove()
+      responseListener.current?.remove()
     }
   }, [])
 
