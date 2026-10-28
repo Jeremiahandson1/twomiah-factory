@@ -29,10 +29,13 @@ jobs:
       # breaking major bumps of build tools — noise that would keep this gate
       # permanently red. Auditing what actually ships keeps the gate meaningful so
       # a real production-dependency regression stands out.
-      - name: Audit factory + platform deps
+      # apps/unified joined the audit when puppeteer went 23 -> 25 (2026-10-28), which removed the last two findings it had (a
+      # transitive zod 3 that no 3.x release fixes, and extract-zip): it is clean, so there is no exception and nothing is
+      # ignored. A new finding in it fails this job like any other.
+      - name: Audit factory + platform + unified deps
         run: |
           set -e
-          for dir in apps/api apps/platform; do
+          for dir in apps/api apps/platform apps/unified; do
             echo "::group::bun audit $dir"
             (cd "$dir" && bun install --frozen-lockfile && bun audit --prod --audit-level=high) || exit 1
             echo "::endgroup::"
