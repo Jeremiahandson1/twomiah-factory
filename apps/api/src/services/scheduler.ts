@@ -15,6 +15,8 @@
  * unset, this module is a no-op so it's safe to leave imported.
  */
 
+import { raiseAlert, clearAlert } from './alerts'
+
 const TZ_OFFSET_HOURS_FOR_DAILY = 0 // UTC — match the schedules in the runbook
 
 interface JobConfig {
@@ -38,7 +40,7 @@ const JOBS: JobConfig[] = [
   { name: 'preview-sweep', path: '/api/v1/factory/internal/preview-sweep', schedule: { everyMinutes: 10, firstAfterMinutes: 3 } },
 ]
 
-async function fireJob(job: JobConfig, port: number, secret: string) {
+export async function fireJob(job: JobConfig, port: number, secret: string) {
   const url = `http://127.0.0.1:${port}${job.path}`
   const t0 = Date.now()
   try {
@@ -47,11 +49,14 @@ async function fireJob(job: JobConfig, port: number, secret: string) {
     const ms = Date.now() - t0
     if (res.ok) {
       console.log(`[scheduler] ${job.name} ok (${ms}ms): ${body.slice(0, 200)}`)
+      clearAlert('job:' + job.name)
     } else {
       console.warn(`[scheduler] ${job.name} status=${res.status} (${ms}ms): ${body.slice(0, 300)}`)
+      void raiseAlert({ key: 'job:' + job.name, what: `The "${job.name}" background job is failing`, detail: `HTTP ${res.status}: ${body.slice(0, 300)}` })
     }
   } catch (e: any) {
     console.warn(`[scheduler] ${job.name} threw: ${e?.message}`)
+    void raiseAlert({ key: 'job:' + job.name, what: `The "${job.name}" background job is failing`, detail: e?.message || String(e) })
   }
 }
 

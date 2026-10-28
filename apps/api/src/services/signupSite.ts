@@ -23,6 +23,7 @@
  *
  * Everything outside goes through `deps`, so the whole sequence runs against fakes (tests/unified/factory/signup-site.test.ts).
  */
+import { raiseAlert, clearAlert, raiseIfAiAccountProblem } from './alerts'
 import crypto from 'node:crypto'
 import type { ComposerInput, SiteResult } from './sectionComposer'
 import { composeInstant, heldToOwnerFacts, toComposition } from './instantComposer'
@@ -217,10 +218,17 @@ async function attempt(tenantId: string, deps: SignupSiteDeps): Promise<void> {
       ...site, composer: 'ai', composedAt: new Date(now()).toISOString(),
       aiCompose: { ...started, status: 'done', attemptId: null, doneAt: new Date(now()).toISOString() } satisfies AiComposeState,
     }))
+    clearAlert('ai:credit'); clearAlert('ai:auth'); clearAlert('ai-site:' + tenantId)
     console.log('[SignupSite]', tenantId, kept ? 'AI composition stored (attempt ' + started.attempts + ')' : 'AI composition dropped: the build already went ahead, or a newer attempt replaced this one')
   } catch (e: any) {
     const msg = String(e?.message || e).slice(0, 500)
     console.warn('[SignupSite]', tenantId, 'AI compose attempt', started.attempts, 'failed:', msg)
+    // Out of Anthropic credit (or the key refused) is the whole builder down, not this business: say so at once.
+    // Anything else is told once the attempts run out and the template site stands.
+    const business = (state.input as any)?.businessName || null
+    if (!raiseIfAiAccountProblem(e, business, tenantId) && started.attempts >= MAX_ATTEMPTS) {
+      void raiseAlert({ key: 'ai-site:' + tenantId, what: 'The AI site builder failed — the template site is used instead', business, detail: msg, tenantId })
+    }
     // Attempts left: back to pending, so the next settle or sweep tries again. None: the template site stands.
     await writeIfCurrent(db, tenantId, attemptId, (c) => ({
       ...c, aiCompose: { ...started, status: started.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending', attemptId: null, lastError: msg } satisfies AiComposeState,
@@ -261,6 +269,7 @@ export async function settleSignupSite(tenantId: string, deps: SignupSiteDeps, w
     const d = composeDecision(state, { now: now(), bootedAt: deps.bootedAt ?? BOOTED_AT, runningHere: RUNNING.has(tenantId) })
     if (d === 'give_up') {
       await deps.db.from('tenants').update({ preview_premium_pages: { ...current, aiCompose: { ...state, status: 'failed', attemptId: null, lastError: state.lastError || 'the last attempt stopped with its process' } } }).eq('id', tenantId)
+      void raiseAlert({ key: 'ai-site:' + tenantId, what: 'The AI site builder failed — the template site is used instead', business: (state.input as any)?.businessName, detail: state.lastError || 'the last attempt stopped with its process', tenantId })
       return 'template'
     }
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -285,6 +294,7 @@ export async function settleSignupSite(tenantId: string, deps: SignupSiteDeps, w
     const { error } = await deps.db.from('tenants').update({ preview_premium_pages: { ...current, aiCompose: { ...state, status: 'timed_out', attemptId: null } } }).eq('id', tenantId)
     if (error) console.warn('[SignupSite]', tenantId, 'could not record the time-out:', error.message)
     console.warn('[SignupSite]', tenantId, 'the AI site was not ready in', Math.round(waitMs / 1000) + 's — building with the template site')
+    void raiseAlert({ key: 'ai-site:' + tenantId, what: 'The AI site was not ready in time — the template site is used instead', business: (state.input as any)?.businessName, detail: `not ready after ${Math.round(waitMs / 1000)}s`, tenantId })
   }
   return 'template'
 }
