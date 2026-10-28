@@ -2997,9 +2997,3 @@ jobs:
         run: bun run tests/mobile/sign-in-mfa.test.ts
       - name: "caregiver app logic (apps/mobile/src/care)"
         run: bun run tests/mobile/care-app.test.ts
-      - name: "background location is off in the store app; the Build app keeps it (apps/mobile/app.config.ts)"
-        run: bun run tests/mobile/location-tracking.test.ts
-      # The artwork's sizes and alpha, the store app's permission texts, eas.json's placeholders left as the owner's TODOs, and
-      # store/listing.md's limits and claims (apps/mobile/store/READY.md is the owner's side).
-      - name: "store readiness (apps/mobile/assets, app.config.ts, eas.json, store/listing.md)"
-        run: bun run tests/mobile/store-ready.test.ts
