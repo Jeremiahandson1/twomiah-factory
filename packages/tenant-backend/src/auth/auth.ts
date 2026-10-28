@@ -109,11 +109,22 @@ export const passwordSchema = z.string()
 const MAX_SESSIONS_PER_USER = 50
 const ACCESS_TTL = '15m', REFRESH_TTL = '7d'
 
-export const generateTokens = (userId: string, companyId: string, email: string, role: string) => {
+export const generateTokens = (userId: string, companyId: string, email: string, role: string, web?: { via: string }) => {
   const accessToken = jwt.sign({ userId, companyId, email, role }, process.env.JWT_SECRET!, { expiresIn: ACCESS_TTL })
-  const refreshToken = jwt.sign({ userId, companyId, type: 'refresh', jti: crypto.randomUUID() }, process.env.JWT_REFRESH_SECRET!, { expiresIn: REFRESH_TTL })
+  // A desktop page opened from the phone app is a SHORT web session (WEB_REFRESH_TTL) that carries `via`: a fingerprint of the
+  // app sign-in that opened it. The claim lives inside the stored token itself, so the link is in the database with the token.
+  const refreshToken = jwt.sign({ userId, companyId, type: 'refresh', jti: crypto.randomUUID(), ...(web ? { via: web.via } : {}) }, process.env.JWT_REFRESH_SECRET!, { expiresIn: web ? WEB_REFRESH_TTL : REFRESH_TTL })
   return { accessToken, refreshToken }
 }
+/** A fingerprint of an app sign-in's refresh token (never the token itself): what a web session records as the sign-in that made it. */
+export const deviceKey = (deviceToken: string) => crypto.createHash('sha256').update(deviceToken).digest('hex').slice(0, 32)
+/**
+ * How long a desktop page opened from the app stays signed in: 2 hours (WEB_REFRESH_TTL, and the cookie's age in cookieSession.ts).
+ * The app is a work tool used in bursts, every open gets a fresh handoff, and the in-app browser keeps nothing between opens — so
+ * the session needs to outlast one sitting on a page, not a week. Two hours covers a long form; if the phone is left on a crew
+ * truck the web session is gone by itself, and signing out of the app ends it at once.
+ */
+export const WEB_REFRESH_TTL = '2h'
 const parseTokenList = (raw: string | null | undefined): string[] => {
   if (!raw) return []
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
@@ -133,7 +144,7 @@ const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_
  * refresh token) ends it too.
  */
 export const HANDOFF_MS = 60_000
-interface Handoff { userId: string; companyId: string; next: string; deviceToken: string | null; expires: number }
+interface Handoff { userId: string; companyId: string; next: string; deviceToken: string; expires: number }
 
 /** Where a handoff may land: a page of this site (one slash, no host, no control characters), never an API path or another origin. */
 export function handoffLanding(raw: unknown): string | null {
@@ -266,6 +277,14 @@ export function createAuthRoutes(deps: AuthDeps) {
     const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
     const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
     await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() }).where(eq(user.id, userId))
+  }
+
+  async function revokeWebSessionsOf(userId: string, via: string) {
+    const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
+    const all = parseTokenList(row?.refreshToken)
+    const keep = all.filter((t) => { try { return (jwt.decode(t) as any)?.via !== via } catch { return true } }).filter(stillValid)
+    if (keep.length === all.length) return
+    await db.update(user).set({ refreshToken: keep.length ? JSON.stringify(keep) : null, updatedAt: new Date() }).where(eq(user.id, userId))
   }
 
   // SECURITY: self-serve signup / registration is DISABLED. A tenant is ONE company, provisioned by the
@@ -438,8 +457,6 @@ export function createAuthRoutes(deps: AuthDeps) {
 
   // ── phone app → desktop page (see the note on HANDOFF_MS) ────────────────────────────────────────────
   const handoffs = new Map<string, Handoff>()
-  /** The web sessions opened from each app sign-in (keyed by the app's refresh token), so signing out of the app ends them. */
-  const webSessions = new Map<string, string[]>()
   const sweepHandoffs = () => { const t = Date.now(); for (const [k, v] of handoffs) if (v.expires <= t) handoffs.delete(k) }
   const isHttps = (c: any) => (c.req.header('x-forwarded-proto') || new URL(c.req.url).protocol.replace(':', '')).split(',')[0].trim() === 'https'
 
@@ -450,7 +467,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     const body = await c.req.json().catch(() => ({} as any))
     const next = handoffLanding(body?.path)
     if (!next) return c.json({ error: 'That page cannot be opened this way' }, 400)
-    const deviceToken = typeof body?.refreshToken === 'string' ? body.refreshToken : null
+    // Which app sign-in is asking: a web session with no app sign-in behind it could never be ended by signing out, so it is refused.
+    const deviceToken = typeof body?.refreshToken === 'string' && body.refreshToken ? body.refreshToken : null
+    if (!deviceToken) return c.json({ error: 'The app sign-in is required' }, 400)
     sweepHandoffs()
     const code = crypto.randomBytes(32).toString('base64url')
     handoffs.set(code, { userId: currentUser.userId, companyId: currentUser.companyId, next, deviceToken, expires: Date.now() + HANDOFF_MS })
@@ -476,12 +495,20 @@ export function createAuthRoutes(deps: AuthDeps) {
       try { who = jwt.verify(existing, process.env.JWT_SECRET!) } catch { /* an expired cookie is just replaced */ }
       if (who && who.userId !== held.userId) return c.json({ error: 'Another person is signed in here. Sign out first.' }, 403)
     }
-    const tokens = generateTokens(found.id, found.companyId, found.email, found.role)
+    const tokens = generateTokens(found.id, found.companyId, found.email, found.role, { via: deviceKey(held.deviceToken) })
     await storeRefreshToken(found.id, tokens.refreshToken)
-    if (held.deviceToken) webSessions.set(held.deviceToken, [...(webSessions.get(held.deviceToken) || []), tokens.refreshToken])
-    setSessionCookies(c, tokens)
+    setSessionCookies(c, tokens, { webSession: true })
     logAuth(c, deps.audit?.ACTIONS?.LOGIN ?? 'login', { id: found.id, email: found.email, companyId: found.companyId }, 'Opened a desktop page from the phone app', { next: held.next })
     return c.redirect(held.next, 302)
+  })
+
+  /** The app closed the desktop page: its web sessions end now (Android's in-app browser keeps cookies after it closes; the server does not rely on that). */
+  app.post('/web-handoff/end', authenticate, async (c) => {
+    const currentUser = (c as any).get('user')
+    const body = await c.req.json().catch(() => ({} as any))
+    if (typeof body?.refreshToken !== 'string' || !body.refreshToken) return c.json({ error: 'The app sign-in is required' }, 400)
+    await revokeWebSessionsOf(currentUser.userId, deviceKey(body.refreshToken))
+    return c.json({ message: 'Page session ended' })
   })
 
   app.post('/logout', authenticate, async (c) => {
@@ -490,8 +517,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     // This device's refresh token: from the body, or a cookie-session browser's cookie. None = every device.
     const deviceToken = typeof body?.refreshToken === 'string' ? body.refreshToken : (wantsCookieSession(c) ? refreshCookie(c) ?? null : null)
     await revokeRefreshToken(currentUser.userId, deviceToken)
-    // The web sessions this device opened for desktop pages end with it.
-    if (deviceToken) { for (const t of webSessions.get(deviceToken) || []) await revokeRefreshToken(currentUser.userId, t); webSessions.delete(deviceToken) }
+    // The web sessions this device opened for desktop pages end with it. They are found in the database (each stored token names the
+    // sign-in that made it), so this holds after a restart, a deploy, or on another server instance.
+    if (deviceToken) await revokeWebSessionsOf(currentUser.userId, deviceKey(deviceToken))
     if (wantsCookieSession(c)) clearSessionCookies(c)
     logAuth(c, deps.audit?.ACTIONS?.LOGOUT ?? 'logout',
       { id: currentUser.userId, email: currentUser.email, companyId: currentUser.companyId },

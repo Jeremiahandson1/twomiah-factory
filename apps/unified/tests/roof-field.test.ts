@@ -403,7 +403,7 @@ describe('roofing\'s dashboard', () => {
       { ...base, number: 'ROOF-0003', status: 'proposal_sent', inspectionDate: lastWeek },
       { ...base, number: 'ROOF-0004', status: 'collected', installDate: lastWeek },
       { ...base, number: 'ROOF-0005', status: 'lost', lostReason: 'price' },
-      { ...base, number: 'ROOF-0006', status: 'cancelled', lostReason: 'sold the house' },
+      { ...base, number: 'ROOF-0006', status: 'cancelled', lostReason: 'sold the house', installDate: now, inspectionDate: now },
     ] as any)
     await t.db.insert(t.schema.quote).values(['draft', 'sent', 'approved'].map((status, i) => ({ companyId: co.id, contactId: ct.id, number: `Q-${i}`, name: 'Roof', status, total: '1000' })) as any)
     await t.db.insert(t.schema.invoice).values([

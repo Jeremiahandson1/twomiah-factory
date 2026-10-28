@@ -77,7 +77,8 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal', seat: 'office' },
   ],
   roofing: [
-    { name: 'pipeline', title: 'Pipeline', icon: 'funnel-outline', activeIcon: 'funnel', permission: 'jobs:read' },
+    // Home carries the tiles AND the pipeline's stages (each opens that stage's jobs); the full board is a row in More.
+    { name: 'dashboard', title: 'Home', icon: 'home-outline', activeIcon: 'home', permission: 'dashboard:read' },
     { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
     { name: 'canvass', title: 'Canvass', icon: 'walk-outline', activeIcon: 'walk', permission: 'canvassing:create' },
@@ -107,7 +108,7 @@ export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   basic: 'dashboard',
   fieldservice: 'dashboard',
   homecare: 'shifts',
-  roofing: 'pipeline',
+  roofing: 'dashboard',
   landscaping: 'dashboard',
   rv: 'dashboard',
   unavailable: '',

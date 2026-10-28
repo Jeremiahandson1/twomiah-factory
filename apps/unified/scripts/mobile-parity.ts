@@ -98,9 +98,9 @@ if (process.argv[2] === '--menu') {
  */
 export interface PhoneHas { paths: string[]; trades?: string[]; how: 'tab' | 'screen' | 'partial'; what: string; files: string[] }
 export const PHONE_HAS: PhoneHas[] = [
-  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'rv'], how: 'tab', what: 'Home tab: tiles for the seat, each opens the list it counts', files: ['app/(tabs)/dashboard.tsx'] },
+  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], how: 'tab', what: 'Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline\'s stages, each opens its jobs)', files: ['app/(tabs)/dashboard.tsx'] },
   { paths: ['/crm/dashboard'], trades: ['homecare'], how: 'tab', what: 'Today tab (the caregiver\'s day); the office seats get a Home tab with the overview tiles', files: ['app/(tabs)/shifts.tsx', 'app/(tabs)/dashboard.tsx'] },
-  { paths: ['/crm/pipeline'], trades: ['roofing'], how: 'tab', what: 'Pipeline tab (stage list) and the tiles; each opens what it counts', files: ['app/(tabs)/pipeline.tsx'] },
+  { paths: ['/crm/pipeline'], trades: ['roofing'], how: 'screen', what: 'Pipeline board (a column per stage), a row in More; the stages are also on the Home tab', files: ['app/(tabs)/pipeline.tsx'] },
   { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], how: 'tab', what: 'Jobs tab + job detail + new/edit job form', files: ['app/(tabs)/jobs.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/jobs'], trades: ['fieldservice'], how: 'tab', what: 'Service Calls tab + job detail + form', files: ['app/(tabs)/service-calls.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], how: 'tab', what: 'Contacts tab + contact detail + form', files: ['app/(tabs)/contacts.tsx', 'app/(details)/contact/[id].tsx', 'app/(details)/contact/form.tsx'] },

@@ -36,7 +36,8 @@ export function fabBottom(bottomInset: number | null | undefined, aboveTabBar = 
 }
 
 /** Space between dashboard stat cards, and the screen's side padding (dashboard.tsx styles.scroll). */
-export const STAT_GRID_GAP = 10
+/** The gap the home screen draws between tiles (design layout.tileGap = 12): the width maths must use the same number or two tiles do not fit a row. */
+export const STAT_GRID_GAP = 12
 export const STAT_GRID_SIDE_PADDING = 16
 export const STAT_GRID_COLUMNS = 2
 

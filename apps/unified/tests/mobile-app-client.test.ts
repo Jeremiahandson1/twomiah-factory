@@ -151,7 +151,7 @@ const TRADES: Trade[] = [
     job: (c, f) => ({ title: 'No heat', contactId: c, scheduledDate: today, scheduledTime: '09:00', assignedToId: f }) },
   { id: 'landscaping', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture'], ownerTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'more'], fieldTabs: ['dashboard', 'jobs', 'schedule', 'contacts', 'more'], photos: 'job', today: ['/api/dashboard/stats', '/api/jobs/today'], quotes: true,
     job: (c, f) => ({ title: 'Spring cleanup', contactId: c, scheduledDate: today, scheduledTime: '08:00', assignedToId: f }) },
-  { id: 'roofing', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture', 'canvassing_tool'], ownerTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'more'], fieldTabs: ['pipeline', 'jobs', 'contacts', 'canvass', 'more'], photos: 'job', today: ['/api/jobs?limit=500'], quotes: true,
+  { id: 'roofing', features: ['contacts', 'jobs', 'quotes', 'invoices', 'dashboard', 'photo_capture', 'canvassing_tool'], ownerTabs: ['dashboard', 'jobs', 'contacts', 'canvass', 'more'], fieldTabs: ['dashboard', 'jobs', 'contacts', 'canvass', 'more'], photos: 'job', today: ['/api/jobs?limit=500'], quotes: true,
     job: (c, f) => ({ contactId: c, jobType: 'retail', propertyAddress: '9 Elm Ave', city: 'Akron', state: 'OH', zip: '44301', assignedSalesRepId: f }) },
   { id: 'rv', features: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'trade_in'], ownerTabs: ['dashboard', 'units', 'ai-trade', 'contacts', 'more'], fieldTabs: ['dashboard', 'units', 'contacts', 'more'], photos: 'none', today: ['/api/dashboard/stats', '/api/units?limit=100'], quotes: false },
 ]

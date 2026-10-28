@@ -4,7 +4,9 @@
  * The app never puts its sign-in into an address or a page: it asks the business's own server for a one-time CODE (POST
  * /api/auth/web-handoff — 60 seconds, once, bound to this person and business) and opens /api/auth/web-handoff/<code> here; the server
  * turns it into the ordinary cookie web session and sends the browser to the page. This browser opens ONLY the business's own address
- * (src/more/webTarget.ts); a link to anywhere else opens the phone's browser. Signing out of the app ends the web session.
+ * (src/more/webTarget.ts); a link to anywhere else opens the phone's browser. The browser is PRIVATE (`incognito`: iOS uses a non-persistent
+ * data store; Android clears cookies and cache when it opens), so it keeps nothing on the device; closing the page ends its web session on
+ * the server (POST /api/auth/web-handoff/end), and signing out of the app ends every one (POST /api/auth/logout).
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { Linking, UIManager, View } from 'react-native'
@@ -41,6 +43,8 @@ export default function WebPage() {
     setUrl(full); setLoading(false)
   }
   useEffect(() => { if (!asked.current) { asked.current = true; start() } }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Closing the page ends its web session on the server: nothing signed-in is left behind in the phone's browser or on the business's server.
+  useEffect(() => () => { post('/api/auth/web-handoff/end', { refreshToken: getRefreshToken() }).catch(() => {}) }, [])
 
   return (
     <Screen title={String(title || 'Full page')} onBack={() => router.back()} scroll={false}>
@@ -55,6 +59,10 @@ export default function WebPage() {
           <WebViewComponent
             source={{ uri: url }}
             originWhitelist={[own.replace(/\/+$/, '')]}
+            incognito
+            sharedCookiesEnabled={false}
+            thirdPartyCookiesEnabled={false}
+            cacheEnabled={false}
             javaScriptEnabled domStorageEnabled
             setSupportMultipleWindows={false}
             allowsBackForwardNavigationGestures

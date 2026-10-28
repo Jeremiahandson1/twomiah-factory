@@ -11,6 +11,7 @@
 //   · a small flex-wrap model (what Yoga does with those widths) puts 5 cards in 3 rows of 2, not 3 + 2 narrow ones.
 import fs from 'node:fs'
 import path from 'node:path'
+import { layout } from '../../apps/mobile/src/design/tokens.ts'
 import { statCardWidth, STAT_GRID_GAP, STAT_GRID_SIDE_PADDING, STAT_GRID_COLUMNS } from '../../apps/mobile/src/theme/insets.ts'
 
 let passed = 0, failed = 0
@@ -27,7 +28,7 @@ const rowsFor = (n: number, itemWidth: number, container: number, gap = STAT_GRI
 }
 
 // ── the number ──────────────────────────────────────────────────────────────
-check('390 wide (the owner\'s phone): each card is 174 points', statCardWidth(390) === 174, statCardWidth(390))
+check('390 wide (the owner\'s phone): each card is 173 points', statCardWidth(390) === 173, statCardWidth(390))
 for (const w of [320, 360, 375, 390, 393, 411, 430]) {
   const card = statCardWidth(w), inner = w - STAT_GRID_SIDE_PADDING * 2
   const { perRow, rows } = rowsFor(5, card, inner)
@@ -35,6 +36,7 @@ for (const w of [320, 360, 375, 390, 393, 411, 430]) {
   check(`${w} wide: a card is wide enough to read a label (≥ 130)`, card >= 130, card)
   check(`${w} wide: the row never overflows the screen`, card * STAT_GRID_COLUMNS + STAT_GRID_GAP <= inner, { card, inner })
 }
+check('the width maths uses the very gap the home draws between tiles (design layout.tileGap)', STAT_GRID_GAP === layout.tileGap, { STAT_GRID_GAP, tileGap: layout.tileGap })
 check('a zero or missing width never gives a negative card', statCardWidth(0) >= 0 && statCardWidth(NaN as any) >= 0)
 
 // ── where the number goes ───────────────────────────────────────────────────

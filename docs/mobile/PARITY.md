@@ -34,7 +34,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
@@ -118,7 +118,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
@@ -183,7 +183,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Service Calls | `/crm/jobs` | jobs:read | jobs (on by default) | all | Service Calls tab + job detail + form | A — the day's work |
 | Business | Tech View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
@@ -252,7 +252,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Crew View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
@@ -324,7 +324,7 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Pipeline | `/crm/pipeline` | jobs:read | jobs (on by default) | all | Pipeline tab (stage list) and the tiles; each opens what it counts | A — the home screen |
+| Business | Pipeline | `/crm/pipeline` | jobs:read | jobs (on by default) | all | Pipeline board (a column per stage), a row in More; the stages are also on the Home tab | A — the home screen |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
@@ -472,7 +472,7 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts | A — the home screen |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | none | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | none | A — quote on site, take payment on site |

@@ -26,15 +26,17 @@ export const VIEW_AS_COOKIE = 'tw_view_as'
 const REFRESH_PATH = '/api/auth'
 const ACCESS_MAX_AGE = 15 * 60
 const REFRESH_MAX_AGE = 7 * 24 * 60 * 60
+/** A desktop page opened from the phone app: 2 hours, matching WEB_REFRESH_TTL in auth.ts. */
+const WEB_REFRESH_MAX_AGE = 2 * 60 * 60
 
 /** Did this client ask for its session in cookies? */
 export const wantsCookieSession = (c: Context): boolean => (c.req.header(AUTH_MODE_HEADER) || '').toLowerCase() === 'cookie'
 
 const secure = () => process.env.NODE_ENV === 'production'
 
-export function setSessionCookies(c: Context, tokens: { accessToken: string; refreshToken?: string }): void {
+export function setSessionCookies(c: Context, tokens: { accessToken: string; refreshToken?: string }, opts: { webSession?: boolean } = {}): void {
   setCookie(c, ACCESS_COOKIE, tokens.accessToken, { httpOnly: true, secure: secure(), sameSite: 'Strict', path: '/', maxAge: ACCESS_MAX_AGE })
-  if (tokens.refreshToken) setCookie(c, REFRESH_COOKIE, tokens.refreshToken, { httpOnly: true, secure: secure(), sameSite: 'Strict', path: REFRESH_PATH, maxAge: REFRESH_MAX_AGE })
+  if (tokens.refreshToken) setCookie(c, REFRESH_COOKIE, tokens.refreshToken, { httpOnly: true, secure: secure(), sameSite: 'Strict', path: REFRESH_PATH, maxAge: opts.webSession ? WEB_REFRESH_MAX_AGE : REFRESH_MAX_AGE })
 }
 
 export function clearSessionCookies(c: Context): void {

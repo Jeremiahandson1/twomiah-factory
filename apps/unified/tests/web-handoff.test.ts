@@ -4,7 +4,11 @@
 //   · signing out of the app ends that web session.
 import { describe, test, expect, beforeAll, setSystemTime } from 'bun:test'
 import { eq } from 'drizzle-orm'
+import { readFileSync } from 'node:fs'
 import { bootTenant, seedOwner } from './harness.ts'
+import { createApp } from '../server/app.ts'
+import { loadVertical } from '../server/core/vertical.ts'
+import { memoryStore } from './harness.ts'
 
 let a: Awaited<ReturnType<typeof bootTenant>>
 let b: Awaited<ReturnType<typeof bootTenant>>
@@ -127,5 +131,67 @@ describe('the sign-in handoff', () => {
     await authed(a, s.access)('/api/auth/logout', { method: 'POST', json: { refreshToken: s.refresh } })
     const after = await a.call('/api/auth/refresh', { method: 'POST', json: {}, headers: { 'X-Auth-Mode': 'cookie', Cookie: `tw_refresh=${refreshCookieValue}` } })
     expect(after.status).toBe(401)
+  })
+
+  const cookieRefresh = (t: typeof a, v: string) => t.call('/api/auth/refresh', { method: 'POST', json: {}, headers: { 'X-Auth-Mode': 'cookie', Cookie: `tw_refresh=${v}` } })
+  const openWeb = async (s: { access: string; refresh: string }) => {
+    const url = (await (await authed(a, s.access)('/api/auth/web-handoff', { method: 'POST', json: { path: '/crm/billing', refreshToken: s.refresh } })).json() as any).url
+    const opened = await a.call(url, { redirect: 'manual' } as any)
+    return { opened, value: cookies(opened).tw_refresh.split(';')[0].split('=')[1] }
+  }
+
+  test('a restart between the handoff and the sign-out still ends the web session (the link is in the database, not in memory)', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const { value } = await openWeb(s)
+    expect((await cookieRefresh(a, value)).status).toBe(200)
+    // The service restarts: a brand-new app over the same database, with none of the old one's memory.
+    const { app } = createApp({ db: a.db, vertical: await loadVertical('contractor'), store: memoryStore() })
+    const fresh = { call: (p: string, init: any = {}) => { const h = new Headers(init.headers); let body = init.body; if (init.json !== undefined) { h.set('content-type', 'application/json'); body = JSON.stringify(init.json) } return app.request(p, { ...init, headers: h, body }) } } as any
+    expect((await authed(fresh, s.access)('/api/auth/logout', { method: 'POST', json: { refreshToken: s.refresh } })).status).toBe(200)
+    expect((await cookieRefresh(fresh, value)).status).toBe(401)
+    expect((await cookieRefresh(a, value)).status).toBe(401)
+  })
+
+  test('signing out of one app sign-in leaves another device\'s web session alone', async () => {
+    const one = await login(a, 'Correct-horse-1'), two = await login(a, 'Correct-horse-1')
+    const w1 = await openWeb(one), w2 = await openWeb(two)
+    await authed(a, one.access)('/api/auth/logout', { method: 'POST', json: { refreshToken: one.refresh } })
+    expect((await cookieRefresh(a, w1.value)).status).toBe(401)
+    expect((await cookieRefresh(a, w2.value)).status).toBe(200)
+  })
+
+  test('closing the page ends its web session without signing out of the app', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const { value } = await openWeb(s)
+    expect((await authed(a, s.access)('/api/auth/web-handoff/end', { method: 'POST', json: { refreshToken: s.refresh } })).status).toBe(200)
+    expect((await cookieRefresh(a, value)).status).toBe(401)
+    // the app's own sign-in is still good
+    expect((await a.call('/api/auth/refresh', { method: 'POST', json: { refreshToken: s.refresh } })).status).toBe(200)
+  })
+
+  test('the web session is short (2 hours, cookie and token), not the app\'s 7 days', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const { opened, value } = await openWeb(s)
+    expect(cookies(opened).tw_refresh).toMatch(/Max-Age=7200(;|$)/i)
+    const claims = (await import('jsonwebtoken')).default.decode(value) as any
+    expect(claims.exp - claims.iat).toBe(7200)
+    const app7 = (await import('jsonwebtoken')).default.decode(s.refresh) as any
+    expect(app7.exp - app7.iat).toBe(7 * 24 * 3600)
+  })
+
+  test('a handoff with no app sign-in behind it is refused (it could never be ended by signing out)', async () => {
+    const r = await call('/api/auth/web-handoff', { method: 'POST', json: { path: '/crm/billing' } })
+    expect(r.status).toBe(400)
+  })
+
+  test('the phone\'s in-app browser is private and the page ends its session on close (source check)', () => {
+    const src = readFileSync(new URL('../../mobile/app/(details)/web.tsx', import.meta.url), 'utf8')
+    expect(src).toMatch(/<WebViewComponent[\s\S]*?\n\s+incognito\n/)
+    expect(src).toMatch(/sharedCookiesEnabled=\{false\}/)
+    expect(src).toMatch(/thirdPartyCookiesEnabled=\{false\}/)
+    expect(src).toMatch(/cacheEnabled=\{false\}/)
+    expect(src).toMatch(/useEffect\(\(\) => \(\) => \{[^}]*\/api\/auth\/web-handoff\/end/)
+    const auth = readFileSync(new URL('../../mobile/src/auth/AuthContext.tsx', import.meta.url), 'utf8')
+    expect(auth).toContain("'/api/auth/logout'")
   })
 })

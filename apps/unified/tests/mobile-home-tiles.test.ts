@@ -215,8 +215,9 @@ if (want('roofing')) describe('roofing: every tile and every pipeline stage open
     await job(4, 'in_production', { installDate: now, assignedSalesRepId: field })
     await job(5, 'proposal_sent')
     const collected = await job(6, 'collected')
-    const lost = await job(7, 'lost')
-    const cancelled = await job(8, 'cancelled')
+    // A cancelled install and a lost inspection that still carry TODAY's date: closed work is not on today's board (tiles.ts).
+    const lost = await job(7, 'lost', { inspectionDate: now })
+    const cancelled = await job(8, 'cancelled', { installDate: now })
     const quote = (n: number, status: string) => ins(S.quote, { companyId, number: `RQ-${n}`, name: `Proposal ${n}`, status, subtotal: '100', total: '100', contactId: ann.id })
     await quote(1, 'draft'); await quote(2, 'sent')
     const approved = await quote(3, 'approved')

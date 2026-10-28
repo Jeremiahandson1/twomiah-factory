@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { tilesFor, tileRoute, bannerText, reqUrl } from '../../apps/mobile/src/home/tiles.ts'
 import { rowView } from '../../apps/mobile/src/home/rows.ts'
+import { invoiceStatusLabel, paymentMethodLabel } from '../../apps/mobile/src/home/labels.ts'
 import { telUrl, smsUrl, mailUrl } from '../../apps/mobile/src/home/links.ts'
 
 let passed = 0, failed = 0
@@ -46,6 +47,11 @@ const srcFiles = [...walk(path.resolve(import.meta.dir, '../../apps/mobile/app')
 const card = srcFiles.filter((f) => /take payment|tap to pay|card reader|enter card|card number|stripe terminal/i.test(fs.readFileSync(f, 'utf8')))
 check('nothing in the app takes a card payment ("Take payment" / card entry / tap to pay appear nowhere)', card.length === 0, card)
 const inv = fs.readFileSync(path.resolve(import.meta.dir, '../../apps/mobile/app/(details)/invoice/[id].tsx'), 'utf8')
+check('invoice statuses and payment methods print in words, never as stored', ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'void', 'refunded'].every((k) => /^[A-Z][a-z ]+$/.test(invoiceStatusLabel(k)))
+  && invoiceStatusLabel('partial') === 'Partly paid' && paymentMethodLabel('bank_transfer') === 'Bank transfer' && paymentMethodLabel('check') === 'Check' && paymentMethodLabel(undefined) === 'Payment' && invoiceStatusLabel('some_new_status') === 'Some new status')
+const invList = fs.readFileSync(path.join(app, '(details)/invoices.tsx'), 'utf8')
+check('both invoice screens print the status and the method through the labels', /invoiceStatusLabel\(r\.status\)/.test(invList) && /invoiceStatusLabel\(invoice\.status\)/.test(inv) && /paymentMethodLabel\(p\.method\)/.test(inv))
+check('the invoice screens never print a stored status or method raw', !/String\((r|invoice)\.status[^)]*\)\.replace/.test(invList + inv) && !/p\.method \|\|/.test(inv))
 check('the invoice screen offers exactly "Record payment" and "Send invoice"', /Record payment/.test(inv) && /Send invoice/.test(inv) && !/Save Payment/.test(inv))
 
 console.log(`\n${passed} passed, ${failed} failed`)

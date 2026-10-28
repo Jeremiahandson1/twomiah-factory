@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Screen, Group, ListRow, EmptyState, SkeletonRows, Button, ChipRow, Chip, space } from '../../src/design'
+import { invoiceStatusLabel } from '../../src/home/labels'
 import { useList } from '../../src/home/useList'
 import { useTile } from '../../src/home/useTile'
 import { FilterBanner } from '../../src/home/FilterBanner'
@@ -28,7 +29,7 @@ export default function InvoicesScreen() {
           : rows.length === 0 ? <EmptyState icon="receipt" title="No invoices here" body={tile ? 'Nothing is owed right now.' : 'No invoices match this filter.'} />
           : <Group>{rows.map((r, i) => (
             <ListRow key={r.id} title={r.number || 'Invoice'} subtitle={r.contact?.name} meta={Number(r.balance) > 0 ? `${money(r.balance)} owed` : money(r.total)}
-              badge={String(r.status || '').replace(/_/g, ' ')} divider={i < rows.length - 1} onPress={() => router.push(`/(details)/invoice/${r.id}` as any)} />
+              badge={invoiceStatusLabel(r.status)} divider={i < rows.length - 1} onPress={() => router.push(`/(details)/invoice/${r.id}` as any)} />
           ))}</Group>}
         {!loading && total != null && rows.length < total ? <Button label="Show more" variant="secondary" onPress={loadMore} /> : null}
       </View>

@@ -24,6 +24,11 @@ export default function DetailsLayout() {
         headerTintColor: t.text,
         headerShadowVisible: false,
       }}
-    />
+    >
+      {/* Screens built with the design system's <Screen> draw their own header and back button; the stack's would show the file name. */}
+      {['leads/index', 'leads/[id]', 'invoices', 'invoice/[id]', 'rows', 'web'].map((name) => (
+        <Stack.Screen key={name} name={name} options={{ headerShown: false }} />
+      ))}
+    </Stack>
   )
 }

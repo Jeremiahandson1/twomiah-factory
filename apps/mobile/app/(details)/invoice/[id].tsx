@@ -11,6 +11,7 @@ import { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
+import { invoiceStatusLabel, paymentMethodLabel } from '../../../src/home/labels'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
@@ -104,7 +105,7 @@ export default function InvoiceDetailScreen() {
           <View style={{ gap: space[3] }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <DText variant="callout" tone="textSecondary">{invoice.createdAt ? `Created ${new Date(invoice.createdAt).toLocaleDateString()}` : 'Invoice'}</DText>
-              <Badge label={String(invoice.status).replace(/_/g, ' ')} tone={STATUS_TONE[invoice.status] || 'info'} />
+              <Badge label={invoiceStatusLabel(invoice.status)} tone={STATUS_TONE[invoice.status] || 'info'} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <View><DText variant="caption" tone="textSecondary">Total</DText><DText variant="headline">{money(total)}</DText></View>
@@ -129,7 +130,7 @@ export default function InvoiceDetailScreen() {
           <View>
             <SectionHeader title="Payments" />
             <Group>{payments.map((p, i) => (
-              <ListRow key={p.id || i} title={money(p.amount)} subtitle={String(p.method || 'payment').replace(/_/g, ' ')} meta={new Date(p.paidAt || p.createdAt).toLocaleDateString()} divider={i < payments.length - 1} />
+              <ListRow key={p.id || i} title={money(p.amount)} subtitle={paymentMethodLabel(p.method)} meta={new Date(p.paidAt || p.createdAt).toLocaleDateString()} divider={i < payments.length - 1} />
             ))}</Group>
           </View>
         ) : null}
@@ -142,7 +143,7 @@ export default function InvoiceDetailScreen() {
           <DText variant="callout" tone="textSecondary">Record a payment you already received.</DText>
           <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" prefix="$" />
           <DText variant="captionStrong" tone="textSecondary">How was it paid?</DText>
-          <ChipRow>{METHODS.map((m) => <Chip key={m.id} label={m.label} selected={method === m.id} onPress={() => setMethod(m.id)} />)}</ChipRow>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>{METHODS.map((m) => <Chip key={m.id} label={m.label} selected={method === m.id} onPress={() => setMethod(m.id)} />)}</View>
           <Button label="Record payment" size="lg" fullWidth loading={busy} onPress={recordPayment} />
         </View>
       </BottomSheet>
