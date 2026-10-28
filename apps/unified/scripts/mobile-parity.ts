@@ -38,7 +38,21 @@ export const TRADES = [
   { phone: 'homecare', dir: 'homecare', label: 'Home care' },
   { phone: 'rv', dir: 'rv', label: 'RV / powersports dealership' },
 ] as const
-export type Trade = (typeof TRADES)[number]
+/**
+ * The trades the phone does NOT serve yet — salon, restaurant, bar, store and vet still open the "use the website" screen
+ * (src/vertical/WrongAppGate.tsx). Their desktop menus are mapped here so the plan (phases, the home per seat) is made from the
+ * desktop's own pages before anything is built. Nothing generated for the phone's own menu (menu.generated.ts) covers them.
+ */
+export const DESIGN_TRADES = [
+  { phone: 'salon', dir: 'salon', label: 'Salon / barber / spa' },
+  { phone: 'restaurant', dir: 'restaurant', label: 'Restaurant / caterer / event venue' },
+  { phone: 'bar', dir: 'bar', label: 'Bar / tavern' },
+  { phone: 'store', dir: 'store', label: 'Online store' },
+  { phone: 'vet', dir: 'vet', label: 'Veterinary practice' },
+] as const
+export type Trade = (typeof TRADES)[number] | (typeof DESIGN_TRADES)[number]
+export const ALL_TRADES: readonly Trade[] = [...TRADES, ...DESIGN_TRADES]
+export const isServed = (phone: string) => (TRADES as readonly { phone: string }[]).some((t) => t.phone === phone)
 
 export const SEATS = [
   { id: 'owner', name: 'owner', short: 'O' },
@@ -532,7 +546,7 @@ function tilesFor(t: Trade, b: Built, permsBySeat: Record<string, string[]>): Ti
 
 export async function collect(): Promise<TradeMap[]> {
   const out: TradeMap[] = []
-  for (const t of TRADES) {
+  for (const t of ALL_TRADES) {
     const b = buildMenu(t)
     const offered = new Set(registry.getAdvertisableFeaturesForTemplate(b.featureSet).map((f: any) => f.id))
     const onByDefault = new Set(registry.getDefaultFeaturesForTemplate(b.featureSet))
@@ -546,7 +560,7 @@ export async function collect(): Promise<TradeMap[]> {
         const can = canWith(permsBySeat[s.id])
         return maySeeRoute({ routeRoles: b.routeRoles, routePermissions: b.routePermissions, nav: [{ to: i.to, minRole: i.minRole || undefined, permission: i.permission || undefined }] }, i.to, s.id, can)
       }).map((s) => s.name)
-      const has = PHONE_HAS.find((p) => p.paths.includes(i.to) && (!p.trades || p.trades.includes(t.phone)))
+      const has = isServed(t.phone) ? PHONE_HAS.find((p) => p.paths.includes(i.to) && (!p.trades || p.trades.includes(t.phone))) : undefined
       const ph = phaseOf(i.to)
       rows.push({
         trade: t.phone, section: i.section, label: i.label, path: i.to,
@@ -614,7 +628,7 @@ export function appMenu(maps: TradeMap[]): string {
     '',
     'export const MENU: Record<string, MenuRow[]> = {',
   ]
-  for (const m of maps) {
+  for (const m of maps.filter((x) => isServed(x.trade.phone))) {
     lines.push(`  ${m.trade.phone}: [`)
     for (const r of m.rows) {
       const routes = PHONE_ROUTES.filter((x) => x.paths.includes(r.path) && (!x.trades || x.trades.includes(m.trade.phone))).map((x) => {
