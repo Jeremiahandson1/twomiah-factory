@@ -63,6 +63,10 @@ jobs:
           bun run tests/mobile/edge-insets.test.ts
           bun run tests/mobile/dashboard-stat-cards.test.ts
           bun run tests/mobile/theme-contrast.test.ts
+          bun run tests/mobile/parity-map.test.ts
+          bun run tests/mobile/design-tokens.test.ts
+          bun run tests/mobile/design-preview.test.ts
+          bun run tests/mobile/design-preview-dev-only.test.ts
 
   # The app's own test files, split across parallel runners (runEach.ts SHARD=i/n): every file runs exactly once, each
   # in its own process, and any failing shard fails the push. One runner took ~40 min; six take a fraction (10/24).

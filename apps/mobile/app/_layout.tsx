@@ -37,6 +37,9 @@ function AuthGate() {
 
   React.useEffect(() => {
     if (isLoading) return
+    // Development only: the design mock-ups (app/design-preview.tsx) show sample data and need no sign-in. `__DEV__` is false in a
+    // store build, so this line is removed there.
+    if (__DEV__ && segments[0] === 'design-preview') return
     const inAuth = segments[0] === '(auth)'
     if (!isAuthenticated && !inAuth) {
       router.replace('/(auth)/login')
