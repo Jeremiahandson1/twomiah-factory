@@ -29,11 +29,14 @@ export const DOMAIN_RETURN_PATH = '/crm/domain'
 export interface DomainFactoryClient {
   getDomainStatus(): Promise<any>
   checkDomain(domain: string): Promise<any>
-  startDomainCheckout(domain: string, returnPath: string): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
+  startDomainCheckout(domain: string, returnPath: string, registrant?: Registrant): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
   attachDomain(domain: string): Promise<any>
 }
 
-export function createDomainRoutes(deps: { permissions: any; factoryApiClient: DomainFactoryClient }) {
+/** Who a domain is registered to: the business's own address and phone, as the owner keeps them in Settings › Company. */
+export type Registrant = { phone?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null }
+
+export function createDomainRoutes(deps: { permissions: any; factoryApiClient: DomainFactoryClient; businessAddress?: (companyId: string) => Promise<Registrant | null> }) {
   const factory = deps.factoryApiClient
   const app = new Hono<AppEnv>()
   app.use('*', deps.permissions.requirePermission('settings:update'))
@@ -74,7 +77,11 @@ export function createDomainRoutes(deps: { permissions: any; factoryApiClient: D
     const domain = await domainOf(c)
     if (!domain) return fail(c, 400, 'Enter a domain like yourbusiness.com')
     try {
-      const r = await factory.startDomainCheckout(domain, DOMAIN_RETURN_PATH)
+      // The registrar needs the business's postal address and phone. They live HERE (Settings › Company), not in the
+      // Factory's copy of the signup — so they travel with the purchase, and the Factory keeps what it is sent.
+      const u = c.get('user') as any
+      const registrant = deps.businessAddress && u?.companyId ? await deps.businessAddress(String(u.companyId)).catch(() => null) : null
+      const r = await factory.startDomainCheckout(domain, DOMAIN_RETURN_PATH, registrant || undefined)
       return one(c, { url: r?.url || null, priceCents: r?.priceCents ?? null, renewalCents: r?.renewalCents ?? null })
     } catch (err: any) { return relay(c, err, 'The checkout did not open') }
   })

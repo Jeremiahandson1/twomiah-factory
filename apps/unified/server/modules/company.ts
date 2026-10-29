@@ -214,7 +214,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       { path: '/api/email-aliases', access: 'user' as const, router: emailAliases },
       // The business's own web address: buy one through the Factory or connect one it owns (modules/domain.ts, from the
       // store; the premium sites' Domain page used the same paths). Every tenant has the website, so every vertical.
-      { path: '/api/admin/domain', access: 'user' as const, router: createDomainRoutes({ permissions, factoryApiClient }) },
+      { path: '/api/admin/domain', access: 'user' as const, router: createDomainRoutes({ permissions, factoryApiClient, businessAddress: async (id) => (await db.select({ phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, id)).limit(1))[0] ?? null }) },
       { path: '/api/audit', access: 'user' as const, router: auditLogRoutes },
       { path: '/api/leads', access: 'public' as const, router: leads },
       { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute({ db, emailAliasesTable: emailAlias } as any) },

@@ -21,11 +21,12 @@ check('nothing at all lists all five', R.registrantGaps(null).length === 5)
 check('the message names what is missing and says nothing was charged', /street address, city/.test(R.registrantMessage(['street address', 'city'])) && /nothing has been charged/.test(R.registrantMessage(['city'])))
 
 // ── what staff type
+check('a state by its name is the same rule every CRM uses: Wisconsin → WI', (() => { const r = R.cleanRegistrant({ state: 'Wisconsin' }); return r.ok && r.patch.state === 'WI' })())
 const ok = R.cleanRegistrant({ address: ' 1 Main St ', city: 'Eau Claire', state: 'wi', zip: '54701', phone: '715-555-0100' })
 check('cleaned: trimmed, state upper-cased', ok.ok && ok.patch.address === '1 Main St' && ok.patch.state === 'WI', ok)
 check('a partial form changes only what it sends — never blanks what is on file', (() => { const r = R.cleanRegistrant({ city: 'Madison' }); return r.ok && Object.keys(r.patch).join() === 'city' })())
 check('no registrant sent is fine (nothing to change)', (() => { const r = R.cleanRegistrant(undefined); return r.ok && Object.keys(r.patch).length === 0 })())
-for (const [bad, why] of [[{ state: 'Wisconsin' }, 'state'], [{ zip: '5470' }, 'ZIP'], [{ phone: '555-0100' }, 'phone'], [{ address: 'x'.repeat(121) }, 'too long']] as const) {
+for (const [bad, why] of [[{ state: 'Wisconsinn' }, 'state (not a US state)'], [{ zip: '5470' }, 'ZIP'], [{ phone: '555-0100' }, 'phone'], [{ address: 'x'.repeat(121) }, 'too long']] as const) {
   const r = R.cleanRegistrant(bad)
   check(`refused: ${why}`, !r.ok, r)
 }

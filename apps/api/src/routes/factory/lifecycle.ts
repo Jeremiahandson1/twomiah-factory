@@ -11,7 +11,7 @@ import { restartRefusal } from '../../services/subscriptionRestart'
 import { licenseOffer, startLicenseCheckout, completeLicensePurchase, LICENSE_TERMS_VERSION } from '../../services/ownItLicense'
 import { licenseStore, checkoutDeps, handoverDeps, LICENSE_TENANT_COLUMNS } from '../../services/ownItLicenseLive'
 import { ownerFirstName } from '../../services/tenantOwner'
-import { registrantGaps } from '../../services/domainRegistrant'
+import { registrantGaps, cleanRegistrant } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin, ourSiteOrigin, mayReturnTo } from '../../services/premiumSiteUrl'
 import { reconcileAliasesInBackground, ALIAS_TENANT_COLUMNS } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
@@ -473,9 +473,22 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant — finish initial billing first.' }, 409)
     if (tenant.domain) return c.json({ error: 'This tenant already has a domain attached.' }, 409)
     // The registrar needs the full business address and a phone — refuse BEFORE the checkout, never charge and refund.
-    // A customer cannot edit what the Factory holds, so they are sent to a person. (E2E Run 2, 10/15)
+    // (E2E Run 2, 10/15) The owner keeps that address in their own app (Settings › Company), and the app sends it with
+    // the purchase: what it sends, checked, is kept on the tenant — the signup's address fields were optional, and a
+    // customer could not change the Factory's copy (Perch and Prarie, 10/29: ZIP added in Settings, still refused).
+    const sent = cleanRegistrant((body as any).registrant)
+    if (!sent.ok) return c.json({ error: sent.error + ' Fix it in Settings › Company, then try again — nothing has been charged.', code: 'registrant_invalid' }, 422)
+    const given = Object.fromEntries(Object.entries(sent.patch).filter(([, v]) => !!v)) as Record<string, string>
+    if (Object.keys(given).length) {
+      const changed = Object.entries(given).some(([k, v]) => (tenant as any)[k] !== v)
+      if (changed) {
+        const { error: saveErr } = await supabase.from('tenants').update(given).eq('id', tenant.id)
+        if (saveErr) return c.json({ error: 'Could not save your business address — try again in a minute. Nothing has been charged.' }, 502)
+        Object.assign(tenant, given)
+      }
+    }
     const gaps = registrantGaps(tenant)
-    if (gaps.length) return c.json({ error: 'To register a domain we need your business ' + gaps.join(', ') + '. Email support@twomiah.com and we will add them and register it for you — nothing has been charged.', code: 'registrant_incomplete', missing: gaps }, 422)
+    if (gaps.length) return c.json({ error: 'To register a domain we need your business ' + gaps.join(', ') + '. Add ' + (gaps.length > 1 ? 'them' : 'it') + ' in Settings › Company, then try again — nothing has been charged.', code: 'registrant_incomplete', missing: gaps }, 422)
 
     if (!isRegistrarConfigured()) return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
 

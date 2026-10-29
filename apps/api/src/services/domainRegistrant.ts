@@ -6,6 +6,9 @@
 // a domain (staff checkout link, staff at-cost registration, the customer's own checkout) asks registrantGaps() first,
 // and the panel collects what is missing. The paid webhook keeps the same check as a backstop.
 
+// The same US address rule every CRM uses (packages/tenant-backend address.ts): "Wisconsin" and "wi" are WI.
+import { normaliseState, normaliseZip } from '../../../../packages/tenant-backend/src/address.ts'
+
 export type Registrant = { phone?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null }
 
 const FIELDS: [keyof Registrant, string][] = [['address', 'street address'], ['city', 'city'], ['state', 'state'], ['zip', 'ZIP code'], ['phone', 'phone number']]
@@ -32,9 +35,8 @@ export function cleanRegistrant(input: any): { ok: true; patch: Registrant } | {
     if (v.length > 120) return { ok: false, error: 'That ' + k + ' is too long.' }
     patch[k] = v
   }
-  if (patch.state && !/^[A-Za-z]{2}$/.test(patch.state)) return { ok: false, error: 'State must be the two-letter code, like WI.' }
-  if (patch.state) patch.state = patch.state.toUpperCase()
-  if (patch.zip && !/^\d{5}(-\d{4})?$/.test(patch.zip)) return { ok: false, error: 'ZIP must be 5 digits (or ZIP+4).' }
+  if (patch.state) { const st = normaliseState(patch.state); if (!st) return { ok: false, error: 'State must be a US state — WI or Wisconsin.' }; patch.state = st }
+  if (patch.zip) { const z = normaliseZip(patch.zip); if (!z) return { ok: false, error: 'ZIP must be 5 digits (or ZIP+4).' }; patch.zip = z }
   if (patch.phone && (patch.phone.replace(/\D/g, '').length < 10)) return { ok: false, error: 'Phone needs at least 10 digits.' }
   return { ok: true, patch }
 }

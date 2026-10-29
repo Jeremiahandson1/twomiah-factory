@@ -564,9 +564,13 @@ describe('the shared modules\' fixes, now the engine\'s', () => {
       const ck = await O('POST', '/api/admin/domain/check', { domain: ' TestShopCo.com ' })
       expect(ck.body.quote.renewalCents).toBe(1955)
       expect(calls.at(-1)!.body.domain).toBe('testshopco.com')
+      // The address the owner keeps in Settings › Company travels with the purchase (Perch and Prarie, 10/29: a ZIP added
+      // in Settings never reached the Factory, so the registrar check kept refusing).
+      await t.db.update(t.schema.company).set({ phone: '715-555-0100', address: '1 Main St', city: 'Eau Claire', state: 'WI', zip: '54701' } as any).where(eq(t.schema.company.id, companyId))
       const buy = await O('POST', '/api/admin/domain/buy-checkout', { domain: 'testshopco.com' })
       expect(buy.body).toEqual({ url: 'https://checkout.stripe.test/s', priceCents: 1214, renewalCents: 1955 })
-      expect(calls.at(-1)!.body).toMatchObject({ domain: 'testshopco.com', years: 1, returnTo: 'admin', returnPath: '/crm/domain' })
+      expect(calls.at(-1)!.body).toMatchObject({ domain: 'testshopco.com', years: 1, returnTo: 'admin', returnPath: '/crm/domain',
+        registrant: { phone: '715-555-0100', address: '1 Main St', city: 'Eau Claire', state: 'WI', zip: '54701' } })
       const at = await O('POST', '/api/admin/domain/attach', { domain: 'mine.com' })
       expect(at.body.nameservers.length).toBe(2)
       expect(calls.at(-1)!.body).toMatchObject({ mode: 'byod' })

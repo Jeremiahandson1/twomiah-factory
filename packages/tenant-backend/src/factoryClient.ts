@@ -30,7 +30,7 @@ interface FullFactoryApiClient extends FactoryApiClient {
   // The business's own web address — the same Factory routes the premium sites' Domain page uses (10/15).
   getDomainStatus(): Promise<{ status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain: string | null; nameservers: string[]; registrar?: string | null }>
   checkDomain(domain: string): Promise<any>
-  startDomainCheckout(domain: string, returnPath: string): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
+  startDomainCheckout(domain: string, returnPath: string, registrant?: { phone?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null }): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
   attachDomain(domain: string): Promise<any>
   // The business's own texting registration (A2P 10DLC): its own brand, campaign and number (Factory services/a2p.ts).
   getTextingRegistration(): Promise<any>
@@ -146,8 +146,8 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     async checkDomain(domain) {
       return call('POST', '/api/v1/factory/public/domain/check', { domain })
     },
-    async startDomainCheckout(domain, returnPath) {
-      return call('POST', '/api/v1/factory/internal/domain/buy/' + env('TENANT_ID'), { domain, years: 1, returnTo: 'admin', returnPath })
+    async startDomainCheckout(domain, returnPath, registrant) {
+      return call('POST', '/api/v1/factory/internal/domain/buy/' + env('TENANT_ID'), { domain, years: 1, returnTo: 'admin', returnPath, ...(registrant ? { registrant } : {}) })
     },
     async attachDomain(domain) {
       return call('POST', '/api/v1/factory/internal/domain/attach/' + env('TENANT_ID'), { domain, mode: 'byod' })
