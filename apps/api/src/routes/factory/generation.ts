@@ -178,9 +178,9 @@ factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async
       '{\n  "heroTagline": "short 3-6 word badge text",\n  "aboutText": "2-3 sentence paragraph about this company",\n  "ctaText": "one sentence call-to-action"\n}\n' +
       'Return ONLY valid JSON. No markdown, no explanation.'
 
-    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const { aiClient } = await import('../../services/aiClient')
     // Small call (1K tokens) — don't let it tie up a worker for the SDK's 10-min default
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 60_000, maxRetries: 2 })
+    const anthropic = aiClient({ timeout: 60_000, maxRetries: 2 })
     const message = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
       max_tokens: 1000,

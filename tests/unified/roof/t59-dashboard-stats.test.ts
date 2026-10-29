@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/roof/t59-dashboard-stats.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 14 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 16 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // Roofing's home figures. (T59) The mobile roofing dashboard asked GET /api/dashboard/stats and crm-roof
 // had no such route: a 404, and no cards. This checks the new route counts what a roofing job has —
@@ -45,6 +45,9 @@ await db.insert(invoice).values([
   { ...money, companyId: co.id, contactId: ct.id, jobId: j1.id, number: 'I-4', status: 'draft' } /* unified: an invoice is the CRM's (plan decision 4) */,
 ] as any)
 await db.insert(lead).values({ sourcePlatform: 'phone', homeownerName: 'Unknown Caller', status: 'new', companyId: co.id } as any)
+const { jobAssignee } = await import('./db/schema.ts')
+const [r2] = await db.select().from(job).where((await import('drizzle-orm')).eq(job.number, 'R-2'))
+await db.insert(jobAssignee).values({ companyId: co.id, jobId: r2.id, userId: crew.id } as any) /* unified: a seat without jobs:read-all reads only its own jobs on the unified app (crm/roof/jobs.ts, ownWork.ts) — the tile counts what that seat can open, so the crew is put on one job */
 
 const app = new Hono()
 app.route('/api/dashboard', (await import('./src/routes/dashboard.ts')).default)
@@ -70,7 +73,7 @@ console.log('\n══════════ the owner ════════
 console.log('\n══════════ a crew member ══════════')
 {
   const s = await stats(crew)
-  check('the crew sees the work', s.status === 200 && s.json?.jobs?.open === 3, s)
+  check('the crew sees the work it is on: 1 of the 3 open jobs', s.status === 200 && s.json?.jobs?.open === 1, s) /* unified: a seat without jobs:read-all reads only its own jobs on the unified app (crm/roof/jobs.ts, ownWork.ts) — the tile counts what that seat can open, so the crew is put on one job */
   check('…but not the money: the key is ABSENT, not $0', s.json && !('invoices' in s.json), { keys: Object.keys(s.json || {}) })
 }
 

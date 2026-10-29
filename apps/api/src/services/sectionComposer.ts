@@ -737,9 +737,9 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
 
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const { aiClient } = await import('./aiClient')
   // Homepage compose (4K tokens) — fail fast rather than hold the SDK's 10-min default
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 180_000, maxRetries: 2 })
+  const anthropic = aiClient({ timeout: 180_000, maxRetries: 2 })
 
   const prompt = buildPrompt(input)
 
@@ -2278,10 +2278,10 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
 
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const { aiClient } = await import('./aiClient')
   // Full-site compose streams 32K tokens — generous ceiling, but still bounded
   // so a wedged connection can't pin the worker indefinitely
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 900_000, maxRetries: 1 })
+  const anthropic = aiClient({ timeout: 900_000, maxRetries: 1 })
 
   const prompt = buildSitePrompt(input)
 

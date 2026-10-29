@@ -176,12 +176,12 @@ function loadContentPack(industry: string): any | null {
 }
 
 export async function generateWebsiteContent(input: ContentGenerationInput): Promise<GeneratedContent> {
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const { aiClient } = await import('./aiClient')
   // 32K-token ceiling — the full payload (homepage + product categories + posts
   // + privacy/terms HTML) truncated at 12K and failed JSON.parse ("unterminated
   // string"); matches the premium composer's budget. Still under the SDK's 10-min
   // default so a degraded call fails fast enough to retry.
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 300_000, maxRetries: 2 })
+  const anthropic = aiClient({ timeout: 300_000, maxRetries: 2 })
 
   const location = [input.location.city, input.location.state].filter(Boolean).join(', ') || 'your area'
   const region = input.serviceRegion || input.location.city || 'the area'
