@@ -1,0 +1,25 @@
+<%
+  // Services as compact tiles: a round mark (the service's photo when it has one, else its first letter), the title and a
+  // line. Denser than cards; reads well with many short services.
+  const heading = data.heading || 'What we do'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items : []
+%>
+<section id="services" class="services services--tiles">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="svc-tiles">
+      <% items.forEach(function (item) { const link = item.href || item.servicePage || '' %>
+        <article class="svc-tile service-card">
+          <% if (item.image) { %><span class="svc-tile__mark svc-tile__mark--photo" style="background-image: url('<%= item.image %>')" role="presentation"></span><% } else { %><span class="svc-tile__mark" aria-hidden="true"><%= String(item.title || '').trim().charAt(0).toUpperCase() %></span><% } %>
+          <h3 class="svc-tile__title"><% if (link) { %><a href="<%= link %>"><%= item.title %></a><% } else { %><%= item.title %><% } %></h3>
+          <% if (item.description) { %><p class="svc-tile__desc"><%= item.description %></p><% } %>
+          <% if (Array.isArray(item.subLinks) && item.subLinks.length) { %><ul class="service-parts" aria-label="Parts of <%= item.title %>"><% for (const p of item.subLinks) { %><li><a href="<%= p.href %>"><%= p.title %></a></li><% } %></ul><% } %>
+        </article>
+      <% }) %>
+    </div>
+  </div>
+</section>

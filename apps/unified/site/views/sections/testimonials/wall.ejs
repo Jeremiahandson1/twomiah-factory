@@ -1,0 +1,26 @@
+<%
+  // A wall of quotes: short cards in columns, each at its own length. For a business with several reviews.
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(q => q && q.quote) : []
+  if (items.length === 0) return
+%>
+<section class="testimonials-section testimonials-section--wall">
+  <div class="container">
+    <% if (heading || intro) { %><div class="testimonials-section__head">
+      <% if (heading) { %><h2 class="testimonials-section__title"><%= heading %></h2><% } %>
+      <% if (intro) { %><p class="testimonials-section__intro"><%= intro %></p><% } %>
+    </div><% } %>
+    <div class="quote-wall">
+      <% items.forEach(function (q) { %>
+        <figure class="testimonial-card quote-wall__card">
+          <blockquote class="testimonial-card__quote">"<%= q.quote %>"</blockquote>
+          <figcaption class="testimonial-card__attribution">
+            <% if (q.photo) { %><img class="testimonial-card__photo" src="<%= q.photo %>" alt="<%= q.author || '' %>" loading="lazy"><% } %>
+            <div><% if (q.author) { %><div class="testimonial-card__author"><%= q.author %></div><% } %><% if (q.role) { %><div class="testimonial-card__role"><%= q.role %></div><% } %></div>
+          </figcaption>
+        </figure>
+      <% }) %>
+    </div>
+  </div>
+</section>

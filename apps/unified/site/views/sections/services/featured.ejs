@@ -1,0 +1,33 @@
+<%
+  // One featured service large (the first, with its photo when it has one), the rest as a short list beside it.
+  const heading = data.heading || 'What we do'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items : []
+  if (items.length === 0) return
+  const first = items[0], rest = items.slice(1)
+  const link = first.href || first.servicePage || ''
+%>
+<section id="services" class="services services--featured">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="svc-featured">
+      <article class="svc-featured__lead service-card">
+        <% if (first.image) { %><div class="svc-featured__img" style="background-image: url('<%= first.image %>')" role="presentation"></div><% } %>
+        <div class="svc-featured__body">
+          <h3><%= first.title %></h3>
+          <% if (first.description) { %><p><%= first.description %></p><% } %>
+          <% if (link) { %><a class="service-card__link" href="<%= link %>">Learn more &rarr;</a><% } %>
+          <% if (Array.isArray(first.subLinks) && first.subLinks.length) { %><ul class="service-parts" aria-label="Parts of <%= first.title %>"><% for (const p of first.subLinks) { %><li><a href="<%= p.href %>"><%= p.title %></a></li><% } %></ul><% } %>
+        </div>
+      </article>
+      <% if (rest.length) { %><ul class="svc-featured__rest">
+        <% rest.forEach(function (item) { const l = item.href || item.servicePage || '' %>
+          <li><h3><% if (l) { %><a href="<%= l %>"><%= item.title %></a><% } else { %><%= item.title %><% } %></h3><% if (item.description) { %><p><%= item.description %></p><% } %></li>
+        <% }) %>
+      </ul><% } %>
+    </div>
+  </div>
+</section>

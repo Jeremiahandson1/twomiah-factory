@@ -29,17 +29,30 @@ export function SectionFormDispatcher({ type, variant, data, onChange }: Props) 
   const key = type + '/' + variant
   switch (key) {
     case 'hero/full-bleed':       return <HeroFullBleedForm data={data} onChange={onChange} />
-    case 'hero/split':            return <HeroSplitForm data={data} onChange={onChange} />
+    case 'hero/split':
+    case 'hero/collage':
+    case 'hero/text-led':
+    case 'hero/split-form':       return <HeroSplitForm data={data} onChange={onChange} />
     case 'hero/centered-stats':   return <HeroCenteredStatsForm data={data} onChange={onChange} />
-    case 'services/cards-grid':   return <ServicesCardsGridForm data={data} onChange={onChange} />
+    case 'services/cards-grid':
+    case 'services/list':
+    case 'services/tiles':
+    case 'services/featured':     return <ServicesCardsGridForm data={data} onChange={onChange} />
     case 'services/alternating':  return <ServicesAlternatingForm data={data} onChange={onChange} />
     case 'cta/banner':            return <CtaBannerForm data={data} onChange={onChange} />
     case 'cta/split':             return <CtaSplitForm data={data} onChange={onChange} />
-    case 'about/story':           return <AboutStoryForm data={data} onChange={onChange} />
+    case 'about/story':
+    case 'about/feature':
+    case 'about/timeline':        return <AboutStoryForm data={data} onChange={onChange} />
     case 'team/grid':             return <TeamGridForm data={data} onChange={onChange} />
     case 'contact/form-info':     return <ContactFormInfoForm data={data} onChange={onChange} />
-    case 'gallery/grid':          return <GalleryGridForm data={data} onChange={onChange} />
+    case 'gallery/grid':
+    case 'gallery/masonry':
+    case 'gallery/projects':
+    case 'gallery/pairs':         return <GalleryGridForm data={data} onChange={onChange} />
     case 'testimonials/quotes':
+    case 'testimonials/wall':
+    case 'testimonials/featured':
     case 'testimonials/carousel': return <TestimonialsQuotesForm data={data} onChange={onChange} />
     case 'faq/accordion':         return <FaqAccordionForm data={data} onChange={onChange} />
     case 'stats/bar':             return <StatsBarForm data={data} onChange={onChange} />

@@ -1,0 +1,31 @@
+<%
+  // Half-and-half hero with the enquiry form beside the headline: a visitor can ask without leaving the first screen.
+  // The same endpoint and fields as the contact section (/api/leads); ids are its own so the page's contact form and this
+  // one never share them. Offered only where the site takes enquiries (server/site/layouts.ts).
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const msgLabel = (typeof words !== 'undefined' && words && words.contactMessageLabel) || 'How can we help?'
+%>
+<section class="hero hero--splitform">
+  <div class="container hero-splitform">
+    <div class="hero-splitform__copy">
+      <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+      <h1 class="hero__title"><%= title %></h1>
+      <% if (subtitle) { %><p class="hero__subtitle"><%= subtitle %></p><% } %>
+    </div>
+    <form class="contact-form hero-splitform__form" action="/api/leads" method="post">
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;">
+        <label for="hf-website">Website (leave empty)</label>
+        <input id="hf-website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+      <input type="hidden" name="t" value="" data-form-stamp>
+      <input type="hidden" name="source" value="Home page">
+      <script>(function(){var s=document.currentScript.previousElementSibling.previousElementSibling;if(s&&s.name==='t')s.value=Date.now();})();</script>
+      <div class="contact-form__row"><label for="hf-name">Your name</label><input id="hf-name" name="name" type="text" required minlength="2" autocomplete="name"></div>
+      <div class="contact-form__row"><label for="hf-email">Email</label><input id="hf-email" name="email" type="email" required autocomplete="email"></div>
+      <div class="contact-form__row"><label for="hf-message"><%= msgLabel %></label><textarea id="hf-message" name="message" rows="3" required></textarea></div>
+      <button class="btn btn--primary btn--lg" type="submit"><%= (data.primaryCta && data.primaryCta.label) || 'Send' %></button>
+    </form>
+  </div>
+</section>

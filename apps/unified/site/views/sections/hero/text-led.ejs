@@ -1,0 +1,28 @@
+<%
+  // Minimal, text-led hero: a large left-aligned headline, no photo. For a business whose words lead.
+  // (It shows no photo; the editor says so before the owner switches to it.)
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+  const stats = Array.isArray(data.stats) ? data.stats : []
+%>
+<section class="hero hero--textled">
+  <div class="container hero-textled">
+    <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+    <h1 class="hero-textled__title"><%= title %></h1>
+    <% if (subtitle) { %><p class="hero-textled__sub"><%= subtitle %></p><% } %>
+    <% if (primaryCta || secondaryCta) { %>
+      <div class="hero__ctas">
+        <% if (primaryCta) { %><a class="btn btn--primary btn--lg" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+        <% if (secondaryCta) { %><a class="btn btn--outline btn--lg" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+      </div>
+    <% } %>
+    <% if (stats.length) { %>
+      <dl class="hero-textled__stats">
+        <% for (const s of stats) { %><div><dt><%= s.label %></dt><dd><%= s.value %></dd></div><% } %>
+      </dl>
+    <% } %>
+  </div>
+</section>

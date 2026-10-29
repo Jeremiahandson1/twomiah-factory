@@ -22,6 +22,7 @@
 import { enforceIntakeFacts, wantsBookings, ownerParagraphs as paragraphsOf } from './composerFacts'
 import { SECTION_SCHEMA, pageRecipesFor, tradeKindFor, type ComposerInput, type Section, type TradeKind } from './sectionComposer'
 import { getHeroLibrary } from '../config/heroLibrary'
+import { offeredLayouts } from '../../../unified/server/site/layouts'
 import { websiteTradeFor } from '../config/websiteTrades'
 
 type SiteResult = {
@@ -65,6 +66,24 @@ function libraryHeroFor(businessType: string): string {
     if (hit) return hit.url
   }
   return lib[0]?.url || ''
+}
+
+
+// ─── Layout variety ──────────────────────────────────────────────────────────
+// Two businesses in one trade used to get the same page. The composer now picks, for the sections people notice, among
+// the layouts the compatibility table (unified/server/site/layouts.ts) says suit THIS content and that leave nothing
+// out — chosen by the business's own name, so the pick is steady for one business and different between two. It is a
+// starting point: "Change layout" in the editor offers the rest.
+function nameSeed(name: string): number {
+  let h = 2166136261
+  for (const ch of name.toLowerCase()) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
+  return h >>> 0
+}
+function pickLayout(type: string, fallback: string, data: Record<string, unknown>, seed: number, among: string[], salt: number): string {
+  const ok = offeredLayouts(type, fallback, data, { takesEnquiries: true })
+    .filter((l) => l.current || l.hides.length === 0).map((l) => l.id).filter((id) => id === fallback || among.includes(id))
+  const list = [fallback, ...ok.filter((id) => id !== fallback)]
+  return list[(seed >>> salt) % list.length]
 }
 
 // ─── Claim-free copy ─────────────────────────────────────────────────────────
@@ -189,6 +208,7 @@ function bookingCta(kind: TradeKind, free: boolean): { heading: string; buttonLa
 
 export function composeInstant(input: ComposerInput): SiteResult {
   const name = input.businessName.trim()
+  const seed = nameSeed(name)
   const type = input.businessType || ''
   const label = tradeLabelFor(type)
   const kind = tradeKindFor(type)
@@ -261,7 +281,7 @@ export function composeInstant(input: ComposerInput): SiteResult {
   // or nothing — never the trade as a service (apps/unified/server/site/menu.ts; site-menu-1022.test.ts). The card is
   // a title only, and only the Services page's cards link to each service's own page.
   const serviceCards = (heading: string): Section | null => serviceNames.length
-    ? { type: 'services', variant: 'cards-grid', data: { heading, items: serviceNames.map((title) => ({ title })) } }
+    ? ((data) => ({ type: 'services', variant: pickLayout('services', 'cards-grid', data, seed, ['list', 'tiles', 'featured'], 3), data }))({ heading, items: serviceNames.map((title) => ({ title })) })
     : null
   // What the owner said they do, in their own words: a page that implies an offering (storm-damage help, catering) is
   // written only when these words name it — otherwise it would be a promise the owner never made.
@@ -273,10 +293,10 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const faq = (heading = 'Common questions', items: Faq[] = faqItems): Section => ({ type: 'faq', variant: 'accordion', data: { heading, items } })
   const trust = (): Section | null => f.credentials?.length ? { type: 'trust', variant: 'badges', data: { heading: 'Credentials', items: f.credentials.map((n) => ({ name: n })) } } : null
   const reviews = (): Section | null => f.testimonials?.length
-    ? { type: 'testimonials', variant: 'quotes', data: { heading: 'What customers say', items: f.testimonials.map((t) => ({ quote: t.quote, author: t.author || '' })) } }
+    ? ((data) => ({ type: 'testimonials', variant: pickLayout('testimonials', 'quotes', data, seed, ['wall', 'featured'], 5), data }))({ heading: 'What customers say', items: f.testimonials.map((t) => ({ quote: t.quote, author: t.author || '' })) })
     : null
   const gallery = (min: number, heading = 'Our work'): Section | null => ownPhotos.length >= min
-    ? { type: 'gallery', variant: 'grid', data: { heading, photos: ownPhotos.slice(0, 24).map((url) => ({ url })) } }
+    ? ((data) => ({ type: 'gallery', variant: pickLayout('gallery', 'grid', data, seed, ['masonry'], 7), data }))({ heading, photos: ownPhotos.slice(0, 24).map((url) => ({ url })) })
     : null
   const founded = (): Section | null => f.yearFounded
     ? { type: 'stats', variant: 'bar', data: { items: [{ value: String(f.yearFounded), label: 'Founded' }] } }
@@ -301,12 +321,12 @@ export function composeInstant(input: ComposerInput): SiteResult {
   // ── Each page of the plan ──
   const home = (): Array<Section | null> => [
     // A photo hero when there's a photo; with none, the centered hero (no empty image box).
-    { type: 'hero', variant: heroImage ? 'full-bleed' : 'centered-stats', data: {
+    ((data) => ({ type: 'hero', variant: pickLayout('hero', heroImage ? 'full-bleed' : 'centered-stats', data, seed, heroImage ? ['split'] : ['text-led'], 1), data }))({
       ...(heroImage ? { image: heroImage } : {}), eyebrow: [label, place].filter(Boolean).join(' · '), title: name,
       subtitle: firstSentence(input.description) || (place ? (label ? label + ' in ' + place : 'Serving ' + place) + '.' : ''),
       // A store's front door sends shoppers to its products; everyone else's to a conversation.
       primaryCta: kind === 'store' ? { label: 'Shop now', href: 'shop' } : contactCta,
-    } },
+    }),
     kind === 'homecare' ? { type: 'care', variant: 'finder', data: careFinder() } : null,
     // A store's home is its products, live from its catalogue (the site fills shop/grid; store live test, 2026-10-26).
     kind === 'store' ? { type: 'shop', variant: 'grid', data: {} } : null,

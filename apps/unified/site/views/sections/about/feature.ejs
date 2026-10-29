@@ -1,0 +1,21 @@
+<%
+  // The story with the portrait large above it, text in a centred column. Offered only with a portrait.
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || 'Our story'
+  const portrait = data.portrait || ''
+  const paragraphs = Array.isArray(data.paragraphs) ? data.paragraphs : []
+  const stats = Array.isArray(data.stats) ? data.stats : []
+  const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
+%>
+<section class="story story--feature">
+  <div class="container">
+    <% if (portrait) { %><div class="story-feature__photo" style="background-image: url('<%= portrait %>')" role="presentation"></div><% } %>
+    <div class="story-feature__copy">
+      <% if (eyebrow) { %><div class="story__eyebrow"><%= eyebrow %></div><% } %>
+      <<%= H %> class="story__title"><%= title %></<%= H %>>
+      <% for (const p of paragraphs) { %><p class="story__paragraph"><%= p %></p><% } %>
+      <% if (data.signature) { %><div class="story__signature"><%= data.signature %></div><% } %>
+      <% if (stats.length) { %><div class="story__stats"><% for (const s of stats) { %><div class="story__stat"><div class="story__stat-num"><%= s.value %></div><div class="story__stat-label"><%= s.label %></div></div><% } %></div><% } %>
+    </div>
+  </div>
+</section>
