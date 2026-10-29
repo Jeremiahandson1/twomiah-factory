@@ -26,7 +26,7 @@ export const PORTFOLIO_DRAFT = ['title', 'location', 'summary', 'body', 'coverIm
  * "Finish your site" checklist (contentGaps) is the owner's to-do list, not something visitors see, and stays live.
  */
 export const SETTINGS_DRAFT = [
-  'design', 'accentColor', 'faviconUrl', 'tagline', 'contactCtaLabel', 'serviceAreas', 'inventoryFeedUrl', 'nav',
+  'design', 'accentColor', 'palette', 'faviconUrl', 'tagline', 'contactCtaLabel', 'serviceAreas', 'inventoryFeedUrl', 'nav',
   'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId',
 ] as const
 

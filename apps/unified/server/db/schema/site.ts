@@ -33,6 +33,12 @@ export const website = pgTable('website', {
   inventoryFeedUrl: text('inventory_feed_url'),
   contactCtaLabel: text('contact_cta_label').default('Get in touch').notNull(),
   accentColor: text('accent_color'),
+  /**
+   * The site's own colours, beyond the accent above: { brand, band, page, text, preset }, each a #rrggbb or absent.
+   * Absent = the design's own (brand: the company's main colour). Kept on the website, not the company, so changing how
+   * the site looks never recolours an invoice or an email (server/site/palette.ts).
+   */
+  palette: json('palette'),
   faviconUrl: text('favicon_url'),
   // Tracking ids, printed as the plain standard snippets so Google's tools can detect them.
   googleTagManagerId: text('google_tag_manager_id'),

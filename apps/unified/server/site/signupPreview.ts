@@ -10,6 +10,7 @@ import { renderSections, assetVersion } from './render.ts'
 import { siteStylesheet } from './routes.ts'
 import { tradeOf } from './menu.ts'
 import type { SiteContext } from './context.ts'
+import { siteColours } from './palette.ts'
 
 export interface SitePreviewInput {
   /** The unified vertical's id (core/vertical.ts loadVertical): what the business runs as. */
@@ -24,6 +25,8 @@ export interface SitePreviewInput {
   /** The features the business starts with: a section that IS a feature draws only while it is on. */
   features: string[]
   title?: string
+  /** The site's own colours (website.palette): { brand, band, page }. None: the design's. */
+  palette?: unknown
   /** A notice drawn across the top of the page (the free preview's "example content" line). Plain text. */
   banner?: string
 }
@@ -67,7 +70,7 @@ export async function renderSitePreview(i: SitePreviewInput): Promise<string> {
   const ctx: SiteContext = {
     companyId: 'preview', slug: 'preview', design, words: vertical.site.words,
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: spec.frame === 'book', fonts: spec.fonts, schemes: !!spec.schemes, ctaHref: vertical.site.ctaHref || '/contact' },
-    colours: { primary: i.company.primaryColor, accent: i.settings.accentColor || null, secondary: i.company.secondaryColor ?? null },
+    colours: siteColours({ primaryColor: i.company.primaryColor, secondaryColor: i.company.secondaryColor }, i.settings.accentColor, i.palette),
     services: [], trade: tradeOf(i.sections), features: i.features, settings: previewSettings(i),
   }
   let html = await renderSections(ctx, i.sections, { title: i.title || i.company.name }, { currentPath: '/', origin: '', sectionErrors: [] })

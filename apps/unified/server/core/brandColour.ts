@@ -3,19 +3,19 @@
 // build time. The unified app has no build step per tenant, so it computes the same value from the company row
 // when it needs it. Same numbers, same result; the generator's copy is deleted at cutover (docs/CUTOVER_LEDGER.md).
 
-function hexToRgb(hex: string): [number, number, number] | null {
+export function hexToRgb(hex: string): [number, number, number] | null {
   const s = hex.trim().replace(/^#/, '')
   const full = s.length === 3 ? s.split('').map((ch) => ch + ch).join('') : s
   if (!/^[0-9a-fA-F]{6}$/.test(full)) return null
   return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)]
 }
 
-function relLuminance([r, g, b]: [number, number, number]): number {
+export function relLuminance([r, g, b]: [number, number, number]): number {
   const f = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
 }
 
-function rgbToHex([r, g, b]: [number, number, number]): string {
+export function rgbToHex([r, g, b]: [number, number, number]): string {
   return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
 }
 
@@ -78,3 +78,23 @@ export function inkOn(hex: string, dark = '#1A1410'): string {
 
 /** The websites' default accent when the owner hasn't chosen one (generator.ts). */
 export const DEFAULT_ACCENT = '#f59e0b'
+
+/** WCAG contrast ratio of two #rrggbb colours (1 to 21); 1 when either is not a colour. */
+export function contrastRatio(a: string, b: string): number {
+  const x = hexToRgb(a)
+  const y = hexToRgb(b)
+  if (!x || !y) return 1
+  const [hi, lo] = [relLuminance(x), relLuminance(y)].sort((m, n) => n - m)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/** `a` mixed with `b` — `amount` (0 to 1) of b — as a #rrggbb; `a` itself when either is not a colour. */
+export function mixHex(a: string, b: string, amount: number): string {
+  const x = hexToRgb(a)
+  const y = hexToRgb(b)
+  if (!x || !y) return a
+  return rgbToHex([x[0] + (y[0] - x[0]) * amount, x[1] + (y[1] - x[1]) * amount, x[2] + (y[2] - x[2]) * amount])
+}
+
+/** Whether a page of this colour reads as dark (light text belongs on it). */
+export const isDarkColour = (hex: string): boolean => { const rgb = hexToRgb(hex); return !!rgb && relLuminance(rgb) < 0.2 }

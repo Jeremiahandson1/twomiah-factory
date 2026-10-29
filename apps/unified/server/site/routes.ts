@@ -23,6 +23,7 @@ import { servesWhileClosed, unavailablePage } from './shop.ts'
 import type { SiteFacts, PageFacts } from './facts.ts'
 import { pageTitle, withBusinessServices } from './menu.ts'
 import { previewing, previewRow } from './drafts.ts'
+import { accentCss, paletteCss } from './palette.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
@@ -99,7 +100,10 @@ export function siteStylesheet(ctx: SiteContext): string {
   const base = whole ? '@layer base {\n' + BASE_CSS_UNDER_A_WHOLE_LOOK + shop + '\n}' : BASE_CSS
   // What every whole look without a frame shares (site/designs/_whole.css) sits between the base and the look, which wins.
   const shared = whole && !ctx.options.cover ? '\n' + (DESIGN_CSS.get('_whole') ?? '') : ''
-  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (whole ? '' : shop)
+  const spec = SITE_DESIGN_SPECS[ctx.design]
+  // The owner's page and dark band, then where their accent shows (site/palette.ts): after the design, so they win.
+  const owner = paletteCss(ctx.colours, spec)
+  const css = base + shared + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (whole ? '' : shop) + owner.css + accentCss(ctx.colours, spec, owner.darkPage)
   return css
     .replaceAll('{{PRIMARY_COLOR_ON_LIGHT}}', colourOnWhite(ctx.colours.primary))
     .replaceAll('{{PRIMARY_COLOR_ON_DARK}}', ensureLight(ctx.colours.primary))
