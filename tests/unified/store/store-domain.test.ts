@@ -104,7 +104,7 @@ const TID = process.env.TENANT_ID
   const page = readFileSync(ROOT + 'apps/unified/web/src/crm/pages/DomainPage.tsx', 'utf8') /* unified: the Domain screen (fix-e moved it out of the store add-on, for every business) */
   check('page: both prices, the renewal in bold, a warning when it jumps, no Register without a price — as the premium page',
     /<strong>\{usd\(check\.quote\.renewalCents\)\} a year<\/strong>/.test(page) && /check\.quote\.renewsHigher &&/.test(page) && /disabled=\{submitting \|\| !check\.quote\}/.test(page))
-  check('page: a domain bought through Twomiah is not asked to change nameservers the owner cannot reach', /const ours = !!status\.registrar && status\.registrar !== 'byod'/.test(page) && /there's nothing for you to do/.test(page))
+  check('page: a domain bought through Twomiah is not asked to change nameservers the owner cannot reach — its one step is the registrar verify email (Perch and Prarie, 10/29), never "nothing for you to do"', /const ours = !!status\.registrar && status\.registrar !== 'byod'/.test(page) && /verify your email with Namecheap/.test(page) && !/nothing for you to do/.test(page))
   const fac = readFileSync(ROOT + 'apps/api/src/routes/factory/lifecycle.ts', 'utf8')
   check("Factory: the buy route returns to the tenant's admin app on returnTo 'admin', on a checked path only", /const toAdmin = body\.returnTo === 'admin'/.test(fac) && /toAdmin \? tenant\.render_backend_url/.test(fac) && /\/\^\\\/\[a-z0-9\/_-\]\{0,60\}\$\/i\.test\(askedPath\)/.test(fac))
   check('Factory: the status says who holds the domain, so the page words a bought one right', /registrar: tenant\.domain_registrar \|\| null/.test(fac))
