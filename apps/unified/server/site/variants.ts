@@ -94,7 +94,9 @@ export function addVariantRoutes(app: Hono<any>, store: PhotoStore) {
     const body = await makeVariant(store, w, kind, rest)
     if (!body) {
       // Not something we can resize (gone, or a format we leave alone): the original answers, so a page never shows a hole.
-      return kind === 'media' ? c.redirect('/media/' + rest, 302) : c.notFound()
+      // Only a key that passed the same checks as the copy does (the site's own photo prefix, no "..", no control characters).
+      const safe = kind === 'media' && rest.startsWith(PUBLIC_PHOTO_PREFIX) && !rest.includes('..') && !/[\u0000-\u001f\u007f\\]/.test(rest)
+      return safe ? c.redirect('/media/' + rest.split('/').map(encodeURIComponent).join('/'), 302) : c.notFound()
     }
     return c.body(body as any, 200, { 'Content-Type': 'image/webp', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' })
   })
