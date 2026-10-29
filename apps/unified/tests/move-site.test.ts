@@ -159,7 +159,8 @@ describe('a contractor site (website-premium-contractor) beside its CRM', () => 
   test('the moved site renders: home, a page, a post, a project — with every photo at its new address, and the photos served', async () => {
     const home = await (await get('/')).text()
     expect(home).toContain('Two Brothers. One Standard.')
-    expect(home).toContain("url('/media/photos/hero-1.jpg')")
+    // The hero is at its new address — the original, or its sized copy (the speed round: /img/<width>/media/<key>).
+    expect(home).toMatch(/url\(['"]\/(img\/\d+\/)?media\/photos\/hero-1\.jpg['"]\)/)
     expect(home).toContain("url('/media/photos/old-2.jpg')")
     // The badges view draws an icon, not the image; the stored section carries the new address.
     expect(JSON.stringify((await one(`SELECT sections FROM page WHERE slug = 'home'`)).sections)).toContain('"image":"/media/photos/site/images/badge.svg"')
