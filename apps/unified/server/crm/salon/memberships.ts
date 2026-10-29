@@ -3,6 +3,8 @@
 // creditsTotal set it is a prepaid block that burns down per redeem. Enrolling bills the first period
 // (./membershipBilling.ts).
 import { Hono } from 'hono'
+import { checkFilter } from '@twomiah/tenant-backend'
+import { MEMBERSHIP_TILES, activeEnrollmentCondition } from './tileConditions.ts'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing } from '@twomiah/tenant-backend'
@@ -58,9 +60,15 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     const currentUser = c.get('user') as any
     const contactId = c.req.query('contactId')
     const status = c.req.query('status')
-    try { await billing.settleMembershipBilling(currentUser.companyId) } catch (e: any) { logger.warn('[memberships] billing run skipped', { error: e?.message || String(e) }) }
+    // ?tile=active is the home screen's "Members": the active enrolments (./tileConditions.ts — the dashboard's count calls the
+    // same condition). The home screen only READS, so it does not run the billing pass (the timed one bills what is due).
+    const tile = c.req.query('tile')
+    const badTile = checkFilter(c, 'tile', tile, MEMBERSHIP_TILES)
+    if (badTile) return badTile
+    if (!tile) { try { await billing.settleMembershipBilling(currentUser.companyId) } catch (e: any) { logger.warn('[memberships] billing run skipped', { error: e?.message || String(e) }) } }
 
-    const conditions = [eq(membershipEnrollment.companyId, currentUser.companyId)]
+    const conditions: any[] = [eq(membershipEnrollment.companyId, currentUser.companyId)]
+    if (tile === 'active') conditions.push(activeEnrollmentCondition(membershipEnrollment))
     if (contactId) conditions.push(eq(membershipEnrollment.contactId, contactId))
     if (status) conditions.push(eq(membershipEnrollment.status, status))
     // Bounded: enrolments only ever accumulate.

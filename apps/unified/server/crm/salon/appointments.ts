@@ -15,8 +15,11 @@ import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, inv
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { calendarDateIn } from './days.ts'
+import { checkFilter } from '@twomiah/tenant-backend'
+import { APPOINTMENT_TILES, appointmentsTodayCondition } from './tileConditions.ts'
+import { maySeePrices, menuPrice } from './prices.ts'
 import { CANCELLED_VISIT_LABEL } from './formulas.ts'
 import { VOIDED_ON_CANCEL } from './checkout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from './people.ts'
@@ -43,7 +46,8 @@ const overlaps = (r: AppointmentRow, start: Date, end: Date) => {
 
 export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   const { db, audit, logger } = d
-  const { requirePermission } = d.permissions
+  const { requirePermission, requireAnyPermission } = d.permissions
+  const canSeeMoney = (u: any) => maySeePrices(canSeeWith(d.permissions), u)
   const live = d.realtime
   const { clock, checkout, formulas, loyalty, book } = salon
   const warn = (what: string, e: any) => logger.warn(`[appointments] ${what}`, { error: e?.message || String(e) })
@@ -175,8 +179,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    */
   app.get('/', requirePermission('contacts:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const { from, to, contactId, stylistId, status } = c.req.query()
+    const { from, to, contactId, stylistId, status, tile } = c.req.query()
+    // ?tile=today is the home screen's "Appointments today": the shop's day, live rows only (./tileConditions.ts — the
+    // dashboard's count calls the same condition).
+    const badTile = checkFilter(c, 'tile', tile, APPOINTMENT_TILES)
+    if (badTile) return badTile
     const conditions = [eq(appointment.companyId, currentUser.companyId)]
+    if (tile === 'today') { const w = await clock.salonDayWindows(currentUser.companyId); conditions.push(appointmentsTodayCondition(appointment, w.today, w.tomorrow)) }
     if (from) conditions.push(gte(appointment.startTime, new Date(from)))
     if (to) conditions.push(lte(appointment.startTime, new Date(to)))
     if (contactId) conditions.push(eq(appointment.contactId, contactId))
@@ -186,7 +195,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const own = await book.ownChairOf(currentUser)
     if (own) conditions.push(inOwnChair(own))
 
-    const windowed = !!(from || to)
+    const windowed = !!(from || to || tile)
     const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') || '100') || 100))
 
@@ -250,6 +259,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     }
     const serviceId = body.serviceId || null
     if (serviceId && !(await ownService(currentUser.companyId, serviceId))) return fail(c, 404, 'That service is not on your Service Menu.')
+    // A seat that may not see prices books at the menu's price, chosen here, and cannot set another (./prices.ts).
+    if (!(await canSeeMoney(currentUser))) body.quotedPrice = await menuPrice(db, currentUser.companyId, serviceId)
     const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
     if (endTime.getTime() <= startTime.getTime()) return fail(c, 400, 'The end time must be after the start time.')
     if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
@@ -314,6 +325,11 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, any> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    // Not a price-seat: the price is never theirs to change; a new service re-prices at the menu's own price (./prices.ts).
+    if (!(await canSeeMoney(currentUser))) {
+      delete updates.quotedPrice
+      if (updates.serviceId && updates.serviceId !== existing.serviceId) updates.quotedPrice = await menuPrice(db, currentUser.companyId, updates.serviceId)
+    }
     if ('status' in updates && !APPT_STATUSES.includes(updates.status)) return fail(c, 400, `status must be one of ${APPT_STATUSES.join(', ')}`)
     if ('quotedPrice' in updates && updates.quotedPrice != null && updates.quotedPrice !== '' && (isNaN(Number(updates.quotedPrice)) || Number(updates.quotedPrice) < 0)) return fail(c, 400, 'Quoted price cannot be negative.')
     if ('quotedPrice' in updates && roundsToNothing(updates.quotedPrice)) return fail(c, 400, `${updates.quotedPrice} rounds to $0.00 — enter 0 if it is free, or at least one cent.`)
@@ -383,7 +399,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     return one(c, { ...named(updated), invoiceId })
   })
 
-  app.post('/:id/check-in', requirePermission('schedule:update'), async (c) => {
+  // Checking a client in is the front desk's job as well as the stylist's: `schedule:check-in` opens this and nothing else in the
+  // book (a move, a complete and a cancel stay `schedule:update`). Owner's decision, 2026-10-29.
+  app.post('/:id/check-in', requireAnyPermission(['schedule:update', 'schedule:check-in']), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const [existing]: AppointmentRow[] = await db.select().from(appointment)

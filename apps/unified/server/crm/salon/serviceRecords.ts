@@ -15,7 +15,8 @@ import {
 } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
+import { maySeePrices, menuPrice } from './prices.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK, normaliseFormula } from './formulas.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from './people.ts'
 import type { SalonServices } from './services.ts'
@@ -34,6 +35,7 @@ const visitDate = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? new D
 export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
   const { db, audit, logger } = d
   const { requirePermission } = d.permissions
+  const canSeeMoney = (u: any) => maySeePrices(canSeeWith(d.permissions), u)
   const live = d.realtime
   const { checkout, formulas } = salon
   const refresh = (companyId: string, entity: string) => live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity })
@@ -238,6 +240,8 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     const currentUser = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
     if (typeof body.contactId !== 'string' || !body.contactId) return fail(c, 400, 'contactId is required')
+    // A seat that may not see prices logs the service, not what it cost: the visit bills at the menu's price (./prices.ts).
+    if (!(await canSeeMoney(currentUser))) { delete body.priceCharged; const p = body.appointmentId ? null : await menuPrice(db, currentUser.companyId, body.serviceId); if (p) body.priceCharged = p }
 
     const [ct] = await db.select().from(contact).where(and(eq(contact.id, body.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
     if (!ct) return fail(c, 404, 'Client not found')
@@ -343,6 +347,7 @@ export function createServiceRecordRoutes(d: CrmDeps, salon: SalonServices) {
     if ('refusal' in photos) return fail(c, 400, photos.refusal, 'PHOTO_NOT_UPLOADED')
     const updates: Record<string, any> = { updatedAt: new Date(), ...photos.set }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    if (!(await canSeeMoney(currentUser))) delete updates.priceCharged
     // Filing a visit against an appointment is the narrowed seat's only for its own chair, as on POST.
     if (updates.appointmentId && !(await appointmentInBook(currentUser, String(updates.appointmentId)))) return fail(c, 404, 'Appointment not found')
     // A whitelist says which keys may be written, not that the values are the right shape. (RR2 R1)
