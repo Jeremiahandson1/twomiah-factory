@@ -27,6 +27,7 @@ const ALL_TABS = [
   'pipeline', 'canvass',
   'units', 'parts', 'ai-trade',
   'salon-book', 'salon-myday', 'salon-clients', 'salon-rebook',
+  'trade-events', 'trade-overdue', 'bar-tonight', 'bar-menu', 'bar-count', 'bar-shifts',
 ]
 
 export default function TabLayout() {

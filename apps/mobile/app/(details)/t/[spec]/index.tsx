@@ -8,5 +8,5 @@ export default function TradeListRoute() {
   const { spec } = useLocalSearchParams<{ spec: string }>()
   const { tile, clear } = useTile()
   const router = useRouter()
-  return <TradeList spec={String(spec)} banner={tile ? { label: tile.banner, onClear: () => { clear(); router.back() } } : undefined} />
+  return <TradeList spec={String(spec)} from={tile?.list} banner={tile ? { label: tile.banner, onClear: () => { clear(); router.back() } } : undefined} />
 }

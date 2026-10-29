@@ -17,7 +17,8 @@ export const FORBIDDEN = /(refund|charge|checkout|\/pos\b|register|kiosk|gift-?c
 export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
-export interface Section { title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+export interface Link { label: string; url: string; icon?: string }
+export interface Section { /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 export interface Input { id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice'; choices?: string[]; required?: boolean; initial?: (d: any) => string }
 export interface Action {
   id: string
@@ -41,7 +42,11 @@ export interface ScreenSpec {
   feature?: string
   /** The list. `{q}` in a query value is the search text. */
   list: Req
-  rows: (r: any) => Row & { id: string }
+  rows: (r: any, ctx: { userId?: string }) => Row & { id: string }
+  /** Where the rows are in the answer, when it is not `data` / a bare array (the bar's routes answer { stock: [...] }). */
+  pick?: (body: any) => any[]
+  /** One record, no list: the screen is the detail itself (Tonight). `detail.path` ignores the id. */
+  single?: boolean
   chips?: Chip[]
   search?: { param: string; placeholder: string }
   empty: { title: string; body: string }
@@ -68,3 +73,7 @@ export const dayOnly = (v: unknown) => { const d = new Date(String(v ?? '')); re
 export const join = (...p: Array<string | undefined | null | false>) => p.filter(Boolean).join(' · ') || undefined
 export const mayUse = (s: { any: string[]; feature?: string }, can: (p: string) => boolean, has: (f: string) => boolean) =>
   (!s.any.length || s.any.some((p) => can(p))) && (!s.feature || has(s.feature))
+/** A calendar day ('YYYY-MM-DD') in words, never through the viewer's time zone ("Fri, Nov 20"). */
+export const calDay = (v: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v ?? '')); if (!m) return undefined; return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) }
+/** '19:30' → '7:30 PM'. */
+export const hhmm = (v: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? '')); if (!m) return undefined; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}` }

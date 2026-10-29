@@ -19,7 +19,24 @@ export const SALON_TABS: TabDef[] = [
 ]
 
 // (restaurant, bar, store and vet are added by their files below as they land)
-export const RESTAURANT_TABS: TabDef[] = []
-export const BAR_TABS: TabDef[] = []
+
+/** Restaurant: the office reads events and what is overdue; the captain reads events and the live board (read-only on events). */
+export const RESTAURANT_TABS: TabDef[] = [
+  tab('dashboard', 'Home', 'home', { permission: 'dashboard:read' }),
+  tab('trade-events', 'Events', 'calendar', { permission: 'contacts:read', feature: 'event_bookings' }),
+  tab('trade-overdue', 'Overdue', 'alert-circle', { permission: 'invoices:read', feature: 'invoices', seat: 'office' }),
+  tab('bar-tonight', 'Tonight', 'moon', { permission: 'bar:read', feature: 'bar_tonight' }),
+  tab('bar-menu', '86 board', 'close-circle', { permission: 'bar:read', feature: 'bar_menu', seat: 'field' }),
+  more(),
+]
+/** Bar: the live board first. The office sees the party book and the count; the bartender sees shifts and the count. */
+export const BAR_TABS: TabDef[] = [
+  tab('dashboard', 'Home', 'home', { permission: 'dashboard:read' }),
+  tab('bar-tonight', 'Tonight', 'moon', { permission: 'bar:read', feature: 'bar_tonight' }),
+  tab('trade-events', 'Parties', 'calendar', { permission: 'contacts:read', feature: 'event_bookings', seat: 'office' }),
+  tab('bar-shifts', 'Shifts', 'time', { permission: 'bar:read', feature: 'bar_schedule', seat: 'field' }),
+  tab('bar-count', 'Count', 'clipboard', { permission: 'bar:register', feature: 'bar_stock' }),
+  more(),
+]
 export const STORE_TABS: TabDef[] = []
 export const VET_TABS: TabDef[] = []

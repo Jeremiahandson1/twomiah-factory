@@ -4,20 +4,22 @@ import { View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Screen, Group, ListRow, EmptyState, SkeletonRows, Button, ChipRow, Chip, SearchField, space } from '../design'
 import { useList } from '../home/useList'
-import { reqUrl } from '../home/tiles'
+import { reqUrl, type Req } from '../home/tiles'
 import { useAuth } from '../auth/AuthContext'
 import { useVertical } from '../vertical/VerticalContext'
 import { FilterBanner } from '../home/FilterBanner'
 import { specFor } from './specs'
-import { mayUse, rowCache } from './kit'
+import { mayUse, rowCache, type Action } from './kit'
+import { ActionSheet } from './ActionSheet'
 
-export function TradeList({ spec: id, tab, params, banner }: { spec: string; tab?: boolean; params?: Record<string, string>; banner?: { label: string; onClear: () => void } }) {
+export function TradeList({ spec: id, tab, params, banner, from }: { spec: string; tab?: boolean; params?: Record<string, string>; banner?: { label: string; onClear: () => void }; /** the tile's list: the chip with this query starts selected */ from?: Req }) {
   const router = useRouter()
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   const { hasFeature } = useVertical()
   const spec = specFor(id)
-  const [chip, setChip] = useState(spec?.chips?.[0]?.id)
+  const [chip, setChip] = useState(() => (from && spec?.chips?.find((c) => reqUrl({ path: spec.list.path, query: { ...(spec.list.query || {}), ...c.query } }) === reqUrl(from))?.id) || spec?.chips?.[0]?.id)
   const [q, setQ] = useState('')
+  const [open, setOpen] = useState<Action | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const url = useMemo(() => {
     if (!spec) return null
@@ -25,10 +27,10 @@ export function TradeList({ spec: id, tab, params, banner }: { spec: string; tab
     if (spec.search && q.trim()) query[spec.search.param] = q.trim()
     return reqUrl({ path: spec.list.path, query })
   }, [spec, chip, q, params])
-  const { rows, total, loading, error, refresh, loadMore } = useList(spec && mayUse(spec, can, hasFeature) ? url : null)
+  const { rows, total, loading, error, refresh, loadMore } = useList(spec && mayUse(spec, can, hasFeature) ? url : null, 25, spec?.pick)
   if (!spec) return <Screen title="Not found"><EmptyState icon="alert-circle" title="This screen is not available" body="Open it again from the home screen." /></Screen>
   if (!mayUse(spec, can, hasFeature)) return <Screen title={spec.title} onBack={tab ? undefined : () => router.back()}><EmptyState icon="lock-closed" title="Not for this seat" body="Your role does not include this screen." /></Screen>
-  const items = rows.map((r) => { const v = spec.rows(r); rowCache.set(`${spec.id}:${v.id}`, r); return v })
+  const items = rows.map((r) => { const v = spec.rows(r, { userId: user?.id }); rowCache.set(`${spec.id}:${v.id}`, r); return v })
   return (
     <Screen title={spec.title} onBack={tab ? undefined : () => router.back()} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false) }}>
       <View style={{ gap: space[3] }}>
@@ -42,8 +44,10 @@ export function TradeList({ spec: id, tab, params, banner }: { spec: string; tab
                 divider={i < items.length - 1}
                 onPress={r.open || spec.detail ? () => router.push({ pathname: '/(details)/t/[spec]/[id]', params: r.open ? { spec: r.open.spec, id: r.open.id } : { spec: spec.id, id: r.id } } as any) : undefined} />
             ))}</Group>}
+        {(spec.actions || []).filter((a) => a.any.some((p) => can(p))).map((a) => <Button key={a.id} label={a.label} icon={a.icon} variant="secondary" fullWidth onPress={() => setOpen(a)} />)}
         {!loading && total != null && rows.length < total ? <Button label="Show more" variant="secondary" onPress={loadMore} /> : null}
       </View>
+      <ActionSheet action={open} row={{}} onClose={() => setOpen(null)} onDone={refresh} />
     </Screen>
   )
 }
