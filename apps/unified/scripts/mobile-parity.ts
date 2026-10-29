@@ -405,7 +405,75 @@ export const PHASE_RULES: PhaseRule[] = [
   { paths: ['/crm/users', '/crm/agency-features', '/crm/integrations', '/crm/form-builder', '/crm/login-activity', '/crm/audit-logs'], phase: 'D', why: 'account and set-up administration' },
   { paths: ['/crm/billing-import', '/crm/billing-engine', '/crm/payers-service-codes', '/crm/portal-claim-days', '/crm/claims', '/crm/authorizations', '/crm/payroll', '/crm/company-optimizer', '/crm/route-optimizer'], phase: 'D', why: 'bulk billing, payroll and optimiser runs need a full-size table' },
 ]
-export const phaseOf = (path: string): { phase: Phase; why: string } => {
+/**
+ * The five trades the phone does not serve yet have their own plan: the generic rules above were written for the jobs family
+ * (they would call a salon's Rebooking list "C" and a restaurant's Register "quote on site, take payment on site"). Each rule is
+ * the answer to "what does this trade do away from a desk every day?", read from that trade's own desktop pages. A path no
+ * rule names is C. The phone is never a register: nothing that takes a card or rings a sale is anything but D.
+ */
+const SITE = ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain']
+const SETUP = ['/crm/audit', '/crm/marketing', '/crm/email', '/crm/google-reviews', '/crm/lead-sources']
+const LINKS = ['/crm/help', '/crm/contact-support']
+export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
+  salon: [
+    { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: who is due to rebook, today\'s book' },
+    { paths: ['/crm/appointments'], phase: 'A', why: 'the book: check in, move, complete, no-show' },
+    { paths: ['/crm/reminders'], phase: 'A', why: 'rebooking: text the clients who are due' },
+    { paths: ['/crm/clients'], phase: 'A', why: 'the client chart: allergies, formulas, visits' },
+    { paths: ['/crm/messages'], phase: 'A', why: 'texting clients from the chair' },
+    { paths: ['/crm/invoices', '/crm/time', '/crm/leads', '/crm/memberships', '/crm/loyalty'], phase: 'B', why: 'useful on the phone, not the chair\'s daily loop' },
+    { paths: [...SITE, ...SETUP, '/crm/bookings/insights', '/crm/bookings/settings'], phase: 'D', why: 'set-up, review and website building are desk jobs' },
+    { paths: LINKS, phase: 'D', why: 'a link out is enough' },
+  ],
+  restaurant: [
+    { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: the events book and what is owed on it' },
+    { paths: ['/crm/events'], phase: 'A', why: 'the whole trade: inquiry, booking, the banquet event order' },
+    { paths: ['/crm/invoices'], phase: 'A', why: 'deposits and balances: status and chasing (nothing is charged on the phone)' },
+    { paths: ['/crm/messages', '/crm/leads'], phase: 'A', why: 'the first to answer a wedding enquiry usually books it' },
+    { paths: ['/crm/tonight', '/crm/menu'], phase: 'A', why: 'close the kitchen and 86 an item mid-service (when switched on)' },
+    { paths: ['/crm/contacts', '/crm/reports', '/crm/spaces', '/crm/menus', '/crm/orders'], phase: 'B', why: 'useful later; the event already names the client and the room' },
+    { paths: ['/crm/register', '/crm/kiosk', '/crm/register-settings'], phase: 'D', why: 'takes card payments and is a counter screen; the phone is not a register' },
+    { paths: ['/crm/bar-settings', ...SITE, ...SETUP], phase: 'D', why: 'set-up, review and website building are desk jobs' },
+    { paths: LINKS, phase: 'D', why: 'a link out is enough' },
+  ],
+  bar: [
+    { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: tonight and the private-party book' },
+    { paths: ['/crm/tonight', '/crm/menu', '/crm/taps'], phase: 'A', why: 'the bar\'s live board: open/closed, 86, what is on tap' },
+    { paths: ['/crm/stock'], phase: 'A', why: 'blind count and receiving a delivery in the back room' },
+    { paths: ['/crm/shifts', '/crm/time'], phase: 'A', why: 'my shifts, time off and the clock' },
+    { paths: ['/crm/events'], phase: 'A', why: 'private parties: who, when, how many' },
+    { paths: ['/crm/messages', '/crm/leads', '/crm/invoices', '/crm/regulars', '/crm/orders', '/crm/spaces', '/crm/menus', '/crm/reports'], phase: 'B', why: 'useful later, not the bar\'s nightly loop' },
+    { paths: ['/crm/register', '/crm/kiosk', '/crm/register-settings', '/crm/gift-cards'], phase: 'D', why: 'rings sales, takes cards or sells stored value; the phone is not a register' },
+    { paths: ['/crm/bar-settings', '/crm/ai-receptionist', '/crm/call-tracking', ...SITE, ...SETUP], phase: 'D', why: 'set-up, review and website building are desk jobs' },
+    { paths: LINKS, phase: 'D', why: 'a link out is enough' },
+  ],
+  store: [
+    { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: what is waiting to be packed' },
+    { paths: ['/crm/orders'], phase: 'A', why: 'pick, pack and ship' },
+    { paths: ['/crm/products'], phase: 'A', why: 'stock look-up and count from the shelf' },
+    { paths: ['/crm/product-reviews'], phase: 'A', why: 'a small queue: approve or reject between orders' },
+    { paths: ['/crm/customers', '/crm/leads'], phase: 'B', why: 'useful later; the order already carries the buyer' },
+    { paths: ['/crm/payments', '/crm/suppliers', '/crm/shipping', '/crm/store-settings', '/crm/gift-cards', '/crm/customer-groups', '/crm/store-loyalty'], phase: 'D', why: 'moves or sets up money, carrier keys or price tables; not a phone job' },
+    { paths: [...SITE, ...SETUP], phase: 'D', why: 'set-up, review and website building are desk jobs' },
+    { paths: LINKS, phase: 'D', why: 'a link out is enough' },
+  ],
+  vet: [
+    { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: the book and the vaccines due' },
+    { paths: ['/crm/appointments'], phase: 'A', why: 'the day sheet: check in, start, done' },
+    { paths: ['/crm/patients'], phase: 'A', why: 'look up a pet: alerts, allergies, vaccines' },
+    { paths: ['/crm/reminders'], phase: 'A', why: 'recall: text the owners whose pets are overdue' },
+    { paths: ['/crm/contacts', '/crm/messages'], phase: 'A', why: 'ring or text the owner' },
+    { paths: ['/crm/documents', '/crm/reports', '/crm/bookings', '/crm/leads'], phase: 'B', why: 'useful later, not the floor\'s daily loop' },
+    { paths: ['/crm/bookings/settings', ...SITE, ...SETUP], phase: 'D', why: 'set-up, review and website building are desk jobs' },
+    { paths: LINKS, phase: 'D', why: 'a link out is enough' },
+  ],
+}
+export const phaseOf = (path: string, trade?: string): { phase: Phase; why: string } => {
+  const own = trade ? DESIGN_PHASE_RULES[trade] : undefined
+  if (own) {
+    const r = own.find((x) => x.paths.includes(path))
+    return r ? { phase: r.phase, why: r.why } : { phase: 'C', why: '' }
+  }
   const r = PHASE_RULES.find((x) => x.paths.includes(path))
   return r ? { phase: r.phase, why: r.why } : { phase: 'C', why: '' }
 }
@@ -440,6 +508,56 @@ export const HOMECARE_OFFICE_TILES: Tile[] = [
   { label: 'No-show alerts', opens: '/crm/no-show-alerts', permission: 'care-schedule:update', file: HOME_OFFICE, needle: "go('no-show-alerts')" },
   { label: 'Incident responses due', opens: '/crm/incidents', permission: 'care-compliance:read', file: HOME_OFFICE, needle: 'const seesIncidents = can(\'care-compliance:read\')' },
 ]
+
+/**
+ * The five unserved trades each run their own dashboard (not the jobs one). Each tile: label, where the desktop opens it, the
+ * permission that decides whether a seat sees it, whether it is money, and an anchor that must still be in the source.
+ */
+interface DTile extends Tile { money?: boolean }
+const D = 'apps/unified/web/src/crm/pages/'
+export const DESIGN_TILES: Record<string, { note: string; tiles: DTile[] }> = {
+  salon: { note: 'The salon\'s own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banner and four tiles. The "Services This Month" tile carries a money line. Stylist = the staff seat, Front Desk = the viewer seat.', tiles: [
+    { label: 'Due to rebook (overdue / due soon)', opens: '/crm/reminders', permission: 'contacts:read', file: D + 'salon/DashboardPage.tsx', needle: 'Due to Rebook' },
+    { label: 'Clients', opens: '/crm/clients', permission: 'contacts:read', file: D + 'salon/DashboardPage.tsx', needle: '>Clients</p>' },
+    { label: 'Appointments today', opens: '/crm/appointments', permission: 'schedule:read', file: D + 'salon/DashboardPage.tsx', needle: 'Appointments Today' },
+    { label: 'Services this month (no list on the desktop)', opens: 'not a link', permission: 'dashboard:read', file: D + 'salon/DashboardPage.tsx', needle: 'Services This Month' },
+    { label: 'Members', opens: '/crm/memberships', permission: 'dashboard:read', file: D + 'salon/DashboardPage.tsx', needle: '>Members</p>' },
+  ] },
+  restaurant: { note: 'The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage strips. Money tiles need invoices:read, and the server leaves the key out for a seat without it. "Booked Value Ahead" is not a link, so it is a money line on the phone, not a tile.', tiles: [
+    { label: 'Payments overdue', opens: '/crm/invoices', permission: 'invoices:read', money: true, file: D + 'restaurant/DashboardPage.tsx', needle: 'Payments Overdue' },
+    { label: 'Open inquiries', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Open Inquiries' },
+    { label: 'Next 30 days', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Next 30 Days' },
+    { label: 'Booked value ahead (not a link)', opens: 'not a link', permission: 'invoices:read', money: true, file: D + 'restaurant/DashboardPage.tsx', needle: 'Booked Value Ahead' },
+    { label: 'Confirmed', opens: '/crm/spaces', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: '>Confirmed</p>' },
+    { label: 'Payments due (panel)', opens: '/crm/events', permission: 'invoices:read', money: true, file: D + 'restaurant/DashboardPage.tsx', needle: 'Payments Due' },
+    { label: 'Coming up (panel)', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Coming Up' },
+  ] },
+  bar: { note: 'The bar\'s home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the register", then the same events dashboard as the restaurant (pages/restaurant/DashboardPage.tsx). The register strip is a sales figure and stays off the phone.', tiles: [
+    { label: 'Tonight strip', opens: '/crm/tonight', permission: 'bar:read', file: D + 'bar/HomePage.tsx', needle: '> Tonight</p>' },
+    { label: 'Today on the register (sales; stays on the desktop)', opens: '/crm/closeout', permission: 'bar:register', money: true, file: D + 'bar/HomePage.tsx', needle: 'Today on the register' },
+    { label: 'Payments overdue', opens: '/crm/invoices', permission: 'invoices:read', money: true, file: D + 'restaurant/DashboardPage.tsx', needle: 'Payments Overdue' },
+    { label: 'Open inquiries', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Open Inquiries' },
+    { label: 'Next 30 days', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Next 30 Days' },
+    { label: 'Confirmed', opens: '/crm/spaces', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: '>Confirmed</p>' },
+    { label: 'Coming up (panel)', opens: '/crm/events', permission: 'contacts:read', file: D + 'restaurant/DashboardPage.tsx', needle: 'Coming Up' },
+  ] },
+  store: { note: 'The store\'s own dashboard (pages/store/orders/DashboardPage.tsx): money tiles for revenue:read, three counts for orders:read. Every figure is all-time (no date window). A shop hands out only manager and staff seats; a viewer holds no store permission.', tiles: [
+    { label: 'Revenue', opens: 'not a link', permission: 'revenue:read', money: true, file: D + 'store/orders/DashboardPage.tsx', needle: 'label="Revenue"' },
+    { label: 'Refunded', opens: 'not a link', permission: 'revenue:read', money: true, file: D + 'store/orders/DashboardPage.tsx', needle: 'Refunded (' },
+    { label: 'Net sales', opens: 'not a link', permission: 'revenue:read', money: true, file: D + 'store/orders/DashboardPage.tsx', needle: 'label="Net sales"' },
+    { label: 'Orders (paid and refunded)', opens: '/crm/orders', permission: 'orders:read', file: D + 'store/orders/DashboardPage.tsx', needle: 'label="Orders"' },
+    { label: 'To fulfill', opens: '/crm/orders', permission: 'orders:read', file: D + 'store/orders/DashboardPage.tsx', needle: 'label="To fulfill"' },
+    { label: 'At supplier (only when above 0)', opens: '/crm/orders', permission: 'orders:read', file: D + 'store/orders/DashboardPage.tsx', needle: 'label="At supplier"' },
+  ] },
+  vet: { note: 'The practice dashboard (pages/vet/DashboardPage.tsx), not the jobs dashboard. The phone splits "Reminders Due" into two tiles (overdue, due soon). The money lines under Visits need revenue:read.', tiles: [
+    { label: 'Reminders due (overdue / due soon)', opens: '/crm/reminders', permission: 'contacts:read', file: D + 'vet/DashboardPage.tsx', needle: 'Reminders Due' },
+    { label: 'Active patients (not a link)', opens: 'not a link', permission: 'contacts:read', file: D + 'vet/DashboardPage.tsx', needle: 'Active Patients' },
+    { label: 'Appointments today', opens: '/crm/appointments', permission: 'contacts:read', file: D + 'vet/DashboardPage.tsx', needle: 'Appointments Today' },
+    { label: 'Visits this month (not a link)', opens: 'not a link', permission: 'contacts:read', file: D + 'vet/DashboardPage.tsx', needle: 'Visits This Month' },
+    { label: 'Visits: billed / not yet invoiced / still to come (money lines)', opens: 'not a link', permission: 'revenue:read', money: true, file: D + 'vet/DashboardPage.tsx', needle: 'Visits This Month' },
+    { label: 'Wellness enrollments (not a link)', opens: 'not a link', permission: 'contacts:read', file: D + 'vet/DashboardPage.tsx', needle: 'Wellness Enrollments' },
+  ] },
+}
 /**
  * A caregiver (the staff seat) does not see the office menu above: the desktop gives them their own pages (CaregiverDashboard.tsx
  * MAIN_PAGES / SELF_PAGES / Settings). Read from that file; each is matched to what the phone has.
@@ -492,7 +610,7 @@ export interface Row {
   perm: string | string[] | null; routeRole: string | null; routePerm: string | string[] | null
 }
 export interface TradeMap { trade: Trade; featureSet: string; rows: Row[]; tiles: TileSet }
-export interface TileSet { kind: 'jobs' | 'roofing' | 'homecare' | 'rv'; bySeat: Record<string, string[]>; note: string }
+export interface TileSet { kind: 'jobs' | 'roofing' | 'homecare' | 'rv' | 'design'; bySeat: Record<string, string[]>; note: string }
 
 const fail = (m: string): never => { console.error('FAIL: ' + m); process.exit(1) }
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
@@ -505,6 +623,20 @@ function buildMenu(t: Trade): Built {
 }
 
 function tilesFor(t: Trade, b: Built, permsBySeat: Record<string, string[]>): TileSet {
+  const own = DESIGN_TILES[t.phone]
+  if (own) {
+    for (const tile of own.tiles) {
+      const f = join(ROOT, tile.file)
+      if (!existsSync(f) || !readFileSync(f, 'utf8').includes(tile.needle)) fail(`dashboard tile "${tile.label}" (${t.phone}): ${tile.file} no longer has \`${tile.needle}\` — the desktop's rule changed; update DESIGN_TILES in apps/unified/scripts/mobile-parity.ts`)
+    }
+    const bySeat: Record<string, string[]> = {}
+    for (const s of SEATS) {
+      const can = canWith(permsBySeat[s.id])
+      if (!can('dashboard:read')) { bySeat[s.id] = []; continue }
+      bySeat[s.id] = own.tiles.filter((x) => !x.permission || x.permission.split('|').some((p) => can(p))).map((x) => `${x.label}${x.money ? ' (money)' : ''} → ${x.opens}`)
+    }
+    return { kind: 'design', bySeat, note: own.note }
+  }
   for (const tile of [...JOBS_TILES, ...HOMECARE_OFFICE_TILES]) {
     const f = join(ROOT, tile.file)
     if (!existsSync(f) || !strip(readFileSync(f, 'utf8')).includes(tile.needle) && !readFileSync(f, 'utf8').includes(tile.needle)) fail(`dashboard tile "${tile.label}": ${tile.file} no longer has \`${tile.needle}\` — the desktop's rule changed; update TILE rules in apps/unified/scripts/mobile-parity.ts`)
@@ -561,7 +693,7 @@ export async function collect(): Promise<TradeMap[]> {
         return maySeeRoute({ routeRoles: b.routeRoles, routePermissions: b.routePermissions, nav: [{ to: i.to, minRole: i.minRole || undefined, permission: i.permission || undefined }] }, i.to, s.id, can)
       }).map((s) => s.name)
       const has = isServed(t.phone) ? PHONE_HAS.find((p) => p.paths.includes(i.to) && (!p.trades || p.trades.includes(t.phone))) : undefined
-      const ph = phaseOf(i.to)
+      const ph = phaseOf(i.to, isServed(t.phone) ? undefined : t.phone)
       rows.push({
         trade: t.phone, section: i.section, label: i.label, path: i.to,
         permission: Array.isArray(i.permission) ? i.permission.join(' or ') : (i.permission || ''), minRole: i.minRole || '',
@@ -595,6 +727,7 @@ export function render(maps: TradeMap[]): string {
   L.push('')
   for (const m of maps) {
     L.push(`## ${m.trade.label} (\`${m.trade.phone}\`, feature set \`${m.featureSet}\`)`, '')
+    if (!isServed(m.trade.phone)) L.push('> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.', '')
     L.push('### Dashboard tiles by seat', '', m.tiles.note, '')
     for (const s of SEATS) {
       const t = m.tiles.bySeat[s.id] || []
