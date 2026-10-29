@@ -29,7 +29,8 @@ import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
 import { linkSlug } from './menu.ts'
 import { tradeDrawsSection } from './tradeSections.ts'
-import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, draftOf, nextDraft, withDraft } from './drafts.ts'
+import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, draftOf, nextDraft, withDraft, workingOf } from './drafts.ts'
+import { offeredLayouts } from './layouts.ts'
 import { addPreviewRoutes, type PreviewDeps } from './preview.ts'
 import { publishSet } from '../data/siteDrafts.ts'
 
@@ -170,6 +171,20 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   }
 
   // ── Sections and pages ──────────────────────────────────────────────────
+  /**
+   * The layouts a section may be switched to ("Change layout"): the compatibility table (layouts.ts) applied to this
+   * section's own content, under the design the site is being edited in (its draft design, else the saved one). Each says
+   * what it would leave out; the section's data is never changed by asking.
+   */
+  app.post('/layouts', may('site:read'), async (c) => {
+    const b = await c.req.json().catch(() => null) as { type?: unknown; variant?: unknown; data?: unknown } | null
+    if (!b || typeof b.type !== 'string' || typeof b.variant !== 'string') return fail(c, 400, 'Say which section')
+    const [site] = await db.select().from(website).where(eq(website.companyId, c.get('user').companyId)).limit(1)
+    const work = site ? workingOf(site, SETTINGS_DRAFT) as Record<string, any> : {}
+    const design = (SITE_DESIGNS as readonly string[]).includes(work.design) ? work.design : deps.vertical.site.design
+    return one(c, { layouts: offeredLayouts(b.type, b.variant, (b.data && typeof b.data === 'object' ? b.data : {}) as Record<string, any>, { trade: deps.vertical.id, takesEnquiries: true, spec: SITE_DESIGN_SPECS[design as keyof typeof SITE_DESIGN_SPECS] }) })
+  })
+
   app.get('/section-types', may('site:read'), async (c) => {
     const dir = path.join(VIEWS, 'sections')
     const types: string[] = []

@@ -104,6 +104,16 @@ export const SECTION_SCHEMA = {
       optional: ['eyebrow', 'subtitle', 'primaryCta', 'stats'],
       use_when: 'lead with credibility metrics — years in business, projects shipped, ratings; no single photo dominant',
     },
+    'text-led': {
+      required: ['title'],
+      optional: ['eyebrow', 'subtitle', 'primaryCta', 'secondaryCta', 'stats'],
+      use_when: 'a large, quiet, left-aligned headline with no photo — when the words carry the business (a consultancy, a care provider, a boutique) and there is no strong photo to lead with',
+    },
+    'split-form': {
+      required: ['title'],
+      optional: ['eyebrow', 'subtitle', 'primaryCta'],
+      use_when: 'a first screen that invites an enquiry at once: the headline beside a short enquiry form (name, email, message). Pick for businesses that win work by quote requests; shows no photo',
+    },
   },
   services: {
     'cards-grid': {
@@ -115,6 +125,21 @@ export const SECTION_SCHEMA = {
       required: ['items'],
       optional: ['heading', 'intro'],
       use_when: 'few services that each deserve their own moment with distinct photography. `bullets` are what that service includes — ONLY what the intake says; each card also gets its own page (/services/<slug>, built by the site).',
+    },
+    list: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'a quiet numbered list, no photos — when the services are many or the business wants a calm, text-led page. Same items and rules as cards-grid',
+    },
+    tiles: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'THREE OR MORE short services shown as compact tiles with a round mark — dense and friendly. Same items and rules as cards-grid',
+    },
+    featured: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'TWO OR MORE services where the FIRST is the main thing the business is known for: it is shown large, the others beside it. Put the main service first. Same items and rules as cards-grid',
     },
   },
   cta: {
@@ -161,6 +186,11 @@ export const SECTION_SCHEMA = {
       optional: ['heading', 'intro'],
       use_when: 'showcase the owner\'s OWN photos of their work — Tier 1 customer photos only, never stock (a stock photo in a gallery of "our work" is a claim the business did that job). No captions: you cannot see the photos, so any caption is a guess about what, where and when. Omit this section when there are no Tier 1 photos. Never set a photo `category`: the owner sorts photos into groups in the editor, and the filter bar appears from those.',
     },
+    masonry: {
+      required: ['photos'],
+      optional: ['heading', 'intro'],
+      use_when: 'the same owner photos as gallery/grid, in columns that keep each photo\'s own shape — pick it when THREE OR MORE photos are of mixed shapes. Same rules as gallery/grid',
+    },
   },
   testimonials: {
     quotes: {
@@ -172,6 +202,16 @@ export const SECTION_SCHEMA = {
       required: ['items'],
       optional: ['heading', 'intro'],
       use_when: 'the same real reviews as testimonials/quotes, shown one at a time (a swipeable, keyboard-friendly carousel) — pick it when the intake gives THREE OR MORE reviews. Quotes word for word with the intake\'s attribution; never fabricate a review, a name or a rating.',
+    },
+    wall: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'the same real reviews as testimonials/quotes, as a wall of short cards in columns — pick it when the intake gives THREE OR MORE reviews. Word for word, never fabricated',
+    },
+    featured: {
+      required: ['items'],
+      optional: ['heading'],
+      use_when: 'the same real reviews, the FIRST shown large and the rest as small lines — pick it when one review is clearly the best. Word for word, never fabricated',
     },
   },
   // "Why choose us": the reasons the OWNER gave (their credentials, year founded, free estimates, strengths in their words) as

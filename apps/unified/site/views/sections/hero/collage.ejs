@@ -1,0 +1,28 @@
+<%
+  // Photo-collage hero: the headline beside a mosaic of the business's own photos (the hero photo first, then
+  // data.images). Offered only with the hero photo and at least two more (server/site/layouts.ts).
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+  const pics = [data.image].concat(Array.isArray(data.images) ? data.images : []).map(function (p) { return p && typeof p === 'object' ? p.url : p }).filter(Boolean).slice(0, 3)
+%>
+<section class="hero hero--collage">
+  <div class="container hero-collage">
+    <div class="hero-collage__copy">
+      <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+      <h1 class="hero__title"><%= title %></h1>
+      <% if (subtitle) { %><p class="hero__subtitle"><%= subtitle %></p><% } %>
+      <% if (primaryCta || secondaryCta) { %>
+        <div class="hero__ctas">
+          <% if (primaryCta) { %><a class="btn btn--primary btn--lg" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+          <% if (secondaryCta) { %><a class="btn btn--outline btn--lg" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+        </div>
+      <% } %>
+    </div>
+    <div class="hero-collage__pics hero-collage__pics--<%= pics.length %>">
+      <% pics.forEach(function (u, i) { %><img class="hero-collage__pic hero-collage__pic--<%= i + 1 %>" src="<%= u %>" alt="<%= i === 0 ? (data.imageAlt || '') : '' %>"<%= i === 0 ? '' : ' loading=lazy' %>><% }) %>
+    </div>
+  </div>
+</section>

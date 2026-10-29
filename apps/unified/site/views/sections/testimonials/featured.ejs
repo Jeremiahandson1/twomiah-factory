@@ -1,0 +1,20 @@
+<%
+  // One quote, large, with the others as small lines beneath. The first quote leads.
+  const heading = data.heading || ''
+  const items = Array.isArray(data.items) ? data.items.filter(q => q && q.quote) : []
+  if (items.length === 0) return
+  const lead = items[0], more = items.slice(1)
+%>
+<section class="testimonials-section testimonials-section--featured">
+  <div class="container container--narrow">
+    <% if (heading) { %><h2 class="testimonials-section__title"><%= heading %></h2><% } %>
+    <figure class="quote-lead">
+      <blockquote class="quote-lead__text">"<%= lead.quote %>"</blockquote>
+      <figcaption class="testimonial-card__attribution">
+        <% if (lead.photo) { %><img class="testimonial-card__photo" src="<%= lead.photo %>" alt="<%= lead.author || '' %>" loading="lazy"><% } %>
+        <div><% if (lead.author) { %><div class="testimonial-card__author"><%= lead.author %></div><% } %><% if (lead.role) { %><div class="testimonial-card__role"><%= lead.role %></div><% } %></div>
+      </figcaption>
+    </figure>
+    <% if (more.length) { %><ul class="quote-more"><% more.forEach(function (q) { %><li><q><%= q.quote %></q><% if (q.author) { %> <cite>— <%= q.author %></cite><% } %></li><% }) %></ul><% } %>
+  </div>
+</section>

@@ -84,6 +84,46 @@ export function addPreviewRoutes(app: Hono<any>, may: (p: string) => any, deps: 
     return kind === 'settings' ? { settings: data } : { [kind]: { slug, data } }
   }
 
+  /**
+   * "Change layout" thumbnails: ONE section drawn in a given layout, by the site's own renderer, under the page's own
+   * design and colours. The editor posts the section (its words and photos as they are now) and a layout; the page is
+   * drawn with that section alone and the site's header and footer hidden, so the frame shows the section and nothing
+   * else. Held per person, page and layout, like every preview here; nothing is saved.
+   */
+  app.post('/preview/layout/:slug', may('site:read'), async (c) => {
+    const slug = c.req.param('slug')
+    const b = await c.req.json().catch(() => null) as { section?: { type?: unknown; data?: unknown }; variant?: unknown } | null
+    const sec = b?.section
+    if (!sec || typeof sec.type !== 'string' || typeof b?.variant !== 'string' || !/^[a-z0-9_-]+$/i.test(b.variant)) return fail(c, 400, 'Say which section and layout')
+    const base = await savedOverlay(c, 'page', slug)
+    if (!base) return fail(c, 404, 'Nothing to preview')
+    const saved = (base as any).page.data as Record<string, unknown>
+    const data = sec.data && typeof sec.data === 'object' ? sec.data : {}
+    const overlay: PreviewOverlay = { page: { slug, data: { ...saved, sections: [{ type: sec.type, variant: b.variant, data }] } } } as any
+    sweep()
+    const key = keyOf(c, 'layout', slug + '#' + b.variant)
+    held.delete(key)
+    held.set(key, { overlay, at: now() })
+    return one(c, { url: `/api/site/preview/layout/${encodeURIComponent(slug)}?v=${encodeURIComponent(b.variant)}` })
+  })
+
+  app.get('/preview/layout/:slug', may('site:read'), async (c) => {
+    const slug = c.req.param('slug')
+    const kept = held.get(keyOf(c, 'layout', slug + '#' + (c.req.query('v') || '')))
+    if (!kept) return fail(c, 404, 'Nothing to preview')
+    kept.at = now()
+    const url = new URL(c.req.url)
+    const res = await previewScope.run(kept.overlay, () => deps.fetchApp(new Request(url.origin + KINDS.page.path(slug), {
+      headers: { Host: c.req.header('Host') || url.host, 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', Accept: 'text/html' },
+    })))
+    if (!(res.headers.get('content-type') || '').includes('text/html')) return fail(c, 404, 'This page has no preview')
+    let html = await res.text()
+    const bare = '<style data-layout-thumb>body>header,body>footer,.site-header,.site-footer,.mobile-nav,.skip-link,.text-size-toggle{display:none!important}html,body{min-height:0!important;margin:0}</style>'
+    const end = html.lastIndexOf('</body>')
+    html = (end >= 0 ? html.slice(0, end) + bare + FRAME_SCRIPT + html.slice(end) : html + bare + FRAME_SCRIPT)
+    return c.html(html, 200, headers())
+  })
+
   const kindOf = (c: any): PreviewKind | null => {
     const k = c.req.param('kind')
     return k in KINDS ? (k as PreviewKind) : null

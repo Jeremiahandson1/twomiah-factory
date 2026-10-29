@@ -1,0 +1,27 @@
+<%
+  // Before and after, side by side, no script: each photo with an `after` url shows as a pair. Photos without one are
+  // not shown here (the editor offers this layout only when every photo has its pair).
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const photos = Array.isArray(data.photos) ? data.photos.filter(p => p && p.url && p.after) : []
+  if (photos.length === 0) return
+%>
+<section class="gallery-section gallery-section--pairs">
+  <div class="container">
+    <% if (heading || intro) { %><div class="gallery-section__head">
+      <% if (heading) { %><h2 class="gallery-section__title"><%= heading %></h2><% } %>
+      <% if (intro) { %><p class="gallery-section__intro"><%= intro %></p><% } %>
+    </div><% } %>
+    <div class="gallery-pairs">
+      <% photos.forEach(function (p) { %>
+        <figure class="gallery-pairs__pair">
+          <div class="gallery-pairs__imgs">
+            <div><img src="<%= p.url %>" alt="<%= p.alt ? p.alt + ' — before' : 'Before' %>" loading="lazy"><span>Before</span></div>
+            <div><img src="<%= p.after %>" alt="<%= p.alt ? p.alt + ' — after' : 'After' %>" loading="lazy"><span>After</span></div>
+          </div>
+          <% if (p.title || p.caption) { %><figcaption><%= p.title || p.caption %></figcaption><% } %>
+        </figure>
+      <% }) %>
+    </div>
+  </div>
+</section>

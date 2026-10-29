@@ -1,0 +1,26 @@
+<%
+  // Services as a plain numbered list: title and words on a row, a thin rule between. Quiet, and fits many services.
+  const heading = data.heading || 'What we do'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items : []
+%>
+<section id="services" class="services services--list">
+  <div class="container container--narrow">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ol class="svc-list">
+      <% items.forEach(function (item, i) { const link = item.href || item.servicePage || '' %>
+        <li class="svc-list__row">
+          <span class="svc-list__n"><%= String(i + 1).padStart(2, '0') %></span>
+          <div class="svc-list__main">
+            <h3 class="svc-list__title"><% if (link) { %><a href="<%= link %>"><%= item.title %></a><% } else { %><%= item.title %><% } %></h3>
+            <% if (item.description) { %><p><%= item.description %></p><% } %>
+            <% if (Array.isArray(item.subLinks) && item.subLinks.length) { %><ul class="service-parts" aria-label="Parts of <%= item.title %>"><% for (const p of item.subLinks) { %><li><a href="<%= p.href %>"><%= p.title %></a></li><% } %></ul><% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ol>
+  </div>
+</section>

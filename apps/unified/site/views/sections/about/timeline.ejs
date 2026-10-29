@@ -1,0 +1,20 @@
+<%
+  // The story as a timeline: the business's own milestones (data.milestones: [{year, text}]) down a line, with the story's
+  // paragraphs above. Offered only when milestones exist (server/site/layouts.ts).
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || 'Our story'
+  const paragraphs = Array.isArray(data.paragraphs) ? data.paragraphs : []
+  const ms = Array.isArray(data.milestones) ? data.milestones.filter(m => m && (m.year || m.text)) : []
+  const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
+%>
+<section class="story story--timeline">
+  <div class="container container--narrow">
+    <% if (eyebrow) { %><div class="story__eyebrow"><%= eyebrow %></div><% } %>
+    <<%= H %> class="story__title"><%= title %></<%= H %>>
+    <% for (const p of paragraphs) { %><p class="story__paragraph"><%= p %></p><% } %>
+    <% if (data.signature) { %><div class="story__signature"><%= data.signature %></div><% } %>
+    <ol class="timeline-list">
+      <% ms.forEach(function (m) { %><li><span class="timeline-list__year"><%= m.year || '' %></span><span class="timeline-list__text"><%= m.text || '' %></span></li><% }) %>
+    </ol>
+  </div>
+</section>

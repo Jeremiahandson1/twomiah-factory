@@ -9,6 +9,7 @@ import { api } from '../../api'
 import { findSectionDef, SECTION_DEFS } from '../sectionSchema'
 import { SectionFormDispatcher } from '../components/SectionFormDispatcher'
 import { AddSectionMenu } from '../components/AddSectionMenu'
+import { ChangeLayout, LAYOUT_TYPES } from '../components/ChangeLayout'
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 interface Section { type: string; variant: string; data: Record<string, any> }
@@ -69,6 +70,8 @@ export function PageEditPage() {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0)
   const [previewOnPhone, setPreviewOnPhone] = useState(false)
   const [switching, setSwitching] = useState(false)
+  // The last layout change, for Undo: the section as it was, and where it sits.
+  const [layoutUndo, setLayoutUndo] = useState<{ i: number; section: Section } | null>(null)
   /**
    * The page opened hidden with nothing live on it — the starting site holds back a page it had no facts for (an About
    * with no story). Publishing its first content shows it, as saving it used to (live test 2026-10-22: "About exists
@@ -217,7 +220,7 @@ export function PageEditPage() {
           {page.sections.map((section, i) => {
             const def = findSectionDef(section.type, section.variant)
             const isOpen = expandedIdx === i
-            const name = def?.label || `${section.type}/${section.variant}`
+            const name = def?.label || `${section.type[0].toUpperCase()}${section.type.slice(1).replace(/_/g, ' ')} — ${section.variant.replace(/[-_]/g, ' ')}`
             return (
               <div key={i} className="card overflow-hidden">
                 <div className="px-4 py-3 flex items-center gap-2">
@@ -246,6 +249,28 @@ export function PageEditPage() {
                 </div>
                 {isOpen && (
                   <fieldset disabled={!mayEdit} className="px-4 py-4 border-t border-line bg-paper min-w-0">
+                    {LAYOUT_TYPES.has(section.type) ? (
+                      <div className="mb-4 pb-4 border-b border-line flex flex-wrap items-center gap-3">
+                        <ChangeLayout
+                          pageSlug={slug || 'home'}
+                          section={section}
+                          disabled={!mayEdit}
+                          onPick={(variant) => {
+                            // Only the layout changes: the section's data is carried over exactly, nothing merged in or dropped.
+                            setLayoutUndo({ i, section })
+                            updateSection(i, { ...section, variant })
+                          }}
+                        />
+                        {layoutUndo && layoutUndo.i === i && layoutUndo.section.variant !== section.variant && (
+                          <button type="button" className="btn-secondary btn-sm" onClick={() => {
+                            // Back to the previous layout; words edited since stay.
+                            updateSection(i, { ...section, variant: layoutUndo.section.variant })
+                            setLayoutUndo(null)
+                          }}>Undo layout change</button>
+                        )}
+                        <span className="text-xs text-muted">Layout: {section.variant.replace(/[-_]/g, ' ')}</span>
+                      </div>
+                    ) : (
                     <VariantPicker
                       currentType={section.type}
                       currentVariant={section.variant}
@@ -257,6 +282,7 @@ export function PageEditPage() {
                         updateSection(i, { ...section, variant: newVariant, data: merged })
                       }}
                     />
+                    )}
                     <SectionFormDispatcher
                       type={section.type}
                       variant={section.variant}
