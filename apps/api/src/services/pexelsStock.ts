@@ -95,8 +95,8 @@ export async function deriveStockQueriesAI(
 ): Promise<QuerySpec[] | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null
   try {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk')
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 30_000, maxRetries: 1 })
+    const { aiClient } = await import('./aiClient')
+    const anthropic = aiClient({ timeout: 30_000, maxRetries: 1 })
     const prompt = `Choose stock-photo search queries for a website's imagery.
 Business: "${businessName}" — ${businessType}.
 ${description ? 'About: ' + description : ''}
