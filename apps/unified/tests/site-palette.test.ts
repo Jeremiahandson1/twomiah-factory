@@ -50,11 +50,13 @@ describe('every colour an owner sets changes every design', () => {
       expect(a).toContain(ACCENT)
       expect(sheet(design, OTHER)).not.toBe(a)
       // the accent reaches rules of its own, not only a placeholder in the design's own sheet
-      expect(a).toContain("the owner's accent")
-      expect((a.match(new RegExp(ACCENT, 'g')) || []).length).toBeGreaterThanOrEqual(3)
+      if (SITE_DESIGN_SPECS[design].tokens !== 'bar') expect(a).toContain("the owner's accent")
+      expect((a.match(new RegExp(ACCENT, 'g')) || []).length).toBeGreaterThanOrEqual(SITE_DESIGN_SPECS[design].tokens === 'bar' ? 1 : 3)
     })
     test(`${design}: a site that never chose an accent keeps the look it had`, () => {
       expect(sheet(design, null)).not.toContain("the owner's accent")
+      // …nor a band, a page or a brand of its own: the company's second colour is not a choice made on the site
+      expect(sheet(design, null)).not.toContain("the owner's page and dark band")
     })
     test(`${design}: the brand colour changes the sheet`, () => {
       const a = sheet(design, null, { brand: '#aa3311' })
@@ -80,6 +82,10 @@ describe('every colour an owner sets changes every design', () => {
       expect(d).toContain('color-scheme: dark')
     })
   }
+  test('the bar is left exactly as it was: an accent adds no rules to it', () => {
+    expect(sheet('bar', '#2255cc')).not.toContain("the owner's accent")
+    expect(sheet('bar', '#2255cc')).not.toContain('--accent-fill')
+  })
   test('the bar keeps its leather page: a page ground is not applied to it', () => {
     expect(sheet('bar', null, { page: '#fdf2f8' })).not.toContain('#fdf2f8')
   })

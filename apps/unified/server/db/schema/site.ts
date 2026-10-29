@@ -39,6 +39,11 @@ export const website = pgTable('website', {
    * the site looks never recolours an invoice or an email (server/site/palette.ts).
    */
   palette: json('palette'),
+  /**
+   * The site's type and feel: { fonts, corners, buttons, spacing } — each a choice from site/feel.ts, or absent (the
+   * design's own). Kept apart from the colours so either can be reset without the other.
+   */
+  style: json('style'),
   faviconUrl: text('favicon_url'),
   // Tracking ids, printed as the plain standard snippets so Google's tools can detect them.
   googleTagManagerId: text('google_tag_manager_id'),

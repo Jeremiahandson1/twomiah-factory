@@ -274,6 +274,13 @@
       "when": 1793306248388,
       "tag": "0038_site_palette",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793307658046,
+      "tag": "0039_site_style",
+      "breakpoints": true
     }
   ]
 }

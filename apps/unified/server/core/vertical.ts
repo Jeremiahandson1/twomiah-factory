@@ -344,6 +344,8 @@ export interface SiteDesignSpec {
   /** The custom property that holds a whole look's dark band (foundry --steel, heritage --deep, studio and market --panel). */
   band?: string
   headAlign?: 'left' | 'center'
+  /** The header is dark in both light and dark mode (foundry's steel), so a hollow button in it takes white, not the brand. */
+  headerDark?: boolean
   /** A visitor may pick this look for the site they sign up for (the free preview on twomiah.com, POST /public/signup). */
   choosable?: boolean
 }
@@ -359,7 +361,7 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   showcase: { label: 'Showcase', build: 'overrides' },
   // Three looks for a contractor's site (docs/new-looks): industrial, editorial, modern studio.
   foundry: {
-    label: 'Foundry', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--steel', headAlign: 'left',
+    label: 'Foundry', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--steel', headAlign: 'left', headerDark: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
   },
   heritage: {

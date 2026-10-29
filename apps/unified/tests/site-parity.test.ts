@@ -68,7 +68,7 @@ function ctxFor(design: typeof DESIGNS[number]): SiteContext {
   return {
     companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design: designOf(design), words: WORDS[design],
     options: { textSizeToggle: design === 'homecare', shop: false, cover: design === 'bar', ctaHref: design === 'bar' ? '/visit' : '/contact' },
-    colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor, secondary: SETTINGS.secondaryColor, page: null },
+    colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor, secondary: SETTINGS.secondaryColor, page: null, band: null },
     // Every feature on: the parity is of the pieces, whichever a business has switched on.
     features: FEATURE_REGISTRY.map((f) => f.id),
   }

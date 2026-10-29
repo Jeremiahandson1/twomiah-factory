@@ -21,6 +21,7 @@ import { createFileStorage, companyTimeZone, storeDateString, siteSectionFeature
 import { website, page, post, portfolioItem, photo, pageView, lead, contact, company } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, SITE_DESIGN_SPECS, type VerticalSettings } from '../core/vertical.ts'
 import { cleanHex, cleanPalette, PRESETS } from './palette.ts'
+import { cleanStyle, FONT_PAIRS } from './feel.ts'
 import { DEFAULT_ACCENT } from '../core/brandColour.ts'
 import { one, fail, done, listAll } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
@@ -331,7 +332,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     const designs = Object.fromEntries(SITE_DESIGNS.map((id) => [id, { page: SITE_DESIGN_SPECS[id].tokens !== 'bar' }]))
     const [co] = await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor }).from(company).where(eq(company.id, c.get('user').companyId)).limit(1)
     // What an empty brand, accent and band mean: the business's own colours, and the designs' amber.
-    return one(c, { presets: PRESETS, designs, defaults: { brand: co?.primaryColor ?? null, band: co?.secondaryColor ?? null, accent: DEFAULT_ACCENT } })
+    return one(c, { presets: PRESETS, fonts: FONT_PAIRS.map(({ id, label, display, body, blurb }) => ({ id, label, display, body, blurb })), designs, defaults: { brand: co?.primaryColor ?? null, band: co?.secondaryColor ?? null, accent: DEFAULT_ACCENT } })
   })
 
   app.patch('/settings', may('site:settings'), async (c) => {
@@ -342,6 +343,13 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       const raw = (body.palette ?? {}) as Record<string, unknown>
       for (const k of ['brand', 'band', 'page'] as const) if (raw[k] != null && raw[k] !== '' && !cleanHex(raw[k])) return fail(c, 400, `The ${k} colour must look like #1f6b46.`)
       patch.palette = cleanPalette(body.palette)
+    }
+    if ('style' in body) {
+      if (body.style !== null && (typeof body.style !== 'object' || Array.isArray(body.style))) return fail(c, 400, 'style must be { fonts, corners, buttons, spacing } or null')
+      const raw = (body.style ?? {}) as Record<string, unknown>
+      const clean = cleanStyle(body.style) ?? {}
+      for (const k of Object.keys(raw)) if (raw[k] != null && raw[k] !== '' && !(k in clean)) return fail(c, 400, `The ${k} choice is not one of the offered ones.`)
+      patch.style = cleanStyle(body.style)
     }
     if ('accentColor' in body && body.accentColor != null && body.accentColor !== '' && !cleanHex(body.accentColor)) return fail(c, 400, 'The accent colour must look like #c89a4e.')
     for (const [k, max] of SETTINGS_TEXT) {
@@ -381,7 +389,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     const row = await siteRow(c.get('user').companyId)
     if (!draftOf(row)) return fail(c, 409, 'There are no unpublished changes to the settings.', 'nothing_to_publish')
     const [updated] = await db.update(website)
-      .set({ ...publishSet(website, SETTINGS_DRAFT, new Set(['nav', 'serviceAreas', 'palette']), new Set(['nav', 'serviceAreas', 'contactCtaLabel'])), updatedAt: new Date() })
+      .set({ ...publishSet(website, SETTINGS_DRAFT, new Set(['nav', 'serviceAreas', 'palette', 'style']), new Set(['nav', 'serviceAreas', 'contactCtaLabel'])), updatedAt: new Date() })
       .where(eq(website.id, row.id)).returning()
     return one(c, withDraft(updated))
   })
@@ -653,7 +661,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     { kind: 'page', table: page, fields: PAGE_DRAFT, json: new Set(['sections']), notNull: new Set(['title', 'sections']), permission: 'site:update' },
     { kind: 'post', table: post, fields: POST_DRAFT, json: new Set<string>(), notNull: new Set(['title', 'body']), permission: 'site:update' },
     { kind: 'portfolio', table: portfolioItem, fields: PORTFOLIO_DRAFT, json: new Set(['photos']), notNull: new Set(['title', 'body', 'photos']), permission: 'site:update' },
-    { kind: 'settings', table: website, fields: SETTINGS_DRAFT, json: new Set(['nav', 'serviceAreas', 'palette']), notNull: new Set(['nav', 'serviceAreas', 'contactCtaLabel']), permission: 'site:settings' },
+    { kind: 'settings', table: website, fields: SETTINGS_DRAFT, json: new Set(['nav', 'serviceAreas', 'palette', 'style']), notNull: new Set(['nav', 'serviceAreas', 'contactCtaLabel']), permission: 'site:settings' },
   ] as const
 
   /**

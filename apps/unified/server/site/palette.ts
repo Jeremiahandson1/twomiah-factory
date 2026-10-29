@@ -80,6 +80,8 @@ export interface SiteColours {
   secondary: string | null
   /** The owner's page ground, or null: the design's own. */
   page: string | null
+  /** The band the owner chose, or null: the design's own. (`secondary` also falls back to the company's, for the bar.) */
+  band: string | null
 }
 
 export function siteColours(company: { primaryColor: string; secondaryColor?: string | null }, accent: string | null | undefined, palette: unknown): SiteColours {
@@ -89,6 +91,7 @@ export function siteColours(company: { primaryColor: string; secondaryColor?: st
     accent: cleanHex(accent),
     secondary: p?.band ?? company.secondaryColor ?? null,
     page: p?.page ?? null,
+    band: p?.band ?? null,
   }
 }
 
@@ -123,8 +126,8 @@ export function paletteCss(colours: SiteColours, spec: SiteDesignSpec): { css: s
   const kind = spec.tokens ?? 'base'
   const decl: string[] = []
   // The dark band: kept dark (white text sits on it), whatever was picked.
-  if (colours.secondary && kind !== 'bar') {
-    const band = ensureDark(colours.secondary)
+  if (colours.band && kind !== 'bar') {
+    const band = ensureDark(colours.band)
     if (kind === 'look' && spec.band) decl.push(`${spec.band}: ${band}`)
     decl.push(`--brand-deep: ${band}`)
   }
@@ -153,8 +156,8 @@ export function paletteCss(colours: SiteColours, spec: SiteDesignSpec): { css: s
  * a site that never chose one keeps the look it had.
  */
 export function accentCss(colours: SiteColours, spec: SiteDesignSpec, darkPage: boolean): string {
-  if (!colours.accent) return ''
-  const kind = spec.tokens ?? 'base'
+  // The bar's look is its own and stays exactly as it is (its accent already reaches the places its design chose).
+  if (!colours.accent || spec.tokens === 'bar') return ''
   const accent = colours.accent
   const onLight = accentOnLight(accent)
   const onDark = ensureLight(accent)
@@ -163,10 +166,8 @@ export function accentCss(colours: SiteColours, spec: SiteDesignSpec, darkPage: 
   const lines: string[] = []
   lines.push(`:root { --accent-fill: ${accent}; --accent-text: ${text}; accent-color: ${accent}; }`)
   if (spec.schemes && !colours.page) lines.push(`@media (prefers-color-scheme: dark) { :root { --accent-text: ${onDark}; } }`)
-  if (kind !== 'bar') {
-    // The bar under a heading. Heritage draws a hairline there already: the same element, now the accent's and thicker.
-    lines.push(`.section-head::after { content: ''; display: block; width: 56px; height: 4px; border-radius: 2px; background: var(--accent-fill); margin: 18px ${left ? '0' : 'auto'} 0; }`)
-  }
+  // The bar under a heading. Heritage draws a hairline there already: the same element, now the accent's and thicker.
+  lines.push(`.section-head::after { content: ''; display: block; width: 56px; height: 4px; border-radius: 2px; background: var(--accent-fill); margin: 18px ${left ? '0' : 'auto'} 0; }`)
   lines.push(
     `.story__eyebrow, .team__role, .service-row__index, .why-choose__mark { color: var(--accent-text); }`,
     `.story__body a, .blog-post__body a, .legal-page a { text-decoration-color: var(--accent-fill); text-decoration-thickness: 2px; text-underline-offset: 3px; }`,

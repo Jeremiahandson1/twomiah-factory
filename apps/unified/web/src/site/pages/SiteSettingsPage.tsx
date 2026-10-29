@@ -10,6 +10,7 @@ import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
+import { FeelPicker, type FontChoice, type SiteStyle } from '../components/FeelPicker'
 import { PalettePicker, type Palette, type PaletteInfo } from '../components/PalettePicker'
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
@@ -24,6 +25,7 @@ interface SiteRow {
   contactCtaLabel: string
   accentColor: string | null
   palette: Palette | null
+  style: SiteStyle | null
   faviconUrl: string | null
   nav: NavItem[]
   seoTitle: string | null
@@ -35,7 +37,7 @@ interface SiteRow {
   microsoftClarityId: string | null
 }
 
-const FIELDS: Array<keyof SiteRow> = ['design', 'tagline', 'serviceAreas', 'inventoryFeedUrl', 'contactCtaLabel', 'accentColor', 'palette', 'faviconUrl', 'nav', 'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId']
+const FIELDS: Array<keyof SiteRow> = ['design', 'tagline', 'serviceAreas', 'inventoryFeedUrl', 'contactCtaLabel', 'accentColor', 'palette', 'style', 'faviconUrl', 'nav', 'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId']
 const pick = (row: any): SiteRow => Object.fromEntries(FIELDS.map((k) => [k, row?.[k] ?? null])) as SiteRow
 /** What the editor edits: the draft settings where there are some, else the live ones. */
 const toWorking = (r: DraftRow): SiteRow => pick(r.draft ?? r)
@@ -53,7 +55,7 @@ export function SiteSettingsPage() {
   const mayOpenCompany = useMayWrite('company:update')
   const wide = useIsWide()
   const [designs, setDesigns] = useState<Design[]>([])
-  const [paletteInfo, setPaletteInfo] = useState<PaletteInfo | null>(null)
+  const [paletteInfo, setPaletteInfo] = useState<(PaletteInfo & { fonts: FontChoice[] }) | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [previewOnPhone, setPreviewOnPhone] = useState(false)
@@ -71,7 +73,7 @@ export function SiteSettingsPage() {
 
   useEffect(() => {
     Promise.all([api.get('/api/site/settings'), api.get('/api/site/designs'), api.get('/api/site/palettes')])
-      .then(([row, d, pal]: [DraftRow, { data: Design[] }, PaletteInfo]) => {
+      .then(([row, d, pal]: [DraftRow, { data: Design[] }, PaletteInfo & { fonts: FontChoice[] }]) => {
         ed.adopt(row)
         setDesigns(d.data)
         setPaletteInfo(pal)
@@ -152,6 +154,19 @@ export function SiteSettingsPage() {
             disabled={!mayEdit}
             value={{ accentColor: settings.accentColor, palette: settings.palette }}
             onChange={(v) => update({ accentColor: v.accentColor, palette: v.palette })}
+          />
+        </section>
+
+        {/* Type and feel */}
+        <section className="card card-padding mb-6">
+          <h2 className="text-lg font-semibold text-ink mb-1">Type and feel</h2>
+          <p className="text-xs text-muted mb-4">Fonts, how round the corners are, the style of buttons and how much room the page leaves. Each is a short list of choices that always read well.</p>
+          <FeelPicker
+            fonts={paletteInfo?.fonts || []}
+            bar={!!paletteInfo && paletteInfo.designs[settings.design || defaultDesign?.id || '']?.page === false}
+            disabled={!mayEdit}
+            value={settings.style}
+            onChange={(v) => update({ style: v })}
           />
         </section>
 
