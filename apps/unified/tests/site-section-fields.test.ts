@@ -34,7 +34,8 @@ const reads = (src: string) => new Set([...src.matchAll(/\bdata\.([A-Za-z_$][\w$
 const NO_FIELD: Record<string, Record<string, string>> = {
   // The view is the template's own file (site-parity). The bar's cover hides the line (designs/bar.css .board__title-sub):
   // offered as "Line under the lettering", it showed nowhere (bar live test, 2026-10-25). The lines under the name are line1/line2.
-  'tonight/board': { titleSub: 'the cover design hides it, so a field for it would do nothing; line1 and line2 are the lines under the name' },
+  'tonight/board': { titleSub: 'the cover design hides it, so a field for it would do nothing; line1 and line2 are the lines under the name',
+    coverSrcset: "made by the site from the cover photo (site/heroImages.ts): the sized WebP copies of it, so a phone is not sent the original" },
   'menu/sections': { sections: "the fallback menu for a bar whose CRM has none yet; the menu is the CRM's (Bar → Menu), edited there" },
   'timeline/era': { entries: "the fallback when there are no facts; an era's words are the Story timeline's eras (site.timeline), edited there" },
   'timeline/book': { plates: "a per-chapter picture keyed by era name; each chapter's own Plate field sets it, and the eras' photos fill the rest" },

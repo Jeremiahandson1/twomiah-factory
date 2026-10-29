@@ -40,9 +40,11 @@ function menus(html: string) {
 }
 const title = (html: string) => (html.match(/<title>([^<]*)<\/title>/) || [])[1]
 const whatWeDo = (html: string) => {
-  const at = html.indexOf('class="services services--cards"')
+  // The starting site picks one of several services layouts by the business's name (instantComposer.ts pickLayout): the
+  // cards, the numbered list, the tiles or the featured one. Each prints its titles under its own class.
+  const at = html.indexOf('class="services services--')
   if (at < 0) return null
-  return [...html.slice(at, html.indexOf('</section>', at)).matchAll(/service-card__title">([^<]*)</g)].map((m) => m[1])
+  return [...html.slice(at, html.indexOf('</section>', at)).matchAll(/(?:service-card__title|svc-list__title|svc-tile__title|svc-featured__title)">(?:<a [^>]*>)?([^<]*)</g)].map((m) => m[1])
 }
 
 describe('a general contractor\'s starting site (the contractor retest)', () => {

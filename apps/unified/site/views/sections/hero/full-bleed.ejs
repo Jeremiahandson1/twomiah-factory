@@ -9,7 +9,9 @@
   const primaryCta = data.primaryCta || null
   const secondaryCta = data.secondaryCta || null
 %>
-<section class="hero hero--full-bleed" style="background-image: url('<%= bg %>')">
+<%# The photo is the site's own sized WebP, chosen per screen by rules from the server (server/site/heroImages.ts); an image with no copies keeps its inline background. %>
+<% if (data.imageCss) { %><style><%- data.imageCss %></style><% } %>
+<section class="hero hero--full-bleed"<% if (data.imageCss) { %> data-bg="<%= data.imageKey %>"<% } else { %> style="background-image: url('<%= bg %>')"<% } %>>
   <div class="hero__scrim"></div>
   <div class="container hero__inner">
     <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
