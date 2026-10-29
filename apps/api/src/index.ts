@@ -95,4 +95,8 @@ startScheduler(port)
 export default {
   port,
   fetch: app.fetch,
+  // Bun closes a request that sends nothing for idleTimeout seconds — 10 by default. The hourly email-alias sweep (one
+  // tenant after another, Cloudflare and each CRM per tenant) passed 10 s once Perch and Prarie's domain joined it (10/29:
+  // "The socket connection was closed unexpectedly"). 120 s — Bun's maximum is 255.
+  idleTimeout: 120,
 }

@@ -1659,11 +1659,13 @@ factory.post('/internal/email-alias-sweep', async (c) => {
     .not('domain', 'is', null).not('cloudflare_zone_id', 'is', null).neq('status', 'offboarded')
   if (error) return c.json({ error: error.message }, 500)
   const { reconcileTenantAliases } = await import('../../services/emailAliasSync')
-  const results: any[] = []
-  for (const t of tenants || []) {
-    const r = await reconcileTenantAliases(t)
-    results.push({ slug: t.slug, state: r.state, live: r.aliases.filter((a) => a.state === 'live').length, aliases: r.aliases.length })
-  }
+  // Four tenants at a time (each is Cloudflare + its CRM): the sweep stays short as customers are added. reconcileTenantAliases
+  // never throws; a tenant it could not settle reports its state.
+  const list = tenants || []
+  const results: any[] = new Array(list.length)
+  let next = 0
+  const worker = async () => { while (next < list.length) { const i = next++; const t = list[i]; const r = await reconcileTenantAliases(t); results[i] = { slug: t.slug, state: r.state, live: r.aliases.filter((a) => a.state === 'live').length, aliases: r.aliases.length } } }
+  await Promise.all(Array.from({ length: Math.min(4, list.length) }, worker))
   return c.json({ ok: true, tenants: results.length, results })
 })
 
