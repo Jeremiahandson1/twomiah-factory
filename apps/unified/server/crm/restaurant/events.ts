@@ -22,15 +22,16 @@
 import { Hono } from 'hono'
 import { eq, and, gte, lte, or, ilike, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { deriveStatus, round2, withoutPortalCredential } from '@twomiah/tenant-backend'
+import { checkFilter, deriveStatus, round2, withoutPortalCredential } from '@twomiah/tenant-backend'
 import { event, eventSpace, eventMenuItem, eventTimeline, eventPayment, menuPackage, contact, company, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, done, listAll } from '../../http/reply.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
+import { EVENT_TILES, eventTileCondition } from './tileConditions.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
-  EXIT_STATUSES, HELD, DATE_RE, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
+  EXIT_STATUSES, HELD, DATE_RE, venueToday, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
   coordinatorRefusal, eventWarnings, moneyRefusal, quantityRefusal, auditName,
 } from './eventBooking.ts'
 
@@ -110,8 +111,13 @@ export function createEventRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
 
   // GET /events — ?from=&to= on eventDate, ?status=, ?spaceId=, ?search=
+  // ?tile=today|next30|inquiries|confirmed is the home screen's tile (tileConditions.ts): the dashboard's `tiles.events`
+  // counts call the same condition on the venue's day. An unknown tile is refused 400 INVALID_FILTER, never answered "empty".
   app.get('/', requirePermission('contacts:read'), async (c) => {
     const currentUser = c.get('user') as any
+    const tile = c.req.query('tile')
+    const badTile = checkFilter(c, 'tile', tile, EVENT_TILES)
+    if (badTile) return badTile
     const from = c.req.query('from')
     const to = c.req.query('to')
     const status = c.req.query('status')
@@ -119,6 +125,7 @@ export function createEventRoutes(d: CrmDeps) {
     const search = c.req.query('search')
 
     const conditions = [eq(event.companyId, currentUser.companyId)]
+    if (tile) conditions.push(eventTileCondition(tile as any, event, await venueToday(db, currentUser.companyId)))
     if (from) conditions.push(gte(event.eventDate, from))
     if (to) conditions.push(lte(event.eventDate, to))
     if (status) conditions.push(eq(event.status, status))

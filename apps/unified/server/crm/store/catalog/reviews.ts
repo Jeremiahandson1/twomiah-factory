@@ -15,6 +15,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
+import { checkFilter } from '@twomiah/tenant-backend'
+import { REVIEW_TILES, pendingReviewCondition } from '../tileConditions.ts'
 import { productReview, storeProduct } from '../../../db/schema/store.ts'
 import { reviewCountsByStatus } from '../../../data/storeCatalog.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -35,7 +37,11 @@ export function createReviewRoutes(d: CrmDeps) {
   // Moderation queue. Defaults to what needs a decision.
   app.get('/', async (c) => {
     const u = c.get('user')
+    // ?tile=pending is the home screen's "Reviews to approve": the rows the dashboard counts (../tileConditions.ts).
+    const badTile = checkFilter(c, 'tile', c.req.query('tile'), REVIEW_TILES)
+    if (badTile) return badTile
     const status = c.req.query('status') || 'pending'
+    const byTile = c.req.query('tile') === 'pending' ? [pendingReviewCondition(productReview)] : []
     const rows = await db.select({
       id: productReview.id,
       productId: productReview.productId,
@@ -52,7 +58,7 @@ export function createReviewRoutes(d: CrmDeps) {
     })
       .from(productReview)
       .leftJoin(storeProduct, eq(storeProduct.id, productReview.productId))
-      .where(and(eq(productReview.companyId, u.companyId), status === 'all' ? undefined : eq(productReview.status, status)))
+      .where(and(eq(productReview.companyId, u.companyId), ...(byTile.length ? byTile : [status === 'all' ? undefined : eq(productReview.status, status)])))
       .orderBy(desc(productReview.createdAt))
       .limit(QUEUE_LIMIT)
     return list(c, rows, { page: 1, limit: QUEUE_LIMIT, total: rows.length })

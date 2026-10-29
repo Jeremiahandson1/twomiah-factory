@@ -6,14 +6,15 @@
 // The registry signs the person in and applies the 'reminders_recall' gate (the template's sidebar gate; its index.ts
 // mounted it ungated).
 import { Hono } from 'hono'
-import { eq, and, isNotNull, inArray } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { vaccination, patient, contact, company, user } from '../../db/schema/index.ts'
 import { lapsedPatients, stampVaccinationsReminded } from '../../data/vetReminders.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { z } from 'zod'
-import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
+import { companyTimeZone, storeDateString, checkFilter } from '@twomiah/tenant-backend'
+import { REMINDER_TILES, dueVaccinationCondition, addDays } from './tileConditions.ts'
 import { invalid } from '../../http/errors.ts'
 import { vetReminderSettings, DEFAULT_VET_MESSAGE, QUIET_BEFORE, QUIET_FROM } from './vaccineReminders.ts'
 
@@ -79,13 +80,17 @@ export function createReminderRoutes(d: CrmDeps) {
   // (or past). A report: its counts beside its rows, as the template answered.
   app.get('/due', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
+    // ?tile=overdue | due_soon are the home screen's "Vaccines overdue" and "Due in 30 days": the rows the dashboard counts
+    // (./tileConditions.ts — one condition, the latest shot per pet and vaccine). An unknown tile is refused.
+    const badTile = checkFilter(c, 'tile', c.req.query('tile'), REMINDER_TILES)
+    if (badTile) return badTile
+    const tile = c.req.query('tile') as (typeof REMINDER_TILES)[number] | undefined
     const windowDays = Math.min(365, Math.max(1, +(c.req.query('window') || '30')))
     // The window ends `windowDays` after the CLINIC's today (UTC's ran a day ahead every evening).
     const today = await todayStr(db, u.companyId)
-    const end = new Date(`${today}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + windowDays)
-    const cutoff = end.toISOString().slice(0, 10)
+    const cutoff = addDays(today, windowDays)
 
-    const rows = await db.select({
+    const data0: any[] = await db.select({
       vaccinationId: vaccination.id, vaccine: vaccination.vaccine, givenDate: vaccination.givenDate, dueDate: vaccination.dueDate, isRabies: vaccination.isRabies,
       lastRemindedAt: vaccination.lastRemindedAt, reminderCount: vaccination.reminderCount,
       patientId: patient.id, patientName: patient.name, species: patient.species, deceased: patient.deceased,
@@ -94,20 +99,11 @@ export function createReminderRoutes(d: CrmDeps) {
       .from(vaccination)
       .leftJoin(patient, eq(vaccination.patientId, patient.id))
       .leftJoin(contact, eq(patient.ownerId, contact.id))
-      .where(and(eq(vaccination.companyId, u.companyId), isNotNull(vaccination.dueDate)))
+      .where(dueVaccinationCondition(vaccination, u.companyId, today, tile ?? { by: cutoff }))
 
-    // Only the most recent administration per (patient, vaccine), so a renewed vaccine doesn't nag on the old date.
-    const latest = new Map<string, any>()
-    for (const r of rows) {
-      if (r.deceased) continue
-      const key = r.patientId + '|' + (r.vaccine || '').toLowerCase()
-      const cur = latest.get(key)
-      if (!cur || (r.givenDate || '') > (cur.givenDate || '')) latest.set(key, r)
-    }
     const t = today
     const recentCutoff = Date.now() - REMINDED_RECENTLY_DAYS * 86400000
-    const data = [...latest.values()]
-      .filter((r) => (r.dueDate || '') <= cutoff)
+    const data = data0
       .map((r) => ({ ...r, overdue: (r.dueDate || '') < t, remindedRecently: !!r.lastRemindedAt && new Date(r.lastRemindedAt).getTime() >= recentCutoff }))
       .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 

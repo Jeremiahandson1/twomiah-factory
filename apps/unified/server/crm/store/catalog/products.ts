@@ -44,6 +44,7 @@ import { PUBLIC_PHOTO_PREFIX } from '../../../site/admin.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
+import { productSearchCondition } from '../tileConditions.ts'
 import { changedKeys } from './audit.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
@@ -169,7 +170,9 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const limitRaw = c.req.query('limit')
     const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw) || 0, 1), 200) : undefined
     const page = Math.max(parseInt(c.req.query('page') || '1') || 1, 1)
-    const mine = eq(storeProduct.companyId, u.companyId)
+    // ?q= is the stock look-up: a product's name, or a variant's name, SKU or barcode (../tileConditions.ts).
+    const q = (c.req.query('q') || '').trim()
+    const mine = q ? and(eq(storeProduct.companyId, u.companyId), productSearchCondition(storeProduct, storeProductVariant, q))! : eq(storeProduct.companyId, u.companyId)
     const base = db.select().from(storeProduct).where(mine).orderBy(asc(storeProduct.position), desc(storeProduct.createdAt))
     const rows: Array<typeof storeProduct.$inferSelect> = limit !== undefined ? await base.limit(limit).offset((page - 1) * limit) : await base
     const [{ total }] = limit !== undefined ? await db.select({ total: count() }).from(storeProduct).where(mine) : [{ total: rows.length }]

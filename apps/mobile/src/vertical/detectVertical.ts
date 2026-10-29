@@ -1,7 +1,7 @@
 /**
  * Which tabs a business gets. The server names its industry (company.vertical — the unified app sends its vertical id on
  * sign-in and /api/auth/me), and that is the answer: an industry the phone app has screens for gets them; any other
- * (bar, salon, vet, restaurant, store, or one it does not know) is `unavailable`. Guessing from enabled features ran when
+ * (vet while it is kept off, or one it does not know) is `unavailable`. Guessing from enabled features ran when
  * no vertical was sent, and made salons and bars a dispensary (loyalty_rewards) — so it runs only when the server sends
  * none at all.
  */

@@ -7,18 +7,19 @@
 // service as the Reports page, so the two can't disagree. Both replies are one record each, as in the template.
 import { Hono } from 'hono'
 import { eq, and, gte, lte, lt, count, desc, asc, inArray, notInArray } from 'drizzle-orm'
-import { companyTimeZone, createReportingService, storeDayStart } from '@twomiah/tenant-backend'
+import { companyTimeZone, createReportingService, invoiceBalance, overdueCutoff, storeDayStart } from '@twomiah/tenant-backend'
 import { contact, event, eventSpace, eventMenuItem, eventPayment, user, invoice, payment, job, project, quote, timeEntry } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { one } from '../../http/reply.ts'
 import { installmentStates } from './eventLedger.ts'
 import { EXIT_STATUSES, venueToday } from './eventBooking.ts'
+import { EVENT_TILES, dayPlus, eventTileCondition, overdueInvoiceCondition } from './tileConditions.ts'
+import { barMenuItem, barTap, barPurchaseOrder, barTimeOff } from '../../db/schema/index.ts'
+import { outTonightCondition, tapTroubleCondition, onTheWayCondition, pendingTimeOffCondition } from '../bar/tileConditions.ts'
 
 const HELD = ['tentative', 'confirmed']
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
-/** A calendar day n days on (the arithmetic on the day itself, so no clock can shift it). */
-const dayPlus = (dayKey: string, n: number) => new Date(Date.parse(`${dayKey}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
 export function createEventsDashboardRoutes(d: CrmDeps) {
   const { db } = d
@@ -33,6 +34,47 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
    * — "$0.00" would tell a coordinator the venue is owed nothing — and `moneyWithheld` says so.
    */
   const maySeeMoney = async (u: any) => hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+
+  /**
+   * THE HOME SCREEN'S TILES (`stats.tiles`): each figure is the count of the SAME condition the tile's list route filters
+   * by (tileConditions.ts here and bar/tileConditions.ts), and each is present only when this seat may open that list —
+   * the list's own permission and feature. A tile the seat may not open is ABSENT, never 0.
+   *   tiles.events.{today,next30,inquiries,confirmed}   GET /api/events?tile=…            contacts:read · event_bookings
+   *   tiles.invoices.overdue                            GET /api/invoices?status=overdue   invoices:read · invoices (+ amount)
+   *   tiles.menu.out                                    GET /api/bar/menu?tile=out         bar:read · bar_menu
+   *   tiles.taps.trouble                                GET /api/bar/taps?tile=trouble     bar:read · bar_menu (+ taps switch)
+   *   tiles.orders.on_the_way                           GET /api/stock/orders?tile=on_the_way   bar:update · bar_stock
+   *   tiles.timeOff.pending                             GET /api/schedule/time-off?tile=pending bar:update · bar_schedule
+   */
+  /** The overdue invoices — the list's own rows (overdueInvoiceCondition): how many, and the balance they hold. */
+  async function overdueFigures(companyId: string) {
+    const cutoff = overdueCutoff(new Date(), await companyTimeZone(db, companyId))
+    const rows = await safe(() => db.select().from(invoice).where(and(eq(invoice.companyId, companyId), overdueInvoiceCondition(invoice, cutoff))), [] as any[])
+    return { overdue: rows.length, overdueAmount: Math.round(rows.reduce((sum: number, r: any) => sum + invoiceBalance(r), 0) * 100) / 100 }
+  }
+
+  async function homeTiles(u: any, today: string) {
+    const companyId = u.companyId
+    const extra = await getExtraPermissions(u.userId)
+    const may = (perm: string) => hasPermission(u.role, perm, extra)
+    const on = (f: string | string[]) => d.features.isFeatureEnabled(companyId, f)
+    const tapsSwitch = d.settings?.foodService?.tapsFeature
+    const n = async (q: Promise<any[]>) => Number((await safe(() => q, [{ value: 0 }] as any[]))[0]?.value ?? 0)
+    const tiles: Record<string, any> = {}
+    if (may('contacts:read') && await on('event_bookings')) {
+      const counts = await Promise.all(EVENT_TILES.map((tile) =>
+        n(db.select({ value: count() }).from(event).where(and(eq(event.companyId, companyId), eventTileCondition(tile, event, today))) as any)))
+      tiles.events = Object.fromEntries(EVENT_TILES.map((tile, i) => [tile, counts[i]]))
+    }
+    if (may('invoices:read') && await on('invoices')) tiles.invoices = await overdueFigures(companyId)
+    if (may('bar:read') && await on('bar_menu')) {
+      tiles.menu = { out: await n(db.select({ value: count() }).from(barMenuItem).where(and(eq(barMenuItem.companyId, companyId), outTonightCondition(barMenuItem))) as any) }
+      if (!tapsSwitch || await on(tapsSwitch)) tiles.taps = { trouble: await n(db.select({ value: count() }).from(barTap).where(and(eq(barTap.companyId, companyId), tapTroubleCondition(barTap))) as any) }
+    }
+    if (may('bar:update') && await on('bar_stock')) tiles.orders = { on_the_way: await n(db.select({ value: count() }).from(barPurchaseOrder).where(and(eq(barPurchaseOrder.companyId, companyId), onTheWayCondition(barPurchaseOrder))) as any) }
+    if (may('bar:update') && await on('bar_schedule')) tiles.timeOff = { pending: await n(db.select({ value: count() }).from(barTimeOff).where(and(eq(barTimeOff.companyId, companyId), pendingTimeOffCondition(barTimeOff))) as any) }
+    return tiles
+  }
 
   const app = new Hono<AppEnv>()
 
@@ -87,8 +129,14 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
     const bookedValue = (bookedValueRows as any[]).reduce((s, l) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0)
     const statusMap: Record<string, number> = Object.fromEntries((byStatus as any[]).map((s) => [s.status, Number(s.c)]))
     const money = await maySeeMoney(user_)
+    const tiles = await homeTiles(user_, today)
+    // The banner is the same rows as the list it opens (and as tiles.invoices), whether or not the invoices switch is on.
+    const overdueNow = money ? (tiles.invoices ?? await overdueFigures(companyId)) : { overdue: 0, overdueAmount: 0 }
 
     return one(c, {
+      // the venue's calendar day, so the phone need not guess it
+      today,
+      tiles,
       contacts: clientRows[0]?.value ?? 0,
       pipeline: {
         enquiry: statusMap.enquiry ?? 0,
@@ -108,7 +156,7 @@ export function createEventsDashboardRoutes(d: CrmDeps) {
         ...(money ? { bookedValue } : {}),
       },
       ...(money
-        ? { payments: { overdue: Number(revenue.overdue || 0), overdueCount: Number(revenue.overdueCount || 0), outstanding: Number(revenue.outstanding || 0) } }
+        ? { payments: { overdue: overdueNow.overdueAmount, overdueCount: overdueNow.overdue, outstanding: Number(revenue.outstanding || 0) } }
         : { moneyWithheld: true }),
       byType: Object.fromEntries((byTypeRows as any[]).map((r) => [r.eventType, Number(r.c)])),
       bySpace: (spaceRows as any[]).map((r) => ({ spaceId: r.spaceId, name: r.spaceName || 'Unassigned', events: Number(r.c) }))

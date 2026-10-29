@@ -7,6 +7,7 @@
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeOrderRefund, storeProductVariant } from '../db/schema/store.ts'
+import { toPackCondition, atSupplierCondition, countedOrderCondition } from '../crm/store/tileConditions.ts'
 
 type Order = typeof storeOrder.$inferSelect
 
@@ -20,9 +21,9 @@ const noPartInFlight = sql`not exists (select 1 from "order_refunds" r where r."
  */
 export async function orderStats(db: any, companyId: string): Promise<{ paidCount: number; pendingFulfillment: number; atSupplier: number; revenueCents: number; refundedCount: number; refundedCents: number }> {
   const [row] = await db.select({
-    paidCount: sql<number>`count(*) filter (where ${storeOrder.status} not in ('pending','cancelled'))`,
-    pendingFulfillment: sql<number>`count(*) filter (where ${storeOrder.status} = 'paid')`,
-    atSupplier: sql<number>`count(*) filter (where ${storeOrder.supplierStatus} = 'placed')`,
+    paidCount: sql<number>`count(*) filter (where ${countedOrderCondition(storeOrder)})`,
+    pendingFulfillment: sql<number>`count(*) filter (where ${toPackCondition(storeOrder)})`,
+    atSupplier: sql<number>`count(*) filter (where ${atSupplierCondition(storeOrder)})`,
     revenueCents: sql<number>`coalesce(sum(${storeOrder.totalCents}) filter (where ${storeOrder.status} not in ('pending','cancelled')), 0)`,
     refundedCount: sql<number>`count(*) filter (where ${storeOrder.status} not in ('pending','cancelled') and ${storeOrder.refundedCents} > 0)`,
     refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}) filter (where ${storeOrder.status} not in ('pending','cancelled')), 0)`,

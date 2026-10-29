@@ -26,6 +26,7 @@ const ALL_TABS = [
   'shifts', 'care-schedule', 'time-clock', 'messages', 'more-homecare',
   'pipeline', 'canvass',
   'units', 'parts', 'ai-trade',
+  'salon-book', 'salon-myday', 'salon-clients', 'salon-rebook',
 ]
 
 export default function TabLayout() {

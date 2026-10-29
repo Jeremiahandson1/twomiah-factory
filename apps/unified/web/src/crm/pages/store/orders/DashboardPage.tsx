@@ -27,7 +27,7 @@ import { cents, isUnfinishedCheckout, listOf, orderStatusLabel, statusBadge, typ
 interface Stats {
   paidCount: number; pendingFulfillment: number; atSupplier: number
   /** null: not this seat's to see (revenue:read). */
-  revenueCents: number | null; refundedCount: number; refundedCents: number | null; netCents: number | null
+  revenueCents?: number | null; refundedCount: number; refundedCents?: number | null; netCents?: number | null
 }
 interface PaymentStatus { config: { provider: string; mode: string; connected: boolean } | null }
 
@@ -75,11 +75,11 @@ export default function DashboardPage() {
   // Which tiles show depends on the seat (revenue:read) and the data (a refund, an order at the supplier): two to six.
   // The columns follow the count, so a row never leaves one tile on its own. (Store QA T2, N1)
   const tiles = stats ? [
-    stats.revenueCents !== null && <StatCard key="revenue" icon={DollarSign} label="Revenue" value={cents(stats.revenueCents)} />,
+    stats.revenueCents != null && <StatCard key="revenue" icon={DollarSign} label="Revenue" value={cents(stats.revenueCents)} />,
     // Revenue counts a refunded sale (the sale happened); what went back is shown beside it. (Store QA T1, L3)
-    stats.refundedCents !== null && stats.refundedCount > 0 && <StatCard key="refunded" icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={cents(stats.refundedCents)} />,
+    stats.refundedCents != null && stats.refundedCount > 0 && <StatCard key="refunded" icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={cents(stats.refundedCents)} />,
     // …and what the shop kept, once anything has gone back — part refunds included. (E2E Run 2)
-    stats.netCents !== null && stats.refundedCount > 0 && <StatCard key="net" icon={DollarSign} label="Net sales" value={cents(stats.netCents)} />,
+    stats.netCents != null && stats.refundedCount > 0 && <StatCard key="net" icon={DollarSign} label="Net sales" value={cents(stats.netCents)} />,
     <StatCard key="orders" icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />,
     <StatCard key="fulfill" icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />,
     stats.atSupplier > 0 && <StatCard key="supplier" icon={Truck} label="At supplier" value={String(stats.atSupplier)} />,

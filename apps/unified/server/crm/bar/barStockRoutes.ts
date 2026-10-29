@@ -17,6 +17,7 @@
 // email goes through the app's email (the template's sendRaw).
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
+import { checkFilter } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -24,6 +25,7 @@ import type { CrmDeps } from '../deps.ts'
 import { CATEGORIES, PACK_PRESETS, UNITS } from './barCosting.ts'
 import { StockError, orderEmailHtml } from './barStock.ts'
 import type { BarServices } from './services.ts'
+import { ORDER_TILES } from './tileConditions.ts'
 
 type Ctx = any
 const body = async (c: Ctx) => (await c.req.json().catch(() => ({}))) as Record<string, any>
@@ -116,7 +118,12 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
   app.get('/counts/:id/report', ...manage, async (c) => { const companyId = companyOf(c); return run(c, () => countReport(companyId, c.req.param('id'))) })
 
   // ── Purchase orders ──
-  app.get('/orders', ...manage, async (c) => { const companyId = companyOf(c); return run(c, async () => ({ orders: await orderList(companyId) })) })
+  // ?tile=on_the_way is the home screen's "Orders on the way" (tileConditions.ts — the dashboard's count calls the same).
+  app.get('/orders', ...manage, async (c) => {
+    const bad = checkFilter(c, 'tile', c.req.query('tile'), ORDER_TILES); if (bad) return bad
+    const companyId = companyOf(c); const onTheWay = c.req.query('tile') === 'on_the_way'
+    return run(c, async () => ({ orders: await orderList(companyId, onTheWay) }))
+  })
   app.post('/orders', ...manage, async (c) => { const actor = await actorOf(c); const b = await body(c); return run(c, async () => ({ id: await saveOrder(actor.companyId, null, b as any, actor.name) })) })
   app.put('/orders/:id', ...manage, async (c) => { const actor = await actorOf(c); const b = await body(c); return run(c, async () => ({ id: await saveOrder(actor.companyId, c.req.param('id'), b as any, actor.name) })) })
   app.post('/orders/draft-low', ...manage, async (c) => { const actor = await actorOf(c); return run(c, async () => ({ ids: await draftFromLow(actor.companyId, actor.name) })) })

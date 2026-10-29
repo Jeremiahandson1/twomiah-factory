@@ -3,6 +3,7 @@
 // (routes/reviews.ts GET /counts). Each takes the company it answers for; a photo is reached through its product.
 import { and, eq, sql } from 'drizzle-orm'
 import { productReview, storeProduct, storeProductImage } from '../db/schema/store.ts'
+import { pendingReviewCondition } from '../crm/store/tileConditions.ts'
 
 /**
  * ONE PRIMARY PHOTO, IN ONE STATEMENT. "Clear every primary, then set this one" was two writes: two people choosing
@@ -25,7 +26,7 @@ export async function makeOnlyPrimaryImage(db: any, companyId: string, productId
 /** How many of the company's reviews wait for a decision, and how many were published or turned down. */
 export async function reviewCountsByStatus(db: any, companyId: string): Promise<{ pending: number; approved: number; rejected: number }> {
   const [row] = await db.select({
-    pending: sql<number>`count(*) filter (where ${productReview.status} = 'pending')::int`,
+    pending: sql<number>`count(*) filter (where ${pendingReviewCondition(productReview)})::int`,
     approved: sql<number>`count(*) filter (where ${productReview.status} = 'approved')::int`,
     rejected: sql<number>`count(*) filter (where ${productReview.status} = 'rejected')::int`,
   }).from(productReview).where(eq(productReview.companyId, companyId))

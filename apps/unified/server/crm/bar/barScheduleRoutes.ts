@@ -14,7 +14,9 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { checkFilter } from '@twomiah/tenant-backend'
 import { RotaError } from './barSchedule.ts'
+import { TIME_OFF_TILES } from './tileConditions.ts'
 import type { BarServices } from './services.ts'
 
 type Ctx = any
@@ -27,7 +29,7 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   const manage = [on, requirePermission('bar:update')] as const
   const read = [on, requirePermission('bar:read')] as const
   const { actorOf } = bar.managers
-  const { addScheduled, copyWeek, decideTimeOff, deleteScheduled, loadWeek, myTimeOff, publishWeek, publishedWeeks, requestTimeOff, updateScheduled } = bar.schedule
+  const { addScheduled, copyWeek, decideTimeOff, deleteScheduled, loadWeek, myTimeOff, publishWeek, publishedWeeks, requestTimeOff, timeOffRequests, updateScheduled } = bar.schedule
   const app = new Hono<AppEnv>()
 
   async function run(c: Ctx, fn: () => Promise<unknown>) {
@@ -56,6 +58,13 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
       audit.log({ req: c, action: 'update', entity: 'bar_schedule_week', entityName: `Week of ${r.weekStart}`, changes: { published: true, shifts: r.shifts } })
       return r
     })
+  })
+  // The team's time-off requests (a manager's). ?tile=pending is the home screen's "Time off to decide": the dashboard's
+  // count calls the same condition (tileConditions.ts). An unknown tile is refused 400 INVALID_FILTER.
+  app.get('/time-off', ...manage, async (c) => {
+    const bad = checkFilter(c, 'tile', c.req.query('tile'), TIME_OFF_TILES); if (bad) return bad
+    const a = await actorOf(c)
+    return run(c, async () => ({ requests: await timeOffRequests(a.companyId, c.req.query('tile') === 'pending') }))
   })
   app.put('/time-off/:id', ...manage, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ request: await decideTimeOff(a, c.req.param('id'), b.status) })) })
 

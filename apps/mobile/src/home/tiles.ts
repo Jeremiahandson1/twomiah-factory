@@ -12,10 +12,11 @@
  *     tiles.ts) — so the list's length is the number.
  */
 import type { Vertical } from '../vertical/verticals'
+import { SALON_TILES } from '../trades/salon'
 
 /** One request: a path and its query, in the order written. */
 export interface Req { path: string; query?: Record<string, string> }
-export type ListScreen = 'new-leads' | 'jobs' | 'quotes' | 'invoices' | 'projects' | 'rows'
+export type ListScreen = 'new-leads' | 'jobs' | 'quotes' | 'invoices' | 'projects' | 'rows' | 'trade'
 
 export interface TileDef {
   id: string
@@ -36,6 +37,8 @@ export interface TileDef {
   /** The list this tile opens (what the list screen asks the server) and how to read how many rows it holds. */
   list: Req
   screen: ListScreen
+  /** screen 'trade': the trade-kit screen (src/trades) that draws this tile's rows. */
+  spec?: string
   total: (body: any) => number
   /** The banner on the list: short, in plain words ("New leads · 4"). */
   banner: string
@@ -132,6 +135,7 @@ export function tilesFor(vertical: Vertical): TileDef[] {
     case 'roofing': return ROOF
     case 'rv': return RV
     case 'homecare': return HOMECARE
+    case 'salon': return SALON_TILES
     case 'fieldservice': return jobsFamily('Service calls today')
     case 'contractor': case 'basic': case 'landscaping': return jobsFamily('Jobs today')
     default: return []
@@ -161,13 +165,14 @@ export function resolveTiles(vertical: Vertical, ctx: Ctx, answers: Record<strin
 }
 
 /** Where a tile's list lives on the phone (expo-router paths) — one rule for the home screen and the tests. */
-export function tileRoute(def: TileDef, vertical: string): { pathname: string; params: { tile: string } } {
+export function tileRoute(def: TileDef, vertical: string): { pathname: string; params: { tile: string; spec?: string } } {
   const params = { tile: def.id }
   switch (def.screen) {
     case 'new-leads': return { pathname: '/(details)/leads', params }
     case 'jobs': return { pathname: vertical === 'fieldservice' ? '/(tabs)/service-calls' : '/(tabs)/jobs', params }
     case 'quotes': return { pathname: '/(tabs)/quotes', params }
     case 'invoices': return { pathname: '/(details)/invoices', params }
+    case 'trade': return { pathname: '/(details)/t/[spec]', params: { ...params, spec: def.spec || '' } }
     default: return { pathname: '/(details)/rows', params } // projects, home care and the dealership's rows
   }
 }

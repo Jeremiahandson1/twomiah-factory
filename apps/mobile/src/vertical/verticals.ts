@@ -3,14 +3,21 @@
  *
  * The verticals are the unified app's ids (apps/unified/verticals/*, sent as company.vertical by /api/auth/login and
  * /api/auth/me). `basic` (a general service business) uses the contractor's tabs. `unavailable` is a business whose
- * industry has no phone screens (bar, salon, vet, restaurant, store): it is told to use the web app rather than shown
+ * industry has no phone screens (today: vet, which is built and kept off — VET_PHONE_ON): it is told to use the web app rather than shown
  * another trade's screens. Dispensary is not in the unified app (owner, 2026-10-19), so the app has no dispensary tabs.
  */
 
-export type Vertical = 'contractor' | 'basic' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'rv' | 'unavailable'
+export type Vertical = 'contractor' | 'basic' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'rv'
+  | 'salon' | 'restaurant' | 'bar' | 'store' | 'vet' | 'unavailable'
+
+/**
+ * Veterinary is BUILT (screens, tiles, tests) and kept OFF: vet stays closed for signups and gets the "use the website" screen in the
+ * store app until the owner flips this (owner, 2026-10-29). Everything behind it is exercised by the tests either way.
+ */
+export const VET_PHONE_ON = false
 
 /** Every vertical the phone app has screens for. */
-export const PHONE_VERTICALS: Vertical[] = ['contractor', 'basic', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'rv']
+export const PHONE_VERTICALS: Vertical[] = ['contractor', 'basic', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'rv', 'salon', 'restaurant', 'bar', 'store', ...(VET_PHONE_ON ? ['vet' as Vertical] : [])]
 
 export interface TabDef {
   name: string
@@ -53,7 +60,14 @@ const CONTRACTOR_TABS: TabDef[] = [
   { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
 ]
 
+import { SALON_TABS, RESTAURANT_TABS, BAR_TABS, STORE_TABS, VET_TABS } from '../trades/tabs'
+
 export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
+  salon: SALON_TABS,
+  restaurant: RESTAURANT_TABS,
+  bar: BAR_TABS,
+  store: STORE_TABS,
+  vet: VET_TABS,
   contractor: CONTRACTOR_TABS,
   basic: CONTRACTOR_TABS,
   fieldservice: [
@@ -111,6 +125,11 @@ export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   roofing: 'dashboard',
   landscaping: 'dashboard',
   rv: 'dashboard',
+  salon: 'dashboard',
+  restaurant: 'dashboard',
+  bar: 'dashboard',
+  store: 'dashboard',
+  vet: 'dashboard',
   unavailable: '',
 }
 
