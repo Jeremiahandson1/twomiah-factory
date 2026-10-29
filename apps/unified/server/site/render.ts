@@ -29,7 +29,7 @@ export function siteOrigin(c: Context): string {
  */
 export function assetVersion(ctx: SiteContext): string {
   const commit = (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || 'dev'
-  return commit + '-' + crypto.createHash('sha1').update([ctx.design, ctx.colours.primary, ctx.colours.accent].join('|')).digest('hex').slice(0, 8)
+  return commit + '-' + crypto.createHash('sha1').update([ctx.design, ctx.colours.primary, ctx.colours.accent, ctx.colours.secondary, ctx.colours.page, JSON.stringify(ctx.style ?? null)].join('|')).digest('hex').slice(0, 8)
 }
 
 export interface PageMeta { title?: string | null; metaTitle?: string | null; metaDescription?: string | null }

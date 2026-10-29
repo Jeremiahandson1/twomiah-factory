@@ -335,13 +335,24 @@ export interface SiteDesignSpec {
   frame?: 'book'
   fonts?: string
   schemes?: boolean
+  /**
+   * How the colour tokens are named (server/site/palette.ts): 'base' — the base stylesheet's (--paper, --white, --ink,
+   * --brand-deep); 'look' — a whole look's (--bg, --sf, --tx, and its own dark band, `band`); 'bar' — the bar's own, whose
+   * page is leather and is not restyled. headAlign: where a section's heading sits, so the accent bar under it follows.
+   */
+  tokens?: 'base' | 'look' | 'bar'
+  /** The custom property that holds a whole look's dark band (foundry --steel, heritage --deep, studio and market --panel). */
+  band?: string
+  headAlign?: 'left' | 'center'
+  /** The header is dark in both light and dark mode (foundry's steel), so a hollow button in it takes white, not the brand. */
+  headerDark?: boolean
   /** A visitor may pick this look for the site they sign up for (the free preview on twomiah.com, POST /public/signup). */
   choosable?: boolean
 }
 
 export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   classic: { label: 'Classic', build: 'overrides' },
-  bar: { label: 'Bar & tavern', build: 'whole', frame: 'book' },
+  bar: { label: 'Bar & tavern', build: 'whole', frame: 'book', tokens: 'bar' },
   dispensary: { label: 'Dispensary', build: 'overrides' },
   fieldservice: { label: 'Field service', build: 'overrides' },
   homecare: { label: 'Home care', build: 'overrides' },
@@ -350,20 +361,20 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   showcase: { label: 'Showcase', build: 'overrides' },
   // Three looks for a contractor's site (docs/new-looks): industrial, editorial, modern studio.
   foundry: {
-    label: 'Foundry', build: 'whole', schemes: true, choosable: true,
+    label: 'Foundry', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--steel', headAlign: 'left', headerDark: true,
     fonts: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
   },
   heritage: {
-    label: 'Heritage', build: 'whole', schemes: true, choosable: true,
+    label: 'Heritage', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--deep',
     fonts: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap',
   },
   // A look made for a shop (docs/store-looks): the photograph first, a price you can read, one strong Add to cart.
   market: {
-    label: 'Market', build: 'whole', schemes: true, choosable: true,
+    label: 'Market', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--panel', headAlign: 'left',
     fonts: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Albert+Sans:wght@400;500;600;700;800&display=swap',
   },
   studio: {
-    label: 'Studio', build: 'whole', schemes: true, choosable: true,
+    label: 'Studio', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--panel', headAlign: 'left',
     fonts: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
   },
 }

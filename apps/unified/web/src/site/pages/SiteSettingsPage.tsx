@@ -10,6 +10,8 @@ import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
+import { FeelPicker, type FontChoice, type SiteStyle } from '../components/FeelPicker'
+import { PalettePicker, type Palette, type PaletteInfo } from '../components/PalettePicker'
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 interface NavItem { label: string; href: string }
@@ -22,6 +24,8 @@ interface SiteRow {
   inventoryFeedUrl: string | null
   contactCtaLabel: string
   accentColor: string | null
+  palette: Palette | null
+  style: SiteStyle | null
   faviconUrl: string | null
   nav: NavItem[]
   seoTitle: string | null
@@ -33,7 +37,7 @@ interface SiteRow {
   microsoftClarityId: string | null
 }
 
-const FIELDS: Array<keyof SiteRow> = ['design', 'tagline', 'serviceAreas', 'inventoryFeedUrl', 'contactCtaLabel', 'accentColor', 'faviconUrl', 'nav', 'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId']
+const FIELDS: Array<keyof SiteRow> = ['design', 'tagline', 'serviceAreas', 'inventoryFeedUrl', 'contactCtaLabel', 'accentColor', 'palette', 'style', 'faviconUrl', 'nav', 'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId']
 const pick = (row: any): SiteRow => Object.fromEntries(FIELDS.map((k) => [k, row?.[k] ?? null])) as SiteRow
 /** What the editor edits: the draft settings where there are some, else the live ones. */
 const toWorking = (r: DraftRow): SiteRow => pick(r.draft ?? r)
@@ -51,6 +55,7 @@ export function SiteSettingsPage() {
   const mayOpenCompany = useMayWrite('company:update')
   const wide = useIsWide()
   const [designs, setDesigns] = useState<Design[]>([])
+  const [paletteInfo, setPaletteInfo] = useState<(PaletteInfo & { fonts: FontChoice[] }) | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [previewOnPhone, setPreviewOnPhone] = useState(false)
@@ -67,10 +72,11 @@ export function SiteSettingsPage() {
   const drafts = useSiteDrafts()
 
   useEffect(() => {
-    Promise.all([api.get('/api/site/settings'), api.get('/api/site/designs')])
-      .then(([row, d]: [DraftRow, { data: Design[] }]) => {
+    Promise.all([api.get('/api/site/settings'), api.get('/api/site/designs'), api.get('/api/site/palettes')])
+      .then(([row, d, pal]: [DraftRow, { data: Design[] }, PaletteInfo & { fonts: FontChoice[] }]) => {
         ed.adopt(row)
         setDesigns(d.data)
+        setPaletteInfo(pal)
       })
       .catch((e) => setLoadError(e.message))
       .finally(() => setLoading(false))
@@ -116,7 +122,7 @@ export function SiteSettingsPage() {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-6 lg:items-start">
       <div className={previewOnPhone ? 'hidden lg:block' : ''}>
       <div className="card card-padding mb-6 text-sm text-ink-soft">
-        Your business name, phone, email, address, logo and main colour are your company's, and the site uses them as they are.{' '}
+        Your business name, phone, email, address and logo are your company's, and the site uses them as they are. The site's colours are set below.{' '}
         {mayOpenCompany
           ? <>Change them in <Link to="/crm/settings" className="underline text-ink">Settings</Link>.</>
           : <>An owner or admin changes them in Settings.</>}
@@ -134,21 +140,34 @@ export function SiteSettingsPage() {
                 {designs.filter((d) => !d.isDefault).map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
               </select>
             </div>
-            <div>
-              <Label htmlFor="site-accent">Accent colour</Label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="color"
-                  aria-label="Pick the accent colour"
-                  value={/^#[0-9a-fA-F]{6}$/.test(settings.accentColor || '') ? settings.accentColor! : '#000000'}
-                  onChange={(e) => update({ accentColor: e.target.value })}
-                  className="w-12 h-10 rounded border border-line cursor-pointer"
-                />
-                <input id="site-accent" type="text" placeholder="Blank: the design's own" value={settings.accentColor || ''} onChange={(e) => update({ accentColor: e.target.value || null })} className="input" />
-              </div>
-            </div>
             <ImageUrlField label="Favicon" value={settings.faviconUrl || ''} onChange={(v) => update({ faviconUrl: v || null })} uploadTag="misc" hint="The little icon in the browser tab. Square." />
           </div>
+        </section>
+
+        {/* Colours */}
+        <section className="card card-padding mb-6">
+          <h2 className="text-lg font-semibold text-ink mb-1">Colours</h2>
+          <p className="text-xs text-muted mb-4">Pick a palette, then change any colour you like. They colour only your website: your invoices and emails keep your business colour.</p>
+          <PalettePicker
+            info={paletteInfo}
+            design={settings.design || defaultDesign?.id || null}
+            disabled={!mayEdit}
+            value={{ accentColor: settings.accentColor, palette: settings.palette }}
+            onChange={(v) => update({ accentColor: v.accentColor, palette: v.palette })}
+          />
+        </section>
+
+        {/* Type and feel */}
+        <section className="card card-padding mb-6">
+          <h2 className="text-lg font-semibold text-ink mb-1">Type and feel</h2>
+          <p className="text-xs text-muted mb-4">Fonts, how round the corners are, the style of buttons and how much room the page leaves. Each is a short list of choices that always read well.</p>
+          <FeelPicker
+            fonts={paletteInfo?.fonts || []}
+            bar={!!paletteInfo && paletteInfo.designs[settings.design || defaultDesign?.id || '']?.page === false}
+            disabled={!mayEdit}
+            value={settings.style}
+            onChange={(v) => update({ style: v })}
+          />
         </section>
 
         {/* Words and places */}

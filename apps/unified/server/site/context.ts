@@ -11,6 +11,8 @@ import { SITE_DESIGNS, SITE_DESIGN_SPECS } from '../core/vertical.ts'
 import { previewing } from './drafts.ts'
 import { servicePagesOf, type ServicePage } from './servicePages.ts'
 import { socialLinksOf } from './structuredData.ts'
+import { cleanPalette, siteColours, type SiteColours } from './palette.ts'
+import { cleanStyle, fontsUrl, type SiteStyle } from './feel.ts'
 
 export interface SiteContext {
   companyId: string
@@ -27,7 +29,9 @@ export interface SiteContext {
    * where the header's button goes (SiteSettings.ctaHref).
    */
   options: { textSizeToggle: boolean; shop: boolean; cover: boolean; fonts?: string; schemes?: boolean; ctaHref: string }
-  colours: { primary: string; accent: string | null; secondary: string | null }
+  colours: SiteColours
+  /** The owner's type and feel (site/feel.ts): fonts, corners, buttons, spacing. */
+  style?: SiteStyle | null
   /** The business's own services for "What we do", and the trade its home hero names (site/menu.ts). */
   services?: SiteService[]
   trade?: string
@@ -90,8 +94,9 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     slug: co.slug,
     design,
     words: vertical.site.words,
-    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: SITE_DESIGN_SPECS[design].frame === 'book', fonts: SITE_DESIGN_SPECS[design].fonts, schemes: !!SITE_DESIGN_SPECS[design].schemes, ctaHref: vertical.site.ctaHref || '/contact' },
-    colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
+    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: SITE_DESIGN_SPECS[design].frame === 'book', fonts: fontsUrl(cleanStyle(s?.style), SITE_DESIGN_SPECS[design]), schemes: !!SITE_DESIGN_SPECS[design].schemes, ctaHref: vertical.site.ctaHref || '/contact' },
+    colours: siteColours(co, s?.accentColor, s?.palette),
+    style: cleanStyle(s?.style),
     services, trade,
     servicePages: servicePagesOf(pages, services, trade),
     publishedSlugs: new Set(pages.filter((p: any) => p.isPublished).map((p: any) => p.slug)),
@@ -112,7 +117,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
       // Hours are left empty.
       businessHours,
       businessHoursLines: businessHoursLines(businessHours),
-      primaryColor: co.primaryColor,
+      primaryColor: siteColours(co, s?.accentColor, s?.palette).primary,
       secondaryColor: co.secondaryColor,
       tagline: s?.tagline || '',
       seoTitle: s?.seoTitle || '',
@@ -126,6 +131,8 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
       inventoryFeedUrl: s?.inventoryFeedUrl || '',
       contactCtaLabel: s?.contactCtaLabel || 'Get in touch',
       accentColor: s?.accentColor || '',
+      palette: cleanPalette(s?.palette),
+      style: cleanStyle(s?.style),
       faviconUrl: s?.faviconUrl || '',
       googleTagManagerId: s?.googleTagManagerId || '',
       googleAnalyticsId: s?.googleAnalyticsId || '',
