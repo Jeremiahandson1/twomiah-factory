@@ -26,7 +26,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 700)) }
 }
 
-const ROOT = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = decodeURIComponent(new URL('../../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const sync = await import(ROOT + 'apps/api/src/services/emailAliasSync.ts')
 
 const TENANT = '0123abcd-0000-4000-8000-00000000beef'
@@ -228,6 +228,29 @@ const T = tenant({ domain: 'pat-care.com', cloudflare_zone_id: 'z1' })
   // aliasSource itself: one decision, every caller.
   check('aliasSource: the site origin, normalised', JSON.stringify(sync.aliasSource(siteTenant())) === JSON.stringify({ kind: 'site', origin: SITE }), sync.aliasSource(siteTenant()))
   check('ALIAS_TENANT_COLUMNS carries what aliasSource reads', ['slug', 'products', 'website_url', 'domain', 'render_backend_url', 'factory_sync_key', 'cloudflare_zone_id'].every((c) => sync.ALIAS_TENANT_COLUMNS.split(/\s*,\s*/).includes(c)), sync.ALIAS_TENANT_COLUMNS)
+}
+
+// Perch and Prarie (10/29): Cloudflare REFUSES a rule to an inbox it does not have / that is not confirmed ("Destination
+// address is not verified"). The inbox was registered only after the rule, so it never was — no confirmation email was
+// ever sent, and every address showed "Not set up" with Cloudflare's raw error.
+{
+  const strict = fakeCloudflare({ zone: 'active', routingOn: true })
+  const realAdd = strict.cf.addEmailRoutingRule
+  strict.cf.addEmailRoutingRule = async (z: string, r: any) => {
+    const d = strict.st.destinations.find((x) => x.email === String(r.forwardTo).toLowerCase())
+    if (!d || !d.verified) throw new Error('Cloudflare API 400: Destination address is not verified')
+    return realAdd(z, r)
+  }
+  const saved = crmAliases
+  crmAliases = [{ localPart: 'support', routingMode: 'forward', forwardTo: 'shop@gmail.com', enabled: true }]
+  const r = await sync.reconcileTenantAliases(tenant({ domain: 'pat-care.com', cloudflare_zone_id: 'z1' }), { cf: strict.cf, fetch: fakeFetch, parseHost: PARSE })
+  const a = r.aliases.find((x: any) => x.localPart === 'support')
+  check('the inbox is registered even though the rule is refused (that is what makes Cloudflare send its confirmation email)', strict.st.destinations.some((d) => d.email === 'shop@gmail.com'), strict.st)
+  check('a refused rule to an unconfirmed inbox is "confirm the inbox", not an error, and says which inbox', a?.state === 'confirm_destination' && /shop@gmail.com/.test(a?.detail || '') && !/API 400/.test(a?.detail || ''), a)
+  strict.st.destinations.find((d) => d.email === 'shop@gmail.com')!.verified = true
+  const again = await sync.reconcileTenantAliases(tenant({ domain: 'pat-care.com', cloudflare_zone_id: 'z1' }), { cf: strict.cf, fetch: fakeFetch, parseHost: PARSE })
+  check('once confirmed, the next check turns it on by itself', again.aliases.find((x: any) => x.localPart === 'support')?.state === 'live', again.aliases)
+  crmAliases = saved
 }
 
 console.log(`\nemail-alias-sync: ${passed} passed, ${failed} failed`)

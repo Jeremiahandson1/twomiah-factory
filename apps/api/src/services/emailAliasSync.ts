@@ -237,6 +237,18 @@ export async function reconcileTenantAliases(tenant: TenantForAliases, deps: Ali
     const out: AliasStatusReport['aliases'] = []
     for (const a of crmAliases) {
       const address = a.localPart + '@' + domain
+      // The inbox is registered FIRST — that is what makes Cloudflare send its confirmation email. Cloudflare refuses a
+      // rule to an inbox it does not have, so registering it after the rule never ran: the owner was told to click an
+      // email that was never sent (Perch and Prarie, 10/29: three addresses "Not set up", "Destination address is not
+      // verified").
+      const pre = a.enabled ? aliasDestination(tenant.id, a, deps.parseHost) : null
+      if (pre && !('error' in pre)) await ensureDestination(deps, known, pre.destination).catch(() => {})
+      const waitingOn = (dest: string) => ({
+        localPart: a.localPart, address, destination: dest, state: 'confirm_destination' as const,
+        detail: a.routingMode === 'crm'
+          ? 'Cloudflare sent a confirmation email to this address\'s CRM inbox — open it there and click "Verify email address"'
+          : 'Cloudflare sent a confirmation email to ' + dest + ' — open it and click "Verify email address" (check spam). This address turns on by itself after that.',
+      })
       try {
         const r = await applyAliasRule(deps, zoneId, domain, tenant.id, a, rules)
         if (!a.enabled) { out.push({ localPart: a.localPart, address, state: 'off' }); continue }
@@ -255,6 +267,8 @@ export async function reconcileTenantAliases(tenant: TenantForAliases, deps: Ali
           }),
         })
       } catch (e: any) {
+        // An inbox not confirmed yet is the owner's one step, not a failure.
+        if (pre && !('error' in pre) && /not verified|unverified/i.test(String(e?.message || ''))) { out.push(waitingOn(pre.destination)); continue }
         out.push({ localPart: a.localPart, address, state: 'error', detail: e?.message || 'Cloudflare refused the rule' })
       }
     }
