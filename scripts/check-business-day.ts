@@ -17,7 +17,7 @@
 // it did before. This can correct a day or leave it alone; it must never move one the wrong way.
 //   bun scripts/check-business-day.ts
 import { readFileSync } from 'node:fs'
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => { try { return readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n') } catch { return '' } }
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
@@ -67,7 +67,13 @@ for (const [file, what] of [
   if (!src) { fail(`${file} is missing`); continue }
   if (/const today = new Date\(\); today\.setHours\(0, 0, 0, 0\)/.test(src)) fail(`${what} still uses the SERVER's midnight — that is UTC on Render, and it rolls over mid-shift`)
   if (!/companyTimeZone\(db, /.test(src)) fail(`${what} must resolve the company's zone`)
-  if (!/jobLocalDay\(t\.job\.scheduledDate, t\.job\.source, tz\)/.test(src)) fail(`${what} must take each job's day per row, because scheduled_date holds markers AND instants`)
+  // Per row: either here, or through the one shared Today condition (the tile's count and its list share it) — checked below.
+  if (!/jobLocalDay\(t\.job\.scheduledDate, t\.job\.source, tz\)/.test(src) && !/jobsTodayCondition\(t\.job, /.test(src)) fail(`${what} must take each job's day per row, because scheduled_date holds markers AND instants`)
+}
+{
+  const tiles = read(B + 'reporting/tileConditions.ts')
+  const fn = tiles.slice(tiles.indexOf('export function jobsTodayCondition'), tiles.indexOf('export function jobsTodayCondition') + 400)
+  if (!/jobLocalDay\(job\.scheduledDate, job\.source, timeZone\)/.test(fn)) fail("the shared Today condition (tileConditions.ts jobsTodayCondition) must take each job's day per row with jobLocalDay")
 }
 // "completed today" reads a real instant, so it takes the day range rather than the per-row rule
 {
