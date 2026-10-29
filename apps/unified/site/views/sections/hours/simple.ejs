@@ -1,0 +1,30 @@
+<%
+  // Opening hours as a plain week, from the business's own hours (settings.businessHoursLines — Settings › Company, or the
+  // Web presence editor's Hours). The "Web presence" plan's hours section: nothing live, no facts, no kitchen/bar split
+  // (that is hours/table, the bar's). With no hours entered it draws nothing — a section never says what the owner did not.
+  // data: { heading, intro, note }
+  const heading = data.heading || 'Hours'
+  const intro = data.intro || ''
+  const note = data.note || ''
+  const lines = (typeof settings !== 'undefined' && settings && Array.isArray(settings.businessHoursLines)) ? settings.businessHoursLines.filter(Boolean) : []
+  if (!lines.length) return
+%>
+<section class="wp-hours section" id="hours">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="wp-hours__list">
+      <% for (const l of lines) { %><li><%= l %></li><% } %>
+    </ul>
+    <% if (note) { %><p class="wp-hours__note"><%= note %></p><% } %>
+  </div>
+</section>
+<style>
+  .wp-hours { padding: var(--space) 0; background: var(--paper); }
+  .wp-hours__list { list-style: none; margin: 0 auto; padding: 0; max-width: 520px; background: var(--white); border: 1px solid var(--line); border-radius: 12px; }
+  .wp-hours__list li { padding: 14px 20px; color: var(--ink); border-top: 1px solid var(--line); }
+  .wp-hours__list li:first-child { border-top: 0; }
+  .wp-hours__note { max-width: 520px; margin: 16px auto 0; text-align: center; color: var(--muted); }
+</style>

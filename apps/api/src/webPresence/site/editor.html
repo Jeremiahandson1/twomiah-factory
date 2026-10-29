@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Edit your page</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f7f9; --card:#ffffff; --ink:#14181f; --muted:#4a5565; --line:#cfd5de; --brand:#1f4e79; --brand-ink:#ffffff; --bad:#9b1c1c; --good:#146c2e; --focus:#0b5fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#10141a; --card:#1a2029; --ink:#f1f4f8; --muted:#b4bdca; --line:#3a4453; --brand:#8bb8e8; --brand-ink:#0b1420; --bad:#ff9b9b; --good:#7fdc9a; --focus:#7aa7ff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header.bar { position:sticky; top:0; z-index:5; display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  header.bar h1 { font-size:18px; margin:0; flex:1 1 auto; }
+  main { max-width:860px; margin:0 auto; padding:16px; }
+  nav.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  button, .btn { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:8px 14px; border-radius:8px; min-height:40px; }
+  button.primary { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); font-weight:600; }
+  button[aria-pressed="true"] { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  button.link { border:0; background:none; text-decoration:underline; padding:4px 6px; min-height:0; }
+  button.danger { color:var(--bad); }
+  :focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .card h2, .card h3 { margin:0 0 8px; font-size:17px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  .hint { color:var(--muted); font-size:14px; margin:2px 0 6px; font-weight:400; }
+  input[type=text], input[type=email], input[type=tel], input[type=url], input[type=date], input[type=time], select, textarea { width:100%; font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
+  textarea { min-height:90px; resize:vertical; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .row > * { flex:1 1 140px; }
+  .row.tight > * { flex:0 0 auto; }
+  .list-item { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:8px 0; background:var(--bg); }
+  .msg { padding:10px 12px; border-radius:8px; margin:10px 0; border:1px solid var(--line); background:var(--card); }
+  .msg.bad { color:var(--bad); border-color:var(--bad); } .msg.good { color:var(--good); border-color:var(--good); }
+  .thumb { max-width:140px; max-height:100px; border-radius:6px; display:block; margin:6px 0; border:1px solid var(--line); }
+  .sr { position:absolute; left:-10000px; }
+  .center { max-width:520px; margin:12vh auto; padding:0 16px; }
+  .small { font-size:14px; color:var(--muted); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div id="app" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var state = { model: null, spec: null, tab: 'basics', dirty: false, open: {}, msg: null };
+  var DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+  // ---- tiny DOM helper: text only ever goes in as text, never as markup ----
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v === false || v == null) return;
+      if (k === 'class') el.className = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'value') el.value = v;
+      else if (k === 'checked' || k === 'disabled' || k === 'hidden') el[k] = !!v;
+      else el.setAttribute(k, v === true ? '' : String(v));
+    });
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  }
+  function add(el, c) {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) { c.forEach(function (x) { add(el, x); }); return; }
+    el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  }
+  function api(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'same-origin';
+    opts.headers = Object.assign({ 'x-wp': '1' }, opts.headers || {});
+    return fetch(path, opts).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); });
+  }
+  function label(k) { var L = state.spec.labels || {}; return L[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, function (c) { return c.toUpperCase(); }); }
+  function say(text, bad) { state.msg = { text: text, bad: !!bad }; render(); window.scrollTo(0, 0); }
+  function touch() { state.dirty = true; var b = document.getElementById('save'); if (b) b.disabled = false; }
+
+  // ---- sign-in ----
+  function start() {
+    var m = /[#&]t=([^&]+)/.exec(location.hash || '');
+    if (m) {
+      history.replaceState(null, '', location.pathname);
+      api('/api/signin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: decodeURIComponent(m[1]) }) }).then(function (r) {
+        if (r.ok) load(); else signedOut(r.d.error || 'That sign-in link is not valid.');
+      });
+    } else load();
+  }
+  function load() {
+    api('/api/model').then(function (r) {
+      if (r.status === 401) return signedOut('');
+      if (!r.ok) return signedOut(r.d.error || 'Could not open the editor.');
+      state.model = r.d.model; state.spec = r.d.spec; state.dirty = false; render();
+    });
+  }
+  function signedOut(why) {
+    app.textContent = '';
+    var sent = h('p', { class: 'msg', hidden: true, role: 'status' }, 'If this address is the one on file, a new sign-in link is on its way. It works once, for 15 minutes.');
+    app.appendChild(h('div', { class: 'center' },
+      h('h1', null, 'Sign in to edit your page'),
+      why ? h('p', { class: 'msg bad' }, why) : null,
+      h('p', null, 'You sign in with a link we email to you. Open it on this device.'),
+      h('button', { class: 'primary', onclick: function () { api('/api/link', { method: 'POST' }).then(function () { sent.hidden = false; }); } }, 'Email me a new sign-in link'),
+      sent));
+  }
+
+  // ---- image: resized in the browser, then stored by the site ----
+  function resize(file, done, fail) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var max = 1600, s = Math.min(1, max / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      var limit = state.spec.limits.imageBytes, q = 0.85, type = 'image/webp';
+      (function tryOnce() {
+        c.toBlob(function (b) {
+          if (!b) return fail('This browser could not prepare that photo.');
+          if (b.type !== type && type === 'image/webp') { type = 'image/jpeg'; return tryOnce(); }
+          if (b.size > limit && q > 0.3) { q -= 0.15; return tryOnce(); }
+          if (b.size > limit) return fail('That photo is still too large after resizing. Try a smaller one.');
+          done(b);
+        }, type, q);
+      })();
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); fail('That does not look like a photo.'); };
+    img.src = url;
+  }
+  function imageField(obj, key) {
+    var thumb = h('img', { class: 'thumb', alt: '', hidden: !obj[key], src: obj[key] || null });
+    var status = h('span', { class: 'small', role: 'status' });
+    var input = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', onchange: function () {
+      var f = input.files[0]; if (!f) return; status.textContent = 'Preparing...';
+      resize(f, function (blob) {
+        status.textContent = 'Uploading...';
+        fetch('/api/upload', { method: 'POST', credentials: 'same-origin', headers: { 'x-wp': '1', 'content-type': blob.type }, body: blob }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (r) {
+          if (!r.ok) { status.textContent = r.d.error || 'Upload failed.'; return; }
+          obj[key] = r.d.url; thumb.src = r.d.url; thumb.hidden = false; status.textContent = 'Uploaded.'; touch();
+        }).catch(function () { status.textContent = 'Upload failed. Check your connection.'; });
+      }, function (e) { status.textContent = e; });
+    } });
+    return h('div', null, thumb, input, status, obj[key] ? h('button', { class: 'link', type: 'button', onclick: function () { obj[key] = ''; thumb.hidden = true; touch(); } }, 'Remove photo') : null);
+  }
+
+  // ---- fields drawn from the shapes (the same ones the server cleans with) ----
+  function field(shape, obj, key, name) {
+    var id = 'f' + Math.random().toString(36).slice(2, 9);
+    if (typeof shape === 'string') {
+      if (shape === 'img') return h('div', null, h('label', null, name), imageField(obj, key));
+      if (shape === 'bool') return h('label', null, h('input', { type: 'checkbox', checked: !!obj[key], onchange: function (e) { obj[key] = e.target.checked; touch(); } }), ' ' + name);
+      var m = /^(t|tl):(\d+)$/.exec(shape), multi = m && m[1] === 'tl';
+      var type = shape === 'date' ? 'date' : shape === 'link' ? 'text' : 'text';
+      var el = multi ? h('textarea', { id: id, maxlength: m[2] }) : h('input', { id: id, type: type, maxlength: m ? m[2] : (shape === 'link' ? 500 : 10) });
+      el.value = obj[key] || '';
+      el.addEventListener('input', function () { obj[key] = el.value; touch(); });
+      return h('div', null, h('label', { for: id }, name), shape === 'link' ? h('div', { class: 'hint' }, 'A web address starting with https://, a phone link, or #section') : null, el);
+    }
+    if (Array.isArray(shape) && shape.length === 2 && typeof shape[1] === 'number') {
+      if (!Array.isArray(obj[key])) obj[key] = [];
+      var list = obj[key], box = h('div'), inner = shape[0];
+      function paint() {
+        box.textContent = '';
+        list.forEach(function (item, i) {
+          var holder = { v: item };
+          var body = typeof inner === 'string' ? field(inner, holder, 'v', name + ' ' + (i + 1)) : fields(inner, item);
+          var ctl = h('div', { class: 'row tight' },
+            h('button', { type: 'button', 'aria-label': 'Move up', disabled: i === 0, onclick: function () { list.splice(i - 1, 0, list.splice(i, 1)[0]); touch(); paint(); } }, 'Up'),
+            h('button', { type: 'button', 'aria-label': 'Move down', disabled: i === list.length - 1, onclick: function () { list.splice(i + 1, 0, list.splice(i, 1)[0]); touch(); paint(); } }, 'Down'),
+            h('button', { type: 'button', class: 'danger', onclick: function () { list.splice(i, 1); touch(); paint(); } }, 'Remove'));
+          if (typeof inner === 'string') { var back = function () { list[i] = holder.v; }; body.addEventListener('input', back); body.addEventListener('change', back); }
+          box.appendChild(h('div', { class: 'list-item' }, body, ctl));
+        });
+        if (list.length < shape[1]) box.appendChild(h('button', { type: 'button', onclick: function () { list.push(typeof inner === 'string' ? '' : blank(inner)); touch(); paint(); } }, 'Add ' + (name.toLowerCase())));
+      }
+      paint();
+      return h('div', null, h('label', null, name), box);
+    }
+    if (Array.isArray(shape)) {
+      var sel = h('select', { id: id }, shape.map(function (o) { return h('option', { value: o, selected: obj[key] === o }, o === 'full' ? 'Full time' : o === 'part' ? 'Part time' : o); }));
+      sel.addEventListener('change', function () { obj[key] = sel.value; touch(); });
+      return h('div', null, h('label', { for: id }, name), sel);
+    }
+    if (shape && typeof shape === 'object') { if (!obj[key] || typeof obj[key] !== 'object') obj[key] = blank(shape); return h('div', { class: 'list-item' }, h('strong', null, name), fields(shape, obj[key])); }
+    return h('div');
+  }
+  function fields(shape, obj) { return h('div', null, Object.keys(shape).map(function (k) { return field(shape[k], obj, k, label(k)); })); }
+  function blank(shape) {
+    if (typeof shape === 'string') return shape === 'bool' ? false : '';
+    if (Array.isArray(shape) && shape.length === 2 && typeof shape[1] === 'number') return [];
+    if (Array.isArray(shape)) return shape[0];
+    var o = {}; Object.keys(shape).forEach(function (k) { o[k] = blank(shape[k]); }); return o;
+  }
+
+  // ---- tabs ----
+  function basics() {
+    var b = state.model.business;
+    var hoursBox = h('div', null, DAYS.map(function (d) {
+      var cur = b.hours[d] || null;
+      var closed = h('input', { type: 'checkbox', checked: !!(cur && cur.closed) });
+      var open = h('input', { type: 'time', value: cur && cur.open || '', 'aria-label': d + ' opens' });
+      var close = h('input', { type: 'time', value: cur && cur.close || '', 'aria-label': d + ' closes' });
+      function sync() { if (closed.checked) b.hours[d] = { closed: true }; else if (open.value && close.value) b.hours[d] = { open: open.value, close: close.value }; else delete b.hours[d]; touch(); }
+      [closed, open, close].forEach(function (x) { x.addEventListener('change', sync); });
+      return h('div', { class: 'row' }, h('strong', null, d.charAt(0).toUpperCase() + d.slice(1)), open, close, h('label', null, closed, ' Closed'));
+    }));
+    var areas = h('textarea', { 'aria-label': 'Places you work, one per line' }); areas.value = (b.serviceAreas || []).join('\n');
+    areas.addEventListener('input', function () { b.serviceAreas = areas.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean); touch(); });
+    var t = function (k, name, type, max) { var id = 'b' + k; var el = h('input', { id: id, type: type || 'text', maxlength: max || 120 }); el.value = b[k] || ''; el.addEventListener('input', function () { b[k] = el.value; touch(); }); return h('div', null, h('label', { for: id }, name), el); };
+    return h('div', null,
+      h('div', { class: 'card' }, h('h2', null, 'Your business'), t('name', 'Business name', 'text', 80), t('tagline', 'One line about you', 'text', 140), h('div', { class: 'row' }, t('phone', 'Phone', 'tel', 30), t('email', 'Email shown on the page', 'email', 120)), t('address', 'Street address', 'text', 160), h('div', { class: 'row' }, t('city', 'City', 'text', 60), t('state', 'State', 'text', 30), t('zip', 'ZIP', 'text', 12)), h('label', null, 'Logo'), imageField(b, 'logo')),
+      h('div', { class: 'card' }, h('h2', null, 'Opening hours'), h('p', { class: 'hint' }, 'Leave a day blank to leave it off the page.'), hoursBox),
+      h('div', { class: 'card' }, h('h2', null, 'Where you work'), h('label', null, 'Towns and areas, one per line'), areas));
+  }
+  function looks() {
+    var l = state.model.look, sp = state.spec;
+    var sel = function (name, opts, get, set, none) { var s = h('select', { 'aria-label': name }, none ? h('option', { value: '' }, none) : null, opts.map(function (o) { return h('option', { value: o.id, selected: get() === o.id }, o.label); })); s.addEventListener('change', function () { set(s.value); touch(); }); return h('div', null, h('label', null, name), s); };
+    var color = function (k, name) { var c = h('input', { type: 'color', value: l.palette[k] || '#1f4e79', 'aria-label': name }); c.addEventListener('input', function () { l.palette[k] = c.value; delete l.palette.preset; touch(); }); return h('div', null, h('label', null, name), c); };
+    return h('div', { class: 'card' }, h('h2', null, 'How it looks'),
+      sel('Look', sp.designs, function () { return l.design; }, function (v) { l.design = v; }),
+      h('label', null, 'Colour set'), h('div', { class: 'row tight' }, sp.presets.map(function (p) { return h('button', { type: 'button', 'aria-pressed': l.palette.preset === p.id ? 'true' : 'false', onclick: function () { l.palette = { preset: p.id, brand: p.brand, band: p.band }; if (p.page) l.palette.page = p.page; touch(); render(); } }, p.label); })),
+      h('p', { class: 'hint' }, 'Or choose your own. Text stays readable whatever you choose: very light or very dark picks are adjusted when you save.'),
+      h('div', { class: 'row' }, color('brand', 'Main colour'), color('band', 'Dark band'), color('page', 'Page background')),
+      sel('Letters', sp.styles.fonts, function () { return l.style.fonts || ''; }, function (v) { if (v) l.style.fonts = v; else delete l.style.fonts; }, 'The look\'s own'),
+      sel('Corners', sp.styles.corners.map(function (c) { return { id: c, label: c.charAt(0).toUpperCase() + c.slice(1) }; }), function () { return l.style.corners || ''; }, function (v) { if (v) l.style.corners = v; else delete l.style.corners; }, 'The look\'s own'),
+      sel('Spacing', sp.styles.spacing.map(function (c) { return { id: c, label: c.charAt(0).toUpperCase() + c.slice(1) }; }), function () { return l.style.spacing || ''; }, function (v) { if (v) l.style.spacing = v; else delete l.style.spacing; }, 'The look\'s own'));
+  }
+  function sections() {
+    var m = state.model, sp = state.spec, secs = m.sections;
+    var list = h('div');
+    secs.forEach(function (s, i) {
+      var cap = sp.caps[s.id], title = cap ? cap.label : label(s.id), isOpen = !!state.open[s.id];
+      var variants = (sp.typeVariants[s.type] || [s.variant]);
+      var head = h('div', { class: 'row' },
+        h('strong', null, title, s.hidden ? ' (hidden)' : ''),
+        h('div', { class: 'row tight' },
+          h('button', { type: 'button', 'aria-label': 'Move ' + title + ' up', disabled: i === 0, onclick: function () { secs.splice(i - 1, 0, secs.splice(i, 1)[0]); touch(); render(); } }, 'Up'),
+          h('button', { type: 'button', 'aria-label': 'Move ' + title + ' down', disabled: i === secs.length - 1, onclick: function () { secs.splice(i + 1, 0, secs.splice(i, 1)[0]); touch(); render(); } }, 'Down'),
+          h('button', { type: 'button', onclick: function () { s.hidden = !s.hidden; touch(); render(); } }, s.hidden ? 'Show' : 'Hide'),
+          h('button', { type: 'button', 'aria-expanded': isOpen ? 'true' : 'false', onclick: function () { state.open[s.id] = !isOpen; render(); } }, isOpen ? 'Close' : 'Edit')));
+      var card = h('div', { class: 'card' }, head);
+      if (isOpen) {
+        if (variants.length > 1) {
+          var lay = h('select', { 'aria-label': title + ' layout' }, variants.map(function (v) { return h('option', { value: v, selected: v === s.variant }, v.replace(/-/g, ' ')); }));
+          lay.addEventListener('change', function () { s.variant = lay.value; touch(); });
+          card.appendChild(h('div', null, h('label', null, 'Layout'), lay));
+        }
+        if (s.id === 'hiring') card.appendChild(h('p', { class: 'hint' }, 'List the jobs people can apply for. The form itself is switched on under Forms.'));
+        card.appendChild(fields(sp.shapes[s.type], s.data));
+        card.appendChild(h('p', null, h('button', { type: 'button', class: 'danger', onclick: function () { if (confirm('Take "' + title + '" off the page? What you wrote in it is lost.')) { secs.splice(i, 1); touch(); render(); } } }, 'Remove from page')));
+      }
+      list.appendChild(card);
+    });
+    var have = {}; secs.forEach(function (s) { have[s.id] = 1; });
+    var addable = Object.keys(sp.caps).filter(function (k) { return !have[k]; });
+    var pick = h('select', { 'aria-label': 'Add a section' }, h('option', { value: '' }, 'Add a section...'), addable.map(function (k) { return h('option', { value: k }, sp.caps[k].label); }));
+    pick.addEventListener('change', function () {
+      var k = pick.value; if (!k) return; var c = sp.caps[k];
+      secs.push({ id: k, type: c.type, variant: c.variants[0], hidden: false, data: blank(sp.shapes[c.type]) }); state.open[k] = true; touch(); render();
+    });
+    return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), list, addable.length ? h('div', { class: 'card' }, pick) : null);
+  }
+  function forms() {
+    var f = state.model.forms, hasContact = state.model.sections.some(function (s) { return s.id === 'contact' && !s.hidden; }), hasHiring = state.model.sections.some(function (s) { return s.id === 'hiring' && !s.hidden; });
+    function sw(form, title, text, needs, needsText) {
+      var on = h('input', { type: 'checkbox', checked: !!f[form].on, onchange: function (e) { f[form].on = e.target.checked; touch(); render(); } });
+      var inbox = h('input', { type: 'email', maxlength: 120, 'aria-label': title + ' goes to' }); inbox.value = f[form].inbox || '';
+      inbox.addEventListener('input', function () { f[form].inbox = inbox.value; touch(); });
+      return h('div', { class: 'card' }, h('h2', null, title), h('p', { class: 'hint' }, text), h('label', null, on, ' Switched on'),
+        f[form].on && !needs ? h('p', { class: 'msg bad' }, needsText) : null,
+        h('label', null, 'Send each one to this email'), inbox);
+    }
+    var lead = sw('lead', 'Lead capture', 'A short form for people who want a quote or to get in touch: name, phone and/or email, and a message. Each message is emailed to you. Nothing is kept by Twomiah.', hasContact, 'This form is part of the Contact section, which is hidden or removed. Show or add it to put the form on the page.');
+    var extras = h('div'); var ex = f.lead.extraFields || (f.lead.extraFields = []);
+    [0, 1].forEach(function (i) { var id = 'x' + i; var el = h('input', { id: id, type: 'text', maxlength: 60 }); el.value = (ex[i] && ex[i].label) || ''; el.addEventListener('input', function () { ex[i] = { label: el.value }; touch(); }); extras.appendChild(h('div', null, h('label', { for: id }, 'Extra question ' + (i + 1) + ' (optional)'), el)); });
+    lead.appendChild(extras);
+    var hire = sw('hiring', 'Now hiring', 'Lists the jobs you are hiring for and takes applications: name, phone, email, a few words about them, when they can work, and an optional resume (PDF or Word, up to ' + state.spec.limits.resumeMb + ' MB). Each application is emailed to you.', hasHiring, 'This form is part of the Now hiring section, which is hidden or removed. Show or add it to put the form on the page.');
+    return h('div', null, lead, hire, h('p', { class: 'small' }, 'A form that is switched off is not on the page at all, and its address stops taking messages.'));
+  }
+
+
+  // ---- the address (domain): the Factory's own flows, reached through this site ----
+  var addr = { loaded: false, status: null, busy: false, out: null };
+  function loadAddr() {
+    if (addr.loaded) return; addr.loaded = true;
+    api('/api/domain/status').then(function (r) { addr.status = r.ok ? r.d : { error: r.d && r.d.error || 'Could not read the address.' }; if (state.tab === 'address') render(); });
+  }
+  function addrAct(path, body, done) {
+    addr.busy = true; addr.out = null; render();
+    api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+      addr.busy = false;
+      if (r.status === 401) return signedOut('Your session ended. Sign in again with a new link.');
+      if (!r.ok) addr.out = { bad: true, text: (r.d && r.d.error) || 'That did not work.' };
+      else done(r.d);
+      render();
+    }).catch(function () { addr.busy = false; addr.out = { bad: true, text: 'Could not reach the address service. Try again in a minute.' }; render(); });
+  }
+  function address() {
+    loadAddr();
+    var st = addr.status, cards = [];
+    var words = !st ? 'Checking…' : st.error ? st.error : st.status === 'unconfigured' ? 'Your page is at the address Twomiah gave it. You can use your own.' :
+      st.status === 'active' && st.domain ? (st.domain + ' is live.') :
+      st.status === 'pending_site' && st.domain ? (st.domain + ' is set up and is waiting to open' + (st.verifyEmail ? '. Your registrar emailed ' + st.verifyEmail + ' a link to confirm the address: open it.' : '.')) :
+      st.status !== 'pending_nameservers' || !st.domain ? 'We could not read the address just now. Try again in a minute.' :
+      (st.domain + ' is waiting for its name servers.' + (st.nameservers && st.nameservers.length ? ' At the company you bought it from, set its name servers to: ' + st.nameservers.join(', ') + '.' : ''));
+    cards.push(h('div', { class: 'card' }, h('h2', null, 'Your address'), h('p', null, window.location.host), h('p', { class: 'hint' }, words),
+      h('p', { class: 'hint' }, 'An address is live only when it really opens. This page says so only then.')));
+    if (st && st.status === 'unconfigured') {
+      var own = h('input', { type: 'text', maxlength: 100, placeholder: 'yourbusiness.com', 'aria-label': 'A domain you own' });
+      cards.push(h('div', { class: 'card' }, h('h2', null, 'Use a domain you own'), h('p', { class: 'hint' }, 'Type it and we will tell you the one setting to change where you bought it.'), own,
+        h('button', { class: 'primary', disabled: addr.busy, onclick: function () { addrAct('/api/domain/attach', { domain: own.value }, function (d) { addr.loaded = false; addr.status = null; addr.out = { text: 'Connected. Next, at the company you bought it from, set its name servers to: ' + ((d.nameservers || []).join(', ') || '(shown above in a moment)') + '.' }; loadAddr(); }); } }, 'Connect it')));
+      var f = {}; function inp(key, label, ph) { var e = h('input', { type: 'text', maxlength: 100, placeholder: ph || '', 'aria-label': label }); f[key] = e; return h('div', null, h('label', null, label), e); }
+      cards.push(h('div', { class: 'card' }, h('h2', null, 'Buy a domain'), h('p', { class: 'hint' }, 'You pay on the next page, and we register it for you. The registrar needs your business address; it is sent only to them.'),
+        inp('domain', 'The domain you want', 'yourbusiness.com'), inp('address', 'Street address'), inp('city', 'City'), inp('state', 'State (like WI)'), inp('zip', 'ZIP'), inp('phone', 'Phone'),
+        h('button', { class: 'primary', disabled: addr.busy, onclick: function () {
+          addrAct('/api/domain/buy', { domain: f.domain.value, registrant: { address: f.address.value, city: f.city.value, state: f.state.value, zip: f.zip.value, phone: f.phone.value } }, function (d) {
+            if (d.url && /^https:\/\//.test(d.url)) window.location.href = d.url; else addr.out = { bad: true, text: 'We could not start the payment.' };
+          });
+        } }, 'Continue to payment')));
+    }
+    if (addr.out) cards.push(h('p', { class: 'msg ' + (addr.out.bad ? 'bad' : 'good'), role: 'status' }, addr.out.text));
+    return h('div', null, cards);
+  }
+
+  // ---- shell ----
+  function save() {
+    var b = document.getElementById('save'); if (b) b.disabled = true;
+    api('/api/model', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state.model) }).then(function (r) {
+      if (r.status === 401) return signedOut('Your session ended. Sign in again with a new link.');
+      if (!r.ok) { if (b) b.disabled = false; return say(r.d.error || 'Could not save.', true); }
+      state.model = r.d.model; state.dirty = false;
+      say('Saved. Your page is updated.' + ((r.d.notes && r.d.notes.length) ? ' ' + r.d.notes.join(' ') : ''), false);
+    }).catch(function () { if (b) b.disabled = false; say('Could not save. Check your connection and try again.', true); });
+  }
+  function render() {
+    if (!state.model) return;
+    var tabs = [['basics', 'Business'], ['sections', 'Page'], ['look', 'Look'], ['forms', 'Forms'], ['address', 'Address']];
+    var body = state.tab === 'basics' ? basics() : state.tab === 'look' ? looks() : state.tab === 'forms' ? forms() : state.tab === 'address' ? address() : sections();
+    app.textContent = '';
+    app.appendChild(h('div', null,
+      h('header', { class: 'bar' }, h('h1', null, state.model.business.name || 'Your page'),
+        h('a', { class: 'btn', href: '/', target: '_blank', rel: 'noopener' }, 'View page'),
+        h('button', { class: 'primary', id: 'save', disabled: !state.dirty, onclick: save }, 'Save'),
+        h('button', { onclick: function () { api('/api/signout', { method: 'POST' }).then(function () { signedOut('You are signed out.'); }); } }, 'Sign out')),
+      h('main', null,
+        state.msg ? h('p', { class: 'msg ' + (state.msg.bad ? 'bad' : 'good'), role: 'status' }, state.msg.text) : null,
+        h('nav', { class: 'tabs', 'aria-label': 'Sections of the editor' }, tabs.map(function (t) { return h('button', { 'aria-pressed': state.tab === t[0] ? 'true' : 'false', onclick: function () { state.tab = t[0]; state.msg = null; render(); } }, t[1]); })),
+        body)));
+  }
+  window.addEventListener('beforeunload', function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+  start();
+})();
+</script>
+</body>
+</html>

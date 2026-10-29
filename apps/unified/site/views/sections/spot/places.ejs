@@ -1,0 +1,33 @@
+<%
+  // Saved places — the spots a truck (or a pop-up) returns to, so the owner picks one for "Today's spot" instead of typing it.
+  // Shown as a plain list of where to find them.
+  // data: { heading, intro, places: [{ name, address, note }] }
+  const heading = data.heading || 'Where to find us'
+  const intro = data.intro || ''
+  const places = Array.isArray(data.places) ? data.places.filter((p) => p && p.name) : []
+  if (!places.length) return
+%>
+<section class="wp-places section" id="places">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="wp-places__grid">
+      <% for (const p of places) { %>
+        <li class="wp-places__item">
+          <strong class="wp-places__name"><%= p.name %></strong>
+          <% if (p.address) { %><span class="wp-places__address"><%= p.address %></span><% } %>
+          <% if (p.note) { %><span class="wp-places__note"><%= p.note %></span><% } %>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<style>
+  .wp-places { padding: var(--space) 0; background: var(--paper); }
+  .wp-places__grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .wp-places__item { display: grid; gap: 4px; padding: 18px 20px; background: var(--white); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); }
+  .wp-places__address { color: var(--ink); }
+  .wp-places__note { color: var(--muted); font-size: .95rem; }
+</style>

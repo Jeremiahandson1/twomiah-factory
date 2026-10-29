@@ -1,3 +1,6 @@
+import { webPresenceOn, WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
+import { removeSite } from '../../webPresence/service'
+import { liveDeps } from '../../webPresence/live'
 import { authenticate, supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
@@ -406,6 +409,19 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // The $19 Web presence plan: when its subscription has ended, its Netlify site goes (the owner's cancel set the end of the paid
+    // period; Stripe says so when it arrives). Off (the default) this does nothing. Idempotent with the scheduler's sweep.
+    if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data?.object || {}
+      const wpTenant = sub.metadata?.factory_customer_id || result.factoryCustomerId || null
+      if (wpTenant && webPresenceOn()) {
+        void (async () => {
+          const { data: t } = await supabase.from('tenants').select('id, plan').eq('id', wpTenant).maybeSingle()
+          if (t && t.plan === WEB_PRESENCE_PLAN_ID) await removeSite(liveDeps(), t.id, 'subscription ended')
+        })().catch((e: any) => console.error('[WebPresence] site removal after cancel failed:', e?.message || e))
+      }
+    }
+
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId
@@ -511,7 +527,9 @@ async function handleDomainRegistration(opts: {
 
   // Wire Cloudflare + Resend + Render custom-domain attachment.
   const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../../services/deploy')
-  const services = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
+  // A Web presence tenant (the $19 plan) lives on Netlify: its domain points there (webPresence/domain.ts).
+  const netlifyTarget = await (await import('../../webPresence/domain')).webPresenceDomainTarget(tenant.id)
+  const services = netlifyTarget ? {} : await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
   const siteServiceId = services.site || services['website-premium'] || services.website
   const backendServiceId = services.backend || services.api
   let nameserversSet = false
@@ -531,7 +549,7 @@ async function handleDomainRegistration(opts: {
       adminEmailForDmarc: tenant.admin_email || tenant.email || undefined,
       existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
       // A unified tenant: @, www and app at its one service (null for a template tenant — nothing changes there).
-      ...(await (await import('../../services/deploy')).unifiedDomainTargets(tenant)),
+      ...(netlifyTarget ? { netlify: netlifyTarget } : await (await import('../../services/deploy')).unifiedDomainTargets(tenant)),
     })
     if (wire.cloudflareZoneId) {
       await supabase.from('tenants').update({ cloudflare_zone_id: wire.cloudflareZoneId }).eq('id', tenantId)

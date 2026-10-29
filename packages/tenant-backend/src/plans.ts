@@ -23,6 +23,10 @@ export const PLANS: Record<string, PlanDef> = {
   starter10:  { id: 'starter10',  name: 'Starter',  product: 'crm',     monthlyPrice: 99,  seats: 10 },
   team25:     { id: 'team25',     name: 'Team',     product: 'crm',     monthlyPrice: 139, seats: 25 },
   business50: { id: 'business50', name: 'Business', product: 'crm',     monthlyPrice: 199, seats: 50 },
+  // $19 "Web presence" (2026-10-29): a one-page site on its own Netlify site, found online, with lead capture. NOT the CRM,
+  // bookings, phone app, live menu or store. Built SWITCHED OFF — the Factory leaves it out of every public list and refuses
+  // every path of it until WEB_PRESENCE_ON (apps/api/src/webPresence/switch.ts). The live Stripe price is the owner's to make.
+  webpresence: { id: 'webpresence', name: 'Web presence', product: 'website', monthlyPrice: 19, seats: null },
 }
 
 export function planFor(planId: string | null | undefined): PlanDef | null {

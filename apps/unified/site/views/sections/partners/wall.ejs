@@ -1,0 +1,30 @@
+<%
+  // Partners and suppliers — a thank-you wall: a name (and a logo when the owner has one), linked when they gave a link.
+  // data: { heading, intro, items: [{ name, image, href }] }
+  const heading = data.heading || 'Our partners'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter((i) => i && i.name) : []
+  if (!items.length) return
+%>
+<section class="wp-partners section" id="partners">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="wp-partners__grid">
+      <% for (const i of items) { %>
+        <li class="wp-partners__item">
+          <% const inner = (i.image ? '<img src="' + String(i.image).replace(/"/g, '&quot;') + '" alt="" loading="lazy">' : '') + '<span>' + String(i.name).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span>' %>
+          <% if (i.href) { %><a href="<%= i.href %>" rel="noopener" target="_blank"><%- inner %></a><% } else { %><div><%- inner %></div><% } %>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<style>
+  .wp-partners { padding: var(--space) 0; background: var(--paper); }
+  .wp-partners__grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .wp-partners__item a, .wp-partners__item div { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 96px; padding: 16px; text-align: center; font-weight: 600; background: var(--white); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; }
+  .wp-partners__item img { max-height: 44px; width: auto; max-width: 100%; object-fit: contain; }
+</style>

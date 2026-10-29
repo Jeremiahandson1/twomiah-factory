@@ -1,0 +1,20 @@
+<%
+  // An announcement bar: one line, with an optional link — "Closed Monday for the holiday", "Now booking spring clean-ups".
+  // The Web presence plan's ticker. Stays put (no script, no storage): the owner switches it off in the editor.
+  // data: { text, href, label }
+  const text = String(data.text || '').trim()
+  if (!text) return
+  const href = String(data.href || '').trim()
+  const label = String(data.label || '').trim() || 'Read more'
+%>
+<div class="wp-announce" role="note" id="announcement">
+  <div class="container wp-announce__row">
+    <span class="wp-announce__text"><%= text %></span>
+    <% if (href) { %><a class="wp-announce__link" href="<%= href %>"><%= label %> &rarr;</a><% } %>
+  </div>
+</div>
+<style>
+  .wp-announce { background: var(--brand-deep, var(--ink)); color: #ffffff; padding: 10px 0; font-size: 15px; line-height: 1.4; }
+  .wp-announce__row { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: center; text-align: center; }
+  .wp-announce__link { color: #ffffff; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+</style>

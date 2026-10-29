@@ -1,0 +1,33 @@
+<%
+  // Featured products for a shop on the Web presence plan — pictures, a name, a price and a "visit us" / "call us" link.
+  // There is NO checkout here: selling online is the full plan. The link is the owner's (a page, their phone, a map).
+  // data: { heading, intro, items: [{ name, description, price, image, href, label }] }
+  const heading = data.heading || 'Featured'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter((i) => i && i.name) : []
+  if (!items.length) return
+%>
+<section id="products" class="services services--cards wp-products">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="services__grid">
+      <% for (const item of items) { %>
+        <article class="service-card">
+          <% if (item.image) { %><div class="service-card__image" style="background-image: url('<%= item.image %>')"></div><% } %>
+          <div class="service-card__body">
+            <h3 class="service-card__title"><%= item.name %></h3>
+            <% if (item.price) { %><p class="wp-products__price"><%= item.price %></p><% } %>
+            <p class="service-card__desc"><%= item.description || '' %></p>
+            <% if (item.href) { %><a class="service-card__link" href="<%= item.href %>"><%= item.label || 'Visit us' %> &rarr;</a><% } %>
+          </div>
+        </article>
+      <% } %>
+    </div>
+  </div>
+</section>
+<style>
+  .wp-products__price { margin: 0 0 6px; font-weight: 700; color: var(--ink); }
+</style>

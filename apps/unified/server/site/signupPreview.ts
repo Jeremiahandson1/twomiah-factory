@@ -31,6 +31,11 @@ export interface SitePreviewInput {
   style?: unknown
   /** A notice drawn across the top of the page (the free preview's "example content" line). Plain text. */
   banner?: string
+  /**
+   * Settings a real site carries and a preview leaves empty (phone, email, address, hours, social links, noHeaderCta…),
+   * laid over the preview's. Only the one-page static site (onePage.ts) sets it; the free preview never does.
+   */
+  settingsExtra?: Record<string, any>
 }
 
 /** Every key of the settings object a real request builds (context.ts), empty: the views read them all. */
@@ -47,6 +52,7 @@ function previewSettings(i: SitePreviewInput): Record<string, any> {
     // The site's own colours and type/feel, as a real request's settings carry them (site/context.ts).
     palette: cleanPalette(i.palette), style: cleanStyle(i.style),
     googleTagManagerId: '', googleAnalyticsId: '', googleAdsId: '', facebookPixelId: '', microsoftClarityId: '',
+    ...(i.settingsExtra ?? {}),
   }
 }
 
@@ -67,17 +73,22 @@ function bannerHtml(text: string): string {
  * The page as one self-contained document for an iframe's srcdoc: the stylesheet inline (the visitor's browser has no
  * /styles/main.css on twomiah.com) and every internal link and form pointing nowhere ('#'), as the premium preview did.
  */
-export async function renderSitePreview(i: SitePreviewInput): Promise<string> {
+/** The SiteContext a request would have loaded, from what a preview (or the one-page static site) knows: the one builder both draw through. */
+export async function previewContext(i: SitePreviewInput): Promise<SiteContext> {
   const vertical = await loadVertical(i.vertical)
   const design: SiteDesign = (SITE_DESIGNS as readonly string[]).includes(i.design ?? '') ? (i.design as SiteDesign) : vertical.site.design
   const spec = SITE_DESIGN_SPECS[design]
-  const ctx: SiteContext = {
+  return {
     companyId: 'preview', slug: 'preview', design, words: vertical.site.words,
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: spec.frame === 'book', fonts: fontsUrl(cleanStyle(i.style), spec), schemes: !!spec.schemes, ctaHref: vertical.site.ctaHref || '/contact' },
     style: cleanStyle(i.style),
     colours: siteColours({ primaryColor: i.company.primaryColor, secondaryColor: i.company.secondaryColor }, i.settings.accentColor, i.palette),
     services: [], trade: tradeOf(i.sections), features: i.features, settings: previewSettings(i),
   }
+}
+
+export async function renderSitePreview(i: SitePreviewInput): Promise<string> {
+  const ctx = await previewContext(i)
   let html = await renderSections(ctx, i.sections, { title: i.title || i.company.name }, { currentPath: '/', origin: '', sectionErrors: [] })
   const css = siteStylesheet(ctx)
   const link = '<link rel="stylesheet" href="/styles/main.css?v=' + assetVersion(ctx) + '">'

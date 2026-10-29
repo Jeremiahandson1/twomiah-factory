@@ -2506,6 +2506,12 @@ export interface WireDomainOptions {
   // Existing IDs so we don't re-create on retry
   existingCloudflareZoneId?: string
   existingSendgridDomainAuthId?: number
+  /**
+   * A Web presence site (the $19 plan) lives on its own Netlify site, not on Render: @ and www point at `target`
+   * (<site>.netlify.app, DNS only), `attach` gives Netlify the domain and asks for its certificate, and there is no mailbox
+   * product to wire (no email routing, no Resend authentication, no app.<domain>). Set by webPresence/domain.ts.
+   */
+  netlify?: { target: string; attach: (domain: string) => Promise<{ ok: boolean; detail?: string }> }
 }
 
 export interface WireDomainResult {
@@ -2549,7 +2555,7 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
   // the two must be configured or we can't authenticate domains for
   // outbound DKIM/SPF.
   const emailAuthProvider = resend.isResendConfigured() ? 'resend' : (sendgrid.isSendGridConfigured() ? 'sendgrid' : null)
-  if (!emailAuthProvider) {
+  if (!emailAuthProvider && !opts.netlify) {
     result.errors.push('No email-auth provider configured (set RESEND_API_KEY)')
     return result
   }
@@ -2598,6 +2604,21 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
         result.errors.push('DNS ' + label + ': ' + msg)
       }
     }
+  }
+
+  // A Web presence site: the two names at Netlify, the domain given to Netlify, and nothing else to wire.
+  if (opts.netlify) {
+    await writeRecord({ type: 'CNAME', name: '@', content: opts.netlify.target, proxied: false }, 'apex')
+    await writeRecord({ type: 'CNAME', name: 'www', content: opts.netlify.target, proxied: false }, 'www')
+    try {
+      const a = await opts.netlify.attach(opts.domain)
+      result.steps.push({ step: 'netlify_domain', status: a.ok ? 'ok' : 'warning', detail: a.detail })
+    } catch (e: any) {
+      result.steps.push({ step: 'netlify_domain', status: 'error', detail: e.message })
+      result.errors.push('Netlify: ' + e.message)
+    }
+    result.success = result.errors.length === 0
+    return result
   }
 
   // ─── 2. DNS: apex + www + app (CNAME flattening) ─────────────────────────

@@ -37,6 +37,9 @@ const JOBS: JobConfig[] = [
   // A website preview whose compose died with a restart or failed (routes/factory/intake.ts). Soon after
   // boot — a deploy is exactly what kills one, and the prospect was promised it within 15 minutes —
   // by when the instance it replaced has stopped; then every 10 minutes.
+  // The $19 Web presence plan: sites whose paid period ended are removed, upgraded sites retired, certificates retried, Netlify credits
+  // watched (webPresence/service.ts sweep, watch.ts). Does nothing while WEB_PRESENCE_ON is off.
+  { name: 'web-presence-sweep', path: '/api/v1/factory/internal/web-presence/sweep', schedule: 'hourly' },
   { name: 'preview-sweep', path: '/api/v1/factory/internal/preview-sweep', schedule: { everyMinutes: 10, firstAfterMinutes: 3 } },
 ]
 

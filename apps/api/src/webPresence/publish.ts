@@ -1,0 +1,101 @@
+// Building what one Web presence site is made of, and putting it on its Netlify site.
+//
+//   static files   styles, fonts and library photos the page points at; the sitemap / robots / llms; the editor (/edit/);
+//                  forms.html (the two forms, so Netlify Forms knows them); _redirects and _headers
+//   one function   "site": serves the page and privacy page from the site's Blobs, signs the owner in, saves, stores photos and
+//                  takes the forms (site/handler.mjs). Bundled with @netlify/blobs into a single file and zipped.
+//
+// There is NO index.html: the page is the function's, so an edit (saved to Blobs) shows with no deploy. The first version of the
+// page rides inside the function bundle, and is what Blobs serves until the owner's first save.
+import { readFileSync, existsSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { zip } from './zip.ts'
+import type { OnePageOutput } from '../../../unified/server/site/onePage.ts'
+import type { SiteSpec } from './spec.ts'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const SITE_DIR = join(HERE, 'site')
+const API_DIR = join(HERE, '..', '..')
+// @netlify/blobs is declared by apps/unified (the Factory's own package.json is fenced), so the bundler is told where to find it.
+const BLOBS_FROM = join(API_DIR, '..', 'unified')
+const PUBLIC_DIR = join(HERE, '..', '..', '..', '..', 'unified', 'site', 'public')
+const HERO_DIR = join(HERE, '..', '..', 'assets', 'hero-library')
+
+export const FUNCTION_NAME = 'site'
+
+/** The redirects: every dynamic address goes to the one function; each is spelled out (no pattern a host could read differently). */
+export function redirectsFile(): string {
+  const to = (r: string) => `/.netlify/functions/${FUNCTION_NAME}?r=${r}`
+  const rows: Array<[string, string]> = [
+    ['/', 'page'], ['/privacy', 'privacy'], ['/privacy/', 'privacy'], ['/media', 'img'],
+    ['/api/signin', 'api/signin'], ['/api/signout', 'api/signout'], ['/api/link', 'api/link'], ['/api/model', 'api/model'],
+    ['/api/upload', 'api/upload'], ['/api/leads', 'api/leads'], ['/api/apply', 'api/apply'], ['/api/me', 'api/me'], ['/api/usage', 'api/usage'], ['/api/export', 'api/export'], ['/api/adopt', 'api/adopt'], ['/api/domain/status', 'api/domain/status'], ['/api/domain/attach', 'api/domain/attach'], ['/api/domain/buy', 'api/domain/buy'],
+  ]
+  return rows.map(([from, r]) => `${from.padEnd(16)} ${to(r)} 200`).join('\n') + '\n/edit              /edit/              301\n'
+}
+
+/** Headers for the static files. (The function sets its own on what it serves.) */
+export function headersFile(): string {
+  return [
+    '/*', '  X-Content-Type-Options: nosniff', '  Referrer-Policy: strict-origin-when-cross-origin', '  Permissions-Policy: camera=(), microphone=(), geolocation=()',
+    '/styles/*', '  Cache-Control: public, max-age=31536000, immutable',
+    '/fonts/*', '  Cache-Control: public, max-age=31536000, immutable',
+    '/hero-library/*', '  Cache-Control: public, max-age=31536000, immutable',
+    '/edit/*', '  Cache-Control: no-store', '  X-Robots-Tag: noindex, nofollow', '  X-Frame-Options: DENY',
+    "  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    '/forms.html', '  X-Robots-Tag: noindex, nofollow',
+  ].join('\n') + '\n'
+}
+
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+/**
+ * forms.html: the forms exactly as Netlify Forms must see them in a deploy (it finds forms in the deployed HTML). The page's own
+ * forms post to /api/leads and /api/apply (the function checks them and passes them on); this file is how Netlify learns the
+ * two form names and their fields. It is never linked and is not indexed.
+ */
+export function formsHtml(resumeExtraFields: number = 2): string {
+  const extras = Array.from({ length: resumeExtraFields }, (_, i) => `<input name="extra${i + 1}">`).join('')
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Forms</title></head><body>
+<form name="lead" method="post" netlify netlify-honeypot="bot-field" hidden><input name="bot-field"><input name="name"><input name="email"><input name="phone"><textarea name="message"></textarea>${extras}</form>
+<form name="apply" method="post" enctype="multipart/form-data" netlify netlify-honeypot="bot-field" hidden><input name="bot-field"><input name="name"><input name="email"><input name="phone"><textarea name="about"></textarea><input name="availability"><input name="job"><input type="file" name="resume"></form>
+</body></html>\n`
+}
+
+/** The function's source bundle: handler + entry + the first page, model and spec, as one file. Cached by content. */
+const bundleCache = new Map<string, string>()
+export async function bundleFunction(payload: { index: string; privacy: string; model: unknown; spec: unknown }): Promise<string> {
+  const payloadSrc = `export const INITIAL = ${JSON.stringify({ index: payload.index, privacy: payload.privacy, model: payload.model })};\nexport const SPEC = ${JSON.stringify(payload.spec)};\n`
+  const key = String(Bun.hash(payloadSrc)) + ':' + String(Bun.hash(['handler', 'entry', 'lambda', 'clean', 'shapes', 'session'].map((f) => readFileSync(join(SITE_DIR, f + '.mjs'), 'utf8')).join('\n')))
+  const hit = bundleCache.get(key)
+  if (hit) return hit
+  // The generated payload is a virtual file beside the real sources, so nothing is written to disk and the bundler resolves
+  // @netlify/blobs from the workspace's node_modules.
+  const out = await Bun.build({ entrypoints: [join(SITE_DIR, 'entry.mjs')], files: { [join(SITE_DIR, 'payload.mjs')]: payloadSrc }, plugins: [{ name: 'blobs-from-unified', setup(b) { b.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: Bun.resolveSync('@netlify/blobs', BLOBS_FROM) })) } }], target: 'node', format: 'esm', minify: false, external: [] })
+  if (!out.success || !out.outputs.length) throw new Error('The site function could not be bundled: ' + out.logs.map(String).join('; '))
+  const code = await out.outputs[0].text()
+  bundleCache.set(key, code)
+  if (bundleCache.size > 20) bundleCache.delete(bundleCache.keys().next().value as string)
+  return code
+}
+
+export interface SiteFiles { files: Record<string, string | Uint8Array>; functions: Record<string, Uint8Array> }
+
+/** Everything one deploy carries. */
+export async function buildSiteFiles(rendered: OnePageOutput, spec: SiteSpec): Promise<SiteFiles> {
+  const files: Record<string, string | Uint8Array> = {}
+  for (const [p, c] of Object.entries(rendered.files)) {
+    if (p === 'index.html' || p === 'privacy/index.html') continue   // these two are the function's
+    files[p] = c
+  }
+  for (const a of rendered.assets) {
+    const src = a.startsWith('hero-library/') ? join(HERO_DIR, a.slice('hero-library/'.length)) : join(PUBLIC_DIR, a)
+    if (existsSync(src)) files[a] = readFileSync(src)
+  }
+  files['edit/index.html'] = readFileSync(join(SITE_DIR, 'editor.html'), 'utf8')
+  files['forms.html'] = formsHtml()
+  files['_redirects'] = redirectsFile()
+  files['_headers'] = headersFile()
+  const code = await bundleFunction({ index: rendered.files['index.html'], privacy: rendered.files['privacy/index.html'], model: rendered.model, spec })
+  return { files, functions: { [FUNCTION_NAME]: zip({ [FUNCTION_NAME + '.mjs']: code }) } }
+}

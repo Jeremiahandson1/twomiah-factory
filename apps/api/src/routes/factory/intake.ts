@@ -32,6 +32,8 @@ import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../../servi
 // What a signup asked for beyond the plan — known values only, and only the questions this industry's system is asked
 // (bookings where online_booking exists, online payments where online_payments does).
 import { signupChoices } from '../../config/signupQuestions'
+import { WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
+import { liveWebPresenceSignup } from '../../webPresence/signupLive'
 
 export function registerIntakeRoutes(factory: FactoryApp) {
 
@@ -306,6 +308,12 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // The look they chose in the preview (foundry, heritage or studio); anything else is refused, nothing sent is the trade's own.
     const look = requestedLook(body.design)
     if (!look.ok) return c.json({ error: 'Unknown design.' }, 400)
+
+    // The $19 Web presence plan: its own, much smaller signup (no CRM, no Render build). Off (the default) it answers 404, as if it did not exist.
+    if (body.plan === WEB_PRESENCE_PLAN_ID) {
+      const r = await liveWebPresenceSignup(body, look.design, signupServices(body.services))
+      return c.json(r.body as any, r.status as any)
+    }
 
     // Going live per industry (unified/factory.ts signupRefusal): while UNIFIED_LIVE_VERTICALS is set, a real signup
     // for an industry not yet open is refused here, before anything is made, rather than started on the templates and

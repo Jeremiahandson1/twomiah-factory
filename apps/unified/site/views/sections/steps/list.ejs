@@ -1,0 +1,32 @@
+<%
+  // A short numbered list of how something works — the Web presence plan's "How care works" for a home care agency: three or
+  // four plain steps, in the owner's words. Nothing medical is ever composed here; the words are the owner's.
+  // data: { heading, intro, steps: [{ title, text }] }
+  const heading = data.heading || 'How it works'
+  const intro = data.intro || ''
+  const steps = Array.isArray(data.steps) ? data.steps.filter((s) => s && s.title) : []
+  if (!steps.length) return
+%>
+<section class="wp-steps section" id="how">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ol class="wp-steps__list">
+      <% for (const s of steps) { %>
+        <li class="wp-steps__item">
+          <strong class="wp-steps__title"><%= s.title %></strong>
+          <% if (s.text) { %><span class="wp-steps__text"><%= s.text %></span><% } %>
+        </li>
+      <% } %>
+    </ol>
+  </div>
+</section>
+<style>
+  .wp-steps { padding: var(--space) 0; background: var(--paper); }
+  .wp-steps__list { list-style: none; counter-reset: wp-step; margin: 0 auto; padding: 0; max-width: 760px; display: grid; gap: 14px; }
+  .wp-steps__item { counter-increment: wp-step; display: grid; gap: 4px; padding: 16px 20px 16px 64px; position: relative; background: var(--white); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; }
+  .wp-steps__item::before { content: counter(wp-step); position: absolute; left: 16px; top: 14px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; font-weight: 700; background: var(--brand); color: var(--white); }
+  .wp-steps__text { color: var(--muted); }
+</style>

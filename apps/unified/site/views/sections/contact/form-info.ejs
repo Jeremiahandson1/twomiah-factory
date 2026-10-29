@@ -24,9 +24,16 @@
   const service = data.service || ''
   const anchor = data.id ? String(data.id).replace(/[^a-z0-9_-]/gi, '') : ''
   const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
+  // The Web presence plan's lead form is the owner's to switch off (data.noForm): the section then holds the details alone —
+  // no form, no script, no endpoint. Every other site's contact section is unchanged (the form is on unless this says so).
+  const showForm = data.noForm !== true
+  // …and it asks for a phone number and/or an email (either one), has no texting consent box (the plan has no texting), and
+  // may carry one or two of the trade's own questions (data.extraFields: [{ label }], posted as extra1 / extra2).
+  const wp = data.webPresence === true
+  const extraFields = wp && Array.isArray(data.extraFields) ? data.extraFields.filter((f) => f && typeof f.label === 'string' && f.label.trim()).slice(0, 2) : []
 %>
 <section class="contact-section"<% if (anchor) { %> id="<%= anchor %>"<% } %>>
-  <div class="container contact-section__grid">
+  <div class="container contact-section__grid<%= showForm ? '' : ' contact-section__grid--details' %>">
     <div class="contact-section__copy">
       <<%= H %> class="contact-section__title"><%= heading %></<%= H %>>
       <% if (intro) { %><p class="contact-section__intro"><%= intro %></p><% } %>
@@ -63,7 +70,8 @@
       <% if (responsePromise) { %><div class="contact-section__promise"><%= responsePromise %></div><% } %>
     </div>
 
-    <form class="contact-form" action="<%= formAction %>" method="post">
+    <% if (showForm) { %>
+    <form class="contact-form" action="<%= formAction %>" method="post"<% if (wp) { %> data-either<% } %>>
       <%/* Spam protection: hidden honeypot + a stamp the server compares
             against submit time to drop sub-2s bot submissions. Both
             inputs are visually + screen-reader hidden. */%>
@@ -80,15 +88,21 @@
         <p class="contact-form__error" id="cf-name-err" hidden></p>
       </div>
       <div class="contact-form__row">
-        <label for="cf-email">Email</label>
-        <input id="cf-email" name="email" type="email" required autocomplete="email" aria-describedby="cf-email-err" data-msg="Please enter your email address." data-msg-invalid="Please enter a valid email address, like name@example.com.">
+        <label for="cf-email"><%= wp ? 'Email (phone or email, either is fine)' : 'Email' %></label>
+        <input id="cf-email" name="email" type="email"<% if (!wp) { %> required<% } %> autocomplete="email" aria-describedby="cf-email-err" data-msg="Please enter your email address." data-msg-invalid="Please enter a valid email address, like name@example.com.">
         <p class="contact-form__error" id="cf-email-err" hidden></p>
       </div>
       <div class="contact-form__row">
-        <label for="cf-phone">Phone (optional)</label>
+        <label for="cf-phone"><%= wp ? 'Phone' : 'Phone (optional)' %></label>
         <input id="cf-phone" name="phone" type="tel">
       </div>
-      <%- smsConsent('enquiry') %>
+      <% extraFields.forEach(function (f, i) { %>
+      <div class="contact-form__row">
+        <label for="cf-extra<%= i + 1 %>"><%= f.label %></label>
+        <input id="cf-extra<%= i + 1 %>" name="extra<%= i + 1 %>" type="text" maxlength="200">
+      </div>
+      <% }) %>
+      <% if (!wp) { %><%- smsConsent('enquiry') %><% } %>
       <div class="contact-form__row">
         <label for="cf-message"><%= words.contactMessageLabel %></label>
         <textarea id="cf-message" name="message" rows="5" required minlength="4" aria-describedby="cf-message-err" data-msg="<%= words.contactMessageRequired %>"></textarea>
@@ -115,6 +129,10 @@
         e.preventDefault();
         var first = null;
         f.querySelectorAll('[data-msg]').forEach(function(i){ var m = problem(i); show(i, m); if (m && !first) first = i; });
+        if (!first && f.hasAttribute('data-either')) {
+          var em = f.querySelector('[name=email]'), ph = f.querySelector('[name=phone]');
+          if (!(em.value || '').trim() && !(ph.value || '').trim()) { show(em, 'Please give a phone number or an email so we can reply.'); first = em; }
+        }
         if (first) { first.focus(); return; }
         var b = f.querySelector('button[type="submit"]'), s = f.querySelector('.contact-form__status');
         b.disabled = true;
@@ -133,5 +151,7 @@
           .catch(function(){ s.hidden = false; s.textContent = 'That didn\u2019t go through. Please check your connection and try again.'; b.disabled = false; });
       });
     })();</script>
+    <% } %>
   </div>
 </section>
+<% if (!showForm) { %><style>.contact-section__grid--details { grid-template-columns: 1fr !important; max-width: 720px; }</style><% } %>

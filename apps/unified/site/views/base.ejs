@@ -202,7 +202,7 @@
            is not published, and no menu toggle opening an empty menu. (Amber Inn, 10/17) */%>
       <% var onePage = cover && !(settings.nav || []).length; %>
       <% if (!onePage) { %>
-      <a class="header-cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <% if (!settings.noHeaderCta) { %><a class="header-cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a><% } %>
       <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
         <span></span><span></span><span></span>
       </button>
@@ -212,7 +212,7 @@
       <% (settings.nav || []).forEach(function(item) { %>
         <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
       <% }) %>
-      <a class="mobile-nav__cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <% if (!settings.noHeaderCta) { %><a class="mobile-nav__cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a><% } %>
     </nav>
   </header>
   <% if (cover) { %>
@@ -295,7 +295,7 @@
         <% if (settings.phone) { %><a href="tel:<%= cover ? String(settings.phone).replace(/[^\d+]/g, '') : settings.phone %>"><%= settings.phone %></a><% } %>
         <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
         <%/* The business's privacy policy and terms (site/legal.ts): the carriers read them before approving its texting. */%>
-        <span class="footer-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+        <span class="footer-legal"><a href="/privacy">Privacy</a><% if (!settings.onePage) { %> · <a href="/terms">Terms</a><% } %></span>
         <% if (cover) { (Array.isArray(settings.sameAs) ? settings.sameAs : []).forEach(function (u) {
              var label = /facebook/i.test(u) ? 'Facebook' : /instagram/i.test(u) ? 'Instagram' : /untappd/i.test(u) ? 'Untappd' : /yelp/i.test(u) ? 'Yelp' : 'Link'; %>
           <a href="<%= u %>" rel="noopener" target="_blank"><%= label %></a>

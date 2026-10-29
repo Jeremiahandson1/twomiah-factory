@@ -1,0 +1,26 @@
+<%
+  // A short row of the business's social pages — the Web presence plan's "Social links": a label and a link each, in the
+  // owner's words. Plain links that work without JavaScript; nothing is embedded and no third-party script is loaded.
+  // data: { heading, intro, links: [{ label, url }] }
+  const heading = data.heading || 'Find us online'
+  const intro = data.intro || ''
+  const links = (Array.isArray(data.links) ? data.links : []).filter((l) => l && l.label && /^https:\/\//.test(String(l.url || ''))).slice(0, 8)
+  if (!links.length) return
+%>
+<section class="wp-social section" id="social">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="wp-social__list">
+      <% for (const l of links) { %>
+        <li><a class="btn btn--outline" href="<%= l.url %>" rel="noopener" target="_blank"><%= l.label %></a></li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<style>
+  .wp-social { padding: var(--space) 0; background: var(--paper); }
+  .wp-social__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+</style>

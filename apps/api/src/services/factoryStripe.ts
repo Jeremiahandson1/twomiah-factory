@@ -76,6 +76,9 @@ const DEPLOY_PRICE_MAP: Record<string, string> = {
 }
 
 export function getPriceId(planId: string, billingCycle: 'monthly' | 'annual' = 'monthly'): string | null {
+  // The $19 Web presence plan: its own price, from the Factory's env (the owner mints it; src/webPresence/createPrice.ts
+  // makes it in Stripe TEST mode unless told otherwise). Read at call time. NOT the legacy STRIPE_PRICE_WEBSITE_PRESENCE key.
+  if (planId === 'webpresence') return process.env.STRIPE_PRICE_WEB_PRESENCE || null
   return PLAN_PRICE_MAP[planId]?.[billingCycle] || null
 }
 

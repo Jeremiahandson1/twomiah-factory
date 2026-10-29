@@ -525,7 +525,9 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (!charge.ok) return c.json({ error: 'We could not get the current price for .' + tld.tld + ' from our registrar. Please try again in a few minutes.' }, 503)
     const price = { amountCents: charge.cents, description: domainChargeDescription(domain, years, renewalChargeCents(renewCost)) }
 
-    const returnBase = ((toAdmin ? tenant.render_backend_url : tenant.website_url || tenant.render_frontend_url) || '').replace(/\/+$/, '')
+    // A Web presence site has no separate admin app: its editor is on the site itself (/edit/), so its own address is the return base.
+    const ownEditor = toAdmin && !tenant.render_backend_url && (await (await import('../../webPresence/domain')).webPresenceDomainTarget(tenant.id)) ? tenant.website_url : null
+    const returnBase = ((toAdmin ? (tenant.render_backend_url || ownEditor) : tenant.website_url || tenant.render_frontend_url) || '').replace(/\/+$/, '')
     if (!returnBase) return c.json({ error: toAdmin ? 'Tenant has no admin URL recorded.' : 'Tenant has no site URL recorded.' }, 409)
     const returnPage = returnBase + (toAdmin ? askedPath : '/admin/domain')
     const session = await factoryStripe.createOneTimeCheckoutSession({
@@ -597,8 +599,10 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     const { findRenderServicesBySlug, wireDomainInfrastructure, unifiedDomainTargets } = await import('../../services/deploy')
     // A unified tenant: its one service is the site and the app, and @, www and app all point at it (it throws when the
     // service can't be found, before anything is saved). A template tenant: its services by name, as before.
-    const unified = await unifiedDomainTargets(tenant)
-    const services: Record<string, string> = unified ? {} : await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
+    // A Web presence tenant (the $19 plan) lives on Netlify: its domain points there instead (webPresence/domain.ts).
+    const netlifyTarget = await (await import('../../webPresence/domain')).webPresenceDomainTarget(tenant.id)
+    const unified = netlifyTarget ? null : await unifiedDomainTargets(tenant)
+    const services: Record<string, string> = unified || netlifyTarget ? {} : await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
     const siteServiceId = services.site || services['website-premium'] || services.website
     const backendServiceId = services.backend || services.api
 
@@ -611,6 +615,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
       domain,
       siteServiceId, backendServiceId,
       ...unified,
+      ...(netlifyTarget ? { netlify: netlifyTarget } : {}),
       existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
       existingSendgridDomainAuthId: tenant.sendgrid_domain_auth_id || undefined,
     })

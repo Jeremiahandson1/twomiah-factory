@@ -1,0 +1,33 @@
+<%
+  // Today's spot — where the truck is right now, until when. The owner changes it in the Web presence editor (a few seconds,
+  // from the truck); the page is redrawn from what was saved. Nothing live and no map provider: the address is plain text
+  // with a link that opens it in the visitor's own maps app.
+  // data: { heading, place, address, hours, note }
+  const heading = data.heading || "Today's spot"
+  const place = String(data.place || '').trim()
+  const address = String(data.address || '').trim()
+  const hours = String(data.hours || '').trim()
+  const note = String(data.note || '').trim()
+  if (!place && !address) return
+  const query = encodeURIComponent([place, address].filter(Boolean).join(', '))
+%>
+<section class="wp-spot section" id="spot">
+  <div class="container">
+    <div class="section-head"><h2 class="section-title"><%= heading %></h2></div>
+    <div class="wp-spot__card">
+      <% if (place) { %><p class="wp-spot__place"><%= place %></p><% } %>
+      <% if (address) { %><p class="wp-spot__address"><%= address %></p><% } %>
+      <% if (hours) { %><p class="wp-spot__hours"><%= hours %></p><% } %>
+      <% if (note) { %><p class="wp-spot__note"><%= note %></p><% } %>
+      <a class="btn btn--primary btn--lg" href="https://www.google.com/maps/search/?api=1&amp;query=<%= query %>" rel="noopener" target="_blank">Get directions</a>
+    </div>
+  </div>
+</section>
+<style>
+  .wp-spot { padding: var(--space) 0; background: var(--paper); }
+  .wp-spot__card { max-width: 560px; margin: 0 auto; padding: 28px; text-align: center; background: var(--white); border: 1px solid var(--line); border-radius: 14px; }
+  .wp-spot__place { margin: 0 0 6px; font-size: 1.5rem; font-weight: 700; color: var(--ink); }
+  .wp-spot__address, .wp-spot__hours { margin: 0 0 6px; color: var(--ink); }
+  .wp-spot__note { margin: 8px 0 18px; color: var(--muted); }
+  .wp-spot__card .btn { margin-top: 12px; }
+</style>

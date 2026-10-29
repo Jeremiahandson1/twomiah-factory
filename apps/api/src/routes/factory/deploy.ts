@@ -1,3 +1,6 @@
+import { WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
+import { provisionSite } from '../../webPresence/service'
+import { liveDeps } from '../../webPresence/live'
 import { supabase, requireRole } from '../../middleware/auth'
 import { generate, cleanOldBuilds, type GenerateConfig } from '../../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, filterOwnedServiceIds, wireDomainInfrastructure, latestRenderDeployStatus } from '../../services/deploy'
@@ -882,6 +885,15 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
 
 // ─── Auto-Deploy after Stripe Checkout ────────────────────────────────────────
 export async function triggerAutoDeploy(tenantId: string) {
+  // The $19 Web presence plan is not a Render deploy: its site is set up on its own Netlify site (webPresence/service.ts). Off (the
+  // default), provisionSite refuses and nothing is made; the plan cannot be signed up for while off, so this is never reached then.
+  {
+    const { data: wp } = await supabase.from('tenants').select('plan').eq('id', tenantId).maybeSingle()
+    if (wp?.plan === WEB_PRESENCE_PLAN_ID) {
+      await provisionSite(liveDeps(), tenantId).catch((e: any) => console.error('[AutoDeploy] Web presence set-up failed for', tenantId, ':', e?.message || e))
+      return
+    }
+  }
   if (!isConfigured()) {
     console.warn('[AutoDeploy] Skipping — deploy infrastructure not configured')
     return

@@ -1,0 +1,46 @@
+<%
+  // Dated events and pop-ups, from the owner's own list (the Web presence editor) — upcoming first. An event whose date has
+  // passed is hidden by the page as it opens (a few lines below), so a page nobody re-saved never lists last month; the editor
+  // moves past events to its archive when it saves. The weekly, standing thing is events/recurring; the bar's is events/list.
+  // data: { heading, intro, items: [{ title, date (YYYY-MM-DD), time, where, description, href }] }
+  const heading = data.heading || 'Events'
+  const intro = data.intro || ''
+  const items = (Array.isArray(data.items) ? data.items : []).filter((e) => e && e.title && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  if (!items.length) return
+  const dayName = function (d) { const dt = new Date(d + 'T12:00:00Z'); return isNaN(dt.getTime()) ? d : new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(dt) }
+%>
+<section class="wp-events section" id="events">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="wp-events__list">
+      <% for (const e of items) { %>
+        <li class="wp-events__item" data-date="<%= e.date %>">
+          <div class="wp-events__when"><%= dayName(e.date) %><% if (e.time) { %><span><%= e.time %></span><% } %></div>
+          <div class="wp-events__what">
+            <strong><%= e.title %></strong>
+            <% if (e.where) { %><span class="wp-events__where"><%= e.where %></span><% } %>
+            <% if (e.description) { %><span class="wp-events__desc"><%= e.description %></span><% } %>
+            <% if (e.href) { %><a class="wp-events__link" href="<%= e.href %>" rel="noopener">More &rarr;</a><% } %>
+          </div>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<script>(function(){var t=new Date(),k=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2),l=document.querySelectorAll('.wp-events__item'),n=0;for(var i=0;i<l.length;i++){if(l[i].getAttribute('data-date')<k)l[i].hidden=true;else n++}if(!n){var s=document.getElementById('events');if(s)s.hidden=true}})();</script>
+<style>
+  .wp-events { padding: var(--space) 0; background: var(--paper); }
+  .wp-events__list { list-style: none; margin: 0 auto; padding: 0; max-width: 760px; display: grid; gap: 12px; }
+  .wp-events__item { display: grid; grid-template-columns: 140px 1fr; gap: 18px; padding: 18px 20px; background: var(--white); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; }
+  .wp-events__item[hidden] { display: none; }
+  .wp-events__when { font-weight: 700; display: grid; gap: 2px; align-content: start; }
+  .wp-events__when span { font-weight: 400; color: var(--muted); }
+  .wp-events__what { display: grid; gap: 4px; }
+  .wp-events__where, .wp-events__desc { color: var(--muted); }
+  .wp-events__link { color: var(--accent-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  @media (max-width: 560px) { .wp-events__item { grid-template-columns: 1fr; gap: 6px; } }
+</style>

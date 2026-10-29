@@ -29,6 +29,7 @@ import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
 import { linkSlug } from './menu.ts'
 import { tradeDrawsSection } from './tradeSections.ts'
+import { WEB_PRESENCE_SECTIONS } from './webPresenceSections.ts'
 import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, draftOf, nextDraft, withDraft, workingOf } from './drafts.ts'
 import { offeredLayouts } from './layouts.ts'
 import { addPreviewRoutes, type PreviewDeps } from './preview.ts'
@@ -74,6 +75,8 @@ export const ADDON_SECTIONS: Record<string, { facts?: 'bar' | Array<'bar' | 'men
 /** Whether this vertical's site can draw a section of the library. */
 export function offersSection(key: string, vertical: VerticalSettings): boolean {
   if (SERVER_BUILT_SECTIONS.has(key)) return false
+  // The Web presence plan's own sections post to a function only a Web presence site has (webPresenceSections.ts).
+  if (WEB_PRESENCE_SECTIONS.has(key)) return false
   // Another trade's section (an age gate, a care finder, a storm alert on a store) is not this business's (tradeSections.ts).
   if (!tradeDrawsSection(key.split('/')[0], vertical.id)) return false
   const needs = ADDON_SECTIONS[key]
