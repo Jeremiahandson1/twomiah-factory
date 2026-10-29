@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Manage · Potato-Potahto</title>
+<style>
+  /* Self-hosted (the CSP blocks fonts.googleapis.com, so the old Google Fonts link never loaded). */
+  @font-face{font-family:'Anton';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/anton.woff2) format('woff2')}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/inter.woff2) format('woff2')}
+  :root{--black:#061320;--char:#0b2236;--fire:#f0d008;--gold:#f0d008;--blue:#0078f8;--blue2:#0a5cf0;--cream:#f0f5fb;--mut:#9fb3c9}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--black);color:var(--cream);line-height:1.5;padding-bottom:90px}
+  h1,h2,.disp{font-family:'Anton';text-transform:uppercase;letter-spacing:.01em}
+  a{color:var(--blue)}
+  .top{position:sticky;top:0;z-index:10;background:rgba(6,19,32,.92);backdrop-filter:blur(8px);border-bottom:2px solid var(--blue);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .top h1{font-size:1.15rem}.top h1 span{color:var(--fire)}
+  .top a{font-size:.85rem;font-weight:700;text-decoration:none}
+  .wrap{max-width:680px;margin:0 auto;padding:20px 18px}
+  .demo{background:linear-gradient(90deg,var(--blue2),var(--blue));color:#fff;font-size:.82rem;padding:10px 14px;border-radius:10px;margin-bottom:20px}
+  .card{background:linear-gradient(180deg,#103049,#0a2238);border:1px solid #1c4262;border-radius:16px;padding:20px;margin-bottom:18px}
+  .card h2{font-size:1.05rem;color:var(--gold);margin-bottom:4px}
+  .card .hint{font-size:.8rem;color:var(--mut);margin-bottom:14px}
+  label{display:block;font-size:.78rem;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 5px}
+  input[type=text],input[type=url],input[type=date],input[type=time],select,textarea{width:100%;font:inherit;padding:11px 13px;border-radius:9px;border:1px solid #1f4666;background:#07182a;color:var(--cream)}
+  /* Dark-render the native widgets so the calendar icon + dropdown list stay visible on the dark theme */
+  input[type=date],input[type=time],select{color-scheme:dark}
+  /* Start–end time pair: two native time pickers with a dash between (no free text) */
+  .tpair{display:flex;align-items:center;gap:6px}
+  .tpair input[type=time]{width:100%;min-width:0;padding:11px 8px}
+  .tsep{color:var(--mut);flex:0 0 auto}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:var(--gold)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sw{display:flex;align-items:center;gap:10px;margin:6px 0 2px;cursor:pointer;font-weight:600}
+  .sw input{width:46px;height:26px;appearance:none;background:#1f4666;border-radius:99px;position:relative;cursor:pointer;transition:.2s;flex:0 0 auto}
+  .sw input:checked{background:var(--fire)}
+  .sw input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+  .sw input:checked::after{left:23px}
+  .btn{font-family:'Anton';text-transform:uppercase;border:0;border-radius:8px;padding:13px 22px;cursor:pointer;font-size:.95rem}
+  .btn-fire{background:var(--fire);color:#fff}
+  .btn-ghost{background:transparent;color:var(--cream);border:1px solid #1f4666}
+  .btn-sm{padding:7px 12px;font-size:.78rem;font-family:'Inter';font-weight:700;border-radius:7px}
+  .ev{border:1px solid #1c4262;border-radius:10px;padding:12px;margin-bottom:10px;background:#0c2336}
+  .ev .r1{display:grid;grid-template-columns:70px 1fr;gap:8px}
+  .ev .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .ev .r3{margin-top:8px}
+  .ev .del{margin-top:10px;background:#3a1414;color:#ff9b9b;border:1px solid #5a1f1f}
+  .group{border:1px solid #1c4262;border-radius:10px;padding:12px;margin-bottom:10px;background:#0c2336}
+  .group h3{font-size:.78rem;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;font-family:'Inter';font-weight:700;margin-bottom:8px}
+  .mi-row{display:grid;grid-template-columns:1fr 90px;gap:6px;margin-top:6px}
+  .pill-row{display:grid;grid-template-columns:1fr 1fr 22px;gap:6px;margin-top:6px;align-items:center}
+  .pill-row .fire-tog{display:flex;align-items:center;justify-content:center}
+  .pill-row .fire-tog input{width:18px;height:18px;accent-color:var(--fire);cursor:pointer}
+  .small{font-size:.74rem;color:var(--mut);margin-top:6px}
+  .danger{background:#3a1414;color:#ff9b9b;border:1px solid #5a1f1f}
+  .reorder-btn{padding:6px 10px;font-size:.85rem;line-height:1;font-family:'Inter';font-weight:700;background:#0c2336;border:1px solid #1c4262;color:var(--cream);border-radius:6px;cursor:pointer}
+  .reorder-btn:hover:not([disabled]){background:#163049;border-color:var(--gold)}
+  .reorder-btn[disabled]{opacity:.3;cursor:not-allowed}
+  .reorder-bar{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .reorder-label{font-size:.7rem;color:var(--mut);letter-spacing:.08em;text-transform:uppercase;margin-left:4px}
+  .row-actions{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .card h2{cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;margin-bottom:4px}
+  .card h2::after{content:'▾';font-size:.85rem;color:var(--mut);transition:transform .2s;margin-left:10px}
+  .card.collapsed h2::after{transform:rotate(-90deg)}
+  .card.collapsed h2{margin-bottom:0}
+  .card.collapsed > *:not(h2){display:none}
+  @media(max-width:560px){
+    .wrap{padding:14px 12px}
+    .card{padding:16px}
+    .row,.ev .r2,.mi-row,.pill-row{grid-template-columns:1fr !important;gap:6px}
+    .pill-row .fire-tog{justify-content:flex-start;margin-left:2px}
+    .pill-row .fire-tog::before{content:'🔥 mark as hot';font-size:.74rem;color:var(--mut);margin-right:6px}
+    .ev .r1{grid-template-columns:60px 1fr}
+    .top h1{font-size:1rem}
+    label{margin-top:10px}
+    h2{font-size:1rem !important}
+  }
+  .save{position:fixed;left:0;right:0;bottom:0;background:rgba(6,19,32,.96);backdrop-filter:blur(8px);border-top:1px solid #1c4262;padding:14px 18px;display:flex;gap:10px;justify-content:center}
+  .save .btn{flex:1;max-width:260px}
+  .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--fire);color:#fff;font-weight:700;padding:10px 20px;border-radius:99px;opacity:0;transition:.3s;pointer-events:none;z-index:20}
+  .toast.on{opacity:1}
+  .gate{position:fixed;inset:0;background:var(--black);display:grid;place-items:center;z-index:50;padding:24px}
+  .gate .box{max-width:360px;width:100%;text-align:center}
+  .gate img{height:100px;width:auto;margin:0 auto 18px;filter:drop-shadow(0 0 14px rgba(10,92,240,.6))}
+  .gate h1{font-size:1.4rem;margin-bottom:6px}.gate h1 span{color:var(--fire)}
+  .gate p{color:var(--mut);font-size:.85rem;margin-bottom:18px}
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="box">
+    <img src="pp-logo-full-web.png?v=2026-06-03" alt="Potato-Potahto" width="130" height="100" />
+    <h1>POTATO<span>-POTAHTO</span> Manager</h1>
+    <p>Enter your passcode to manage today's spot, events & ordering.</p>
+    <input type="password" id="pass" placeholder="Passcode" style="text-align:center" />
+    <div id="passErr" style="font-size:.85rem;margin-top:8px;min-height:1.2em"></div>
+    <button class="btn btn-fire" style="width:100%;margin-top:12px" onclick="unlock()">Unlock</button>
+  </div>
+</div>
+
+<div class="top">
+  <h1>POTATO<span>-POTAHTO</span> · Manager</h1>
+  <a href="index.html" target="_blank">View site ↗</a>
+</div>
+
+<div class="wrap">
+  <div class="demo">
+    <b>Live</b> — changes save to the shared store and update the website for everyone instantly. (If the server is unreachable it falls back to this device so you never lose edits.)
+  </div>
+
+  <div class="card">
+    <h2>📍 Today's Spot</h2>
+    <div class="hint">The blue bar at the top of the site. Flip it on when you park, off when you're done.</div>
+    <label class="sw"><input type="checkbox" id="tLive"> We're posted today (show the bar)</label>
+    <label>Location</label>
+    <input type="text" id="tLoc" placeholder="e.g. Phoenix Park, Eau Claire" />
+    <div class="row">
+      <div><label>Hours</label><input type="text" id="tHours" placeholder="11am – 7pm" /></div>
+      <div><label>Note (optional)</label><input type="text" id="tNote" placeholder="Cash & card · find the blue trailer" /></div>
+    </div>
+    <div class="row">
+      <div><label>Closing time <small>(optional — adds a live "closes in 40 min" countdown to the bar)</small></label><input type="time" id="tClose" /></div>
+    </div>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🥔 Today's Toppings</h2>
+    <div class="hint">A gold strip near the top of the homepage showing the day's rotating toppings. Leave it off until you're ready to start using it. The list carries over — if you don't change it, yesterday's toppings keep showing (it never goes blank), so a quick morning update keeps it fresh. One topping per line.</div>
+    <label class="sw"><input type="checkbox" id="dtEnabled"> Show the "Today's Toppings" strip</label>
+    <label>Toppings (one per line)</label>
+    <textarea id="dtItems" rows="6" placeholder="Pulled pork&#10;Fried onions&#10;Nacho cheese"></textarea>
+    <p class="small" id="dtUpdated"></p>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🔗 Social Media Links</h2>
+    <div class="hint">These buttons sit below the hero CTAs ("Where We'll Be" / "See the Menu"). Each one opens its social page in a new tab. Paste a link and its button appears on the site instantly; leave a URL blank and that button simply doesn't show — the row re-flows to stay even. Fill in as many or as few as you like.</div>
+    <label class="sw"><input type="checkbox" id="slEnabled"> Show social media buttons in the hero</label>
+    <label>Tagline above the buttons</label>
+    <input type="text" id="slTagline" placeholder="Like and share our pages" />
+    <label>Facebook URL</label>
+    <input type="url" id="slFb" placeholder="https://www.facebook.com/profile.php?id=61578732792115" />
+    <label>Instagram URL</label>
+    <input type="url" id="slIg" placeholder="https://www.instagram.com/potatopotahto" />
+    <label>TikTok URL</label>
+    <input type="url" id="slTt" placeholder="https://www.tiktok.com/@potatopotahto" />
+    <label>Snapchat URL</label>
+    <input type="url" id="slSc" placeholder="https://www.snapchat.com/add/potatopotahto" />
+    <label>YouTube URL</label>
+    <input type="url" id="slYt" placeholder="https://www.youtube.com/@potatopotahto" />
+    <p class="small">Only networks with a link show up. Blank ones stay hidden until you add a URL.</p>
+  </div>
+
+  <div class="card collapsed">
+    <h2>📜 Top Ticker</h2>
+    <div class="hint">The scrolling strip at the very top of every page. Each item becomes its own scrolling span. Stars and bullets (★ ·) are fine — paste anything. Use ▲▼ to reorder.</div>
+    <label class="sw"><input type="checkbox" id="tickerEnabled"> Show the top ticker</label>
+    <label>Ticker items</label>
+    <div id="tickerList"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addTickerItem()" style="margin-top:8px">+ Add ticker item</button>
+  </div>
+
+  <div class="card collapsed">
+    <h2>📸 The Spread (Gallery)</h2>
+    <div class="hint">The photo slideshow in the "The Spread" section of the homepage. Add photos straight from your phone or computer — each one is automatically resized and optimized on upload, so big photos are fine. Add a caption if you like, use ▲▼ to reorder, or ✕ to remove. Leave the list empty to show the built-in default photos. Remember to hit <b>Save</b> after adding photos to publish them.</div>
+    <div id="galleryList"></div>
+    <label class="btn btn-ghost btn-sm" style="margin-top:10px;display:inline-flex;cursor:pointer">
+      + Add photo
+      <input type="file" id="galleryFile" accept="image/*" multiple style="display:none">
+    </label>
+    <span id="galleryStatus" class="small" style="margin-left:10px"></span>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🤝 Partners (Thank You wall)</h2>
+    <div class="hint">The "Thank You to Our Partners" logos near the bottom of the homepage. Each logo links to that partner's website when someone taps it. Type the name, paste their website (starting with https://), and tap <b>Logo</b> to upload their logo from your phone or computer. Use ▲▼ to reorder or × to remove. Hit <b>Save</b> to publish.</div>
+    <div id="partnerList"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addPartner()" style="margin-top:10px">+ Add partner</button>
+    <span id="partnerStatus" class="small" style="margin-left:10px"></span>
+    <input type="file" id="partnerFile" accept="image/*" style="display:none">
+  </div>
+
+  <div class="card collapsed">
+    <h2>🛒 Order Ahead</h2>
+    <div class="hint">Flip this on and paste your online-ordering link — your Clover one is <b>https://potato-potahto.cloveronline.com</b> — and an "Order Ahead" button appears in the hero next to the DoorDash button and in the top menu bar. Leave it off until ordering is live.</div>
+    <label class="sw"><input type="checkbox" id="oEnabled"> Show the "Order Ahead" buttons</label>
+    <label>Online ordering URL</label>
+    <input type="url" id="oUrl" placeholder="https://order.clover.com/..." />
+  </div>
+
+  <div class="card collapsed">
+    <h2>🚗 DoorDash</h2>
+    <div class="hint">Adds the DoorDash "Order Delivery" banner button to the hero, right under "See the Menu" (and turns on the "Order Delivery" button in the top nav). Flip it on and paste your DoorDash store link once you're set up — it goes live instantly. Leave it off until then.</div>
+    <label class="sw"><input type="checkbox" id="ddEnabled"> Show the DoorDash "Order Delivery" button</label>
+    <label>DoorDash store URL</label>
+    <input type="url" id="ddUrl" placeholder="https://www.doordash.com/store/..." />
+    <p class="small">This is your public storefront link — the page customers see to order. Find it in your DoorDash Merchant Portal, or open your store on doordash.com and copy the address bar.</p>
+  </div>
+
+  <div class="card collapsed">
+    <h2>⭐ Featured Event</h2>
+    <div class="hint">Shows a prominent banner on the homepage (between the logo and the rest of the hero) and links to a full event page. Use this for grand opening, special pop-ups, big partnerships. Flip off when nothing is featured.</div>
+    <label class="sw"><input type="checkbox" id="feEnabled"> Show the featured event banner</label>
+    <label>Title</label>
+    <input type="text" id="feTitle" placeholder="Grand Opening — Adopt-a-Highway Volunteer Event" />
+    <div class="row">
+      <div><label>Date</label><input type="text" id="feDate" placeholder="Sunday, June 14, 2026" /></div>
+      <div><label>Time</label><div class="tpair"><input type="time" id="feTimeStart" aria-label="Start time" /><span class="tsep">–</span><input type="time" id="feTimeEnd" aria-label="End time" /></div></div>
+    </div>
+    <label>Location</label>
+    <input type="text" id="feLocation" placeholder="I-94 & Lorch Ave, south to Friedeck Rd" />
+    <label>Banner blurb (short — appears above the title)</label>
+    <input type="text" id="feBlurb" placeholder="Save the date · Grand Opening" />
+    <label>Full description (long — appears on the event page)</label>
+    <textarea id="feDescription" rows="5" placeholder="Help us kick off Potato-Potahto with a community cleanup..."></textarea>
+    <div class="row">
+      <div><label>CTA button label</label><input type="text" id="feCtaLabel" placeholder="Sign Up to Volunteer" /></div>
+      <div><label>Partner slugs (comma-separated)</label><input type="text" id="fePartners" placeholder="adopt-a-highway, ec-police, ec-sheriff" /></div>
+      <div><label>Event day <small>(shows a "12 days away" countdown on the banner)</small></label><input type="date" id="feStartDate" /></div>
+      <div><label>Event end date <small>(used for auto-hide)</small></label><input type="date" id="feEndDate" /></div>
+      <div><label><input type="checkbox" id="feAutoHide" /> Auto-hide banner once event date has passed</label></div>
+    </div>
+    <div class="hint" style="margin-top:10px">Partner slug options: <code>adopt-a-highway, ec-police, ec-fire, ec-sheriff, ec-health, earthbound, nami, feed-my-people, ifd, asc1</code></div>
+  </div>
+
+  <div class="card collapsed">
+    <h2>📍 Saved Places</h2>
+    <div class="hint">Spots you set up at often. When you add an event below, click into its <b>Event name</b> box and pick one from the dropdown — location, link and usual hours fill in automatically (you can still change anything after). Add places here, or hit "📍 Save as place" on any event to remember it.</div>
+    <div id="plList"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addPlace()">+ Add place</button>
+  </div>
+
+  <div class="card collapsed">
+    <h2>📅 Events / Pop-ups</h2>
+    <div class="hint">Add, edit or remove anything on the "Find Us" carousel. Click into <b>Event name</b> to pick a saved place — the rest pre-fills. Use <b>🔁 Repeat</b> to fill in a whole weekly/monthly schedule at once, or <b>⧉ Duplicate</b> for one extra date. Every date becomes its own card, so you can still tweak or cancel a single week. <b>You don't need to delete old dates</b> — dates that have already passed fold away on their own (hit "Show past dates" if you need one), and each time you Save, anything more than about two weeks past moves to the archive below. The list holds up to 300 upcoming dates.</div>
+    <label class="sw"><input type="checkbox" id="eventsEnabled"> Show the events carousel</label>
+    <button class="btn btn-ghost btn-sm" onclick="addEv()">+ Add event</button>
+    <div id="evList" style="margin-top:10px"></div>
+    <div style="margin-top:16px;border-top:1px solid #1c4262;padding-top:12px">
+      <div style="font-weight:700;color:var(--gold)">📦 Past events archive</div>
+      <div class="small" style="margin:4px 0 8px">Stops land here automatically when you Save, once they're more than about two weeks past — the last two weeks always stay in the list above. They still show on the website's calendar (visitors can page back to them) but don't count toward the 300 limit. Only come here if a past date is wrong and you want it gone.</div>
+      <button class="btn btn-ghost btn-sm" id="arcBtn" onclick="loadArchive()">Show archived events</button>
+      <div id="arcList" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🪧 Hero / Mission / Purpose</h2>
+    <div class="hint">The top of the page (headline + tagline), the "Our Mission" block, and the "What 'Potato-Potahto' means to us" Purpose section. Leave any field blank to use the current default.</div>
+
+    <h3 style="margin-top:10px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Hero (top of homepage)</h3>
+    <label class="sw"><input type="checkbox" id="hrEnabled"> Show the hero headline + tagline</label>
+    <label>Headline (use &lt;em&gt;...&lt;/em&gt; for the italic part)</label>
+    <input type="text" id="hrHeadline" placeholder="Eau Claire's &lt;em&gt;Potato Comfort Food&lt;/em&gt; Trailer" />
+    <label>Tagline (sentence under headline)</label>
+    <textarea id="hrTagline" rows="2" placeholder="Bold, craveable potato comfort food..."></textarea>
+
+    <h3 style="margin-top:18px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Our Mission</h3>
+    <label class="sw"><input type="checkbox" id="msEnabled"> Show the Our Mission section</label>
+    <label>Section kicker</label>
+    <input type="text" id="msKick" placeholder="Our Mission" />
+    <label>Mission statement (large quote)</label>
+    <textarea id="msQuote" rows="3" placeholder="To serve bold, craveable potato-based comfort food with..."></textarea>
+    <p class="small">Wrap a phrase in &lt;b&gt;...&lt;/b&gt; to make it pop orange.</p>
+    <label>Pillar 1 — title</label>
+    <input type="text" id="msP1Title" placeholder="Always Adaptable" />
+    <label>Pillar 1 — body</label>
+    <textarea id="msP1Body" rows="2"></textarea>
+    <label>Pillar 2 — title</label>
+    <input type="text" id="msP2Title" placeholder="Service &amp; Responsibility" />
+    <label>Pillar 2 — body</label>
+    <textarea id="msP2Body" rows="2"></textarea>
+    <label>Pillar 3 — title</label>
+    <input type="text" id="msP3Title" placeholder="Community First" />
+    <label>Pillar 3 — body</label>
+    <textarea id="msP3Body" rows="2"></textarea>
+
+    <h3 style="margin-top:18px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Price Guarantee &amp; Meal Match</h3>
+    <div class="hint">The band with the round <b>Family of 4 Under $44</b> seal, just below the hero. Wrap anything in <code>&lt;b&gt;...&lt;/b&gt;</code> to make it gold. Clearing a box brings its default wording back, so use the checkboxes to hide things. <b>Heads up:</b> the round seal is a picture, so changing the price here does <i>not</i> change the price printed on the seal — send a new seal image along with any price change.</div>
+    <label class="sw"><input type="checkbox" id="grEnabled"> Show the Price Guarantee band</label>
+    <label>Kicker (small gold line above the headline)</label>
+    <input type="text" id="grKick" placeholder="The Potato-Potahto Guarantee" />
+    <label>Headline</label>
+    <input type="text" id="grHeadline" placeholder="Feed a family of 4 for &lt;b&gt;under $44&lt;/b&gt;" />
+    <label>The guarantee — what you'll honor at the window</label>
+    <textarea id="grLead" rows="4"></textarea>
+    <label class="sw" style="margin-top:12px"><input type="checkbox" id="grMatchEnabled"> Show the Meal Match Mission callout</label>
+    <label>Meal Match — title</label>
+    <input type="text" id="grMatchTitle" placeholder="Meal Match Mission" />
+    <label>Meal Match — body <small>(update the counts here as they grow)</small></label>
+    <textarea id="grMatchBody" rows="3"></textarea>
+
+    <h3 style="margin-top:18px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Our Purpose</h3>
+    <label class="sw"><input type="checkbox" id="ppEnabled"> Show the Our Purpose section</label>
+    <label>Section kicker</label>
+    <input type="text" id="ppKick" placeholder="Our Purpose" />
+    <label>Section headline</label>
+    <input type="text" id="ppHeadline" placeholder='What &lt;b&gt;"Potato-Potahto"&lt;/b&gt; means to us' />
+    <label>Paragraphs (one paragraph per blank line)</label>
+    <textarea id="ppBody" rows="10" placeholder="The name Potato-Potahto comes from..."></textarea>
+    <label>Closing quote</label>
+    <textarea id="ppClose" rows="2" placeholder="Because at the end of the day..."></textarea>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🍴 Menu</h2>
+    <div class="hint">Edit everything in the "Built on a better potato" section — categories, items, prices, the topping pills, and the dust/sauce lists. Changes go live everywhere instantly.</div>
+    <label class="sw"><input type="checkbox" id="mEnabled"> Show the menu section</label>
+
+    <label>Section kicker</label>
+    <input type="text" id="mKick" placeholder="The Goods" />
+    <label>Headline</label>
+    <input type="text" id="mHeadline" placeholder="Built on a &lt;b&gt;better potato&lt;/b&gt;" />
+    <p class="small">Wrap a word in &lt;b&gt;...&lt;/b&gt; to make it pop orange like the rest of the headlines.</p>
+    <label>Subhead</label>
+    <textarea id="mSub" rows="2" placeholder="Allergy concerns? Let us know..."></textarea>
+
+    <h3 style="margin-top:18px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Priced items</h3>
+    <div id="mCats"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addCat()">+ Add category</button>
+
+    <h3 style="margin-top:18px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Topping sections</h3>
+    <p class="small" style="margin:0 0 10px">Each section becomes its own block of pills on the live site (e.g. Loaded, The Crunch, The Dust, The Sauce). Add as many as you want, reorder them, or delete one you don't need.</p>
+    <div id="mPillSections"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addPillSection()" style="margin-top:8px">+ Add topping section</button>
+
+    <label style="margin-top:18px">Footnote (under the menu)</label>
+    <textarea id="mNote" rows="2" placeholder="*Ask us about our pickle brine pre-fry soaked chips..."></textarea>
+
+    <p class="small" style="margin-top:14px">Pricing tip: enter the dollar sign yourself — e.g. <code>$10</code>, <code>$5</code>, <code>$15</code>.</p>
+  </div>
+
+  <div class="card collapsed">
+    <h2>📝 Catering Section</h2>
+    <div class="hint">Edit the headline and catering panel in the "Book the trailer for your event." section. Leave a field blank to use the current default.</div>
+    <label class="sw"><input type="checkbox" id="pcEnabled"> Show the Catering section</label>
+
+    <label>Section kicker</label>
+    <input type="text" id="pcOrderKick" placeholder="Make it easy" />
+    <label>Section headline</label>
+    <input type="text" id="pcOrderHeadline" placeholder="Book the trailer &lt;b&gt;for your event.&lt;/b&gt;" />
+    <label>Section subhead</label>
+    <textarea id="pcOrderSub" rows="2" placeholder="Planning an event? Tell us the date and details and we'll let you know if we're available. Catering packages are available too."></textarea>
+
+    <h3 style="margin-top:14px;color:var(--gold);font-family:'Anton';letter-spacing:.04em">Catering &amp; events panel</h3>
+    <label>Title</label>
+    <input type="text" id="pcCatTitle" placeholder="Events &amp; catering" />
+    <label>Body</label>
+    <textarea id="pcCatBody" rows="2" placeholder="Most folks just want to know if we can make their date — tell us about your event and we'll get back to you. Want us to cater it? Just say so and we'll put together options."></textarea>
+  </div>
+
+  <div class="card collapsed">
+    <h2>⭐ Reviews & Feedback</h2>
+    <div class="hint">Adds a section on the homepage with a big "Leave a Google Review" button and a private feedback form below. Use the Google URL once your Google Business Profile is live; until then the button shows a friendly "coming soon" message.</div>
+    <label class="sw"><input type="checkbox" id="rvEnabled"> Show the Reviews & Feedback section on the homepage</label>
+    <label>Section kicker</label>
+    <input type="text" id="rvKick" placeholder="How'd we do?" />
+    <label>Headline</label>
+    <input type="text" id="rvHeadline" placeholder="Tell us how you &lt;b&gt;liked it&lt;/b&gt;" />
+    <label>Subhead</label>
+    <textarea id="rvSub" rows="2" placeholder="Loved your visit? Leave us a Google review..."></textarea>
+    <label>Google review URL <small>(leave blank until your Google Business Profile is live)</small></label>
+    <input type="url" id="rvGoogleUrl" placeholder="https://search.google.com/local/writereview?placeid=..." />
+    <p class="small">When live, find your URL: go to your Google Business Profile → click "Get more reviews" → copy the short link, OR use the format <code>https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID</code>. Leave blank and the button will show a "coming soon" message instead.</p>
+    <label>Where private feedback emails to</label>
+    <input type="text" id="rvEmail" placeholder="owner@example.com" />
+    <p class="small">Private feedback (the form below the Google button) is emailed through Netlify Forms. To set the recipient, log in to <a href="https://app.netlify.com/" target="_blank">app.netlify.com</a> → your site → <b>Forms</b> → <b>Notifications</b> → set the email above as recipient for the form named <code>review-feedback</code>.</p>
+  </div>
+
+  <div class="card collapsed">
+    <h2>🤝 Volunteer / Get-in-Touch Form</h2>
+    <div class="hint">Adds a short signup form on the homepage where people can send their name, email, and a note. Use it for volunteer recruiting, general contact, anything you don't want to bury inside the catering form.</div>
+    <label class="sw"><input type="checkbox" id="vEnabled"> Show the volunteer / get-in-touch form on the homepage</label>
+    <label>Section kicker</label>
+    <input type="text" id="vKick" placeholder="Want to help out?" />
+    <label>Headline</label>
+    <input type="text" id="vHeadline" placeholder="Volunteer or just &lt;b&gt;say hi&lt;/b&gt;" />
+    <label>Subhead</label>
+    <textarea id="vSub" rows="2" placeholder="Drop us your contact info — we'd love to hear from you."></textarea>
+    <label>Where submissions email to</label>
+    <input type="text" id="vEmail" placeholder="owner@example.com" />
+    <p class="small">Submissions are emailed through Netlify's built-in form delivery. To change or add recipients, log in to <a href="https://app.netlify.com/" target="_blank">app.netlify.com</a> → your site → <b>Forms</b> → <b>Notifications</b> → set the email above as the recipient for the form named <code>volunteer-signup</code>. Once configured, every submission lands in this inbox.</p>
+  </div>
+</div>
+
+<div class="save">
+  <button class="btn btn-ghost" onclick="location.href='index.html'">Cancel</button>
+  <button class="btn btn-fire" onclick="saveAll()">Save changes</button>
+</div>
+<div class="toast" id="toast">Saved ✓</div>
+
+<script>
+var KEY="pp_site";
+var DEF_EVENTS=[
+ {iso:'2026-05-28',m:'MAY',d:'28',t:'Empty Bowls',time:'11am – 7pm',loc:'Estuary Park',link:'https://give.fmpfoodbank.org/event/empty-bowls/e786915',label:'Event details →'},
+ {iso:'2026-06-04',m:'JUN',d:'4',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-06-11',m:'JUN',d:'11',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-06-18',m:'JUN',d:'18',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-06-25',m:'JUN',d:'25',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-07-02',m:'JUL',d:'2',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-07-06',m:'JUL',d:'6',t:'Boyd Night Out',time:'5:00pm – 8:00pm',loc:'Boyd Park',link:'https://www.facebook.com/share/17gdHc1XzL/',label:'Facebook event →'},
+ {iso:'2026-07-09',m:'JUL',d:'9',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-07-15',m:'JUL',d:'15',t:'Markquart Motors in Hallie',time:'11am – 2pm',loc:'1844 Commercial Blvd, Chippewa Falls, WI',link:'',label:''},
+ {iso:'2026-07-23',m:'JUL',d:'23',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-07-30',m:'JUL',d:'30',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {iso:'2026-08-03',m:'AUG',d:'3',t:'Boyd Night Out',time:'5pm – 8pm',loc:'Boyd Park',link:'https://www.facebook.com/share/17gdHc1XzL/',label:'Facebook event →'},
+ {iso:'2026-08-06',m:'AUG',d:'6',t:'Private Event',time:'7pm – 10pm',loc:'Estuary Park',link:'',label:''}
+];
+// Seed places from the spots that repeat in Aaron's June–Aug 2026 schedule. Only used until he saves his own.
+var DEF_PLACES=[
+ {name:'Brewing Projekt — Potato Wednesday',t:'Potato Wednesday at the Brewing Projekt',time:'11am - 7pm',loc:'1807 N Oxford Ave, Eau Claire Wi 54703',link:'',label:''},
+ {name:'Phoenix Park — Sounds Like Summer',t:'Sounds Like Summer',time:'5:30pm – 8:30pm',loc:'Phoenix Park',link:'https://volumeone.org/sites/concerts',label:'Concert series →'},
+ {name:'Boyd Park — Boyd Night Out',t:'Boyd Night Out',time:'5pm – 8pm',loc:'Boyd Park',link:'https://www.facebook.com/share/17gdHc1XzL/',label:'Facebook event →'},
+ {name:'Markquart Motors in Hallie',t:'Markquart Motors in Hallie',time:'11am - 2pm',loc:'2191 S Prairie View Rd Chippewa Falls Wi 54729',link:'',label:''}
+];
+// Built-in Thank-You wall — mirrors the static tiles in index.html #partnersGrid.
+var DEF_PARTNERS=[
+ {name:'Eau Claire Police Department',url:'https://www.eauclairewi.gov/163/Police-Department',logo:'img/partners/ec-police.png'},
+ {name:'Eau Claire Fire Department',url:'https://www.eauclairewi.gov/370/Fire-Department',logo:'img/partners/ec-fire.jpg'},
+ {name:"Eau Claire County Sheriff's Office",url:'https://www.eauclairecounty.gov/departments/sheriff/index.php',logo:'img/partners/ec-sheriff.jpg'},
+ {name:'Earthbound Environmental Solutions',url:'https://www.earthboundenviro.com/',logo:'img/partners/earthbound.jpg'},
+ {name:'Adopt-A-Highway',url:'https://wisconsindot.gov/adoptahighway',logo:'img/partners/adopt-a-highway.png'},
+ {name:'NAMI Chippewa Valley',url:'https://www.namicv.org',logo:'img/partners/nami.png'},
+ {name:'Feed My People Food Bank',url:'https://fmpfoodbank.org',logo:'img/partners/feed-my-people.png'},
+ {name:'EC City-County Health Department',url:'https://www.eauclairecounty.gov/departments/health/',logo:'img/partners/ec-health.jpg'},
+ {name:'IFD Foodservice Distributor',url:'https://www.callifd.com',logo:'img/partners/ifd.png'},
+ {name:'ASC1 Food Service Equipment',url:'https://www.asc1inc.com',logo:'img/partners/asc1.png'}
+];
+var API="/.netlify/functions/site";
+var adminKey="";
+// Server's updatedAt as of the last GET this tab did. We compare against the live
+// server value on save to detect another tab/device that's saved while this admin
+// was open, and prompt before clobbering their changes.
+var loadedUpdatedAt=null;
+var DEF_MENU={
+  enabled:true,
+  kick:"The Goods",
+  headline:"Built on a <b>better potato</b>",
+  sub:"Please let us know if you have allergy concerns. Craving something specific? Just ask — we'll do our best to satisfy your hankering.",
+  note:"*Ask us about our pickle brine pre-fry soaked chips.",
+  categories:[
+    {name:"Baked",sub:"Wisconsin Russet potatoes, baked to perfection",items:[
+      {name:"Plain Baked Potato",desc:"Served with your choice of \"Dust\" and butter",price:"$5"},
+      {name:"Loaded Baked Potahto",desc:"How hungry are you? Generous \"Dust\", house sauces, and premium toppings",price:"$10"}
+    ]},
+    {name:"Fried",sub:"Fresh cut from local potatoes, fried in premium beef tallow",items:[
+      {name:"French Fries",desc:"Single serving just for YOU, seasoned to your liking, skin on",price:"$5"},
+      {name:"Loaded French Fries",desc:"Sharable, generous \"Dust\", house sauce, premium toppings",price:"$10"},
+      {name:"Potato-Potahto Chips",desc:"Choose your \"Dust\" — caked on or lightly applied",price:"$5"},
+      {name:"Loaded Potato-Potahto Chips",desc:"Dig in! Dust, premium toppings, and throw some sauce on it",price:"$10"},
+      {name:"Potato-Potahto Chip Challenge 🔥",desc:"Marinated in Inferno juices, coated in the world's hottest peppers + signature hot sauce. 18+, signed waiver required",price:""}
+    ]}
+  ],
+  pillSections:[
+    {title:"Loaded",sub:"Core options + daily/weekly rotational toppings — ask what we have on hand!",items:[
+      {name:"Cheese & Broccoli",desc:"",fire:false},
+      {name:"Beans",desc:"",fire:false},
+      {name:"Chili",desc:"",fire:false},
+      {name:"Mac & Cheese",desc:"",fire:false},
+      {name:"Poutine",desc:"",fire:false},
+      {name:"Taco meat",desc:"",fire:false}
+    ]},
+    {title:"The Crunch",sub:"Add some texture — pick any to top your loaded order",items:[
+      {name:"Bacon",desc:"",fire:false},
+      {name:"Fried Onions",desc:"",fire:false},
+      {name:"Flamin’ Hot Cheetos",desc:"",fire:true},
+      {name:"Fritos",desc:"",fire:false},
+      {name:"Broccoli",desc:"",fire:false}
+    ]},
+    {title:"The \"Dust\"",sub:"Made in house, tossed fresh to order for maximum flavor",items:[
+      {name:"House",desc:"Garlic, onion, smoky spices, right amount of heat",fire:false},
+      {name:"BBQ",desc:"Sweet, smoky, lightly spiced",fire:false},
+      {name:"Sour Cream & Cheddar",desc:"Creamy, cheesy, tangy",fire:false},
+      {name:"Dill Pickle",desc:"Bright, tangy, dill & garlic",fire:false},
+      {name:"Salt & Vinegar",desc:"Bold, salty, mouth-watering sour",fire:false},
+      {name:"Tastes Like Burning",desc:"Hot. Tangy. Addictive. Not for the timid. Milder version of our Chip Challenge.",fire:true}
+    ]},
+    {title:"The Sauce",sub:"Our in-house created mixes — included with \"Loaded\"",items:[
+      {name:"House",desc:"Creamy, tangy, slightly smoky — garlic, mustard, and spice",fire:false},
+      {name:"Spicy Chipotle Mayo",desc:"Rich, smoky chipotle & creamy mayo with a zesty citrus kick",fire:false},
+      {name:"House Cheddar Cheese",desc:"Smooth, creamy cheddar with a rich, comforting flavor and a touch of spice",fire:false},
+      {name:"BBQ",desc:"Sweet, tangy, and smoky with a bold BBQ finish",fire:false},
+      {name:"Pesto Aioli",desc:"Creamy basil pesto blended with garlic and bright citrus",fire:false},
+      {name:"Sour Cream",desc:"Keep it simple",fire:false}
+    ]}
+  ]
+};
+var DEF_PAGECOPY={
+  enabled:true,
+  orderKick:"Make it easy",
+  orderHeadline:"Book the trailer <b>for your event.</b>",
+  orderSub:"Planning an event? Tell us the date and details and we'll let you know if we're available. Catering packages are available too.",
+  cateringTitle:"Events & catering",
+  cateringBody:"Most folks just want to know if we can make their date — tell us about your event and we'll get back to you. Want us to cater it? Just say so and we'll put together options."
+};
+var DEF_HERO={
+  enabled:true,
+  headline:"Eau Claire's <em>Potato Comfort Food</em> Trailer",
+  tagline:"Bold, craveable potato comfort food — Eau Claire's trailer that comes to you."
+};
+var DEF_MISSION={
+  enabled:true,
+  kick:"Our Mission",
+  quote:"To serve bold, craveable potato-based comfort food with <b>speed, consistency, and quality</b>.",
+  p1Title:"Always Adaptable",
+  p1Body:"Continuously evolving to meet our customers' needs while keeping their experience at the center of every decision.",
+  p2Title:"Service & Responsibility",
+  p2Body:"Rooted in service — we strongly support our first responders and give back beyond the trailer.",
+  p3Title:"Community First",
+  p3Body:"Community cleanup efforts and financial support for public safety initiatives."
+};
+var DEF_GUARANTEE={
+  enabled:true,
+  kick:"The Potato-Potahto Guarantee",
+  headline:"Feed a family of 4 for <b>under $44</b>",
+  lead:"Rising costs, unpredictable bills — let's set the record straight. Find us at the trailer and a family of four pays <b>no more than $44</b>. With drinks. Hard stop. <b>No one walks away hungry.</b>",
+  matchEnabled:true,
+  matchTitle:"Meal Match Mission",
+  matchBody:"For every <b>10</b> meals sold, we donate <b>1</b> to someone in need — more than <b>200 meals a month</b> right here in the Chippewa Valley."
+};
+var DEF_PURPOSE={
+  enabled:true,
+  kick:"Our Purpose",
+  headline:'What <b>"Potato-Potahto"</b> means to us',
+  body:"The name Potato-Potahto comes from the idea that while people may say or see things differently, we often agree on more than we think. It reflects the simple truth that differences in opinion, background, and perspective don't have to divide us—they can exist side by side while still sharing common ground.\n\nAt Potato-Potahto, we believe that common ground matters. No matter how we say it or how we see things, we can all agree on the importance of a kind, clean, safe, and non-hungry community. That belief is at the heart of everything we do.\n\nOur name is a reminder to keep perspective, stay open to others, and focus on what brings people together. It guides how we serve our customers, how we support our communities, and how we show up outside of our trailer through cleanup efforts, giving back, and supporting those who keep our communities safe.",
+  close:"Because at the end of the day—<b>Potato, Potahto</b>—we're all part of the same community, and we're stronger when we take care of it together."
+};
+var DEF_VOL={
+  enabled:false,
+  kick:"Want to help out?",
+  headline:"Volunteer or just <b>say hi</b>",
+  sub:"Drop us your contact info — we'd love to hear from you. Whether it's helping at an event, asking about partnerships, or just saying hello.",
+  recipientEmail:"owner@example.com"
+};
+var DEF_REVIEW={
+  enabled:true,
+  kick:"How'd we do?",
+  headline:"Tell us how you <b>liked it</b>",
+  sub:"Loved your visit? Leave us a Google review. Have feedback for us instead? Send it straight to Aaron — we read every one.",
+  googleUrl:"",
+  recipientEmail:"owner@example.com"
+};
+var DEF_SOCIAL={
+  enabled:true,
+  tagline:"Like and share our pages",
+  facebook:"https://www.facebook.com/profile.php?id=61578732792115",
+  instagram:"",
+  tiktok:"",
+  snapchat:"",
+  youtube:""
+};
+// Repair double-UTF-8-encoded strings (e.g. en-dash bytes E2 80 93 mis-decoded as Latin-1
+// then re-encoded). Walks objects/arrays recursively. Prevents admin from re-saving corruption.
+function fixMojibake(s){
+  if(typeof s!=='string'||!s)return s;
+  if(!/[\x80-\xff]/.test(s))return s;
+  try{
+    var bytes=new Uint8Array(s.length);
+    for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c>0xff)return s;bytes[i]=c;}
+    return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  }catch(e){return s;}
+}
+function repair(x){
+  if(typeof x==='string')return fixMojibake(x);
+  if(Array.isArray(x))return x.map(repair);
+  if(x&&typeof x==='object'){var o={};for(var k in x)o[k]=repair(x[k]);return o;}
+  return x;
+}
+// Strip empty-string/null values so API blanks don't blow away defaults on merge.
+function pruneEmpty(o){
+  if(!o||typeof o!=='object'||Array.isArray(o))return o;
+  var r={};for(var k in o){var v=o[k];if(v!==''&&v!=null)r[k]=v;}return r;
+}
+function unlock(){
+  var passEl=document.getElementById('pass');
+  var v=passEl.value.trim();
+  var errEl=document.getElementById('passErr');
+  if(!v){passEl.style.borderColor='#f0d008';if(errEl)errEl.textContent='';return;}
+  if(errEl){errEl.textContent='Checking…';errEl.style.color='var(--mut)';}
+  // Auth probe — verify against the server before letting the admin in.
+  fetch(API+'?verify=1',{method:'POST',headers:{'x-admin-key':v}})
+    .then(function(r){
+      if(r.status===200){
+        adminKey=v;
+        passEl.style.borderColor='';
+        if(errEl)errEl.textContent='';
+        document.getElementById('gate').style.display='none';
+        // Pull the current shared config so edits start from what's live
+        return fetch(API,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+          if(j&&typeof j==='object'){
+            j=repair(j);
+            loadedUpdatedAt=j.updatedAt||null;
+            if(j.today)state.today=Object.assign(state.today,pruneEmpty(j.today));
+            if(j.dailyToppings)state.dailyToppings=Object.assign(state.dailyToppings,pruneEmpty(j.dailyToppings));
+            if(j.orderAhead)state.orderAhead=Object.assign(state.orderAhead,pruneEmpty(j.orderAhead));
+            if(j.doordash)state.doordash=Object.assign(state.doordash,pruneEmpty(j.doordash));
+            if(Array.isArray(j.gallery))state.gallery=j.gallery.slice();
+            // Empty = never set up yet → start from the built-in wall, not a blank list.
+            if(j.partners&&j.partners.length)state.partners=JSON.parse(JSON.stringify(j.partners));
+            if(j.ticker&&j.ticker.length)state.ticker=j.ticker.slice();
+            if(typeof j.tickerEnabled==='boolean')state.tickerEnabled=j.tickerEnabled;
+            if(typeof j.eventsEnabled==='boolean')state.eventsEnabled=j.eventsEnabled;
+            if(j.featuredEvent)state.featuredEvent=Object.assign(state.featuredEvent,pruneEmpty(j.featuredEvent));
+            if(j.events&&j.events.length)state.events=j.events;
+            if(j.places&&j.places.length)state.places=j.places;
+            if(j.menu)state.menu=mergeMenu(j.menu);
+            if(j.pageCopy)state.pageCopy=Object.assign({},DEF_PAGECOPY,pruneEmpty(j.pageCopy));
+            if(j.volunteerCapture)state.volunteerCapture=Object.assign({},DEF_VOL,pruneEmpty(j.volunteerCapture));
+            if(j.reviewCapture)state.reviewCapture=Object.assign({},DEF_REVIEW,pruneEmpty(j.reviewCapture));
+            if(j.socialLinks)state.socialLinks=Object.assign({},DEF_SOCIAL,pruneEmpty(j.socialLinks));
+            if(j.hero)state.hero=Object.assign({},DEF_HERO,pruneEmpty(j.hero));
+            if(j.mission)state.mission=Object.assign({},DEF_MISSION,pruneEmpty(j.mission));
+            if(j.guarantee)state.guarantee=Object.assign({},DEF_GUARANTEE,pruneEmpty(j.guarantee));
+            if(j.purpose)state.purpose=Object.assign({},DEF_PURPOSE,pruneEmpty(j.purpose));
+            fill();
+          }
+        });
+      }
+      if(r.status===401){
+        passEl.style.borderColor='#b3261e';passEl.value='';passEl.focus();
+        if(errEl){errEl.textContent='Wrong passcode. Try again.';errEl.style.color='#ff9b9b';}
+        return;
+      }
+      if(errEl){errEl.textContent='Server error ('+r.status+'). Try again in a moment.';errEl.style.color='#ff9b9b';}
+    })
+    .catch(function(){
+      if(errEl){errEl.textContent='No network. Check your connection and try again.';errEl.style.color='#ff9b9b';}
+    });
+}
+// Build a normalized pillSections array from a saved menu, migrating from legacy
+// loadedItems/dustItems/sauceItems/crunchItems if pillSections isn't present.
+function buildPillSections(m){
+  if(Array.isArray(m.pillSections)&&m.pillSections.length){
+    return JSON.parse(JSON.stringify(m.pillSections.map(function(s){return {
+      title:String(s.title||''),sub:String(s.sub||''),
+      items:(s.items||[]).map(function(p){return typeof p==='string'?{name:p,desc:'',fire:false}:{name:p.name||'',desc:p.desc||'',fire:!!p.fire};})
+    };})));
+  }
+  var out=[];
+  if(m.loadedItems&&m.loadedItems.length)out.push({title:m.loadedTitle||'Loaded',sub:m.loadedSub||'',items:m.loadedItems});
+  if(m.crunchItems&&m.crunchItems.length)out.push({title:m.crunchTitle||'The Crunch',sub:m.crunchSub||'',items:m.crunchItems});
+  if(m.dustItems&&m.dustItems.length)out.push({title:m.dustTitle||'The "Dust"',sub:m.dustSub||'',items:m.dustItems});
+  if(m.sauceItems&&m.sauceItems.length)out.push({title:m.sauceTitle||'The Sauce',sub:m.sauceSub||'',items:m.sauceItems});
+  return out.length?out:JSON.parse(JSON.stringify(DEF_MENU.pillSections));
+}
+function mergeMenu(m){
+  m=m||{};
+  var cats=(m.categories&&m.categories.length)?JSON.parse(JSON.stringify(m.categories)):JSON.parse(JSON.stringify(DEF_MENU.categories));
+  // Lift any priced category named "Crunch" up into pillSections so Aaron's old miscategorisation
+  // shows in the right place going forward.
+  var liftedCrunch=null;
+  cats=cats.filter(function(c){
+    if(String(c.name||'').trim().toLowerCase()==='crunch'){
+      liftedCrunch={title:'The Crunch',sub:'Add some texture — pick any to top your loaded order',
+        items:(c.items||[]).filter(function(i){return i.name;}).map(function(i){return {name:i.name,desc:i.desc||'',fire:!!i.fire};})};
+      return false;
+    }
+    return true;
+  });
+  var sections=buildPillSections(m);
+  if(liftedCrunch&&!sections.find(function(s){return String(s.title||'').toLowerCase().indexOf('crunch')>=0;})){
+    sections.splice(Math.min(1,sections.length),0,liftedCrunch);
+  }
+  return {
+    enabled:m.enabled!==false,
+    kick:m.kick||DEF_MENU.kick,
+    headline:m.headline||DEF_MENU.headline,
+    sub:m.sub||DEF_MENU.sub,
+    note:m.note||DEF_MENU.note,
+    categories:cats,
+    pillSections:sections
+  };
+}
+document.getElementById('pass').addEventListener('keydown',function(e){if(e.key==='Enter')unlock();});
+
+var state={today:{live:false,loc:'',hours:'',note:'',closeAt:''},dailyToppings:{enabled:false,items:[],updated:''},orderAhead:{enabled:false,url:''},doordash:{enabled:false,url:''},gallery:[],partners:JSON.parse(JSON.stringify(DEF_PARTNERS)),ticker:[],tickerEnabled:true,eventsEnabled:true,featuredEvent:{enabled:false,title:'',date:'',time:'',location:'',blurb:'',description:'',ctaLabel:'Learn More',partners:'',startDate:''},events:[],places:JSON.parse(JSON.stringify(DEF_PLACES)),menu:mergeMenu({}),pageCopy:Object.assign({},DEF_PAGECOPY),volunteerCapture:Object.assign({},DEF_VOL),reviewCapture:Object.assign({},DEF_REVIEW),socialLinks:Object.assign({},DEF_SOCIAL),hero:Object.assign({},DEF_HERO),mission:Object.assign({},DEF_MISSION),guarantee:Object.assign({},DEF_GUARANTEE),purpose:Object.assign({},DEF_PURPOSE)};
+try{var s=JSON.parse(localStorage.getItem(KEY)||'{}');
+  if(s.today)state.today=Object.assign(state.today,s.today);
+  if(s.dailyToppings)state.dailyToppings=Object.assign(state.dailyToppings,s.dailyToppings);
+  if(s.orderAhead)state.orderAhead=Object.assign(state.orderAhead,s.orderAhead);
+  if(s.doordash)state.doordash=Object.assign(state.doordash,s.doordash);
+  if(Array.isArray(s.gallery))state.gallery=s.gallery.slice();
+  if(s.partners&&s.partners.length)state.partners=JSON.parse(JSON.stringify(s.partners));
+  if(s.ticker&&s.ticker.length)state.ticker=s.ticker.slice();
+  if(typeof s.tickerEnabled==='boolean')state.tickerEnabled=s.tickerEnabled;
+  if(typeof s.eventsEnabled==='boolean')state.eventsEnabled=s.eventsEnabled;
+  if(s.featuredEvent)state.featuredEvent=Object.assign(state.featuredEvent,s.featuredEvent);
+  state.events=(s.events&&s.events.length)?s.events:DEF_EVENTS.slice();
+  // An empty saved list means "never set up" (e.g. a save from an admin tab that predates
+  // places) — fall back to the starter places rather than showing nothing.
+  if(s.places&&s.places.length)state.places=s.places.slice();
+  if(s.menu)state.menu=mergeMenu(s.menu);
+  if(s.pageCopy)state.pageCopy=Object.assign({},DEF_PAGECOPY,s.pageCopy);
+  if(s.volunteerCapture)state.volunteerCapture=Object.assign({},DEF_VOL,s.volunteerCapture);
+  if(s.reviewCapture)state.reviewCapture=Object.assign({},DEF_REVIEW,s.reviewCapture);
+  if(s.socialLinks)state.socialLinks=Object.assign({},DEF_SOCIAL,s.socialLinks);
+  if(s.hero)state.hero=Object.assign({},DEF_HERO,s.hero);
+  if(s.mission)state.mission=Object.assign({},DEF_MISSION,s.mission);
+  if(s.guarantee)state.guarantee=Object.assign({},DEF_GUARANTEE,s.guarantee);
+  if(s.purpose)state.purpose=Object.assign({},DEF_PURPOSE,s.purpose);
+}catch(e){state.events=DEF_EVENTS.slice();}
+if(!state.events.length)state.events=DEF_EVENTS.slice();
+
+function fill(){
+  document.getElementById('tLive').checked=!!state.today.live;
+  document.getElementById('tLoc').value=state.today.loc||'';
+  document.getElementById('tHours').value=state.today.hours||'';
+  document.getElementById('tNote').value=state.today.note||'';
+  document.getElementById('tClose').value=state.today.closeAt||'';
+  var dt=state.dailyToppings||{};
+  document.getElementById('dtEnabled').checked=!!dt.enabled;
+  document.getElementById('dtItems').value=(dt.items||[]).join('\n');
+  var dtU=document.getElementById('dtUpdated');
+  if(dtU){
+    if(dt.updated){
+      var todayIso=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago'}).format(new Date());
+      dtU.textContent='Toppings last changed: '+dt.updated+(dt.updated===todayIso?' (today)':' — still showing that day’s list');
+    }else dtU.textContent='';
+  }
+  document.getElementById('oEnabled').checked=!!state.orderAhead.enabled;
+  document.getElementById('oUrl').value=state.orderAhead.url||'';
+  document.getElementById('ddEnabled').checked=!!state.doordash.enabled;
+  document.getElementById('ddUrl').value=state.doordash.url||'';
+  document.getElementById('tickerEnabled').checked=state.tickerEnabled!==false;
+  document.getElementById('eventsEnabled').checked=state.eventsEnabled!==false;
+  renderTickerList();
+  renderGallery();
+  renderPartners();
+  var fe=state.featuredEvent||{};
+  document.getElementById('feEnabled').checked=!!fe.enabled;
+  document.getElementById('feTitle').value=fe.title||'';
+  document.getElementById('feDate').value=fe.date||'';
+  var feT=splitTimeRange(fe.time);document.getElementById('feTimeStart').value=feT.start;document.getElementById('feTimeEnd').value=feT.end;
+  document.getElementById('feLocation').value=fe.location||'';
+  document.getElementById('feBlurb').value=fe.blurb||'';
+  document.getElementById('feDescription').value=fe.description||'';
+  document.getElementById('feCtaLabel').value=fe.ctaLabel||'Learn More';
+  document.getElementById('fePartners').value=fe.partners||'';
+  document.getElementById('feStartDate').value=fe.startDate||'';
+  document.getElementById('feEndDate').value=fe.endDate||'';
+  document.getElementById('feAutoHide').checked=!!fe.autoHide;
+  renderPlaces();
+  renderEv();
+  // Menu
+  var m=state.menu;
+  document.getElementById('mEnabled').checked=m.enabled!==false;
+  document.getElementById('mKick').value=m.kick||'';
+  document.getElementById('mHeadline').value=m.headline||'';
+  document.getElementById('mSub').value=m.sub||'';
+  document.getElementById('mNote').value=m.note||'';
+  renderCats();renderPillSections();
+  // Page copy
+  var pc=state.pageCopy;
+  document.getElementById('pcEnabled').checked=pc.enabled!==false;
+  document.getElementById('pcOrderKick').value=pc.orderKick||'';
+  document.getElementById('pcOrderHeadline').value=pc.orderHeadline||'';
+  document.getElementById('pcOrderSub').value=pc.orderSub||'';
+  document.getElementById('pcCatTitle').value=pc.cateringTitle||'';
+  document.getElementById('pcCatBody').value=pc.cateringBody||'';
+  // Volunteer
+  var v=state.volunteerCapture;
+  document.getElementById('vEnabled').checked=!!v.enabled;
+  document.getElementById('vKick').value=v.kick||'';
+  document.getElementById('vHeadline').value=v.headline||'';
+  document.getElementById('vSub').value=v.sub||'';
+  document.getElementById('vEmail').value=v.recipientEmail||'';
+  // Social links
+  var sl=state.socialLinks||{};
+  document.getElementById('slEnabled').checked=sl.enabled!==false;
+  document.getElementById('slTagline').value=sl.tagline||'';
+  document.getElementById('slFb').value=sl.facebook||'';
+  document.getElementById('slIg').value=sl.instagram||'';
+  document.getElementById('slTt').value=sl.tiktok||'';
+  document.getElementById('slSc').value=sl.snapchat||'';
+  document.getElementById('slYt').value=sl.youtube||'';
+  // Reviews
+  var rv=state.reviewCapture||{};
+  document.getElementById('rvEnabled').checked=rv.enabled!==false;
+  document.getElementById('rvKick').value=rv.kick||'';
+  document.getElementById('rvHeadline').value=rv.headline||'';
+  document.getElementById('rvSub').value=rv.sub||'';
+  document.getElementById('rvGoogleUrl').value=rv.googleUrl||'';
+  document.getElementById('rvEmail').value=rv.recipientEmail||'';
+  // Hero / Mission / Purpose
+  var h=state.hero,ms=state.mission,pp=state.purpose,gr=state.guarantee||DEF_GUARANTEE;
+  document.getElementById('hrEnabled').checked=h.enabled!==false;
+  document.getElementById('msEnabled').checked=ms.enabled!==false;
+  document.getElementById('ppEnabled').checked=pp.enabled!==false;
+  document.getElementById('grEnabled').checked=gr.enabled!==false;
+  document.getElementById('grKick').value=gr.kick||'';
+  document.getElementById('grHeadline').value=gr.headline||'';
+  document.getElementById('grLead').value=gr.lead||'';
+  document.getElementById('grMatchEnabled').checked=gr.matchEnabled!==false;
+  document.getElementById('grMatchTitle').value=gr.matchTitle||'';
+  document.getElementById('grMatchBody').value=gr.matchBody||'';
+  document.getElementById('hrHeadline').value=h.headline||'';
+  document.getElementById('hrTagline').value=h.tagline||'';
+  document.getElementById('msKick').value=ms.kick||'';
+  document.getElementById('msQuote').value=ms.quote||'';
+  document.getElementById('msP1Title').value=ms.p1Title||'';
+  document.getElementById('msP1Body').value=ms.p1Body||'';
+  document.getElementById('msP2Title').value=ms.p2Title||'';
+  document.getElementById('msP2Body').value=ms.p2Body||'';
+  document.getElementById('msP3Title').value=ms.p3Title||'';
+  document.getElementById('msP3Body').value=ms.p3Body||'';
+  document.getElementById('ppKick').value=pp.kick||'';
+  document.getElementById('ppHeadline').value=pp.headline||'';
+  document.getElementById('ppBody').value=pp.body||'';
+  document.getElementById('ppClose').value=pp.close||'';
+}
+// Swap arr[i] with arr[i+dir] in place. Bounds-checked. Returns true if it moved.
+function moveItem(arr,i,dir){
+  var j=i+dir;
+  if(!arr||i<0||i>=arr.length||j<0||j>=arr.length)return false;
+  var t=arr[i];arr[i]=arr[j];arr[j]=t;
+  return true;
+}
+// Produce a pair of ▲▼ reorder buttons. attrPrefix is the full data-attribute
+// (e.g. "data-cat" → buttons get data-cat-up="<idx>" / data-cat-down="<idx>").
+// attrValue overrides the default idx string (used for nested lists like items: "0,3").
+function reorderBtns(idx,len,attrPrefix,attrValue){
+  var v=attrValue==null?String(idx):attrValue;
+  var dU=idx===0?' disabled':'';
+  var dD=idx===len-1?' disabled':'';
+  return '<button class="btn btn-sm btn-ghost reorder-btn" '+attrPrefix+'-up="'+v+'" aria-label="Move up"'+dU+'>▲</button>'+
+         '<button class="btn btn-sm btn-ghost reorder-btn" '+attrPrefix+'-down="'+v+'" aria-label="Move down"'+dD+'>▼</button>';
+}
+function renderCats(){
+  var L=document.getElementById('mCats');L.innerHTML='';
+  var cats=state.menu.categories;
+  cats.forEach(function(c,ci){
+    var box=document.createElement('div');box.className='group';
+    var head=
+      '<div class="reorder-bar">'+reorderBtns(ci,cats.length,'data-cat')+'<span class="reorder-label">Category position</span></div>'+
+      '<input type="text" data-cat-name="'+ci+'" value="'+esc(c.name)+'" placeholder="Category name (Baked, Fried...)" />'+
+      '<input type="text" data-cat-sub="'+ci+'" value="'+esc(c.sub)+'" placeholder="Category subtitle" style="margin-top:6px" />'+
+      '<input type="text" data-cat-ph="'+ci+'" value="'+esc(c.priceHead||'')+'" placeholder="Price column header (optional — e.g. Reg / 1 lb)" style="margin-top:6px" />';
+    var items='';
+    (c.items||[]).forEach(function(it,ii){
+      items+='<div class="mi-row">'+
+        '<input type="text" data-item-name="'+ci+','+ii+'" value="'+esc(it.name)+'" placeholder="Item name" />'+
+        '<input type="text" data-item-price="'+ci+','+ii+'" value="'+esc(it.price)+'" placeholder="$5" /></div>'+
+        '<textarea data-item-desc="'+ci+','+ii+'" rows="2" placeholder="Item description" style="margin-top:4px">'+esc(it.desc)+'</textarea>'+
+        '<div class="row-actions">'+
+          reorderBtns(ii,(c.items||[]).length,'data-item',ci+','+ii)+
+          '<button class="btn btn-sm danger" data-item-del="'+ci+','+ii+'">Remove item</button>'+
+        '</div>';
+    });
+    box.innerHTML=head+items+
+      '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
+      '<button class="btn btn-ghost btn-sm" data-item-add="'+ci+'">+ Add item</button>'+
+      '<button class="btn btn-sm danger" data-cat-del="'+ci+'">Delete category</button></div>';
+    L.appendChild(box);
+  });
+  L.querySelectorAll('[data-cat-name]').forEach(function(i){i.addEventListener('input',function(){state.menu.categories[+i.dataset.catName].name=i.value;});});
+  L.querySelectorAll('[data-cat-sub]').forEach(function(i){i.addEventListener('input',function(){state.menu.categories[+i.dataset.catSub].sub=i.value;});});
+  L.querySelectorAll('[data-cat-ph]').forEach(function(i){i.addEventListener('input',function(){state.menu.categories[+i.dataset.catPh].priceHead=i.value;});});
+  L.querySelectorAll('[data-item-name]').forEach(function(i){var p=i.dataset.itemName.split(',');i.addEventListener('input',function(){state.menu.categories[+p[0]].items[+p[1]].name=i.value;});});
+  L.querySelectorAll('[data-item-price]').forEach(function(i){var p=i.dataset.itemPrice.split(',');i.addEventListener('input',function(){state.menu.categories[+p[0]].items[+p[1]].price=i.value;});});
+  L.querySelectorAll('[data-item-desc]').forEach(function(i){var p=i.dataset.itemDesc.split(',');i.addEventListener('input',function(){state.menu.categories[+p[0]].items[+p[1]].desc=i.value;});});
+  L.querySelectorAll('[data-item-add]').forEach(function(b){b.addEventListener('click',function(){state.menu.categories[+b.dataset.itemAdd].items.push({name:'',desc:'',price:''});renderCats();});});
+  L.querySelectorAll('[data-item-del]').forEach(function(b){var p=b.dataset.itemDel.split(',');b.addEventListener('click',function(){state.menu.categories[+p[0]].items.splice(+p[1],1);renderCats();});});
+  L.querySelectorAll('[data-cat-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('Delete this whole category?')){state.menu.categories.splice(+b.dataset.catDel,1);renderCats();}});});
+  // Category reorder
+  L.querySelectorAll('[data-cat-up]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.menu.categories,+b.dataset.catUp,-1))renderCats();});});
+  L.querySelectorAll('[data-cat-down]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.menu.categories,+b.dataset.catDown,1))renderCats();});});
+  // Item reorder (within a category)
+  L.querySelectorAll('[data-item-up]').forEach(function(b){var p=b.dataset.itemUp.split(',');b.addEventListener('click',function(){if(moveItem(state.menu.categories[+p[0]].items,+p[1],-1))renderCats();});});
+  L.querySelectorAll('[data-item-down]').forEach(function(b){var p=b.dataset.itemDown.split(',');b.addEventListener('click',function(){if(moveItem(state.menu.categories[+p[0]].items,+p[1],1))renderCats();});});
+}
+function addCat(){state.menu.categories.push({name:'',sub:'',priceHead:'',items:[]});renderCats();}
+// Render all topping pill sections (Loaded, Crunch, Dust, Sauce, or whatever Aaron creates).
+// Each section has: editable title/sub, ▲▼ reorder + delete for the section itself,
+// then a list of pills with the same controls per pill, and a "+ Add pill" button.
+function renderPillSections(){
+  var L=document.getElementById('mPillSections');if(!L)return;L.innerHTML='';
+  var sections=state.menu.pillSections||[];
+  sections.forEach(function(sec,si){
+    var box=document.createElement('div');box.className='group';
+    var pillsHtml=(sec.items||[]).map(function(p,pi){
+      if(typeof p==='string')p={name:p,desc:'',fire:false};
+      return '<div class="pill-row">'+
+          '<input type="text" data-ps-pn="'+si+','+pi+'" value="'+esc(p.name)+'" placeholder="Name" />'+
+          '<input type="text" data-ps-pd="'+si+','+pi+'" value="'+esc(p.desc)+'" placeholder="Description (shown on tap)" />'+
+          '<label class="fire-tog" title="Mark as hot"><input type="checkbox" data-ps-pf="'+si+','+pi+'"'+(p.fire?' checked':'')+'></label>'+
+        '</div>'+
+        '<div class="row-actions" style="margin-top:4px">'+
+          reorderBtns(pi,(sec.items||[]).length,'data-ps-p',si+','+pi)+
+          '<button class="btn btn-sm danger" data-ps-pdel="'+si+','+pi+'">Remove</button>'+
+        '</div>';
+    }).join('');
+    box.innerHTML=
+      '<div class="reorder-bar">'+reorderBtns(si,sections.length,'data-ps')+'<span class="reorder-label">Section position</span></div>'+
+      '<label>Section title</label>'+
+      '<input type="text" data-ps-title="'+si+'" value="'+esc(sec.title)+'" placeholder="Loaded / The Crunch / The Dust ..." />'+
+      '<label>Section subtitle</label>'+
+      '<input type="text" data-ps-sub="'+si+'" value="'+esc(sec.sub)+'" placeholder="Short description shown next to the title" />'+
+      '<label style="margin-top:10px">Pills <span style="text-transform:none;color:var(--mut);font-weight:400">(name + optional description on tap; check 🔥 for hot)</span></label>'+
+      pillsHtml+
+      '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
+        '<button class="btn btn-ghost btn-sm" data-ps-padd="'+si+'">+ Add pill</button>'+
+        '<button class="btn btn-sm danger" data-ps-del="'+si+'">Delete section</button>'+
+      '</div>';
+    L.appendChild(box);
+  });
+  // Section-level handlers
+  L.querySelectorAll('[data-ps-title]').forEach(function(i){i.addEventListener('input',function(){state.menu.pillSections[+i.dataset.psTitle].title=i.value;});});
+  L.querySelectorAll('[data-ps-sub]').forEach(function(i){i.addEventListener('input',function(){state.menu.pillSections[+i.dataset.psSub].sub=i.value;});});
+  L.querySelectorAll('[data-ps-up]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.menu.pillSections,+b.dataset.psUp,-1))renderPillSections();});});
+  L.querySelectorAll('[data-ps-down]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.menu.pillSections,+b.dataset.psDown,1))renderPillSections();});});
+  L.querySelectorAll('[data-ps-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('Delete this whole section?')){state.menu.pillSections.splice(+b.dataset.psDel,1);renderPillSections();}});});
+  L.querySelectorAll('[data-ps-padd]').forEach(function(b){b.addEventListener('click',function(){var s=state.menu.pillSections[+b.dataset.psPadd];s.items=s.items||[];s.items.push({name:'',desc:'',fire:false});renderPillSections();});});
+  // Pill-level handlers
+  L.querySelectorAll('[data-ps-pn]').forEach(function(i){var p=i.dataset.psPn.split(',');i.addEventListener('input',function(){state.menu.pillSections[+p[0]].items[+p[1]].name=i.value;});});
+  L.querySelectorAll('[data-ps-pd]').forEach(function(i){var p=i.dataset.psPd.split(',');i.addEventListener('input',function(){state.menu.pillSections[+p[0]].items[+p[1]].desc=i.value;});});
+  L.querySelectorAll('[data-ps-pf]').forEach(function(i){var p=i.dataset.psPf.split(',');i.addEventListener('change',function(){state.menu.pillSections[+p[0]].items[+p[1]].fire=i.checked;});});
+  L.querySelectorAll('[data-ps-pdel]').forEach(function(b){var p=b.dataset.psPdel.split(',');b.addEventListener('click',function(){state.menu.pillSections[+p[0]].items.splice(+p[1],1);renderPillSections();});});
+  L.querySelectorAll('[data-ps-p-up]').forEach(function(b){var p=b.dataset.psPUp.split(',');b.addEventListener('click',function(){if(moveItem(state.menu.pillSections[+p[0]].items,+p[1],-1))renderPillSections();});});
+  L.querySelectorAll('[data-ps-p-down]').forEach(function(b){var p=b.dataset.psPDown.split(',');b.addEventListener('click',function(){if(moveItem(state.menu.pillSections[+p[0]].items,+p[1],1))renderPillSections();});});
+}
+function addPillSection(){
+  if(!state.menu.pillSections)state.menu.pillSections=[];
+  state.menu.pillSections.push({title:'New section',sub:'',items:[]});
+  renderPillSections();
+  var L=document.getElementById('mPillSections');
+  if(L){var inputs=L.querySelectorAll('[data-ps-title]');var last=inputs[inputs.length-1];if(last){last.focus();last.select();}}
+}
+function renderTickerList(){
+  var L=document.getElementById('tickerList');if(!L)return;L.innerHTML='';
+  var arr=state.ticker||[];
+  arr.forEach(function(s,i){
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:6px;align-items:center;margin-top:6px';
+    row.innerHTML='<input type="text" data-tk-i="'+i+'" value="'+esc(s)+'" placeholder="★ Announcement text here ★" style="flex:1;margin:0">'+
+      '<div class="row-actions" style="margin:0">'+reorderBtns(i,arr.length,'data-tk')+'</div>'+
+      '<button class="btn btn-sm danger" data-tk-del="'+i+'">×</button>';
+    L.appendChild(row);
+  });
+  L.querySelectorAll('[data-tk-i]').forEach(function(i){i.addEventListener('input',function(){state.ticker[+i.dataset.tkI]=i.value;});});
+  L.querySelectorAll('[data-tk-up]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.ticker,+b.dataset.tkUp,-1))renderTickerList();});});
+  L.querySelectorAll('[data-tk-down]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.ticker,+b.dataset.tkDown,1))renderTickerList();});});
+  L.querySelectorAll('[data-tk-del]').forEach(function(b){b.addEventListener('click',function(){state.ticker.splice(+b.dataset.tkDel,1);renderTickerList();});});
+}
+function addTickerItem(){if(!state.ticker)state.ticker=[];state.ticker.push('');renderTickerList();var L=document.getElementById('tickerList');if(L){var last=L.querySelector('input:last-of-type');if(last)last.focus();}}
+
+// ---- Gallery (The Spread slideshow) ----
+var UPLOAD_API="/.netlify/functions/upload-image";
+function renderGallery(){
+  var L=document.getElementById('galleryList');if(!L)return;L.innerHTML='';
+  var arr=state.gallery||[];
+  if(!arr.length){
+    L.innerHTML='<p class="small" style="opacity:.7;margin:6px 0">No photos added yet — the site is showing the built-in default photos. Add one to take over the slideshow.</p>';
+  }
+  arr.forEach(function(g,i){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;align-items:center;margin-top:8px;background:#0c2336;border:1px solid #1c4262;border-radius:8px;padding:8px';
+    row.innerHTML=
+      '<img src="'+esc(g.url)+'" alt="" style="width:76px;height:50px;object-fit:cover;border-radius:5px;flex:none;background:#000">'+
+      '<input type="text" data-gl-cap="'+i+'" value="'+esc(g.cap||'')+'" placeholder="Caption (optional)" style="flex:1;margin:0">'+
+      '<div class="row-actions" style="margin:0">'+reorderBtns(i,arr.length,'data-gl')+'</div>'+
+      '<button class="btn btn-sm danger" data-gl-del="'+i+'" aria-label="Remove photo">×</button>';
+    L.appendChild(row);
+  });
+  L.querySelectorAll('[data-gl-cap]').forEach(function(inp){inp.addEventListener('input',function(){state.gallery[+inp.dataset.glCap].cap=inp.value;});});
+  L.querySelectorAll('[data-gl-up]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.gallery,+b.dataset.glUp,-1))renderGallery();});});
+  L.querySelectorAll('[data-gl-down]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.gallery,+b.dataset.glDown,1))renderGallery();});});
+  L.querySelectorAll('[data-gl-del]').forEach(function(b){b.addEventListener('click',function(){state.gallery.splice(+b.dataset.glDel,1);renderGallery();});});
+}
+// Resize an image File to a web-sized data URL (max 1400px wide) before upload.
+// Prefers WebP; Safari can't encode WebP from a canvas, so it falls back to JPEG.
+// Uses a FileReader data: URL (not a blob: URL) so it works under the site's CSP.
+// opt.max overrides the width cap; opt.bg paints a background first, so a transparent
+// logo doesn't turn black in the JPEG fallback (partner tiles are white).
+function resizeForUpload(file,opt){
+  opt=opt||{};
+  return new Promise(function(resolve,reject){
+    var reader=new FileReader();
+    reader.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        var MAX=opt.max||1400,w=img.naturalWidth,h=img.naturalHeight;
+        if(!w||!h){reject(new Error('unreadable image'));return;}
+        if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+        var c=document.createElement('canvas');c.width=w;c.height=h;
+        var cx=c.getContext('2d');
+        if(opt.bg){cx.fillStyle=opt.bg;cx.fillRect(0,0,w,h);}
+        cx.drawImage(img,0,0,w,h);
+        var dataUrl=c.toDataURL('image/webp',0.82);
+        if(dataUrl.indexOf('data:image/webp')!==0){
+          dataUrl=c.toDataURL('image/jpeg',0.85);
+          if(dataUrl.indexOf('data:image/jpeg')!==0){reject(new Error('this browser can’t convert images'));return;}
+        }
+        resolve(dataUrl);
+      };
+      img.onerror=function(){reject(new Error('couldn’t open that file'));};
+      img.src=reader.result;
+    };
+    reader.onerror=function(){reject(new Error('couldn’t read that file'));};
+    reader.readAsDataURL(file);
+  });
+}
+function handleGalleryFiles(files){
+  var list=Array.prototype.slice.call(files||[]);if(!list.length)return;
+  if(!adminKey){document.getElementById('gate').style.display='grid';return;}
+  var status=document.getElementById('galleryStatus');
+  function setStatus(t){if(status)status.textContent=t;}
+  var added=0;
+  setStatus('Uploading 1/'+list.length+'…');
+  (function next(idx){
+    if(idx>=list.length){setStatus(added+' photo'+(added===1?'':'s')+' added ✓ — click Save to publish');renderGallery();return;}
+    setStatus('Uploading '+(idx+1)+'/'+list.length+'…');
+    resizeForUpload(list[idx]).then(function(dataUrl){
+      return fetch(UPLOAD_API,{method:'POST',headers:{'content-type':'application/json','x-admin-key':adminKey},body:JSON.stringify({data:dataUrl})});
+    }).then(function(r){
+      if(r.status===401)throw new Error('wrong passcode');
+      if(!r.ok)throw new Error('server error '+r.status);
+      return r.json();
+    }).then(function(j){
+      if(!j||!j.url)throw new Error('no URL returned');
+      if(!state.gallery)state.gallery=[];
+      state.gallery.push({url:j.url,cap:''});added++;renderGallery();
+      next(idx+1);
+    }).catch(function(e){setStatus('Upload failed on photo '+(idx+1)+': '+(e.message||e));});
+  })(0);
+}
+(function(){var gf=document.getElementById('galleryFile');if(gf)gf.addEventListener('change',function(){handleGalleryFiles(this.files);this.value='';});})();
+// ---- Partners (Thank You wall) ----
+// Built-in logos are relative paths (img/partners/…); uploads come back as /img/gallery/….
+function renderPartners(){
+  var L=document.getElementById('partnerList');if(!L)return;L.innerHTML='';
+  var arr=state.partners||[];
+  arr.forEach(function(p,i){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;background:#0c2336;border:1px solid #1c4262;border-radius:8px;padding:8px';
+    row.innerHTML=
+      (p.logo?'<img src="'+esc(p.logo)+'" alt="" style="width:76px;height:50px;object-fit:contain;border-radius:5px;flex:none;background:#fff;padding:3px">'
+             :'<div class="small" style="width:76px;height:50px;flex:none;display:grid;place-items:center;border:1px dashed #1c4262;border-radius:5px;opacity:.7">No logo</div>')+
+      '<div style="flex:1;min-width:180px;display:grid;gap:6px">'+
+        '<input type="text" data-pt-name="'+i+'" value="'+esc(p.name||'')+'" placeholder="Partner name" style="margin:0">'+
+        '<input type="url" data-pt-url="'+i+'" value="'+esc(p.url||'')+'" placeholder="Website, e.g. https://example.com" style="margin:0">'+
+      '</div>'+
+      '<button class="btn btn-ghost btn-sm" data-pt-logo="'+i+'">Logo</button>'+
+      '<div class="row-actions" style="margin:0">'+reorderBtns(i,arr.length,'data-pt')+'</div>'+
+      '<button class="btn btn-sm danger" data-pt-del="'+i+'" aria-label="Remove partner">×</button>';
+    L.appendChild(row);
+  });
+  L.querySelectorAll('[data-pt-name]').forEach(function(inp){inp.addEventListener('input',function(){state.partners[+inp.dataset.ptName].name=inp.value;});});
+  L.querySelectorAll('[data-pt-url]').forEach(function(inp){inp.addEventListener('input',function(){state.partners[+inp.dataset.ptUrl].url=inp.value;});});
+  L.querySelectorAll('[data-pt-up]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.partners,+b.dataset.ptUp,-1))renderPartners();});});
+  L.querySelectorAll('[data-pt-down]').forEach(function(b){b.addEventListener('click',function(){if(moveItem(state.partners,+b.dataset.ptDown,1))renderPartners();});});
+  L.querySelectorAll('[data-pt-del]').forEach(function(b){b.addEventListener('click',function(){
+    if(!confirm('Remove "'+(state.partners[+b.dataset.ptDel].name||'this partner')+'" from the Thank You wall?'))return;
+    state.partners.splice(+b.dataset.ptDel,1);renderPartners();
+  });});
+  L.querySelectorAll('[data-pt-logo]').forEach(function(b){b.addEventListener('click',function(){
+    var f=document.getElementById('partnerFile');f.dataset.idx=b.dataset.ptLogo;f.click();
+  });});
+}
+function addPartner(){
+  state.partners=state.partners||[];
+  state.partners.push({name:'',url:'',logo:''});renderPartners();
+  var ins=document.querySelectorAll('[data-pt-name]');if(ins.length)ins[ins.length-1].focus();
+}
+(function(){
+  var pf=document.getElementById('partnerFile');if(!pf)return;
+  pf.addEventListener('change',function(){
+    var file=this.files&&this.files[0],idx=+this.dataset.idx;this.value='';
+    if(!file||!state.partners[idx])return;
+    if(!adminKey){document.getElementById('gate').style.display='grid';return;}
+    var status=document.getElementById('partnerStatus');
+    function setStatus(t){if(status)status.textContent=t;}
+    setStatus('Uploading logo…');
+    resizeForUpload(file,{max:600,bg:'#fff'}).then(function(dataUrl){
+      return fetch(UPLOAD_API,{method:'POST',headers:{'content-type':'application/json','x-admin-key':adminKey},body:JSON.stringify({data:dataUrl})});
+    }).then(function(r){
+      if(r.status===401)throw new Error('wrong passcode');
+      if(!r.ok)throw new Error('server error '+r.status);
+      return r.json();
+    }).then(function(j){
+      if(!j||!j.url)throw new Error('no URL returned');
+      state.partners[idx].logo=j.url;renderPartners();
+      setStatus('Logo added ✓ — click Save to publish');
+    }).catch(function(e){setStatus('Logo upload failed: '+(e.message||e));});
+  });
+})();
+var MONTH_ABBR=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+var EVENTS_MAX=300; // must match EVENTS_MAX in netlify/functions/site.mjs
+// ---- Past events archive (read-only list + per-row delete; the server moves
+// old dates here on every Save, so nothing here needs routine attention) ----
+var archive=null;
+function escT(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+function loadArchive(){
+  var b=document.getElementById('arcBtn');if(b)b.textContent='Loading…';
+  fetch(API+'?archive=1',{cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(j){archive=(j&&Array.isArray(j.events))?j.events:[];renderArchive();})
+    .catch(function(){toast('Couldn’t load the archive — try again',true);})
+    .then(function(){if(b)b.textContent='Refresh archived events';});
+}
+function renderArchive(){
+  var L=document.getElementById('arcList');if(!L)return;
+  if(!archive){L.innerHTML='';return;}
+  if(!archive.length){L.innerHTML='<div class="small">Nothing archived yet.</div>';return;}
+  var rows=archive.slice().sort(function(a,b){return a.iso<b.iso?1:a.iso>b.iso?-1:0;}); // newest first
+  L.innerHTML='<div class="small" style="margin-bottom:6px">'+rows.length+' archived</div>'+rows.map(function(e,i){
+    var md=isoToMD(e.iso);
+    return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #1c4262;font-size:.85rem">'+
+      '<span style="min-width:64px;color:var(--gold);font-weight:700">'+escT(md.m+' '+md.d)+'</span>'+
+      '<span style="flex:1">'+escT(e.t)+(e.loc?' <span style="color:var(--mut)">· '+escT(e.loc)+'</span>':'')+(e.time?' <span style="color:var(--mut)">· '+escT(e.time)+'</span>':'')+'</span>'+
+      '<button class="btn btn-sm del" data-arcdel="'+i+'" style="margin:0">Delete</button></div>';
+  }).join('');
+  L.querySelectorAll('[data-arcdel]').forEach(function(b){
+    b.addEventListener('click',function(){deleteArchived(rows[+b.dataset.arcdel]);});
+  });
+}
+function deleteArchived(e){
+  if(!e)return;
+  if(!confirm('Remove "'+(e.t||'this stop')+'" on '+e.iso+' from the archive? It disappears from the website calendar too, and this can’t be undone.'))return;
+  fetch(API+'?archive=1',{method:'POST',headers:{'content-type':'application/json','x-admin-key':adminKey},body:JSON.stringify({remove:[{iso:e.iso,t:e.t,time:e.time,loc:e.loc}]})})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(j){
+      if(j&&Array.isArray(j.events)){archive=j.events;renderArchive();toast('Removed from the archive ✓');}
+      else toast('Couldn’t remove it — try again',true);
+    })
+    .catch(function(){toast('Offline — nothing changed',true);});
+}
+// iso (YYYY-MM-DD) → {m:'JUN', d:'4'} for the display row
+function isoToMD(iso){
+  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso))return {m:'',d:''};
+  var p=iso.split('-');
+  return {m:MONTH_ABBR[parseInt(p[1],10)-1]||'',d:String(parseInt(p[2],10))};
+}
+// m + d (legacy data without iso) → YYYY-MM-DD using current year, rolling forward
+// if the date is more than 60 days in the past. Used only as a fallback during migration.
+function mdToIso(m,d){
+  if(!m||!d)return '';
+  var idx=MONTH_ABBR.indexOf(String(m).toUpperCase().substr(0,3));
+  if(idx<0)return '';
+  var day=parseInt(d,10);if(!day||day<1||day>31)return '';
+  var now=new Date();
+  var year=now.getFullYear();
+  var candidate=new Date(year,idx,day).getTime();
+  if((candidate-now.getTime())/86400000<-60)year++;
+  return year+'-'+String(idx+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+}
+// Backfill iso on any event that's missing it (legacy data from before this field existed)
+function migrateEvents(events){
+  return events.map(function(e){
+    if(!e.iso&&e.m&&e.d){var iso=mdToIso(e.m,e.d);if(iso)return Object.assign({},e,{iso:iso});}
+    return e;
+  });
+}
+// Sort ascending by iso. Events with no iso sort to the TOP — that's where freshly
+// added (still dateless) cards live, right under the "+ Add event" button.
+function sortEvents(events){
+  return events.slice().sort(function(a,b){
+    var ai=a.iso||'',bi=b.iso||'';
+    if(!ai&&!bi)return 0;
+    if(!ai)return -1;
+    if(!bi)return 1;
+    return ai<bi?-1:ai>bi?1:0;
+  });
+}
+// Dates that have already gone by. They stay in the list (and on the website's
+// calendar) until the server archives them on the next Save — they're just folded
+// away so the panel opens on what's still upcoming. Every card is still rendered
+// in place, so the data-i indices the input handlers rely on stay correct.
+var showPastEvents=false;
+function isPastEv(e,today){return !!(e&&e.iso&&e.iso<today);}
+function renderEv(){
+  state.events=sortEvents(migrateEvents(state.events));
+  var L=document.getElementById('evList');L.innerHTML='';
+  var hasPlaces=state.places&&state.places.length;
+  var today=fmtIso(new Date());
+  var pastCount=state.events.filter(function(e){return isPastEv(e,today);}).length;
+  if(pastCount){
+    var bar=document.createElement('div');
+    bar.style.cssText='margin-bottom:10px';
+    bar.innerHTML='<button class="btn btn-ghost btn-sm" id="pastToggle" type="button"></button>'+
+      '<div class="small" style="margin-top:4px">These already happened. They move to the archive on their own the next time you Save — you don’t need to delete them.</div>';
+    L.appendChild(bar);
+  }
+  state.events.forEach(function(e,i){
+    var d=document.createElement('div');d.className='ev';
+    if(isPastEv(e,today)){d.className+=' ev-past';if(!showPastEvents)d.style.display='none';}
+    var iso=e.iso||mdToIso(e.m,e.d)||'';
+    // Event name: a real dropdown of saved places, with a "custom" option that
+    // reveals a text box. Custom names (or no places saved) show the text box.
+    var nameCtl;
+    if(hasPlaces){
+      var matchIdx=-1,tNorm=String(e.t||'').trim().toLowerCase();
+      state.places.forEach(function(p,pi){
+        if(matchIdx<0&&tNorm&&String(p.t||p.name||'').trim().toLowerCase()===tNorm)matchIdx=pi;
+      });
+      var isCustom=!!tNorm&&matchIdx<0;
+      nameCtl='<select data-name-sel="'+i+'">'+
+        '<option value=""'+(!tNorm?' selected':'')+'>— pick a saved place —</option>'+
+        state.places.map(function(p,pi){return '<option value="'+pi+'"'+(pi===matchIdx?' selected':'')+'>📍 '+esc(p.name||p.t||('Place '+(pi+1)))+'</option>';}).join('')+
+        '<option value="custom"'+(isCustom?' selected':'')+'>'+(isCustom?'✏️ Custom: '+esc(e.t):'✏️ Type a custom name…')+'</option>'+
+       '</select>'+
+       '<input type="text" data-i="'+i+'" data-k="t" placeholder="Event name" value="'+esc(e.t)+'" style="margin-top:6px'+(isCustom?'':';display:none')+'">';
+    }else{
+      nameCtl='<input type="text" data-i="'+i+'" data-k="t" placeholder="Event name" value="'+esc(e.t)+'">';
+    }
+    d.innerHTML=
+     '<label style="margin:0 0 4px;font-size:.72rem">Date</label>'+
+     '<input type="date" data-i="'+i+'" data-k="iso" value="'+esc(iso)+'">'+
+     '<label style="margin:8px 0 4px;font-size:.72rem">Event name</label>'+
+     '<div class="r3">'+nameCtl+'</div>'+
+     '<div class="r2"><input type="text" data-i="'+i+'" data-k="loc" placeholder="Location" value="'+esc(e.loc)+'">'+timePairHtml('evtime',i,e.time)+'</div>'+
+     '<div class="r3"><input type="text" data-i="'+i+'" data-k="link" placeholder="Link (optional)" value="'+esc(e.link)+'"></div>'+
+     '<div class="row-actions" style="margin-top:10px">'+
+       '<button class="btn btn-sm reorder-btn" data-dup="'+i+'">⧉ Duplicate</button>'+
+       '<button class="btn btn-sm reorder-btn" data-rep="'+i+'">🔁 Repeat…</button>'+
+       '<button class="btn btn-sm reorder-btn" data-sap="'+i+'">📍 Save as place</button>'+
+       '<button class="btn btn-sm del" data-del="'+i+'" style="margin-top:0">Delete</button>'+
+     '</div>'+
+     '<div data-rep-panel="'+i+'" hidden style="margin-top:10px;border:1px solid #1c4262;border-radius:8px;padding:10px;background:#0c2336">'+
+       '<div class="r2"><div><label style="margin:0 0 4px;font-size:.72rem">Repeats</label>'+
+         '<select data-rep-freq="'+i+'">'+
+           '<option value="w">Every week</option>'+
+           '<option value="2w">Every 2 weeks</option>'+
+           '<option value="m-weekday">Monthly — same weekday (e.g. 1st Monday)</option>'+
+           '<option value="m-date">Monthly — same date</option>'+
+         '</select></div>'+
+       '<div><label style="margin:0 0 4px;font-size:.72rem">Until (last date)</label>'+
+         '<input type="date" data-rep-until="'+i+'"'+(iso?' min="'+esc(iso)+'"':'')+'></div></div>'+
+       '<div class="small">Each date becomes its own event card — you can still edit or delete any single one after.</div>'+
+       '<button class="btn btn-sm" data-rep-go="'+i+'" style="margin-top:8px;background:var(--fire);color:#fff;border:0">+ Add the dates</button>'+
+     '</div>';
+    L.appendChild(d);
+  });
+  // Show/hide the past dates without a re-render, so the panel doesn't jump.
+  var pt=document.getElementById('pastToggle');
+  if(pt){
+    var syncPast=function(){
+      pt.textContent=(showPastEvents?'▾ Hide ':'▸ Show ')+pastCount+' past date'+(pastCount>1?'s':'');
+      L.querySelectorAll('.ev-past').forEach(function(n){n.style.display=showPastEvents?'':'none';});
+    };
+    syncPast();
+    pt.addEventListener('click',function(){showPastEvents=!showPastEvents;syncPast();});
+  }
+  L.querySelectorAll('input[data-k]').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var i=+inp.dataset.i,k=inp.dataset.k;
+      state.events[i][k]=inp.value;
+      if(k==='t'){
+        // If the typed/picked name exactly matches a saved place, pre-fill the rest of
+        // the card. Update the inputs directly (no re-render) so focus isn't lost mid-type.
+        var match=null,typed=inp.value.trim().toLowerCase();
+        (state.places||[]).forEach(function(p){
+          var nm=(p.t||p.name||'').trim().toLowerCase();
+          if(nm&&nm===typed)match=p;
+        });
+        if(match){
+          var e=state.events[i];
+          e.loc=match.loc||'';e.link=match.link||'';
+          e.label=match.label||(match.link?'More →':'');
+          if(match.time)e.time=match.time; // only pre-fill hours if the place has usual ones
+          var card=inp.closest('.ev');
+          if(card){
+            var lo=card.querySelector('input[data-k="loc"]');if(lo)lo.value=e.loc;
+            var li=card.querySelector('input[data-k="link"]');if(li)li.value=e.link;
+            if(match.time){var tr=splitTimeRange(e.time),tp=card.querySelector('.tpair[data-evtime]');
+              if(tp){tp.querySelector('input[data-trole="start"]').value=tr.start;tp.querySelector('input[data-trole="end"]').value=tr.end;}}
+          }
+          toast('📍 Filled in from "'+(match.name||match.t)+'"');
+        }
+      }
+      if(k==='iso'){
+        // Keep m + d in sync with the picked date so the live site renders correctly
+        var md=isoToMD(inp.value);
+        state.events[i].m=md.m;
+        state.events[i].d=md.d;
+        var picked=inp.value;
+        // If they just dated it into the past, open the past section first —
+        // otherwise the card would silently disappear behind the collapse.
+        if(isPastEv(state.events[i],fmtIso(new Date())))showPastEvents=true;
+        renderEv();
+        // Scroll the moved event back into view so the user sees where it ended up
+        setTimeout(function(){
+          var moved=document.querySelector('#evList input[data-k="iso"][value="'+picked+'"]');
+          if(moved)moved.scrollIntoView({behavior:'smooth',block:'center'});
+        },10);
+      }
+    });
+  });
+  L.querySelectorAll('.tpair[data-evtime]').forEach(function(pair){
+    var i=+pair.dataset.evtime;
+    bindTimePair(pair,function(v){state.events[i].time=v;});
+  });
+  L.querySelectorAll('[data-del]').forEach(function(b){
+    // Deleting here drops the date for good — it never reaches the server, so it
+    // never lands in the archive. Confirm anything with content in it; a blank
+    // card the user just added by mistake still deletes on one click.
+    b.addEventListener('click',function(){
+      var i=+b.dataset.del,e=state.events[i]||{};
+      var name=String(e.t||'').trim(),when=String(e.iso||'').trim();
+      if(name||when){
+        var msg='Delete "'+(name||'this stop')+'"'+(when?' on '+when:'')+'?';
+        if(isPastEv(e,fmtIso(new Date())))msg+='\n\nThis date has already passed. Deleting it removes it for good — if you leave it alone, Save moves it to the archive and it stays on the website calendar.';
+        if(!confirm(msg))return;
+      }
+      state.events.splice(i,1);renderEv();
+    });
+  });
+  L.querySelectorAll('[data-dup]').forEach(function(b){
+    b.addEventListener('click',function(){dupEv(+b.dataset.dup);});
+  });
+  L.querySelectorAll('[data-sap]').forEach(function(b){
+    b.addEventListener('click',function(){saveAsPlace(+b.dataset.sap);});
+  });
+  L.querySelectorAll('[data-rep]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var p=L.querySelector('[data-rep-panel="'+b.dataset.rep+'"]');
+      if(!p)return;
+      p.hidden=!p.hidden;
+      if(!p.hidden){
+        // Pre-fill "until" with end of the event's year so one tap on "+ Add the
+        // dates" just works — Aaron shouldn't have to know the field is required.
+        var u=p.querySelector('[data-rep-until]');
+        var ev=state.events[+b.dataset.rep];
+        if(u&&!u.value)u.value=(ev&&ev.iso?ev.iso.slice(0,4):String(new Date().getFullYear()))+'-12-31';
+      }
+    });
+  });
+  L.querySelectorAll('[data-rep-go]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var i=+b.dataset.repGo;
+      var freq=L.querySelector('[data-rep-freq="'+i+'"]').value;
+      var until=L.querySelector('[data-rep-until="'+i+'"]').value;
+      applyRepeat(i,freq,until);
+    });
+  });
+  L.querySelectorAll('[data-name-sel]').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      var i=+sel.dataset.nameSel,e=state.events[i];
+      if(sel.value==='custom'){
+        // Reveal the text box (pre-filled with the current name) and let him type
+        var card=sel.closest('.ev');
+        var ti=card&&card.querySelector('input[data-k="t"]');
+        if(ti){ti.style.display='';ti.focus();}
+        return;
+      }
+      var p=state.places[+sel.value];
+      if(!p)return; // back on the "— pick —" placeholder; leave the event as-is
+      e.t=p.t||p.name||'';e.loc=p.loc||'';e.link=p.link||'';
+      e.label=p.label||(p.link?'More →':'');
+      if(p.time)e.time=p.time; // only pre-fill hours if the place has usual ones
+      renderEv();
+      toast('📍 Filled in from "'+(p.name||p.t)+'"');
+    });
+  });
+}
+function esc(v){return String(v==null?'':v).replace(/"/g,'&quot;');}
+// ---- Time entry: stored value stays a canonical string ("5:30pm – 8:30pm") that
+// the live site + sort read, but it's built from two <input type=time> controls so
+// no free text / stray letters (e.g. "3p to 9p") can ever get saved. -----------
+function parseTimePart(s){ // "5:30pm" | "3p" -> "17:30" (24h HH:MM); '' if unreadable
+  var m=String(s||'').match(/(\d{1,2})(?::(\d{2}))?\s*([ap])/i);
+  if(!m)return '';
+  var h=parseInt(m[1],10)%12; if(/p/i.test(m[3]))h+=12;
+  var mm=m[2]?parseInt(m[2],10):0;
+  return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+}
+function splitTimeRange(t){ // "11am – 2pm" -> {start:'11:00', end:'14:00'}
+  var parts=String(t||'').split(/\s*(?:[–—-]|to)\s*/i);
+  return {start:parseTimePart(parts[0]||''), end:parseTimePart(parts[1]||'')};
+}
+function fmtTime(hhmm){ // "17:30" -> "5:30pm", "11:00" -> "11am"
+  if(!hhmm)return '';
+  var p=String(hhmm).split(':'),h=parseInt(p[0],10),mm=parseInt(p[1],10)||0;
+  if(isNaN(h))return '';
+  var ap=h>=12?'pm':'am',h12=h%12; if(h12===0)h12=12;
+  return h12+(mm?':'+String(mm).padStart(2,'0'):'')+ap;
+}
+function joinTimeRange(start,end){ // '17:00','21:00' -> "5pm – 9pm"
+  var s=fmtTime(start),e=fmtTime(end);
+  return s&&e?s+' – '+e:(s||e);
+}
+// Two time pickers seeded from a stored range string. `tag` is a data-attr name so
+// the change handler can find the wrapper; `i` is the row index (or '' for singletons).
+function timePairHtml(tag,i,timeStr){
+  var r=splitTimeRange(timeStr);
+  return '<div class="tpair" data-'+tag+'="'+i+'">'+
+    '<input type="time" data-trole="start" value="'+r.start+'" aria-label="Start time">'+
+    '<span class="tsep">–</span>'+
+    '<input type="time" data-trole="end" value="'+r.end+'" aria-label="End time"></div>';
+}
+// Wire a .tpair wrapper: on either picker changing, write the rebuilt string via setFn.
+function bindTimePair(pair,setFn){
+  function push(){
+    setFn(joinTimeRange(
+      pair.querySelector('input[data-trole="start"]').value,
+      pair.querySelector('input[data-trole="end"]').value));
+  }
+  pair.querySelectorAll('input[type=time]').forEach(function(inp){inp.addEventListener('input',push);});
+}
+function addEv(){
+  state.events.unshift({iso:'',m:'',d:'',t:'',time:'',loc:'',link:'',label:'More →'});
+  renderEv();
+  // New card lands at the top of the list — bring it into view and focus its date
+  var first=document.querySelector('#evList .ev');
+  if(first){
+    first.scrollIntoView({behavior:'smooth',block:'center'});
+    var di=first.querySelector('input[data-k="iso"]');if(di)di.focus();
+  }
+}
+// ---- Repeat / duplicate ----
+function fmtIso(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+// nth <weekday> of a month, falling back to the last occurrence when the month
+// has no 5th one (so "5th Thursday" degrades gracefully instead of skipping).
+function nthWeekdayOfMonth(year,month,weekday,nth){
+  var first=new Date(year,month,1);
+  var day=1+((weekday-first.getDay()+7)%7)+(nth-1)*7;
+  var lastDay=new Date(year,month+1,0).getDate();
+  while(day>lastDay)day-=7;
+  return new Date(year,month,day);
+}
+// All occurrence dates strictly after startIso, up to and including untilIso.
+function genRepeatDates(startIso,freq,untilIso){
+  var out=[];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(startIso)||!/^\d{4}-\d{2}-\d{2}$/.test(untilIso))return out;
+  var p=startIso.split('-');
+  var start=new Date(+p[0],+p[1]-1,+p[2]);
+  var guard=0,iso;
+  if(freq==='w'||freq==='2w'){
+    var step=freq==='w'?7:14;
+    var cur=start;
+    while(guard++<120){
+      cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+step);
+      iso=fmtIso(cur);if(iso>untilIso)break;out.push(iso);
+    }
+  }else{
+    var y=start.getFullYear(),mo=start.getMonth();
+    var weekday=start.getDay(),nth=Math.ceil(start.getDate()/7),dnum=start.getDate();
+    while(guard++<36){
+      mo++;if(mo>11){mo=0;y++;}
+      var dt=freq==='m-weekday'
+        ?nthWeekdayOfMonth(y,mo,weekday,nth)
+        :new Date(y,mo,Math.min(dnum,new Date(y,mo+1,0).getDate()));
+      iso=fmtIso(dt);if(iso>untilIso)break;out.push(iso);
+    }
+  }
+  return out;
+}
+function applyRepeat(i,freq,until){
+  var e=state.events[i];
+  if(!e.iso){toast('Pick a date for this event first',true);return;}
+  if(!until)until=e.iso.slice(0,4)+'-12-31'; // blank "until" = through the end of the year
+  var dates=genRepeatDates(e.iso,freq,until).filter(function(iso){
+    // skip dates that already have this same event so a double-click can't double the list
+    return !state.events.some(function(ev){return ev.iso===iso&&ev.t===e.t;});
+  });
+  if(!dates.length){toast('No new dates to add before that end date',true);return;}
+  var room=EVENTS_MAX-state.events.length; // server caps live events at EVENTS_MAX
+  var clipped=dates.length>room;
+  if(clipped)dates=dates.slice(0,Math.max(0,room));
+  if(!dates.length){toast('Event list is full ('+EVENTS_MAX+' upcoming max) — Save first so past dates archive, or shorten the "until" date',true);return;}
+  dates.forEach(function(iso){
+    var md=isoToMD(iso);
+    state.events.push({iso:iso,m:md.m,d:md.d,t:e.t,time:e.time,loc:e.loc,link:e.link,label:e.label});
+  });
+  renderEv();
+  toast('Added '+dates.length+' date'+(dates.length>1?'s':'')+(clipped?' (list hit the '+EVENTS_MAX+' max)':'')+' ✓ — remember to Save');
+}
+function dupEv(i){
+  var c=JSON.parse(JSON.stringify(state.events[i]));
+  state.events.splice(i+1,0,c);
+  renderEv();
+  toast('Duplicated — now change the date on the copy');
+}
+// ---- Saved places ----
+function saveAsPlace(i){
+  var e=state.events[i];
+  var def=(e.t||'Event')+(e.loc?' — '+e.loc:'');
+  var name=prompt('Name this place (this is what shows in the dropdown):',def);
+  if(name===null)return;
+  name=(name||def).trim();
+  state.places=state.places||[];
+  var place={name:name,t:e.t||'',time:e.time||'',loc:e.loc||'',link:e.link||'',label:e.label||''};
+  var ix=-1;
+  state.places.forEach(function(p,pi){if(String(p.name).toLowerCase()===name.toLowerCase())ix=pi;});
+  if(ix>=0)state.places[ix]=place;else state.places.push(place);
+  renderPlaces();renderEv();
+  toast('Saved "'+name+'" ✓ — remember to Save');
+}
+function renderPlaces(){
+  state.places=state.places||[];
+  var L=document.getElementById('plList');if(!L)return;L.innerHTML='';
+  state.places.forEach(function(p,i){
+    var d=document.createElement('div');d.className='ev';
+    d.innerHTML=
+     '<label style="margin:0 0 4px;font-size:.72rem">Nickname (shows in the dropdown)</label>'+
+     '<input type="text" data-pi="'+i+'" data-pk="name" placeholder="Phoenix Park — concert series" value="'+esc(p.name)+'">'+
+     '<div class="r2" style="margin-top:8px"><input type="text" data-pi="'+i+'" data-pk="t" placeholder="Event name (pre-fills)" value="'+esc(p.t)+'"><input type="text" data-pi="'+i+'" data-pk="loc" placeholder="Location (pre-fills)" value="'+esc(p.loc)+'"></div>'+
+     '<div class="r2"><div><label style="margin:0 0 4px;font-size:.72rem">Usual hours (optional)</label>'+timePairHtml('pltime',i,p.time)+'</div>'+
+       '<div><label style="margin:0 0 4px;font-size:.72rem">Link (optional)</label><input type="text" data-pi="'+i+'" data-pk="link" placeholder="https://..." value="'+esc(p.link)+'"></div></div>'+
+     '<button class="btn btn-sm del" data-pdel="'+i+'">Delete</button>';
+    L.appendChild(d);
+  });
+  L.querySelectorAll('input[data-pk]').forEach(function(inp){
+    inp.addEventListener('input',function(){state.places[+inp.dataset.pi][inp.dataset.pk]=inp.value;});
+    // refresh the Event-name dropdown list once the user finishes typing a name
+    if(inp.dataset.pk==='name'||inp.dataset.pk==='t')inp.addEventListener('change',function(){renderEv();});
+  });
+  L.querySelectorAll('.tpair[data-pltime]').forEach(function(pair){
+    var i=+pair.dataset.pltime;
+    bindTimePair(pair,function(v){state.places[i].time=v;});
+  });
+  L.querySelectorAll('[data-pdel]').forEach(function(b){
+    b.addEventListener('click',function(){
+      if(confirm('Delete this saved place? (Your events are not touched.)')){
+        state.places.splice(+b.dataset.pdel,1);renderPlaces();renderEv();
+      }
+    });
+  });
+}
+function addPlace(){state.places=state.places||[];state.places.push({name:'',t:'',time:'',loc:'',link:'',label:''});renderPlaces();}
+function toast(msg,bad){
+  var t=document.getElementById('toast');t.textContent=msg;
+  t.style.background=bad?'#b3261e':'var(--fire)';
+  t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2400);
+}
+function saveAll(){
+  state.today={live:document.getElementById('tLive').checked,loc:val('tLoc'),hours:val('tHours'),note:val('tNote'),closeAt:val('tClose')};
+  // Daily toppings: stamp `updated` only when the list actually changed, so the
+  // admin can tell "today's" from a carried-forward previous day.
+  var dtNew=document.getElementById('dtItems').value.split(/\n+/).map(function(t){return t.trim();}).filter(Boolean);
+  var dtChanged=JSON.stringify(dtNew)!==JSON.stringify((state.dailyToppings&&state.dailyToppings.items)||[]);
+  state.dailyToppings={
+    enabled:document.getElementById('dtEnabled').checked,
+    items:dtNew,
+    updated:dtChanged?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago'}).format(new Date()):((state.dailyToppings&&state.dailyToppings.updated)||'')
+  };
+  state.orderAhead={enabled:document.getElementById('oEnabled').checked,url:val('oUrl')};
+  state.doordash={enabled:document.getElementById('ddEnabled').checked,url:val('ddUrl')};
+  state.tickerEnabled=document.getElementById('tickerEnabled').checked;
+  state.eventsEnabled=document.getElementById('eventsEnabled').checked;
+  // Ticker is now an in-place list — entries are kept in state.ticker as they're edited.
+  // Strip empty entries before saving so blank rows don't pollute the live ticker.
+  state.ticker=(state.ticker||[]).map(function(s){return String(s||'').trim();}).filter(Boolean);
+  // Gallery: drop any entry without a URL, keep url + trimmed caption.
+  state.gallery=(state.gallery||[]).filter(function(g){return g&&g.url;}).map(function(g){return {url:g.url,cap:String(g.cap||'').trim()};});
+  // Partners: drop blank rows. A website typed without https:// gets it added.
+  state.partners=(state.partners||[]).map(function(p){
+    var u=String(p.url||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
+    return {name:String(p.name||'').trim(),url:u,logo:String(p.logo||'').trim()};
+  }).filter(function(p){return p.name||p.logo;});
+  state.featuredEvent={
+    enabled:document.getElementById('feEnabled').checked,
+    title:val('feTitle'),date:val('feDate'),time:joinTimeRange(val('feTimeStart'),val('feTimeEnd')),location:val('feLocation'),
+    blurb:val('feBlurb'),description:document.getElementById('feDescription').value.trim(),
+    ctaLabel:val('feCtaLabel')||'Learn More',partners:val('fePartners'),
+    startDate:val('feStartDate'),endDate:val('feEndDate'),autoHide:document.getElementById('feAutoHide').checked
+  };
+  state.events=sortEvents(migrateEvents(state.events.map(function(e){if(e.link&&!e.label)e.label='More →';return e;})));
+  // Drop blank place rows; default a link label like events get
+  state.places=(state.places||[]).filter(function(p){return (p.name||p.loc||p.t);}).map(function(p){if(p.link&&!p.label)p.label='More →';return p;});
+  // Menu scalar fields (categories + pillSections already mutated in place by render handlers)
+  state.menu.enabled=document.getElementById('mEnabled').checked;
+  state.menu.kick=val('mKick');
+  state.menu.headline=val('mHeadline');
+  state.menu.sub=document.getElementById('mSub').value.trim();
+  state.menu.note=document.getElementById('mNote').value.trim();
+  // Drop legacy keys so they don't ride along forever in the saved blob
+  delete state.menu.loadedTitle;delete state.menu.loadedSub;delete state.menu.loadedItems;
+  delete state.menu.crunchTitle;delete state.menu.crunchSub;delete state.menu.crunchItems;
+  delete state.menu.dustTitle;delete state.menu.dustSub;delete state.menu.dustItems;
+  delete state.menu.sauceTitle;delete state.menu.sauceSub;delete state.menu.sauceItems;
+  // Page copy
+  state.pageCopy={
+    enabled:document.getElementById('pcEnabled').checked,
+    orderKick:val('pcOrderKick'),orderHeadline:val('pcOrderHeadline'),
+    orderSub:document.getElementById('pcOrderSub').value.trim(),
+    cateringTitle:val('pcCatTitle'),
+    cateringBody:document.getElementById('pcCatBody').value.trim()
+  };
+  // Volunteer
+  state.volunteerCapture={
+    enabled:document.getElementById('vEnabled').checked,
+    kick:val('vKick'),headline:val('vHeadline'),
+    sub:document.getElementById('vSub').value.trim(),
+    recipientEmail:val('vEmail')
+  };
+  // Social links
+  state.socialLinks={
+    enabled:document.getElementById('slEnabled').checked,
+    tagline:val('slTagline'),
+    facebook:val('slFb'),
+    instagram:val('slIg'),
+    tiktok:val('slTt'),
+    snapchat:val('slSc'),
+    youtube:val('slYt')
+  };
+  // Reviews
+  state.reviewCapture={
+    enabled:document.getElementById('rvEnabled').checked,
+    kick:val('rvKick'),headline:val('rvHeadline'),
+    sub:document.getElementById('rvSub').value.trim(),
+    googleUrl:val('rvGoogleUrl'),
+    recipientEmail:val('rvEmail')
+  };
+  // Hero / Mission / Purpose
+  state.hero={enabled:document.getElementById('hrEnabled').checked,headline:val('hrHeadline'),tagline:document.getElementById('hrTagline').value.trim()};
+  state.mission={
+    enabled:document.getElementById('msEnabled').checked,
+    kick:val('msKick'),
+    quote:document.getElementById('msQuote').value.trim(),
+    p1Title:val('msP1Title'),p1Body:document.getElementById('msP1Body').value.trim(),
+    p2Title:val('msP2Title'),p2Body:document.getElementById('msP2Body').value.trim(),
+    p3Title:val('msP3Title'),p3Body:document.getElementById('msP3Body').value.trim()
+  };
+  state.guarantee={
+    enabled:document.getElementById('grEnabled').checked,
+    kick:val('grKick'),
+    headline:val('grHeadline'),
+    lead:document.getElementById('grLead').value.trim(),
+    matchEnabled:document.getElementById('grMatchEnabled').checked,
+    matchTitle:val('grMatchTitle'),
+    matchBody:document.getElementById('grMatchBody').value.trim()
+  };
+  state.purpose={
+    enabled:document.getElementById('ppEnabled').checked,
+    kick:val('ppKick'),
+    headline:val('ppHeadline'),
+    body:document.getElementById('ppBody').value.trim(),
+    close:document.getElementById('ppClose').value.trim()
+  };
+  localStorage.setItem(KEY,JSON.stringify(state)); // local cache
+  // Stale-tab guard: refetch the server's updatedAt right before saving. If it's
+  // newer than what this tab loaded, someone else has saved in the meantime —
+  // warn the editor before overwriting their changes.
+  fetch(API,{cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(j){
+      var serverAt=j&&j.updatedAt||null;
+      if(loadedUpdatedAt&&serverAt&&serverAt!==loadedUpdatedAt){
+        var when=new Date(serverAt);
+        var when_s=isNaN(when)?serverAt:when.toLocaleString();
+        var msg='Heads up — someone else saved changes since you opened this admin (last save: '+when_s+').\n\n'+
+                'Click OK to overwrite their changes with yours.\n'+
+                'Click Cancel to keep their changes (then reload this page to see them).';
+        if(!confirm(msg)){toast('Save cancelled — reload to see latest',true);return;}
+      }
+      return fetch(API,{method:'POST',headers:{'content-type':'application/json','x-admin-key':adminKey},body:JSON.stringify(state)})
+        .then(function(r){
+          if(r.ok){
+            return r.json().then(function(rj){
+              if(rj&&rj.updatedAt)loadedUpdatedAt=rj.updatedAt;
+              // The server hands back the live list (past dates already moved to the
+              // archive) — mirror it so this tab matches what's on the site.
+              if(rj&&Array.isArray(rj.events)){
+                state.events=rj.events;renderEv();
+                try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+                if(archive&&rj.archived>0)loadArchive();
+              }
+              var n=rj&&rj.archived>0?rj.archived:0;
+              toast('Saved ✓ — live for everyone'+(n?' · '+n+' past date'+(n>1?'s':'')+' moved to the archive':''));
+            },function(){toast('Saved ✓ — live for everyone');});
+          }
+          if(r.status===401){toast('Wrong passcode — not saved',true);document.getElementById('gate').style.display='grid';return;}
+          toast('Server error — saved on this device only',true);
+        });
+    })
+    .catch(function(){toast('Offline — saved on this device only',true);});
+}
+function val(id){return document.getElementById(id).value.trim();}
+fill();
+// Collapsible cards: click the header to toggle. Scroll the card to the top of viewport on expand so you don't lose context.
+document.querySelectorAll('.card h2').forEach(function(h){
+  h.addEventListener('click',function(){
+    var c=h.parentElement;var wasCollapsed=c.classList.contains('collapsed');
+    c.classList.toggle('collapsed');
+    if(wasCollapsed){setTimeout(function(){c.scrollIntoView({behavior:'smooth',block:'start'});},10);}
+  });
+});
+</script>
+</body>
+</html>
