@@ -5,7 +5,7 @@
 // recall list ran "up to today + 30"; and the vaccine count de-duplicated renewed shots in SQL while the list did it in
 // JavaScript. Each condition is written once, here; the dashboard's stats and `?tile=` on the list route both call it.
 // (apps/unified/tests/store-vet-tiles.test.ts holds count and list equal, with rows that must NOT count.)
-import { and, eq, gte, isNotNull, lt, lte, notInArray, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lt, lte, notInArray } from 'drizzle-orm'
 
 /** The filters `GET /api/appointments` accepts as `?tile=`. A value outside the list is refused, never answered as "empty". */
 export const APPOINTMENT_TILES = ['today'] as const
@@ -29,16 +29,8 @@ export const activePatientCondition = (patient: any) => eq(patient.deceased, fal
 /** A YYYY-MM-DD plus whole days, on the calendar (no clock involved). */
 export const addDays = (day: string, n: number) => { const t = new Date(`${day}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
 
-/**
- * The vaccinations that count: the LATEST administration (with a due date) per (patient, vaccine), of a living patient — a
- * renewed shot's old row does not nag. DISTINCT ON has no builder form; ties on the given date settle on the id.
- */
-export const latestDueVaccinationCondition = (vaccination: any, companyId: string) => sql`${vaccination.id} in (
-  select distinct on (v.patient_id, lower(v.vaccine)) v.id
-  from vaccination v join patient p on p.id = v.patient_id
-  where v.company_id = ${companyId} and v.due_date is not null and p.deceased = false
-  order by v.patient_id, lower(v.vaccine), v.given_date desc nulls last, v.id
-)`
+export { latestDueVaccinationCondition } from '../../data/tileSql.ts'
+import { latestDueVaccinationCondition } from '../../data/tileSql.ts'
 
 /**
  * Vaccinations by the clinic's `today` (YYYY-MM-DD):

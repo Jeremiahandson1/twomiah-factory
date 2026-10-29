@@ -73,8 +73,8 @@ RV and powersports dealerships
 • Inventory search, customers and the day's numbers
 
 Salons and barbers
-• The book for the day: who is in, check a client in, start and finish, mark a no-show (a stylist sees no prices)
-• Clients with their formula record and last visits, and who is due to rebook
+• Today's book: who is in the chair and when, and check a client in (a stylist sees no prices)
+• Clients with their formula record and last visits, and who is due to rebook (text a rebooking reminder)
 
 Restaurants and event venues (private events)
 • Events: today, the next 30 days, enquiries to answer, and the banquet event order for each — dietary needs first

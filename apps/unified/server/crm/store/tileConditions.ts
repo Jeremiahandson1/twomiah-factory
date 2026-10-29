@@ -5,7 +5,7 @@
 // had no list that could be asked for them at all (the orders list took one status). Each condition is written here once;
 // the dashboard's stats and `GET /api/admin/orders?tile=` / `GET /api/admin/reviews?tile=` both call it.
 // (apps/unified/tests/store-vet-tiles.test.ts holds count and list equal, with rows that must NOT count.)
-import { and, eq, ilike, ne, notInArray, or, sql } from 'drizzle-orm'
+import { and, eq, ne, notInArray } from 'drizzle-orm'
 
 /** The filters `GET /api/admin/orders` accepts as `?tile=`. A value outside the list is refused, never answered as "empty". */
 export const ORDER_TILES = ['to_pack', 'at_supplier', 'counted'] as const
@@ -24,14 +24,4 @@ export const countedOrderCondition = (order: any) => notInArray(order.status, ['
 /** "Reviews to approve": a review nobody has decided. */
 export const pendingReviewCondition = (review: any) => eq(review.status, 'pending')
 
-/**
- * Stock look-up on the product list (`?q=`): a name, a variant's name, its SKU, or its barcode (GTIN, whole).
- * Wildcards the shopper typed are literal. `product` / `variant` are the Drizzle tables.
- */
-export function productSearchCondition(product: any, variant: any, q: string) {
-  const needle = `%${q.trim().replace(/[\\%_]/g, (ch) => '\\' + ch)}%`
-  return or(
-    ilike(product.name, needle),
-    sql`exists (select 1 from ${variant} where ${variant.productId} = ${product.id} and (${variant.sku} ilike ${needle} or ${variant.name} ilike ${needle} or ${variant.gtin} = ${q.trim()}))`,
-  )!
-}
+export { productSearchCondition } from '../../data/tileSql.ts'

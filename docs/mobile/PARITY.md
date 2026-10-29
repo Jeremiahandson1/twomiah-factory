@@ -570,7 +570,7 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
 | Salon | Clients | `/crm/clients` | contacts:read | client_profiles (on by default) | all | Clients tab + client card (formula record, last visits; a stylist sees no prices) | A — the client chart: allergies, formulas, visits |
-| Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | The Book tab (My day for a stylist): today and next, check in, start, finish, no-show; booking and the service record stay on the desktop | A — the book: check in, move, complete, no-show |
+| Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | The Book tab (My day for a stylist): the day book and check in; booking and the service record stay on the desktop | A — the book: check in, move, complete, no-show |
 | Salon | Rebooking | `/crm/reminders` | contacts:read | rebooking_reminders (on by default) | all | Rebook tab (who is due; text them) | A — rebooking: text the clients who are due |
 | Salon | Service Menu | `/crm/service-menu` | contacts:read | service_menu (on by default) | all | none | C |
 | Salon | Memberships | `/crm/memberships` | contacts:read | salon_memberships (on by default) | all | none | B — useful on the phone, not the chair's daily loop |

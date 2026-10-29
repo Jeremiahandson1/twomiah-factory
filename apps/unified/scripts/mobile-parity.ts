@@ -115,7 +115,7 @@ if (process.argv[2] === '--menu') {
  */
 export interface PhoneHas { paths: string[]; trades?: string[]; how: 'tab' | 'screen' | 'partial'; what: string; files: string[] }
 export const PHONE_HAS: PhoneHas[] = [
-  { paths: ['/crm/appointments'], trades: ['salon'], how: 'tab', what: 'The Book tab (My day for a stylist): today and next, check in, start, finish, no-show; booking and the service record stay on the desktop', files: ['app/(tabs)/salon-book.tsx', 'app/(tabs)/salon-myday.tsx'] },
+  { paths: ['/crm/appointments'], trades: ['salon'], how: 'tab', what: 'The Book tab (My day for a stylist): the day book and check in; booking and the service record stay on the desktop', files: ['app/(tabs)/salon-book.tsx', 'app/(tabs)/salon-myday.tsx'] },
   { paths: ['/crm/clients'], trades: ['salon'], how: 'tab', what: 'Clients tab + client card (formula record, last visits; a stylist sees no prices)', files: ['app/(tabs)/salon-clients.tsx'] },
   { paths: ['/crm/reminders'], trades: ['salon'], how: 'tab', what: 'Rebook tab (who is due; text them)', files: ['app/(tabs)/salon-rebook.tsx'] },
   { paths: ['/crm/events'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Events (Parties) tab + banquet event order; the office records a deposit received (no card)', files: ['app/(tabs)/trade-events.tsx'] },

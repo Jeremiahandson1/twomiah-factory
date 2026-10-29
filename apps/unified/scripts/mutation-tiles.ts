@@ -52,7 +52,7 @@ const MUTATIONS: Mutation[] = [
   { name: 'store: a cancelled order is an order', file: `${SV}/crm/store/tileConditions.ts`, find: "notInArray(order.status, ['pending', 'cancelled'])", replace: "notInArray(order.status, ['pending'])", trade: 'store', test: TRADE_TEST },
   { name: 'store: a decided review is waiting', file: `${SV}/crm/store/tileConditions.ts`, find: "eq(review.status, 'pending')", replace: "ne(review.status, 'rejected')", trade: 'store', test: TRADE_TEST },
   { name: 'vet: a cancelled appointment is today', file: `${SV}/crm/vet/tileConditions.ts`, find: "INACTIVE_APPT = ['cancelled', 'no_show']", replace: "INACTIVE_APPT = ['no_show']", trade: 'vet', test: TRADE_TEST },
-  { name: 'vet: a deceased pet is active', file: `${SV}/crm/vet/tileConditions.ts`, find: "eq(patient.deceased, false)", replace: "sql`true`", trade: 'vet', test: TRADE_TEST },
+  { name: 'vet: a deceased pet is active', file: `${SV}/crm/vet/tileConditions.ts`, find: "eq(patient.deceased, false)", replace: "eq(patient.id, patient.id)", trade: 'vet', test: TRADE_TEST },
   { name: 'vet: a renewed shot still nags', file: `${SV}/crm/vet/tileConditions.ts`, find: "and(eq(vaccination.companyId, companyId), isNotNull(vaccination.dueDate), latestDueVaccinationCondition(vaccination, companyId), window)!", replace: "and(eq(vaccination.companyId, companyId), isNotNull(vaccination.dueDate), window)!", trade: 'vet', test: TRADE_TEST },
   { name: 'vet: due soon runs 31 days', file: `${SV}/crm/vet/tileConditions.ts`, find: "DUE_SOON_DAYS = 30", replace: "DUE_SOON_DAYS = 31", trade: 'vet', test: TRADE_TEST },
 ]
