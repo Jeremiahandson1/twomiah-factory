@@ -187,7 +187,7 @@ export default function ContactDetailScreen() {
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <Text style={[styles.sectionTitle, { color: t.text }]}>Recent Jobs</Text>
               {contact.jobs.slice(0, 3).map((job: any) => (
-                <TouchableOpacity key={job.id} style={styles.relatedRow}
+                <TouchableOpacity key={job.id} style={[styles.relatedRow, { borderTopColor: t.border }]}
                   onPress={() => router.push(`/(details)/job/${job.id}`)}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.relatedTitle, { color: t.text }]}>{job.title}</Text>
@@ -206,7 +206,7 @@ export default function ContactDetailScreen() {
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <Text style={[styles.sectionTitle, { color: t.text }]}>Recent Quotes</Text>
               {contact.quotes.slice(0, 3).map((quote: any) => (
-                <TouchableOpacity key={quote.id} style={styles.relatedRow}
+                <TouchableOpacity key={quote.id} style={[styles.relatedRow, { borderTopColor: t.border }]}
                   onPress={() => router.push(`/(details)/quote/${quote.id}`)}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.relatedTitle, { color: t.text }]}>{quote.number}</Text>
@@ -225,7 +225,7 @@ export default function ContactDetailScreen() {
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <Text style={[styles.sectionTitle, { color: t.text }]}>Recent Invoices</Text>
               {contact.invoices.slice(0, 3).map((inv: any) => (
-                <TouchableOpacity key={inv.id} style={styles.relatedRow}
+                <TouchableOpacity key={inv.id} style={[styles.relatedRow, { borderTopColor: t.border }]}
                   onPress={() => router.push(`/(details)/invoice/${inv.id}`)}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.relatedTitle, { color: t.text }]}>{inv.number}</Text>
@@ -253,7 +253,7 @@ export default function ContactDetailScreen() {
           <AnimatedCard index={7}>
             <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDelete(true)}>
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
-              <Text style={styles.deleteText}>Delete Contact</Text>
+              <Text style={[styles.deleteText, { color: t.error }]}>Delete Contact</Text>
             </TouchableOpacity>
           </AnimatedCard>
         )}
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 14, marginTop: 1 },
   relatedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0',
+    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'transparent',
   },
   relatedTitle: { fontSize: 14, fontWeight: '600' },
   relatedSub: { fontSize: 12, marginTop: 1 },
@@ -320,5 +320,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 14, marginBottom: 20,
   },
-  deleteText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+  deleteText: { fontSize: 14, fontWeight: '600' },
 })

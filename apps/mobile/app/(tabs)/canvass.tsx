@@ -20,6 +20,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { ACTION } from '../../src/theme/actions'
 import { post, get } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
@@ -40,11 +41,11 @@ interface Stop {
 }
 
 const OUTCOMES: { key: Outcome; label: string; icon: string; color: string }[] = [
-  { key: 'interested', label: 'Interested', icon: 'checkmark-circle', color: '#22c55e' },
-  { key: 'appointment_set', label: 'Appointment', icon: 'calendar', color: '#0ea5e9' },
-  { key: 'no_answer', label: 'No Answer', icon: 'home', color: '#f59e0b' },
-  { key: 'not_interested', label: 'No Thanks', icon: 'close-circle', color: '#ef4444' },
-  { key: 'already_has_contractor', label: 'Has Roofer', icon: 'people', color: '#8b5cf6' },
+  { key: 'interested', label: 'Interested', icon: 'checkmark-circle', color: ACTION.green },
+  { key: 'appointment_set', label: 'Appointment', icon: 'calendar', color: ACTION.sky },
+  { key: 'no_answer', label: 'No Answer', icon: 'home', color: '#b45309' },
+  { key: 'not_interested', label: 'No Thanks', icon: 'close-circle', color: ACTION.red },
+  { key: 'already_has_contractor', label: 'Has Roofer', icon: 'people', color: ACTION.slate },
   { key: 'vacant', label: 'Vacant', icon: 'remove-circle', color: '#94a3b8' },
 ]
 const COLOR: Record<string, string> = Object.fromEntries(OUTCOMES.map(o => [o.key, o.color]))
@@ -193,11 +194,11 @@ export default function CanvassScreen() {
               <Text style={[styles.statLabel, { color: t.textMuted }]}>Doors</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: '#f59e0b' }]}>{answered}</Text>
+              <Text style={[styles.statValue, { color: t.primaryText }]}>{answered}</Text>
               <Text style={[styles.statLabel, { color: t.textMuted }]}>Answered</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: '#22c55e' }]}>{leads}</Text>
+              <Text style={[styles.statValue, { color: t.primaryText }]}>{leads}</Text>
               <Text style={[styles.statLabel, { color: t.textMuted }]}>Leads</Text>
             </View>
             {canLog && (

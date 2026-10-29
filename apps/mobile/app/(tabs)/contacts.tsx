@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { ACTION } from '../../src/theme/actions'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { get, post } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
@@ -120,10 +121,10 @@ export default function ContactsScreen() {
   const renderContact = ({ item: contact, index }: { item: any; index: number }) => {
     const swipeActions = []
     if (contact.phone) {
-      swipeActions.push({ icon: 'call', label: 'Call', color: '#22c55e', onPress: () => Linking.openURL(`tel:${contact.phone}`) })
+      swipeActions.push({ icon: 'call', label: 'Call', color: ACTION.slate, onPress: () => Linking.openURL(`tel:${contact.phone}`) })
     }
     if (contact.email) {
-      swipeActions.push({ icon: 'mail', label: 'Email', color: '#3b82f6', onPress: () => Linking.openURL(`mailto:${contact.email}`) })
+      swipeActions.push({ icon: 'mail', label: 'Email', color: ACTION.slate, onPress: () => Linking.openURL(`mailto:${contact.email}`) })
     }
 
     return (
@@ -154,9 +155,9 @@ export default function ContactsScreen() {
                 </TouchableOpacity>
               )}
               {contact.type === 'lead' && canConvert && (
-                <TouchableOpacity style={[styles.qBtn, { borderColor: '#22c55e' }]} onPress={() => handleConvert(contact)}>
+                <TouchableOpacity style={[styles.qBtn, { borderColor: t.primary }]} onPress={() => handleConvert(contact)}>
                   <Ionicons name="arrow-forward-circle" size={14} color="#22c55e" />
-                  <Text style={[styles.qLabel, { color: '#22c55e' }]}>Convert</Text>
+                  <Text style={[styles.qLabel, { color: t.primaryText }]}>Convert</Text>
                 </TouchableOpacity>
               )}
             </View>

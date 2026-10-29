@@ -25,6 +25,16 @@ for (const f of ['Button.tsx', 'Chip.tsx', 'ListRow.tsx', 'SearchField.tsx', 'Sc
 check('the tile is a button with a spoken label that says what it opens', /accessibilityRole="button"/.test(comp('StatTile.tsx')) && /Opens \$\{opens\}/.test(comp('StatTile.tsx')))
 // Owner 2026-10-29: the app wears the business's colour — no pink, yellow and blue tile per kind. A tile's tone is only its hint.
 check("every tile's icon is the business's colour, whatever the tile's kind", /const t = c\.tones\.accent/.test(comp('StatTile.tsx')) && /<Icon name=\{icon\} size=\{20\} tone="accent" \/>/.test(comp('StatTile.tsx')) && !/c\.tones\[tone\]/.test(comp('StatTile.tsx')))
+{
+  // …and no screen paints the old rainbow (blue, pink, yellow, green, violet, sky …) as a hard-coded tint: accents are the business's
+  // colour (t.primary / primaryText), actions ACTION shades, meaning the theme's success/warning/error. Red for errors stays allowed.
+  const RAINBOW = /'#(3b82f6|ec4899|f59e0b|22c55e|8b5cf6|0ea5e9|10b981|6366f1|a855f7|14b8a6|d97706|06b6d4)'/i
+  const screens: string[] = []
+  const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.tsx$/.test(e.name)) screens.push(p) } }
+  walk(path.join(ROOT, 'apps/mobile/app'))
+  const hits = screens.filter((f) => !/[\\/]\(tabs\)[\\/]_layout\.tsx$/.test(f) && RAINBOW.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(ROOT, f))
+  check('no screen hard-codes a rainbow tint (the business colour, ACTION shades or the theme\'s status colours instead)', hits.length === 0, hits)
+}
 check('the tile shows a chevron and a pressed state', /chevron-forward/.test(comp('StatTile.tsx')) && /pressed &&/.test(comp('StatTile.tsx')))
 check('an error is a sentence with an icon, not colour alone', /alert-circle/.test(comp('TextField.tsx')))
 check('animations stop when the phone says so (reduce motion)', /useReduceMotion/.test(comp('Skeleton.tsx')) && /useReduceMotion/.test(comp('BottomSheet.tsx')))

@@ -118,8 +118,8 @@ export default function QuotesScreen() {
 
   const renderQuote = ({ item: quote, index }: { item: any; index: number }) => {
     const swipeActions = []
-    if (canSend && quote.status === 'draft') swipeActions.push({ icon: 'send', label: 'Send', color: '#3b82f6', onPress: () => handleSend(quote) })
-    if (canInvoice && quote.status === 'approved') swipeActions.push({ icon: 'receipt', label: 'Invoice', color: '#22c55e', onPress: () => handleConvert(quote) })
+    if (canSend && quote.status === 'draft') swipeActions.push({ icon: 'send', label: 'Send', color: t.primary, onPress: () => handleSend(quote) })
+    if (canInvoice && quote.status === 'approved') swipeActions.push({ icon: 'receipt', label: 'Invoice', color: t.primary, onPress: () => handleConvert(quote) })
 
     return (
       <AnimatedCard index={index}>

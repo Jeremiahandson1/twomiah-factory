@@ -17,6 +17,7 @@ import { useTile } from '../../src/home/useTile'
 import { FilterBanner } from '../../src/home/FilterBanner'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { ACTION } from '../../src/theme/actions'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { get, post } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
@@ -160,17 +161,17 @@ export default function JobsScreen() {
 
   const renderJob = ({ item: job, index }: { item: any; index: number }) => {
     const swipeActions = []
-    if (job.address) swipeActions.push({ icon: 'navigate', label: 'Navigate', color: '#3b82f6', onPress: () => navigate(job) })
+    if (job.address) swipeActions.push({ icon: 'navigate', label: 'Navigate', color: ACTION.slate, onPress: () => navigate(job) })
     if (canWork && !isRoof && (job.status === 'scheduled' || job.status === 'dispatched')) {
-      swipeActions.push({ icon: 'play', label: 'Start', color: '#22c55e', onPress: () => handleStart(job) })
+      swipeActions.push({ icon: 'play', label: 'Start', color: t.primary, onPress: () => handleStart(job) })
     }
     if (canWork && !isRoof && job.status === 'in_progress') {
-      swipeActions.push({ icon: 'checkmark-circle', label: 'Complete', color: '#8b5cf6', onPress: () => handleComplete(job) })
+      swipeActions.push({ icon: 'checkmark-circle', label: 'Complete', color: t.primary, onPress: () => handleComplete(job) })
     }
     if (canWork && isRoof && job.status !== ROOF_LAST && !ROOF_CLOSED.includes(job.status)) {
-      swipeActions.push({ icon: 'arrow-forward-circle', label: 'Advance', color: '#22c55e', onPress: () => handleAdvance(job) })
+      swipeActions.push({ icon: 'arrow-forward-circle', label: 'Advance', color: t.primary, onPress: () => handleAdvance(job) })
     }
-    if (canPhoto) swipeActions.push({ icon: 'camera', label: 'Photo', color: '#f59e0b', onPress: () => handlePhoto(job) })
+    if (canPhoto) swipeActions.push({ icon: 'camera', label: 'Photo', color: ACTION.slate, onPress: () => handlePhoto(job) })
 
     return (
       <AnimatedCard index={index}>
@@ -199,9 +200,9 @@ export default function JobsScreen() {
             )}
             {/* Roofing: an insurance job, and its claim number when there is one */}
             {isRoof && job.jobType === 'insurance' && (
-              <View style={styles.insuranceTag}>
+              <View style={[styles.insuranceTag, { borderTopColor: t.border }]}>
                 <Ionicons name="shield" size={12} color="#f59e0b" />
-                <Text style={styles.insuranceText}>Insurance{job.claimNumber ? ` • Claim ${job.claimNumber}` : ''}</Text>
+                <Text style={[styles.insuranceText, { color: t.warning }]}>Insurance{job.claimNumber ? ` • Claim ${job.claimNumber}` : ''}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12, marginTop: 6 },
   insuranceTag: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0',
+    marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'transparent',
   },
-  insuranceText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
+  insuranceText: { fontSize: 12, fontWeight: '600' },
 })

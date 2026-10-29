@@ -46,7 +46,7 @@ export default function MobileFIScreen() {
   }
 
   const d = res?.result
-  const decColor = d?.decision === 'approved' ? '#22c55e' : d?.decision === 'declined' ? '#ef4444' : '#f59e0b'
+  const decColor = d?.decision === 'approved' ? t.success : d?.decision === 'declined' ? t.error : t.warning
   // No lender connected: the server answers decision 'not_submitted', lender null and a reason — no rate, term or
   // amount — so the terms show only when a lender actually sent them, and the reason shows whenever there is one.
   const hasTerms = d && d.apr != null && d.termMonths != null && d.approvedAmount != null

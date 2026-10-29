@@ -45,7 +45,10 @@ check('inkOn still picks white on crimson and near-black on yellow', inkOn('#b91
 const files: string[] = []
 const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.tsx$/.test(e.name)) files.push(p) } }
 walk(path.join(root, 'app')); walk(path.join(root, 'src'))
-const raw = files.filter((f) => /(?<![A-Za-z])color:\s*t\.primary(?![A-Za-z])/.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f))
+// A swipe action's `color` is its FILL (SwipeableRow paints the button and gives its label inkOn of it), not a text colour — a
+// line declaring an action ({ icon, label, color, onPress }) is not a text style.
+const isSwipeAction = (line: string) => /\bicon:\s*'/.test(line) && /\blabel:\s*'/.test(line) && /\bonPress:/.test(line)
+const raw = files.filter((f) => fs.readFileSync(f, 'utf8').split('\n').some((l) => /(?<![A-Za-z])color:\s*t\.primary(?![A-Za-z])/.test(l) && !isSwipeAction(l))).map((f) => path.relative(root, f))
 check('no text style uses the raw business colour (use t.primaryText)', raw.length === 0, raw)
 
 // Words and icons ON a coloured fill (owner, 2026-10-28: "fix all those"). White was hard-coded on the business colour (unreadable

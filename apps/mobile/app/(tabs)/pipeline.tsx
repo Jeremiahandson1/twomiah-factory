@@ -29,19 +29,19 @@ import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 
 /** The pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES), and the two ways a job ends unpaid. */
 const STAGES = [
-  { key: 'lead', label: 'Lead', color: '#3b82f6' },
-  { key: 'inspection_scheduled', label: 'Inspection Scheduled', color: '#6366f1' },
-  { key: 'inspected', label: 'Inspected', color: '#8b5cf6' },
-  { key: 'measurement_ordered', label: 'Measurement Ordered', color: '#a855f7' },
-  { key: 'proposal_sent', label: 'Proposal Sent', color: '#f59e0b' },
-  { key: 'signed', label: 'Signed', color: '#22c55e' },
-  { key: 'material_ordered', label: 'Material Ordered', color: '#d97706' },
-  { key: 'in_production', label: 'In Production', color: '#06b6d4' },
-  { key: 'final_inspection', label: 'Final Inspection', color: '#14b8a6' },
-  { key: 'invoiced', label: 'Invoiced', color: '#ec4899' },
-  { key: 'collected', label: 'Collected', color: '#10b981' },
-  { key: 'lost', label: 'Lost', color: '#ef4444' },
-  { key: 'cancelled', label: 'Cancelled', color: '#94a3b8' },
+  { key: 'lead', label: 'Lead' },
+  { key: 'inspection_scheduled', label: 'Inspection Scheduled' },
+  { key: 'inspected', label: 'Inspected' },
+  { key: 'measurement_ordered', label: 'Measurement Ordered' },
+  { key: 'proposal_sent', label: 'Proposal Sent' },
+  { key: 'signed', label: 'Signed' },
+  { key: 'material_ordered', label: 'Material Ordered' },
+  { key: 'in_production', label: 'In Production' },
+  { key: 'final_inspection', label: 'Final Inspection' },
+  { key: 'invoiced', label: 'Invoiced' },
+  { key: 'collected', label: 'Collected', end: 'success' as const },
+  { key: 'lost', label: 'Lost', end: 'error' as const },
+  { key: 'cancelled', label: 'Cancelled', end: 'neutral' as const },
 ]
 const PAGE = 500
 
@@ -76,7 +76,9 @@ export default function PipelineScreen() {
 
   const onRefresh = async () => { setRefreshing(true); await loadJobs(); setRefreshing(false) }
 
-  const grouped = STAGES.map(stage => ({ ...stage, items: jobs.filter(j => j.status === stage.key) }))
+  // A stage's tint: the business's colour while the job is open; its end keeps its meaning.
+  const tint = (s: { end?: 'success' | 'error' | 'neutral' }) => s.end === 'success' ? t.success : s.end === 'error' ? t.error : s.end === 'neutral' ? t.textMuted : t.primary
+  const grouped = STAGES.map(stage => ({ ...stage, color: tint(stage), items: jobs.filter(j => j.status === stage.key) }))
   // Closed stages only appear when something is in them.
   const visible = grouped.filter(s => !['lost', 'cancelled'].includes(s.key) || s.items.length > 0)
   const filteredStages = selectedStage ? visible.filter(s => s.key === selectedStage) : visible
@@ -164,7 +166,7 @@ export default function PipelineScreen() {
                       {job.jobType === 'insurance' && (
                         <View style={styles.insuranceTag}>
                           <Ionicons name="shield" size={12} color="#f59e0b" />
-                          <Text style={styles.insuranceText}>Insurance{job.claimNumber ? ` • Claim ${job.claimNumber}` : ''}</Text>
+                          <Text style={[styles.insuranceText, { color: t.warning }]}>Insurance{job.claimNumber ? ` • Claim ${job.claimNumber}` : ''}</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -208,5 +210,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0',
   },
-  insuranceText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
+  insuranceText: { fontSize: 12, fontWeight: '600' },
 })

@@ -14,6 +14,7 @@ import { useTile } from '../../src/home/useTile'
 import { FilterBanner } from '../../src/home/FilterBanner'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
+import { ACTION } from '../../src/theme/actions'
 import { get, post } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
 import { StatusBadge } from '../../src/components/StatusBadge'
@@ -114,12 +115,12 @@ export default function ServiceCallsScreen() {
 
   const renderCall = ({ item: call, index }: { item: any; index: number }) => {
     const swipeActions = []
-    if (call.address) swipeActions.push({ icon: 'navigate', label: 'Navigate', color: '#3b82f6', onPress: () => navigate(call) })
+    if (call.address) swipeActions.push({ icon: 'navigate', label: 'Navigate', color: ACTION.slate, onPress: () => navigate(call) })
     if (canWork && (call.status === 'scheduled' || call.status === 'dispatched')) {
-      swipeActions.push({ icon: 'play', label: 'Start', color: '#22c55e', onPress: () => handleStart(call) })
+      swipeActions.push({ icon: 'play', label: 'Start', color: t.primary, onPress: () => handleStart(call) })
     }
     if (canWork && call.status === 'in_progress') {
-      swipeActions.push({ icon: 'checkmark-circle', label: 'Complete', color: '#8b5cf6', onPress: () => handleComplete(call) })
+      swipeActions.push({ icon: 'checkmark-circle', label: 'Complete', color: t.primary, onPress: () => handleComplete(call) })
     }
 
     return (

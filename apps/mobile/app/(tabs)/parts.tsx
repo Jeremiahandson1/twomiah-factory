@@ -44,7 +44,7 @@ export default function PartsScreen() {
           </View>
           <View style={{ alignItems: 'flex-end', gap: 3 }}>
             <Text style={[styles.price, { color: t.primaryText }]}>{money(p.price)}</Text>
-            <Text style={[styles.avail, { color: /in stock/i.test(p.availability || '') ? '#22c55e' : t.textMuted }]}>{p.availability}</Text>
+            <Text style={[styles.avail, { color: /in stock/i.test(p.availability || '') ? t.success : t.textMuted }]}>{p.availability}</Text>
           </View>
         </View>
       </View>
@@ -55,7 +55,7 @@ export default function PartsScreen() {
     <View style={[styles.safe, { backgroundColor: t.background }]}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search parts (part #, name, unit)..." />
       {!live ? (
-        <View style={[styles.demo, { borderColor: '#f59e0b', backgroundColor: '#f59e0b1f' }]}>
+        <View style={[styles.demo, { borderColor: t.warning, backgroundColor: t.warning + '1f' }]}>
           <Text style={[styles.demoText, { color: t.text }]}>Demo catalog — these are sample parts and prices, not yours. Import your parts on the web app to search your own.</Text>
         </View>
       ) : null}

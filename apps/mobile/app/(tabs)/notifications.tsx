@@ -42,20 +42,20 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-const EVENT_ICONS: Record<string, { icon: string; color: string }> = {
-  'job:created': { icon: 'hammer', color: '#3b82f6' },
-  'job:updated': { icon: 'hammer', color: '#3b82f6' },
-  'job:statusChanged': { icon: 'hammer', color: '#22c55e' },
-  'quote:created': { icon: 'document-text', color: '#f59e0b' },
-  'quote:approved': { icon: 'checkmark-circle', color: '#22c55e' },
-  'quote:sent': { icon: 'send', color: '#3b82f6' },
-  'invoice:paid': { icon: 'cash', color: '#22c55e' },
-  'contact:created': { icon: 'person-add', color: '#8b5cf6' },
-  'lead:created': { icon: 'mail-unread', color: '#ec4899' },
-  'payment:received': { icon: 'cash', color: '#22c55e' },
-  'alert:created': { icon: 'warning', color: '#ef4444' },
+const EVENT_ICONS: Record<string, { icon: string; warn?: boolean }> = {
+  'job:created': { icon: 'hammer' },
+  'job:updated': { icon: 'hammer' },
+  'job:statusChanged': { icon: 'hammer' },
+  'quote:created': { icon: 'document-text' },
+  'quote:approved': { icon: 'checkmark-circle' },
+  'quote:sent': { icon: 'send' },
+  'invoice:paid': { icon: 'cash' },
+  'contact:created': { icon: 'person-add' },
+  'lead:created': { icon: 'mail-unread' },
+  'payment:received': { icon: 'cash' },
+  'alert:created': { icon: 'warning', warn: true },
 }
-const DEFAULT_ICON = { icon: 'notifications', color: '#3b82f6' }
+const DEFAULT_ICON: { icon: string; warn?: boolean } = { icon: 'notifications' }
 
 export default function NotificationsScreen() {
   const t = useTheme()
@@ -94,11 +94,13 @@ export default function NotificationsScreen() {
   useRealTimeEvent(EVENTS.ALERT_CREATED, (d: any) => addNotification('alert:created', d), [addNotification])
 
   const renderItem = ({ item }: { item: Notification }) => {
-    const eventStyle = EVENT_ICONS[item.type] || DEFAULT_ICON
+    const eventStyle: { icon: string; warn?: boolean } = EVENT_ICONS[item.type] || DEFAULT_ICON
+    // The business's colour for every kind; a real warning keeps the error colour.
+    const tint = eventStyle.warn ? t.error : t.primaryText
     return (
       <View style={[styles.card, { backgroundColor: item.read ? t.surfaceAlt : t.surface, borderColor: t.border }]}>
-        <View style={[styles.iconWrap, { backgroundColor: eventStyle.color + '18' }]}>
-          <Ionicons name={eventStyle.icon as any} size={18} color={eventStyle.color} />
+        <View style={[styles.iconWrap, { backgroundColor: t.primaryLight }]}>
+          <Ionicons name={eventStyle.icon as any} size={18} color={tint} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: t.text }]}>{item.title}</Text>
@@ -113,8 +115,8 @@ export default function NotificationsScreen() {
     <View style={[styles.safe, { backgroundColor: t.background }]}>
       {/* Connection status */}
       <View style={[styles.statusBar, { backgroundColor: connected ? '#22c55e18' : '#ef444418' }]}>
-        <View style={[styles.dot, { backgroundColor: connected ? '#22c55e' : '#ef4444' }]} />
-        <Text style={{ color: connected ? '#22c55e' : '#ef4444', fontSize: 12, fontWeight: '600' }}>
+        <View style={[styles.dot, { backgroundColor: connected ? t.success : t.error }]} />
+        <Text style={{ color: connected ? t.success : t.error, fontSize: 12, fontWeight: '600' }}>
           {connected ? 'Live — receiving real-time updates' : 'Disconnected — pull to refresh'}
         </Text>
       </View>
