@@ -137,7 +137,7 @@ check('orders: the manager does', oM.json?.supplierCostCents === 600, oM.json) /
 const listS = await S('GET', '/api/admin/orders')
 check('orders: nor in the list', (listS.json?.data || []).length > 0 && (listS.json?.data || []).every((o: any) => !('supplierCostCents' in o)), listS.json?.data?.[0]) /* unified: a list is { data, pagination } (the length guard keeps the check from passing on a reply it could not read) */
 const stS = await S('GET', '/api/admin/orders/stats'), stM = await M('GET', '/api/admin/orders/stats')
-check('orders: staff see the queue but not the takings', stS.status === 200 && stS.json?.revenueCents === null && typeof stS.json?.pendingFulfillment === 'number', stS.json) /* unified: the stats are the record itself, not { stats } */
+check('orders: staff see the queue but not the takings', stS.status === 200 && stS.json?.revenueCents == null && typeof stS.json?.pendingFulfillment === 'number', stS.json) /* unified: the stats are the record itself, not { stats } */ /* unified: revenueCents is left out for this seat, not null */
 check('orders: the manager sees the takings', typeof stM.json?.revenueCents === 'number' && stM.json.revenueCents > 0, stM.json) /* unified: the record itself */
 
 // ── Products: staff build the catalogue; removing from sale is the manager's ─────────────────────

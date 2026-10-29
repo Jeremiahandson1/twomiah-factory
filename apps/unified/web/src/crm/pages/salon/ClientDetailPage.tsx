@@ -458,7 +458,7 @@ export default function ClientDetailPage() {
                       {stylistName(r) && <p className="text-xs text-gray-500 dark:text-slate-400">with {stylistName(r)}</p>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
+                      {r.priceCharged !== undefined && <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>}
                       {mayEditClient && (formulaSteps(r.formula).length > 0 || r.developerVolume || r.notes) && (
                         <button
                           onClick={() => keepOnCard(r)}

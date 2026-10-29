@@ -109,6 +109,8 @@ export default function AppointmentsPage() {
   // read-only seat was offered New Appointment and every row's buttons. (T43 viewer round, T68)
   const mayBook = useMayWrite('schedule:create');
   const mayMove = useMayWrite('schedule:update');
+  // The front desk checks clients in without being able to move or cancel them (schedule:check-in).
+  const mayCheckIn = useMayWrite('schedule:update') || useMayWrite('schedule:check-in');
   const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
@@ -207,7 +209,7 @@ export default function AppointmentsPage() {
    */
   const actionsFor = (a: Appointment, then: () => void = () => {}) => (
     <>
-      {mayMove && NOT_CHECKED_IN.has(a.status || 'scheduled') && (
+      {mayCheckIn && NOT_CHECKED_IN.has(a.status || 'scheduled') && (
         <button onClick={() => { then(); checkIn(a); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
           <CheckCircle2 className="w-4 h-4" /> Check In
         </button>
@@ -507,6 +509,8 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 /* ---------------- New Appointment Modal ---------------- */
 
 function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDay: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
+  // A stylist is not shown prices (the server leaves them out too); the booking takes the menu price.
+  const maySeePrices = useMayWrite('invoices:read');
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -655,10 +659,12 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Chair / Room</label>
                 <input type="text" value={form.station} onChange={(e) => set('station', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
+              {maySeePrices && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quoted price ($)</label>
                 <input type="number" step="any" value={form.quotedPrice} onChange={(e) => set('quotedPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>

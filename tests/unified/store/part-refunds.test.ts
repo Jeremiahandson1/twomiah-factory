@@ -331,7 +331,7 @@ const settle = () => new Promise((r) => setTimeout(r, 50))   // the shopper emai
   check(`dashboard: refundedCents is everything sent back, part refunds included (${st?.refundedCents})`, st?.refundedCents === back && back > 0, st)
   check('dashboard: net = revenue − refunds', st?.netCents === st?.revenueCents - st?.refundedCents)
   const staffSt = (await S('GET', '/stats')).json /* unified: the stats themselves */
-  check('dashboard: staff are not shown the money — refunds and net are null', staffSt?.refundedCents === null && staffSt?.netCents === null, staffSt)
+  check('dashboard: staff are not shown the money — refunds and net are null', staffSt?.refundedCents == null && staffSt?.netCents == null, staffSt) /* unified: left out of the reply (the phone rule: never 0, never a made-up null), not sent as null */
 }
 
 // 15. Orders refunded before part refunds existed: the migration says their whole total went back, every unit with it.

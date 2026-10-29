@@ -426,7 +426,8 @@ describe('status changes and who may', () => {
     expect(list.json.data.every((o: any) => o.companyId === companyId)).toBe(true)
     expect((await M('GET', '/api/admin/orders')).json.data.some((o: any) => o.supplierCostCents === 600)).toBe(true)
     const st = await ST('GET', '/api/admin/orders/stats')
-    expect(st.json).toMatchObject({ revenueCents: null, refundedCents: null, netCents: null })
+    expect(st.json).toMatchObject({ refundedCount: expect.any(Number) })
+    expect(['revenueCents', 'refundedCents', 'netCents'].some((k) => k in st.json)).toBe(false) // left out, not null or 0
     expect(typeof st.json.pendingFulfillment).toBe('number')
     const sm = await M('GET', '/api/admin/orders/stats')
     expect(sm.json.netCents).toBe(sm.json.revenueCents - sm.json.refundedCents)

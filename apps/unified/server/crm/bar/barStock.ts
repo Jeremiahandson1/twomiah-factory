@@ -16,6 +16,7 @@ import { countLineTotal, finishedCountBefore, nextPoNumber } from '../../data/ba
 import { slugify, sizesOf } from './barMenuSizes.ts'
 import { CATEGORIES, UNITS, costOf, costPct, engineerMenu, linesForSize, num, packsToOrder, theoreticalUse, unitCostCents, variance, type Sold } from './barCosting.ts'
 import { tapSizes } from './barTapSizes.ts'
+import { onTheWayCondition } from './tileConditions.ts'
 import type { BarDb } from './db.ts'
 
 type Tx = any
@@ -327,9 +328,12 @@ async function countReport(companyId: string, countId: string) {
 
 // ─── Purchase orders (numbered by data/bar.ts nextPoNumber: a counter that only goes forwards) ─────────
 
-async function orderList(companyId: string) {
+/** `onTheWay` is the home screen's "Orders on the way" (tileConditions.ts): every order sent and not yet in, not just the latest 60. */
+async function orderList(companyId: string, onTheWay = false) {
   const [orders, lines, vendorRows, items] = await Promise.all([
-    db.select().from(barPurchaseOrder).where(eq(barPurchaseOrder.companyId, companyId)).orderBy(desc(barPurchaseOrder.createdAt)).limit(60),
+    onTheWay
+      ? db.select().from(barPurchaseOrder).where(and(eq(barPurchaseOrder.companyId, companyId), onTheWayCondition(barPurchaseOrder))).orderBy(desc(barPurchaseOrder.createdAt))
+      : db.select().from(barPurchaseOrder).where(eq(barPurchaseOrder.companyId, companyId)).orderBy(desc(barPurchaseOrder.createdAt)).limit(60),
     db.select().from(barPurchaseOrderLine).where(eq(barPurchaseOrderLine.companyId, companyId)),
     db.select().from(barVendor).where(eq(barVendor.companyId, companyId)),
     db.select().from(barStockItem).where(eq(barStockItem.companyId, companyId)),

@@ -22,6 +22,9 @@ import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
+import { Hono } from 'hono'
+import { pricesOnlyForMoneySeats } from './prices.ts'
+import { canSeeWith } from '../deps.ts'
 
 // One set of services per app (the routers and the dashboard share it).
 const built = new WeakMap<object, SalonServices>()
@@ -53,6 +56,8 @@ export const createSalonDashboard = (d: CrmDeps) => createSalonDashboardRoutes(d
 export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   const s = salonServicesFor(d)
   const salonBook = settings.appointments !== 'practice'
+  // Prices go only to a seat that reads invoices (./prices.ts): every salon router that carries one answers through this.
+  const priced = (router: Hono<any>): Hono<any> => { const g = new Hono<any>(); g.use('*', pricesOnlyForMoneySeats(canSeeWith(d.permissions))); g.route('/', router); return g }
   // Memberships renew on their own (the help said "renewals are billed as they come due", and they were billed only when
   // someone opened the list or pressed Run billing): every 6 hours, for each business with Memberships on, the same
   // claimed, once-per-period settle the list runs (./membershipBilling.ts). Boot only, never in tests.
@@ -63,13 +68,13 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   })
   return [
     // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
-    ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: createClientRoutes(d, s) } as Mount]),
-    { path: '/api/service-menu', access: 'user', feature: 'service_menu', router: createServiceMenuRoutes(d) },
-    { path: '/api/service-records', access: 'user', feature: ['client_profiles', 'salon_booking'], router: createServiceRecordRoutes(d, s) },
-    { path: '/api/memberships', access: 'user', feature: 'salon_memberships', router: createMembershipRoutes(d, s) },
+    ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: priced(createClientRoutes(d, s)) } as Mount]),
+    { path: '/api/service-menu', access: 'user', feature: 'service_menu', router: priced(createServiceMenuRoutes(d)) },
+    { path: '/api/service-records', access: 'user', feature: ['client_profiles', 'salon_booking'], router: priced(createServiceRecordRoutes(d, s)) },
+    { path: '/api/memberships', access: 'user', feature: 'salon_memberships', router: priced(createMembershipRoutes(d, s)) },
     ...(salonBook ? [
-      { path: '/api/appointments', access: 'user', feature: 'salon_booking', router: createAppointmentRoutes(d, s) },
-      { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: createReminderRoutes(d, s) },
+      { path: '/api/appointments', access: 'user', feature: 'salon_booking', router: priced(createAppointmentRoutes(d, s)) },
+      { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]

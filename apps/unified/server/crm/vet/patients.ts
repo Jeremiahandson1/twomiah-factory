@@ -4,7 +4,8 @@
 import { Hono } from 'hono'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { withoutPortalCredential } from '@twomiah/tenant-backend'
+import { withoutPortalCredential, checkFilter } from '@twomiah/tenant-backend'
+import { PATIENT_TILES, activePatientCondition } from './tileConditions.ts'
 import { patient, contact, visit, vaccination, prescription, labResult, appointment, user } from '../../db/schema/index.ts'
 import { SPECIES } from './species.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -52,11 +53,15 @@ export function createPatientRoutes(d: CrmDeps) {
     const currentUser = c.get('user') as any
     const ownerId = c.req.query('ownerId')
     const search = c.req.query('search')
+    // ?tile=active is the home screen's "Active patients": the living ones (./tileConditions.ts — the dashboard counts the same).
+    const badTile = checkFilter(c, 'tile', c.req.query('tile'), PATIENT_TILES)
+    if (badTile) return badTile
     const page = +(c.req.query('page') || '1')
     const limit = +(c.req.query('limit') || '50')
 
     const conditions = [eq(patient.companyId, currentUser.companyId)]
     if (ownerId) conditions.push(eq(patient.ownerId, ownerId))
+    if (c.req.query('tile') === 'active') conditions.push(activePatientCondition(patient))
     if (search) conditions.push(or(ilike(patient.name, `%${search}%`), ilike(contact.name, `%${search}%`))!)
     const where = and(...conditions)
 

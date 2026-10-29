@@ -6,9 +6,10 @@ does today — each feature named is a tab or screen in `apps/mobile` that runs 
 checks the length limits below and that the copy names only the trades the app supports.
 
 The app is for the trades whose crews work away from a desk: **contractor, "Other" (general service), field service (HVAC, plumbing,
-electrical, cleaning, pest control and the like), home care, roofing, landscaping and RV/powersports dealers** — exactly
-`src/vertical/verticals.ts` `PHONE_VERTICALS`. Salons, restaurants, bars, stores and vets use the website CRM in their phone's
-browser; the app says so and opens that sign-in (`NoPhoneAppGate`).
+electrical, cleaning, pest control and the like), home care, roofing, landscaping, RV/powersports dealers, salons and barbers,
+restaurants and event venues (private events), bars, and online stores** — exactly `src/vertical/verticals.ts` `PHONE_VERTICALS`.
+Veterinary practices (built, kept off: `VET_PHONE_ON`) and other trades use the website CRM in their phone's browser; the app says so
+and opens that sign-in (`NoPhoneAppGate`).
 
 ---
 
@@ -24,12 +25,12 @@ browser; the app says so and opens that sign-in (`NoPhoneAppGate`).
 
 ## Promotional text (iOS, ≤170)
 
-> Jobs, contacts, quotes and visits on your phone. For contractors, field service, roofing, landscaping, home care and RV dealers. Sign in with your company's address.
+> Jobs, bookings, events and orders on your phone. For contractors, field service, roofing, landscaping, home care, RV dealers, salons, restaurants, bars and online stores.
 
 ## Keywords (iOS, ≤100 characters including commas)
 
 ```
-crm,contractor,roofing,hvac,plumbing,landscaping,home care,field service,jobs,quotes,invoices,crew
+crm,contractor,roofing,hvac,plumbing,landscaping,home care,salon,restaurant,bar,store,jobs,crew
 ```
 
 ## Full description (iOS and Google Play, ≤4000)
@@ -71,6 +72,24 @@ Home care
 RV and powersports dealerships
 • Inventory search, customers and the day's numbers
 
+Salons and barbers
+• Today's book: who is in the chair and when, and check a client in (a stylist sees no prices)
+• Clients with their formula record and last visits, and who is due to rebook (text a rebooking reminder)
+
+Restaurants and event venues (private events)
+• Events: today, the next 30 days, enquiries to answer, and the banquet event order for each — dietary needs first
+• The office can record a deposit that was already received (cash, check or bank transfer); the app never takes a card
+• Tonight: open or closed, how busy, and the 86 board
+
+Bars
+• Tonight and the 86 board, taps that are low or blown, and the party book
+• Blind stock counts, your shifts and time-off requests; managers decide time off and see orders on the way
+
+Online stores
+• Orders to pack: mark packed, ready for pickup or shipped with tracking (shipping emails the buyer)
+• Stock look-up by name, SKU or barcode, and set a count
+• Approve or reject product reviews
+
 FOR EVERYONE
 • Alerts when a job is assigned or changed (and, for the office, when a lead comes in)
 • Two-factor sign-in is supported
@@ -79,7 +98,7 @@ FOR EVERYONE
 Your business owner decides who can see and do what: the app shows only what your role allows. The app is a companion to the Twomiah website CRM, which has everything else.
 
 NOT FOR EVERY BUSINESS
-Salons, restaurants, bars, stores and veterinary practices use the Twomiah website CRM in their phone's browser. If you sign in to this app with one of those accounts, it tells you so and opens the website sign-in for you.
+Veterinary practices and other trades use the Twomiah website CRM in their phone's browser. If you sign in to this app with one of those accounts, it tells you so and opens the website sign-in for you. Taking card payments, refunds, the register and gift cards are on the website, not in this app.
 
 ## What's new (release notes, ≤4000)
 
@@ -103,12 +122,12 @@ Salons, restaurants, bars, stores and veterinary practices use the Twomiah websi
 ## Demo account for App Review
 
 Reviewers sign in for real; without working credentials the app is rejected. The owner creates a sandbox business (READY.md §3):
-the **roofing** or **contractor** trade, with a few jobs today, a contact, a quote, and one photo. Server URL, email and password go in
+the **roofing** or **contractor** trade (a second sandbox per new trade — salon, restaurant, bar, store — if screenshots are wanted for them), with a few jobs today, a contact, a quote, and one photo. Server URL, email and password go in
 App Store Connect → App Review Information and Google Play → App access. Rotate the password after each review.
 
 ## Notes for whoever submits
 
-1. iOS keywords need no spaces after commas; every character counts (the list above is 98).
+1. iOS keywords need no spaces after commas; every character counts (the list above is 96).
 2. Don't name other products (QuickBooks, ServiceTitan, Jobber…) in the listing or keywords.
 3. Screenshots must show the real app, signed in to the demo business: roofing pipeline, a job with photos, contacts, a quote, and a
    caregiver's Today and Clock screens from a home care demo (READY.md §4).

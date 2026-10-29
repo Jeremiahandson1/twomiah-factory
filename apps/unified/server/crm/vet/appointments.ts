@@ -6,7 +6,9 @@ import { eq, and, gte, lte, ne } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { appointment, patient, contact, user } from '../../db/schema/index.ts'
 import { lockAppointmentBook, appointmentsInRoom } from '../../data/vetAppointments.ts'
+import { checkFilter, companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
+import { APPOINTMENT_TILES, appointmentsTodayCondition } from './tileConditions.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 
@@ -66,9 +68,14 @@ export function createVetAppointmentRoutes(d: CrmDeps) {
   // GET /appointments — ?from=&to= on startTime, ?providerId=, ?status=. A list reply (the template: { data } alone).
   app.get('/', requirePermission('contacts:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const { from, to, providerId, status } = c.req.query()
+    const { from, to, providerId, status, tile } = c.req.query()
+    // ?tile=today is the home screen's "Appointments today": the clinic's day, live rows only (./tileConditions.ts — the
+    // dashboard's count calls the same condition). An unknown tile is refused, not answered as an empty book.
+    const badTile = checkFilter(c, 'tile', tile, APPOINTMENT_TILES)
+    if (badTile) return badTile
 
     const conditions = [eq(appointment.companyId, currentUser.companyId)]
+    if (tile === 'today') { const day = storeDayRange(await companyTimeZone(db, currentUser.companyId)); conditions.push(appointmentsTodayCondition(appointment, day.start, day.end)) }
     if (from) conditions.push(gte(appointment.startTime, new Date(from)))
     if (to) conditions.push(lte(appointment.startTime, new Date(to)))
     if (providerId) conditions.push(eq(appointment.providerId, providerId))

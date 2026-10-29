@@ -11,6 +11,8 @@ import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { clientsOf, isClient } from './people.ts'
 import type { SalonServices } from './services.ts'
 import { inOwnChair } from './bookScope.ts'
+import { appointmentsTodayCondition, activeEnrollmentCondition } from './tileConditions.ts'
+import { withoutPrices } from './prices.ts'
 
 // Cancelled and no-show rows are not appointments the desk has to serve; upcoming excludes completed too. (SALON-N9)
 // Module scope because two handlers use them — one referencing a handler-local copy was a ReferenceError on every
@@ -44,14 +46,14 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
     const [clientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, byStylistRows, membershipRows, dueRows] = await Promise.all([
       // The tile says "Clients … In your book", so it counts CLIENTS. (T20 M2)
       safe(() => db.select({ value: count() }).from(contact).where(clientsOf(companyId)), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), LIVE_APPT)), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, appointmentsTodayCondition(appointment, today, tomorrow))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
       safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
       safe(() => db.select({ value: count() }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ amt: serviceRecord.priceCharged }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [] as { amt: string | null }[]),
       // Chair productivity this month, whichever column holds the stylist. (Salon T27 N5)
       safe(() => takingsByChair(db, companyId, startOfMonth, startOfNextMonth), []),
-      safe(() => db.select({ value: count() }).from(membershipEnrollment).where(and(eq(membershipEnrollment.companyId, companyId), eq(membershipEnrollment.status, 'active'))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(membershipEnrollment).where(and(eq(membershipEnrollment.companyId, companyId), activeEnrollmentCondition(membershipEnrollment))), [{ value: 0 }]),
       // REBOOKING DUE — the same computation the recall list runs, with its default window. (T58)
       safe(() => salon.rebooking.dueRebookings(companyId, { windowDays: 14, maxOverdue: 90 }), []),
     ]) as [Array<{ value: number }>, Array<{ value: number }>, Array<{ value: number }>, Array<{ status: string; c: number }>, Array<{ value: number }>, Array<{ amt: string | null }>, Awaited<ReturnType<typeof takingsByChair>>, Array<{ value: number }>, Array<{ overdue: boolean }>]
@@ -120,9 +122,11 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
         .where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, now), UPCOMING_APPT)).orderBy(appointment.startTime).limit(8), []),
     ]) as [any[], any[], any[]]
 
+    // What a visit took is the salon's money: a seat that may not read invoices gets the visit, not the price (./prices.ts).
+    const maySeeMoney = await canSee(u.role, 'invoices:read', u.userId)
     return one(c, {
       recentClients,
-      recentServices,
+      recentServices: maySeeMoney ? recentServices : withoutPrices(recentServices),
       upcomingAppointments: upcomingAppointments.map((a) => {
         const parts = String(a.stylistMemberName || '').trim().split(/\s+/)
         return { ...a, stylistFirstName: a.stylistFirstName ?? (parts[0] || null), stylistLastName: a.stylistLastName ?? (parts.slice(1).join(' ') || null) }

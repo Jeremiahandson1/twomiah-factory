@@ -17,6 +17,11 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Roofing | 32 | 7 | 9 | 2 | 6 | 15 |
 | Home care | 67 | 7 | 11 | 1 | 25 | 30 |
 | RV / powersports dealership | 45 | 9 | 8 | 1 | 21 | 15 |
+| Salon / barber / spa | 36 | 4 | 5 | 5 | 10 | 16 |
+| Restaurant / caterer / event venue | 36 | 5 | 7 | 5 | 6 | 18 |
+| Bar / tavern | 44 | 6 | 8 | 8 | 7 | 21 |
+| Online store | 28 | 4 | 4 | 2 | 3 | 19 |
+| Veterinary practice | 34 | 0 | 6 | 4 | 9 | 15 |
 
 ## Contractor (`contractor`, feature set `crm`)
 
@@ -517,4 +522,269 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 | Operations | Alerts | `/crm/alerts` | contacts:read | deal_pipeline, service_dept (on by default) | all | none | C |
 | Back Office | Accounting | `/crm/accounting` | invoices:read | unit_inventory, deal_pipeline, service_dept (on by default) | owner, admin, manager, viewer | none | C |
 | Back Office | Follow-Up | `/crm/marketing` | marketing:read | follow_up_sequences (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
+
+## Salon / barber / spa (`salon`, feature set `crm-salon`)
+
+### Dashboard tiles by seat
+
+The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banner and four tiles. The "Services This Month" tile carries a money line. Stylist = the staff seat, Front Desk = the viewer seat.
+
+- **owner** (5): Due to rebook (overdue / due soon) → /crm/reminders; Clients → /crm/clients; Appointments today → /crm/appointments; Services this month (no list on the desktop) → not a link; Members → /crm/memberships
+- **admin** (5): Due to rebook (overdue / due soon) → /crm/reminders; Clients → /crm/clients; Appointments today → /crm/appointments; Services this month (no list on the desktop) → not a link; Members → /crm/memberships
+- **manager** (5): Due to rebook (overdue / due soon) → /crm/reminders; Clients → /crm/clients; Appointments today → /crm/appointments; Services this month (no list on the desktop) → not a link; Members → /crm/memberships
+- **staff** (5): Due to rebook (overdue / due soon) → /crm/reminders; Clients → /crm/clients; Appointments today → /crm/appointments; Services this month (no list on the desktop) → not a link; Members → /crm/memberships
+- **viewer** (5): Due to rebook (overdue / due soon) → /crm/reminders; Clients → /crm/clients; Appointments today → /crm/appointments; Services this month (no list on the desktop) → not a link; Members → /crm/memberships
+
+### Menu
+
+| Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
+|---|---|---|---|---|---|---|---|
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: who is due to rebook, today's book |
+| Business | All Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful on the phone, not the chair's daily loop |
+| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
+| Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
+| Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
+| Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
+| Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
+| Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — texting clients from the chair |
+| Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | C |
+| Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Bookings | `/crm/bookings` | bookings:read | online_booking (on by default) | all | none | C |
+| Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
+| Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | D — set-up, review and website building are desk jobs |
+| Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful on the phone, not the chair's daily loop |
+| Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
+| Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
+| Salon | Clients | `/crm/clients` | contacts:read | client_profiles (on by default) | all | Clients tab + client card (formula record, last visits; a stylist sees no prices) | A — the client chart: allergies, formulas, visits |
+| Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | The Book tab (My day for a stylist): the day book and check in; booking and the service record stay on the desktop | A — the book: check in, move, complete, no-show |
+| Salon | Rebooking | `/crm/reminders` | contacts:read | rebooking_reminders (on by default) | all | Rebook tab (who is due; text them) | A — rebooking: text the clients who are due |
+| Salon | Service Menu | `/crm/service-menu` | contacts:read | service_menu (on by default) | all | none | C |
+| Salon | Memberships | `/crm/memberships` | contacts:read | salon_memberships (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
+| Salon | Loyalty | `/crm/loyalty` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
+
+## Restaurant / caterer / event venue (`restaurant`, feature set `crm-restaurant`)
+
+### Dashboard tiles by seat
+
+The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage strips. Money tiles need invoices:read, and the server leaves the key out for a seat without it. "Booked Value Ahead" is not a link, so it is a money line on the phone, not a tile.
+
+- **owner** (7): Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Booked value ahead (not a link) (money) → not a link; Confirmed → /crm/spaces; Payments due (panel) (money) → /crm/events; Coming up (panel) → /crm/events
+- **admin** (7): Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Booked value ahead (not a link) (money) → not a link; Confirmed → /crm/spaces; Payments due (panel) (money) → /crm/events; Coming up (panel) → /crm/events
+- **manager** (7): Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Booked value ahead (not a link) (money) → not a link; Confirmed → /crm/spaces; Payments due (panel) (money) → /crm/events; Coming up (panel) → /crm/events
+- **staff** (4): Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+- **viewer** (7): Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Booked value ahead (not a link) (money) → not a link; Confirmed → /crm/spaces; Payments due (panel) (money) → /crm/events; Coming up (panel) → /crm/events
+
+### Menu
+
+| Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
+|---|---|---|---|---|---|---|---|
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: the events book and what is owed on it |
+| Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | B — useful later; the event already names the client and the room |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Overdue tab (payments overdue, office seats only) | A — deposits and balances: status and chasing (nothing is charged on the phone) |
+| Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
+| Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
+| Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
+| Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | none | A — the first to answer a wedding enquiry usually books it |
+| Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — useful later; the event already names the client and the room |
+| Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | A — the first to answer a wedding enquiry usually books it |
+| Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
+| Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
+| Kitchen & Counter | Tonight | `/crm/tonight` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — close the kitchen and 86 an item mid-service (when switched on) |
+| Kitchen & Counter | Register | `/crm/register` | bar:register | bar_register (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
+| Kitchen & Counter | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
+| Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
+| Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | 86 board (put an item out, back on) | A — close the kitchen and 86 an item mid-service (when switched on) |
+| Kitchen & Counter | Taps | `/crm/taps` | bar:read | draft_taps (off by default (add-on or opt-in)) | all | none | C |
+| Kitchen & Counter | What's on | `/crm/whats-on` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | C |
+| Kitchen & Counter | Hours & Settings | `/crm/bar-settings` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | D — set-up, review and website building are desk jobs |
+| Kitchen & Counter | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
+| Events | Events | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — the whole trade: inquiry, booking, the banquet event order |
+| Events | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later; the event already names the client and the room |
+| Events | Catering Menus | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later; the event already names the client and the room |
+
+## Bar / tavern (`bar`, feature set `crm-bar`)
+
+### Dashboard tiles by seat
+
+The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the register", then the same events dashboard as the restaurant (pages/restaurant/DashboardPage.tsx). The register strip is a sales figure and stays off the phone.
+
+- **owner** (7): Tonight strip → /crm/tonight; Today on the register (sales; stays on the desktop) (money) → /crm/closeout; Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+- **admin** (7): Tonight strip → /crm/tonight; Today on the register (sales; stays on the desktop) (money) → /crm/closeout; Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+- **manager** (7): Tonight strip → /crm/tonight; Today on the register (sales; stays on the desktop) (money) → /crm/closeout; Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+- **staff** (6): Tonight strip → /crm/tonight; Today on the register (sales; stays on the desktop) (money) → /crm/closeout; Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+- **viewer** (6): Tonight strip → /crm/tonight; Payments overdue (money) → /crm/invoices; Open inquiries → /crm/events; Next 30 days → /crm/events; Confirmed → /crm/spaces; Coming up (panel) → /crm/events
+
+### Menu
+
+| Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
+|---|---|---|---|---|---|---|---|
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: tonight and the private-party book |
+| Business | Guests | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful later, not the bar's nightly loop |
+| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — my shifts, time off and the clock |
+| Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
+| Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
+| Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
+| Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
+| Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | B — useful later, not the bar's nightly loop |
+| Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — useful later, not the bar's nightly loop |
+| Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later, not the bar's nightly loop |
+| Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
+| Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
+| The Bar | Tonight | `/crm/tonight` | bar:read | bar_tonight (on by default) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — the bar's live board: open/closed, 86, what is on tap |
+| The Bar | Register | `/crm/register` | bar:register | bar_register (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
+| The Bar | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
+| The Bar | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later, not the bar's nightly loop |
+| The Bar | Gift Cards | `/crm/gift-cards` | bar:manage | gift_cards (on by default) | owner, admin, manager | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
+| The Bar | Regulars | `/crm/regulars` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful later, not the bar's nightly loop |
+| The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | Count tab (blind count, finish with a confirm) | A — blind count and receiving a delivery in the back room |
+| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts tab (published schedule, ask for a day off) | A — my shifts, time off and the clock |
+| The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | 86 board (put an item out, back on) | A — the bar's live board: open/closed, 86, what is on tap |
+| The Bar | Taps | `/crm/taps` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
+| The Bar | What's on | `/crm/whats-on` | bar:read | bar_tonight (on by default) | all | none | C |
+| The Bar | Bar Settings | `/crm/bar-settings` | bar:read | bar_tonight (on by default) | all | none | D — set-up, review and website building are desk jobs |
+| The Bar | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
+| Parties | Parties | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — private parties: who, when, how many |
+| Parties | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later, not the bar's nightly loop |
+| Parties | Party Packages | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later, not the bar's nightly loop |
+
+## Online store (`store`, feature set `crm-store`)
+
+### Dashboard tiles by seat
+
+The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles for revenue:read, three counts for orders:read. Every figure is all-time (no date window). A shop hands out only manager and staff seats; a viewer holds no store permission.
+
+- **owner** (6): Revenue (money) → not a link; Refunded (money) → not a link; Net sales (money) → not a link; Orders (paid and refunded) → /crm/orders; To fulfill → /crm/orders; At supplier (only when above 0) → /crm/orders
+- **admin** (6): Revenue (money) → not a link; Refunded (money) → not a link; Net sales (money) → not a link; Orders (paid and refunded) → /crm/orders; To fulfill → /crm/orders; At supplier (only when above 0) → /crm/orders
+- **manager** (6): Revenue (money) → not a link; Refunded (money) → not a link; Net sales (money) → not a link; Orders (paid and refunded) → /crm/orders; To fulfill → /crm/orders; At supplier (only when above 0) → /crm/orders
+- **staff** (3): Orders (paid and refunded) → /crm/orders; To fulfill → /crm/orders; At supplier (only when above 0) → /crm/orders
+- **viewer** (3): Revenue (money) → not a link; Refunded (money) → not a link; Net sales (money) → not a link
+
+### Menu
+
+| Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
+|---|---|---|---|---|---|---|---|
+| — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
+| — | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
+| — | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
+| — | Customers | `/crm/customers` | orders:read | — (core) | owner, admin, manager, staff | none | B — useful later; the order already carries the buyer |
+| — | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later; the order already carries the buyer |
+| — | Customer groups | `/crm/customer-groups` | discounts:read | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Payments | `/crm/payments` | payments:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Disputes | `/crm/disputes` | orders:refund | — (core) | owner, admin, manager | none | C |
+| — | Discounts | `/crm/discounts` | discounts:read | — (core) | owner, admin, manager | none | C |
+| — | Gift cards | `/crm/gift-cards` | orders:refund | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Shipping | `/crm/shipping` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
+| — | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| — | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| — | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| — | Store Settings | `/crm/store-settings` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| — | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
+| Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
+| Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
+
+## Veterinary practice (`vet`, feature set `crm-vet`)
+
+> **Built and kept OFF — the phone does not serve this trade** (it opens the "use the website" screen; the switch is VET_PHONE_ON). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
+
+### Dashboard tiles by seat
+
+The practice dashboard (pages/vet/DashboardPage.tsx), not the jobs dashboard. The phone splits "Reminders Due" into two tiles (overdue, due soon). The money lines under Visits need revenue:read.
+
+- **owner** (6): Reminders due (overdue / due soon) → /crm/reminders; Active patients (not a link) → not a link; Appointments today → /crm/appointments; Visits this month (not a link) → not a link; Visits: billed / not yet invoiced / still to come (money lines) (money) → not a link; Wellness enrollments (not a link) → not a link
+- **admin** (6): Reminders due (overdue / due soon) → /crm/reminders; Active patients (not a link) → not a link; Appointments today → /crm/appointments; Visits this month (not a link) → not a link; Visits: billed / not yet invoiced / still to come (money lines) (money) → not a link; Wellness enrollments (not a link) → not a link
+- **manager** (6): Reminders due (overdue / due soon) → /crm/reminders; Active patients (not a link) → not a link; Appointments today → /crm/appointments; Visits this month (not a link) → not a link; Visits: billed / not yet invoiced / still to come (money lines) (money) → not a link; Wellness enrollments (not a link) → not a link
+- **staff** (5): Reminders due (overdue / due soon) → /crm/reminders; Active patients (not a link) → not a link; Appointments today → /crm/appointments; Visits this month (not a link) → not a link; Wellness enrollments (not a link) → not a link
+- **viewer** (6): Reminders due (overdue / due soon) → /crm/reminders; Active patients (not a link) → not a link; Appointments today → /crm/appointments; Visits this month (not a link) → not a link; Visits: billed / not yet invoiced / still to come (money lines) (money) → not a link; Wellness enrollments (not a link) → not a link
+
+### Menu
+
+| Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
+|---|---|---|---|---|---|---|---|
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | none | A — the home screen: the book and the vaccines due |
+| Business | Owners | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | A — ring or text the owner |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | all | none | C |
+| Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | B — useful later, not the floor's daily loop |
+| Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
+| Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
+| Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Business | Tasks | `/crm/tasks` | — | projects, patient_records (on by default) | all | none | C |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — ring or text the owner |
+| Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — useful later, not the floor's daily loop |
+| Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Bookings | `/crm/bookings` | bookings:read | online_booking (on by default) | all | none | B — useful later, not the floor's daily loop |
+| Bookings | Calendar | `/crm/bookings/calendar` | bookings:read | online_booking (on by default) | all | none | C |
+| Bookings | Waitlist | `/crm/bookings/waitlist` | bookings:read | online_booking (on by default) | all | none | C |
+| Bookings | Insights | `/crm/bookings/insights` | bookings:read | online_booking (on by default) | all | none | C |
+| Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Bookings | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later, not the floor's daily loop |
+| Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
+| Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
+| Practice | Patients | `/crm/patients` | contacts:read | patient_records (on by default) | all | none | A — look up a pet: alerts, allergies, vaccines |
+| Practice | Appointments | `/crm/appointments` | contacts:read | appointment_scheduling (on by default) | all | none | A — the day sheet: check in, start, done |
+| Practice | Reminders | `/crm/reminders` | contacts:read | reminders_recall (on by default) | all | none | A — recall: text the owners whose pets are overdue |
+| Practice | Wellness Plans | `/crm/wellness-plans` | contacts:read | wellness_plans (on by default) | all | none | C |
 

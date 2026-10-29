@@ -14,6 +14,7 @@
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { createTimeClock } from '@twomiah/tenant-backend'
 import { barCheck, barCheckItem, barScheduleShift, barScheduleWeek, barTimeOff, teamMember, timeEntry, user } from '../../db/schema/index.ts'
+import { pendingTimeOffCondition } from './tileConditions.ts'
 import { addDays, localToUtc } from './barHours.ts'
 import { businessDayOf, type BarLive } from './barLive.ts'
 import { TIME, closeOn, coverageGaps, hoursOf, openOn, overlaps, weekPlan, workweekStart } from './barSchedulePlan.ts'
@@ -226,6 +227,15 @@ async function decideTimeOff(actor: Actor, id: string, status: unknown) {
   return row
 }
 
+/** The team's requests, newest day first; `onlyPending` is the home screen's "Time off to decide" (tileConditions.ts). */
+async function timeOffRequests(companyId: string, onlyPending: boolean) {
+  const rows = await db.select({ request: barTimeOff, firstName: user.firstName, lastName: user.lastName }).from(barTimeOff)
+    .leftJoin(user, eq(barTimeOff.userId, user.id))
+    .where(and(eq(barTimeOff.companyId, companyId), onlyPending ? pendingTimeOffCondition(barTimeOff) : undefined))
+    .orderBy(asc(barTimeOff.day))
+  return rows.map((r: any) => ({ ...r.request, name: [r.firstName, r.lastName].filter(Boolean).join(' ') || '?' }))
+}
+
 async function myTimeOff(actor: Actor) {
   return db.select().from(barTimeOff).where(and(eq(barTimeOff.companyId, actor.companyId), eq(barTimeOff.userId, actor.id))).orderBy(asc(barTimeOff.day))
 }
@@ -264,7 +274,7 @@ async function onTheClock(companyId: string, now = new Date()) {
 }
 
 return {
-  weekFor, loadWeek, addScheduled, updateScheduled, deleteScheduled, copyWeek, publishWeek, publishedWeeks, requestTimeOff, decideTimeOff,
+  weekFor, loadWeek, addScheduled, updateScheduled, deleteScheduled, copyWeek, publishWeek, publishedWeeks, requestTimeOff, decideTimeOff, timeOffRequests,
   myTimeOff, punchByPin, onTheClock,
 }
 }

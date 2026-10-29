@@ -93,6 +93,8 @@ function toDateInput(s?: string): string {
 }
 
 export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {
+  // A seat without invoices:read (the stylist) is not shown or asked for a price: the server bills the menu price.
+  const maySeePrices = useMayWrite('invoices:read');
   const toast = useToast();
   const confirm = useConfirm();
   // Deleting a visit is DELETE /api/service-records/:id, which asks invoices:update (a visit is what the client is billed
@@ -197,7 +199,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
       if (form.processingMin !== '') payload.processingMin = Number(form.processingMin);
       if (form.productsUsed) payload.productsUsed = form.productsUsed;
       if (form.result) payload.result = form.result;
-      if (form.priceCharged !== '') payload.priceCharged = Number(form.priceCharged);
+      if (maySeePrices && form.priceCharged !== '') payload.priceCharged = Number(form.priceCharged);
       if (form.notes) payload.notes = form.notes;
 
       const saved = record?.id ? await api.put(`/api/service-records/${record.id}`, payload) : await api.post('/api/service-records', payload);
@@ -318,10 +320,12 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Processing (min)</label>
                 <input type="number" value={form.processingMin} onChange={(e) => set('processingMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
+              {maySeePrices && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price charged ($)</label>
                 <input type="number" step="any" value={form.priceCharged} onChange={(e) => set('priceCharged', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
+              )}
             </div>
 
             <div>

@@ -131,12 +131,12 @@ console.log('store/listing.md')
   check('full description ≤4000', full.trim().length > 800 && full.trim().length <= 4000, full.trim().length)
   check('release notes ≤4000', quoted(between('What\'s new')).length > 0)
   // The trades: exactly the app's (verticals.ts PHONE_VERTICALS), and not the ones it turns away — except to say so.
-  const supported = ['contractors', 'field service', 'roofing', 'landscaping', 'home care', 'RV']
+  const supported = ['contractors', 'field service', 'roofing', 'landscaping', 'home care', 'RV', 'salons', 'restaurants', 'bars', 'online stores']
   const promo = quoted(between('Promotional text'))
   check('the promo names the supported trades', supported.every((t) => promo.includes(t)), promo)
   const claims = full.split('NOT FOR EVERY BUSINESS')[0]
-  check('the description claims nothing for salons, restaurants, bars, stores, vets, dispensaries or POS before it says they use the website', !/salon|restaurant|bar\b|store|veterin|dispensar|budtender|point of sale|\bPOS\b/i.test(claims), (claims.match(/salon|restaurant|bar\b|store|veterin|dispensar|budtender|point of sale|\bPOS\b/i) || [])[0])
-  check('it says salons, restaurants, bars, stores and vets use the website, and what the app does for them', /Salons, restaurants, bars, stores and veterinary practices use the Twomiah website CRM in their phone's browser/.test(full) && /opens the website sign-in/.test(full))
+  check('the description claims nothing for vets, dispensaries, a register, card taking, refunds or gift cards before it says those are on the website', !/veterin|dispensar|budtender|point of sale|\bPOS\b|register\b|take (a )?card|refund|gift card|kiosk/i.test(claims.replace(/the app never takes a card/, '')), (claims.match(/veterin|dispensar|budtender|point of sale|\bPOS\b|register\b|take (a )?card|refund|gift card|kiosk/i) || [])[0])
+  check('it says vets and other trades use the website, and what the app does not do', /Veterinary practices and other trades use the Twomiah website CRM in their phone's browser/.test(full) && /opens the website sign-in/.test(full) && /Taking card payments, refunds, the register and gift cards are on the website/.test(full))
   check('no claim the product does not keep: no "EVV-compliant", no "works offline" for everything, no Sandata integration', !/EVV[- ]compliant|works offline|Sandata integration|integrates with Sandata/i.test(md))
   check('it says honestly that only home care clock-ins are saved offline', /works without signal and sends the visit when you reconnect/.test(full))
   check('privacy and support URLs are the live pages', md.includes('https://twomiah.com/privacy') && md.includes('https://twomiah.com/support'))

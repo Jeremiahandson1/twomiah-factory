@@ -14,7 +14,9 @@ import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ne } from 'drizzle-orm'
 import { barSettings, barStatus, barTap, barSpecial, barGame, barEvent, barMenuSection, barMenuItem, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
+import { checkFilter } from '@twomiah/tenant-backend'
 import { done, fail, one, listAll } from '../../http/reply.ts'
+import { MENU_TILES, TAP_TILES, outTonightCondition, tapTroubleCondition } from './tileConditions.ts'
 import type { CrmDeps } from '../deps.ts'
 import { endOfBusinessDay, ROOM_STATUSES, TAP_STATUSES } from './barLive.ts'
 import { isHoursConfig, type HoursConfig } from './barHours.ts'
@@ -322,10 +324,14 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   // ─── menu ─────────────────────────────────────────────────────────────────────────────────────────
   app.get('/menu', requireEnabledFeature('bar_menu'), requirePermission('bar:read'), async (c) => {
     const { companyId } = me(c)
+    // ?tile=out is the home screen's "Out tonight" (tileConditions.ts — the dashboard's count calls the same condition):
+    // the 86 board, still in sections, with only the items that are out.
+    const bad = checkFilter(c, 'tile', c.req.query('tile'), MENU_TILES); if (bad) return bad
+    const out = c.req.query('tile') === 'out'
     const sections: Array<typeof barMenuSection.$inferSelect> = await db.select().from(barMenuSection).where(eq(barMenuSection.companyId, companyId)).orderBy(asc(barMenuSection.sortOrder), asc(barMenuSection.name))
-    const items: Array<typeof barMenuItem.$inferSelect> = await db.select().from(barMenuItem).where(eq(barMenuItem.companyId, companyId)).orderBy(asc(barMenuItem.sortOrder), asc(barMenuItem.name))
+    const items: Array<typeof barMenuItem.$inferSelect> = await db.select().from(barMenuItem).where(and(eq(barMenuItem.companyId, companyId), out ? outTonightCondition(barMenuItem) : undefined)).orderBy(asc(barMenuItem.sortOrder), asc(barMenuItem.name))
     return one(c, {
-      sections: sections.map((s) => ({ ...s, items: items.filter((i) => i.sectionId === s.id) })),
+      sections: sections.map((s) => ({ ...s, items: items.filter((i) => i.sectionId === s.id) })).filter((s) => !out || s.items.length),
       unsectioned: items.filter((i) => !i.sectionId || !sections.some((s) => s.id === i.sectionId)),
     })
   })
@@ -440,7 +446,10 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   // ─── taps ─────────────────────────────────────────────────────────────────────────────────────────
   app.get('/taps', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:read'), async (c) => {
     const { companyId } = me(c)
-    return all(c, await db.select().from(barTap).where(eq(barTap.companyId, companyId)).orderBy(asc(barTap.sortOrder), asc(barTap.lineNumber)))
+    // ?tile=trouble is the home screen's "Taps low or blown" (tileConditions.ts — the dashboard's count calls the same).
+    const bad = checkFilter(c, 'tile', c.req.query('tile'), TAP_TILES); if (bad) return bad
+    const trouble = c.req.query('tile') === 'trouble'
+    return all(c, await db.select().from(barTap).where(and(eq(barTap.companyId, companyId), trouble ? tapTroubleCondition(barTap) : undefined)).orderBy(asc(barTap.sortOrder), asc(barTap.lineNumber)))
   })
 
   app.post('/taps', requireEnabledFeature('bar_menu'), ...tapsGate, requirePermission('bar:update'), async (c) => {

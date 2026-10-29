@@ -276,7 +276,7 @@ export default function DashboardPage() {
                 <li key={s.id} className="py-2">
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-gray-900 dark:text-slate-100">{s.clientName || 'Client'}</p>
-                    <span className="text-xs text-gray-500 dark:text-slate-400">{money(s.priceCharged)}</span>
+                    {s.priceCharged !== undefined && <span className="text-xs text-gray-500 dark:text-slate-400">{money(s.priceCharged)}</span>}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400">
                     {fmtDate(s.performedAt)}{s.serviceName ? ` · ${s.serviceName}` : ''}{stylistName(s) ? ` · ${stylistName(s)}` : ''}

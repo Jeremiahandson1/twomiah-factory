@@ -18,8 +18,8 @@ import { tileRoute } from './useTile'
 
 const QUICK: { label: string; icon: string; any: string[]; to: string; verticals?: string[] }[] = [
   { label: 'New job', icon: 'add-circle', any: ['jobs:create'], to: '/(tabs)/jobs', verticals: ['contractor', 'basic', 'landscaping', 'roofing'] },
-  { label: 'New quote', icon: 'document-text', any: ['quotes:create'], to: '/(tabs)/quotes' },
-  { label: 'Contacts', icon: 'people', any: ['contacts:read'], to: '/(tabs)/contacts' },
+  { label: 'New quote', icon: 'document-text', any: ['quotes:create'], to: '/(tabs)/quotes', verticals: ['contractor', 'basic', 'landscaping', 'roofing', 'fieldservice', 'rv', 'homecare'] },
+  { label: 'Contacts', icon: 'people', any: ['contacts:read'], to: '/(tabs)/contacts', verticals: ['contractor', 'basic', 'landscaping', 'roofing', 'fieldservice', 'rv', 'homecare'] },
 ]
 
 export default function HomeScreen() {
@@ -103,7 +103,7 @@ export default function HomeScreen() {
                 ))}
               </Group>
             </View>
-          ) : field && vertical !== 'homecare' ? <DText variant="callout" tone="textSecondary">Nothing scheduled for you today.</DText> : null}
+          ) : field && !['homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'].includes(vertical) ? <DText variant="callout" tone="textSecondary">Nothing scheduled for you today.</DText> : null}
         </View>
       )}
     </Screen>

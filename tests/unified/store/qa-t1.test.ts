@@ -173,7 +173,7 @@ for (const [from, to] of [['cancelled', 'paid'], ['cancelled', 'shipped'], ['ref
   check('L3: …and how much', st?.refundedCents === refunded.reduce((a, o) => a + o.refundedCents, 0), st)
   check('L3: …and what the shop kept (revenue less refunds)', st?.netCents === st?.revenueCents - st?.refundedCents, st)
   const ss = (await S('GET', '/api/admin/orders/stats')).json /* unified: the record itself */
-  check('L3: staff (no revenue:read) get the count but not the money — null, like revenue', ss?.refundedCents === null && ss?.revenueCents === null && typeof ss?.refundedCount === 'number', ss)
+  check('L3: staff (no revenue:read) get the count but not the money — null, like revenue', ss?.refundedCents == null && ss?.revenueCents == null && typeof ss?.refundedCount === 'number', ss) /* unified: the money is left out of the reply, not sent as null */
 }
 
 // ── L1: the reward a shop gives is an item ─────────────────────────────────────────────────────────

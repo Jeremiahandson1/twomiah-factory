@@ -33,7 +33,7 @@ function negativeFieldError(values: any): string | null {
 
 export function createMenuPackageRoutes(d: CrmDeps) {
   const { db, audit } = d
-  const { requirePermission } = d.permissions
+  const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
   const { emitToCompany } = d.realtime
   const REFRESH = d.realtime.EVENTS.REFRESH
   const app = new Hono<AppEnv>()
@@ -47,7 +47,10 @@ export function createMenuPackageRoutes(d: CrmDeps) {
     if (category) conditions.push(eq(menuPackage.category, category))
     if (!includeInactive) conditions.push(eq(menuPackage.active, true))
     const data = await db.select().from(menuPackage).where(and(...conditions)).orderBy(asc(menuPackage.category), asc(menuPackage.name))
-    return listAll(c, data)
+    // A per-head price is the books (invoices:read — owner, admin, manager, the read-only office seat). The floor seat reads
+    // the menu a banquet serves, not what it is charged at: the key is LEFT OUT, never zeroed.
+    const mayPrice = hasPermission(currentUser.role, 'invoices:read', await getExtraPermissions(currentUser.userId))
+    return listAll(c, mayPrice ? data : data.map(({ pricePerPerson: _price, ...rest }: any) => rest))
   })
 
   // POST /menu-packages

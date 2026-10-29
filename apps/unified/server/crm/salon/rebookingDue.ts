@@ -5,9 +5,10 @@
 // visit history; the categories the salon switched off (settings.rebookingCategoriesOff); and a client who already
 // holds a future appointment is not chased.
 import { and, eq, gt, isNotNull } from 'drizzle-orm'
+import { liveAppointment } from './tileConditions.ts'
 import { rebookInterval, describeInterval, categoryKey } from '@twomiah/tenant-backend'
 import { serviceRecord, serviceMenu, contact, user, appointment, company } from '../../db/schema/index.ts'
-import { shiftDays, type SalonClock } from './days.ts'
+import { calendarDateIn, shiftDays, type SalonClock } from './days.ts'
 
 const dayStr = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -58,7 +59,8 @@ export function createRebookingDue(db: any, clock: SalonClock) {
     const maxOverdue = Math.min(3650, Math.max(1, Number(opts.maxOverdue ?? 90) || 90))
 
     // The shop's calendar (Salon T25 N2).
-    const today = await clock.salonToday(companyId)
+    const tz = await clock.salonTimezone(companyId)
+    const today = calendarDateIn(new Date(), tz)
     const cutoff = shiftDays(today, windowDays)
     const floor = shiftDays(today, -maxOverdue)
 
@@ -115,10 +117,10 @@ export function createRebookingDue(db: any, clock: SalonClock) {
       .map((r) => ({ ...r, overdue: r.dueDate < today }))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
 
-    // A client who already has a future appointment has effectively rebooked. (RECALL-02)
+    // A client who already has a LIVE future appointment has effectively rebooked: a cancelled or no-show one has not. (RECALL-02)
     const booked = new Set(
       (await db.select({ contactId: appointment.contactId }).from(appointment)
-        .where(and(eq(appointment.companyId, companyId), gt(appointment.startTime, new Date()))))
+        .where(and(eq(appointment.companyId, companyId), gt(appointment.startTime, new Date()), liveAppointment(appointment))))
         .map((a: { contactId: string | null }) => a.contactId).filter(Boolean),
     )
     return data.filter((r) => !booked.has(r.contactId)) as DueRow[]

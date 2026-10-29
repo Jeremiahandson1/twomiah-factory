@@ -33,19 +33,21 @@
 //     when the module loads — see ./index.ts.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { storeOrder, storeOrderRefund, type RefundLine } from '../../../db/schema/store.ts'
+import { storeOrder, storeOrderRefund, productReview, type RefundLine } from '../../../db/schema/store.ts'
 import { orderStats, storeCustomers, moveOrderFrom, reservePartMoney, reserveLineUnits, shippingRefundedCents } from '../../../data/storeOrders.ts'
+import { checkFilter } from '@twomiah/tenant-backend'
 import { requestScope } from '../../../core/audit.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
-import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith, type CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { SHOPPER_TYPE } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { COUNTED, hasParcel, isFulfilment, mayMove, moveRefusal, changedUnderYou, noParcelRefusal, refundRefusal, seatOf, orderForSeat, fitsFulfillment, fulfillmentRefusal } from './rules.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition } from '../tileConditions.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { holdsRefund, quoteRefund, type MoneyBack, type OrderRefunds } from './refunds.ts'
 
@@ -129,9 +131,14 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
   // ── Orders ─────────────────────────────────────────────────────────────────
   app.get('/', async (c) => {
     const companyId = own(c)
-    const status = c.req.query('status')
+    const { status, tile } = c.req.query()
+    // ?tile= is a home-screen tile: the rows the dashboard counts under that name (../tileConditions.ts — the stats call the
+    // same conditions). An unknown name is refused, never answered as an empty list. (orders:read — the whole router's gate)
+    const badTile = checkFilter(c, 'tile', tile, ORDER_TILES)
+    if (badTile) return badTile
+    const byTile = tile === 'to_pack' ? [toPackCondition(storeOrder)] : tile === 'at_supplier' ? [atSupplierCondition(storeOrder)] : tile === 'counted' ? [countedOrderCondition(storeOrder)] : []
     const rows: Order[] = await db.select().from(storeOrder)
-      .where(status ? and(eq(storeOrder.companyId, companyId), eq(storeOrder.status, status)) : eq(storeOrder.companyId, companyId))
+      .where(and(eq(storeOrder.companyId, companyId), ...(status ? [eq(storeOrder.status, status)] : []), ...byTile))
       .orderBy(desc(storeOrder.createdAt), desc(storeOrder.id))
     const seat = await seatOf(d.permissions, c)
     const data = rows.map((o) => orderForSeat(seat, o))
@@ -141,23 +148,20 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
   app.get('/stats', async (c) => {
     const row = await orderStats(db, own(c))
     const seat = await seatOf(d.permissions, c)
+    // "Reviews to approve" is a tile of the reviews:read seat — the list it opens (/api/admin/reviews?tile=pending) is gated the same.
+    const mayReviews = await canSeeWith(d.permissions)((c as any).get('user').role, 'reviews:read', (c as any).get('user').userId)
+    const reviewsPending = mayReviews ? Number((await db.select({ n: count() }).from(productReview).where(and(eq(productReview.companyId, own(c)), pendingReviewCondition(productReview))))[0]?.n ?? 0) : null
     return one(c, {
       paidCount: row.paidCount,
       pendingFulfillment: row.pendingFulfillment,
       atSupplier: row.atSupplier,
-      // The shop's takings as one figure is revenue:read — staff see how many orders are waiting, not
-      // what the business has taken. null, not 0: "no revenue" and "not yours to see" are different.
-      revenueCents: seat.revenue ? row.revenueCents : null,
-      /**
-       * What went back. (Store QA T1, L3: "Revenue $25.00 / Orders 1 while the only orders are cancelled and refunded …
-       * the dashboard shows no refund figure beside it.") Revenue keeps counting a refunded sale — the owner's refund
-       * model: the sale happened, the refund is its own event — so the refund has to be on the screen too, or $25.00
-       * reads as money the shop still has. Same seat rule as revenue: null when it is not theirs to see.
-       */
+      ...(reviewsPending !== null ? { reviewsPending } : {}),
+      // The shop's takings, what went back and what was kept are revenue:read — staff see how many orders are waiting, not
+      // what the business has taken. LEFT OUT for a seat that may not see them, never null or 0: "no revenue" and "not yours
+      // to see" are different. Revenue keeps counting a refunded sale (the owner's refund model: the sale happened, the
+      // refund is its own event), so what went back is beside it. (Store QA T1, L3; E2E Run 2)
       refundedCount: row.refundedCount,
-      refundedCents: seat.revenue ? row.refundedCents : null,
-      // What the shop has kept: the sales less what went back. (E2E Run 2: "Revenue $40.71" after a full refund.)
-      netCents: seat.revenue ? row.revenueCents - row.refundedCents : null,
+      ...(seat.revenue ? { revenueCents: row.revenueCents, refundedCents: row.refundedCents, netCents: row.revenueCents - row.refundedCents } : {}),
     })
   })
 
