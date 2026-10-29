@@ -399,7 +399,16 @@ describe('homecare: the caregiver\'s day, through the app\'s own request code', 
 })
 
 describe('the trades the app turns away: a plain screen that points to the website', () => {
-  for (const [id, label] of [['salon', 'a salon'], ['restaurant', 'a restaurant'], ['bar', 'a bar'], ['store', 'a store'], ['vet', 'a veterinary practice']] as const) {
+  // Salons, restaurants, bars and stores have phone screens (build round 1). The vet's are built and kept off (VET_PHONE_ON).
+  for (const [id, label] of [['salon', 'a salon'], ['restaurant', 'a restaurant'], ['bar', 'a bar'], ['store', 'an online store']] as const) {
+    test(`${label}: signs in and is served as its own trade`, async () => {
+      const site = sites[id] = await serve(id, [])
+      const s = await signInAs(site, 'owner')
+      expect(s.data.company.vertical).toBe(id)
+      expect(s.vertical).toBe(id)
+    }, 120_000)
+  }
+  for (const [id, label] of [['vet', 'a veterinary practice']] as const) {
     test(`${label}: signs in, is told "unavailable" by the app's own rule, and the website sign-in is the tenant's /login`, async () => {
       const site = sites[id] = await serve(id, [])
       const s = await signInAs(site, 'owner')
@@ -413,7 +422,8 @@ describe('the trades the app turns away: a plain screen that points to the websi
   }
 
   test('even a business that names no vertical at all is not shown another trade\'s tabs when the server names one the app lacks', () => {
-    expect(app.detect.detectVertical('salon', ['loyalty_rewards'])).toBe('unavailable')
+    expect(app.detect.detectVertical('salon', ['loyalty_rewards'])).toBe('salon')
+    expect(app.detect.detectVertical('vet', [])).toBe('unavailable')
     expect(app.detect.detectVertical('dispensary', [])).toBe('unavailable')
   })
 })
