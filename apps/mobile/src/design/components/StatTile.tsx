@@ -15,7 +15,9 @@ export function StatTile({ label, value, icon, tone = 'accent', opens, hint, onP
   label: string; value: string | number; icon: string; tone?: ToneName; opens: string; hint?: string; onPress?: () => void; width?: number
 }) {
   const { c } = useDesign()
-  const t = c.tones[tone]
+  // Every tile wears the BUSINESS's colour (owner, 2026-10-29: "it should look like our brand" — not a pink, a yellow and a blue
+  // per tile). A tile's tone keeps only its meaning, in the small hint line ("2 overdue" red, "1 waiting" amber).
+  const t = c.tones.accent
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value}${hint ? `, ${hint}` : ''}. Opens ${opens}.`} onPress={onPress}
       style={({ pressed }) => [{
@@ -23,7 +25,7 @@ export function StatTile({ label, value, icon, tone = 'accent', opens, hint, onP
       }, elevationStyle(1, c.dark), pressed && { backgroundColor: c.surfaceAlt, transform: [{ scale: motion.pressScale }] }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: t.soft, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name={icon} size={20} tone={tone} />
+          <Icon name={icon} size={20} tone="accent" />
         </View>
         <View style={{ width: 28, height: 28, borderRadius: radius.pill, backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="chevron-forward" size={16} tone="subtle" />

@@ -23,6 +23,8 @@ check('DText caps font scaling at MAX_FONT_SCALE', /maxFontSizeMultiplier=\{MAX_
 check('no design component hard-codes a colour (roles only)', all.every((f) => !/['"]#[0-9a-f]{3,8}['"]/i.test(strip(comp(f)))), all.filter((f) => /['"]#[0-9a-f]{3,8}['"]/i.test(strip(comp(f)))))
 for (const f of ['Button.tsx', 'Chip.tsx', 'ListRow.tsx', 'SearchField.tsx', 'Screen.tsx', 'SectionHeader.tsx', 'BottomBar.tsx', 'BottomSheet.tsx']) check(`${f} uses MIN_TARGET`, /MIN_TARGET/.test(comp(f)))
 check('the tile is a button with a spoken label that says what it opens', /accessibilityRole="button"/.test(comp('StatTile.tsx')) && /Opens \$\{opens\}/.test(comp('StatTile.tsx')))
+// Owner 2026-10-29: the app wears the business's colour — no pink, yellow and blue tile per kind. A tile's tone is only its hint.
+check("every tile's icon is the business's colour, whatever the tile's kind", /const t = c\.tones\.accent/.test(comp('StatTile.tsx')) && /<Icon name=\{icon\} size=\{20\} tone="accent" \/>/.test(comp('StatTile.tsx')) && !/c\.tones\[tone\]/.test(comp('StatTile.tsx')))
 check('the tile shows a chevron and a pressed state', /chevron-forward/.test(comp('StatTile.tsx')) && /pressed &&/.test(comp('StatTile.tsx')))
 check('an error is a sentence with an icon, not colour alone', /alert-circle/.test(comp('TextField.tsx')))
 check('animations stop when the phone says so (reduce motion)', /useReduceMotion/.test(comp('Skeleton.tsx')) && /useReduceMotion/.test(comp('BottomSheet.tsx')))
