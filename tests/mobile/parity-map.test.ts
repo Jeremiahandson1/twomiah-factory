@@ -10,7 +10,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { TRADES, PHONE_HAS, SEATS, caregiverPages } from '../../apps/unified/scripts/mobile-parity.ts'
+import { TRADES, DESIGN_TRADES, DESIGN_TILES, PHONE_HAS, SEATS, caregiverPages } from '../../apps/unified/scripts/mobile-parity.ts'
 import { VERTICAL_TABS } from '../../apps/mobile/src/vertical/verticals.ts'
 import { getAdvertisableFeaturesForTemplate } from '../../packages/tenant-backend/src/featureRegistry.ts'
 
@@ -42,7 +42,7 @@ const rawMenu = (dir: string) => {
   const line = (r.stdout || '').split('\n').find((l) => l.startsWith('@@MENU@@'))
   return line ? JSON.parse(line.slice('@@MENU@@'.length)) : null
 }
-for (const t of TRADES) {
+for (const t of [...TRADES, ...DESIGN_TRADES]) {
   const built = rawMenu(t.dir)
   check(`${t.phone}: its desktop menu could be built`, !!built && built.nav.length > 30, built && built.nav.length)
   if (!built) continue
@@ -82,6 +82,28 @@ check('the setup wizard-style pages are desktop only', ['/crm/website', '/crm/do
 
 // The caregiver's own pages are all accounted for.
 check('home care: the caregiver\'s own pages are in the map', caregiverPages().length >= 8 && /The caregiver's own pages/.test(sections.get('homecare') || ''))
+
+// ── salon, restaurant, bar, store, vet: a design round, so the phone has none of it yet ─────────────────────────────────
+for (const t of DESIGN_TRADES) {
+  const sec = sections.get(t.phone) || ''
+  check(`${t.phone}: has its own section`, sec.length > 500)
+  check(`${t.phone}: the phone has none of these pages yet`, !/\| (Home|Tab|More|Screen)[^|]*\| (A|B|C|D)/.test(sec) && DESIGN_TILES[t.phone] !== undefined && !PHONE_HAS.some((h) => h.trades?.includes(t.phone as any)))
+  check(`${t.phone}: the section says it is a design round`, /Design round — the phone does not serve this trade yet/.test(sec))
+  check(`${t.phone}: dashboard tiles come from its own dashboard, not the jobs one`, !/New leads → \/crm\/new-leads/.test(sec) && !/Pending quotes/.test(sec) && DESIGN_TILES[t.phone].tiles.length >= 5, DESIGN_TILES[t.phone].tiles.length)
+}
+const ph = (t: string, p: string) => phaseIn(t, p)
+check('salon: Dashboard, The Book, Rebooking, Clients, Messages are A', ['/crm/dashboard', '/crm/appointments', '/crm/reminders', '/crm/clients', '/crm/messages'].every((p) => ph('salon', p) === 'A'))
+check('salon: Invoices, Time, Lead Inbox, Memberships, Loyalty are B', ['/crm/invoices', '/crm/time', '/crm/leads', '/crm/memberships', '/crm/loyalty'].every((p) => ph('salon', p) === 'B'))
+check('restaurant: Events, Invoices, Messages, Lead Inbox, Tonight, Menu are A', ['/crm/events', '/crm/invoices', '/crm/messages', '/crm/leads', '/crm/tonight', '/crm/menu'].every((p) => ph('restaurant', p) === 'A'))
+check('bar: Tonight, Menu, Taps, Stock, Schedule, Time, Parties are A', ['/crm/tonight', '/crm/menu', '/crm/taps', '/crm/stock', '/crm/shifts', '/crm/time', '/crm/events'].every((p) => ph('bar', p) === 'A'))
+check('store: Orders, Products, Reviews are A; Customers is B', ['/crm/orders', '/crm/products', '/crm/product-reviews'].every((p) => ph('store', p) === 'A') && ph('store', '/crm/customers') === 'B')
+check('vet: Patients, Appointments, Reminders, Owners, Messages are A; Invoices is C', ['/crm/patients', '/crm/appointments', '/crm/reminders', '/crm/contacts', '/crm/messages'].every((p) => ph('vet', p) === 'A') && ph('vet', '/crm/invoices') === 'C')
+check('nothing that takes a card or rings a sale is anything but D (register, kiosk, gift cards, payments)', ph('restaurant', '/crm/register') === 'D' && ph('restaurant', '/crm/kiosk') === 'D' && ph('bar', '/crm/register') === 'D' && ph('bar', '/crm/gift-cards') === 'D' && ph('store', '/crm/payments') === 'D' && ph('store', '/crm/gift-cards') === 'D')
+const seatLine = (t: string, seat: string) => new RegExp(`- \\*\\*${seat}\\*\\* \\(\\d+\\): (.*)`).exec(sections.get(t) || '')?.[1] || ''
+check('store: staff get three counts and no money; the manager gets the money tiles too', !/money/.test(seatLine('store', 'staff')) && /Revenue \(money\)/.test(seatLine('store', 'manager')))
+check('vet: the money lines reach owner, manager and viewer but not staff', /money/.test(seatLine('vet', 'manager')) && /money/.test(seatLine('vet', 'viewer')) && !/money/.test(seatLine('vet', 'staff')))
+check('restaurant: Payments overdue is money, and staff do not get it', /Payments overdue \(money\)/.test(seatLine('restaurant', 'owner')) && !/Payments overdue/.test(seatLine('restaurant', 'staff')))
+check('bar: the register strip is a sales figure, marked money, and stays on the desktop', /Today on the register.*\(money\)/.test(seatLine('bar', 'owner')))
 
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)
