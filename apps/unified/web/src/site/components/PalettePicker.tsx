@@ -15,6 +15,13 @@ export interface PaletteInfo {
 export interface PaletteValue { accentColor: string | null; palette: Palette | null }
 
 const HEX = /^#[0-9a-fA-F]{6}$/
+/** What someone types or pastes as a colour — 1f6b46, #1F6B46, #abc, abc — as #rrggbb; null when it is not one. */
+function toHex(v: string): string | null {
+  const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(v.trim())
+  if (!m) return null
+  const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1]
+  return ('#' + h).toLowerCase()
+}
 const same = (a?: string | null, b?: string | null) => (a || '').toLowerCase() === (b || '').toLowerCase()
 
 /** The four colours of a preset as the page shows them, in the order a painter would lay them down. */
@@ -39,7 +46,7 @@ function ColourRow({ id, label, hint, value, shown, onChange, resetLabel, disabl
 }) {
   const [text, setText] = useState(value || '')
   useEffect(() => setText(value || ''), [value])
-  const bad = text !== '' && !HEX.test(text)
+  const bad = text.trim() !== '' && !toHex(text)
   return (
     <div>
       <Label htmlFor={id}>{label}</Label>
@@ -62,11 +69,12 @@ function ColourRow({ id, label, hint, value, shown, onChange, resetLabel, disabl
           value={text}
           aria-invalid={bad}
           onChange={(e) => {
-            const v = e.target.value.trim()
+            const v = e.target.value
             setText(v)
-            if (v === '') onChange(null)
-            else if (HEX.test(v)) onChange(v.toLowerCase())
+            if (v.trim() === '') onChange(null)
+            else if (toHex(v)) onChange(toHex(v))
           }}
+          onBlur={() => { if (toHex(text)) setText(toHex(text)!) }}
           className="input"
         />
         {value && !disabled && (
@@ -76,7 +84,7 @@ function ColourRow({ id, label, hint, value, shown, onChange, resetLabel, disabl
         )}
       </div>
       {bad
-        ? <div className="text-xs text-red-700 mt-1" role="alert">Use a colour like #1f6b46 (six letters or numbers after the #).</div>
+        ? <div className="text-xs text-red-700 mt-1" role="alert">Type a colour code like #1f6b46 (or 1f6b46, or #abc).</div>
         : <div className="text-xs text-muted mt-1">{hint}</div>}
     </div>
   )
