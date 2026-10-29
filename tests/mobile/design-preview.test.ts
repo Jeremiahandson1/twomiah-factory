@@ -10,7 +10,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log('  ok  ', name) } else { failed++; console.log('  FAIL', name, detail === undefined ? '' : JSON.stringify(detail).slice(0, 500)) }
 }
 const ROOT = path.resolve(import.meta.dir, '../..')
-const md = fs.readFileSync(path.join(ROOT, 'docs/mobile/PARITY.md'), 'utf8')
+const md = fs.readFileSync(path.join(ROOT, 'docs/mobile/PARITY.md'), 'utf8').replace(/\r\n/g, '\n') // a Windows checkout has CRLF
 const section = (trade: string) => md.split('\n## ').find((x) => x.split('\n')[0].includes(`(\`${trade}\``)) || ''
 const cells = (l: string) => l.split(/(?<!\\)\|/).slice(1, -1).map((c) => c.trim())
 
@@ -26,7 +26,7 @@ check('the tile is a button with a spoken label that says what it opens', /acces
 check('the tile shows a chevron and a pressed state', /chevron-forward/.test(comp('StatTile.tsx')) && /pressed &&/.test(comp('StatTile.tsx')))
 check('an error is a sentence with an icon, not colour alone', /alert-circle/.test(comp('TextField.tsx')))
 check('animations stop when the phone says so (reduce motion)', /useReduceMotion/.test(comp('Skeleton.tsx')) && /useReduceMotion/.test(comp('BottomSheet.tsx')))
-const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8')
+const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n')
 check('home care screens use no medical wording or imagery', !/(patient|medical|nurs|medic|pulse|heart|stethoscope|medkit)/i.test(strip(read('apps/mobile/src/home/HomeScreen.tsx') + read('apps/mobile/src/home/tiles.ts') + read('apps/mobile/app/(details)/rows.tsx') + read('apps/mobile/src/design/preview/screensA.tsx').split('export function CareVisit')[1])))
 
 // ── round 2 mock-ups: salon, restaurant, bar, store, vet ───────────────────────────────────────────────────────────────────

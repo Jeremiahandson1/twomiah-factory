@@ -7,13 +7,15 @@
  *
  * LABEL BUYING. The server's purchase flow is tested end to end with the carrier stubbed (tests/store-orders.test.ts, `labels`): rates,
  * buy at the chosen rate, tracking stored, one label per order even from two screens, cancelled order refused. Not covered: the live
- * carrier, the carrier failing, no carrier account, a seat without shipping:label. The button ships ON, behind this switch, and shows the
+ * carrier, the carrier failing, no carrier account, a seat without shipping:label. The button ships OFF (below), and when on shows the
  * cost before it buys; turn it off here if a real phone finds a problem. (READY.md, "needs a real phone")
  */
 import type { TileDef } from '../home/tiles'
 import { type ScreenSpec, type Row, type Action, words, dayOnly, join, money } from './kit'
 
-export const LABEL_BUY_ON = true
+// OFF (owner, 2026-10-29: untested features stay off): the button is absent, not disabled, until one real label is bought on a live
+// carrier account and the price shown matched the charge. Then set this true.
+export const LABEL_BUY_ON = false
 
 const STATS = '/api/admin/orders/stats'
 const paged = (b: any): number => Number(b?.pagination?.total ?? (Array.isArray(b?.data) ? b.data.length : Array.isArray(b) ? b.length : 0))
