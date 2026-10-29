@@ -185,7 +185,8 @@ describe('the sign-in handoff', () => {
   })
 
   test('the phone\'s in-app browser is private and the page ends its session on close (source check)', () => {
-    const src = readFileSync(new URL('../../mobile/app/(details)/web.tsx', import.meta.url), 'utf8')
+    // A Windows checkout has CRLF; the source is the same either way.
+    const src = readFileSync(new URL('../../mobile/app/(details)/web.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
     expect(src).toMatch(/<WebViewComponent[\s\S]*?\n\s+incognito\n/)
     expect(src).toMatch(/sharedCookiesEnabled=\{false\}/)
     expect(src).toMatch(/thirdPartyCookiesEnabled=\{false\}/)
