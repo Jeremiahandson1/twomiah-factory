@@ -10,7 +10,7 @@ import { renderSections, assetVersion } from './render.ts'
 import { siteStylesheet } from './routes.ts'
 import { tradeOf } from './menu.ts'
 import type { SiteContext } from './context.ts'
-import { siteColours } from './palette.ts'
+import { siteColours, cleanPalette } from './palette.ts'
 import { cleanStyle, fontsUrl } from './feel.ts'
 
 export interface SitePreviewInput {
@@ -44,6 +44,8 @@ function previewSettings(i: SitePreviewInput): Record<string, any> {
     nav: i.settings.nav ?? [], photoCredits: i.settings.photoCredits ?? [], contentGaps: i.settings.contentGaps ?? [],
     serviceAreas: i.settings.serviceAreas ?? [], socialLinks: [], inventoryFeedUrl: '', contactCtaLabel: i.settings.contactCtaLabel || 'Get in touch',
     accentColor: i.settings.accentColor || '', faviconUrl: '',
+    // The site's own colours and type/feel, as a real request's settings carry them (site/context.ts).
+    palette: cleanPalette(i.palette), style: cleanStyle(i.style),
     googleTagManagerId: '', googleAnalyticsId: '', googleAdsId: '', facebookPixelId: '', microsoftClarityId: '',
   }
 }
