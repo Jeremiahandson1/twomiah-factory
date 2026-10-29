@@ -41,7 +41,7 @@
   <div class="container emergency-bar__inner">
     <% if (heading) { %><div class="emergency-bar__heading"><%= heading %></div><% } %>
     <% if (subtext) { %><div class="emergency-bar__subtext"><%= subtext %></div><% } %>
-    <a class="emergency-bar__call" href="<%= telHref %>" aria-label="Call <%= phone %>">
+    <a class="emergency-bar__call" href="<%= telHref %>">
       <span class="emergency-bar__dot" aria-hidden="true"></span>
       <span class="emergency-bar__label"><%= stateLabel %></span>
       <span class="emergency-bar__phone mono"><%= phone %></span>

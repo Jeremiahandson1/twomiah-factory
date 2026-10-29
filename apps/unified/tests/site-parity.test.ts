@@ -29,7 +29,7 @@ const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
 const DESIGNS = ['bar', 'contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
 const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (family === 'contractor' || family === 'rv' || family === 'vet' ? 'classic' : family)
 const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs',
-  'sections/hero/split.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs',
+  'sections/hero/split.ejs', 'sections/hero/full-bleed.ejs', 'sections/tonight/board.ejs', 'sections/emergency/bar.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs',
   // docs/TRACKING_STANDARD.md: a saved lead shows the page's one #form-success (Google's conversion trigger).
   'sections/inventory/unit.ejs', 'sections/care/finder.ejs',
   // The "Text me" box on every form that asks for a phone (server/site/smsConsent.ts): carriers require it (2026-10-21).
@@ -138,6 +138,13 @@ const inlineFormMessages = (html: string) => html
  * script (base.ejs), and the page's schema.org markup (server/site/structuredData.ts), which the templates printed their own way.
  */
 const siteAdditions = (html: string) => html
+  // The speed round (2026-10-29): no icon chosen says so, so no browser asks for /favicon.ico and logs a 404.
+  .replace(/<link rel="icon" href="data:,">/g, '')
+  // …and the accessible names now include the words the control shows (Lighthouse label-content-name-mismatch): the text-size
+  // buttons lead with their "Aa", the emergency bar's link is named by what it shows, the logo keeps its shape when capped.
+  .replace(/aria-label="Aa, default text size"/g, 'aria-label="Default text size"').replace(/aria-label="Aa\+, larger text"/g, 'aria-label="Larger text"').replace(/aria-label="Aa\+\+, largest text"/g, 'aria-label="Largest text"')
+  .replace(/(class="emergency-bar__call" href="[^"]*") aria-label="Call [^"]*"/g, '$1')
+  .replace(/object-fit:contain;/g, '')
   .replace(/<a class="btn btn--primary call-now"[\s\S]*?<\/a>\s*<script>\(function\(\)\{\s*var a = document\.querySelector\('\[data-call-now\]'\)[\s\S]*?<\/script>/, '')
   .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/g, '')
 
@@ -180,6 +187,14 @@ describe('the section library is the templates\' own files', () => {
   })
 })
 
+/** '' when the two are the same, else where they first differ (a whole page in a failure says nothing). */
+const firstDifference = (a: string, b: string) => {
+  if (a === b) return ''
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  return `at ${i}: mine …${a.slice(Math.max(0, i - 60), i + 140)}…  |  theirs …${b.slice(Math.max(0, i - 60), i + 140)}…`
+}
+
 describe('each design\'s sample pages render as the template rendered them', () => {
   for (const design of DESIGNS) {
     for (const sample of ['composition-a.json', 'composition-b.json']) {
@@ -192,7 +207,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(barFixes(sameAssetVersion(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine)))))))).toBe(squash(barFixes(sameAssetVersion(siteAdditions(messageField(theirs))))))
+        expect(firstDifference(squash(barFixes(sameAssetVersion(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine))))))), squash(barFixes(sameAssetVersion(siteAdditions(messageField(theirs))))))).toBe('')
       })
     }
   }

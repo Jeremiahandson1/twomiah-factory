@@ -12,6 +12,7 @@ import { SITE_DESIGN_SPECS, type VerticalSettings } from '../core/vertical.ts'
 import { accentOnLight, colourOnWhite, DEFAULT_ACCENT, ensureDark, ensureLight, inkOn } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
 import { loadSiteContext, type SiteContext } from './context.ts'
+import { addVariantRoutes } from './variants.ts'
 import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin, escHtml, escXml, type PageMeta } from './render.ts'
 import { feedUnits, feedUrlOk, unitSpecs } from './inventoryFeed.ts'
 import type { createEnquiryHandler } from './enquiryHandler.ts'
@@ -235,6 +236,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     // Long-lived: the page links it with the deploy and colours in the query (render.ts assetVersion).
     return c.body(siteStylesheet(ctx), 200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=31536000, immutable' })
   })
+
+  // Sized WebP copies of the photos (site/variants.ts).
+  addVariantRoutes(app, deps.store)
 
   // The website's own photos, by the address they were saved with. Only the public prefix: private CRM files share the
   // store, and /media must never be a way to reach them.

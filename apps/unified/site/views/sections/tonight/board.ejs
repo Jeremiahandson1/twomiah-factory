@@ -42,7 +42,7 @@
     <div class="cover-hero">
       <figure class="cover-hero__book">
         <<%= H %> class="visually-hidden"><%= title %></<%= H %>>
-        <img class="cover-hero__img" src="<%= coverImageSmall %>" srcset="<%= coverImageSmall %> 600w, <%= coverImage %> 1200w" sizes="(max-width: 900px) 92vw, 480px" alt="<%= data.coverAlt || title %>" width="600" height="800" fetchpriority="high">
+        <img class="cover-hero__img" src="<%= coverImageSmall %>" srcset="<%= data.coverSrcset || (coverImageSmall + ' 600w, ' + coverImage + ' 1200w') %>" sizes="(max-width: 900px) 92vw, 480px" alt="<%= data.coverAlt || title %>" width="600" height="800" fetchpriority="high">
       </figure>
       <div class="cover-hero__live">
     <% } %>

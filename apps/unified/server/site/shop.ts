@@ -10,7 +10,7 @@
 export function servesWhileClosed(pathname: string): boolean {
   if (pathname === '/checkout/success') return true
   if (pathname === '/api' || pathname.startsWith('/api/')) return true
-  if (pathname === '/crm' || pathname.startsWith('/crm/') || pathname === '/login' || pathname.startsWith('/media/')) return true
+  if (pathname === '/crm' || pathname.startsWith('/crm/') || pathname === '/login' || pathname.startsWith('/media/') || pathname.startsWith('/img/')) return true
   return /\.[a-z0-9]+$/i.test(pathname)
 }
 

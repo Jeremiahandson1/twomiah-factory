@@ -11,6 +11,8 @@ import type { PageFacts, SiteFacts } from './facts.ts'
 import { pageTitle, withBusinessServices } from './menu.ts'
 import { linkServiceCards } from './servicePages.ts'
 import { structuredDataFor } from './structuredData.ts'
+import { pageDescription } from './pageDescription.ts'
+import { withHeroImages, type Preload } from './heroImages.ts'
 
 export const VIEWS = path.join(import.meta.dir, '..', '..', 'site', 'views')
 
@@ -80,7 +82,8 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
     // "Page — Business, City" (site/menu.ts pageTitle): the site's default title stamped on every page made each tab
     // read only the business's name.
     seoTitle: pageTitle(settings, { own: meta.metaTitle, title: meta.title, home: currentPath === '/' }),
-    seoDescription: meta.metaDescription || settings.seoDescription || '',
+    // The page's own description, else the site's, else one built from the page's own visible words (pageDescription.ts).
+    seoDescription: meta.metaDescription || settings.seoDescription || pageDescription(sections, settings.tagline),
   }
   // The first hero's image is almost always the mobile Largest Contentful Paint: preloading it lets the browser
   // fetch it while parsing instead of waiting for the section to render. A page that opens with the Tonight board
@@ -90,7 +93,9 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   const lcpImage = firstHero?.type === 'tonight'
     ? pick(firstHero.data?.coverImageSmall, firstHero.data?.coverImage, firstHero.data?.titleImageSmall, firstHero.data?.titleImage, firstHero.data?.art)
     : pick(firstHero?.data?.image)
-  const homepage = { sections }
+  // Each hero's photo as the site's own sized copy, and the first one preloaded (heroImages.ts).
+  const hero = withHeroImages(sections)
+  const homepage = { sections: hero.sections }
   // Each section gets its own data, the site's settings and words, and — for a vertical whose sections read live facts
   // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.
   const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
@@ -98,7 +103,7 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
     site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
   }) as string
   const jsonLd = facts && o.facts ? o.facts.source.jsonLd(facts, { slug: currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections, settings: effective, about: o.facts.about }) : ''
-  return wrap(ctx, body, effective, currentPath, lcpImage, jsonLd || structuredDataFor(ctx, effective, { origin, path: currentPath, title: meta.title || '', sections }))
+  return wrap(ctx, body, effective, currentPath, lcpImage, hero.preloads, jsonLd || structuredDataFor(ctx, effective, { origin, path: currentPath, title: meta.title || '', sections }))
 }
 
 /** A body already built (the blog) inside the site's layout. */
@@ -106,12 +111,12 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
 export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string, opts: { embed?: boolean; title?: string } = {}): Promise<string> {
   const settings = { ...ctx.settings, ...settingsOverrides }
   const ld = opts.embed ? '' : structuredDataFor(ctx, settings, { origin: String(settings.siteOrigin || ''), path: currentPath, title: opts.title || '', sections: [] })
-  return wrap(ctx, body, settings, currentPath, '', ld, !!opts.embed)
+  return wrap(ctx, body, settings, currentPath, '', [], ld, !!opts.embed)
 }
 
-async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, jsonLd: string, embed = false): Promise<string> {
+async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, preloads: Preload[], jsonLd: string, embed = false): Promise<string> {
   const html = await ejs.renderFile(path.join(VIEWS, 'base.ejs'), {
-    body, settings, currentPath, lcpImage, embed,
+    body, settings, currentPath, lcpImage, lcpPreloads: preloads, embed,
     // The page's own JSON-LD from the vertical's facts (the bar's BarOrPub, menu, events); '': the layout's LocalBusiness.
     jsonLd,
     assetV: assetVersion(ctx),

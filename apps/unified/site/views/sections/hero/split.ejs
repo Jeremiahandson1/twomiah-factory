@@ -32,6 +32,6 @@
         </div>
       <% } %>
     </div>
-    <% if (image) { %><div class="hero__image" style="background-image: url('<%= image %>')" role="img" aria-label="<%= data.imageAlt || '' %>"></div><% } %>
+    <% if (image && data.imageCss) { %><style><%- data.imageCss %></style><div class="hero__image" data-bg="<%= data.imageKey %>" role="img" aria-label="<%= data.imageAlt || '' %>"></div><% } else if (image) { %><div class="hero__image" style="background-image: url('<%= image %>')" role="img" aria-label="<%= data.imageAlt || '' %>"></div><% } %>
   </div>
 </section>
