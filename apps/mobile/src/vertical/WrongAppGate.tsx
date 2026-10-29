@@ -26,7 +26,7 @@ const VERTICAL_LABEL: Record<string, string> = {
 }
 
 /**
- * Shown when the business's industry has no phone screens (bar, salon, vet, restaurant, store — verticals.ts `unavailable`).
+ * Shown when the business's industry has no phone screens (today the vet, built and kept off — verticals.ts `unavailable`).
  * Plain about it, and never a dead end: it opens the website sign-in in the phone's browser (same email and password), and
  * there is still Sign Out, for a person who has more than one business.
  */
@@ -43,8 +43,8 @@ export function NoPhoneAppGate() {
         </View>
         <Text style={[styles.title, { color: t.text }]}>{name} uses the website</Text>
         <Text style={[styles.body, { color: t.textSecondary }]}>
-          This app is for crews who work away from a desk: contractors, home care, roofing, landscaping, field service and RV
-          sales. {name} runs on the Twomiah website instead, which works in your phone's browser with the same email and password.
+          This app is for contractors, home care, roofing, landscaping, field service, RV sales, salons, restaurants, bars and online
+          stores. {name} runs on the Twomiah website instead, which works in your phone's browser with the same email and password.
         </Text>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: t.primary }]}

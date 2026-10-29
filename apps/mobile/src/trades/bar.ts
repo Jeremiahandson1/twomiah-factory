@@ -1,6 +1,6 @@
 /**
  * BAR AND TAVERN — the live board and the back room: set tonight, 86 an item, flag a tap, a blind stock count, my shifts, and the
- * private-party book (the same event specs as the restaurant). Not a register: no open tabs, no close-out, no card reader — closing
+ * private-party book (the same event specs as the restaurant). Not a register: no open tabs, no close-out, nothing that takes a card — closing
  * the night stays on the desktop (owner, 2026-10-29), and the bartender's sales are not shown (the desktop hides them from that seat).
  *
  * Deviation from the design, on purpose: "Stock to count" is not a tile — the server has no such idea (nothing marks an item as due),

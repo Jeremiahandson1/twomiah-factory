@@ -17,10 +17,10 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Roofing | 32 | 7 | 9 | 2 | 6 | 15 |
 | Home care | 67 | 7 | 11 | 1 | 25 | 30 |
 | RV / powersports dealership | 45 | 9 | 8 | 1 | 21 | 15 |
-| Salon / barber / spa | 36 | 0 | 5 | 5 | 10 | 16 |
-| Restaurant / caterer / event venue | 36 | 0 | 7 | 5 | 6 | 18 |
-| Bar / tavern | 44 | 0 | 8 | 8 | 7 | 21 |
-| Online store | 28 | 0 | 4 | 2 | 3 | 19 |
+| Salon / barber / spa | 36 | 4 | 5 | 5 | 10 | 16 |
+| Restaurant / caterer / event venue | 36 | 5 | 7 | 5 | 6 | 18 |
+| Bar / tavern | 44 | 6 | 8 | 8 | 7 | 21 |
+| Online store | 28 | 4 | 4 | 2 | 3 | 19 |
 | Veterinary practice | 34 | 0 | 6 | 4 | 9 | 15 |
 
 ## Contractor (`contractor`, feature set `crm`)
@@ -525,8 +525,6 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 
 ## Salon / barber / spa (`salon`, feature set `crm-salon`)
 
-> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
-
 ### Dashboard tiles by seat
 
 The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banner and four tiles. The "Services This Month" tile carries a money line. Stylist = the staff seat, Front Desk = the viewer seat.
@@ -541,7 +539,7 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | none | A — the home screen: who is due to rebook, today's book |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: who is due to rebook, today's book |
 | Business | All Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful on the phone, not the chair's daily loop |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
@@ -571,16 +569,14 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
-| Salon | Clients | `/crm/clients` | contacts:read | client_profiles (on by default) | all | none | A — the client chart: allergies, formulas, visits |
-| Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | none | A — the book: check in, move, complete, no-show |
-| Salon | Rebooking | `/crm/reminders` | contacts:read | rebooking_reminders (on by default) | all | none | A — rebooking: text the clients who are due |
+| Salon | Clients | `/crm/clients` | contacts:read | client_profiles (on by default) | all | Clients tab + client card (formula record, last visits; a stylist sees no prices) | A — the client chart: allergies, formulas, visits |
+| Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | The Book tab (My day for a stylist): today and next, check in, start, finish, no-show; booking and the service record stay on the desktop | A — the book: check in, move, complete, no-show |
+| Salon | Rebooking | `/crm/reminders` | contacts:read | rebooking_reminders (on by default) | all | Rebook tab (who is due; text them) | A — rebooking: text the clients who are due |
 | Salon | Service Menu | `/crm/service-menu` | contacts:read | service_menu (on by default) | all | none | C |
 | Salon | Memberships | `/crm/memberships` | contacts:read | salon_memberships (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
 | Salon | Loyalty | `/crm/loyalty` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
 
 ## Restaurant / caterer / event venue (`restaurant`, feature set `crm-restaurant`)
-
-> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
 
 ### Dashboard tiles by seat
 
@@ -596,9 +592,9 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | none | A — the home screen: the events book and what is owed on it |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: the events book and what is owed on it |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | B — useful later; the event already names the client and the room |
-| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | A — deposits and balances: status and chasing (nothing is charged on the phone) |
+| Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Overdue tab (payments overdue, office seats only) | A — deposits and balances: status and chasing (nothing is charged on the phone) |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
@@ -620,22 +616,20 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
-| Kitchen & Counter | Tonight | `/crm/tonight` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | A — close the kitchen and 86 an item mid-service (when switched on) |
+| Kitchen & Counter | Tonight | `/crm/tonight` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Register | `/crm/register` | bar:register | bar_register (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
-| Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | none | A — close the kitchen and 86 an item mid-service (when switched on) |
+| Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | 86 board (put an item out, back on) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Taps | `/crm/taps` | bar:read | draft_taps (off by default (add-on or opt-in)) | all | none | C |
 | Kitchen & Counter | What's on | `/crm/whats-on` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | C |
 | Kitchen & Counter | Hours & Settings | `/crm/bar-settings` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | D — set-up, review and website building are desk jobs |
 | Kitchen & Counter | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
-| Events | Events | `/crm/events` | contacts:read | event_bookings (on by default) | all | none | A — the whole trade: inquiry, booking, the banquet event order |
+| Events | Events | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — the whole trade: inquiry, booking, the banquet event order |
 | Events | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later; the event already names the client and the room |
 | Events | Catering Menus | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later; the event already names the client and the room |
 
 ## Bar / tavern (`bar`, feature set `crm-bar`)
-
-> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
 
 ### Dashboard tiles by seat
 
@@ -651,7 +645,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | none | A — the home screen: tonight and the private-party book |
+| Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: tonight and the private-party book |
 | Business | Guests | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful later, not the bar's nightly loop |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — my shifts, time off and the clock |
@@ -679,26 +673,24 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
-| The Bar | Tonight | `/crm/tonight` | bar:read | bar_tonight (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
+| The Bar | Tonight | `/crm/tonight` | bar:read | bar_tonight (on by default) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Register | `/crm/register` | bar:register | bar_register (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later, not the bar's nightly loop |
 | The Bar | Gift Cards | `/crm/gift-cards` | bar:manage | gift_cards (on by default) | owner, admin, manager | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Regulars | `/crm/regulars` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful later, not the bar's nightly loop |
-| The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | none | A — blind count and receiving a delivery in the back room |
-| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | none | A — my shifts, time off and the clock |
-| The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
+| The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | Count tab (blind count, finish with a confirm) | A — blind count and receiving a delivery in the back room |
+| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts tab (published schedule, ask for a day off) | A — my shifts, time off and the clock |
+| The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | 86 board (put an item out, back on) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Taps | `/crm/taps` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | What's on | `/crm/whats-on` | bar:read | bar_tonight (on by default) | all | none | C |
 | The Bar | Bar Settings | `/crm/bar-settings` | bar:read | bar_tonight (on by default) | all | none | D — set-up, review and website building are desk jobs |
 | The Bar | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
-| Parties | Parties | `/crm/events` | contacts:read | event_bookings (on by default) | all | none | A — private parties: who, when, how many |
+| Parties | Parties | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — private parties: who, when, how many |
 | Parties | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later, not the bar's nightly loop |
 | Parties | Party Packages | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later, not the bar's nightly loop |
 
 ## Online store (`store`, feature set `crm-store`)
-
-> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
 
 ### Dashboard tiles by seat
 
@@ -714,9 +706,9 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
-| — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | none | A — the home screen: what is waiting to be packed |
-| — | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | none | A — stock look-up and count from the shelf |
-| — | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | none | A — pick, pack and ship |
+| — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
+| — | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
+| — | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
 | — | Customers | `/crm/customers` | orders:read | — (core) | owner, admin, manager, staff | none | B — useful later; the order already carries the buyer |
 | — | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later; the order already carries the buyer |
 | — | Customer groups | `/crm/customer-groups` | discounts:read | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
@@ -727,7 +719,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | — | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | — | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | — | Shipping | `/crm/shipping` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
-| — | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | none | A — a small queue: approve or reject between orders |
+| — | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
 | — | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | — | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | — | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
@@ -745,7 +737,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 
 ## Veterinary practice (`vet`, feature set `crm-vet`)
 
-> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
+> **Built and kept OFF — the phone does not serve this trade** (it opens the "use the website" screen; the switch is VET_PHONE_ON). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.
 
 ### Dashboard tiles by seat
 

@@ -83,12 +83,12 @@ check('the setup wizard-style pages are desktop only', ['/crm/website', '/crm/do
 // The caregiver's own pages are all accounted for.
 check('home care: the caregiver\'s own pages are in the map', caregiverPages().length >= 8 && /The caregiver's own pages/.test(sections.get('homecare') || ''))
 
-// ── salon, restaurant, bar, store, vet: a design round, so the phone has none of it yet ─────────────────────────────────
+// ── vet: built and kept OFF, so the phone does not serve it; its pages are listed as built-but-off ─────────────────────────────────
 for (const t of DESIGN_TRADES) {
   const sec = sections.get(t.phone) || ''
   check(`${t.phone}: has its own section`, sec.length > 500)
-  check(`${t.phone}: the phone has none of these pages yet`, !/\| (Home|Tab|More|Screen)[^|]*\| (A|B|C|D)/.test(sec) && DESIGN_TILES[t.phone] !== undefined && !PHONE_HAS.some((h) => h.trades?.includes(t.phone as any)))
-  check(`${t.phone}: the section says it is a design round`, /Design round — the phone does not serve this trade yet/.test(sec))
+  check(`${t.phone}: its screens exist but the switch is off (the map lists them as kept off)`, DESIGN_TILES[t.phone] !== undefined && PHONE_HAS.some((h) => h.trades?.includes(t.phone as any) && /kept off/.test(h.what)))
+  check(`${t.phone}: the section says it is built and kept off`, /Built and kept OFF — the phone does not serve this trade/.test(sec))
   check(`${t.phone}: dashboard tiles come from its own dashboard, not the jobs one`, !/New leads → \/crm\/new-leads/.test(sec) && !/Pending quotes/.test(sec) && DESIGN_TILES[t.phone].tiles.length >= 5, DESIGN_TILES[t.phone].tiles.length)
 }
 const ph = (t: string, p: string) => phaseIn(t, p)

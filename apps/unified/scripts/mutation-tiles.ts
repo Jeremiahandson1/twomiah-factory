@@ -41,6 +41,20 @@ const MUTATIONS: Mutation[] = [
   { name: 'salon: a no-show counts as today', file: `${SV}/crm/salon/tileConditions.ts`, find: "LIVE_STATUSES = ['cancelled', 'no_show']", replace: "LIVE_STATUSES = ['cancelled']", trade: 'salon', test: TRADE_TEST },
   { name: 'salon: a paused membership is a member', file: `${SV}/crm/salon/tileConditions.ts`, find: "eq(enrollment.status, 'active')", replace: "" + SQL_TAG + "true`", trade: 'salon', test: TRADE_TEST },
   { name: 'salon: a cancelled future appointment takes a client off the rebook list', file: `${SV}/crm/salon/rebookingDue.ts`, find: 'gt(appointment.startTime, new Date()), liveAppointment(appointment)', replace: 'gt(appointment.startTime, new Date())', trade: 'salon', test: TRADE_TEST },
+  { name: 'restaurant: an enquiry holds the room (Next 30 days)', file: `${SV}/crm/restaurant/tileConditions.ts`, find: "HELD_STATUSES = ['tentative', 'confirmed']", replace: "HELD_STATUSES = ['enquiry', 'tentative', 'confirmed']", trade: 'restaurant', test: TRADE_TEST },
+  { name: 'restaurant: Confirmed counts events already past', file: `${SV}/crm/restaurant/tileConditions.ts`, find: "and(eq(ev.status, 'confirmed'), gte(ev.eventDate, today))!", replace: "eq(ev.status, 'confirmed')", trade: 'restaurant', test: TRADE_TEST },
+  { name: 'restaurant: Today counts the server day, not the venue day', file: `${SV}/crm/restaurant/tileConditions.ts`, find: "eq(ev.eventDate, today))!", replace: "gte(ev.eventDate, today))!", trade: 'restaurant', test: TRADE_TEST },
+  { name: 'bar: a retired item is out tonight', file: `${SV}/crm/bar/tileConditions.ts`, find: "and(eq(item.is86ed, true), eq(item.isActive, true))!", replace: "eq(item.is86ed, true)", trade: 'bar', test: TRADE_TEST },
+  { name: 'bar: a retired tap is in trouble', file: `${SV}/crm/bar/tileConditions.ts`, find: "and(eq(tap.isActive, true), inArray(tap.status, [...TAP_TROUBLE_STATUSES]))!", replace: "inArray(tap.status, [...TAP_TROUBLE_STATUSES])", trade: 'bar', test: TRADE_TEST },
+  { name: 'bar: a received order is on the way', file: `${SV}/crm/bar/tileConditions.ts`, find: "eq(order.status, 'sent')", replace: "inArray(order.status, ['sent', 'received'])", trade: 'bar', test: TRADE_TEST },
+  { name: 'bar: a denied request still needs deciding', file: `${SV}/crm/bar/tileConditions.ts`, find: "eq(row.status, 'pending')", replace: "inArray(row.status, ['pending', 'denied'])", trade: 'bar', test: TRADE_TEST },
+  { name: 'store: a gift-card-only order is to pack', file: `${SV}/crm/store/tileConditions.ts`, find: "and(eq(order.status, 'paid'), ne(order.fulfillment, 'digital'))!", replace: "eq(order.status, 'paid')", trade: 'store', test: TRADE_TEST },
+  { name: 'store: a cancelled order is an order', file: `${SV}/crm/store/tileConditions.ts`, find: "notInArray(order.status, ['pending', 'cancelled'])", replace: "notInArray(order.status, ['pending'])", trade: 'store', test: TRADE_TEST },
+  { name: 'store: a decided review is waiting', file: `${SV}/crm/store/tileConditions.ts`, find: "eq(review.status, 'pending')", replace: "ne(review.status, 'rejected')", trade: 'store', test: TRADE_TEST },
+  { name: 'vet: a cancelled appointment is today', file: `${SV}/crm/vet/tileConditions.ts`, find: "INACTIVE_APPT = ['cancelled', 'no_show']", replace: "INACTIVE_APPT = ['no_show']", trade: 'vet', test: TRADE_TEST },
+  { name: 'vet: a deceased pet is active', file: `${SV}/crm/vet/tileConditions.ts`, find: "eq(patient.deceased, false)", replace: "sql`true`", trade: 'vet', test: TRADE_TEST },
+  { name: 'vet: a renewed shot still nags', file: `${SV}/crm/vet/tileConditions.ts`, find: "and(eq(vaccination.companyId, companyId), isNotNull(vaccination.dueDate), latestDueVaccinationCondition(vaccination, companyId), window)!", replace: "and(eq(vaccination.companyId, companyId), isNotNull(vaccination.dueDate), window)!", trade: 'vet', test: TRADE_TEST },
+  { name: 'vet: due soon runs 31 days', file: `${SV}/crm/vet/tileConditions.ts`, find: "DUE_SOON_DAYS = 30", replace: "DUE_SOON_DAYS = 31", trade: 'vet', test: TRADE_TEST },
 ]
 
 const which = process.argv.slice(2).map(Number).filter(Boolean)

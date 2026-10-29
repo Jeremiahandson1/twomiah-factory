@@ -37,19 +37,22 @@ export const TRADES = [
   { phone: 'roofing', dir: 'roof', label: 'Roofing' },
   { phone: 'homecare', dir: 'homecare', label: 'Home care' },
   { phone: 'rv', dir: 'rv', label: 'RV / powersports dealership' },
-] as const
-/**
- * The trades the phone does NOT serve yet — salon, restaurant, bar, store and vet still open the "use the website" screen
- * (src/vertical/WrongAppGate.tsx). Their desktop menus are mapped here so the plan (phases, the home per seat) is made from the
- * desktop's own pages before anything is built. Nothing generated for the phone's own menu (menu.generated.ts) covers them.
- */
-export const DESIGN_TRADES = [
   { phone: 'salon', dir: 'salon', label: 'Salon / barber / spa' },
   { phone: 'restaurant', dir: 'restaurant', label: 'Restaurant / caterer / event venue' },
   { phone: 'bar', dir: 'bar', label: 'Bar / tavern' },
   { phone: 'store', dir: 'store', label: 'Online store' },
+] as const
+/**
+ * The trades the phone does NOT serve — today only the vet: its screens are built and tested but kept OFF (VET_PHONE_ON in
+ * src/vertical/verticals.ts), so a vet still opens the "use the website" screen (src/vertical/WrongAppGate.tsx). Its desktop menu is
+ * mapped here with the design's phases; its More menu is generated too, ready for the day the switch is turned on.
+ */
+export const DESIGN_TRADES = [
   { phone: 'vet', dir: 'vet', label: 'Veterinary practice' },
 ] as const
+/** Trades built since the design round: the phone matches an item to a screen ONLY when the entry names the trade (no "every trade" entries). */
+const NEWLY_BUILT = ['salon', 'restaurant', 'bar', 'store', 'vet']
+const matchesTrade = (x: { trades?: string[] }, phone: string) => (x.trades ? x.trades.includes(phone) : !NEWLY_BUILT.includes(phone))
 export type Trade = (typeof TRADES)[number] | (typeof DESIGN_TRADES)[number]
 export const ALL_TRADES: readonly Trade[] = [...TRADES, ...DESIGN_TRADES]
 export const isServed = (phone: string) => (TRADES as readonly { phone: string }[]).some((t) => t.phone === phone)
@@ -112,7 +115,22 @@ if (process.argv[2] === '--menu') {
  */
 export interface PhoneHas { paths: string[]; trades?: string[]; how: 'tab' | 'screen' | 'partial'; what: string; files: string[] }
 export const PHONE_HAS: PhoneHas[] = [
-  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], how: 'tab', what: 'Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline\'s stages, each opens its jobs)', files: ['app/(tabs)/dashboard.tsx'] },
+  { paths: ['/crm/appointments'], trades: ['salon'], how: 'tab', what: 'The Book tab (My day for a stylist): today and next, check in, start, finish, no-show; booking and the service record stay on the desktop', files: ['app/(tabs)/salon-book.tsx', 'app/(tabs)/salon-myday.tsx'] },
+  { paths: ['/crm/clients'], trades: ['salon'], how: 'tab', what: 'Clients tab + client card (formula record, last visits; a stylist sees no prices)', files: ['app/(tabs)/salon-clients.tsx'] },
+  { paths: ['/crm/reminders'], trades: ['salon'], how: 'tab', what: 'Rebook tab (who is due; text them)', files: ['app/(tabs)/salon-rebook.tsx'] },
+  { paths: ['/crm/events'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Events (Parties) tab + banquet event order; the office records a deposit received (no card)', files: ['app/(tabs)/trade-events.tsx'] },
+  { paths: ['/crm/invoices'], trades: ['restaurant'], how: 'tab', what: 'Overdue tab (payments overdue, office seats only)', files: ['app/(tabs)/trade-overdue.tsx'] },
+  { paths: ['/crm/tonight'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Tonight tab (open / closed, how busy, note — until 4 AM)', files: ['app/(tabs)/bar-tonight.tsx'] },
+  { paths: ['/crm/menu'], trades: ['restaurant', 'bar'], how: 'tab', what: '86 board (put an item out, back on)', files: ['app/(tabs)/bar-menu.tsx'] },
+  { paths: ['/crm/stock'], trades: ['bar'], how: 'tab', what: 'Count tab (blind count, finish with a confirm)', files: ['app/(tabs)/bar-count.tsx'] },
+  { paths: ['/crm/shifts'], trades: ['bar'], how: 'tab', what: 'Shifts tab (published schedule, ask for a day off)', files: ['app/(tabs)/bar-shifts.tsx'] },
+  { paths: ['/crm/orders'], trades: ['store'], how: 'tab', what: 'Orders tab + order (pack, ready for pickup, mark shipped, buy a label)', files: ['app/(tabs)/store-orders.tsx'] },
+  { paths: ['/crm/products'], trades: ['store'], how: 'partial', what: 'Stock tab (look up by name, SKU or barcode; set the count)', files: ['app/(tabs)/store-stock.tsx'] },
+  { paths: ['/crm/product-reviews'], trades: ['store'], how: 'tab', what: 'Reviews tab (approve, reject)', files: ['app/(tabs)/store-reviews.tsx'] },
+  { paths: ['/crm/appointments'], trades: ['vet'], how: 'tab', what: "Today tab (kept off)", files: ['app/(tabs)/vet-today.tsx'] },
+  { paths: ['/crm/patients'], trades: ['vet'], how: 'tab', what: 'Patients tab (kept off)', files: ['app/(tabs)/vet-patients.tsx'] },
+  { paths: ['/crm/reminders'], trades: ['vet'], how: 'tab', what: 'Recall tab (kept off)', files: ['app/(tabs)/vet-recall.tsx'] },
+  { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store'], how: 'tab', what: 'Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline\'s stages, each opens its jobs)', files: ['app/(tabs)/dashboard.tsx'] },
   { paths: ['/crm/dashboard'], trades: ['homecare'], how: 'tab', what: 'Today tab (the caregiver\'s day); the office seats get a Home tab with the overview tiles', files: ['app/(tabs)/shifts.tsx', 'app/(tabs)/dashboard.tsx'] },
   { paths: ['/crm/pipeline'], trades: ['roofing'], how: 'screen', what: 'Pipeline board (a column per stage), a row in More; the stages are also on the Home tab', files: ['app/(tabs)/pipeline.tsx'] },
   { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], how: 'tab', what: 'Jobs tab + job detail + new/edit job form', files: ['app/(tabs)/jobs.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
@@ -240,6 +258,41 @@ const GROUP_BY_PATH: Record<string, string> = {
   '/crm/website/photos': 'Business & website',
   '/crm/website/portfolio': 'Business & website',
   '/crm/website/settings': 'Business & website',
+  '/crm/clients': 'Customers',
+  '/crm/appointments': 'Work',
+  '/crm/reminders': 'Customers',
+  '/crm/service-menu': 'Sell',
+  '/crm/memberships': 'Sell',
+  '/crm/loyalty': 'Customers',
+  '/crm/tonight': 'Work',
+  '/crm/register': 'Sell',
+  '/crm/kiosk': 'Sell',
+  '/crm/orders': 'Sell',
+  '/crm/menu': 'Work',
+  '/crm/taps': 'Work',
+  '/crm/whats-on': 'Customers',
+  '/crm/bar-settings': 'Business & website',
+  '/crm/register-settings': 'Business & website',
+  '/crm/events': 'Work',
+  '/crm/spaces': 'Equipment & records',
+  '/crm/menus': 'Sell',
+  '/crm/gift-cards': 'Sell',
+  '/crm/regulars': 'Customers',
+  '/crm/stock': 'Work',
+  '/crm/shifts': 'Work',
+  '/crm/products': 'Sell',
+  '/crm/customers': 'Customers',
+  '/crm/customer-groups': 'Customers',
+  '/crm/payments': 'Money & reports',
+  '/crm/disputes': 'Money & reports',
+  '/crm/discounts': 'Sell',
+  '/crm/store-loyalty': 'Customers',
+  '/crm/suppliers': 'Equipment & records',
+  '/crm/shipping': 'Sell',
+  '/crm/product-reviews': 'Customers',
+  '/crm/store-settings': 'Business & website',
+  '/crm/patients': 'Customers',
+  '/crm/wellness-plans': 'Sell',
 }
 export function moreGroupOf(trade: string, section: string, path: string): string {
   if (trade === 'homecare' && HOMECARE_SECTION_GROUP[section]) return HOMECARE_SECTION_GROUP[section]
@@ -350,6 +403,23 @@ export const moreIconOf = (path: string) => ICON_BY_PATH[path] || 'ellipse'
 export interface PhoneRoute { paths: string[]; trades?: string[]; for?: 'field' | 'office'; route: string }
 const JOBS_TRADES = ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing']
 export const PHONE_ROUTES: PhoneRoute[] = [
+  { paths: ['/crm/dashboard'], trades: ['salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(tabs)/dashboard' },
+  { paths: ['/crm/appointments'], trades: ['salon'], for: 'office', route: '/(tabs)/salon-book' },
+  { paths: ['/crm/appointments'], trades: ['salon'], for: 'field', route: '/(tabs)/salon-myday' },
+  { paths: ['/crm/clients'], trades: ['salon'], route: '/(tabs)/salon-clients' },
+  { paths: ['/crm/reminders'], trades: ['salon'], route: '/(tabs)/salon-rebook' },
+  { paths: ['/crm/reminders'], trades: ['vet'], route: '/(tabs)/vet-recall' },
+  { paths: ['/crm/events'], trades: ['restaurant', 'bar'], route: '/(tabs)/trade-events' },
+  { paths: ['/crm/invoices'], trades: ['restaurant'], for: 'office', route: '/(tabs)/trade-overdue' },
+  { paths: ['/crm/tonight'], trades: ['restaurant', 'bar'], route: '/(tabs)/bar-tonight' },
+  { paths: ['/crm/menu'], trades: ['restaurant', 'bar'], route: '/(tabs)/bar-menu' },
+  { paths: ['/crm/stock'], trades: ['bar'], route: '/(tabs)/bar-count' },
+  { paths: ['/crm/shifts'], trades: ['bar'], route: '/(tabs)/bar-shifts' },
+  { paths: ['/crm/orders'], trades: ['store'], route: '/(tabs)/store-orders' },
+  { paths: ['/crm/products'], trades: ['store'], route: '/(tabs)/store-stock' },
+  { paths: ['/crm/product-reviews'], trades: ['store'], route: '/(tabs)/store-reviews' },
+  { paths: ['/crm/appointments'], trades: ['vet'], route: '/(tabs)/vet-today' },
+  { paths: ['/crm/patients'], trades: ['vet'], route: '/(tabs)/vet-patients' },
   { paths: ['/crm/dashboard'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'rv'], route: '/(tabs)/dashboard' },
   { paths: ['/crm/dashboard'], trades: ['homecare'], for: 'office', route: '/(tabs)/dashboard' },
   { paths: ['/crm/dashboard'], trades: ['homecare'], for: 'field', route: '/(tabs)/shifts' },
@@ -692,8 +762,8 @@ export async function collect(): Promise<TradeMap[]> {
         const can = canWith(permsBySeat[s.id])
         return maySeeRoute({ routeRoles: b.routeRoles, routePermissions: b.routePermissions, nav: [{ to: i.to, minRole: i.minRole || undefined, permission: i.permission || undefined }] }, i.to, s.id, can)
       }).map((s) => s.name)
-      const has = isServed(t.phone) ? PHONE_HAS.find((p) => p.paths.includes(i.to) && (!p.trades || p.trades.includes(t.phone))) : undefined
-      const ph = phaseOf(i.to, isServed(t.phone) ? undefined : t.phone)
+      const has = isServed(t.phone) ? PHONE_HAS.find((p) => p.paths.includes(i.to) && matchesTrade(p, t.phone)) : undefined
+      const ph = phaseOf(i.to, DESIGN_PHASE_RULES[t.phone] ? t.phone : isServed(t.phone) ? undefined : t.phone)
       rows.push({
         trade: t.phone, section: i.section, label: i.label, path: i.to,
         permission: Array.isArray(i.permission) ? i.permission.join(' or ') : (i.permission || ''), minRole: i.minRole || '',
@@ -727,7 +797,7 @@ export function render(maps: TradeMap[]): string {
   L.push('')
   for (const m of maps) {
     L.push(`## ${m.trade.label} (\`${m.trade.phone}\`, feature set \`${m.featureSet}\`)`, '')
-    if (!isServed(m.trade.phone)) L.push('> **Design round — the phone does not serve this trade yet** (it opens the "use the website" screen). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.', '')
+    if (!isServed(m.trade.phone)) L.push('> **Built and kept OFF — the phone does not serve this trade** (it opens the "use the website" screen; the switch is VET_PHONE_ON). Phase here means: **A** what this trade does away from a desk every day · **B** useful later · **C** works on a phone, not daily · **D** desktop only, with the reason. Rules: `DESIGN_PHASE_RULES` in the script. Homes and bars: `docs/mobile/DESIGN.md`.', '')
     L.push('### Dashboard tiles by seat', '', m.tiles.note, '')
     for (const s of SEATS) {
       const t = m.tiles.bySeat[s.id] || []
@@ -761,10 +831,10 @@ export function appMenu(maps: TradeMap[]): string {
     '',
     'export const MENU: Record<string, MenuRow[]> = {',
   ]
-  for (const m of maps.filter((x) => isServed(x.trade.phone))) {
+  for (const m of maps.filter((x) => isServed(x.trade.phone) || x.trade.phone === 'vet')) {
     lines.push(`  ${m.trade.phone}: [`)
     for (const r of m.rows) {
-      const routes = PHONE_ROUTES.filter((x) => x.paths.includes(r.path) && (!x.trades || x.trades.includes(m.trade.phone))).map((x) => {
+      const routes = PHONE_ROUTES.filter((x) => x.paths.includes(r.path) && matchesTrade(x, m.trade.phone)).map((x) => {
         if (!routeFile(x.route)) fail(`PHONE_ROUTES: ${x.route} has no screen file under apps/mobile/app`)
         return { for: x.for, route: x.route }
       })
