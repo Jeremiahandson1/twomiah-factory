@@ -9,10 +9,17 @@ import path from 'node:path'
 
 /**
  * Shared-package type errors per project when it first type-checked them. Lower one as they are fixed.
- *   server: 2026-10-18, 205 (packages/tenant-backend and what it reaches); 203 on 2026-10-22 (jobs.ts PUT typed).
+ *   server: 2026-10-18, 205 (packages/tenant-backend and what it reaches); 203 on 2026-10-22 (jobs.ts PUT typed); 53 on
+ *           2026-10-29 (Hono's ContextVariableMap declares `user` once — 150 of them were c.get('user')).
  *   web:    2026-10-18, 0 (the tenant-ui screens the admin imports through web/src/shared.ts).
  */
-export const PACKAGES_BASELINE: Record<string, number> = { 'tsconfig.json': 203, 'web/tsconfig.json': 0 }
+export const PACKAGES_BASELINE: Record<string, number> = { 'tsconfig.json': 53, 'web/tsconfig.json': 0 }
+
+/**
+ * The whole Factory (apps/api, the shared packages it compiles included): its count may only go down, as the packages' does.
+ *   2026-10-29: 264 → 61 (`user` declared once; requireRole generic over the route's path — 40 c.req.param reads).
+ */
+export const FACTORY_BASELINE = 61
 
 const app = path.resolve(import.meta.dir, '..', 'apps', 'unified')
 let failed = false
@@ -52,6 +59,9 @@ for (const [project, baseline] of Object.entries(PACKAGES_BASELINE)) {
     for (const l of own) console.log('apps/api/' + l)
     console.log(`apps/api/src/unified: ${own.length} type error(s)`)
     if (own.length) failed = true
+    console.log(`apps/api (the whole Factory): ${lines.length} type error(s) (baseline ${FACTORY_BASELINE})`)
+    if (lines.length > FACTORY_BASELINE) { for (const l of lines) console.log('apps/api/' + l); console.log('apps/api: the Factory gained type errors.'); failed = true }
+    if (lines.length < FACTORY_BASELINE) console.log(`apps/api: improved — lower FACTORY_BASELINE to ${lines.length}.`)
   }
 }
 process.exit(failed ? 1 : 0)

@@ -93,7 +93,9 @@ export async function authenticate(c: Context, next: Next) {
  * Role hierarchy (highest → lowest): owner > admin > editor > viewer
  */
 export function requireRole(...roles: string[]) {
-  return async (c: Context, next: Next) => {
+  // Generic over the route's path: a plain (c: Context) handler in front of a route made Hono drop the route's :params, so
+  // every c.req.param('id') after it read as string | undefined (40 of the Factory's type errors).
+  return async <P extends string>(c: Context<any, P>, next: Next) => {
     const userRole = c.get('userRole') as string | undefined
     if (!userRole || !roles.includes(userRole)) {
       return c.json({ error: 'Forbidden — requires role: ' + roles.join(' or ') }, 403)

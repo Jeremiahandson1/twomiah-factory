@@ -15,6 +15,15 @@ export interface AuthMiddlewareDeps {
 
 export interface AuthUserContext { userId: string; companyId: string; email: string; role: string }
 
+// What `authenticate` puts on the request, declared once for every router in this package (Hono's documented way). The
+// shared routers are plain `new Hono()`, so without this `c.get('user')` (255 reads) did not type-check from any app that
+// compiles them — 150 of the Factory's 264 errors. The unified app's own AppEnv says the same thing for its routers.
+declare module 'hono' {
+  interface ContextVariableMap {
+    user: AuthUserContext
+  }
+}
+
 /**
  * Was this token signed before the account's sessions were ended (a password change or reset)? A JWT's iat is in whole
  * seconds, so the cut-off is compared in whole seconds: the new session given in the same second stays valid.
