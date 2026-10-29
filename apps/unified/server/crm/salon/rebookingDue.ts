@@ -10,6 +10,8 @@ import { rebookInterval, describeInterval, categoryKey } from '@twomiah/tenant-b
 import { serviceRecord, serviceMenu, contact, user, appointment, company } from '../../db/schema/index.ts'
 import { calendarDateIn, shiftDays, type SalonClock } from './days.ts'
 
+const dayStr = (d: Date) => d.toISOString().slice(0, 10)
+
 export interface DueOptions {
   /** Due within this many days counts as due. */
   windowDays?: number
@@ -107,8 +109,7 @@ export function createRebookingDue(db: any, clock: SalonClock) {
           intervalBasis: interval.basis,
           intervalNote: describeInterval(interval),
           visitsInRhythm: visits.length,
-          // the day on the SHOP's calendar (a 9 PM visit is not the next day's, as UTC read it)
-          dueDate: calendarDateIn(new Date(new Date(last.performedAt).getTime() + interval.days * 86400000), tz),
+          dueDate: dayStr(new Date(new Date(last.performedAt).getTime() + interval.days * 86400000)),
         }
       })
       .filter((r): r is any => !!r)

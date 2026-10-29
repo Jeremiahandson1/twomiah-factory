@@ -87,7 +87,7 @@ export const EVENTS: ScreenSpec[] = [
   {
     id: 'overdue-invoices', title: 'Payments overdue', any: ['invoices:read'], feature: 'invoices',
     list: { path: '/api/invoices', query: { status: 'overdue' } },
-    rows: (i) => ({ id: i.eventId || i.id, key: i.id, title: i.number ? `Invoice ${i.number}` : 'Invoice', subtitle: i.contact?.name || i.contactName, meta: join(money(i.balance), i.dueDate && `due ${dayOnly(i.dueDate)}`), badge: 'Overdue', tone: 'danger',
+    rows: (i) => ({ id: i.eventId || i.id, key: i.id, title: i.number ? `Invoice ${i.number}` : 'Invoice', subtitle: join(i.contact?.name || i.contactName, i.dueDate && `due ${dayOnly(i.dueDate)}`), meta: money(i.balance), badge: 'Overdue', tone: 'danger',
       ...(i.eventId ? { open: { spec: 'events', id: i.eventId } } : {}) }),
     empty: { title: 'Nothing overdue', body: 'Invoices past their due date show here.' },
   },

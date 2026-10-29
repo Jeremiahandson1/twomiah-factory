@@ -271,5 +271,28 @@ Active patients; visits and enrollments have no date/status filter; the activity
 
 `scripts/mobile-parity.ts` builds each trade's menu with the desktop's own code and reads each dashboard's tiles from its page; it
 **fails** when a tile's anchor text leaves the source. `tests/mobile/parity-map.test.ts` checks every menu item, each trade's phases
-and tiles, and that the phone still has none of the five. `tests/mobile/design-preview.test.ts` checks each mock-up exists, uses the
+and tiles, and (since build round 1) that the phone serves salon, restaurant, bar and store and keeps the vet's screens behind their switch. `tests/mobile/design-preview.test.ts` checks each mock-up exists, uses the
 five-slot bars, and says nothing the trade must not imply.
+
+## Build round 1 (salon, restaurant, bar, store; vet built and kept OFF)
+
+Owner's answers of 2026-10-29 are applied as written (salon stylist sees no prices on phone and desktop; front desk may check in;
+restaurant captains read-only and a manager may record a deposit already received; bar closes the night on the desktop; store "Packed"
+is the phone's word for `fulfilled`; vet stays closed for signups and off in the store app). Everything else took this document's
+recommendation.
+
+**What differs from the mock-ups, on purpose**
+- "Services this month" (salon) and "Stock to count" (bar) are not tiles: the server has no list or no such idea, and a tile must open
+  exactly what it counts. The bar's count is a tab instead.
+- The salon bar has Rebook where the design had Messages; Messages, the restaurant Lead Inbox tile and the bar clock are not built.
+- Bar "Open inquiries" stays all-dates (the future-only question is still open for the owner).
+- Screens are drawn from data (`apps/mobile/src/trades/*.ts`), not one hand-built file each, so one test (`tests/mobile/trade-screens.test.ts`)
+  holds every screen to the standing rules.
+- Left alone: `GET /api/register/day` still sends `drawerInCents` to a bartender seat. The phone never calls it and the desktop's close-out
+  reads it; it needs an owner decision.
+
+**Buying a shipping label (store)** — the server's purchase flow is tested end to end with the carrier stubbed (`labels` in
+`apps/unified/tests/store-orders.test.ts`): rates, buy at the chosen rate, label and tracking stored, one label per order even from two
+screens, a cancelled order refused. NOT covered: the live carrier, the carrier failing, no carrier account, a seat without
+`shipping:label`. The button ships ON behind `LABEL_BUY_ON` in `apps/mobile/src/trades/store.ts`, shows the price before it buys, and
+should be tried once with a real carrier account before it is relied on. Set the switch to `false` and the button is absent.

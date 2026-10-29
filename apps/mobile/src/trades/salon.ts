@@ -32,8 +32,8 @@ export const SALON_TILES: TileDef[] = [
 const apptTone = (s: string): Row['tone'] => (s === 'completed' ? 'success' : s === 'checked_in' || s === 'in_chair' ? 'info' : s === 'cancelled' || s === 'no_show' ? 'danger' : 'neutral')
 const apptRow = (a: any): Row & { id: string } => ({
   id: a.id, key: a.id, title: a.clientName || 'Client',
-  subtitle: join(clock(a.startTime) && `${clock(a.startTime)}${a.endTime ? '–' + clock(a.endTime) : ''}`, a.serviceName, a.stylistFirstName),
-  meta: join(a.station, money(a.quotedPrice)), badge: words(a.status), tone: apptTone(a.status),
+  subtitle: join(a.serviceName, a.stylistFirstName, a.station),
+  meta: clock(a.startTime), badge: words(a.status), tone: apptTone(a.status),
 })
 const steps = (f: any): string | undefined => {
   const a = Array.isArray(f) ? f : typeof f === 'string' ? (() => { try { return JSON.parse(f) } catch { return [] } })() : []

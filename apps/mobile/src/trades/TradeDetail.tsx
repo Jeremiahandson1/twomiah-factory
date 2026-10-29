@@ -51,9 +51,9 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
               return (
                 <View key={si} style={{ gap: space[2] }}>
                   {s.title ? <SectionHeader title={s.title} /> : null}
-                  {fields.length ? <Group>{fields.map(({ f, v }, i) => <ListRow key={f.label} title={f.label} meta={String(v)} divider={i < fields.length - 1} />)}</Group> : null}
+                  {fields.length ? <Group>{fields.map(({ f, v }, i) => String(v).length > 26 || String(v).includes('\n') ? <ListRow key={f.label} title={f.label} subtitle={String(v)} divider={i < fields.length - 1} /> : <ListRow key={f.label} title={f.label} meta={String(v)} divider={i < fields.length - 1} />)}</Group> : null}
                   {links.length ? <Group>{links.map((l, i) => <ListRow key={l.label} title={l.label} icon={l.icon} divider={i < links.length - 1} onPress={() => { Linking.openURL(l.url) }} />)}</Group> : null}
-                  {rows.length ? <Group>{rows.map((r, i) => <ListRow key={r.key} title={r.title} subtitle={r.subtitle} meta={r.meta} badge={r.badge} badgeTone={r.tone} divider={i < rows.length - 1} />)}</Group>
+                  {rows.length ? <Group>{rows.map((r, i) => { const long = !!r.meta && r.meta.length > 12; return <ListRow key={r.key} title={r.title} subtitle={long ? [r.subtitle, r.meta].filter(Boolean).join(' · ') : r.subtitle} meta={long ? undefined : r.meta} badge={r.badge} badgeTone={r.tone} divider={i < rows.length - 1} /> })}</Group>
                     : !fields.length && !links.length && s.empty ? <DText variant="callout" tone="textSecondary">{s.empty}</DText> : null}
                 </View>
               )

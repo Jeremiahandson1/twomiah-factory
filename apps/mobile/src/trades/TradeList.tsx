@@ -30,7 +30,11 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
   const { rows, total, loading, error, refresh, loadMore } = useList(spec && mayUse(spec, can, hasFeature) ? url : null, 25, spec?.pick)
   if (!spec) return <Screen title="Not found"><EmptyState icon="alert-circle" title="This screen is not available" body="Open it again from the home screen." /></Screen>
   if (!mayUse(spec, can, hasFeature)) return <Screen title={spec.title} onBack={tab ? undefined : () => router.back()}><EmptyState icon="lock-closed" title="Not for this seat" body="Your role does not include this screen." /></Screen>
-  const items = rows.map((r) => { const v = spec.rows(r, { userId: user?.id }); rowCache.set(`${spec.id}:${v.id}`, r); return v })
+  // A long figure beside the title squeezes the title to a sliver: it goes to the second line instead (only a short one stays at the right).
+  const items = rows.map((r) => {
+    const v = spec.rows(r, { userId: user?.id }); rowCache.set(`${spec.id}:${v.id}`, r)
+    return v.meta && v.meta.length > 12 ? { ...v, subtitle: [v.subtitle, v.meta].filter(Boolean).join(' · '), meta: undefined } : v
+  })
   return (
     <Screen title={spec.title} onBack={tab ? undefined : () => router.back()} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false) }}>
       <View style={{ gap: space[3] }}>
