@@ -165,3 +165,92 @@ if (want('bar')) describe('bar: every tile opens exactly what it counts', () => 
     for (const p of ['/api/bar/menu?tile=nope', '/api/bar/taps?tile=nope', '/api/stock/orders?tile=nope', '/api/schedule/time-off?tile=nope']) expect({ p, ok: (await get(p)).ok }).toEqual({ p, ok: false })
   })
 })
+
+// ═════════════════════════ store ═════════════════════════
+if (want('store')) describe('store: every tile opens exactly what it counts', () => {
+  let site: Site
+  beforeAll(async () => {
+    site = await serve('store', ['dashboard', 'contacts', 'invoices', 'products', 'orders', 'reviews'], [['manager', 'manager'], ['staff', 'field'], ['viewer', 'viewer'], ['admin', 'admin']])
+    const { t, companyId } = site, S = t.schema
+    let n = 0
+    const order = (status: string, extra: any = {}) => ins(t, S.storeOrder, { companyId, provider: 'stripe', providerSessionId: `ph_${++n}`, customerEmail: `b${n}@x.test`, subtotalCents: 1000, totalCents: 1000, status, ...extra })
+    const packA = await order('paid'); const packB = await order('paid', { fulfillment: 'pickup' }); const placed = await order('paid', { supplierStatus: 'placed' })
+    const gift = await order('paid', { fulfillment: 'digital' }); const pending = await order('pending'); const cancelled = await order('cancelled'); const fulfilled = await order('fulfilled'); const shipped = await order('shipped')
+    const shippedAtSupplier = await order('shipped', { supplierStatus: 'placed' }); const refunded = await order('refunded', { refundedCents: 1000 })
+    void packA; void packB; void placed; void shippedAtSupplier; void refunded
+    const product = await ins(t, S.storeProduct, { companyId, slug: 'mug', name: 'Blue Mug', status: 'active' })
+    const review = (status: string) => ins(t, S.productReview, { companyId, productId: product.id, authorName: 'Rae', rating: 5, status })
+    await review('pending'); await review('pending'); const approved = await review('approved'); const rejected = await review('rejected')
+    site.excluded = []
+    site.excludedOnly = {
+      'to-pack': [gift.id, pending.id, cancelled.id, fulfilled.id, shipped.id],
+      'at-supplier': [packA.id, gift.id, fulfilled.id],
+      orders: [pending.id, cancelled.id],
+      'reviews-to-approve': [approved.id, rejected.id],
+    }
+  }, 240_000)
+  afterAll(() => site?.stop())
+  for (const who of ['owner', 'admin', 'manager']) {
+    test(`${who}: the four tiles, each list equals its number`, async () => {
+      const home = await homeAs(site, who, 'store')
+      expect(home.ids).toEqual(['to-pack', 'at-supplier', 'orders', 'reviews-to-approve'])
+      const said = await holdTilesToTheirLists(site, home)
+      expect(said).toEqual({ 'to-pack': 3, 'at-supplier': 2, orders: 8, 'reviews-to-approve': 2 })
+    })
+  }
+  for (const who of ['staff', 'viewer']) {
+    test(`${who}: whatever tiles this seat gets, each list equals its number, and no review tile without reviews:read`, async () => {
+      const home = await homeAs(site, who, 'store')
+      await holdTilesToTheirLists(site, home)
+      const allowed = (await import('../../mobile/src/trades/store.ts')).STORE_TILES
+      expect(home.ids.every((i: string) => allowed.some((t: any) => t.id === i))).toBe(true)
+    })
+  }
+  test('unknown ?tile= values are refused', async () => {
+    await homeAs(site, 'owner', 'store')
+    for (const p of ['/api/admin/orders?tile=nope', '/api/admin/reviews?tile=nope']) expect({ p, ok: (await get(p)).ok }).toEqual({ p, ok: false })
+  })
+})
+
+// ═════════════════════════ vet (built, kept off) ═════════════════════════
+if (want('vet')) describe('vet: every tile opens exactly what it counts', () => {
+  let site: Site
+  const at = (h: number, off = 0) => { const d = new Date(); d.setUTCHours(h, 0, 0, 0); return new Date(d.getTime() + off * 86_400_000) }
+  const day = (off: number) => new Date(Date.now() + off * 86_400_000).toISOString().slice(0, 10)
+  beforeAll(async () => {
+    site = await serve('vet', ['dashboard', 'contacts', 'invoices', 'team', 'patient_records', 'appointment_scheduling', 'vaccinations', 'reminders_recall'], [['manager', 'manager'], ['tech', 'field'], ['desk', 'viewer']])
+    const { t, companyId } = site, S = t.schema
+    const owner = await ins(t, S.contact, { companyId, name: 'Pat Owner', type: 'client' })
+    const appt = (h: number, status: string, off = 0) => ins(t, S.appointment, { companyId, ownerId: owner.id, startTime: at(h, off), endTime: at(h + 1, off), status, type: 'wellness' })
+    await appt(9, 'scheduled'); await appt(11, 'checked_in'); await appt(13, 'completed')
+    const cancelled = await appt(10, 'cancelled'); const noShow = await appt(12, 'no_show'); const tomorrow = await appt(9, 'scheduled', 1); const yesterday = await appt(9, 'completed', -1)
+    const pet = (name: string, extra: any = {}) => ins(t, S.patient, { companyId, ownerId: owner.id, name, species: 'dog', ...extra })
+    const rex = await pet('Rex'); const bo = await pet('Bo'); const gone = await pet('Gone', { deceased: true })
+    const shot = (patientId: string, vaccine: string, given: string, due: string | null) => ins(t, S.vaccination, { companyId, patientId, vaccine, givenDate: given, dueDate: due })
+    await shot(rex.id, 'Rabies', '2025-01-01', day(-1)); await shot(bo.id, 'DHPP', '2024-01-01', day(-40))
+    const renewedOld = await shot(rex.id, 'Bordetella', '2023-01-01', day(-300)); await shot(rex.id, 'Bordetella', '2025-02-01', day(300))
+    const goneShot = await shot(gone.id, 'Rabies', '2024-01-01', day(-5))
+    await shot(bo.id, 'Lyme', '2025-06-01', day(0)); await shot(rex.id, 'Heartworm', '2025-06-01', day(30))
+    const far = await shot(rex.id, 'Parvo', '2025-06-01', day(31))
+    site.excluded = []
+    site.excludedOnly = {
+      'appointments-today': [cancelled.id, noShow.id, tomorrow.id, yesterday.id],
+      'vaccines-overdue': [renewedOld.id, goneShot.id, far.id],
+      'vaccines-due-30': [far.id, renewedOld.id, goneShot.id],
+      'active-patients': [gone.id],
+    }
+  }, 240_000)
+  afterAll(() => site?.stop())
+  for (const who of ['owner', 'manager', 'tech', 'desk']) {
+    test(`${who}: the four tiles, each list equals its number`, async () => {
+      const home = await homeAs(site, who, 'vet')
+      expect(home.ids).toEqual(['appointments-today', 'vaccines-overdue', 'vaccines-due-30', 'active-patients'])
+      const said = await holdTilesToTheirLists(site, home)
+      expect(said).toEqual({ 'appointments-today': 3, 'vaccines-overdue': 2, 'vaccines-due-30': 2, 'active-patients': 2 })
+    })
+  }
+  test('unknown ?tile= values are refused', async () => {
+    await homeAs(site, 'owner', 'vet')
+    for (const p of ['/api/appointments?tile=nope', '/api/reminders/due?tile=nope', '/api/patients?tile=nope']) expect({ p, ok: (await get(p)).ok }).toEqual({ p, ok: false })
+  })
+})

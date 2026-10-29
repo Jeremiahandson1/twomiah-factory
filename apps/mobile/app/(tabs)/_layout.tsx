@@ -28,6 +28,7 @@ const ALL_TABS = [
   'units', 'parts', 'ai-trade',
   'salon-book', 'salon-myday', 'salon-clients', 'salon-rebook',
   'trade-events', 'trade-overdue', 'bar-tonight', 'bar-menu', 'bar-count', 'bar-shifts',
+  'store-orders', 'store-stock', 'store-reviews', 'vet-today', 'vet-patients', 'vet-recall',
 ]
 
 export default function TabLayout() {

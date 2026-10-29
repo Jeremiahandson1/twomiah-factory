@@ -67,8 +67,10 @@ export async function homeAs(site: Site, who: string, vertical: string) {
   const perms: string[] = Array.isArray(step.data.permissions) ? step.data.permissions.map(String) : []
   const feats: string[] = (step.data.company?.enabledFeatures || []).map((f: string) => String(f).toLowerCase())
   const ctx = { can: (p: string) => app.roles.permits(perms, p), hasFeature: (f: string) => feats.includes(f.toLowerCase()) }
-  const v = app.detect.detectVertical(step.data.company?.vertical, step.data.company?.enabledFeatures) as any
-  expect(v).toBe(vertical)
+  const detected = app.detect.detectVertical(step.data.company?.vertical, step.data.company?.enabledFeatures) as any
+  // Vet is built and kept OFF (VET_PHONE_ON): the app says 'unavailable' for it, and the tiles are still exercised here as the switch would show them.
+  const v = vertical === 'vet' ? (expect(detected).toBe('unavailable'), 'vet') : detected
+  if (vertical !== 'vet') expect(v).toBe(vertical)
   const answers: Record<string, any> = {}
   for (const src of sourcesFor(v, ctx)) { const r = await get(src); if (r.ok) answers[src] = r.data }
   const shown = resolveTiles(v, ctx, answers)

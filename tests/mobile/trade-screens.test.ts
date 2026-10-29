@@ -52,7 +52,7 @@ for (const trade of TRADES) {
     if (t.screen === 'trade') {
       const s = specFor(t.spec || '')
       check(`${trade}/${t.id}: opens a kit screen that exists`, !!s)
-      check(`${trade}/${t.id}: that screen lists exactly the tile's request`, !!s && reqUrl(s.list) === reqUrl(t.list), s && [reqUrl(s.list), reqUrl(t.list)])
+      check(`${trade}/${t.id}: that screen lists exactly the tile's request`, !!s && [reqUrl(s.list), ...(s.chips || []).map((c) => reqUrl({ path: s.list.path, query: { ...(s.list.query || {}), ...c.query } }))].includes(reqUrl(t.list)), s && [reqUrl(s.list), reqUrl(t.list)])
     }
     check(`${trade}/${t.id}: banner is short plain words`, t.banner.length <= 28)
   }

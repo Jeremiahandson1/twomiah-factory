@@ -15,6 +15,8 @@ import type { Vertical } from '../vertical/verticals'
 import { SALON_TILES } from '../trades/salon'
 import { RESTAURANT_TILES } from '../trades/restaurant'
 import { BAR_TILES } from '../trades/bar'
+import { STORE_TILES } from '../trades/store'
+import { VET_TILES } from '../trades/vet'
 
 /** One request: a path and its query, in the order written. */
 export interface Req { path: string; query?: Record<string, string> }
@@ -140,6 +142,8 @@ export function tilesFor(vertical: Vertical): TileDef[] {
     case 'salon': return SALON_TILES
     case 'restaurant': return RESTAURANT_TILES
     case 'bar': return BAR_TILES
+    case 'store': return STORE_TILES
+    case 'vet': return VET_TILES
     case 'fieldservice': return jobsFamily('Service calls today')
     case 'contractor': case 'basic': case 'landscaping': return jobsFamily('Jobs today')
     default: return []

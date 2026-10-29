@@ -38,5 +38,19 @@ export const BAR_TABS: TabDef[] = [
   tab('bar-count', 'Count', 'clipboard', { permission: 'bar:register', feature: 'bar_stock' }),
   more(),
 ]
-export const STORE_TABS: TabDef[] = []
-export const VET_TABS: TabDef[] = []
+/** Store: the packing bench. Orders first; stock and reviews by permission. */
+export const STORE_TABS: TabDef[] = [
+  tab('dashboard', 'Home', 'home', { permission: 'dashboard:read' }),
+  tab('store-orders', 'Orders', 'receipt', { permission: 'orders:read' }),
+  tab('store-stock', 'Stock', 'cube', { permission: 'products:read' }),
+  tab('store-reviews', 'Reviews', 'star', { permission: 'reviews:read' }),
+  more(),
+]
+/** Vet (kept off): today, the patient look-up, recall. */
+export const VET_TABS: TabDef[] = [
+  tab('dashboard', 'Home', 'home', { permission: 'dashboard:read' }),
+  tab('vet-today', 'Today', 'calendar', { permission: 'contacts:read', feature: 'appointment_scheduling' }),
+  tab('vet-patients', 'Patients', 'paw', { permission: 'contacts:read', feature: 'patient_records' }),
+  tab('vet-recall', 'Recall', 'chatbubbles', { permission: 'contacts:read', feature: 'reminders_recall' }),
+  more(),
+]
