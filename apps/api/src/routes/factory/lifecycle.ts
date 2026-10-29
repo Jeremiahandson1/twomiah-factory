@@ -16,6 +16,14 @@ import { ourPremiumSiteOrigin, ourSiteOrigin, mayReturnTo } from '../../services
 import { reconcileAliasesInBackground, ALIAS_TENANT_COLUMNS } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
+/** Does the business's own address answer over HTTPS yet? Any HTTP reply is yes; no reply (DNS, TLS, timeout) is no. */
+export async function siteOpens(domain: string, fetcher: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const res = await fetcher('https://' + domain + '/', { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(8_000) })
+    return res.status > 0 && res.status < 500
+  } catch { return false }
+}
+
 export function registerLifecycleRoutes(factory: FactoryApp) {
 
 // ─── SendGrid Inbound Parse webhook ─────────────────────────────────────────
@@ -636,7 +644,7 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, render_backend_url, products, website_url')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, render_backend_url, products, website_url, email, admin_email')
       .eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     if (!tenant.domain) return c.json({ status: 'unconfigured', domain: null, nameservers: [] })
@@ -645,8 +653,15 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
     const zoneStatus = tenant.cloudflare_zone_id ? await getCloudflareZoneStatus(tenant.cloudflare_zone_id).catch(() => null) : null
     // The owner is watching this page for "active": set the addresses up the moment it is.
     if (zoneStatus?.status === 'active') reconcileAliasesInBackground(tenant)
+    // "Live" means the site OPENS at the address — not only that DNS is set. A domain bought through us also waits on the
+    // registrar's email check (Namecheap mails the registrant a verify link; until it is clicked the address does not
+    // show the site — Perch and Prarie, 10/29: the page said live, the links did not work). Any HTTP answer from the
+    // address counts as open; no answer in 8 s is "waiting".
+    const opens = zoneStatus?.status === 'active' ? await siteOpens(tenant.domain) : false
     return c.json({
-      status: zoneStatus?.status === 'active' ? 'active' : 'pending_nameservers',
+      status: zoneStatus?.status !== 'active' ? 'pending_nameservers' : opens ? 'active' : 'pending_site',
+      // Where the registrar's verify email went (a domain bought through us), so the page can say which inbox to check.
+      ...(tenant.domain_registrar && tenant.domain_registrar !== 'byod' ? { verifyEmail: tenant.admin_email || tenant.email || null } : {}),
       domain: tenant.domain,
       nameservers: zoneStatus?.nameServers || [],
       // 'byod' = the customer's own registrar, where THEY set the nameservers; anything else = bought through us, and

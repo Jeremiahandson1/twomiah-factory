@@ -31,7 +31,9 @@ import { money } from '@twomiah/tenant-ui/src/money'
 interface DomainQuote { firstYearCents: number; renewalCents: number; renewsHigher: boolean }
 interface DomainCheck { domain: string; available: boolean; premium?: boolean; quote?: DomainQuote | null; suggestions?: { domain: string; quote?: DomainQuote }[]; errorMessage?: string }
 // registrar 'byod' = the owner's own registrar, where they set the nameservers; otherwise bought through Twomiah.
-interface DomainStatus { status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain?: string | null; nameservers?: string[]; registrar?: string | null }
+// pending_site: DNS is set, the site does not open at the address yet (for a domain bought through us, usually the
+// registrar's verify email not clicked yet). verifyEmail: the inbox the registrar wrote to, for a domain bought through us.
+interface DomainStatus { status: 'unconfigured' | 'pending_nameservers' | 'pending_site' | 'active' | 'partial'; domain?: string | null; nameservers?: string[]; registrar?: string | null; verifyEmail?: string | null }
 
 const usd = (cents: number) => money((cents / 100))
 /** server/modules/domain.ts DOMAIN_RE. */
@@ -63,7 +65,7 @@ export default function DomainPage() {
     // Back from Stripe: ask every 8s until the registration lands; while nameservers settle, every 30s.
     const pollMs = justRegistered && status.status === 'unconfigured' ? 8_000 : 30_000
     const t = setInterval(() => {
-      if (status.status === 'pending_nameservers' || status.status === 'partial' || (justRegistered && status.status === 'unconfigured')) void fetchStatus()
+      if (status.status === 'pending_nameservers' || status.status === 'pending_site' || status.status === 'partial' || (justRegistered && status.status === 'unconfigured')) void fetchStatus()
     }, pollMs)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,6 +131,7 @@ export default function DomainPage() {
           <div className="text-sm">
             <div className="font-semibold text-amber-900 dark:text-amber-100">Payment received — registering your domain…</div>
             <div className="mt-0.5 text-amber-900 dark:text-amber-200">This usually takes 30-60 seconds. This page updates the moment the registrar confirms. If it doesn't update within 2 minutes, refresh and we'll show you what's up.</div>
+            <div className="mt-2 text-amber-900 dark:text-amber-200"><span className="font-semibold">One thing for you to do:</span> the registrar, Namecheap, will email you asking you to verify your email address. Open that email and click the verify link — your website does not open at the new address until you do.</div>
           </div>
         </div>
       )}
@@ -155,6 +158,22 @@ export default function DomainPage() {
         </section>
       )}
 
+      {status.status === 'pending_site' && status.domain && (
+        <section className="card border-l-4 border-l-amber-400 p-5">
+          <div className="flex items-start gap-4">
+            <AlertCircle className="mt-0.5 h-6 w-6 flex-shrink-0 text-amber-700 dark:text-amber-300" />
+            <div className="min-w-0 flex-1 space-y-3 text-sm text-gray-700 dark:text-slate-200">
+              <h2 className="text-lg font-semibold text-gray-900 break-words dark:text-slate-100">{status.domain} is almost ready</h2>
+              <p>The address is set up, but your website doesn't open there yet.</p>
+              {ours
+                ? <VerifyEmailStep email={status.verifyEmail} />
+                : <p>It usually opens within an hour of the nameserver change. This page shows it as live the moment it does.</p>}
+              <p className="text-xs text-gray-600 dark:text-slate-400">Until then, your website stays at its current address, so nothing is down.</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {(status.status === 'pending_nameservers' || status.status === 'partial') && status.domain && (
         <section className="card border-l-4 border-l-amber-400 p-5">
           <div className="flex items-start gap-4">
@@ -163,7 +182,8 @@ export default function DomainPage() {
               {ours ? (
                 <>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Setting up {status.domain}</h2>
-                  <p>We registered it and are pointing it at your website — there's nothing for you to do. It usually goes live within 15 minutes.</p>
+                  <p>We registered it and are pointing it at your website.</p>
+                  <VerifyEmailStep email={status.verifyEmail} />
                 </>
               ) : (
                 <>
@@ -288,6 +308,17 @@ export default function DomainPage() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/** A domain bought through us: the registrar's email check is the owner's one step, and the site waits on it. */
+function VerifyEmailStep({ email }: { email?: string | null }) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+      <div className="font-semibold">One thing for you to do: verify your email with Namecheap</div>
+      <p className="mt-1">Namecheap, the registrar, sent an email{email ? <> to <span className="font-semibold break-all">{email}</span></> : null} asking you to verify your email address. Open it and click the verify link. Can't find it? Check spam for a message from Namecheap.</p>
+      <p className="mt-1">Your website opens at the new address once that's done — usually within an hour. This page shows it as live the moment it does.</p>
     </div>
   )
 }
