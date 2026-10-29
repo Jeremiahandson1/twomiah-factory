@@ -32,7 +32,7 @@ export function eventTileCondition(tile: EventTile, ev: any, today: string) {
     case 'today': return and(inArray(ev.status, [...HELD_STATUSES]), eq(ev.eventDate, today))!
     case 'next30': return and(inArray(ev.status, [...HELD_STATUSES]), gte(ev.eventDate, today), lte(ev.eventDate, dayPlus(today, 30)))!
     case 'inquiries': return eq(ev.status, 'enquiry')
-    case 'confirmed': return eq(ev.status, 'confirmed')
+    case 'confirmed': return and(eq(ev.status, 'confirmed'), gte(ev.eventDate, today))!
   }
 }
 

@@ -13,7 +13,8 @@ import { join } from 'node:path'
 // The tagged-template opener, spelled so this script is not itself 'raw SQL outside server/data/' (rulebook §2): the strings below QUOTE the server's SQL.
 const SQL_TAG = 'sql' + String.fromCharCode(96)
 const ROOT = join(import.meta.dir, '../../..')
-interface Mutation { name: string; file: string; find: string; replace: string; trade: string }
+interface Mutation { name: string; file: string; find: string; replace: string; trade: string; /** the test file that must fail (default: the original trades') */ test?: string }
+const TRADE_TEST = 'tests/mobile-trade-tiles.test.ts'
 const TB = 'packages/tenant-backend/src'
 const SV = 'apps/unified/server'
 const MUTATIONS: Mutation[] = [
@@ -35,6 +36,11 @@ const MUTATIONS: Mutation[] = [
   { name: 'home care: a resolved no-show is open', file: `${SV}/data/homecarePlanning.ts`, find: "na.company_id = ${co} AND na.status = 'open'", replace: "na.company_id = ${co}", trade: 'homecare' },
   { name: 'home care: a sent incident response is still due', file: `${SV}/data/homecarePlanning.ts`, find: 'AND inc.response_sent_date IS NULL', replace: '', trade: 'homecare' },
   { name: 'home care: an inactive client is active', file: `${SV}/data/homecarePlanning.ts`, find: "where: " + SQL_TAG + "c.company_id = ${co} AND c.is_active = true`", replace: "where: " + SQL_TAG + "c.company_id = ${co}`", trade: 'homecare' },
+  // salon, restaurant, bar, store, vet (tests/mobile-trade-tiles.test.ts)
+  { name: 'salon: a cancelled appointment counts as today', file: `${SV}/crm/salon/tileConditions.ts`, find: "LIVE_STATUSES = ['cancelled', 'no_show']", replace: "LIVE_STATUSES = ['no_show']", trade: 'salon', test: TRADE_TEST },
+  { name: 'salon: a no-show counts as today', file: `${SV}/crm/salon/tileConditions.ts`, find: "LIVE_STATUSES = ['cancelled', 'no_show']", replace: "LIVE_STATUSES = ['cancelled']", trade: 'salon', test: TRADE_TEST },
+  { name: 'salon: a paused membership is a member', file: `${SV}/crm/salon/tileConditions.ts`, find: "eq(enrollment.status, 'active')", replace: "" + SQL_TAG + "true`", trade: 'salon', test: TRADE_TEST },
+  { name: 'salon: a cancelled future appointment takes a client off the rebook list', file: `${SV}/crm/salon/rebookingDue.ts`, find: 'gt(appointment.startTime, new Date()), liveAppointment(appointment)', replace: 'gt(appointment.startTime, new Date())', trade: 'salon', test: TRADE_TEST },
 ]
 
 const which = process.argv.slice(2).map(Number).filter(Boolean)
@@ -51,7 +57,7 @@ MUTATIONS.forEach((m, i) => {
   if (!original.includes(m.find)) { console.log(`  ?? ${i + 1}. ${m.name} — the text to mutate is not in ${m.file} any more; update this script`); survived++; return }
   originals.set(m.file, original)
   writeFileSync(path, original.replace(m.find, m.replace))
-  const r = spawnSync('bun', ['test', '--timeout', '240000', 'tests/mobile-home-tiles.test.ts'], { cwd: join(ROOT, 'apps/unified'), env: { ...process.env, ONLY: m.trade }, encoding: 'utf8', timeout: 900_000 })
+  const r = spawnSync('bun', ['test', '--timeout', '240000', m.test || 'tests/mobile-home-tiles.test.ts'], { cwd: join(ROOT, 'apps/unified'), env: { ...process.env, ONLY: m.trade }, encoding: 'utf8', timeout: 900_000 })
   restore()
   const failed = r.status !== 0
   if (!failed) survived++
