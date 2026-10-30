@@ -214,7 +214,8 @@ describe('another customer sees nothing of it', () => {
   test('a file on Lee’s other job reaches Lee once shared, grouped under that job', async () => {
     expect((await share('manager', 'photos', f.lee2Photo, true)).status).toBe(200)
     const r = await portalList('lee')
-    const by = Object.groupBy(r.body.data as any[], (i: any) => i.jobAddress)
+    const by: Record<string, any[]> = {}
+    for (const i of r.body.data as any[]) (by[i.jobAddress] ||= []).push(i)
     expect(Object.keys(by).sort()).toEqual(['1 Shingle Way, Akron', '9 Gable Court, Akron'])
     expect((by['9 Gable Court, Akron'] as any[]).map((i) => i.name)).toEqual(['Gable finished'])
   })

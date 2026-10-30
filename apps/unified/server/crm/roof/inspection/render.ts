@@ -119,7 +119,7 @@ export async function renderReportPdf(view: ReportView, readImage: (mediaUrl: st
         const x = LEFT + k * (CELL + GAP)
         const raw = await readImage(p.url)
         const img = raw ? await forPdf(raw) : null
-        if (img) doc.image(img, x, y, { fit: [CELL, IMG_H], align: 'left', valign: 'top' })
+        if (img) doc.image(img, x, y, { fit: [CELL, IMG_H] })
         else { doc.rect(x, y, CELL, IMG_H).fill('#e5e7eb'); doc.fillColor('#6b7280').font('Helvetica').fontSize(10).text('Photo not available', x, y + IMG_H / 2 - 5, { width: CELL, align: 'center', lineBreak: false }) }
         let ty = y + IMG_H + 6
         if (p.caption) { doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827').text(p.caption, x, ty, { width: CELL, height: 13, ellipsis: true, lineBreak: false }); ty += 13 }

@@ -245,7 +245,7 @@ describe('the private link', () => {
 
 describe('who may do what', () => {
   const doors = async (who: string) => {
-    const g = (p: string, init: any = {}) => as(who)(p, init).then((r) => r.status)
+    const g = async (p: string, init: any = {}) => (await as(who)(p, init)).status
     return {
       list: await g(`/api/inspection-reports?jobId=${jobA}`),
       read: await g(`/api/inspection-reports/${ids.reportA}`),
