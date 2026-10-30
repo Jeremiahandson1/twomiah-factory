@@ -477,6 +477,8 @@ a[href^="mailto:"], .contact-section__value, address, p a, dd a, td a { overflow
 .book-step h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 18px; font-weight: 700; }
 .book-zip label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 18px; }
 .book-zip input { display: block; margin-top: 6px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; max-width: 140px; }
+.book-who label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 18px; }
+.book-who select { display: block; margin-top: 6px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; max-width: 280px; background: #fff; }
 .book-dates { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .book-date { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; cursor: pointer; text-align: center; display: flex; flex-direction: column; gap: 4px; font-family: inherit; transition: border-color .15s, background .15s; }
 .book-date:hover { border-color: var(--brand); }

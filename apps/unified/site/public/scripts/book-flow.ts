@@ -61,7 +61,11 @@
   var loadedAt = String(Date.now())
   root.querySelectorAll('input[name="t"]').forEach(function (i) { i.value = loadedAt })
 
+  var whoSelect = document.getElementById('book-who')
+  var who = function () { return whoSelect ? whoSelect.value : '' }
   var zip = function () { return zipInput ? zipInput.value.trim() : '' }
+  // The stylist asked for, as a query string piece (the server offers only that person's days and times).
+  var whoQuery = function (first) { return who() ? (first ? '?' : '&') + 'who=' + encodeURIComponent(who()) : '' }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] }) }
   // A YYYY-MM-DD is a calendar day, not an instant: format it as the day itself, whatever the visitor's zone.
   var day = function (iso, opts) { var p = iso.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).toLocaleDateString('en-US', Object.assign({ timeZone: 'UTC' }, opts)) }
@@ -89,7 +93,7 @@
   function loadDates() {
     stepSlot.hidden = true; stepForm.hidden = true; step('date')
     datesEl.innerHTML = '<p class="book-loading">Finding open days…</p>'
-    getJson(api + '/dates' + (zip() ? '?zip=' + encodeURIComponent(zip()) : '')).then(function (body) {
+    getJson(api + '/dates' + (zip() ? '?zip=' + encodeURIComponent(zip()) + whoQuery(false) : whoQuery(true))).then(function (body) {
       var dates = body.data || []
       if (!dates.length) {
         datesEl.innerHTML = '<p class="book-empty">No open days right now.</p>'
@@ -106,7 +110,7 @@
   function loadTimes() {
     stepSlot.hidden = false; stepForm.hidden = true; step('slot')
     slotsEl.innerHTML = '<div class="book-slots-skeleton">' + new Array(9).join('<div class="book-slot-skel"></div>') + '</div>'
-    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + (token ? '&token=' + encodeURIComponent(token) : '')
+    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + whoQuery(false) + (token ? '&token=' + encodeURIComponent(token) : '')
     getJson(api + '/times' + q).then(function (body) {
       var times = body.data || []
       slotsEl.innerHTML = times.length
@@ -131,6 +135,7 @@
     stepForm.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
   if (zipInput) zipInput.addEventListener('change', loadDates)
+  if (whoSelect) whoSelect.addEventListener('change', loadDates)
 
   var tipRow = root.querySelector('.book-tip-row')
   if (tipRow) tipRow.addEventListener('click', function (e) {
@@ -153,6 +158,7 @@
     } else {
       new FormData(form).forEach(function (v, k) { data[k] = v })
       data.zip = zip()
+      if (who()) data.who = who()
       try {
         var ref = document.referrer ? new URL(document.referrer) : null
         data.sourcePath = ref && ref.origin === window.location.origin ? ref.pathname : ''

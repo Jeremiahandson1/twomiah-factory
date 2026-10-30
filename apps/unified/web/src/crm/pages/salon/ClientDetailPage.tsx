@@ -14,6 +14,7 @@ import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
 import { ClientCardOnFile } from './CardOnFile'
+import { ClientIntakeResponses } from './IntakeResponses'
 import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
 import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
@@ -377,6 +378,8 @@ export default function ClientDetailPage() {
         <ClientLoyaltyCard contactId={ct.id} />
         {/* The card kept for no-show / late-cancel fees (Card on File on, contacts:read held). */}
         <ClientCardOnFile contactId={ct.id} />
+        {/* Their answers to the salon's intake and consent forms (Intake forms on, contacts:read held). */}
+        <ClientIntakeResponses contactId={ct.id} />
       </div>
 
       {/* Tabs */}

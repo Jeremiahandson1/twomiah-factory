@@ -29,7 +29,8 @@ import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
 import { policyWords, type CardOnFile } from './cardOnFile.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
-import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor } from './patchTest.ts'
+import { createIntakeForms } from './intakeForms.ts'
+import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, stylistPickOn } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
@@ -71,10 +72,32 @@ const DEFAULT_MINUTES = 60
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
-export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean> } = {}): BookingAddOn {
+export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; db?: any } = {}): BookingAddOn {
   return {
     questions: [],
     serviceList: { name: SERVICE_LIST },
+
+    // Clients choose their stylist (Settings › The Book; the feature `client_stylist_pick`): off unless the salon switched it on.
+    // The salon's intake and consent forms, offered on the booking's page (feature `intake_forms`); none until the salon builds one.
+    forms: opts.db ? (() => {
+      const kept = createIntakeForms({ db: opts.db })
+      const on = async (companyId: string) => !!opts.isFeatureEnabled && await opts.isFeatureEnabled(companyId, 'intake_forms')
+      return {
+        async pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }) {
+          return (await on(a.companyId)) ? (await kept.pending(a.companyId, a.contactId, a.serviceMenuId)).map((f) => ({ id: f.id, name: f.name, kind: f.kind, intro: f.intro, questions: f.questions as any[] })) : []
+        },
+        async submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string) {
+          return (await on(a.companyId)) ? kept.submit(a, formId, answers, signedName) : 'Forms are not available.'
+        },
+      }
+    })() : undefined,
+
+    people: {
+      async enabled(companyId) {
+        if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
+        return stylistPickOn(await settingsOf(opts.db, companyId))
+      },
+    },
 
     // The salon's card step at online booking (Settings › Card on file: who is asked — nobody by default). A customer who must leave
     // a card has their time held, like a deposit's, until Stripe's own page has kept it on the salon's own account.

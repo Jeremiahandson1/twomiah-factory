@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, usePermissions } from '../../../shared'
+import { useToast, usePermissions, useAuth } from '../../../shared'
 import { roleWord } from '../../viewAs'
 import type { BookScope } from './bookScope'
 
@@ -16,6 +16,8 @@ const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
 export default function BookSettingsPage() {
   const toast = useToast()
   const { can, known } = usePermissions()
+  const { hasFeature } = useAuth()
+  const [pick, setPick] = useState<boolean | null>(null)
   // Who may flip it is who may change the company — the server asks the same (company:update).
   const mayEdit = known && can('company:update')
   const [on, setOn] = useState<boolean | null>(null)
@@ -33,6 +35,7 @@ export default function BookSettingsPage() {
       .then((r: BookScope) => setOn(!!r?.stylistsSeeOwnBookOnly))
       .catch((e: Error) => setLoadError(e.message || 'The book settings could not be loaded.'))
     api.get('/api/appointments/patch-test-rule').then((r: { patchTestRule?: boolean; patchTestServiceId?: string | null }) => { setPatchRule(!!r?.patchTestRule); setOfferId(r?.patchTestServiceId || '') }).catch(() => setPatchRule(null))
+    if (hasFeature('client_stylist_pick')) api.get('/api/appointments/online-stylist-pick').then((r: { onlineStylistPick?: boolean }) => setPick(!!r?.onlineStylistPick)).catch(() => setPick(null))
     api.get('/api/service-menu').then((r: any) => setMenu(((r?.data ?? r) || []) as any[])).catch(() => setMenu([]))
   }, [])
 
@@ -45,6 +48,17 @@ export default function BookSettingsPage() {
       const r: BookScope = await api.put('/api/appointments/book-settings', { stylistsSeeOwnBookOnly: next })
       setOn(!!r?.stylistsSeeOwnBookOnly)
       toast.success(next ? `Each ${stylist.toLowerCase()} now sees only their own appointments` : 'Everyone now sees the whole book')
+    } catch (e: any) {
+      toast.error(e?.message || 'The setting could not be saved.')
+    } finally { setSaving(false) }
+  }
+
+  const flipPick = async (next: boolean) => {
+    setSaving(true)
+    try {
+      const r: { onlineStylistPick?: boolean } = await api.put('/api/appointments/online-stylist-pick', { onlineStylistPick: next })
+      setPick(!!r?.onlineStylistPick)
+      toast.success(next ? 'Clients can now choose their stylist when they book online' : 'Online bookings go to whoever is free')
     } catch (e: any) {
       toast.error(e?.message || 'The setting could not be saved.')
     } finally { setSaving(false) }
@@ -97,6 +111,19 @@ export default function BookSettingsPage() {
           next {stylist.toLowerCase()} can repeat a colour. {desk}, managers, admins and the owner always see the whole book.
         </p>
       </section>
+
+      {pick !== null && (
+        <section className={box} aria-label="Choosing a stylist online">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
+            <input type="checkbox" checked={pick} disabled={!mayEdit || saving} onChange={(e) => flipPick(e.target.checked)} className="h-4 w-4" />
+            Let clients choose their stylist when they book online
+          </label>
+          <p className={hint}>
+            Off by default: an online booking goes to whoever is free. On: the client picks a stylist, or &ldquo;anyone&rdquo;, and sees only that
+            person&rsquo;s open times. Only stylists who have their own online booking hours (Settings › Online booking) can be picked.
+          </p>
+        </section>
+      )}
 
       {patchRule !== null && (
         <section className={box} aria-label="Patch tests">

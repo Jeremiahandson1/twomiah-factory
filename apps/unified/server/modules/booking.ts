@@ -55,7 +55,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
     db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
     addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true })
-      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled }) : undefined,
+      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled, db: deps.db }) : undefined,
     onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
     // "Convert to job": numbered as the vertical's job module numbers its jobs — roofing's own (crm/roof/jobs.ts
     // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
@@ -239,14 +239,18 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     const rows = s.enabled ? (await engine.listServices(id, { activeOnly: true })).map((x) => ({ slug: x.slug, name: x.name, description: x.description, durationMinutes: x.durationMinutes, price: x.price, priceIsFrom: x.priceIsFrom, tipPresets: x.tipPresets })) : []
     return listAll(c, rows)
   }))
+  // The people a customer may choose between (empty unless the business offers choosing — the salon's option).
+  pub.get('/stylists', (c) => withCompany(c, async (id) => listAll(c, await engine.people(id))))
   pub.get('/services/:slug/dates', (c) => withCompany(c, (id) => guard(c, async () => {
-    const rows = await engine.availableDates(id, c.req.param('slug'), c.req.query('zip'))
+    const rows = await engine.availableDates(id, c.req.param('slug'), c.req.query('zip'), c.req.query('who') || null)
     return listAll(c, rows)
   }) as Promise<Response>))
   pub.get('/services/:slug/times', (c) => withCompany(c, (id) => guard(c, async () => {
     // Moving a booking: its own time doesn't block itself. Reached by its token, never its id.
     const moving = c.req.query('token') ? await engine.byToken(id, c.req.query('token')!) : null
-    const rows = await engine.availableTimes(id, c.req.param('slug'), c.req.query('date') || '', c.req.query('zip'), moving?.id)
+    // A booking moved keeps its stylist where the client chose one: only that person's times are offered.
+    const keep = moving?.assignedUserId && (await engine.people(id)).some((p) => p.id === moving.assignedUserId) ? moving.assignedUserId : null
+    const rows = await engine.availableTimes(id, c.req.param('slug'), c.req.query('date') || '', c.req.query('zip'), moving?.id, c.req.query('who') || keep)
     return listAll(c, rows)
   }) as Promise<Response>))
   pub.post('/services/:slug', (c) => withCompany(c, (id) => guard(c, async () => {
@@ -255,7 +259,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     const r = await engine.book(id, {
       service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, zip: b.zip, notes: b.notes,
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
-      answers: answersOf(engine, b), smsConsent: ticked(b),
+      answers: answersOf(engine, b), smsConsent: ticked(b), who: b.who ? String(b.who) : null,
     }, { by: 'customer' })
     return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit, ...(r.card ? { needsCard: true } : {}) }, 201)
   }) as Promise<Response>))

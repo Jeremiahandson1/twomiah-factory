@@ -2,7 +2,7 @@
 // their menu items, each gated by the template's features so no other vertical sees them (docs/UNIFIED_MOVE_GUIDE.md).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BellRing, Calendar, CreditCard, Gift, Scissors, Users } from 'lucide-react'
+import { BellRing, Calendar, ClipboardList, CreditCard, Gift, Scissors, Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -15,6 +15,7 @@ const MembershipsPage = page(() => import('../pages/salon/MembershipsPage'))
 const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
 const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
 const CardOnFileSettingsPage = page(() => import('../pages/salon/CardOnFileSettingsPage'))
+const IntakeFormsSettingsPage = page(() => import('../pages/salon/IntakeFormsSettingsPage'))
 
 /**
  * The salon's own dashboard (the book today, the month by chair, who is due back), shown at /crm/dashboard in place of
@@ -33,6 +34,7 @@ export const routes: ReactElement[] = [
   <Route key="salon-loyalty" path="loyalty" element={<LoyaltyPage />} />,
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
   <Route key="salon-card-on-file-settings" path="settings/card-on-file" element={<CardOnFileSettingsPage />} />,
+  <Route key="salon-intake-forms-settings" path="settings/intake-forms" element={<IntakeFormsSettingsPage />} />,
 ]
 
 /**
@@ -44,6 +46,8 @@ export const SETTINGS_EXTRA = [
   { to: '/crm/settings/book', label: 'The Book', icon: Calendar, permission: 'company:update', feature: 'salon_booking' },
   // Card on file: the no-show / late-cancel fees (PUT /api/card-on-file/policy asks company:update, behind `card_on_file`).
   { to: '/crm/settings/card-on-file', label: 'Card on file', icon: CreditCard, permission: 'company:update', feature: 'card_on_file' },
+  // Intake and consent forms (/api/intake-forms writes ask company:update, behind `intake_forms`).
+  { to: '/crm/settings/intake-forms', label: 'Intake & consent forms', icon: ClipboardList, permission: 'company:update', feature: 'intake_forms' },
 ]
 
 /**

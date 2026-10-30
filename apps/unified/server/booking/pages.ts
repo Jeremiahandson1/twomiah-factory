@@ -81,7 +81,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
   // askZip: only where somebody covers named ZIP codes (Settings › Service areas) — the ZIP picks who is offered. A salon
   // that has none asked every client for one (salon live test, 2026-10-25).
-  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false) {
+  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false, people: Array<{ id: string; name: string }> = []) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
     // The waitlist's dates are held to the booking window like a booking's (engine.customerRules).
     const win = engine.window(settings)
@@ -121,6 +121,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       </ol>
       <div class="book-step book-step--date">
         <h2>Pick a date</h2>
+        ${moving || !people.length ? '' : `<div class="book-who"><label>Your stylist<select id="book-who" name="who"><option value="">Anyone — first available</option>${people.map((p) => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('')}</select></label></div>`}
         ${moving || !askZip ? '' : `<div class="book-zip"><label>Your ZIP code (optional)<input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" id="book-zip" name="zip" autocomplete="postal-code"></label></div>`}
         <div class="book-dates" id="book-dates"><p class="book-loading">Finding open days…</p></div>
       </div>
@@ -183,7 +184,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
       <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + servicePrice(svc) : ''}</p>
-      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0))}
+      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0), await engine.people(s.ctx.companyId))}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
   })
@@ -201,6 +202,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     // A deposit still owed: its amount, and how long the time is held for it (the engine releases it after that).
     const owed = b.status === 'pending' && b.depositStatus === 'pending' && !waitingCard
     const holdEnds = new Date(b.createdAt.getTime() + s.settings.depositHoldMinutes * 60_000)
+    // Forms the business asks for before the visit (the salon's intake and consent forms), once the booking stands.
+    const forms = waitingCard ? [] : await engine.formsPending(b)
     const held = owed && holdEnds.getTime() > Date.now()
     const amount = price(String(Number(b.depositAmount || 0) + Number(b.tipAmount || 0)))
     const holdsCard = waitingCard && holdEnds.getTime() > Date.now()
@@ -209,6 +212,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         ? '<p class="book-ok" role="status">Thank you — your card is saved and your booking is confirmed. A confirmation is on its way.</p>'
         : waitingCard ? '<p class="book-ok" role="status">Thank you — your card is being confirmed. This usually takes a few seconds; refresh to see it.</p>' : '')
       : (c.req.query('card') === 'cancelled' || (c.req.query('card') && c.req.query('cancelled'))) && holdsCard ? `<p class="book-error" role="alert">No card was saved. Your time is held until ${escHtml(whenText(holdEnds, tz))} — add your card below to keep it.</p>`
+      : c.req.query('form') === 'done' ? '<p class="book-ok" role="status">Thank you — your form is saved.</p>'
       : c.req.query('moved') ? '<p class="book-ok" role="status">Your booking has its new time. A confirmation is on its way.</p>'
       : c.req.query('cancelled') ? '<p class="book-ok" role="status">Your booking is cancelled.</p>'
       : c.req.query('deposit') === 'paid' ? (b.depositStatus === 'paid'
@@ -226,6 +230,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
         ${b.depositAmount ? `<div><span>Deposit</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
+      ${forms.length ? `<div class="book-forms"><h2>Before your visit</h2><p class="book-thanks__lead">Please fill in ${forms.length === 1 ? 'this form' : 'these forms'} — it saves us time at your appointment.</p><ul>${forms.map((f) => `<li><a href="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}${keep(c)}"${top(c)}>${escHtml(f.name)}</a></li>`).join('')}</ul></div>` : ''}
       ${holdsCard ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/card"${top(c)}>
         <p class="book-thanks__lead">To keep this time, please leave a card. It is kept securely on our payment provider's page and is <strong>not charged now</strong>.</p>
         ${terms ? `<p class="book-card__terms">${escHtml(terms)}</p>` : ''}
@@ -275,6 +280,46 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     if (url) return c.redirect(url, 303)
     const now = await engine.byToken(s.ctx.companyId, b.token)
     return back(now?.status === 'cancelled' ? 'The time was not held any longer — please book again.' : now?.status === 'confirmed' ? 'Your booking is already confirmed.' : 'Card saving is not available right now — please get in touch.')
+  })
+
+  // A form the business asks for (the salon's intake and consent forms): shown on its own page, answered once, kept on the client's chart.
+  const formFields = (q: any) => {
+    const name = `q_${escHtml(q.id)}`, req = q.required ? ' required' : ''
+    if (q.type === 'longtext') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<textarea name="${name}" rows="3" maxlength="2000"${req}></textarea></label>`
+    if (q.type === 'yesno') return `<fieldset class="book-choice"><legend>${escHtml(q.label)}${q.required ? '' : ' (optional)'}</legend><label class="book-check"><input type="radio" name="${name}" value="yes"${req}> Yes</label> <label class="book-check"><input type="radio" name="${name}" value="no"${req}> No</label></fieldset>`
+    if (q.type === 'choice') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<select name="${name}"${req}><option value="">Choose…</option>${(q.options || []).map((o: string) => `<option>${escHtml(o)}</option>`).join('')}</select></label>`
+    if (q.type === 'consent') return `<label class="book-check"><input type="checkbox" name="${name}" value="1" required> ${escHtml(q.label)}</label>`
+    return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<input type="text" name="${name}" maxlength="300"${req}></label>`
+  }
+  app.get('/booking/:token/form/:formId', async (c) => {
+    const s = await site(c); if (!s) return c.notFound()
+    const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
+    if (!b) return c.notFound()
+    const f = (await engine.formsPending(b)).find((x) => x.id === c.req.param('formId'))
+    if (!f) return c.redirect(`/booking/${b.token}${keep(c)}`, 303)
+    const err = c.req.query('error')
+    const body = `<section class="book-thanks"><div class="container container--narrow">
+      <h1>${escHtml(f.name)}</h1>
+      ${f.intro ? `<p class="book-thanks__lead">${escHtml(f.intro)}</p>` : ''}
+      ${err ? `<p class="book-error" role="alert">${escHtml(err)}</p>` : ''}
+      <form method="post" action="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}" class="book-form"${top(c)}>
+        ${f.questions.map(formFields).join('\n        ')}
+        ${f.kind === 'consent' ? '<label>Type your full name to sign<input type="text" name="signedName" maxlength="120" required autocomplete="name"></label>' : ''}
+        <div class="book-actions"><button type="submit" class="book-submit">Save my answers</button> <a href="/booking/${escHtml(b.token)}${keep(c)}"${top(c)}>Not now</a></div>
+      </form>
+    </div></section>`
+    return html(c, s.ctx, body, f.name, '/booking', true)
+  })
+  app.post('/booking/:token/form/:formId', async (c) => {
+    const s = await site(c); if (!s) return c.notFound()
+    const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
+    if (!b) return c.notFound()
+    const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
+    const answers: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(form)) if (k.startsWith('q_')) answers[k.slice(2)] = typeof v === 'string' ? v : ''
+    const problem = await engine.formSubmit(b, c.req.param('formId'), answers, String(form.signedName || ''))
+    if (problem) return c.redirect(`/booking/${b.token}/form/${encodeURIComponent(c.req.param('formId'))}?error=${encodeURIComponent(problem)}${keep(c, '&')}`, 303)
+    return c.redirect(`/booking/${b.token}?form=done${keep(c, '&')}`, 303)
   })
 
   app.get('/booking/:token/pay', async (c) => {

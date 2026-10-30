@@ -6,6 +6,14 @@
 import { eq } from 'drizzle-orm'
 import { clientProfile, company } from '../../db/schema/index.ts'
 
+/** Settings › The Book: clients booking online may choose their stylist (salon #6, feature `client_stylist_pick`). Absent = off. */
+export const ONLINE_STYLIST_PICK = 'onlineStylistPick'
+export function stylistPickOn(settings: unknown): boolean {
+  let s: any = settings
+  if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = {} } }
+  return !!(s && typeof s === 'object' && s[ONLINE_STYLIST_PICK] === true)
+}
+
 export const PATCH_TEST_RULE = 'patchTestRule'
 /** The menu service a held client is offered online instead (their patch-test appointment); optional, the salon's pick. */
 export const PATCH_TEST_SERVICE = 'patchTestServiceId'

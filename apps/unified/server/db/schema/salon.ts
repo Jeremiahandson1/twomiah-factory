@@ -320,3 +320,46 @@ export const bookBlock = pgTable('book_block', {
 }, (t) => [
   index('book_block_company_start_idx').on(t.companyId, t.startTime),
 ])
+
+/**
+ * A form the salon asks its clients to fill in before a visit (salon "intake and consent forms"; feature `intake_forms`): questions of
+ * its own, or a consent to tick and sign by typing a name. Offered on the booking's page for the services it names (none named = every
+ * online booking). A response is kept as it was asked — the form may change after.
+ */
+export const intakeForm = pgTable('intake_form', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** 'intake' (questions) or 'consent' (an agreement the client ticks and signs by typing their name). */
+  kind: text('kind').default('intake').notNull(),
+  intro: text('intro'),
+  /** [{ id, label, type: 'text' | 'longtext' | 'yesno' | 'choice' | 'consent', required, options? }] */
+  questions: json('questions').$type<any[]>().default([]).notNull(),
+  /** Service Menu ids the form applies to; empty = every online booking. */
+  serviceIds: json('service_ids').$type<string[]>().default([]).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('intake_form_company_idx').on(t.companyId),
+])
+
+/** A client's answers to a form, on their chart. */
+export const intakeResponse = pgTable('intake_response', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  formId: text('form_id').references(() => intakeForm.id, { onDelete: 'set null' }),
+  /** The form's name as it was when answered. */
+  formName: text('form_name').notNull(),
+  formKind: text('form_kind').default('intake').notNull(),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** The online booking it was answered for (its token), when it was. */
+  bookingToken: text('booking_token'),
+  /** [{ label, type, answer }] — as asked, so a later change to the form never rewrites what a client said. */
+  answers: json('answers').$type<any[]>().default([]).notNull(),
+  signedName: text('signed_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('intake_response_contact_idx').on(t.companyId, t.contactId),
+  uniqueIndex('intake_response_once_idx').on(t.formId, t.contactId, t.bookingToken),
+])
