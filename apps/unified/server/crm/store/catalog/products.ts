@@ -41,7 +41,7 @@ import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
 import { PUBLIC_PHOTO_PREFIX } from '../../../site/admin.ts'
-import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith, type CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { productSearchCondition, lowStockProductCondition } from '../tileConditions.ts'
@@ -86,6 +86,8 @@ const variantSchema = z.object({
   inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
   // Low-stock level (store_low_stock): at or under it, the option is on the Low stock list and the owner's daily email. null = no level.
   lowStockAt: z.number().int().min(0, 'The low-stock level cannot be negative').max(2147483647).optional().nullable(),
+  // What one unit costs the shop (margin:read's: staff neither see nor set it). Profit in the sales reports is worked out from it.
+  costCents: z.number().int().min(0, 'The cost cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string(), z.string()).optional().nullable(),
   position: z.number().int().optional(),
   // The feeds' identifiers: a barcode (GTIN: UPC, EAN or ISBN, 8 to 14 digits) and the maker's part number.
@@ -149,6 +151,10 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
   // Taking something off sale for good — deleting a product or a variant — is products:delete, the manager's.
   app.use('*', requirePermission('products:read'))
 
+  /** What an option costs the shop is margin:read's (the fleet's line for cost): a seat without it is neither sent nor allowed to set it. */
+  const mayMargin = async (c: any) => canSeeWith(d.permissions)(c.get('user').role, 'margin:read', c.get('user').userId)
+  const costRefused = (c: any) => fail(c, 403, "What a product costs you is for a manager or the owner.", 'permission_denied')
+  const stripCost = <T extends { costCents?: number | null }>(rows: T[], may: boolean): T[] => (may ? rows : rows.map(({ costCents: _c, ...rest }) => rest as T))
   /** A low-stock level is the store_low_stock feature's: off, the API refuses it (the screens do not show the box). */
   const lowStockOff = (c: any) => fail(c, 403, 'Low-stock alerts are not switched on.', 'FEATURE_NOT_ENABLED')
   const currency = async (companyId: string) => (await core.settings(companyId)).currency || 'usd'
@@ -190,10 +196,11 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       db.select().from(storeProductImage).where(inArray(storeProductImage.productId, ids)).orderBy(asc(storeProductImage.position)),
       db.select().from(storeProductVariant).where(inArray(storeProductVariant.productId, ids)).orderBy(asc(storeProductVariant.position)),
     ]) : [[], []]
+    const seesCost = await mayMargin(c)
     const data = rows.map((p) => ({
       ...p,
       images: imgs.filter((i) => i.productId === p.id),
-      variants: vars.filter((v) => v.productId === p.id),
+      variants: stripCost(vars.filter((v) => v.productId === p.id), seesCost),
     }))
     return list(c, data, { page: limit !== undefined ? page : 1, limit: limit ?? Math.max(rows.length, 1), total: Number(total) })
   })
@@ -222,7 +229,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       db.select().from(storeProductImage).where(eq(storeProductImage.productId, p.id)).orderBy(asc(storeProductImage.position)),
       db.select().from(storeProductVariant).where(eq(storeProductVariant.productId, p.id)).orderBy(asc(storeProductVariant.position)),
     ])
-    return one(c, { ...p, images: imgs, variants: vars })
+    return one(c, { ...p, images: imgs, variants: stripCost(vars, await mayMargin(c)) })
   })
 
   app.patch('/:id', requirePermission('products:update'), async (c) => {
@@ -256,10 +263,11 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const product = await productOf(u.companyId, c.req.param('id'))
     if (!product) return fail(c, 404, 'Product not found')
     if (parsed.data.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
+    if (parsed.data.costCents !== undefined && !(await mayMargin(c))) return costRefused(c)
     const [created] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
     // Its own row: the floor would file this under the product the URL names (create product TEA-1).
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await currency(u.companyId))}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
-    return one(c, created, 201)
+    return one(c, stripCost([created], await mayMargin(c))[0], 201)
   })
 
   app.patch('/variants/:variantId', requirePermission('products:update'), async (c) => {
@@ -272,6 +280,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const before = await variantOf(u.companyId, c.req.param('variantId'))
     if (!before) return fail(c, 404, 'Not found')
     if (fields.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
+    if (fields.costCents !== undefined && !(await mayMargin(c))) return costRefused(c)
     const guarded = inventoryFrom !== undefined && fields.inventoryQty !== undefined
     const where = guarded
       ? and(eq(storeProductVariant.id, before.id), inventoryFrom === null ? isNull(storeProductVariant.inventoryQty) : eq(storeProductVariant.inventoryQty, inventoryFrom))
@@ -286,7 +295,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     }
     const from = guarded ? { ...before, inventoryQty: inventoryFrom } : before
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: changedKeys(from, updated, Object.keys(fields)), req: c })
-    return one(c, updated)
+    return one(c, stripCost([updated], await mayMargin(c))[0])
   })
 
   app.delete('/variants/:variantId', requirePermission('products:delete'), async (c) => {

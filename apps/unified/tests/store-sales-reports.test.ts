@@ -13,7 +13,7 @@ import { bootStore } from './storeKit.ts'
 import { FEATURE_MAP } from '@twomiah/tenant-backend'
 
 let k: Awaited<ReturnType<typeof bootStore>>
-const URL = '/api/admin/sales-reports'
+const REPORTS = '/api/admin/sales-reports'
 const W = '?from=2026-10-01&to=2026-10-07'
 
 beforeAll(async () => {
@@ -28,23 +28,23 @@ beforeAll(async () => {
   const person = async (name: string) => (await ins(S.contact, { companyId, name, email: `${name.toLowerCase()}@example.com`, type: 'customer' }))
   const [A, B, C, D, E, F] = await Promise.all(['Ada', 'Bo', 'Cy', 'Di', 'Ed', 'Flo'].map(person))
   let n = 0
-  const order = async (who: any, status: string, totalCents: number, at: string, refundedCents: number, lines: Array<[any, number, number, number?]>) => {
+  const order = async (who: any, status: string, totalCents: number, at: string, refundedCents: number, lines: Array<[any, number, number, number?, number?]>, extra: Record<string, unknown> = {}) => {
     n++
     const o = await ins(S.storeOrder, {
       companyId, contactId: who.id, orderNumber: `R-${n}`, provider: 'stripe', providerSessionId: `cs_report_${n}`, status,
-      customerEmail: who.email, customerName: who.name, subtotalCents: totalCents, totalCents, refundedCents, createdAt: new Date(at),
+      customerEmail: who.email, customerName: who.name, subtotalCents: totalCents, totalCents, refundedCents, createdAt: new Date(at), ...extra,
     })
-    for (const [p, qty, price, back] of lines) {
-      await ins(S.storeOrderItem, { orderId: o.id, productId: p.id, productName: p.name, variantName: 'Default', sku: `S${n}-${p.slug}`, unitPriceCents: price, quantity: qty, lineTotalCents: qty * price, refundedQuantity: back ?? 0 })
+    for (const [p, qty, price, back, cost] of lines) {
+      await ins(S.storeOrderItem, { orderId: o.id, productId: p.id, productName: p.name, variantName: 'Default', sku: `S${n}-${p.slug}`, unitPriceCents: price, quantity: qty, lineTotalCents: qty * price, refundedQuantity: back ?? 0, unitCostCents: cost ?? null })
     }
     return o
   }
   // In the window (Oct 1–7, Chicago days):
-  await order(A, 'paid', 5000, '2026-10-04T04:30:00Z', 0, [[feeder, 2, 1500], [suet, 1, 2000]]) // Oct 3, 11:30pm
-  await order(A, 'shipped', 3000, '2026-10-06T15:00:00Z', 1000, [[feeder, 2, 1500, 1], [seed, 1, 1500]]) // one feeder came back
-  await order(B, 'delivered', 2000, '2026-10-02T12:00:00Z', 0, [[seed, 1, 1500]])
-  await order(C, 'refunded', 1500, '2026-10-05T12:00:00Z', 1500, [[suet, 1, 2000, 1]]) // a sale, then all of it back
-  await order(E, 'paid', 1000, '2026-10-08T04:30:00Z', 0, [[feeder, 1, 1500]]) // Oct 7, 11:30pm
+  await order(A, 'paid', 5000, '2026-10-04T04:30:00Z', 0, [[feeder, 2, 1500, 0, 600], [suet, 1, 2000, 0, 800]], { discountCode: 'BIRD10', discountCents: 500 }) // Oct 3, 11:30pm
+  await order(A, 'shipped', 3000, '2026-10-06T15:00:00Z', 1000, [[feeder, 2, 1500, 1, 600], [seed, 1, 1500]], { discountCode: 'bird10', discountCents: 300, loyaltyDiscountCents: 100 }) // one feeder came back
+  await order(B, 'delivered', 2000, '2026-10-02T12:00:00Z', 0, [[seed, 1, 1500]], { supplierCostCents: 700 }) // a dropshipped order: costed at the supplier's price
+  await order(C, 'refunded', 1500, '2026-10-05T12:00:00Z', 1500, [[suet, 1, 2000, 1, 800]]) // a sale, then all of it back
+  await order(E, 'paid', 1000, '2026-10-08T04:30:00Z', 0, [[feeder, 1, 1500, 0, 600]]) // Oct 7, 11:30pm
   // Never counted: a cancelled order and an unfinished checkout.
   await order(C, 'cancelled', 9999, '2026-10-03T12:00:00Z', 0, [[feeder, 10, 1500]])
   await order(D, 'pending', 7777, '2026-10-03T13:00:00Z', 0, [[feeder, 10, 1500]])
@@ -63,7 +63,7 @@ describe('the sales reports', () => {
   })
 
   test('the totals, the average order and the days are worked out on the shop\'s clock, minus refunds', async () => {
-    const r = await k.as('owner')('GET', URL + W)
+    const r = await k.as('owner')('GET', REPORTS + W)
     expect(r.status).toBe(200)
     const d = r.json
     expect(d.timeZone).toBe('America/Chicago')
@@ -81,7 +81,7 @@ describe('the sales reports', () => {
   })
 
   test('top products: what stayed sold, by what it brought in (a returned unit comes off)', async () => {
-    const d = (await k.as('owner')('GET', URL + W)).json
+    const d = (await k.as('owner')('GET', REPORTS + W)).json
     expect(d.topProducts.map((p: any) => [p.name, p.units, p.salesCents])).toEqual([
       ['Window feeder', 4, 6000], // 2 + (2 − 1 back) + 1; the cancelled and unfinished tens are not counted
       ['Seed mix', 2, 3000],
@@ -90,14 +90,14 @@ describe('the sales reports', () => {
   })
 
   test('repeat customers: Ada ordered twice in the window, Bo had ordered before it; Cy and Ed are new', async () => {
-    const d = (await k.as('owner')('GET', URL + W)).json
+    const d = (await k.as('owner')('GET', REPORTS + W)).json
     expect(d.repeat).toMatchObject({ customers: 4, repeat: 2, firstTime: 2, repeatRate: 0.5, repeatNetCents: 9000 })
     expect(d.repeat.top.map((r: any) => [r.name, r.orders, r.netCents])).toEqual([['Ada', 2, 7000], ['Bo', 1, 2000]])
   })
 
   test('over all time they agree with the Dashboard\'s own figures', async () => {
     const stats = (await k.as('owner')('GET', '/api/admin/orders/stats')).json
-    const d = (await k.as('owner')('GET', URL + '?from=2026-01-01&to=2026-12-31')).json
+    const d = (await k.as('owner')('GET', REPORTS + '?from=2026-01-01&to=2026-12-31')).json
     expect(d.bucket).toBe('month')
     expect(d.totals.orders).toBe(stats.paidCount)
     expect(d.totals.grossCents).toBe(stats.revenueCents)
@@ -105,17 +105,98 @@ describe('the sales reports', () => {
     expect(d.totals.netCents).toBe(stats.netCents)
   })
 
+  test('profit where a cost is stored, "no cost" where it is not (owner and manager)', async () => {
+    const d = (await k.as('owner')('GET', REPORTS + W)).json
+    // Costed: Ada's first order 5000 (cost 2000), her second order's feeder 1500 (cost 600), Bo's dropshipped 1500 (the supplier's 700),
+    // Cy's returned suet 0, Ed's feeder 1500 (cost 600). The two seed lines carry no cost and are not counted as free.
+    expect(d.profit).toEqual({ productSalesCents: 11000, costedSalesCents: 9500, costCents: 3900, profitCents: 5600 })
+    expect(d.topProducts.map((p: any) => [p.name, p.costCents, p.profitCents])).toEqual([
+      ['Window feeder', 2400, 3600], ['Seed mix', null, null], ['Suet cake', 800, 1200],
+    ])
+    expect((await k.as('manager')('GET', REPORTS + W)).json.profit.profitCents).toBe(5600)
+  })
+
+  test('a seat that sees takings but not cost (the viewer) is sent no cost and no profit — left out, never zero', async () => {
+    const { t, S, companyId } = k
+    await (t.db as any).insert(S.user).values({ email: 'viewer@test.example', passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: 'v', lastName: 'Seat', role: 'viewer', companyId })
+    const tok = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'viewer@test.example', password: 'Seat-pass-1' } })).json()).accessToken
+    const r = await k.pub('GET', REPORTS + W, undefined, { Authorization: `Bearer ${tok}` })
+    expect(r.status).toBe(200)
+    expect(r.json.totals.netCents).toBe(10000)
+    expect('profit' in r.json).toBe(false)
+    expect(r.json.topProducts.every((p: any) => !('costCents' in p) && !('profitCents' in p))).toBe(true)
+    const csv = await k.pub('GET', REPORTS + '/export?report=products&from=2026-10-01&to=2026-10-07', undefined, { Authorization: `Bearer ${tok}` })
+    expect(csv.text.split('\r\n')[0]).toBe('Product,Units sold,Brought in')
+  })
+
+  test('discount codes: orders, what each code took off (not the loyalty reward), and what those orders kept', async () => {
+    const d = (await k.as('owner')('GET', REPORTS + W)).json
+    // BIRD10 and bird10 are one code: 500 + (300 − 100) off, on orders that kept 5000 and 3000 − 1000.
+    expect(d.discountCodes).toEqual([{ code: 'BIRD10', orders: 2, discountCents: 700, netCents: 7000 }])
+  })
+
+  test('the CSV export: sales by day, products with cost and profit, discount codes — for the same window', async () => {
+    const get = (report: string) => k.as('owner')('GET', `${REPORTS}/export?report=${report}&from=2026-10-01&to=2026-10-07`)
+    const sales = await get('sales')
+    expect(sales.status).toBe(200)
+    expect(sales.headers.get('content-type')).toContain('text/csv')
+    expect(sales.headers.get('content-disposition')).toContain('sales-2026-10-01-to-2026-10-07.csv')
+    expect(sales.text.split('\r\n').slice(0, 3)).toEqual(['Day,Orders,Paid,Sent back,Net', '2026-10-02,1,20.00,0.00,20.00', '2026-10-03,1,50.00,0.00,50.00'])
+    const products = (await get('products')).text.split('\r\n')
+    expect(products.slice(0, 4)).toEqual(['Product,Units sold,Brought in,Cost,Profit', 'Window feeder,4,60.00,24.00,36.00', 'Seed mix,2,30.00,no cost,no cost', 'Suet cake,1,20.00,8.00,12.00'])
+    expect((await get('discounts')).text.split('\r\n').slice(0, 2)).toEqual(['Code,Orders,Taken off,Orders kept', 'BIRD10,2,7.00,70.00'])
+    // …with a byte-order mark, so Excel reads the accents (Response.text() hides it; the bytes show it).
+    const raw = new Uint8Array(await (await k.t.call(`${REPORTS}/export?report=sales&from=2026-10-01&to=2026-10-07`, { method: 'GET', headers: { Authorization: `Bearer ${k.tokens.owner}`, host: 'shop.test' } })).arrayBuffer())
+    expect([...raw.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
+    expect((await get('nonsense')).status).toBe(400)
+    expect((await k.as('staff')('GET', `${REPORTS}/export?report=sales`)).status).toBe(403)
+  })
+
+  test('a spreadsheet cell that starts like a formula is written as text', async () => {
+    const { t, S, companyId } = k
+    const [P] = await (t.db as any).insert(S.storeProduct).values({ companyId, slug: 'evil', name: '=HYPERLINK("http://x")', status: 'active' }).returning()
+    const [who] = await (t.db as any).select().from(S.contact).limit(1)
+    const [o] = await (t.db as any).insert(S.storeOrder).values({ companyId, contactId: who.id, orderNumber: 'R-EVIL', provider: 'stripe', providerSessionId: 'cs_evil', status: 'paid', customerEmail: who.email, subtotalCents: 100, totalCents: 100, createdAt: new Date('2026-10-04T12:00:00Z') }).returning()
+    await (t.db as any).insert(S.storeOrderItem).values({ orderId: o.id, productId: P.id, productName: P.name, variantName: 'Default', sku: 'EVIL', unitPriceCents: 100, quantity: 1, lineTotalCents: 100 })
+    const csv = (await k.as('owner')('GET', `${REPORTS}/export?report=products&from=2026-10-01&to=2026-10-07`)).text
+    expect(csv).toContain('"\'=HYPERLINK(""http://x"")"')
+    await (t.db as any).delete(S.storeOrder).where(eq(S.storeOrder.id, o.id))
+  })
+
+  test('what a product costs you: the owner and manager set it, staff neither see nor set it, shoppers never see it, and a sale keeps it', async () => {
+    const { t, S } = k
+    await k.connectStripe()
+    const { variant } = await k.product({ slug: 'costed', name: 'Costed thing', sku: 'COST-1', priceCents: 2500, qty: 5 })
+    const set = await k.as('manager')('PATCH', `/api/admin/products/variants/${variant.id}`, { costCents: 1100 })
+    expect(set.status).toBe(200)
+    expect(set.json.costCents).toBe(1100)
+    expect((await k.as('staff')('PATCH', `/api/admin/products/variants/${variant.id}`, { costCents: 1 })).status).toBe(403)
+    const seen = (who: 'owner' | 'manager' | 'staff') => k.as(who)('GET', '/api/admin/products').then((r) => r.json.data.flatMap((p: any) => p.variants).find((v: any) => v.sku === 'COST-1'))
+    expect((await seen('owner')).costCents).toBe(1100)
+    expect('costCents' in (await seen('staff'))).toBe(false)
+    expect((await k.pub('GET', '/api/public/products')).text).not.toContain('costCents')
+    // A shopper buys it; the cost is kept on the line, and a later cost edit does not move it.
+    const r = await k.pub('POST', '/api/public/checkout', { items: [{ sku: 'COST-1', quantity: 2 }], customerEmail: 'cost@example.com' })
+    expect(r.status).toBe(200)
+    const o = await k.orderBySession(new URL(r.json.url).pathname.split('/').pop()!)
+    await k.as('owner')('PATCH', `/api/admin/products/variants/${variant.id}`, { costCents: 1500 })
+    const lines = await (t.db as any).select().from(S.storeOrderItem).where(eq(S.storeOrderItem.orderId, o.id))
+    expect(lines.map((l: any) => l.unitCostCents)).toEqual([1100])
+    expect((await k.as('owner')('PATCH', `/api/admin/products/variants/${variant.id}`, { costCents: -5 })).status).toBe(400)
+    await (t.db as any).delete(S.storeOrder).where(eq(S.storeOrder.id, o.id))
+  })
+
   test('a window that is not dates, is backwards, is too long, or groups by nothing is refused with a sentence', async () => {
     const o = k.as('owner')
     for (const bad of ['?from=yesterday', '?from=2026-10-07&to=2026-10-01', '?from=2025-01-01&to=2026-10-07', '?from=2026-10-01&to=2026-10-07&bucket=hour', '?from=2026-02-30&to=2026-03-02']) {
-      const r = await o('GET', URL + bad)
+      const r = await o('GET', REPORTS + bad)
       expect({ bad, status: r.status, code: r.json.code }).toEqual({ bad, status: 400, code: 'validation_failed' })
     }
   })
 
   test('a manager reads them; the staff seat is refused (the takings are revenue:read)', async () => {
-    expect((await k.as('manager')('GET', URL + W)).status).toBe(200)
-    const staff = await k.as('staff')('GET', URL + W)
+    expect((await k.as('manager')('GET', REPORTS + W)).status).toBe(200)
+    const staff = await k.as('staff')('GET', REPORTS + W)
     expect(staff.status).toBe(403)
     expect(JSON.stringify(staff.json)).not.toContain('12500')
   })
@@ -134,7 +215,7 @@ describe('the sales reports', () => {
     await (t.db as any).update(S.company).set({ enabledFeatures: ['dashboard', 'orders', 'products', 'contacts'] }).where(eq(S.company.id, companyId))
     t.services.features.forgetFeatures()
     try {
-      const r = await k.as('owner')('GET', URL + W)
+      const r = await k.as('owner')('GET', REPORTS + W)
       expect(r.status).toBe(403)
       expect(r.json.code).toBe('FEATURE_NOT_ENABLED')
     } finally {

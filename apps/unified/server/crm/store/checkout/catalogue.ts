@@ -13,7 +13,7 @@ import type { CrmDeps } from '../../deps.ts'
 type Product = typeof storeProduct.$inferSelect
 export type StorefrontProduct = Omit<Product, 'companyId'> & {
   images: Array<typeof storeProductImage.$inferSelect>
-  variants: Array<Omit<typeof storeProductVariant.$inferSelect, 'lowStockAt'>>
+  variants: Array<Omit<typeof storeProductVariant.$inferSelect, 'lowStockAt' | 'costCents'>>
 }
 
 /** Images and variants for each product, in position order. */
@@ -35,8 +35,8 @@ export async function hydrateProducts(db: any, rows: Product[]): Promise<Storefr
   return rows.map(({ companyId: _co, ...p }) => ({
     ...p,
     images: imagesOf.get(p.id) ?? [],
-    // The owner's low-stock level is not the shopper's to read.
-    variants: (variantsOf.get(p.id) ?? []).map(({ lowStockAt: _lo, ...v }) => v),
+    // The owner's low-stock level and what an option costs the shop are not the shopper's to read.
+    variants: (variantsOf.get(p.id) ?? []).map(({ lowStockAt: _lo, costCents: _cost, ...v }) => v),
   }))
 }
 

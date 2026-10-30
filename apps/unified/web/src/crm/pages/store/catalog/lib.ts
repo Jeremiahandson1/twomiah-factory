@@ -16,6 +16,8 @@ export interface ProductVariant {
   gtin?: string | null; mpn?: string | null
   /** Tell the owner when stock reaches this (store_low_stock); null = no alert. */
   lowStockAt?: number | null
+  /** What a unit costs the shop. Absent for a seat that may not see it (margin:read); null = none entered. */
+  costCents?: number | null
 }
 export interface Product {
   id: string; slug: string; name: string; tagline: string | null; description: string | null

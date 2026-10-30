@@ -91,6 +91,8 @@ type Line = {
   sku: string; name: string; description?: string; imageUrl?: string
   unitPriceCents: number; quantity: number; giftCard: boolean
   productId: string; variantId: string; variantName: string; productName: string
+  /** The option's cost when bought, kept on the line for profit reports. */
+  unitCostCents: number | null
 }
 
 export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: CheckoutService, giftCards: StoreGiftCards) {
@@ -122,7 +124,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       lines.push({
         sku: v.sku, name: v.name && v.name !== p.name ? `${p.name} — ${v.name}` : p.name, description: p.tagline ?? undefined,
         unitPriceCents: groupPrice(v.priceCents, v.id, input.draft?.pricing ?? null, giftCard), quantity: qty, giftCard,
-        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name,
+        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name, unitCostCents: v.costCents ?? null,
       })
     }
     if (!lines.length) return refuse(400, 'None of these items are available')
@@ -213,6 +215,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     await db.insert(storeOrderItem).values(lines.map((li) => ({
       orderId: order.id, productId: li.productId, variantId: li.variantId, productName: li.productName, variantName: li.variantName,
       sku: li.sku, imageUrl: li.imageUrl ?? null, unitPriceCents: li.unitPriceCents, quantity: li.quantity, lineTotalCents: li.unitPriceCents * li.quantity,
+      unitCostCents: li.unitCostCents,
     })))
     // The audit log: an order begun (store live test, 2026-10-26: orders left no record there). Unpaid until the provider
     // says so (checkoutService.ts finalizeOrder records "paid").

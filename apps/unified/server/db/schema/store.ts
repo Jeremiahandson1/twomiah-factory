@@ -75,6 +75,8 @@ export const storeProductVariant = pgTable('product_variants', {
   inventoryQty: integer('inventory_qty'), // null = not tracked
   /** Low-stock level (store_low_stock): at or under it, the option is on the Low stock list and the owner's daily email. null = no level. */
   lowStockAt: integer('low_stock_at'),
+  /** What one unit costs the shop (the owner types it; margin:read sees it). Sales reports work profit out from it; null = no cost. */
+  costCents: integer('cost_cents'),
   /** The feeds' identifiers, sent when present. */
   gtin: text('gtin'),
   mpn: text('mpn'),
@@ -178,6 +180,8 @@ export const storeOrderItem = pgTable('order_items', {
   quantity: integer('quantity').notNull(),
   lineTotalCents: integer('line_total_cents').notNull(),
   refundedQuantity: integer('refunded_quantity').notNull().default(0),
+  /** The option's cost when this was bought (a later cost edit never rewrites a sale's profit); null = it had none. */
+  unitCostCents: integer('unit_cost_cents'),
 }, (t) => [index('order_items_order_idx').on(t.orderId)])
 
 /**

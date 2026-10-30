@@ -9,7 +9,7 @@
 //     rests on colour or on seeing the bar;
 //   · ink pairs: brand text is text-orange-900 dark:text-orange-200 (scripts/check-contrast-measured.ts).
 import { useEffect, useState } from 'react'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Download } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText } from '../../../../shared'
 import { cents } from './lib'
@@ -19,7 +19,10 @@ interface Report {
   from: string; to: string; timeZone: string; bucket: 'day' | 'week' | 'month'
   totals: { orders: number; customers: number; grossCents: number; refundedCents: number; netCents: number; averageOrderCents: number }
   series: Point[]
-  topProducts: { productId: string | null; name: string; units: number; salesCents: number }[]
+  /** costCents / profitCents are sent only to a seat that sees what things cost (margin:read); null = the product has no cost. */
+  topProducts: { productId: string | null; name: string; units: number; salesCents: number; costCents?: number | null; profitCents?: number | null }[]
+  profit?: { productSalesCents: number; costedSalesCents: number; costCents: number; profitCents: number }
+  discountCodes: { code: string; orders: number; discountCents: number; netCents: number }[]
   repeat: { customers: number; repeat: number; firstTime: number; repeatNetCents: number; repeatRate: number; top: { customerId: string; name: string | null; email: string; orders: number; netCents: number }[] }
 }
 
@@ -37,10 +40,12 @@ function dayLabel(period: string, bucket: Report['bucket']): string {
   return bucket === 'month' ? `${month} ${y}` : `${month} ${d}`
 }
 const percent = (n: number) => `${Math.round(n * 100)}%`
+const EXPORTS = [{ report: 'sales', label: 'Sales by day' }, { report: 'products', label: 'Products' }, { report: 'discounts', label: 'Discount codes' }] as const
 
 export default function SalesPage() {
   const [range, setRange] = useState<{ from?: string; to?: string }>({})
   const [report, setReport] = useState<Report | null>(null)
+  const data = report
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -54,6 +59,21 @@ export default function SalesPage() {
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
   }, [range])
+
+  const [exporting, setExporting] = useState('')
+  const toCsv = async (report: string) => {
+    if (!report || !data) return
+    setExporting(report)
+    try {
+      const res = await api.raw(`/api/admin/sales-reports/export?report=${report}&from=${data.from}&to=${data.to}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url; a.download = `${report}-${data.from}-to-${data.to}.csv`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (e) { setError(errorText(e, "Couldn't make the spreadsheet")) } finally { setExporting('') }
+  }
 
   const tallest = Math.max(1, ...(report?.series ?? []).map((p) => p.grossCents))
 
@@ -77,10 +97,18 @@ export default function SalesPage() {
       </div>
 
       {report && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick ranges">
-          {PRESETS.map((p) => (
-            <button key={p.days} type="button" className="btn-secondary text-sm" onClick={() => setRange({ from: lastDays(report.to, p.days), to: report.to })}>{p.label}</button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Quick ranges">
+            {PRESETS.map((p) => (
+              <button key={p.days} type="button" className="btn-secondary text-sm" onClick={() => setRange({ from: lastDays(report.to, p.days), to: report.to })}>{p.label}</button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Download a spreadsheet">
+            <span className="text-sm text-gray-700 dark:text-slate-300"><Download className="inline h-4 w-4 mr-1" aria-hidden="true" />Spreadsheet (CSV):</span>
+            {EXPORTS.map((x) => (
+              <button key={x.report} type="button" className="btn-secondary text-sm" disabled={!!exporting} onClick={() => void toCsv(x.report)}>{exporting === x.report ? 'Preparing…' : x.label}</button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -88,10 +116,11 @@ export default function SalesPage() {
         <PageError message={`${error} — refresh to try again.`} />
       ) : report && (
         <div className={loading ? 'opacity-60 space-y-6' : 'space-y-6'} aria-busy={loading}>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-2 gap-4 ${report.profit ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
             <Tile label="Net sales" value={cents(report.totals.netCents)} note={`${cents(report.totals.grossCents)} paid, ${cents(report.totals.refundedCents)} sent back`} strong />
             <Tile label="Orders" value={String(report.totals.orders)} note={`${report.totals.customers} ${report.totals.customers === 1 ? 'customer' : 'customers'}`} />
             <Tile label="Average order" value={cents(report.totals.averageOrderCents)} note="Paid per order, before refunds" />
+            {report.profit && <Tile label="Profit" value={cents(report.profit.profitCents)} note={report.profit.costedSalesCents === report.profit.productSalesCents ? 'Every sale had a cost' : `On ${cents(report.profit.costedSalesCents)} of ${cents(report.profit.productSalesCents)} product sales that have a cost`} />}
             <Tile label="Came back" value={report.repeat.customers ? percent(report.repeat.repeatRate) : '—'} note={`${report.repeat.repeat} of ${report.repeat.customers} ${report.repeat.customers === 1 ? 'customer' : 'customers'} had ordered before`} />
           </div>
 
@@ -142,13 +171,14 @@ export default function SalesPage() {
               <p className="text-xs text-gray-500 dark:text-slate-400">What each brought in, before shipping, tax and discount codes. Returned items are taken off.</p>
               {report.topProducts.length === 0 ? <p className="mt-3 text-gray-500 dark:text-slate-400">Nothing sold in these days.</p> : (
                 <table className="mt-3 w-full text-sm">
-                  <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 font-medium">Product</th><th className="py-2 font-medium text-right">Sold</th><th className="py-2 font-medium text-right">Brought in</th></tr></thead>
+                  <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 font-medium">Product</th><th className="py-2 font-medium text-right">Sold</th><th className="py-2 font-medium text-right">Brought in</th>{report.profit && <th className="py-2 font-medium text-right">Profit</th>}</tr></thead>
                   <tbody>
                     {report.topProducts.map((p) => (
                       <tr key={p.productId ?? p.name} className="border-t border-gray-100 dark:border-slate-700 text-gray-900 dark:text-slate-100">
                         <td className="py-2 pr-3">{p.name}</td>
                         <td className="py-2 text-right">{p.units}</td>
                         <td className="py-2 text-right font-medium">{cents(p.salesCents)}</td>
+                        {report.profit && <td className="py-2 text-right">{p.profitCents == null ? <span className="text-gray-500 dark:text-slate-400">no cost</span> : cents(p.profitCents)}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -182,6 +212,26 @@ export default function SalesPage() {
               )}
             </section>
           </div>
+
+          <section className="card p-4 sm:p-6" aria-labelledby="discount-codes">
+            <h2 id="discount-codes" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Discount codes</h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400">What each code took off, and what those orders kept after refunds. A loyalty reward is not a code.</p>
+            {report.discountCodes.length === 0 ? <p className="mt-3 text-gray-500 dark:text-slate-400">No discount code was used in these days.</p> : (
+              <table className="mt-3 w-full text-sm">
+                <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 font-medium">Code</th><th className="py-2 font-medium text-right">Orders</th><th className="py-2 font-medium text-right">Taken off</th><th className="py-2 font-medium text-right">Orders kept</th></tr></thead>
+                <tbody>
+                  {report.discountCodes.map((r) => (
+                    <tr key={r.code} className="border-t border-gray-100 dark:border-slate-700 text-gray-900 dark:text-slate-100">
+                      <td className="py-2 pr-3 font-mono">{r.code}</td>
+                      <td className="py-2 text-right">{r.orders}</td>
+                      <td className="py-2 text-right">{cents(r.discountCents)}</td>
+                      <td className="py-2 text-right font-medium">{cents(r.netCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
         </div>
       )}
     </div>

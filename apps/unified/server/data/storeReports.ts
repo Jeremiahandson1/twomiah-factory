@@ -54,7 +54,7 @@ export async function salesTotals(db: any, companyId: string, w: Window): Promis
   return { orders, customers: Number(r?.customers ?? 0), grossCents: gross, refundedCents: refunded, netCents: gross - refunded, averageOrderCents: orders ? Math.round(gross / orders) : 0 }
 }
 
-export interface TopProduct { productId: string | null; name: string; units: number; salesCents: number }
+export interface TopProduct { productId: string | null; name: string; units: number; salesCents: number; /** Sales and cost of the units that carried a cost; cost null = none of them did. */ costedSalesCents: number; costCents: number | null }
 
 /**
  * The products that sold most in the window, by what they brought in. Units and sales are what stayed sold — a returned
@@ -70,13 +70,15 @@ export async function topProducts(db: any, companyId: string, w: Window, limit =
     name: sql<string>`max(${storeOrderItem.productName})`,
     units: sql<number>`coalesce(sum(${kept}), 0)`,
     salesCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0)`,
+    costedSalesCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null), 0)`,
+    costCents: sql<number | null>`sum(${storeOrderItem.unitCostCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null)`,
   }).from(storeOrderItem).innerJoin(storeOrder, sql`${storeOrder.id} = ${storeOrderItem.orderId}`)
     .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
     .groupBy(key)
     .having(sql`coalesce(sum(${kept}), 0) > 0`)
     .orderBy(sql`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0) desc`, sql`max(${storeOrderItem.productName}) asc`)
     .limit(limit)
-  return rows.map((r: any) => ({ productId: r.productId ?? null, name: String(r.name), units: Number(r.units), salesCents: Number(r.salesCents) }))
+  return rows.map((r: any) => ({ productId: r.productId ?? null, name: String(r.name), units: Number(r.units), salesCents: Number(r.salesCents), costedSalesCents: Number(r.costedSalesCents), costCents: r.costCents == null ? null : Number(r.costCents) }))
 }
 
 export interface Repeat {
@@ -124,4 +126,56 @@ export async function repeatCustomers(db: any, companyId: string, w: Window): Pr
     repeatRate: list.length ? repeat.length / list.length : 0,
     top: repeat.slice(0, 5).map((r) => ({ customerId: String(r.who), name: r.name ?? null, email: String(r.email), orders: Number(r.in_window), netCents: Number(r.net) })),
   }
+}
+
+export interface Profit {
+  /** What the product lines of the window sold for (returned units off), before shipping, tax and discount codes. */
+  productSalesCents: number
+  /** …of which these carried a cost: a unit cost kept on the line, or — a dropshipped order with none — the supplier's price for the order. */
+  costedSalesCents: number
+  costCents: number
+  /** costedSales − cost. Only the costed part: an item with no cost is not counted as free. */
+  profitCents: number
+}
+
+/**
+ * Profit where a cost is stored. A line's cost is the unit cost kept on it when it sold; an order none of whose lines has one
+ * but which a supplier fulfilled (supplier_cost_cents) is costed at what the supplier charged. Everything else has no cost
+ * and is left out of the profit, and says so (costedSalesCents against productSalesCents).
+ */
+export async function profitTotals(db: any, companyId: string, w: Window): Promise<Profit> {
+  const kept = sql`(${storeOrderItem.quantity} - ${storeOrderItem.refundedQuantity})`
+  const rows = await db.execute(sql`
+    with per_order as (
+      select ${storeOrder.supplierCostCents} as supplier_cost,
+             coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0) as all_sales,
+             sum(${storeOrderItem.unitPriceCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null) as costed_sales,
+             sum(${storeOrderItem.unitCostCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null) as line_cost
+        from ${storeOrder} join ${storeOrderItem} on ${storeOrderItem.orderId} = ${storeOrder.id}
+       where ${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}
+       group by ${storeOrder.id}, ${storeOrder.supplierCostCents}
+    )
+    select coalesce(sum(all_sales), 0) as product_sales,
+           coalesce(sum(case when line_cost is not null then costed_sales when supplier_cost is not null then all_sales end), 0) as costed_sales,
+           coalesce(sum(case when line_cost is not null then line_cost when supplier_cost is not null then supplier_cost end), 0) as cost
+      from per_order`)
+  const r: any = ((rows as any).rows ?? rows)[0] ?? {}
+  const sales = Number(r.product_sales ?? 0), costed = Number(r.costed_sales ?? 0), cost = Number(r.cost ?? 0)
+  return { productSalesCents: sales, costedSalesCents: costed, costCents: cost, profitCents: costed - cost }
+}
+
+export interface DiscountCodeRow { code: string; orders: number; discountCents: number; netCents: number }
+
+/** Per discount code: the orders it was used on, what it took off (the loyalty reward's share is not the code's), and what those orders kept. */
+export async function discountCodes(db: any, companyId: string, w: Window): Promise<DiscountCodeRow[]> {
+  const code = sql<string>`upper(${storeOrder.discountCode})`
+  const rows = await db.select({
+    code,
+    orders: sql<number>`count(*)`,
+    discountCents: sql<number>`coalesce(sum(greatest(0, ${storeOrder.discountCents} - ${storeOrder.loyaltyDiscountCents})), 0)`,
+    netCents: sql<number>`coalesce(sum(${storeOrder.totalCents} - ${storeOrder.refundedCents}), 0)`,
+  }).from(storeOrder)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${storeOrder.discountCode} is not null and ${storeOrder.discountCode} <> '' and ${inWindow(w)}`)
+    .groupBy(sql`1`).orderBy(sql`3 desc`, sql`1 asc`)
+  return rows.map((r: any) => ({ code: String(r.code), orders: Number(r.orders), discountCents: Number(r.discountCents), netCents: Number(r.netCents) }))
 }
