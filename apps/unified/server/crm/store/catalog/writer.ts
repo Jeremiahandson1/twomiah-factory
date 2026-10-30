@@ -8,6 +8,7 @@
 //
 //   POST /:id/describe   { tone, notes? }                → { description, seoTitle, seoDescription, tone }
 //   POST /:id/alt-text   { tone?, imageIds? }            → { alts: [{ imageId, alt }], skipped: [{ imageId, reason }] }
+// Both share one cap per company (AI_DRAFTS_PER_HOUR an hour; 429 ai_rate_limited past it, no model call).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, eq } from 'drizzle-orm'
@@ -16,7 +17,8 @@ import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { draftAltText, draftListing, TONES, type Photo, type Tone } from '../../listingWriter.ts'
+import { AI_OFF, aiConfigured, draftAltText, draftListing, TONES, type Photo, type Tone } from '../../listingWriter.ts'
+import { createAiUse } from '../../aiUse.ts'
 import { productPhotoPrefix } from './products.ts'
 
 /** Photos the writer reads in one go. */
@@ -34,6 +36,18 @@ export function createProductWriterRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
   app.use('*', d.permissions.requirePermission('products:update'))
 
+  // At most AI_DRAFTS_PER_HOUR requests an hour per company (crm/aiUse.ts). No AI key at all is answered first, with the owner's
+  // sentence and no count; past the cap, a plain sentence (429 ai_rate_limited, Retry-After) and no call to the model.
+  const aiUse = createAiUse(d.db)
+  const WRITER = 'store_writer'
+  const allowed = async (c: any, companyId: string): Promise<Response | null> => {
+    if (!aiConfigured()) return fail(c, 503, AI_OFF, 'ai_not_configured')
+    const got = await aiUse.claim(companyId, WRITER, 'product writer')
+    if (got.ok) return null
+    c.header('Retry-After', String(got.minutes * 60))
+    return fail(c, 429, got.sentence, 'ai_rate_limited')
+  }
+
   const productOf = async (companyId: string, id: string) =>
     (await db.select().from(storeProduct).where(and(eq(storeProduct.id, id), eq(storeProduct.companyId, companyId))).limit(1))[0] as typeof storeProduct.$inferSelect | undefined
 
@@ -46,6 +60,8 @@ export function createProductWriterRoutes(d: CrmDeps) {
     const variants: Array<typeof storeProductVariant.$inferSelect> = await db.select().from(storeProductVariant).where(eq(storeProductVariant.productId, product.id)).orderBy(asc(storeProductVariant.position))
     // What the shopper chooses between — never SKUs, prices, costs or stock.
     const options = variants.map((v) => [v.name && v.name !== 'Default' ? v.name : '', ...Object.entries(v.options || {}).map(([k, val]) => `${k}: ${val}`)].filter(Boolean).join(', ')).filter(Boolean)
+    const stop = await allowed(c, u.companyId)
+    if (stop) return stop
     const r = await draftListing({ name: product.name, tagline: product.tagline, category: product.category, options, current: product.description, notes: parsed.data.notes }, parsed.data.tone)
     if (!r.ok) return fail(c, r.status, r.message, r.code)
     return one(c, { description: r.description, seoTitle: r.seoTitle, seoDescription: r.seoDescription, tone: parsed.data.tone })
@@ -80,6 +96,8 @@ export function createProductWriterRoutes(d: CrmDeps) {
       } else skipped.push({ imageId: img.id, reason: 'The photo address can’t be read' })
     }
     if (!photos.length) return one(c, { alts: [], skipped })
+    const stop = await allowed(c, u.companyId)
+    if (stop) return stop
     const r = await draftAltText(product.name, photos, parsed.data.tone ?? 'straightforward')
     if (!r.ok) return fail(c, r.status, r.message, r.code)
     const got = new Set(r.alts.map((a) => a.id))

@@ -223,3 +223,105 @@ describe('the product writer', () => {
     expect(panel).not.toMatch(/api\.(patch|put|delete)\(/)
   })
 })
+
+// Follow-up 10/30: the writer costs money on the platform's AI key, so a company may ask it only so often — 30 requests an
+// hour between its two routes, counted per company in the database (crm/aiUse.ts). Past that: a plain sentence, 429, and NO call
+// to the model. The AI-off sentence still comes first, and one company's use never uses up another's.
+describe('the writer is capped per company', () => {
+  const CAP = 30
+  const uses = async (companyId = k.companyId) => (await (k.t.db as any).select().from(k.S.aiDraftUse).where(eq(k.S.aiDraftUse.companyId, companyId))) as Array<{ id: string; createdAt: Date }>
+  const clear = async () => { await (k.t.db as any).delete(k.S.aiDraftUse) }
+  const ask = (tone = 'friendly') => k.O('POST', `${WRITER}/${productId}/describe`, { tone })
+  const ready = () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test-stand-in'
+    reply = () => answer(JSON.stringify({ description: 'A feeder.', seoTitle: 'Feeder', seoDescription: 'A feeder.' }))
+  }
+
+  test('the 31st request in an hour is refused with a plain sentence, and nothing is sent to the model', async () => {
+    ready(); await clear()
+    const before = sent.length
+    for (let i = 0; i < CAP; i++) expect((await ask()).status).toBe(200)
+    expect(sent.length).toBe(before + CAP)
+    const over = await ask()
+    expect(over.status).toBe(429)
+    expect(over.json.code).toBe('ai_rate_limited')
+    expect(over.json.error).toMatch(/30 times in the last hour/)
+    expect(over.json.error).toMatch(/Try again in \d+ minutes?\./)
+    expect(over.json.error).not.toMatch(/ANTHROPIC|rate|limit/i)
+    expect(Number(over.headers.get('retry-after'))).toBeGreaterThan(0)
+    expect(sent.length).toBe(before + CAP) // no model call past the cap
+    // The photo route is the same tool: it shares the count, and is refused too.
+    const alt = await k.O('POST', `${WRITER}/${productId}/alt-text`, { tone: 'friendly' })
+    expect(alt.status).toBe(429)
+    expect(sent.length).toBe(before + CAP)
+    // A refused request is not counted: the count stays at the cap.
+    expect((await uses()).length).toBe(CAP)
+  })
+
+  test('the hour slides: once the oldest requests are over an hour old, the writer answers again', async () => {
+    ready(); await clear()
+    for (let i = 0; i < CAP; i++) await ask()
+    expect((await ask()).status).toBe(429)
+    await (k.t.db as any).update(k.S.aiDraftUse).set({ createdAt: new Date(Date.now() - 61 * 60 * 1000) }).where(eq(k.S.aiDraftUse.companyId, k.companyId))
+    const before = sent.length
+    expect((await ask()).status).toBe(200)
+    expect(sent.length).toBe(before + 1)
+  })
+
+  test('the sentence says when: it counts from the oldest request still in the hour', async () => {
+    ready(); await clear()
+    for (let i = 0; i < CAP; i++) await ask()
+    // The oldest is 50 minutes old → a place opens in 10 minutes.
+    const [first] = (await uses()).sort((a, b) => +a.createdAt - +b.createdAt)
+    await (k.t.db as any).update(k.S.aiDraftUse).set({ createdAt: new Date(Date.now() - 50 * 60 * 1000) }).where(eq(k.S.aiDraftUse.id, first.id))
+    const over = await ask()
+    expect(over.status).toBe(429)
+    expect(over.json.error).toMatch(/Try again in (9|10) minutes\./)
+  })
+
+  test("one company's use does not use up another's", async () => {
+    ready(); await clear()
+    const [other] = await (k.t.db as any).insert(k.S.company).values({ name: 'Other Shop', slug: 'other-shop-cap', enabledFeatures: ON }).returning()
+    await (k.t.db as any).insert(k.S.aiDraftUse).values(Array.from({ length: CAP + 5 }, () => ({ companyId: other.id, feature: 'store_writer' })))
+    const before = sent.length
+    expect((await ask()).status).toBe(200)
+    expect(sent.length).toBe(before + 1)
+    expect((await uses(other.id)).length).toBe(CAP + 5) // theirs untouched
+  })
+
+  test('with no AI key the owner is told so first, and nothing is counted', async () => {
+    await clear()
+    await (k.t.db as any).insert(k.S.aiDraftUse).values(Array.from({ length: CAP }, () => ({ companyId: k.companyId, feature: 'store_writer' })))
+    const was = process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY = ''
+    try {
+      const r = await ask()
+      expect(r.status).toBe(503)
+      expect(r.json.code).toBe('ai_not_configured')
+      expect((await uses()).length).toBe(CAP)
+    } finally { process.env.ANTHROPIC_API_KEY = was ?? '' }
+  })
+
+  test('requests arriving together cannot slip under the cap: of 40 at once, exactly 30 are answered', async () => {
+    ready(); await clear()
+    const before = sent.length
+    const all = await Promise.all(Array.from({ length: 40 }, () => ask()))
+    expect(all.filter((r) => r.status === 200).length).toBe(CAP)
+    expect(all.filter((r) => r.status === 429).length).toBe(40 - CAP)
+    expect(sent.length).toBe(before + CAP)
+    expect((await uses()).length).toBe(CAP)
+  })
+
+  test('a draft that fails at the model still counts (the cap bounds what we ask)', async () => {
+    ready(); await clear()
+    const mocked = globalThis.fetch
+    globalThis.fetch = (async (input: any, init?: any) => {
+      if (String(input?.url ?? input).startsWith('https://api.anthropic.com/')) return new Response('{}', { status: 500 })
+      return mocked(input, init)
+    }) as any
+    try {
+      expect((await ask()).status).toBe(502)
+      expect((await uses()).length).toBe(1)
+    } finally { globalThis.fetch = mocked }
+  })
+})

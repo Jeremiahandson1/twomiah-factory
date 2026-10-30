@@ -537,3 +537,15 @@ export const shopperAddress = pgTable('shopper_addresses', {
   isDefault: boolean('is_default').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('shopper_addresses_contact_idx').on(t.contactId)])
+
+/**
+ * One request to an AI drafting tool, kept for an hour's worth of counting (server/crm/aiUse.ts): the product writer's cap per
+ * company. `feature` names the tool, so the next catalog to get a writer (pricebook, a salon's menu) shares the one counter's
+ * code, with a count of its own. Rows older than a day are swept as new ones are added.
+ */
+export const aiDraftUse = pgTable('ai_draft_uses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  feature: text('feature').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('ai_draft_uses_company_idx').on(t.companyId, t.feature, t.createdAt)])

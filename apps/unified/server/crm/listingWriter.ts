@@ -11,6 +11,9 @@ const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 /** The owner's words when the server has no AI key — never the setting's name, which no owner can reach. */
 export const AI_OFF = 'The AI tools aren’t switched on for your account yet. Email support@twomiah.com and we will turn them on.'
 
+/** Whether the server has an AI key at all: without one the owner is told so (AI_OFF) before any cap is counted. */
+export const aiConfigured = () => !!process.env.ANTHROPIC_API_KEY
+
 /** What the owner can ask for, and what each means to the writer. */
 export const TONES = {
   friendly: 'warm and conversational, like a helpful neighbour',
