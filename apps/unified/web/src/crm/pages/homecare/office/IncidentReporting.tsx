@@ -1,5 +1,5 @@
 // Moved from templates/crm-homecare/frontend/src/components/admin/IncidentReporting.tsx.
-// Clinical → Incidents: the list, the new-incident form, and the way into each incident's case file.
+// Daily care → Incidents: the list, the new-incident form, and the way into each incident's case file.
 // Changes in the move:
 //   · the case file is its own page (/crm/incidents/:id, ./IncidentDetail.tsx): "Open" and a new report navigate there
 //     instead of swapping the list for it in place;

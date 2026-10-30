@@ -216,6 +216,8 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
     const dnu = new Set((Array.isArray(client.doNotUseCaregivers) ? client.doNotUseCaregivers : []).map(String))
     const toMin = (t: any) => { if (!t) return null; const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0) }
     const sMin = toMin(startTime), eMin = toMin(endTime)
+    // A caregiver whose credential has expired by that day is flagged (never hidden): the office decides.
+    const expired = await core.certReminders.expiredFor(companyId, cgs.map((cg) => String(cg.id)), validDate || await core.time.today(companyId))
 
     const ranked = cgs.map((cg) => {
       const weeklyHours = weekly[cg.id] || 0
@@ -239,6 +241,8 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       score -= (weeklyHours / maxHours) * 20
       if (wouldExceedHours) score -= 50
       if (approachingOvertime) score -= 10
+      const expiredCertifications = expired[String(cg.id)] || []
+      if (expiredCertifications.length) score -= 150
       if (distance !== null) { if (distance <= 5) score += 20; else if (distance <= 10) score += 10; else if (distance <= 20) score += 5; else if (distance > 30) score -= 15 }
       if (dayCol) { if (cg.dayAvailable === false) score -= 50; else if (timeFits === true) score += 15; else if (timeFits === false) score -= 20 }
       const reasons: string[] = []
@@ -248,6 +252,7 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       if (visitCount > 5) reasons.push(`✓ Familiar (${visitCount} visits)`)
       else if (visitCount > 0) reasons.push(`${visitCount} prior visits`)
       if (hasConflict) reasons.push('⚠️ Conflicting shift')
+      for (const e of expiredCertifications) reasons.push(`⚠️ Expired credential: ${e}`)
       if (!isAvailable) reasons.push('⚠️ Marked unavailable')
       if (wouldExceedHours) reasons.push('⚠️ Exceeds max hours')
       else if (approachingOvertime) reasons.push(`⚠️ ${weeklyHours.toFixed(0)}h this week`)
@@ -263,7 +268,7 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const tier = score >= 130 ? 'excellent' : score >= 100 ? 'good' : score >= 60 ? 'maybe' : 'avoid'
       return { ...cg, weeklyHours: weeklyHours.toFixed(2), maxHours, visitCount, hasConflict, isAvailable, isPreferred, isDnu, isBlackedOut,
         wouldExceedHours, approachingOvertime, distance: distance !== null ? distance.toFixed(1) : null, estimatedDriveTime: distance !== null ? Math.round(distance * 2) : null,
-        hasRequiredSkills: true, missingCertifications: [], score: Math.round(score), tier, reasons }
+        hasRequiredSkills: true, missingCertifications: [], expiredCertifications, score: Math.round(score), tier, reasons }
     })
     const out = (c.req.query('includeBlocked') === 'true' ? ranked : ranked.filter((x) => !x.isDnu && !x.isBlackedOut)).sort((a, b) => b.score - a.score)
     return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [] })

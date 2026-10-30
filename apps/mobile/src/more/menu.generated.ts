@@ -299,7 +299,7 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Route Optimizer","path":"/crm/route-optimizer","group":"Scheduling","icon":"ellipse","permission":"care-schedule:update","routePermission":"care-schedule:update"},
     {"label":"Company Optimizer","path":"/crm/company-optimizer","group":"Scheduling","icon":"ellipse","permission":"care-schedule:update","routePermission":"care-schedule:update"},
     {"label":"ADL Tracking","path":"/crm/adl","group":"Visit records","icon":"ellipse","permission":"care-clients:update","routePermission":"care-clients:update"},
-    {"label":"Medications","path":"/crm/medications","group":"Visit records","icon":"ellipse","permission":"care-clients:update","routePermission":"care-clients:update"},
+    {"label":"Medication reminders","path":"/crm/medications","group":"Visit records","icon":"ellipse","permission":"care-clients:update","routePermission":"care-clients:update"},
     {"label":"Visit Documentation","path":"/crm/visit-docs","group":"Visit records","icon":"ellipse","permission":"evv:delete","routePermission":"evv:delete"},
     {"label":"Incidents","path":"/crm/incidents","group":"Visit records","icon":"ellipse","permission":"care-compliance:read","routePermission":"care-compliance:read","native":[{"for":"field","route":"/(care)/incident"}]},
     {"label":"Form Builder","path":"/crm/form-builder","group":"Visit records","icon":"ellipse","permission":"care-clients:update","routePermission":"care-clients:update"},

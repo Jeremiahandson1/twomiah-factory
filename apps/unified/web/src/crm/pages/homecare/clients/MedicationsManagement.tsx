@@ -189,7 +189,7 @@ const MedicationsManagement = () => {
   return (
     <div>
       <div className="page-header">
-        <h2>💊 Medication Management</h2>
+        <h2>💊 Medication reminders</h2>
       </div>
 
       {/* Client Selector */}

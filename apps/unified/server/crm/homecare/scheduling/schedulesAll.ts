@@ -16,7 +16,8 @@ import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
-import { alignBiweeklyAnchor } from '../core/biweekly.ts'
+import { alignRepeatAnchor } from '../core/repeats.ts'
+import { frequencyFromRequest } from './repeatInput.ts'
 import { addDays } from '../core/agencyTime.ts'
 import { allActiveSchedules, editScheduleInPlace, mergeModifiedException, splitPatternFrom } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, who } from './shared.ts'
@@ -49,7 +50,7 @@ export function createSchedulesAllRoutes(core: HomecareCore, d: CrmDeps) {
     const { companyId, me: actor } = who(c)
     const scheduleId = c.req.param('id')
     const b = await c.req.json().catch(() => ({})) as any
-    const { clientId, caregiverId, dayOfWeek, date, startTime, endTime, notes, frequency, effectiveDate, anchorDate: rawAnchorDate, endDate, isTraining } = b
+    const { clientId, caregiverId, dayOfWeek, date, startTime, endTime, notes, effectiveDate, anchorDate: rawAnchorDate, endDate, isTraining } = b
     const scope = String(b.scope || c.req.query('scope') || '').toLowerCase()
     const editDate: string | null = b.editDate || c.req.query('editDate') || null
 
@@ -57,6 +58,10 @@ export function createSchedulesAllRoutes(core: HomecareCore, d: CrmDeps) {
     if (startTime && endTime && hms(startTime) === hms(endTime)) return fail(c, 400, 'Start and end time cannot be the same')
     if (scope && !['this', 'following', 'all'].includes(scope)) return fail(c, 400, `Invalid scope '${scope}'. Use this | following | all.`)
     if (editDate && !DATE_RE.test(editDate)) return fail(c, 400, 'editDate must be YYYY-MM-DD.')
+
+    const asked = await frequencyFromRequest(d, companyId, b)
+    if ('error' in asked) return fail(c, 400, asked.error, asked.code)
+    const frequency = asked.frequency
 
     const before = await core.schedules.scheduleById(companyId, scheduleId, true)
     if (!before) return fail(c, 404, 'Schedule not found')
@@ -71,9 +76,9 @@ export function createSchedulesAllRoutes(core: HomecareCore, d: CrmDeps) {
     const resultingFrequency = frequency || before.frequency || 'weekly'
     const resultingDow = (dayOfWeek !== undefined && dayOfWeek !== null && dayOfWeek !== '') ? Number(dayOfWeek) : before.dayOfWeek
     const alignAnchor = (fromDate: string | null) => {
-      if (resultingFrequency !== 'biweekly' || resultingDow === null || resultingDow === undefined) return rawAnchorDate || null
-      return alignBiweeklyAnchor({
-        anchorDate: rawAnchorDate || before.anchorDate, effectiveDate: fromDate, dayOfWeek: resultingDow,
+      if (resultingFrequency === 'weekly' || resultingDow === null || resultingDow === undefined) return rawAnchorDate || null
+      return alignRepeatAnchor({
+        frequency: resultingFrequency, anchorDate: rawAnchorDate || before.anchorDate, effectiveDate: fromDate, dayOfWeek: resultingDow,
         previous: { anchorDate: before.anchorDate, dayOfWeek: before.dayOfWeek },
       })
     }

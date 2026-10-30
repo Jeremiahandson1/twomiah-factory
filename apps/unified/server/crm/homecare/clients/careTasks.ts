@@ -27,6 +27,7 @@ import { done, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { wholeNumber } from '../core/careAudit.ts'
+import { REQUIRED_TASKS_FEATURE } from '../core/requiredTasks.ts'
 import { uploadedForm } from '../core/upload.ts'
 import { formatsForState } from '../core/assessmentImports.ts'
 import { AssessmentPdfError } from '../core/midasAssessmentPdf.ts'
@@ -35,6 +36,7 @@ import { body, who, whole, type ClientAccess } from './shared.ts'
 
 export const CATEGORIES = ['adl', 'iadl', 'medication', 'companion', 'safety', 'other']
 export const STATUSES = ['pending', 'completed', 'skipped', 'refused']
+export const SKIP_NEEDS_REASON = 'This task is required. Say why it was skipped: add a note with the reason, then mark it Skipped.'
 export const REFUSAL_NEEDS_REASON = 'Say why the client refused this task: add a note with the reason (the Note button), then mark it Refused.'
 
 // Frequency is a positive whole number; anything else is 1 (the source CRM's rule).
@@ -84,6 +86,8 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       minutes = m
     }
     if (!(await access.clientInCompany(companyId, clientId))) return fail(c, 404, 'Client not found')
+    const makeRequired = b.isRequired === true || b.isRequired === 'true'
+    if (makeRequired && !(await d.features.isFeatureEnabled(companyId, REQUIRED_TASKS_FEATURE))) return fail(c, 400, 'Required tasks are not switched on for this agency yet.', 'required_tasks_not_available')
     const sortOrder = wholeNumber(b.sortOrder) ?? await nextTaskSortOrder(db, companyId, clientId)
     const [row] = await db.insert(clientTaskTemplates).values({
       companyId,
@@ -97,6 +101,7 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       timeOfDay: normTimeOfDay(b.timeOfDay),
       assessmentSource: b.assessmentSource || null,
       cadence: normCadence(b.cadence),
+      isRequired: makeRequired,
       sortOrder,
       createdById: me,
     }).returning()
@@ -212,7 +217,7 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
     if (entry.caregiverId !== me && !access.office(user)) return fail(c, 403, 'Not your shift')
     const refused = await access.careWriteRefusal(c, entry.clientId)
     if (refused) return refused
-    const [task] = await db.select({ id: clientTaskTemplates.id, clientId: clientTaskTemplates.clientId }).from(clientTaskTemplates)
+    const [task] = await db.select({ id: clientTaskTemplates.id, clientId: clientTaskTemplates.clientId, isRequired: clientTaskTemplates.isRequired }).from(clientTaskTemplates)
       .where(and(eq(clientTaskTemplates.id, c.req.param('taskId')), eq(clientTaskTemplates.companyId, companyId))).limit(1)
     if (!task || task.clientId !== entry.clientId) return fail(c, 404, 'Task not found for this client')
 
@@ -220,6 +225,8 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
     const notes = b.notes && String(b.notes).trim() ? String(b.notes).trim() : null
     // A refusal is a care event the office and the visit record must be able to explain, so it carries the reason.
     if (b.status === 'refused' && !notes) return fail(c, 400, REFUSAL_NEEDS_REASON)
+    // A required task may only be skipped with a reason (care_required_tasks); other tasks keep today's rules.
+    if (b.status === 'skipped' && !notes && task.isRequired && await core.requiredTasks.enabled(companyId)) return fail(c, 400, SKIP_NEEDS_REASON, 'skip_needs_reason')
     const [row] = await db.insert(shiftTaskCompletions)
       .values({ companyId, timeEntryId: entry.id, taskTemplateId: task.id, status: b.status, notes, completedAt })
       .onConflictDoUpdate({
@@ -258,6 +265,11 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
     if (b.daysOfWeek !== undefined && b.daysOfWeek !== null) set.daysOfWeek = b.daysOfWeek
     if (b.timeOfDay) set.timeOfDay = normTimeOfDay(b.timeOfDay)
     if (b.cadence) set.cadence = normCadence(b.cadence)
+    if (b.isRequired !== undefined && b.isRequired !== null) {
+      const want = b.isRequired === true || b.isRequired === 'true'
+      if (want && !(await core.requiredTasks.enabled(companyId))) return fail(c, 400, 'Required tasks are not switched on for this agency yet.', 'required_tasks_not_available')
+      set.isRequired = want
+    }
     const [row] = await db.update(clientTaskTemplates).set(set)
       .where(and(eq(clientTaskTemplates.id, c.req.param('id')), eq(clientTaskTemplates.companyId, companyId))).returning()
     if (!row) return fail(c, 404, 'Task not found')

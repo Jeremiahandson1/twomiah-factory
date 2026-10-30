@@ -288,6 +288,27 @@
       "when": 1793361622441,
       "tag": "0040_email_alias_member",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793379297620,
+      "tag": "0041_chief_golden_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793379450164,
+      "tag": "0042_first_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793379785931,
+      "tag": "0043_strange_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

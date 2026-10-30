@@ -718,11 +718,6 @@ export async function cancelPosting(q: Q, companyId: string, id: string): Promis
     WHERE id = ${id} AND company_id = ${companyId} AND status IN ('open', 'claimed') RETURNING id`)).length > 0
 }
 
-/** Mark a posting broadcast. */
-export async function markBroadcast(q: Q, companyId: string, id: string): Promise<void> {
-  await q.execute(sql`UPDATE open_shifts SET broadcast_sent = true, updated_at = NOW() WHERE id = ${id} AND company_id = ${companyId}`)
-}
-
 /** Every active caregiver for a posting: busy at its time (its own schedule aside), already told about it. */
 export async function eligibleForShift(q: Q, companyId: string, s: { id: string; shiftDate: string; startTime: string; endTime: string; scheduleId: string | null }): Promise<any[]> {
   return camelRows(await q.execute(sql`

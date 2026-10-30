@@ -1,0 +1,28 @@
+# Home care parity: supervisory / nurse-supervisor visits
+
+Research date: 2026-10-30. All wording is paraphrased from the pages listed.
+
+## Leaders checked
+
+- AxisCare: [features overview](https://axiscare.com/overview/), [Care Vision](https://axiscare.com/care-vision/), [product tours list](https://axiscare.com/product-tours-ungated). help.axiscare.com could not be opened (fetch blocked).
+- AlayaCare: [Employee Finder blog](https://alayacare.com/?p=5118), [scheduling benefits](https://alayacare.com/?p=26569), [mobile app menu](https://support.helpathome.com/hc/en-us/articles/10931551109527). No help-centre page found.
+- WellSky Personal Care: [private duty product page](https://wellsky.com/solutions/home/private-duty), [product page](https://wellsky.com/?p=49584). No help-centre page found.
+- Adjacent references (NOT one of the three named leaders, included only because the named leaders yielded nothing): HHAeXchange and Axxess help pages.
+
+## Capabilities
+
+| Capability | Leader(s) that have it | Source link | Our status |
+|---|---|---|---|
+| Supervisory-visit scheduling or due/overdue tracking | Not found for AxisCare, AlayaCare or WellSky Personal Care | see Leaders checked | TBD |
+| Visit type for a 6-month supervisory cycle set up on contract service codes by an admin | HHAeXchange (adjacent, not a named leader) | [Schedule Supervisory Visits](https://knowledge.hhaexchange.com/provider/Content/Documentation/Admin/Admin-B-Schedule-Supervisory-Visits-Annual-Assessments-S.htm) | TBD |
+| A "visits due" report with a due-date column that staff use to pick who needs a follow-up visit, then create the visit on the calendar | HHAeXchange (adjacent) | [Schedule Supervisory Visits](https://knowledge.hhaexchange.com/provider/Content/Documentation/Admin/Admin-B-Schedule-Supervisory-Visits-Annual-Assessments-S.htm) | TBD |
+| Supervisory visit started from a clinical visit note in the mobile app, targeted at a 14-day aide supervision cycle, documented in a note with template comments and e-signature | Axxess (adjacent) | [Supervisory Visits in Mobile Visit Notes](https://www.axxess.com/help/axxesscare/software-updates/supervisory-visits-in-mobile-visit-notes/) | TBD |
+| Caregivers answer custom questions at clock in/out and the office gets a dashboard alert needing acknowledgement (general visit-check feature, not a supervisory visit) | AxisCare | [Care Vision](https://axiscare.com/care-vision/) | TBD |
+
+## Gaps and uncertainty
+
+- Nothing on supervisory or nurse-supervisor visits was found in any AxisCare, AlayaCare or WellSky page opened. Absence from marketing pages does not prove the feature is missing; it may live in help articles that could not be reached (help.axiscare.com was blocked, and no AlayaCare or WellSky help centre surfaced in search).
+- Cadence options (60/90 days or similar): not found for the named leaders. The adjacent references show 6 months (HHAeXchange) and 14 days (Axxess), which are regulatory-context specific.
+- Forms: Axxess uses a supervisory visit note; HHAeXchange page mentions none. Nothing for the named leaders.
+- Overdue flags and dashboards: HHAeXchange page describes none beyond the report's due-date column; Axxess page describes none.
+- The HHAeXchange and Axxess pages concern agencies with clinical oversight and may not map to non-medical home care.

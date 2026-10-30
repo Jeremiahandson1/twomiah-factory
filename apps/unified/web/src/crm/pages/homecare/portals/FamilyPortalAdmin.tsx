@@ -22,7 +22,7 @@
 // camelCase. Its buttons were the office's (requireAdmin); here adding a relative and replying need care-portal:create,
 // the rest care-portal:update, both sides.
 import { useEffect, useState, type FormEvent } from 'react'
-import { usePermissions, usePrompt, useToast } from '../../../../shared'
+import { useAuth, usePermissions, usePrompt, useToast } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
@@ -45,6 +45,7 @@ interface Member {
   phone: string | null
   isActive: boolean
   isPrimaryContact: boolean | null
+  visitTextOptIn?: boolean | null
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
@@ -658,6 +659,7 @@ const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'othe
 interface EditPatch {
   name: string; phone: string; relationship: string
   canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean; isPrimaryContact: boolean
+  visitTextOptIn: boolean
 }
 
 function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubmit: (patch: EditPatch) => Promise<void>; onCancel: () => void }) {
@@ -671,7 +673,9 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canViewMedications: !!member.canViewMedications,
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
+    visitTextOptIn: !!member.visitTextOptIn,
   })
+  const textsOn = useAuth().hasFeature('care_family_texts')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -716,6 +720,15 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
           Primary contact for this client
         </label>
       </div>
+      {textsOn && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input type="checkbox" checked={form.visitTextOptIn} onChange={(e) => setForm({ ...form, visitTextOptIn: e.target.checked })} />
+            Text them when the caregiver arrives and when they leave
+          </label>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. No texts between 9 PM and 8 AM; they can reply STOP at any time.</small>
+        </div>
+      )}
       <div className="modal-actions">
         <button type="button" className="hc-btn hc-btn-secondary" onClick={onCancel}>Cancel</button>
         <button type="submit" className="hc-btn hc-btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>

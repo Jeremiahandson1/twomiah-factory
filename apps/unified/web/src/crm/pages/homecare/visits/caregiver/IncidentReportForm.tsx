@@ -1,6 +1,6 @@
 // Moved from templates/crm-homecare/frontend/src/components/caregiver/IncidentReportForm.tsx — a caregiver reports an
 // incident from the field. Posts to POST /api/incidents/caregiver-report (server/crm/homecare/office/incidents.ts). The
-// office gets an incident_alert notification and the report lands in Clinical → Incidents as an open case. The client
+// office gets an incident_alert notification and the report lands in Daily care → Incidents as an open case. The client
 // picker is the server's own "your clients" list (GET /api/incidents/my-clients), so it can never offer a client the
 // server would refuse.
 //

@@ -1,0 +1,1 @@
+ALTER TABLE "client_task_templates" ADD COLUMN "is_required" boolean DEFAULT false NOT NULL;

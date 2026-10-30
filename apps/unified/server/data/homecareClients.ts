@@ -165,7 +165,7 @@ export async function nextCarePlanRevision(q: Q, companyId: string, carePlanId: 
 export async function clientTaskRows(q: Q, companyId: string, clientId: string): Promise<any[]> {
   return camelRows(await q.execute(sql`
     SELECT id, client_id, task_name, description, category, allotted_minutes,
-           weekly_frequency, days_of_week, time_of_day, assessment_source, cadence,
+           weekly_frequency, days_of_week, time_of_day, assessment_source, cadence, is_required,
            sort_order, is_active, created_at, updated_at
       FROM client_task_templates
      WHERE client_id = ${clientId} AND company_id = ${companyId} AND is_active = true
@@ -206,7 +206,7 @@ export async function shiftChecklist(q: Q, companyId: string, timeEntryId: strin
   const weekStart = sql`((date_trunc('week', NOW() AT TIME ZONE ${tz}) AT TIME ZONE ${tz}) AT TIME ZONE 'UTC')`
   return camelRows(await q.execute(sql`
     SELECT t.id AS task_id, t.task_name, t.description, t.category, t.allotted_minutes,
-           t.weekly_frequency, t.days_of_week, t.time_of_day, t.sort_order, t.cadence,
+           t.weekly_frequency, t.days_of_week, t.time_of_day, t.sort_order, t.cadence, t.is_required,
            sc.id AS completion_id, COALESCE(sc.status, 'pending') AS status,
            sc.notes, sc.completed_at, sc.updated_at,
            EXISTS (
@@ -220,6 +220,26 @@ export async function shiftChecklist(q: Q, companyId: string, timeEntryId: strin
       LEFT JOIN shift_task_completions sc ON sc.task_template_id = t.id AND sc.time_entry_id = ${timeEntryId}
      WHERE t.client_id = ${clientId} AND t.company_id = ${companyId} AND t.is_active = true
      ORDER BY t.sort_order, t.created_at`))
+}
+
+/**
+ * The required tasks of this shift's client that are still open: no mark, or a mark that is not "done" and not a skip /
+ * refusal that carries a reason. A weekly task already completed on another shift this week is not open. (Item 12.)
+ */
+export async function pendingRequiredTasks(q: Q, companyId: string, timeEntryId: string, clientId: string, tz: string): Promise<{ taskId: string; taskName: string }[]> {
+  const weekStart = sql`((date_trunc('week', NOW() AT TIME ZONE ${tz}) AT TIME ZONE ${tz}) AT TIME ZONE 'UTC')`
+  return camelRows(await q.execute(sql`
+    SELECT t.id AS task_id, t.task_name
+      FROM client_task_templates t
+      LEFT JOIN shift_task_completions sc ON sc.task_template_id = t.id AND sc.time_entry_id = ${timeEntryId}
+     WHERE t.client_id = ${clientId} AND t.company_id = ${companyId} AND t.is_active = true AND t.is_required = true
+       AND NOT (COALESCE(sc.status, 'pending') = 'completed'
+                OR (COALESCE(sc.status, 'pending') IN ('skipped', 'refused') AND COALESCE(TRIM(sc.notes), '') <> ''))
+       AND NOT (t.cadence = 'weekly' AND EXISTS (
+             SELECT 1 FROM shift_task_completions sc2
+               JOIN time_entries te2 ON te2.id = sc2.time_entry_id
+              WHERE sc2.task_template_id = t.id AND sc2.status = 'completed' AND te2.start_time >= ${weekStart}))
+     ORDER BY t.sort_order, t.created_at`)) as any
 }
 
 // ── Medications and the MAR (routes/medications.ts) ──────────────────────────────────────────

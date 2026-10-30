@@ -2067,6 +2067,9 @@ export const familyMembers = pgTable('family_members', {
   canViewMedications: boolean('can_view_medications').default(false).notNull(),
   canMessage: boolean('can_message').default(true).notNull(),
   isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
+  // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
+  visitTextOptIn: boolean('visit_text_optin').default(false).notNull(),
+  visitTextOptInAt: timestamp('visit_text_optin_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2191,6 +2194,39 @@ export const certificationAlerts = pgTable('certification_alerts', {
   index('certification_alerts_status_idx').on(t.status),
 ])
 
+// One reminder per (credential, expiry date, stage) — stage '30', '14' or '0' days before it expires. The unique key is
+// how the daily scan sends each reminder once, across restarts and across instances (core/certReminders.ts). A renewed
+// credential has a new expiry date, so its reminders start over.
+export const certificationReminder = pgTable('certification_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  certificationRecordId: text('certification_record_id').notNull().references(() => certificationRecords.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  expiryDate: date('expiry_date').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  index('certification_reminder_company_id_idx').on(t.companyId),
+  uniqueIndex('certification_reminder_key').on(t.certificationRecordId, t.expiryDate, t.stage),
+])
+
+// One row per (visit, relative, arrival or departure): the claim that makes each family text send once — across a
+// replayed or offline punch and across instances — and the record of what happened to it: 'sent', 'failed' (the text
+// service could not send), or 'skipped_quiet' / 'skipped_late' (the agency's quiet hours; a punch saved hours before it
+// reached us).
+export const familyVisitText = pgTable('family_visit_text', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  event: text('event').notNull(),
+  status: text('status').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_visit_text_company_id_idx').on(t.companyId),
+  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event),
+])
+
 export const payrollRecords = pgTable('payroll_records', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -2302,6 +2338,9 @@ export const clientTaskTemplates = pgTable('client_task_templates', {
   assessmentSource: text('assessment_source'),
   // 'daily' = every shift; 'weekly' = once a week
   cadence: text('cadence').default('daily').notNull(),
+  // Item 12: a required task blocks the caregiver's clock-out until it is done, or skipped / refused with a reason.
+  // Only enforced for agencies with the care_required_tasks feature.
+  isRequired: boolean('is_required').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdById: text('created_by_id').references(() => user.id),

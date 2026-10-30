@@ -26,6 +26,9 @@ import { createMedicationsOnFile } from './medicationsOnFile.ts'
 import { createVitals } from './vitals.ts'
 import { createShiftReminders } from './shiftReminders.ts'
 import { createOvertimeAlerts } from './overtimeAlerts.ts'
+import { createCertReminders } from './certReminders.ts'
+import { createFamilyTexts } from './familyTexts.ts'
+import { createRequiredTasks } from './requiredTasks.ts'
 import { createVisitJobs } from './visitJobs.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
@@ -99,7 +102,10 @@ function buildHomecareCore(d: CrmDeps) {
   // Background work (started by startJobs, never here).
   const reminders = createShiftReminders(d, { time, notify })
   const overtime = createOvertimeAlerts(d, { time, profile, notify })
-  const visitJobs = createVisitJobs(d, { reminders, overtime })
+  const certReminders = createCertReminders(d, { time, notify })
+  const familyTexts = createFamilyTexts(d, { time, notify, profile })
+  const requiredTasks = createRequiredTasks(d, { time })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -110,7 +116,7 @@ function buildHomecareCore(d: CrmDeps) {
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
     invoices, claims, payroll,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, worcsPoll,
+    reminders, overtime, certReminders, familyTexts, requiredTasks, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

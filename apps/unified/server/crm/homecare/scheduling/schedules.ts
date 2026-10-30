@@ -115,7 +115,9 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
       })
       const row = await core.schedules.scheduleById(companyId, id)
       await core.notify.recordAudit(companyId, me, 'CREATE', 'schedules', id, null, row)
-      return one(c, { ...row, authWarnings: authCheck.warnings }, 201)
+      // An expired credential is a flag for the office, never a refusal (credentialWarnings is [] unless the company has the reminders feature on).
+      const credentialWarnings = (await core.certReminders.expiredFor(companyId, [String(caregiverId)], base))[String(caregiverId)] || []
+      return one(c, { ...row, authWarnings: authCheck.warnings, credentialWarnings }, 201)
     } catch (e: any) {
       if (e?.code === '23505' || /unique|duplicate key/i.test(e?.message || '')) {
         return fail(c, 409, 'This caregiver already has this exact shift (same client, day, and time).', 'duplicate')

@@ -54,6 +54,8 @@ const memberColumns = {
   phone: familyMembers.phone,
   isActive: familyMembers.isActive,
   isPrimaryContact: familyMembers.isPrimaryContact,
+  visitTextOptIn: familyMembers.visitTextOptIn,
+  visitTextOptInAt: familyMembers.visitTextOptInAt,
   canViewSchedule: familyMembers.canViewSchedule,
   canViewCarePlan: familyMembers.canViewCarePlan,
   canViewMedications: familyMembers.canViewMedications,
@@ -126,6 +128,9 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       canViewMedications: b.canViewMedications === true,
       canMessage: b.canMessage !== false,
       isPrimaryContact: b.isPrimaryContact === true,
+      // The relative's yes to arrival/departure texts, recorded by the office; never assumed.
+      visitTextOptIn: b.visitTextOptIn === true && !!b.phone,
+      visitTextOptInAt: b.visitTextOptIn === true && !!b.phone ? new Date() : null,
       isActive: true,
     }).returning(memberColumns)
     // Welcome email with the login. The account stands even if the email cannot go out.
@@ -196,6 +201,16 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     if (typeof b?.relationship === 'string') patch.relationship = b.relationship.trim() || null
     for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage', 'isPrimaryContact'] as const) {
       if (typeof b?.[k] === 'boolean') patch[k] = b[k]
+    }
+    // Arrival/departure texts: turning them on needs a phone number on the relative (the one being saved, or the one on file).
+    if (typeof b?.visitTextOptIn === 'boolean') {
+      if (b.visitTextOptIn) {
+        const phone = 'phone' in patch ? patch.phone : (await db.select({ phone: familyMembers.phone }).from(familyMembers)
+          .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId))).limit(1))[0]?.phone
+        if (!phone) return fail(c, 400, 'Add a phone number before turning on arrival texts.', 'phone_required')
+        patch.visitTextOptIn = true
+        patch.visitTextOptInAt = new Date()
+      } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null }
     }
     const [row] = await db.update(familyMembers).set({ ...patch, updatedAt: new Date() })
       .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId)))

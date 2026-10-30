@@ -351,6 +351,14 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // never be seeded, toggled or sold; the id stays in the vocabulary so the gates are not "unknown".
   // Add the templates back only when the feature actually works.
   { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Instant roof estimate from a satellite measurement — not yet available', category: 'Add-on Products', core: false, templates: [], hidden: true },
+
+  // Home care depth (cloud/homecare-depth, 2026-10-30) — NOT READY until the owner has tested each. Offered to no template
+  // beyond crm-homecare and hidden, so no plan, signup or Settings › Features save can switch one on; a test switches one on
+  // by writing the company's list, as the financing tests do.
+  { id: 'care_cert_reminders', name: 'Credential expiry reminders', description: 'Daily reminders to the caregiver and the office 30, 14 and 0 days before a credential expires; an expired caregiver is flagged when scheduling', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
+  { id: 'care_family_texts', name: 'Family arrival texts', description: 'A text to relatives who asked for it when the caregiver arrives and when they leave, from the agency\'s own number', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
+  { id: 'care_required_tasks', name: 'Required tasks before clock-out', description: 'Mark a client\'s task required: the caregiver cannot clock out until it is done, or skipped with a reason', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
+  { id: 'care_shift_repeats', name: 'Monthly and every-few-weeks shifts', description: 'Repeat a shift monthly (every 2nd Tuesday) or every 3 to 12 weeks', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))

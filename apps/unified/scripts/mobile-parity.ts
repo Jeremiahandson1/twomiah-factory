@@ -173,7 +173,7 @@ export const PHONE_HAS: PhoneHas[] = [
 /** Groups, in the order the menu lists them. Settled with the owner (2026-10-28): Sell / Work / Projects / … , not the desktop's section names. */
 export const MORE_GROUP_ORDER = ['Home', 'Sell', 'Work', 'Projects', 'Clients & care', 'Scheduling', 'Caregivers', 'Visit records', 'Billing & payroll', 'Compliance', 'Communication', 'Money & reports', 'Customers', 'Equipment & records', 'Business & website', 'Help'] as const
 /** Home care's desktop sections are its own; each becomes one group (never a name that sounds medical). */
-const HOMECARE_SECTION_GROUP: Record<string, string> = { Operations: 'Clients & care', Scheduling: 'Scheduling', Clinical: 'Visit records', Caregivers: 'Caregivers', Financial: 'Billing & payroll', Compliance: 'Compliance', Communication: 'Communication', Settings: 'Business & website' }
+const HOMECARE_SECTION_GROUP: Record<string, string> = { Operations: 'Clients & care', Scheduling: 'Scheduling', 'Daily care': 'Visit records', Caregivers: 'Caregivers', Financial: 'Billing & payroll', Compliance: 'Compliance', Communication: 'Communication', Settings: 'Business & website' }
 const SECTION_GROUP: Record<string, string> = { Website: 'Business & website', Bookings: 'Customers', Projects: 'Projects' }
 const GROUP_BY_PATH: Record<string, string> = {
   '/crm/accounting': 'Money & reports',

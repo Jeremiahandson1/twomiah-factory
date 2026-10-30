@@ -35,6 +35,8 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
   const tone = useTone(s.tone)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(task.notes || '')
+  // A REQUIRED task (care_required_tasks) can only be skipped with a reason: Skip opens the note, and saving it skips.
+  const [skipping, setSkipping] = useState(false)
   // GET /api/care-tasks/time-entry/:id rows (data/homecareClients.ts shiftChecklist): { taskId, taskName, description,
   // category, allottedMinutes, cadence, status, notes, doneThisWeek }
   const weeklyDone = task.cadence === 'weekly' && task.doneThisWeek && task.status !== 'completed'
@@ -43,7 +45,7 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
       <View style={styles.taskHead}>
         <Ionicons name={s.icon as any} size={20} color={task.status === 'pending' ? t.textSecondary : tone.text} />
         <View style={{ flex: 1 }}>
-          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.taskName}</Text>
+          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.taskName}{task.isRequired ? '  · Required' : ''}</Text>
           <Text style={[styles.taskMeta, { color: task.status === 'pending' ? t.textSecondary : tone.text }]}>
             {[task.category ? String(task.category).toUpperCase() : null, task.allottedMinutes > 0 ? `${task.allottedMinutes} min` : null, weeklyDone ? 'done earlier this week' : null].filter(Boolean).join(' · ')}
           </Text>
@@ -54,13 +56,13 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
       {task.notes && !noteOpen ? <Text style={[styles.taskDesc, { color: task.status === 'pending' ? t.text : tone.text }]}>Note: {task.notes}</Text> : null}
       {noteOpen ? (
         <View style={{ marginTop: 8 }}>
-          <Field label="Note" value={note} onChangeText={setNote} multiline placeholder="What happened with this task?" />
-          <Button small label="Save note" onPress={async () => { await onSet(task.status, note); setNoteOpen(false) }} />
+          <Field label={skipping ? 'Why are you skipping it? (required)' : 'Note'} value={note} onChangeText={setNote} multiline placeholder={skipping ? 'The office needs the reason' : 'What happened with this task?'} />
+          <Button small label={skipping ? 'Mark skipped' : 'Save note'} disabled={skipping && !note.trim()} onPress={async () => { await onSet(skipping ? 'skipped' : task.status, note); setNoteOpen(false); setSkipping(false) }} />
         </View>
       ) : (
         <View style={styles.taskActions}>
           {task.status !== 'completed' && <Button small variant="success" label="Done" icon="checkmark" onPress={() => onSet('completed', task.notes)} />}
-          {task.status !== 'skipped' && <Button small variant="secondary" label="Skip" onPress={() => onSet('skipped', task.notes)} />}
+          {task.status !== 'skipped' && <Button small variant="secondary" label="Skip" onPress={() => { if (task.isRequired) { setSkipping(true); setNoteOpen(true) } else onSet('skipped', task.notes) }} />}
           {task.status !== 'refused' && <Button small variant="secondary" label="Refused" onPress={() => onSet('refused', task.notes)} />}
           {task.status !== 'pending' && <Button small variant="ghost" label="Undo" onPress={() => onSet('pending', task.notes)} />}
           <Button small variant="ghost" label={task.notes ? 'Edit note' : 'Note'} onPress={() => setNoteOpen(true)} />

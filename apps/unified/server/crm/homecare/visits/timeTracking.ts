@@ -449,6 +449,8 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     // EVV: does this visit go to Sandata (weekly EVV allowance)? Decided after the punch is saved and capped, so it never
     // blocks the clock-in; null = no answer, and the app prompts as before.
     const sandataRequired = await core.evvVisits.recordSandataDecision(companyId, entry.id, entry.clientId, entry.startTime.toISOString())
+    // The relatives who asked are told she has arrived (not waited for: the text never delays the punch).
+    void core.familyTexts.onClockEvent(companyId, entry, 'clock_in', at)
     return one(c, { ...entry, sandataRequired }, 201)
   })
 
@@ -475,8 +477,23 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     if (endAt && endAt < entry.startTime) endAt = entry.startTime
     const end = endAt || new Date()
 
+    // Required tasks (care_required_tasks): a live clock-out waits until each is done, or skipped / refused with a
+    // reason. A clock-out saved on the phone while offline is already a fact, so it is recorded and flagged for the
+    // office instead of being refused when it finally arrives.
+    const openRequired = await core.requiredTasks.pendingFor(companyId, entry)
+    if (openRequired.length && !endAt) {
+      const names = openRequired.map((t) => t.taskName)
+      // fields: task id → task name, so a screen can point at the exact rows still open.
+      return fail(c, 409,
+        `Finish the required task${names.length === 1 ? '' : 's'} before clocking out: ${names.join(', ')}. Mark ${names.length === 1 ? 'it' : 'each'} done, or skip it and say why.`,
+        'required_tasks_pending', Object.fromEntries(openRequired.map((t) => [t.taskId, t.taskName])))
+    }
+
     const dec = decideBilling({ durationSeconds: (end.getTime() - entry.startTime.getTime()) / 1000, allottedMinutes: entry.allottedMinutes, isPrivatePay: isPrivate(payer) })
-    const flag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
+    const baseFlag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
+    const flag = openRequired.length
+      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}`].filter(Boolean).join(' · ') }
+      : baseFlag
     const outLoc = latitude && longitude
       ? (endAt ? { lat: latitude, lng: longitude, source: 'offline', captured_at: endAt.toISOString() } : { lat: latitude, lng: longitude })
       : (b.clockOutLocation || null)
@@ -510,6 +527,8 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     } catch (e: any) { d.logger.error('[clock-out] breadcrumb backfill', { error: e?.message }) }
 
     await onVisitClosed(companyId, entry.id)
+    // …and that she has finished.
+    void core.familyTexts.onClockEvent(companyId, updated, 'clock_out', end)
     // The clock-in's Sandata decision is on the row (sandataRequired), so the clock-out prompt matches it.
     return one(c, updated)
   }

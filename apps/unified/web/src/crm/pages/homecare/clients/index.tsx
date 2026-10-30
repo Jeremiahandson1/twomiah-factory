@@ -47,7 +47,7 @@ export const nav: NavItem[] = [
   { to: '/crm/referral-sources', icon: Building2, label: 'Referral Sources', permission: OFFICE },
   { to: '/crm/care-plans', icon: HeartHandshake, label: 'Care Plans', permission: OFFICE },
   { to: '/crm/adl', icon: Stethoscope, label: 'ADL Tracking', permission: OFFICE },
-  { to: '/crm/medications', icon: Pill, label: 'Medications', permission: OFFICE },
+  { to: '/crm/medications', icon: Pill, label: 'Medication reminders', permission: OFFICE },
   { to: '/crm/form-builder', icon: FilePen, label: 'Form Builder', permission: OFFICE },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', permission: OFFICE, features: ['documents'] },
 ]
