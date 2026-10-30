@@ -18,6 +18,7 @@ interface Retention {
   firstTimers: { count: number; cameBack: number; ratePercent: number | null }; lapsed: { days: number; count: number }
 }
 interface Rebook { truncated: boolean; total: { visits: number; rebooked: number; ratePercent: number | null }; stylists: Array<{ name: string; visits: number; rebooked: number; ratePercent: number | null }> }
+interface Tips { total: number; payments: number; stylists: Array<{ name: string; tips: number; payments: number }> }
 interface Retail { total: number; units: number; byItem: Array<{ name: string; units: number; total: number }>; byStylist: Array<{ name: string; units: number; total: number }> }
 
 const PRESETS = [{ id: '30', label: 'Last 30 days', days: 29 }, { id: '90', label: 'Last 90 days', days: 89 }, { id: '365', label: 'Last 12 months', days: 364 }, { id: 'custom', label: 'Choose dates', days: 0 }]
@@ -37,7 +38,7 @@ export default function SalonReportsPage() {
   const [preset, setPreset] = useState('90')
   const [from, setFrom] = useState(dayKeyPlus(todayKey(), -89))
   const [to, setTo] = useState(todayKey())
-  const [data, setData] = useState<{ r: Retention; b: Rebook; t: Retail } | null>(null)
+  const [data, setData] = useState<{ r: Retention; b: Rebook; t: Retail; tips: Tips } | null>(null)
   const [error, setError] = useState('')
 
   const pick = (id: string) => {
@@ -49,8 +50,8 @@ export default function SalonReportsPage() {
     let live = true
     const qs = `?from=${from}&to=${to}`
     setError('')
-    Promise.all([api.get(`/api/salon-reports/retention${qs}`), api.get(`/api/salon-reports/rebook${qs}`), api.get(`/api/salon-reports/retail${qs}`)])
-      .then(([r, b, t]) => { if (live) setData({ r, b, t }) })
+    Promise.all([api.get(`/api/salon-reports/retention${qs}`), api.get(`/api/salon-reports/rebook${qs}`), api.get(`/api/salon-reports/retail${qs}`), api.get(`/api/salon-reports/tips${qs}`)])
+      .then(([r, b, t, tips]) => { if (live) setData({ r, b, t, tips }) })
       .catch((e: Error) => { if (live) { setData(null); setError(e.message || 'The reports could not be loaded.') } })
     return () => { live = false }
   }, [from, to])
@@ -124,6 +125,13 @@ export default function SalonReportsPage() {
                 <table className="text-sm"><caption className="pb-1 text-left font-semibold text-gray-900 dark:text-slate-100">By stylist</caption>
                   <tbody className="divide-y divide-gray-100 text-gray-900 dark:divide-slate-800 dark:text-slate-100">{data.t.byStylist.map((i) => <tr key={i.name}><td className="py-1 pr-4">{i.name}</td><td className="py-1 pr-4 text-right">{i.units}</td><td className="py-1 text-right font-medium">{money(i.total)}</td></tr>)}</tbody></table>
               </div>
+            )}
+          </section>
+          <section className={box} aria-label="Tips">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tips by stylist</h2>
+            <p className={hint}>Tips taken in this period — on the card reader or typed in with a payment — each credited to the stylist of the visit the sale closed. {data.tips.payments > 0 && <strong>{money(data.tips.total)} in {data.tips.payments} payment{data.tips.payments === 1 ? '' : 's'}.</strong>}</p>
+            {data.tips.stylists.length === 0 ? <p className={hint}>No tips in this period.</p> : (
+              <table className="mt-2 text-sm"><tbody className="divide-y divide-gray-100 text-gray-900 dark:divide-slate-800 dark:text-slate-100">{data.tips.stylists.map((s) => <tr key={s.name}><td className="py-1 pr-6">{s.name}</td><td className="py-1 pr-6 text-right">{s.payments} payment{s.payments === 1 ? '' : 's'}</td><td className="py-1 text-right font-medium">{money(s.tips)}</td></tr>)}</tbody></table>
             )}
           </section>
         </>

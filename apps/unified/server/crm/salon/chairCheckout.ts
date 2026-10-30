@@ -298,6 +298,17 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return pollCharge(companyId, id)
   }
 
+  /** The card payments the reader took on a sale, with what has been refunded of each (so the sale's screen can offer "refund to card"). */
+  async function paymentsFor(companyId: string, invoiceId: string) {
+    const rows: ChargeRow[] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, invoiceId), eq(salonTerminalCharge.status, 'succeeded'))).orderBy(salonTerminalCharge.createdAt)
+    const neg = await db.select({ amount: payment.amount, notes: payment.notes }).from(payment).where(and(eq(payment.invoiceId, invoiceId), lt(payment.amount, '0')))
+    return rows.map((r) => {
+      const marker = `Card reader refund (${r.id})`
+      const refundedCents = neg.filter((n: any) => String(n.notes || '').startsWith(marker)).reduce((t: number, n: any) => t + Math.round(-Number(n.amount) * 100), 0)
+      return { chargeId: r.id, paymentId: r.paymentId, amountCents: r.amountCents, tipCents: r.tipCents, refundedCents, at: r.updatedAt.toISOString() }
+    }).filter((r) => r.paymentId)
+  }
+
   /** The newest card payment on a sale (so the panel picks up where it was after a reload). */
   async function latestFor(companyId: string, invoiceId: string): Promise<ChargeView | null> {
     const [row] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, invoiceId))).orderBy(desc(salonTerminalCharge.createdAt)).limit(1)
@@ -318,7 +329,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     if (!charge) throw new TerminalError('That is not a card reader payment. Refund it from the sale.', 404, 'NOT_READER_PAYMENT')
     const marker = `Card reader refund (${charge.id})`
     const before = await db.select({ amount: payment.amount }).from(payment).where(and(eq(payment.invoiceId, charge.invoiceId), lt(payment.amount, '0'), like(payment.notes, `${marker}%`)))
-    const refundedCents = before.reduce((t, r: any) => t + Math.round(-Number(r.amount) * 100), 0)
+    const refundedCents = before.reduce((t: number, r: any) => t + Math.round(-Number(r.amount) * 100), 0)
     const left = charge.amountCents - refundedCents
     if (left <= 0) throw new TerminalError('That payment has already been refunded in full.', 409, 'ALREADY_REFUNDED')
     const want = input.amountCents == null || input.amountCents === '' ? left : Number(input.amountCents)
@@ -348,7 +359,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return { refundedCents: want, invoiceStatus: out.newStatus }
   }
 
-  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, refundPayment }
+  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment }
 }
 export type ChairCheckout = ReturnType<typeof createChairCheckout>
 
@@ -401,6 +412,10 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
   app.get('/sales/:invoiceId/charge', requirePermission('invoices:update'), async (c) => {
     c.header('Cache-Control', 'no-store')
     return act(c, 200, async () => ({ charge: await t.latestFor((c.get('user') as any).companyId, c.req.param('invoiceId')) }))
+  })
+  app.get('/sales/:invoiceId/payments', requirePermission('invoices:read'), async (c) => {
+    c.header('Cache-Control', 'no-store')
+    return act(c, 200, async () => ({ payments: await t.paymentsFor((c.get('user') as any).companyId, c.req.param('invoiceId')) }))
   })
   app.post('/charges/:id/cancel', requirePermission('invoices:update'), async (c) => {
     const u = c.get('user') as any
