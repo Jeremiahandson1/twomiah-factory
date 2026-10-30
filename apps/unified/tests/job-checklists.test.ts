@@ -232,6 +232,22 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         expect(await hash(one.body.id)).not.toBe(await hash(two.body.id))
       })
 
+      test('the same send repeated (the phone lost the reply) saves one copy', async () => {
+        const j = await newJob({ assignedToId: id.tia })
+        const url = `/api/checklists/job/${j.id}/submit`
+        const body = { id: 'phone-made-id-0001', templateId: everyJob.id, answers: answers(everyJob) }
+        const first = await as('tia', url, 'POST', body)
+        const again = await as('tia', url, 'POST', body)
+        expect(first.status).toBe(201)
+        expect(again.status).toBe(200)
+        expect(again.body.id).toBe(first.body.id)
+        expect((await t.db.select().from(t.schema.formSubmission).where(eq(t.schema.formSubmission.jobId, j.id))).length).toBe(1)
+        // Another job cannot take the same id.
+        const other = await newJob({ assignedToId: id.tia })
+        expect((await as('tia', `/api/checklists/job/${other.id}/submit`, 'POST', body)).status).toBe(409)
+        expect((await as('tia', url, 'POST', { ...body, id: 'bad id!' })).status).toBe(400)
+      })
+
       test('who can do what: a field seat reaches only its own jobs, a viewer reads and does not fill in', async () => {
         const mine = await newJob({ assignedToId: id.tia })
         const theirs = await newJob({ assignedToId: id.other })

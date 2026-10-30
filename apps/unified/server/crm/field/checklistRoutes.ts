@@ -62,6 +62,8 @@ const signatureSchema = z.object({
   consent: z.literal(true, { error: 'You must agree to sign electronically before signing.' }),
 })
 const submitSchema = z.object({
+  /** Made by the phone before it sends: a send repeated after a lost reply finds the one already saved instead of saving twice. */
+  id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, 'Not a valid id').optional(),
   templateId: z.string({ error: 'Pick the checklist' }).min(1, 'Pick the checklist'),
   answers: z.array(answerSchema).max(100),
   overallNotes: z.string().max(4000).nullish(),
@@ -224,7 +226,14 @@ export function createChecklistRoutes(d: CrmDeps) {
       if (!n) return fail(c, 400, `"${tpl.name}" needs a photo of the job first. Take one, then send the checklist.`, 'photo_required')
     }
 
-    const id = createId()
+    // The same send again (the phone lost the reply): hand back what was saved, whole, without saving a second copy.
+    if (body.id) {
+      const [again] = await db.select().from(formSubmission).where(and(eq(formSubmission.id, body.id), eq(formSubmission.companyId, u.companyId), eq(formSubmission.jobId, j.id))).limit(1)
+      if (again) return one(c, await shapeSubmission(c, again), 200)
+      const [taken] = await db.select({ id: formSubmission.id }).from(formSubmission).where(eq(formSubmission.id, body.id)).limit(1)
+      if (taken) return fail(c, 409, 'That send id is already used.', 'id_taken')
+    }
+    const id = body.id || createId()
     const values = {
       type: CHECKLIST_CATEGORY, templateName: tpl.name,
       items: tpl.fields.map((f) => ({ id: f.id, label: f.label, type: f.type, value: given.get(f.id)?.value ?? '', notes: given.get(f.id)?.notes ?? '' })),
