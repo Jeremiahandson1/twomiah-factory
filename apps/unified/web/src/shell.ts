@@ -18,7 +18,7 @@ import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
 import { nav as roofNav, routePermissions as roofRoutePermissions, isRoofing, roofingMenu } from './crm/verticals/roof'
-import { nav as storeNav, routePermissions as storeRoutePermissions, isStore, storeMenu } from './crm/verticals/store'
+import { nav as storeNav, routePermissions as storeRoutePermissions, routeGates as storeRouteGates, isStore, storeMenu } from './crm/verticals/store'
 import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SHARED_ABSENT, SETTINGS_HIDDEN, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 import { ViewAsBanner } from './crm/viewAs'
 
@@ -159,6 +159,8 @@ export const SHELL: ShellConfig = {
     '/crm/geofences': ['gps_tracking'],
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
+    // The store's Sales report, typed in: store_sales_reports (its menu row's switch).
+    ...storeRouteGates,
   },
   // The New Leads list the dashboard tile opens (GET /api/dashboard/new-leads asks leads:read) — no menu entry of its own.
   routePermissions: { '/crm/new-leads': 'leads:read', ...barRoutePermissions, ...homecareRoutePermissions, ...roofRoutePermissions, ...storeRoutePermissions },

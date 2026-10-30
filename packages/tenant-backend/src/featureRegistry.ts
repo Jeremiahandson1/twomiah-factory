@@ -242,6 +242,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
   { id: 'products', name: 'Product Catalog', description: 'Your products, their variants, prices and stock', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
   { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
+  // Store sales reports — NOT ready (2026-10-30). Sales over time, top products, repeat customers and the average order for a
+  // store's own days (revenue:read: the owner and the managers). Hidden until the owner has run it on the live shop, so no
+  // plan, signup, Features page or Factory save switches it on (apps/unified/tests/not-ready-unseen.test.ts).
+  { id: 'store_sales_reports', name: 'Store Sales Reports', description: 'Sales over time, top products, repeat customers and the average order, for your own days', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance
