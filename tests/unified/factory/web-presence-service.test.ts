@@ -27,6 +27,7 @@ const NOW = Date.UTC(2026, 9, 29, 12, 0, 0)
 function fakeNetlify() {
   const log: Array<{ op: string; [k: string]: any }> = []
   const sites = new Map<string, any>(); const hooks: any[] = []; const env = new Map<string, any[]>()
+  const formsOn = new Set<string>(); const formsFound = new Set<string>()
   let n = 0; let h = 0
   const taken = new Set<string>()
   const respond = (data: any, status = 200) => new Response(data === null ? '' : JSON.stringify(data), { status })
@@ -56,14 +57,17 @@ function fakeNetlify() {
       if (!had.some((x: any) => x.key === mm![1])) return respond({ code: 404, message: 'Not found' }, 404)
       env.set(id, had.map((x: any) => (x.key === mm![1] ? body : x))); log.push({ op: 'updateEnv', siteId: id, keys: [mm[1]], body: [body] }); return respond(body)
     }
+    // As Netlify does (read 10/30): a new site comes with form detection OFF; forms register only from a deploy made while it is on.
+    if (m === 'POST' && (mm = p.match(/^\/sites\/([^/]+)\/deploys$/)) && formsOn.has(mm[1])) formsFound.add(mm[1])
     if (m === 'POST' && (mm = p.match(/^\/sites\/([^/]+)\/deploys$/))) { log.push({ op: 'deploy', siteId: mm[1], files: Object.keys(body.files), functions: Object.keys(body.functions), envAtDeploy: (env.get(mm[1]) || []).map((e: any) => e.key) }); return respond({ id: 'dep-' + ++n, required: Object.values(body.files), required_functions: Object.values(body.functions) }) }
     if (m === 'PUT' && p.match(/^\/deploys\/[^/]+\/(files|functions)/)) { log.push({ op: 'upload', path: p }); return respond({}) }
     if (m === 'GET' && p.match(/^\/deploys\/[^/]+$/)) return respond({ state: 'ready', ssl_url: 'https://x.netlify.app' })
-    if (m === 'GET' && (mm = p.match(/^\/sites\/([^/]+)\/forms$/))) return respond([{ id: 'form-lead', name: 'lead' }, { id: 'form-apply', name: 'apply' }])
+    if (m === 'GET' && (mm = p.match(/^\/sites\/([^/]+)\/forms$/))) return respond(sites.has(mm[1]) && !formsFound.has(mm[1]) ? [] : [{ id: 'form-lead', name: 'lead' }, { id: 'form-apply', name: 'apply' }])
     if (m === 'GET' && p === '/hooks') return respond(hooks.filter((x) => x.site_id === u.searchParams.get('site_id')))
     if (m === 'POST' && p === '/hooks') { const hk = { id: 'hook-' + ++h, ...body }; hooks.push(hk); log.push({ op: 'hook+', form: body.form_id, to: body.data.email }); return respond(hk, 201) }
     if (m === 'DELETE' && (mm = p.match(/^\/hooks\/(.+)$/))) { const i = hooks.findIndex((x) => x.id === mm![1]); if (i >= 0) hooks.splice(i, 1); log.push({ op: 'hook-', id: mm[1] }); return respond(null, 204) }
     if (m === 'DELETE' && (mm = p.match(/^\/sites\/([^/]+)$/))) { sites.delete(mm[1]); log.push({ op: 'deleteSite', siteId: mm[1] }); return respond(null, 204) }
+    if (m === 'PATCH' && (mm = p.match(/^\/sites\/([^/]+)$/)) && body?.processing_settings) { if (body.processing_settings.ignore_html_forms === false) formsOn.add(mm[1]); log.push({ op: 'enableForms', siteId: mm[1] }); return respond({}) }
     if (m === 'PATCH' && (mm = p.match(/^\/sites\/([^/]+)$/))) { log.push({ op: 'domain', siteId: mm[1], body }); return respond({}) }
     if (m === 'POST' && p.match(/^\/sites\/[^/]+\/ssl$/)) { log.push({ op: 'ssl' }); return respond({}) }
     return respond({ error: 'unexpected ' + m + ' ' + p }, 599)

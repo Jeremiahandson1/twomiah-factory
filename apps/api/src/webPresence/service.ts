@@ -168,7 +168,9 @@ export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePag
   }
   const rendered = await renderOnePage({ model: useModel!, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin })
   const built = await buildSiteFiles(rendered, spec)
-  await d.netlify().deploy(row.netlify_site_id!, built.files, built.functions)
+  const nl = d.netlify()
+  await nl.enableForms(row.netlify_site_id!)                // forms are found while THIS deploy is processed
+  await nl.deploy(row.netlify_site_id!, built.files, built.functions)
   return rendered.model
 }
 

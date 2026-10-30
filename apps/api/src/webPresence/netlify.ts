@@ -47,6 +47,15 @@ export class Netlify {
   }
 
   /**
+   * Netlify form detection ON for the site. A new site comes with it OFF (`processing_settings.ignore_html_forms: true`,
+   * read 10/30 on the $19 test site): the deploy's forms.html was served but no form ever registered, and set-up failed
+   * "Netlify has not registered the forms yet". Set before every deploy — forms are found while a deploy is processed.
+   */
+  async enableForms(siteId: string): Promise<void> {
+    await this.call('PATCH', `/sites/${encodeURIComponent(siteId)}`, { json: { processing_settings: { ignore_html_forms: false } } })
+  }
+
+  /**
    * The site's own settings for its function (read at run time). Set BEFORE the deploy that first needs them.
    * Plain settings, all scopes: the team's plan refuses chosen scopes ("Upgrade your Netlify account to set specific scopes", 403)
    * and a secret without them ("Secrets are not allowed to run in 'post_processing' scopes", 422) — measured 10/30. They are read
