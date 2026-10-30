@@ -113,7 +113,7 @@ function world(over: { env?: Record<string, string>; tenants?: any[]; sites?: an
   /** Run the deployed site's function for a row, with a store of its own and the settings the Factory gave it. */
   const runSite = async (siteRowId: string, origin: string, model: any, mount = sites) => {
     const store = new Map<string, any>()
-    const kv = { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: any) => { store.set(k, v) }, getWithMetadata: async () => null }
+    const kv = { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: any, o?: any) => { if (o?.onlyIfNew && store.has(k)) return { modified: false }; store.set(k, v); return { modified: true } }, getWithMetadata: async () => null }
     store.set('model', JSON.stringify(model))
     mount.set(origin, createHandler({ store: kv, env: { WP_SITE_ID: siteRowId, WP_SECRET: await siteSecret(MASTER, siteRowId), WP_FACTORY_URL: 'https://factory.test', WP_TENANT_ID: 't-1', WP_FACTORY_KEY: 'k' }, fetchImpl: fetch, now: () => clock.now, initial: { index: '<html/>', privacy: '', model }, spec: {} }))
     return store

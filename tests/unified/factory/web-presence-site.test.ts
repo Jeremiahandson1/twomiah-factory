@@ -14,7 +14,8 @@ function blobs() {
   return {
     m,
     get: async (k: string) => (m.has(k) ? m.get(k) : null),
-    set: async (k: string, v: any, o?: any) => { m.set(k, v); if (o?.metadata) meta.set(k, o.metadata) },
+    // As Netlify Blobs answers: `onlyIfNew` writes only a new key and says whether it did.
+    set: async (k: string, v: any, o?: any) => { if (o?.onlyIfNew && m.has(k)) return { modified: false }; m.set(k, v); if (o?.metadata) meta.set(k, o.metadata); return { modified: true } },
     getWithMetadata: async (k: string) => (m.has(k) ? { data: m.get(k), metadata: meta.get(k) } : null),
   }
 }
