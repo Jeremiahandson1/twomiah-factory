@@ -1,0 +1,11 @@
+{
+ "routes": [
+  "/api/canvassing/sessions/:id",
+  "/api/canvassing/sessions/:id/map",
+  "/api/jobs/:id",
+  "/api/jobs/:id/photos",
+  "/api/jobs/:id/timeline",
+  "/api/storms/events/:id",
+  "/api/storms/events/:id/leads"
+ ]
+}

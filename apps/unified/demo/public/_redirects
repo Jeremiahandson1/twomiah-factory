@@ -1,0 +1,7 @@
+# Static hosting for the demo (Netlify format). The picker is the /demo page; every other path is the CRM's own app,
+# which reads its address in the browser. Assets and recorded data are real files and are never rewritten.
+/demo   /picker.html   200
+/       /picker.html   200
+# A page the visitor's browser asks the server for (the website preview's frame, a file download) has no server: a plain notice.
+/api/*  /unavailable.html  404
+/*      /app.html      200
