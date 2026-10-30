@@ -17,8 +17,8 @@ export const FORBIDDEN = /(refund|charge|checkout|\/pos\b|register|kiosk|gift-?c
 export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
-export interface Link { label: string; url: string; icon?: string }
-export interface Section { /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string }
+export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 export interface Input {
   id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice'; choices?: string[]; required?: boolean; initial?: (d: any) => string
   /** Choices the SERVER offers for this row (the carrier's rates): fetched when the sheet opens; the person picks a label, the call gets its value. */
@@ -30,6 +30,8 @@ export interface Action {
   icon?: string
   /** The permission the server checks for this call (one of them). */
   any: string[]
+  /** Offered only while this business switch is on (the route behind it is gated on the same one). */
+  feature?: string
   /** Offer the action only when this holds for the row. */
   when?: (d: any) => boolean
   /** Ask first: a sheet with these words and a confirm button. */

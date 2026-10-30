@@ -115,6 +115,7 @@ if (process.argv[2] === '--menu') {
  */
 export interface PhoneHas { paths: string[]; trades?: string[]; how: 'tab' | 'screen' | 'partial'; what: string; files: string[] }
 export const PHONE_HAS: PhoneHas[] = [
+  { paths: ['/crm/recurring-routes'], trades: ['landscaping'], how: 'partial', what: "Today's route (the crew's visits in stop order, Start / Finish, note and after-photo for the customer, directions) and Log snow visit (the storm stops: pushes, snowfall, salt, hours, note); the Route Board itself — building routes, ordering stops, billing — stays on the desktop", files: ['app/(tabs)/land-route.tsx', 'src/trades/landscaping.ts', 'src/trades/LandscapingDay.tsx', 'app/(details)/visit-photo.tsx'] },
   { paths: ['/crm/appointments'], trades: ['salon'], how: 'tab', what: 'The Book tab (My day for a stylist): the day book and check in; booking and the service record stay on the desktop', files: ['app/(tabs)/salon-book.tsx', 'app/(tabs)/salon-myday.tsx'] },
   { paths: ['/crm/clients'], trades: ['salon'], how: 'tab', what: 'Clients tab + client card (formula record, last visits; a stylist sees no prices)', files: ['app/(tabs)/salon-clients.tsx'] },
   { paths: ['/crm/reminders'], trades: ['salon'], how: 'tab', what: 'Rebook tab (who is due; text them)', files: ['app/(tabs)/salon-rebook.tsx'] },
@@ -415,6 +416,7 @@ export const moreIconOf = (path: string) => ICON_BY_PATH[path] || 'ellipse'
 export interface PhoneRoute { paths: string[]; trades?: string[]; for?: 'field' | 'office'; route: string }
 const JOBS_TRADES = ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing']
 export const PHONE_ROUTES: PhoneRoute[] = [
+  { paths: ['/crm/recurring-routes'], trades: ['landscaping'], route: '/(tabs)/land-route' },
   { paths: ['/crm/dashboard'], trades: ['salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(tabs)/dashboard' },
   { paths: ['/crm/appointments'], trades: ['salon'], for: 'office', route: '/(tabs)/salon-book' },
   { paths: ['/crm/appointments'], trades: ['salon'], for: 'field', route: '/(tabs)/salon-myday' },

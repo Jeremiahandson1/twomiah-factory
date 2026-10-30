@@ -229,7 +229,7 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Audit Log","path":"/crm/audit","group":"Customers","icon":"eye","permission":"audit:read"},
     {"label":"Help","path":"/crm/help","group":"Customers","icon":"information-circle"},
     {"label":"Contact Twomiah","path":"/crm/contact-support","group":"Customers","icon":"chatbubble-ellipses"},
-    {"label":"Route Board","path":"/crm/recurring-routes","group":"Work","icon":"repeat","permission":"jobs:read","features":["recurring_routes"]},
+    {"label":"Route Board","path":"/crm/recurring-routes","group":"Work","icon":"repeat","permission":"jobs:read","features":["recurring_routes"],"native":[{"route":"/(tabs)/land-route"}]},
     {"label":"Area Pricing","path":"/crm/area-pricing","group":"Money & reports","icon":"map","permission":"quotes:read","features":["area_pricing"]},
     {"label":"Snow Billing","path":"/crm/snow-billing","group":"Money & reports","icon":"snow","permission":"invoices:read","features":["snow_billing"]},
   ],

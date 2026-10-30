@@ -13,7 +13,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Contractor | 67 | 17 | 12 | 9 | 25 | 21 |
 | Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
 | Field service | 52 | 17 | 12 | 4 | 19 | 17 |
-| Landscaping | 55 | 17 | 13 | 4 | 21 | 17 |
+| Landscaping | 55 | 18 | 13 | 4 | 21 | 17 |
 | Roofing | 32 | 13 | 11 | 2 | 6 | 13 |
 | Home care | 67 | 9 | 13 | 1 | 25 | 28 |
 | RV / powersports dealership | 45 | 14 | 10 | 1 | 21 | 13 |
@@ -309,7 +309,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Bookings | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Bookings | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Bookings | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
-| Landscaping | Route Board | `/crm/recurring-routes` | jobs:read | recurring_routes (on by default) | all | none | A — the day's work |
+| Landscaping | Route Board | `/crm/recurring-routes` | jobs:read | recurring_routes (on by default) | all | Today's route (the crew's visits in stop order, Start / Finish, note and after-photo for the customer, directions) and Log snow visit (the storm stops: pushes, snowfall, salt, hours, note); the Route Board itself — building routes, ordering stops, billing — stays on the desktop | A — the day's work |
 | Landscaping | Area Pricing | `/crm/area-pricing` | quotes:read | area_pricing (on by default) | owner, admin, manager, viewer | none | C |
 | Landscaping | Snow Billing | `/crm/snow-billing` | invoices:read | snow_billing (on by default) | owner, admin, manager, viewer | none | C |
 

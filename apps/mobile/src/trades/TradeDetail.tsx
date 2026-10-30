@@ -34,7 +34,7 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
   if (!spec?.detail) return <Screen title="Not found" onBack={() => router.back()}><EmptyState icon="alert-circle" title="This screen is not available" body="Go back and try again." /></Screen>
   if (!mayUse(spec, can, hasFeature)) return <Screen title={spec.title} onBack={tab ? undefined : () => router.back()}><EmptyState icon="lock-closed" title="Not for this seat" body="Your role does not include this screen." /></Screen>
   const det = spec.detail
-  const actions = (det.actions || []).filter((a) => d && a.any.some((p) => can(p)) && (!a.when || a.when(d)))
+  const actions = (det.actions || []).filter((a) => d && a.any.some((p) => can(p)) && (!a.feature || hasFeature(a.feature)) && (!a.when || a.when(d)))
   const start = (a: Action) => setOpen(a)
   return (
     <Screen title={d ? det.title(d) : spec.title} subtitle={d ? det.subtitle?.(d) : undefined} onBack={tab ? undefined : () => router.back()}
@@ -43,7 +43,7 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
         : !d ? <SkeletonRows count={4} /> : (
           <View style={{ gap: space[4] }}>
             {det.badge?.(d) ? <DText variant="bodyStrong" tone="textSecondary">{det.badge(d)}</DText> : null}
-            {det.sections.map((s, si) => {
+            {det.sections.filter((s) => !s.feature || hasFeature(s.feature)).map((s, si) => {
               const fields = (s.fields || []).map((f) => ({ f, v: f.get(d) })).filter((x) => x.v != null && x.v !== '')
               const rows = s.rows?.(d) || []
               const links = s.links?.(d) || []
@@ -52,7 +52,7 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
                 <View key={si} style={{ gap: space[2] }}>
                   {s.title ? <SectionHeader title={s.title} /> : null}
                   {fields.length ? <Group>{fields.map(({ f, v }, i) => String(v).length > 26 || String(v).includes('\n') ? <ListRow key={f.label} title={f.label} subtitle={String(v)} divider={i < fields.length - 1} /> : <ListRow key={f.label} title={f.label} meta={String(v)} divider={i < fields.length - 1} />)}</Group> : null}
-                  {links.length ? <Group>{links.map((l, i) => <ListRow key={l.label} title={l.label} icon={l.icon} divider={i < links.length - 1} onPress={() => { Linking.openURL(l.url) }} />)}</Group> : null}
+                  {links.length ? <Group>{links.map((l, i) => <ListRow key={l.label} title={l.label} icon={l.icon} divider={i < links.length - 1} onPress={() => { if (l.route) router.push(l.route as any); else Linking.openURL(l.url) }} />)}</Group> : null}
                   {rows.length ? <Group>{rows.map((r, i) => { const long = !!r.meta && r.meta.length > 12; return <ListRow key={r.key} title={r.title} subtitle={long ? [r.subtitle, r.meta].filter(Boolean).join(' · ') : r.subtitle} meta={long ? undefined : r.meta} badge={r.badge} badgeTone={r.tone} divider={i < rows.length - 1} /> })}</Group>
                     : !fields.length && !links.length && s.empty ? <DText variant="callout" tone="textSecondary">{s.empty}</DText> : null}
                 </View>
