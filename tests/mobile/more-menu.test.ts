@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { TRADES, SEATS, seatPermissions, canWith, MORE_GROUP_ORDER, moreGroupOf } from '../../apps/unified/scripts/mobile-parity.ts'
-import { itemsFor, sectionsFor, mayOpenRow } from '../../apps/mobile/src/more/menu.ts'
+import { itemsFor, sectionsFor, mayOpenRow, WEB_SECTION } from '../../apps/mobile/src/more/menu.ts'
 import { MENU } from '../../apps/mobile/src/more/menu.generated.ts'
 import { pageAddress, isOwnAddress } from '../../apps/mobile/src/more/webTarget.ts'
 import { handoffLanding } from '../../packages/tenant-backend/src/auth/auth.ts'
@@ -108,7 +108,15 @@ for (const t of TRADES) {
   const native = rows.flatMap((r) => (r.native || []).map((n) => n.route))
   check(`${t.phone}: every native row opens a screen that exists`, native.every((n) => fs.existsSync(path.join(ROOT, 'apps/mobile/app', n + '.tsx')) || fs.existsSync(path.join(ROOT, 'apps/mobile/app', n, 'index.tsx'))), native)
 }
-check('the menu\'s group order is the script\'s', JSON.stringify(sectionsFor(itemsFor('contractor', { role: 'owner', can: () => true, hasFeature: () => true }, false)).map((s) => s.group)) === JSON.stringify((MORE_GROUP_ORDER as readonly string[]).filter((g) => (MENU.contractor || []).some((r) => r.group === g))))
+{
+  // The phone's own screens in the script's group order, then every desktop page under one heading, last (Tier 3, 10/30).
+  const shown = itemsFor('contractor', { role: 'owner', can: () => true, hasFeature: () => true }, false)
+  const secs = sectionsFor(shown)
+  const own = secs.filter((s) => s.group !== WEB_SECTION)
+  check('the menu\'s group order is the script\'s, for the phone\'s own screens', JSON.stringify(own.map((s) => s.group)) === JSON.stringify((MORE_GROUP_ORDER as readonly string[]).filter((g) => shown.some((r) => r.group === g && r.open.kind === 'native'))), own.map((s) => s.group))
+  check('every desktop page is under "On the website", and that section is last', secs.at(-1)?.group === WEB_SECTION && secs.at(-1)!.items.length === shown.filter((r) => r.open.kind === 'web').length && own.every((s) => s.items.every((i) => i.open.kind === 'native')))
+  check('no row is lost or doubled by the split', secs.flatMap((s) => s.items).length === shown.length)
+}
 check('home care never groups anything under a medical name', !MORE_GROUP_ORDER.some((g) => /clinic|medical|health|patient/i.test(g)), MORE_GROUP_ORDER)
 try { moreGroupOf('contractor', 'Business', '/crm/not-a-page'); check('an unknown page has no group (the script refuses to guess)', false) } catch { check('an unknown page has no group (the script refuses to guess)', true) }
 

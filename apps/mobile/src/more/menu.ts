@@ -53,8 +53,17 @@ export function itemsFor(vertical: string, seat: Seat, field: boolean): Shown[] 
 }
 
 /** Grouped for the screen, optionally narrowed by what was typed in the search box. */
+/**
+ * The heading every desktop page sits under (owner 10/30, "option 3"): the phone's own screens in their groups first, then
+ * one clearly named section for what opens the full website page — set-up, website building, the desk's reports — so the
+ * More menu reads as an app with the website alongside it, not a list of links.
+ */
+export const WEB_SECTION = 'On the website'
+
 export function sectionsFor(items: Shown[], search = ''): Section[] {
   const q = search.trim().toLowerCase()
   const kept = q ? items.filter((i) => i.label.toLowerCase().includes(q) || i.group.toLowerCase().includes(q)) : items
-  return GROUP_ORDER.map((group) => ({ group, items: kept.filter((i) => i.group === group) })).filter((s) => s.items.length)
+  const own = GROUP_ORDER.map((group) => ({ group, items: kept.filter((i) => i.group === group && i.open.kind === 'native') })).filter((s) => s.items.length)
+  const web = kept.filter((i) => i.open.kind === 'web')
+  return web.length ? [...own, { group: WEB_SECTION, items: web }] : own
 }

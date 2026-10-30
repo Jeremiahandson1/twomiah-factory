@@ -9,8 +9,8 @@ import { useRouter } from 'expo-router'
 import { useAuth } from '../../src/auth/AuthContext'
 import { isFieldRole } from '../../src/auth/roles'
 import { useVertical } from '../../src/vertical/VerticalContext'
-import { itemsFor, sectionsFor, type Shown } from '../../src/more/menu'
-import { Screen, Group, ListRow, SectionHeader, SearchField, EmptyState, Button, layout, space } from '../../src/design'
+import { itemsFor, sectionsFor, WEB_SECTION, type Shown } from '../../src/more/menu'
+import { Screen, Group, ListRow, SectionHeader, SearchField, EmptyState, Button, DText, layout, space } from '../../src/design'
 
 export default function MoreScreen() {
   const router = useRouter()
@@ -33,10 +33,13 @@ export default function MoreScreen() {
         {sections.length === 0 ? <EmptyState icon="search" title="Nothing matches" body="Try a shorter word." /> : sections.map((s) => (
           <View key={s.group}>
             <SectionHeader title={s.group} />
+            {s.group === WEB_SECTION ? (
+              <DText variant="callout" tone="textSecondary" style={{ marginBottom: space[2] }}>The full pages from your website, already signed in — set-up, the website itself and the detailed reports.</DText>
+            ) : null}
             <Group>
               {s.items.map((i, n) => (
                 <ListRow key={i.path + i.label} icon={i.icon} title={i.label} divider={n < s.items.length - 1} onPress={() => open(i)}
-                  meta={i.open.kind === 'web' ? 'Opens the full page' : undefined} />
+                  meta={i.open.kind === 'web' ? 'Website' : undefined} />
               ))}
             </Group>
           </View>
