@@ -211,3 +211,53 @@ export async function topUpRouteVisits(
   }
   return out
 }
+
+/** The crew pressed Start on a route visit: the time is kept, once (a second Start does not move it). */
+export async function stampVisitStart(db: any, companyId: string, visitId: string, at: Date = new Date()): Promise<void> {
+  await db.update(job).set({ startedAt: at })
+    .where(and(eq(job.id, visitId), eq(job.companyId, companyId), sql`${job.startedAt} IS NULL`))
+}
+
+/**
+ * The crew finished a route visit: how long it took, from Start to done, goes on the visit (hours to the hundredth, at most
+ * a day). Kept only when the crew did press Start — a visit finished without a Start has no honest length, so it is left
+ * blank rather than guessed — and never over hours somebody already typed in.
+ */
+export async function recordVisitTime(db: any, companyId: string, visit: { id: string; startedAt?: Date | null; completedAt?: Date | null; actualHours?: string | null }): Promise<string | null> {
+  if (visit.actualHours != null || !visit.startedAt || !visit.completedAt) return null
+  const ms = new Date(visit.completedAt).getTime() - new Date(visit.startedAt).getTime()
+  if (!(ms > 0)) return null
+  const hours = String(Math.min(24, Math.round((ms / 3_600_000) * 100) / 100))
+  await db.update(job).set({ actualHours: hours }).where(and(eq(job.id, visit.id), eq(job.companyId, companyId), sql`${job.actualHours} IS NULL`))
+  return hours
+}
+
+/**
+ * Where each stop of a route is on the map, in stop order. A stop has no point of its own: it is the point of its latest
+ * visit that was put on the map (job.lat/lng, written by the existing geocoding), so the route's order is judged by the
+ * same points the Schedule's day route uses. `visitId` is the stop's next open visit — the one "Put on the map" locates.
+ */
+export async function routeStopPoints(db: any, companyId: string, routeId: string) {
+  const rows: any[] = await stopsInOrder(db, companyId, routeId)
+  if (!rows.length) return []
+  const stopIds = rows.map((r) => r.stop.id)
+  const visits: any[] = await db.select({ id: job.id, stopId: job.recurringRouteStopId, day: job.scheduledDate, lat: job.lat, lng: job.lng, status: job.status })
+    .from(job)
+    .where(and(eq(job.companyId, companyId), inArray(job.recurringRouteStopId, stopIds)))
+    .orderBy(sql`${job.scheduledDate} DESC`)
+  const today = dayDate(todayUtc()).getTime()
+  return rows.map((r) => {
+    const mine = visits.filter((v) => v.stopId === r.stop.id)
+    const placed = mine.find((v) => v.lat != null && v.lng != null)
+    const open = mine.filter((v) => v.status === 'scheduled' && v.day && new Date(v.day).getTime() >= today)
+      .sort((a, b) => new Date(a.day).getTime() - new Date(b.day).getTime())[0]
+    return {
+      stopId: r.stop.id as string, siteName: r.siteName as string, address: [r.siteAddress, r.siteCity].filter(Boolean).join(', ') || null,
+      minutes: r.stop.estimatedMinutes as number,
+      lat: placed ? Number(placed.lat) : null, lng: placed ? Number(placed.lng) : null,
+      // The next open visit that has no point yet — what locating this stop would geocode.
+      locateVisitId: !placed && open ? (open.id as string) : null,
+      hasVisits: mine.length > 0,
+    }
+  })
+}

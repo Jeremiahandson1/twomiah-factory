@@ -204,6 +204,8 @@ export const job = pgTable('job', {
   estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }),
   estimatedValue: decimal('estimated_value', { precision: 12, scale: 2 }),
   actualHours: decimal('actual_hours', { precision: 5, scale: 2 }),
+  // When the crew pressed Start (stamped once, by the start moment). With completedAt it is how long a route visit took.
+  startedAt: timestamp('started_at'),
   address: text('address'),
   city: text('city'),
   state: text('state'),

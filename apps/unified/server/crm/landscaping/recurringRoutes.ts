@@ -9,7 +9,9 @@ import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling.ts'
-import { makeRouteVisits, retimeRouteVisits, cancelOpenVisits, visitsOfRoute, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
+import { makeRouteVisits, retimeRouteVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
+import { createRoutingService } from '../field/routingService.ts'
+import { createGeocodingService } from '../field/geocodingService.ts'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -364,6 +366,64 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     if (!money) return listAll(c, rows.map((r: any) => (({ estimatedValue: _v, ...rest }) => rest)(r)))
     const { billed } = await billedVisits(db, u.companyId, rows.map((r: any) => r.id))
     return listAll(c, rows.map((r: any) => ({ ...r, invoice: billed.get(r.id) ?? null })))
+  })
+
+  // ---- Best order: shown, then applied by the reorder above (nothing here changes the board) ----
+
+  // GET /api/recurring-routes/:id/optimize — the stops in the shortest order, with what it saves over today's order.
+  // Needs every stop on the map (a visit located by the Schedule's existing geocoding): a route with a stop we cannot place
+  // is not guessed at.
+  app.get('/:id/optimize', requirePermission('jobs:read'), async (c) => {
+    const u = c.get('user')
+    const [route] = await db.select({ id: recurringRoute.id }).from(recurringRoute)
+      .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
+    if (!route) return fail(c, 404, 'Route not found')
+    const stops = await routeStopPoints(db, u.companyId, route.id)
+    const base = { current: stops.map((s) => s.stopId), stops }
+    if (stops.length < 2) return one(c, { ...base, proposed: base.current, changes: false, message: 'A route needs two or more properties before there is an order to improve.' })
+    const unplaced = stops.filter((s) => s.lat == null)
+    if (unplaced.length) {
+      return one(c, {
+        ...base, proposed: base.current, changes: false, unplaced: unplaced.map((s) => ({ stopId: s.stopId, siteName: s.siteName, canLocate: !!s.locateVisitId })),
+        message: `${unplaced.length} of ${stops.length} properties are not on the map yet. Put them on the map, then improve the order.`,
+      })
+    }
+    const result = await createRoutingService(d).optimizeRoute(stops.map((s) => ({ id: s.stopId, lat: s.lat!, lng: s.lng! })))
+    const proposed: string[] = result.optimizedOrder.map((s: any) => s.id)
+    const changes = proposed.some((id, i) => id !== base.current[i])
+    const saved = result.savings
+    return one(c, {
+      ...base, proposed, changes, unplaced: [],
+      totalMiles: Math.round((result.totalDistanceMiles || 0) * 10) / 10,
+      savings: changes && saved ? { miles: Math.round((saved.distanceMiles || 0) * 10) / 10, minutes: saved.timeMinutes || 0 } : null,
+      source: result.source,
+      message: changes ? 'A shorter order is ready. Apply it to move the stops and re-time the visits still to do.' : 'This order is already the shortest we can find.',
+    })
+  })
+
+  // POST /api/recurring-routes/:id/locate — put the route's properties on the map: the next open visit of each stop that is
+  // not there yet, a few at a time (the geocoder allows one request a second).
+  app.post('/:id/locate', requirePermission('jobs:update'), async (c) => {
+    const u = c.get('user')
+    const [route] = await db.select({ id: recurringRoute.id }).from(recurringRoute)
+      .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
+    if (!route) return fail(c, 404, 'Route not found')
+    const stops = await routeStopPoints(db, u.companyId, route.id)
+    const missing = stops.filter((s) => s.lat == null)
+    const todo = missing.filter((s) => s.locateVisitId).slice(0, 10)
+    const geocoding = createGeocodingService(d)
+    const located: string[] = []
+    for (const [i, s] of todo.entries()) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 1100))
+      const done = await geocoding.geocodeJob(s.locateVisitId!, u.companyId).catch(() => null)
+      if (done?.lat != null) located.push(s.stopId)
+    }
+    const noVisit = missing.filter((s) => !s.locateVisitId).length
+    return one(c, {
+      located, remaining: missing.length - located.length,
+      message: missing.length === 0 ? 'Every property is already on the map.'
+        : noVisit ? `${noVisit} ${noVisit === 1 ? 'property has' : 'properties have'} no upcoming visit to put on the map — make visits first.` : undefined,
+    })
   })
 
   return app
