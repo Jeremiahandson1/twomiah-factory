@@ -304,7 +304,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
     loadPdf: loadInvoicePdf, audit,
     options: {
-      timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId),
+      timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.earnCommission(invoiceId),
       // A deposit, progress or final invoice is never edited above what is left of its quote (crm/billing/quoteBilling.ts).
       checkTotal: (existing: any, total: number) => quoteBilling.checkTotal(existing, total),
       // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
@@ -428,7 +428,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       db, tables: { job, jobAssignee, crewLogin, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
-    { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit } as any) },
+    // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },

@@ -1,0 +1,1 @@
+ALTER TABLE "commission_plan" ADD COLUMN "sales_kind" text DEFAULT 'all' NOT NULL;

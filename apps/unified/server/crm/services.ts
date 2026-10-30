@@ -72,6 +72,13 @@ export function createCrmServices(deps: CrmServiceDeps) {
     // The job an invoice names first (invoice.job_id, everyone's column now), then the job raised from its quote.
     db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'jobId',
   } as any)
+  // Commissions a vertical earns in its own way beside the job-based engine (the salon pays the stylist of a visit): each module hands in
+  // what it earns for a bill (and its sweep); every door that records money earns through earnCommission.
+  const commissionHooks: Array<{ earn: (invoiceId: string) => Promise<unknown>; sweep?: () => Promise<unknown> }> = []
+  const earnCommission = async (invoiceId: string) => {
+    await commissionEarner.earnForInvoice(invoiceId)
+    for (const h of commissionHooks) await h.earn(invoiceId).catch((e: any) => logger.warn('[commissions] earn failed', { invoiceId, error: e?.message || String(e) }))
+  }
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
@@ -94,7 +101,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
         return null
       },
       afterInvoicePayment: async (invoiceId: string) => {
-        await commissionEarner.earnForInvoice(invoiceId)
+        await earnCommission(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
         // confirmed; a held room is only logged, the money is already taken — then the due date moves to the next
         // unpaid installment (templates/crm-restaurant services/stripe.ts, T16 M8).
@@ -227,6 +234,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
     bookingCard,
     /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
     useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
+    /** A vertical's own way of earning commission on a paid bill (the salon's stylist commissions). */
+    useCommissionEarner(h: { earn: (invoiceId: string) => Promise<unknown>; sweep?: () => Promise<unknown> }) { commissionHooks.push(h) },
+    earnCommission,
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()
@@ -239,6 +249,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       })
       recurring.startRecurringProcessor()
       commissionEarner.startCommissionEarner()
+      for (const h of commissionHooks) if (h.sweep) { setTimeout(() => { void h.sweep!() }, 120_000); setInterval(() => { void h.sweep!() }, 5 * 60_000) }
       // Recurring service agreements make their next visits: at boot, then every 6 hours (the field-service CRMs' index.ts).
       if (settings.agreements?.recurrence) {
         const scan = () => (agreements as any).scanAndGenerateJobs().catch((err: any) => logger.error('[agreements] next-visit scan failed', { error: err?.message }))

@@ -2,7 +2,7 @@
 // their menu items, each gated by the template's features so no other vertical sees them (docs/UNIFIED_MOVE_GUIDE.md).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BellRing, Calendar, ClipboardList, CreditCard, Gift, Scissors, Users } from 'lucide-react'
+import { BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, Scissors, Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -61,4 +61,6 @@ export const nav: NavItem[] = [
   { to: '/crm/service-menu', icon: Scissors, label: 'Service Menu', features: ['service_menu'], permission: 'contacts:read' },
   { to: '/crm/memberships', icon: CreditCard, label: 'Memberships', features: ['salon_memberships'], permission: 'contacts:read' },
   { to: '/crm/loyalty', icon: Gift, label: 'Loyalty', features: ['loyalty_rewards'], permission: 'loyalty:read' },
+  // Stylist commissions: the shared Commissions screen, behind the salon's own hidden feature (the server mounts /api/commissions on it).
+  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['salon_commissions'], permission: 'commissions:read' },
 ]

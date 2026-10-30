@@ -928,6 +928,8 @@ export const commissionPlan = pgTable('commission_plan', {
   // not named on another plan; named: only them (contractor live re-test 2026-10-22, "the Plans page can't assign a plan
   // to a person"). packages/tenant-backend commissions.ts.
   userIds: json('user_ids').default([]).notNull(),
+  // Which sales the plan is paid on, where the business offers the choice (salon): 'all', 'services' or 'retail'. Others leave it 'all'.
+  salesKind: text('sales_kind').default('all').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

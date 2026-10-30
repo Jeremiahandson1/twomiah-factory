@@ -175,7 +175,8 @@ const salon: VerticalSettings = {
     team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Senior Stylist' },
     agreements: {},
     fleet: {},
-    commissions: {},
+    // Stylist commissions (hidden feature salon_commissions): paid on services and/or retail, tiered by the month's sales, earned from the visit's stylist.
+    commissions: { roleWords: { technician: 'Stylist', sales_rep: 'Front desk', manager: 'Manager', all: 'Everyone' }, planExample: 'Stylist standard', salesKinds: true },
     portal: {
       providerNoun: 'salon',
       clientNav: ['appointments', 'invoices', 'paymentMethods', 'messages'],

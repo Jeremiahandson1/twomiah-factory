@@ -18,6 +18,7 @@ import { createServiceMenuRoutes } from './serviceMenu.ts'
 import { createAppointmentRoutes } from './appointments.ts'
 import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createIntakeFormRoutes } from './intakeForms.ts'
+import { createSalonCommissions } from './commissions.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -70,6 +71,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     setTimeout(() => { void tick() }, 5 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
+  // Stylist commissions: the stylist of a paid visit earns by themselves (not ready: owner tests it first).
+  const commissions = createSalonCommissions(d)
+  d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
   // The card an online booking waited for: saved, so the booking stands (booking/engine.ts cardSaved).
