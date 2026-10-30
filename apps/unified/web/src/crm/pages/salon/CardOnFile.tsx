@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, Loader2, X, ExternalLink } from 'lucide-react'
 import { api } from '../../../api'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useAuth, usePermissions, useToast, useConfirm } from '../../../shared'
 
 const fieldClass = 'mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
@@ -83,7 +84,7 @@ export function ClientCardOnFile({ contactId }: { contactId: string }) {
           <span>
             <strong>{cardWords(c)}</strong>{c.expMonth && c.expYear ? ` · expires ${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}` : ''}
             <span className="block text-xs text-gray-600 dark:text-slate-300">
-              Agreed to the card policy{c.consentAt ? ` on ${new Date(c.consentAt).toLocaleDateString()}` : ''}{c.consentVia === 'staff_at_desk' ? ' (in person)' : ' (online)'}
+              Agreed to the card policy{c.consentAt ? ` on ${momentDate(c.consentAt)}` : ''}{c.consentVia === 'staff_at_desk' ? ' (in person)' : ' (online)'}
             </span>
           </span>
           {mayRemove && <button onClick={() => remove(c)} className="text-sm text-red-700 hover:underline dark:text-red-400">Remove</button>}
@@ -204,7 +205,7 @@ export function ChargeFeeModal({ appointmentId, clientName, onClose, onDone }: {
               <div className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-700 dark:border-slate-700 dark:text-slate-300">
                 <p className="font-medium">Already tried on this appointment</p>
                 <ul>{data.charges.map((c) => (
-                  <li key={c.id}>{new Date(c.createdAt).toLocaleDateString()} · {kindWords(c.kind)} {money(c.amount)} · {c.status === 'succeeded' ? 'charged' : c.status === 'declined' ? 'declined' : 'needed the client to approve'}</li>
+                  <li key={c.id}>{momentDate(c.createdAt)} · {kindWords(c.kind)} {money(c.amount)} · {c.status === 'succeeded' ? 'charged' : c.status === 'declined' ? 'declined' : 'needed the client to approve'}</li>
                 ))}</ul>
               </div>
             )}

@@ -12,7 +12,8 @@
 // A seat's own chair is the login itself (appointment.stylistId) and the roster card(s) that are that same person
 // (appointment.stylistMemberId): the card the Team page links to the login (crew_login.team_member_id), and the card
 // carrying the login's email — the match /api/team/assignable uses to offer someone with both once, as their login.
-import { and, eq, inArray, isNotNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm'
+import { visitHasService } from '../../data/salon.ts'
 import { appointment, appointmentItem, company, crewLogin, teamMember, user } from '../../db/schema/index.ts'
 
 /** Holding it, a seat sees the whole book whatever the switch says. */
@@ -82,7 +83,7 @@ export function inOwnChair(own: OwnChair): SQL {
   const mine = eq(appointment.stylistId, own.userId)
   // A visit with several services is also in the chair of whoever does one of them (salon #5); no rows, no change.
   const mineItem = own.memberIds.length ? or(eq(appointmentItem.stylistId, own.userId), inArray(appointmentItem.stylistMemberId, own.memberIds))! : eq(appointmentItem.stylistId, own.userId)
-  const inItems = sql`exists (select 1 from ${appointmentItem} where ${appointmentItem.appointmentId} = ${appointment.id} and ${mineItem})`
+  const inItems = visitHasService(appointment.id, mineItem)
   return own.memberIds.length ? or(mine, inArray(appointment.stylistMemberId, own.memberIds), inItems)! : or(mine, inItems)!
 }
 

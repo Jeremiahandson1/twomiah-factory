@@ -12,7 +12,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { appointment, cardFeeCharge, cardPolicy, clientCard, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, listAll, one } from '../../http/reply.ts'
 import { whenText } from '../../booking/emails.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -344,7 +344,7 @@ export function createCardOnFileRoutes(d: CrmDeps, cards: CardOnFile, book: Book
   app.get('/clients/:contactId/cards', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
     const rows = await cards.cardsOf(u.companyId, c.req.param('contactId'))
-    return list(c, rows.map(cardView), { page: 1, limit: Math.max(rows.length, 50), total: rows.length })
+    return listAll(c, rows.map(cardView))
   })
 
   /**
@@ -413,7 +413,7 @@ export function createCardOnFileRoutes(d: CrmDeps, cards: CardOnFile, book: Book
     const u = c.get('user') as any
     const rows: ChargeRow[] = await db.select().from(cardFeeCharge)
       .where(and(eq(cardFeeCharge.companyId, u.companyId), eq(cardFeeCharge.contactId, c.req.param('contactId')))).orderBy(desc(cardFeeCharge.createdAt)).limit(100)
-    return list(c, rows.map(chargeView), { page: 1, limit: Math.max(rows.length, 50), total: rows.length })
+    return listAll(c, rows.map(chargeView))
   })
 
   return app

@@ -1,8 +1,8 @@
 // The salon's raw SQL (RULEBOOK §2): the book's lock, the client's lifetime spend, the visit repairs, the win-back list,
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
-import { and, eq, gte, lte, lt, isNotNull, or, sql } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact } from '../db/schema/index.ts'
+import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -14,6 +14,10 @@ const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 export async function lockAppointmentBook(tx: any, companyId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':appt'}))`)
 }
+
+/** The visit whose id is in `apptId` has a service (an appointment_item row) matching `cond` — a visit with several services (salon #5). */
+export const visitHasService = (apptId: AnyColumn, cond: SQL): SQL =>
+  sql`exists (select 1 from ${appointmentItem} where ${appointmentItem.appointmentId} = ${apptId} and ${cond})`
 
 /** A service already on this menu by the same name, case aside. (SALON-M5) */
 export async function serviceNamedOnMenu(db: any, companyId: string, name: string): Promise<string | null> {

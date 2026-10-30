@@ -14,6 +14,7 @@ import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
 import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
+import { findBlock } from './bookBlocks.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -39,7 +40,7 @@ const EDITABLE = ['contactId', 'stylistId', 'serviceId', 'status', 'station', 's
 type AppointmentRow = typeof appointment.$inferSelect
 
 /** A clash found inside the booking transaction: rolls the write back and is answered as a 409 after it unwinds. */
-class ApptConflict extends Error { constructor(public sentence: string) { super('appointment conflict') } }
+class ApptConflict extends Error { constructor(public sentence: string, public code = 'APPOINTMENT_CONFLICT') { super('appointment conflict') } }
 
 const overlaps = (r: AppointmentRow, start: Date, end: Date) => {
   const rs = new Date(r.startTime).getTime()
@@ -236,6 +237,17 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (await findStylistConflict(exec, companyId, it.stylist, s, e, ignoreId, it.proc)) return 'That stylist is already booked at this time'
     }
     return null
+  }
+
+  /**
+   * Blocked time (lunch, training; feature `book_grid`): the desk may still book over it, on purpose (`overrideBlock: true`), but is told first.
+   * Only the hands-on pieces count, so a gap inside a colour may sit over a break. Returns the sentence, or null.
+   */
+  async function blockSentence(companyId: string, spans: Array<{ stylist: StylistRef; start: Date; end: Date; proc: Processing | null }>, exec: any): Promise<string | null> {
+    const pieces = spans.flatMap((sp) => piecesOf(sp.start.getTime(), sp.end.getTime(), sp.proc).map((p) => ({ stylist: sp.stylist, start: new Date(p.start), end: new Date(p.end) })))
+    const hit = await findBlock(exec, companyId, pieces)
+    if (!hit) return null
+    return `That time is blocked off${hit.reason ? ` (${hit.reason})` : ''}. To book it anyway, confirm.`
   }
 
   /** The services of the visits asked about, by visit id (empty for plain appointments). */
@@ -445,6 +457,10 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const made = itemList ? { proc: null } : await processingFor(currentUser.companyId, serviceId, body, Math.round((endTime.getTime() - startTime.getTime()) / 60000))
     if ('problem' in made) return fail(c, 400, made.problem, 'BAD_PROCESSING', { processingMin: made.problem })
     const proc = made.proc
+    const blocksOn = !body.overrideBlock && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    const spansOf = () => itemList
+      ? itemList.map((i) => ({ stylist: i.stylist, start: new Date(startTime.getTime() + i.offset * 60_000), end: new Date(startTime.getTime() + (i.offset + i.duration) * 60_000), proc: i.proc }))
+      : [{ stylist, start: startTime, end: endTime, proc }]
 
     let created: AppointmentRow
     try {
@@ -455,6 +471,10 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           if (clash) throw new ApptConflict(clash)
         } else if (stylist.stylistId || stylist.stylistMemberId) {
           if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) throw new ApptConflict('That stylist is already booked at this time')
+        }
+        if (blocksOn && body.status !== 'cancelled') {
+          const why = await blockSentence(currentUser.companyId, spansOf(), tx)
+          if (why) throw new ApptConflict(why, 'BOOK_BLOCKED')
         }
         if (body.station) {
           if (await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime, undefined, tx)) throw new ApptConflict(`${String(body.station).trim()} is already booked at this time`)
@@ -486,7 +506,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       })
     } catch (e) {
       // The template also sent the clashing appointment's id; nothing read it.
-      if (e instanceof ApptConflict) return fail(c, 409, e.sentence, 'APPOINTMENT_CONFLICT')
+      if (e instanceof ApptConflict) return fail(c, 409, e.sentence, e.code)
       throw e
     }
 
@@ -586,6 +606,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       updates.processingMin = got.proc?.min ?? null
     }
     const nextStation = 'station' in updates ? updates.station : existing.station
+    const checkBlocks = !body.overrideBlock && ('startTime' in updates || 'endTime' in updates || 'stylistId' in updates) && !CANCELLED.includes(nextStatus)
+      && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
     let updated: AppointmentRow
     try {
       updated = await db.transaction(async (tx: any) => {
@@ -599,6 +621,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         } else if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
           if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) throw new ApptConflict('That stylist is already booked at this time')
         }
+        if (checkBlocks) {
+          const spans = itemised
+            ? existingItems.map((i) => ({ stylist: { stylistId: i.stylistId, stylistMemberId: i.stylistMemberId ?? null }, start: new Date(nextStart.getTime() + i.startOffsetMin * 60_000), end: new Date(nextStart.getTime() + (i.startOffsetMin + i.durationMin) * 60_000), proc: i.processingMin && i.processingMin > 0 ? { afterMin: i.processingAfterMin ?? 0, min: i.processingMin } : null }))
+            : [{ stylist: nextStylist, start: nextStart, end: nextEnd, proc: nextProc }]
+          const why = await blockSentence(currentUser.companyId, spans, tx)
+          if (why) throw new ApptConflict(why, 'BOOK_BLOCKED')
+        }
         if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
           if (await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id, tx)) throw new ApptConflict(`${String(nextStation).trim()} is already booked at this time`)
         }
@@ -606,7 +635,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         return row
       })
     } catch (e) {
-      if (e instanceof ApptConflict) return fail(c, 409, e.sentence, 'APPOINTMENT_CONFLICT')
+      if (e instanceof ApptConflict) return fail(c, 409, e.sentence, e.code)
       throw e
     }
     await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

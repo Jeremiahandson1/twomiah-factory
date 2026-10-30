@@ -551,6 +551,8 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (!stripeAccount) throw Object.assign(new Error('This business has not connected its Stripe account'), { status: 400 })
     const amount = Math.round(p.amount * 100)
     if (!(amount > 0)) throw Object.assign(new Error('Amount must be greater than 0'), { status: 400 })
+    // The connected-account scope every money call here carries (check-connect-charging), with this charge's idempotency key beside it.
+    const requestOpts = (account: string) => ({ stripeAccount: account, idempotencyKey: p.idempotencyKey })
     try {
       const intent = await stripe.paymentIntents.create({
         amount,
@@ -561,7 +563,7 @@ export function createStripeService(deps: StripeServiceDeps) {
         confirm: true,
         description: p.description,
         metadata: p.metadata,
-      }, { stripeAccount, idempotencyKey: p.idempotencyKey })
+      }, requestOpts(stripeAccount))
       if (intent.status === 'succeeded') return { ok: true, paymentIntentId: intent.id }
       return {
         ok: false, reason: intent.status === 'requires_action' ? 'needs_action' : 'declined',

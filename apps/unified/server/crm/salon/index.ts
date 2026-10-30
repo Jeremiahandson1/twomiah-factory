@@ -16,6 +16,7 @@ import { createSalonServices, type SalonServices } from './services.ts'
 import { createClientRoutes } from './clients.ts'
 import { createServiceMenuRoutes } from './serviceMenu.ts'
 import { createAppointmentRoutes } from './appointments.ts'
+import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -81,6 +82,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     { path: '/api/memberships', access: 'user', feature: 'salon_memberships', router: priced(createMembershipRoutes(d, s)) },
     ...(salonBook ? [
       { path: '/api/appointments', access: 'user', feature: 'salon_booking', router: priced(createAppointmentRoutes(d, s)) },
+      // Blocked time (lunch, training) in the Book's time grid (not ready: owner tests it first).
+      { path: '/api/book-blocks', access: 'user', feature: 'book_grid', router: createBookBlockRoutes(d, s) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).

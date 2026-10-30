@@ -1,7 +1,7 @@
 // Moved from templates/crm-salon/frontend/src/pages/salon/AppointmentsPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors, AlertTriangle, RotateCcw, CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors, AlertTriangle, RotateCcw, CalendarClock, ChevronLeft, ChevronRight, Lock } from 'lucide-react'
 import { api } from '../../../api'
 import ClientPicker from './ClientPicker';
 import ServiceRecordEditorModal from './ServiceRecordEditorModal';
@@ -15,6 +15,7 @@ import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
 import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
+import BookGrid, { type GridColumn, type GridBlock } from './BookGrid'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -120,9 +121,16 @@ export default function AppointmentsPage() {
   const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
-  const [view, setView] = useState<'day' | 'week'>('day');
+  const { hasFeature } = useAuth();
+  const gridOn = hasFeature('book_grid');
+  const [view, setView] = useState<'day' | 'week' | 'grid'>('day');
   // One chair's book, or everyone's (''): the stylists come from the appointments on screen, roster-only ones included.
   const [stylistFilter, setStylistFilter] = useState<string>('');
+  // The grid shows one stylist's week when a stylist is picked, else the day with a column per stylist.
+  const weekish = view === 'week' || (view === 'grid' && !!stylistFilter);
+  const [blocks, setBlocks] = useState<GridBlock[]>([]);
+  const [blockFor, setBlockFor] = useState<null | { block?: GridBlock; stylistId?: string; date?: string; start?: string }>(null);
+  const [newAt, setNewAt] = useState<null | { stylistId?: string; date?: string; time?: string }>(null);
   // The week's card that was clicked: its actions open over the week.
   const [picked, setPicked] = useState<Appointment | null>(null);
   const [appts, setAppts] = useState<Appointment[]>([]);
@@ -135,9 +143,9 @@ export default function AppointmentsPage() {
   // The heading for the day whose rows are actually on screen — held while a new date is being typed.
   const [shownHeading, setShownHeading] = useState<string>(() => dayHeading(todayStr(), todayStr()) ?? "Today's chairs");
   useEffect(() => {
-    const h = view === 'week' ? weekHeading(day) : dayHeading(day, todayStr());
+    const h = weekish ? weekHeading(day) : dayHeading(day, todayStr());
     if (h) setShownHeading(h);
-  }, [day, view]);
+  }, [day, weekish]);
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
@@ -157,17 +165,21 @@ export default function AppointmentsPage() {
     if (!isDayComplete(day)) return;
     setLoading(true);
     try {
-      const { from, to } = viewBounds(view, day);
+      const { from, to } = viewBounds(weekish ? 'week' : 'day', day);
       const res = await api.get(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const rows: Appointment[] = res.data || [];
       rows.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       setAppts(rows);
+      // Blocked time (lunch, training) rides with the grid.
+      if (gridOn && view === 'grid') {
+        try { setBlocks(((await api.get(`/api/book-blocks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)).data || []) as GridBlock[]); } catch { setBlocks([]); }
+      }
     } catch (error) {
       console.error('Failed to load appointments:', error);
     } finally {
       setLoading(false);
     }
-  }, [day, view]);
+  }, [day, weekish, view, gridOn]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -260,7 +272,31 @@ export default function AppointmentsPage() {
   const days = weekOf(isDayComplete(day) ? day : todayStr());
   const week = byDay(shown, days);
   const today = todayStr();
-  const heading = view === 'week' ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+  const heading = weekish ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+
+  // The grid's columns: a day is a column per stylist (and one for unassigned bookings, if any); a stylist's week is a column per day.
+  const gridCols: GridColumn[] = weekish
+    ? days.map((d) => ({ key: d, day: d, label: dateWords(d, { weekday: 'short' }), sub: dateWords(d, { month: 'short', day: 'numeric' }) }))
+    : [
+        ...stylists.filter(([id]) => (scope.ownOnly ? scope.ownStylistIds.includes(id) : true)).map(([id, name]) => ({ key: id, stylistId: id, label: name })),
+        ...(shown.some((a) => !a.stylistId) && !scope.ownOnly ? [{ key: 'none', stylistId: '', label: 'Unassigned' }] : []),
+      ];
+
+  // Moving a card on the grid is the Reschedule button's PUT; a clash is refused by the server in words, and a blocked time asks first.
+  const putMove = async (a: { id: string }, payload: Record<string, unknown>) => {
+    try {
+      await api.put(`/api/appointments/${a.id}`, payload);
+    } catch (err) {
+      const code = (err as { data?: { code?: string } }).data?.code;
+      if (code === 'BOOK_BLOCKED' && await confirm(`${(err as Error).message}`, { title: 'Blocked time', confirmText: 'Book it anyway', danger: false })) {
+        try { await api.put(`/api/appointments/${a.id}`, { ...payload, overrideBlock: true }); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
+      } else if (code !== 'BOOK_BLOCKED') toast.error((err as Error).message || 'Could not move it');
+    }
+    load();
+  };
+  const moveOnGrid = (a: { id: string }, to: { start: Date; end: Date; stylistId?: string; itemised: boolean }) =>
+    putMove(a, { startTime: to.start.toISOString(), endTime: to.end.toISOString(), ...(to.stylistId !== undefined ? { stylistId: to.stylistId } : {}) });
+  const resizeOnGrid = (a: { id: string }, end: Date) => putMove(a, { endTime: end.toISOString() });
 
   return (
     <div className="space-y-6">
@@ -271,29 +307,34 @@ export default function AppointmentsPage() {
               rendering "Chairs on Invalid Date" over the previous day's rows. (T20 M5) */}
           <p className="text-gray-500 dark:text-slate-400">{heading}</p>
         </div>
-        {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
-          <Plus className="w-4 h-4" /> New Appointment
-        </button>}
+        <div className="flex items-center gap-2">
+          {mayBook && gridOn && <button onClick={() => setBlockFor({ date: isDayComplete(day) ? day : todayStr() })} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
+            <Lock className="w-4 h-4" /> Block time
+          </button>}
+          {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+            <Plus className="w-4 h-4" /> New Appointment
+          </button>}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Show the book by">
-          {(['day', 'week'] as const).map((v) => (
+          {([...(['day', 'week'] as const), ...(gridOn ? (['grid'] as const) : [])]).map((v) => (
             <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === v ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-              {v === 'day' ? 'Day' : 'Week'}
+              {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Grid'}
             </button>
           ))}
         </div>
-        {view === 'week' && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, -7))} aria-label="Previous week" className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
+        {(weekish || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? -7 : -1))} aria-label={weekish ? 'Previous week' : 'Previous day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
         )}
         <div className="relative">
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={view === 'week' ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={weekish ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        {view === 'week' && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, 7))} aria-label="Next week" className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
+        {(weekish || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? 7 : 1))} aria-label={weekish ? 'Next week' : 'Next day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
         )}
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
         {scope.ownOnly ? (
@@ -313,6 +354,15 @@ export default function AppointmentsPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
+      ) : view === 'grid' ? (
+        <BookGrid
+          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today}
+          mayMove={mayMove} mayBook={mayBook}
+          onPick={(a) => setPicked(a as Appointment)}
+          onMove={moveOnGrid} onResize={resizeOnGrid}
+          onEmptySlot={(col, startMin) => setNewAt({ stylistId: col.stylistId, date: weekish ? col.day : day, time: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` })}
+          onBlock={(b) => setBlockFor({ block: b })}
+        />
       ) : view === 'week' ? (
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
           {days.map((d) => (
@@ -403,12 +453,21 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {showForm && (
+      {(showForm || newAt) && (
         <NewAppointmentModal
-          defaultDay={day}
+          defaultDay={newAt?.date || day}
+          defaultTime={newAt?.time}
+          defaultStylistId={newAt?.stylistId}
           scope={scope}
-          onSave={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
+          onSave={() => { setShowForm(false); setNewAt(null); load(); }}
+          onClose={() => { setShowForm(false); setNewAt(null); }}
+        />
+      )}
+      {blockFor && (
+        <BlockTimeModal
+          block={blockFor.block} defaultDay={blockFor.date || day} defaultStylistId={blockFor.stylistId}
+          stylists={scope.ownOnly ? stylists.filter(([id]) => scope.ownStylistIds.includes(id)) : stylists} ownOnly={scope.ownOnly}
+          onSave={() => { setBlockFor(null); load(); }} onClose={() => setBlockFor(null)}
         />
       )}
       {closing && closing.contactId && (
@@ -524,7 +583,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 
 /* ---------------- New Appointment Modal ---------------- */
 
-function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDay: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
+function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope, onSave, onClose }: { defaultDay: string; defaultTime?: string; defaultStylistId?: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
   // A stylist is not shown prices (the server leaves them out too); the booking takes the menu price.
   const maySeePrices = useMayWrite('invoices:read');
   const { hasFeature } = useAuth();
@@ -538,8 +597,8 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
   const [contactId, setContactId] = useState<string>('');
   const [profile, setProfile] = useState<ClientProfileLite | null>(null);
   const [form, setForm] = useState({
-    serviceId: '', stylistId: '',
-    date: defaultDay, startTime: '09:00', endTime: '',
+    serviceId: '', stylistId: defaultStylistId || '',
+    date: defaultDay, startTime: defaultTime || '09:00', endTime: '',
     station: '', quotedPrice: '', notes: '',
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -739,6 +798,94 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
             </div>
           </form>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ---------------- Blocked time ---------------- */
+
+// Lunch, training, a day off: a stylist's chair (or everyone's) closed to bookings (server crm/salon/bookBlocks.ts, feature book_grid).
+function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly, onSave, onClose }: {
+  block?: GridBlock; defaultDay: string; defaultStylistId?: string; stylists: Array<[string, string]>; ownOnly: boolean; onSave: () => void; onClose: () => void
+}) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const startParts = block ? companyWall(new Date(block.startTime)) : { date: defaultDay, time: '12:00' };
+  const endParts = block ? companyWall(new Date(block.endTime)) : { date: defaultDay, time: '13:00' };
+  const [stylistId, setStylistId] = useState<string>(block ? (block.stylistId || '') : (defaultStylistId ?? (ownOnly && stylists[0] ? stylists[0][0] : '')));
+  const [startDate, setStartDate] = useState(startParts.date);
+  const [start, setStart] = useState(startParts.time);
+  const [endDate, setEndDate] = useState(endParts.date);
+  const [end, setEnd] = useState(endParts.time);
+  const [reason, setReason] = useState(block?.reason || '');
+  const [repeat, setRepeat] = useState('0');
+  const [saving, setSaving] = useState(false);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        startTime: companyMoment(startDate, start).toISOString(), endTime: companyMoment(endDate, end).toISOString(),
+        reason: reason.trim() || null, stylistId: stylistId || null,
+      };
+      if (block) await api.put(`/api/book-blocks/${block.id}`, payload);
+      else {
+        if (Number(repeat) > 0) payload.repeatWeeks = Number(repeat);
+        const made = await api.post('/api/book-blocks', payload);
+        if (made?.appointmentsInside > 0) toast.warning?.(`${made.appointmentsInside} appointment${made.appointmentsInside === 1 ? ' is' : 's are'} already booked in that time — they stay until you move them.`);
+      }
+      onSave();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not save the blocked time');
+    } finally { setSaving(false); }
+  };
+  const remove = async () => {
+    if (!block || !(await confirm('Remove this blocked time? The hours open up for booking again.', { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
+    try { await api.delete(`/api/book-blocks/${block.id}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <form onSubmit={save} role="dialog" aria-modal="true" aria-label="Blocked time" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">{block ? 'Blocked time' : 'Block time'}</h2>
+            <button type="button" aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200" htmlFor="block-who">Whose chair</label>
+            <select id="block-who" value={stylistId} onChange={(e) => setStylistId(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              {!ownOnly && <option value="">Everyone (the whole salon)</option>}
+              {stylists.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">From (day)<input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (endDate < e.target.value) setEndDate(e.target.value); }} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">From (time)<input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (day)<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (time)<input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Reason (only your team sees it)
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lunch, training, day off" className="mt-1 w-full px-3 py-2 border rounded-lg" maxLength={200} />
+          </label>
+          {!block && (
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Repeat every week for
+              <select value={repeat} onChange={(e) => setRepeat(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
+                <option value="0">Just this once</option>
+                {[1, 2, 3, 4, 8, 12, 26].map((n) => <option key={n} value={n}>{n} more week{n === 1 ? '' : 's'}</option>)}
+              </select>
+            </label>
+          )}
+          <div className="flex gap-3 pt-2">
+            {block && <button type="button" onClick={remove} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
       </div>
     </div>
   );

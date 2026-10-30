@@ -21,9 +21,10 @@
 // already hang off; the menu stays the only place a service's name, length and price are changed.
 import { and, eq, gt, gte, inArray, isNull, lt, ne, notExists, notInArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { appointment, appointmentItem, bookBlock, booking, bookingService, contact, serviceMenu } from '../../db/schema/index.ts'
+import { appointment, appointmentItem, bookBlock, booking, bookingService, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import { findStylistConflict } from './held.ts'
 import { piecesOf } from './segments.ts'
+import { calendarDateIn } from './days.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
 import { policyWords, type CardOnFile } from './cardOnFile.ts'
@@ -112,7 +113,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       if (by === 'customer' && service.serviceMenuId) {
         const [menu] = await tx.select({ requiresPatchTest: serviceMenu.requiresPatchTest, name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, service.serviceMenuId)).limit(1)
         if (menu?.requiresPatchTest && (await ruleOnFor(tx, companyId))) {
-          const hold = patchTestHold((await stateFor(tx, contactId, new Date().toISOString().slice(0, 10))).state, menu.name || service.name || '')
+          const [zone] = await tx.select({ tz: company.timezone }).from(company).where(eq(company.id, companyId)).limit(1)
+          const hold = patchTestHold((await stateFor(tx, contactId, calendarDateIn(new Date(), zone?.tz || 'UTC'))).state, menu.name || service.name || '')
           if (hold) {
             // Owner's decision 2026-10-30: when the salon has named its patch-test appointment, the client is offered THAT to book
             // first (and the colour after it has passed) instead of being turned away; without one they are asked to call.

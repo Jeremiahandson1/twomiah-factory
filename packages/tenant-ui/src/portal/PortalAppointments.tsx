@@ -12,7 +12,7 @@ export interface PortalAppointment {
 }
 
 const when = (iso: string, tz?: string | null) => {
-  try { return new Date(iso).toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', ...(tz ? { timeZone: tz } : {}) }) } catch { return iso }
+  try { return new Date(iso).toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', ...(tz ? { timeZone: tz } : {}) }) } catch { return iso }
 }
 
 export function PortalAppointments() {
