@@ -1,7 +1,7 @@
 // Moved from templates/crm/frontend/src/pages/ProjectsPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Copy } from 'lucide-react'
 import { api } from '../../api'
 import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
@@ -44,7 +44,9 @@ export default function ProjectsPage() {
   const toast = useToast();
   // Every write on this page asks projects:create|update|delete on the server (routes/projects.ts); the
   // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
-  const { can } = useAuth();
+  const { can, hasFeature } = useAuth();
+  // Project templates (feature project_templates): start from one, save a project as one. Both gated server-side the same way.
+  const templatesOn = hasFeature('project_templates') && can('projects:read');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Detail pages link here as /crm/projects?edit=<id>. Open that record's edit
@@ -77,6 +79,11 @@ export default function ProjectsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; taskCount: number; punchItemCount: number }>>([]);
+  const [templateId, setTemplateId] = useState('');
+  // "Save as template": the project being saved, and the name asked for.
+  const [saveFrom, setSaveFrom] = useState<Record<string, unknown> | null>(null);
+  const [templateName, setTemplateName] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,9 +102,14 @@ export default function ProjectsPage() {
   }, [page, search, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+  const loadTemplates = useCallback(() => {
+    if (!templatesOn) return;
+    api.get('/api/project-templates').then((r: any) => setTemplates(r?.data || [])).catch(() => setTemplates([]));
+  }, [templatesOn]);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  const openCreate = (contactId = '') => { setEditing(null); setForm({ ...initialForm, contactId }); setModalOpen(true); };
+  const openCreate = (contactId = '') => { setEditing(null); setTemplateId(''); setForm({ ...initialForm, contactId }); setModalOpen(true); };
 
   // A lead that has just become a contact starts a project from the Lead Inbox (/crm/projects?new=1&contactId=…): the form
   // opens with that person chosen. Their record is fetched if the first page of the picker does not hold them.
@@ -127,10 +139,26 @@ export default function ProjectsPage() {
     try {
       const payload = { ...form, estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : undefined, budget: form.budget ? Number(form.budget) : undefined };
       if (editing) { await api.projects.update(editing.id as string, payload); toast.success('Project updated'); }
+      else if (templateId) {
+        const r: any = await api.post(`/api/project-templates/${templateId}/start`, payload);
+        const got = r?.copied || { tasks: 0, punchItems: 0 };
+        toast.success(`Project created from the template — ${got.tasks} schedule ${got.tasks === 1 ? 'task' : 'tasks'}, ${got.punchItems} punch ${got.punchItems === 1 ? 'item' : 'items'}`);
+        if (r?.leftOut?.length) toast.error(`Not copied: ${r.leftOut.join('; ')}`);
+      }
       else { await api.projects.create(payload); toast.success('Project created'); }
       setModalOpen(false); load();
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }
+  };
+
+  const saveTemplate = async () => {
+    if (!saveFrom || !templateName.trim()) { toast.error('Name the template'); return; }
+    try {
+      const r: any = await api.post('/api/project-templates/from-project', { projectId: saveFrom.id, name: templateName.trim() });
+      toast.success(`Saved "${r?.name || templateName.trim()}" — ${r?.taskCount ?? 0} schedule ${r?.taskCount === 1 ? 'task' : 'tasks'}, ${r?.punchItemCount ?? 0} punch ${r?.punchItemCount === 1 ? 'item' : 'items'}`);
+      if (r?.punchListLeftOut) toast.error('The punch list was left out — you cannot read punch lists, or Punch Lists is off.');
+      setSaveFrom(null); setTemplateName(''); loadTemplates();
+    } catch (err) { toast.error((err as Error).message); }
   };
 
   const handleDelete = async () => {
@@ -162,9 +190,24 @@ export default function ProjectsPage() {
       </div>
       <DataTable data={data} emptyMessage="No projects yet. Create one to group the jobs, change orders and RFIs for a piece of work." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
         onRowClick={(row: Record<string, unknown>) => navigate(`/crm/projects/${row.id}`)}
-        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('projects:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('projects:delete') }]} />
+        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('projects:update') }, { label: 'Save as template', icon: Copy, onClick: (r: Record<string, unknown>) => { setSaveFrom(r); setTemplateName(`${r.name as string} template`); }, show: () => templatesOn && can('projects:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('projects:delete') }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Project' : 'New Project'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
+          {!editing && templatesOn && templates.length > 0 && can('projects:create') && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-1" htmlFor="project-template">Start from a template</label>
+              <select id="project-template" value={templateId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                const id = e.target.value; setTemplateId(id);
+                const t = templates.find((x) => x.id === id);
+                // the template's name is a fair first name for the project, until the person types their own
+                if (t && !form.name.trim()) setForm({ ...form, name: t.name.replace(/ template$/i, '') });
+              }} className="w-full px-3 py-2 border rounded-lg">
+                <option value="">Blank project</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name} — {t.taskCount} {t.taskCount === 1 ? 'task' : 'tasks'}, {t.punchItemCount} punch {t.punchItemCount === 1 ? 'item' : 'items'}</option>)}
+              </select>
+              {templateId && <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">The schedule is placed from the start date below{form.startDate ? '' : ' — pick one to give the tasks dates'}.</p>}
+            </div>
+          )}
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Type</label><select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select></div>
@@ -179,6 +222,12 @@ export default function ProjectsPage() {
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Description</label><textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, description: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button></div>
+      </Modal>
+      <Modal isOpen={!!saveFrom} onClose={() => setSaveFrom(null)} title="Save as template" size="md">
+        <p className="mb-3 text-sm text-gray-700 dark:text-slate-200">Keeps this project's schedule (phases, milestones and tasks, by days from the start) and its punch list as a starting point. Who was assigned, progress, money and documents are not kept.</p>
+        <label className="block text-sm font-medium mb-1" htmlFor="template-name">Template name</label>
+        <input id="template-name" value={templateName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTemplateName(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setSaveFrom(null)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={saveTemplate}>Save template</Button></div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Project" message={`Delete "${toDelete?.name as string}"?`} confirmText="Delete" />
     </div>

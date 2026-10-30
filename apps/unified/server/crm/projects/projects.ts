@@ -102,6 +102,26 @@ const projectSchema = projectFields.refine(dateOrderCheck, {
   message: 'End date must be on or after the start date', path: ['endDate'],
 })
 
+/**
+ * Make a project: the next PRJ number, the dates as dates, the money as text. The one place a project row is written
+ * from a request — the create route above and "start from a template" (projectTemplates.ts) both come through here, so a
+ * templated project is numbered and shaped exactly as any other.
+ */
+export async function insertProject(tx: any, companyId: string, data: z.infer<typeof projectFields>) {
+  const number = await nextNumber(tx, project, project.number, project.companyId, companyId, { prefix: 'PRJ', pad: 4 })
+  const [row] = await tx.insert(project).values({
+    ...data,
+    number,
+    startDate: data.startDate ? new Date(data.startDate) : null,
+    endDate: data.endDate ? new Date(data.endDate) : null,
+    estimatedValue: data.estimatedValue?.toString(),
+    budget: data.budget?.toString(),
+    companyId,
+  }).returning()
+  return row
+}
+export const projectInput = projectSchema
+
 export function createProjectRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
@@ -254,19 +274,7 @@ export function createProjectRoutes(d: CrmDeps) {
     const data = projectSchema.parse(await c.req.json())
 
     // PRJ numbers only go forwards: locked, never reissued after a delete (T58k).
-    const newProject = await db.transaction(async (tx: any) => {
-      const number = await nextNumber(tx, project, project.number, project.companyId, currentUser.companyId, { prefix: 'PRJ', pad: 4 })
-      const [row] = await tx.insert(project).values({
-        ...data,
-        number,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        endDate: data.endDate ? new Date(data.endDate) : null,
-        estimatedValue: data.estimatedValue?.toString(),
-        budget: data.budget?.toString(),
-        companyId: currentUser.companyId,
-      }).returning()
-      return row
-    })
+    const newProject = await db.transaction((tx: any) => insertProject(tx, currentUser.companyId, data))
 
     return one(c, newProject, 201)
   })

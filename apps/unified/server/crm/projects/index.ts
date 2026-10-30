@@ -10,10 +10,12 @@ import { createBillRoutes } from './bills.ts'
 import { createLienWaiverRoutes } from './lienWaivers.ts'
 import { createDrawScheduleRoutes } from './drawSchedules.ts'
 import { createAiaFormRoutes } from './aiaForms.ts'
+import { createProjectTemplateRoutes } from './projectTemplates.ts'
 
 export function projectMounts(d: CrmDeps): Mount[] {
   return [
     { path: '/api/projects', access: 'user', feature: 'projects', router: createProjectRoutes(d) },
+    { path: '/api/project-templates', access: 'user', feature: 'project_templates', router: createProjectTemplateRoutes(d) },
     { path: '/api/gantt-charts', access: 'user', feature: 'gantt_charts', router: createGanttChartRoutes(d) },
     { path: '/api/bids', access: 'user', feature: 'bid_management', router: createBidRoutes(d) },
     { path: '/api/purchase-orders', access: 'user', feature: 'purchase_orders', router: createPurchaseOrderRoutes(d) },

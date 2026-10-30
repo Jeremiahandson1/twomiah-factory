@@ -64,7 +64,6 @@ const contractor: VerticalSettings = {
       '/crm/parts': 'Field',
       '/crm/pricebook-rates': 'Field',
       '/crm/invoices': 'Finance',
-      '/crm/financing': 'Finance',
       '/crm/recurring': 'Finance',
       '/crm/expenses': 'Finance',
       '/crm/purchase-orders': 'Finance',
