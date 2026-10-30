@@ -266,7 +266,7 @@ export async function logAllStormStops(db: any, companyId: string, userId: strin
 }
 
 /** Skip a stop (no service needed at this site this storm): its job is cancelled while it is still just scheduled. */
-export async function skipStormStop(db: any, companyId: string, stopId: string, note?: string | null) {
+export async function skipStormStop(db: any, companyId: string, stopId: string, note?: string | null): Promise<{ error: string; status: 404 | 409 } | { stop: any }> {
   const [stop] = await db.select().from(snowStormStop).where(and(eq(snowStormStop.id, stopId), eq(snowStormStop.companyId, companyId))).limit(1)
   if (!stop) return { error: 'Storm stop not found', status: 404 as const }
   if (stop.eventId || stop.status === 'done') return { error: 'This stop already has its visit logged.', status: 409 as const }
@@ -314,7 +314,7 @@ export async function billStorm(db: any, companyId: string, stormId: string, opt
     .orderBy(asc(snowEvent.servicedAt))
   const byContract = new Map<string, { siteName: string | null; contactId: string | null; events: any[] }>()
   for (const r of rows) {
-    const g = byContract.get(r.ev.snowContractId) ?? { siteName: r.siteName, contactId: r.contractContactId ?? r.siteContactId ?? null, events: [] }
+    const g: { siteName: string | null; contactId: string | null; events: any[] } = byContract.get(r.ev.snowContractId) ?? { siteName: r.siteName, contactId: r.contractContactId ?? r.siteContactId ?? null, events: [] }
     g.events.push(r.ev)
     byContract.set(r.ev.snowContractId, g)
   }

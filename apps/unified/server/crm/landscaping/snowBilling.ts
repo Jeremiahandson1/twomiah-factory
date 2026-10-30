@@ -184,7 +184,7 @@ export function computeSnowEventCharge(
     case 'per_inch': base = n(ev.snowfallInches) * n(contract.perInchRate); break
     case 'seasonal': base = 0; break
     // Hourly: the crew's hours on site times the contract's hourly rate (storm mode keeps the clock).
-    case 'hourly': base = n(ev.hours) * n(contract.hourlyRate); break
+    case 'hourly': base = n(ev.hours ?? 0) * n(contract.hourlyRate ?? 0); break
   }
   if (isBelowTrigger(contract, ev) && !ev.billBelowTrigger) base = 0
   const salt = ev.saltApplied ? n(contract.saltRate) : 0

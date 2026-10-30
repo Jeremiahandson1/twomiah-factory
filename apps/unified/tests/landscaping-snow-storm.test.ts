@@ -114,7 +114,7 @@ describe('the crew logs the visit', () => {
     // Another crew's seat can neither start nor log it.
     expect((await post(other, `/api/snow/storms/stops/${stop.id}/log`, { pushes: 1 })).status).toBe(403)
     expect((await post(other, `/api/snow/storms/stops/${stop.id}/start`)).status).toBe(403)
-    expect((await as(other, '/api/snow/storms/mine/stops').then((r) => r.json())).data.length).toBe(0)
+    expect((await (await as(other, '/api/snow/storms/mine/stops')).json()).data.length).toBe(0)
 
     expect((await post(crew, `/api/snow/storms/stops/${stop.id}/start`)).status).toBe(200)
     const res = await post(crew, `/api/snow/storms/stops/${stop.id}/log`, { pushes: 2, snowfallInches: 3, saltApplied: true, notes: 'Drift at the gate' })

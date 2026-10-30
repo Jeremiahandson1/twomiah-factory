@@ -5,7 +5,7 @@ import {
   PortalProvider, PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes,
   PortalQuoteDetail, PortalInvoices, PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail,
   PortalSelections, PortalMessages, PortalMyJobs, PortalLienWaivers, PortalSubmittalReview, PortalAssignedRfis,
-  PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest,
+  PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest, PortalVisits,
 } from '@twomiah/tenant-ui/src/portal'
 import { verticalScreens } from './vertical'
 
@@ -37,6 +37,7 @@ export default function PortalApp() {
           <Route path="equipment/:equipmentId" element={<PortalEquipmentDetail />} />
           <Route path="agreements" element={<PortalAgreements />} />
           <Route path="service-request" element={<PortalServiceRequest />} />
+          <Route path="visits" element={<PortalVisits />} />
         </Route>
       </Routes>
     </PortalProvider>

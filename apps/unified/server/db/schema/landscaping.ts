@@ -163,6 +163,32 @@ export const snowStormStop = pgTable('snow_storm_stop', {
   index('snow_storm_stop_job_id_idx').on(t.jobId),
 ])
 
+// The message a customer gets when a visit is done (data/visitReports.ts): the crew's note, the after-photos, and what became of
+// the message. One row per job, ever (unique job_id), so finishing a job twice never messages the customer twice.
+export const visitReport = pgTable('visit_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  // The crew's words for the customer. Customer-visible, unlike the job's own notes.
+  note: text('note'),
+  // "Do not message the customer about this visit."
+  skip: boolean('skip').default(false).notNull(),
+  // draft (nothing sent yet), queued (a text waits for its send window), sent, skipped, nothing (no way to reach them), failed
+  status: text('status').default('draft').notNull(),
+  channel: text('channel'), // text, email
+  photoCount: integer('photo_count').default(0).notNull(),
+  sendAt: timestamp('send_at'),
+  sentAt: timestamp('sent_at'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_report_job_idx').on(t.jobId),
+  index('visit_report_company_id_idx').on(t.companyId),
+  index('visit_report_contact_id_idx').on(t.contactId),
+])
+
 // One run of "bill the completed visits" (monthly batch): kept so the whole batch can be undone while its invoices are drafts.
 export const routeBillingBatch = pgTable('route_billing_batch', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

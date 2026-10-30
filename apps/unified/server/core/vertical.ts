@@ -95,6 +95,8 @@ export interface CrmSettings {
    * landscaping, basic, bar)
    */
   serviceSites?: boolean
+  /** The portal's Visits section: finished visits with the crew's note and after-photos (landscaping; feature visit_reports). */
+  visitReports?: boolean
   jobs?: {
     /** What a new job is when none is given (the database's default is 'service'). */
     defaultType?: string

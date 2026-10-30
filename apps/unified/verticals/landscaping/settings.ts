@@ -47,6 +47,7 @@ const landscaping: VerticalSettings = {
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
+    visitReports: true,
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
     // owner objected that "a landscaping job is labelled REPAIR" (T58); the template only hid the label on the
     // dispatch card and kept storing it. It billed no job on its own (no POST /api/jobs/:id/invoice).
@@ -126,7 +127,7 @@ const landscaping: VerticalSettings = {
     },
     portal: {
       providerNoun: 'landscaping team',
-      clientNav: ['myJobs', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'visits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Visits', agreements: 'Service Plans' },

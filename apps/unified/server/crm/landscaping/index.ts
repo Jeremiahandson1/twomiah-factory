@@ -12,6 +12,7 @@ import { createRainDayRoutes } from './rainDay.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSnowStormRoutes } from './snowStorm.ts'
+import { createVisitReportRoutes } from './visitReports.ts'
 import { createSiteRoutes } from './sites.ts'
 import { topUpRouteVisits } from '../../data/routeVisits.ts'
 
@@ -36,6 +37,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     // Storm mode, before the snow router so /api/snow/storms is never read as an id.
     { path: '/api/snow/storms', access: 'user', feature: 'snow_billing', router: createSnowStormRoutes(d) },
     { path: '/api/snow', access: 'user', feature: 'snow_billing', router: createSnowBillingRoutes(d) },
+    // The visit-done message: the crew's note and after-photos, and what the customer was sent. NOT READY (hidden feature).
+    { path: '/api/visit-reports', access: 'user', feature: 'visit_reports', router: createVisitReportRoutes(d) },
     { path: '/api/sites', access: 'user', feature: ['snow_billing', 'area_pricing', 'recurring_routes'], router: createSiteRoutes(d) },
   ]
 }
