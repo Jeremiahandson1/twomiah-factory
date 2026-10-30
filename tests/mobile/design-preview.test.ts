@@ -24,7 +24,9 @@ check('no design component hard-codes a colour (roles only)', all.every((f) => !
 for (const f of ['Button.tsx', 'Chip.tsx', 'ListRow.tsx', 'SearchField.tsx', 'Screen.tsx', 'SectionHeader.tsx', 'BottomBar.tsx', 'BottomSheet.tsx']) check(`${f} uses MIN_TARGET`, /MIN_TARGET/.test(comp(f)))
 check('the tile is a button with a spoken label that says what it opens', /accessibilityRole="button"/.test(comp('StatTile.tsx')) && /Opens \$\{opens\}/.test(comp('StatTile.tsx')))
 // Owner 2026-10-29: the app wears the business's colour — no pink, yellow and blue tile per kind. A tile's tone is only its hint.
-check("every tile's icon is the business's colour, whatever the tile's kind", /const t = c\.tones\.accent/.test(comp('StatTile.tsx')) && /<Icon name=\{icon\} size=\{20\} tone="accent" \/>/.test(comp('StatTile.tsx')) && !/c\.tones\[tone\]/.test(comp('StatTile.tsx')))
+// 10/30: the square is FILLED with that colour and the icon drawn in its ink — lightened as an icon, a dark red read as pink.
+check("every tile's icon square is the business's colour, whatever the tile's kind", /const t = c\.tones\.accent/.test(comp('StatTile.tsx')) && /backgroundColor: t\.fill/.test(comp('StatTile.tsx')) && /<Icon name=\{icon\} size=\{20\} tone="onAccent" \/>/.test(comp('StatTile.tsx')) && !/c\.tones\[tone\]/.test(comp('StatTile.tsx')))
+check('a menu row with the brand icon fills its square the same way', /backgroundColor: brand \? t\.fill : t\.soft/.test(comp('ListRow.tsx')) && /tone=\{brand \? 'onAccent' : iconTone\}/.test(comp('ListRow.tsx')))
 {
   // …and no screen paints the old rainbow (blue, pink, yellow, green, violet, sky …) as a hard-coded tint: accents are the business's
   // colour (t.primary / primaryText), actions ACTION shades, meaning the theme's success/warning/error. Red for errors stays allowed.
