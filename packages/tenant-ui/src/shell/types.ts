@@ -147,6 +147,12 @@ export interface ShellConfig {
   headerActions?: React.ComponentType
   /** A vertical's own strip under the header, on every page (home care's "Viewing as …" while a View As is open). */
   banner?: React.ComponentType
+  /**
+   * Menu headings become buttons that fold their items away, and the person's choice is remembered for them (per signed-in
+   * user, in this browser). Default false — a template's menu is unchanged unless it opts in. A heading holding the page
+   * that is open never folds shut on the person.
+   */
+  collapsibleSections?: boolean
 }
 
 export interface AppShellProps {

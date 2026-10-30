@@ -3,7 +3,7 @@
 // One implementation for every CRM; the template passes its nav list, api, auth and socket state.
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useOutlet, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Home, Settings, LogOut, ChevronDown, Building, User, Sun, Moon } from 'lucide-react'
+import { Menu, X, Home, Settings, LogOut, ChevronDown, ChevronRight, Building, User, Sun, Moon } from 'lucide-react'
 import { useTheme, useIsMobile, useBrandPalette } from './hooks'
 import { SkipLink, RouteAnnouncer } from './Accessibility'
 import { GlobalSearch } from './GlobalSearch'
@@ -19,6 +19,35 @@ import { WHO_CAN_OPEN } from './noAccess'
 /** "/crm/lead-sources" → "Lead Sources", for a gated route with no menu entry to take a label from. */
 const labelFromPath = (to: string) =>
   to.split('/').pop()!.replace(/-/g, ' ').replace(new RegExp('\\b\\w', 'g'), (c) => c.toUpperCase())
+
+
+/** One heading of the menu and the items under it. An item with no heading of its own belongs to the one above it. */
+export interface NavGroup { name: string; items: NavItem[] }
+export function groupBySection(items: NavItem[]): NavGroup[] {
+  const groups: NavGroup[] = []
+  for (const item of items) {
+    const last = groups[groups.length - 1]
+    if (item.section && (!last || last.name !== item.section)) groups.push({ name: item.section, items: [item] })
+    else if (last) last.items.push(item)
+    else groups.push({ name: '', items: [item] })
+  }
+  return groups
+}
+const itemIsOpen = (item: NavItem, pathname: string) => {
+  if (item.external) return false
+  const path = pathname.replace(/\/+$/, '') || '/'
+  const target = item.to.replace(/\/+$/, '') || '/'
+  return item.exact ? path === target : path === target || path.startsWith(target + '/')
+}
+/** The headings this person has folded away, as they left them (per user: another sign-in on the same browser has its own). */
+const collapsedKey = (who: string) => `twomiah:nav-collapsed:${who}`
+function readCollapsed(who: string): string[] {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(collapsedKey(who))
+    const list = raw ? JSON.parse(raw) : []
+    return Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []
+  } catch { return [] }
+}
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
 // resolved from the packages path), so links are plain anchors driven by the router hooks.
@@ -76,6 +105,18 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     ),
     [config.nav, hasFeature, can, user?.role],
   )
+
+  // Folding headings (config.collapsibleSections): the person's choice is kept per signed-in user.
+  const collapsible = config.collapsibleSections === true
+  const who = String(user?.id ?? user?.email ?? 'anon')
+  const [collapsed, setCollapsed] = useState<string[]>(() => readCollapsed(who))
+  useEffect(() => { setCollapsed(readCollapsed(who)) }, [who])
+  const toggleSection = (name: string) => setCollapsed((prev) => {
+    const next = prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]
+    try { localStorage.setItem(collapsedKey(who), JSON.stringify(next)) } catch { /* private mode: it holds for this visit only */ }
+    return next
+  })
+  const navGroups = useMemo(() => groupBySection(navItems), [navItems])
 
   // Is there nav below the fold? Drives the fade at the bottom of the sidebar. Recomputed on scroll and on
   // resize, and whenever the list itself changes length — switching a module on in Settings can be what
@@ -234,6 +275,49 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
           className="h-full overflow-y-auto py-4 px-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(51_65_85)_transparent]"
           aria-label="Sidebar"
         >
+          {collapsible ? (
+            <div className="space-y-1">
+              {navGroups.map((group, gi) => {
+                const here = group.items.some((i) => itemIsOpen(i, location.pathname))
+                const open = !group.name || here || !collapsed.includes(group.name)
+                const listId = `nav-group-${gi}`
+                return (
+                  <div key={`${group.name}-${gi}`}>
+                    {group.name && (
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(group.name)}
+                        aria-expanded={open}
+                        aria-controls={listId}
+                        data-nav-section={group.name}
+                        className="mt-3 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        <span>{group.name}</span>
+                        {open ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                    )}
+                    {open && (
+                      <ul id={listId} className="space-y-1" role="list">
+                        {group.items.map((item) => (
+                          <li key={`${item.to}-${item.label}`}>
+                            {item.external ? (
+                              <a href={externalHref(item)} target="_blank" rel="noopener noreferrer" className={linkCls(false)}>
+                                <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" /><span>{item.label}</span>
+                              </a>
+                            ) : (
+                              <RouterLink to={item.to} end={item.exact} className={({ isActive }) => linkCls(isActive)}>
+                                <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" /><span>{item.label}</span>
+                              </RouterLink>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
           <ul className="space-y-1" role="list">
             {navItems.map((item, index) => {
               const prev = navItems[index - 1]
@@ -256,6 +340,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
               )
             })}
           </ul>
+          )}
         </nav>
         {moreNavBelow && (
           <div
