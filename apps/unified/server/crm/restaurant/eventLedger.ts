@@ -156,8 +156,10 @@ export async function syncEventInvoice(tx: any, companyId: string, eventId: stri
   if (linesToo && !EXIT_STATUSES.includes(m.ev.status) && inv.status !== 'void' && inv.status !== 'refunded') {
     const lines = eventInvoiceLines(m.ev, m.menu, m.minimum.lines)
     const current = await tx.select().from(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, inv.id)).orderBy(asc(invoiceLineItem.sortOrder))
-    if (!sameLines(current, lines)) {
-      const retotal: any = retotalInvoice(inv, lines, Number(inv.taxRate), Number(inv.discount))
+    // The lines can be the same while the tax on them is not (the venue switched the shortfall between taxed and untaxed).
+    const retotal: any = retotalInvoice(inv, lines, Number(inv.taxRate), Number(inv.discount))
+    const sameMoney = 'error' in retotal || Math.abs(Number(retotal.fields.total ?? inv.total) - Number(inv.total)) < 0.005
+    if (!sameLines(current, lines) || !sameMoney) {
       if ('error' in retotal) throw new LedgerError(retotal.error)
       Object.assign(updates, retotal.fields)
       await replaceInvoiceLines(tx, TABLES as any, inv.id, lines)
