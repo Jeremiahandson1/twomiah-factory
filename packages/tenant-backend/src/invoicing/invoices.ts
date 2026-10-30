@@ -88,6 +88,13 @@ export interface InvoiceOptions {
    * what is left of its quote (apps/unified/server/crm/billing/quoteBilling.ts).
    */
   checkTotal?: (existing: any, total: number) => Promise<string | null>
+  /**
+   * A way of paying that holds money the business owes back to somebody else's balance (the salon's gift card): when a refund
+   * goes back by `method`, `credit` runs INSIDE the refund's transaction under the invoice lock, puts the money back where it
+   * was taken from, and a returned message refuses the refund. Absent: a refund by any method moves nothing but the invoice,
+   * exactly as before. (Salon gift cards, apps/unified crm/salon/giftCards.ts)
+   */
+  refundTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
   accountBalance?: {
     /** Take `amount` off the invoice's client. A returned message refuses the payment. */
     spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
@@ -347,6 +354,8 @@ export interface RecordRefundInput {
    * the software deciding on the client's behalf.
    */
   creditToAccount?: (tx: any, invoice: any, amount: number) => Promise<string | null>
+  /** InvoiceOptions.refundTender: a refund by this method puts the money back where the tender took it from, in this transaction. */
+  creditToTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
 }
 
 export type RecordRefundOutcome =
@@ -393,6 +402,9 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
         return
       }
       const refusal = await input.creditToAccount(tx, row, amount)
+      if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
+    } else if (input.creditToTender && method === input.creditToTender.method) {
+      const refusal = await input.creditToTender.credit(tx, row, amount)
       if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
     }
     const values: any = { invoiceId: id, amount: (-amount).toString(), method, reference: input.reference || null, notes: input.notes || 'Refund' }
@@ -1054,12 +1066,12 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
      * until it costs somebody an audit trail. `reason` is accepted as a synonym rather than renaming
      * `notes`, which the screens and the Stripe paths already send.
      */
-    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional(), reason: z.string().optional() })
+    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(deps.options?.refundTender ? [...PAYMENT_METHODS, deps.options.refundTender.method] as [string, ...string[]] : PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional(), reason: z.string().optional() })
     const data = refundSchema.parse(await c.req.json())
     const amount = round2(data.amount)
     const why = (data.notes ?? data.reason)?.trim() || undefined
     // The locked write lives in recordInvoiceRefund (shared with the Stripe refund paths).
-    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit })
+    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit, creditToTender: deps.options?.refundTender })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
     logMoney(c, 'refund', outcome.invoice, {

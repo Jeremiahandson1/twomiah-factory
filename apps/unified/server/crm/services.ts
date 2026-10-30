@@ -79,6 +79,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
     await commissionEarner.earnForInvoice(invoiceId)
     for (const h of commissionHooks) await h.earn(invoiceId).catch((e: any) => logger.warn('[commissions] earn failed', { invoiceId, error: e?.message || String(e) }))
   }
+  // A way of paying that a refund puts back where it came from (the salon's gift card): the module hands in what puts the money back,
+  // run inside the refund's own transaction (packages/tenant-backend InvoiceOptions.refundTender). Until one registers, a refund by it is refused.
+  const tenderRefunds = new Map<string, (tx: any, invoice: any, amount: number) => Promise<string | null>>()
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
@@ -237,6 +240,12 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** A vertical's own way of earning commission on a paid bill (the salon's stylist commissions). */
     useCommissionEarner(h: { earn: (invoiceId: string) => Promise<unknown>; sweep?: () => Promise<unknown> }) { commissionHooks.push(h) },
     earnCommission,
+    /** A refund by a way of paying that holds money (a gift card) puts it back; the owning module registers the doer. */
+    useTenderRefund(method: string, doer: (tx: any, invoice: any, amount: number) => Promise<string | null>) { tenderRefunds.set(method, doer) },
+    creditTender: async (method: string, tx: any, invoice: any, amount: number) => {
+      const doer = tenderRefunds.get(method)
+      return doer ? doer(tx, invoice, amount) : 'This way of paying cannot be refunded here.'
+    },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()

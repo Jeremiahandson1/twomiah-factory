@@ -220,6 +220,8 @@ export interface CrmSettings {
     tips?: boolean
     /** A client's account balance is a way to pay and a place to refund to (client_account_entry; salon). */
     accountBalance?: boolean
+    /** A gift card is a way to pay, and a refund by it goes back onto the card (salon_gift_card; the salon's `salon_gift_cards` feature switches it on per business). */
+    giftCardTender?: boolean
     /**
      * Which clock decides an invoice's day: 'booking' is the zone the booking calendar is set to (America/Chicago when
      * Booking was never set up), the salon's own clock (templates/crm-salon utils/salonDate.ts). Absent: the company's

@@ -344,6 +344,13 @@
       "when": 1793392652666,
       "tag": "0048_retention_send",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793394123446,
+      "tag": "0049_salon_gift_cards",
+      "breakpoints": true
     }
   ]
 }

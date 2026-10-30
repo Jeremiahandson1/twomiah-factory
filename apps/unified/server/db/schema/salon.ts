@@ -389,3 +389,51 @@ export const retentionSend = pgTable('retention_send', {
   uniqueIndex('retention_send_once').on(t.companyId, t.contactId, t.kind, t.eventKey),
   index('retention_send_company_created_idx').on(t.companyId, t.createdAt),
 ])
+
+/**
+ * A gift card the salon sold at the desk (salon gap #10; hidden feature `salon_gift_cards`). Not the bar's card (bar_gift_card):
+ * the money in and out is the salon's own sale and payments — the card is only a balance the salon owes back. `invoiceId` is
+ * the sale that paid for it (one card per sale). Every change to `balanceCents` has a ledger row; a voided card holds nothing.
+ * `code` is read aloud and typed (Crockford letters, no look-alikes); it is never printed on an invoice.
+ */
+export const salonGiftCard = pgTable('salon_gift_card', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  initialCents: integer('initial_cents').notNull(),
+  balanceCents: integer('balance_cents').notNull(),
+  /** 'active' | 'void' */
+  status: text('status').notNull().default('active'),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  purchaserContactId: text('purchaser_contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  purchaserName: text('purchaser_name'),
+  purchaserEmail: text('purchaser_email'),
+  recipientName: text('recipient_name'),
+  recipientEmail: text('recipient_email'),
+  message: text('message'),
+  soldByName: text('sold_by_name'),
+  voidedAt: timestamp('voided_at'),
+  voidReason: text('void_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_gift_card_company_code_key').on(t.companyId, t.code),
+  uniqueIndex('salon_gift_card_company_invoice_key').on(t.companyId, t.invoiceId),
+])
+
+/** Every change to a card's balance: issue (+), redeem (−), refund (+), adjust (±), void (−). Never edited. */
+export const salonGiftCardLedger = pgTable('salon_gift_card_ledger', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').notNull().references(() => salonGiftCard.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  /** 'issue' | 'redeem' | 'refund' | 'adjust' | 'void' */
+  kind: text('kind').notNull(),
+  /** The sale it was spent on / put back from (redeem, refund) — or that sold the card (issue). */
+  invoiceId: text('invoice_id'),
+  byName: text('by_name'),
+  note: text('note'),
+  at: timestamp('at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_gift_card_ledger_card_idx').on(t.cardId, t.at),
+  index('salon_gift_card_ledger_invoice_idx').on(t.companyId, t.invoiceId),
+])

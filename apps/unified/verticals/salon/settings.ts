@@ -90,7 +90,7 @@ const salon: VerticalSettings = {
     leads: { platforms: LEAD_PLATFORMS.map((p) => p.value), contactType: 'client' },
     contacts: { guards: ['appointment', 'serviceRecord', 'membershipEnrollment'] },
     team: { assignedWork: ['appointment'] },
-    invoices: { tips: true, accountBalance: true, clock: 'booking' },
+    invoices: { tips: true, accountBalance: true, giftCardTender: true, clock: 'booking' },
     expenses: { categories: EXPENSE_CATEGORIES, categoryLabels: EXPENSE_LABELS },
     reports: { teamProductivity: 'serviceRecords' },
     reviews: { subject: 'visit' },

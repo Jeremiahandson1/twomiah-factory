@@ -20,6 +20,7 @@ import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
+import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -77,6 +78,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   // The timed pass: every 15 minutes, for each salon with automatic sends on (retention.ts). Boot only, never in tests.
   if (salonBook) d.services.addJob(() => { setTimeout(() => { void retention.passForAll() }, 3 * 60_000); setInterval(() => { void retention.passForAll() }, 15 * 60_000) })
   const commissions = createSalonCommissions(d)
+  // Gift cards sold at the desk and spent at checkout (not ready); a refund by gift card goes back onto the card, inside the refund's own transaction.
+  const giftCards = createSalonGiftCards(d, s)
+  d.services.useTenderRefund('gift_card', giftCards.creditBack)
   d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
@@ -97,6 +101,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
       { path: '/api/intake-forms', access: 'user', feature: 'intake_forms', router: createIntakeFormRoutes(d) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
+    // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
+    { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).

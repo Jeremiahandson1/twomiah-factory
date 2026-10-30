@@ -2,7 +2,7 @@
 // their menu items, each gated by the template's features so no other vertical sees them (docs/UNIFIED_MOVE_GUIDE.md).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, MessageSquareText, Scissors, Users } from 'lucide-react'
+import { BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, MessageSquareText, Scissors, Ticket, Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -16,6 +16,7 @@ const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
 const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
 const CardOnFileSettingsPage = page(() => import('../pages/salon/CardOnFileSettingsPage'))
 const IntakeFormsSettingsPage = page(() => import('../pages/salon/IntakeFormsSettingsPage'))
+const GiftCardsPage = page(() => import('../pages/salon/GiftCards'))
 const AutomaticMessagesSettingsPage = page(() => import('../pages/salon/AutomaticMessagesSettingsPage'))
 
 /**
@@ -33,6 +34,7 @@ export const routes: ReactElement[] = [
   <Route key="salon-service-menu" path="service-menu" element={<ServiceMenuPage />} />,
   <Route key="salon-memberships" path="memberships" element={<MembershipsPage />} />,
   <Route key="salon-loyalty" path="loyalty" element={<LoyaltyPage />} />,
+  <Route key="salon-gift-cards" path="gift-cards" element={<GiftCardsPage />} />,
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
   <Route key="salon-card-on-file-settings" path="settings/card-on-file" element={<CardOnFileSettingsPage />} />,
   <Route key="salon-intake-forms-settings" path="settings/intake-forms" element={<IntakeFormsSettingsPage />} />,
@@ -66,5 +68,7 @@ export const nav: NavItem[] = [
   { to: '/crm/memberships', icon: CreditCard, label: 'Memberships', features: ['salon_memberships'], permission: 'contacts:read' },
   { to: '/crm/loyalty', icon: Gift, label: 'Loyalty', features: ['loyalty_rewards'], permission: 'loyalty:read' },
   // Stylist commissions: the shared Commissions screen, behind the salon's own hidden feature (the server mounts /api/commissions on it).
+  // Gift cards sold at the desk and spent at checkout (/api/salon-gift-cards reads ask invoices:read, behind `salon_gift_cards`).
+  { to: '/crm/gift-cards', icon: Ticket, label: 'Gift cards', features: ['salon_gift_cards'], permission: 'invoices:read' },
   { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['salon_commissions'], permission: 'commissions:read' },
 ]

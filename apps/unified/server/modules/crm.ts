@@ -321,6 +321,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // salon's own clock (templates/crm-salon routes/invoices.ts, Salon T27 H1).
       ...(v.invoices?.tips ? { tips: true } : {}),
       ...(v.invoices?.clock === 'booking' ? { timeZoneFor: (companyId: string) => salonClock.salonTimezone(companyId) } : {}),
+      // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
+      ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
         // inside the invoice's own transaction.

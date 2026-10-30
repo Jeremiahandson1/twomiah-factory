@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -269,4 +269,18 @@ export async function activeSequencesForTrigger(db: any, companyId: string, trig
   const res: any = await db.execute(sql`SELECT id FROM drip_sequence WHERE company_id = ${companyId} AND trigger = ${trigger} AND active = true`)
   const rows: any[] = res?.rows ?? (Array.isArray(res) ? res : [])
   return rows.map((r) => String(r.id))
+}
+
+// ─── Gift cards (salon #10) ──────────────────────────────────────────────────────────────────────────
+
+/** Take cents off a salon gift card. The row is locked by the caller; the `balance >= cents` guard is the second belt. False = it was not there to take. */
+export async function takeFromSalonCard(tx: any, cardId: string, cents: number): Promise<boolean> {
+  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}` })
+    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents))).returning({ id: salonGiftCard.id })
+  return out.length > 0
+}
+
+/** Put cents back on a salon gift card (the row is locked by the caller). */
+export async function putBackOnSalonCard(tx: any, cardId: string, cents: number): Promise<void> {
+  await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} + ${cents}` }).where(eq(salonGiftCard.id, cardId))
 }
