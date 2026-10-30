@@ -29,8 +29,9 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry,
+  serviceRecord, membershipEnrollment, clientAccountEntry, serviceMenu, booking,
 } from '../db/schema/index.ts'
+import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
@@ -521,7 +522,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: (companyId: string, q: any) => quoteBilling.raiseDeposit(companyId, q.id), depositFor: quoteBilling.depositFor },
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: v.portal.disable },
+      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: { appointment, service: serviceMenu, stylist: user, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}` } } : {}) },
     } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },

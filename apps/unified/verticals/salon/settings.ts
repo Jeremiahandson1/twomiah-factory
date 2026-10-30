@@ -85,7 +85,7 @@ const salon: VerticalSettings = {
   crm: {
     documents: { markup: false, types: DOC_TYPES },
     tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
-    portal: { disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'collaborators', 'myJobs', 'service'] },
+    portal: { disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'collaborators', 'myJobs', 'service'], appointments: true },
     dashboard: 'salon',
     leads: { platforms: LEAD_PLATFORMS.map((p) => p.value), contactType: 'client' },
     contacts: { guards: ['appointment', 'serviceRecord', 'membershipEnrollment'] },
@@ -178,7 +178,7 @@ const salon: VerticalSettings = {
     commissions: {},
     portal: {
       providerNoun: 'salon',
-      clientNav: ['invoices', 'paymentMethods', 'messages'],
+      clientNav: ['appointments', 'invoices', 'paymentMethods', 'messages'],
       collaboratorNav: ['sharedDocuments', 'messages'],
       reviewerNav: ['messages'],
     },

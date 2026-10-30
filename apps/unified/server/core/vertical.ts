@@ -131,7 +131,8 @@ export interface CrmSettings {
   /** The field view's end-of-visit checklist. */
   tech: { checklistType: string; checklistTitle: string; legacyChecklistTypes?: string[] }
   /** Customer-portal sections this vertical doesn't offer. */
-  portal: { disable: string[] }
+  /** Customer-portal sections this vertical doesn't offer; `appointments`: the portal lists the client's upcoming appointments (salon; seen only with the `portal_appointments` feature on). */
+  portal: { disable: string[]; appointments?: boolean }
   /**
    * What /api/dashboard answers: 'events' is the private-events dashboard (the book ahead, the pipeline by status,
    * the rooms, the money owed — server/crm/restaurant/eventsDashboard.ts), which templates/crm-restaurant and

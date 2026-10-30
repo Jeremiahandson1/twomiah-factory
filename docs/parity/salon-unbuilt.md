@@ -1,11 +1,10 @@
 # Salon depth — what was NOT built on `cloud/salon-depth`, and what parity would need
 
-Built and tested on this branch: **#1 (the desk half)**, **#2**, **#13** — each has its own parity file in this folder. Everything
+Built and tested on this branch so far: **#1 (desk and online)**, **#2** (with the pause on a third decline), **#13** (with the patch-test offer), **#12** — each has its own parity file in this folder. Everything
 below was **not started**. None of it was judged impossible; it was not reached. Nothing here is half-built or switched on.
 
 | # | Gap | What parity needs (from the brief and the code read so far) |
 |---|---|---|
-| 1b | Card asked for while a client **books online** (the policy's "new clients / all clients" setting) | Engine `book()` takes a card requirement; the public form shows the policy words with a tick box; the booking is held, the client is sent to Stripe's card page (`startSetup(..., 'client_online')` already exists), and the hold is released if no card is saved; `book-flow.ts` follows a `card.url` like it follows `deposit.url`; policy repeated on the confirmation. The server half of the card (`claim`, consent snapshot, `/card-saved` page) is done. The Settings page deliberately does not offer the setting until this exists. |
 | 3 | The Book as a time grid | A day grid with a column per stylist and a week view per stylist; drag to move and resize using the existing double-booking and chair checks; colour by status/service; **blocked time** (lunch, training) stored in a new table, drawn in the Book and respected by online booking (`BookingAddOn.busy`). Mostly front-end work in `AppointmentsPage.tsx` plus the blocked-time table. |
 | 4 | Processing / gap time | Three durations on a Service Menu item (active, processing, finishing) and a clash check that lets another client into the processing gap; shown on the grid (so after #3). Touches `appointments.ts` `findConflict`, `onlineBooking.ts` `booked`/`busy`, and the engine's slot maths. |
 | 5 | Several services in one visit | An ordered list of services per visit, each with its own stylist and time, priced and checked out together: a new child table under `appointment`, `visit.ts`/`checkout.ts` changes, and the booking input. Touches the vet's shared `appointment` table only additively. |
@@ -15,7 +14,6 @@ below was **not started**. None of it was judged impossible; it was not reached.
 | 9 | Automatic retention sends | Timed sends (rebook on the due date, birthday, win-back after N days, owner sets N, quiet hours, opt-out), a "book their next visit" prompt on visit completion, and visit-completed / lapsed triggers for the marketing drips. Needs the texting/email consent and quiet-hours rules checked first. |
 | 10 | Gift cards for salons | `gift_cards` is the bar's register feature; needs sell/redeem/balance on the salon's checkout (`checkout.ts`) as a tender, offered to `crm-salon`. |
 | 11 | Reports | Retention / visit frequency; rebook rate per stylist; retail and commission reports (the last two wait for #7/#8). |
-| 12 | Portal: upcoming appointments | The shared portal (`packages/tenant-backend/src/portal/portal.ts`, `packages/tenant-ui/src/portal/*`) shows pets for the vet only. Needs a portal section for salon clients' upcoming appointments, with reschedule/cancel through the booking's existing private link (`/booking/<token>`) where the appointment came from an online booking. Additive change to shared packages, so every template suite must run. |
 
 ## Not doing (as the brief says)
 
