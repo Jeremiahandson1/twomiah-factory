@@ -2,7 +2,7 @@
 // (templates/crm-store/backend/src/routes/products.ts makeOnlyPrimary) and the review queue's counts
 // (routes/reviews.ts GET /counts). Each takes the company it answers for; a photo is reached through its product.
 import { and, eq, sql } from 'drizzle-orm'
-import { productReview, storeProduct, storeProductImage, storeProductVariant, storeSettings } from '../db/schema/store.ts'
+import { productReview, storeProduct, storeProductImage, storeProductVariant } from '../db/schema/store.ts'
 import { pendingReviewCondition } from '../crm/store/tileConditions.ts'
 
 /**
@@ -45,15 +45,4 @@ export async function lowStockItems(db: any, companyId: string): Promise<LowStoc
       sql`${storeProductVariant.lowStockAt} is not null and ${storeProductVariant.inventoryQty} is not null and ${storeProductVariant.inventoryQty} <= ${storeProductVariant.lowStockAt}`))
     .orderBy(sql`${storeProductVariant.inventoryQty} asc`, storeProduct.name, storeProductVariant.sku)
   return rows.map((r: any) => ({ ...r, quantity: Number(r.quantity), lowStockAt: Number(r.lowStockAt) }))
-}
-
-/**
- * Claim today's low-stock email: the settings row's last-sent day becomes `day` only while it is not already `day`, in one
- * statement — two sweeps at once (two instances during a deploy) get one claim between them. True when this call claimed it.
- */
-export async function claimLowStockDigest(db: any, companyId: string, day: string): Promise<boolean> {
-  const claimed = await db.update(storeSettings).set({ lowStockDigestOn: day } as any)
-    .where(and(eq(storeSettings.companyId, companyId), sql`${storeSettings.lowStockDigestOn} is distinct from ${day}`))
-    .returning({ id: storeSettings.id })
-  return claimed.length > 0
 }

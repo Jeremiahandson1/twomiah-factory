@@ -33,6 +33,8 @@ import { createInvoiceReminders } from './billing/invoiceReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
+import { createInventoryLowStockDigest } from './inventory/lowStock.ts'
+import { startLowStockDigest } from './lowStockDigest.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -151,6 +153,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     tables: { inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company, branch: location },
     emailService,
   } as any)
+  // Low stock is ONE email a day, not one per movement (inventory/lowStock.ts → lowStockDigest.ts, the code the store shares).
+  const inventoryLowStock = createInventoryLowStockDigest({ db, logger, features: { isFeatureEnabled } as any }, emailService)
   // QuickBooks customers are this vertical's paying contacts (CrmSettings.contacts.customerType: a dealership's
   // 'customer', templates/crm-rv services/quickbooks.ts).
   const quickbooks = createQuickBooksService({ db, tables: { contact, invoice, invoiceLineItem, payment, company, qbIntegration }, options: { customerType: settings.contacts?.customerType ?? 'client' } } as any)
@@ -218,7 +222,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync, scheduledTexts,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -254,6 +258,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
       quickbooksSync.start()
       // Scheduled texts that are due, every minute.
       scheduledTexts.start()
+      // The low-stock email for inventory items: hourly, sent once a day from 8am the shop's time.
+      startLowStockDigest(inventoryLowStock)
       for (const start of moduleJobs) start()
     },
   }

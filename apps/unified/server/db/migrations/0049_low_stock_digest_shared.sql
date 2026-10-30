@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" DROP COLUMN IF EXISTS "low_stock_digest_on";

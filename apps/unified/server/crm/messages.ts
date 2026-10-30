@@ -366,23 +366,28 @@ ${data.disclosure}`,
     text: `${data.actorName} (${data.actorRole}) ${data.summary}${data.projectName ? ` on ${data.projectName}` : ''}.`,
   }),
 
-  lowStockAlert: (data, b, appUrl) => ({
-    subject: `Low Stock Alert: ${data.itemName}`,
-    html: `
+  // The daily low-stock email (crm/lowStockDigest.ts, inventory/lowStock.ts): everything at or under its reorder point, once a day.
+  inventoryLowStockDigest: (data, b, appUrl) => {
+    const items: Array<{ name: string; sku: string; unit: string; quantity: number; reorderPoint: number }> = data.items || []
+    const left = (i: { quantity: number }) => i.quantity <= 0 ? 'none left' : `${i.quantity} left`
+    return {
+      subject: items.length === 1 ? `Low stock: ${items[0].name}` : `Low stock: ${items.length} items to reorder`,
+      html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
         <div class="content">
-          <h2>Low Stock Alert</h2>
-          <p><strong>${data.itemName}</strong> has dropped to <strong>${data.currentStock}</strong> units, which is at or below the reorder point of <strong>${data.reorderPoint}</strong>.</p>
-          <p>Consider reordering soon to avoid running out.</p>
+          <h2>${items.length === 1 ? 'One item is' : `${items.length} items are`} running low</h2>
+          <p>These are at or below the reorder point you set, fewest left first. You get this once a day, and not on a day when nothing is low.</p>
+          <ul style="line-height:1.7;padding-left:18px;">${items.map((i) => `<li><strong>${escHtml(i.name)}</strong> (${escHtml(i.sku)}): <strong>${left(i)}</strong>, reorder at ${i.reorderPoint}</li>`).join('')}</ul>
           <p style="text-align:center;"><a href="${appUrl}/crm/inventory" class="button">View Inventory</a></p>
         </div>
         <div class="footer">&copy; ${new Date().getFullYear()} ${escHtml(b.companyName)}</div>
       </div></body></html>
     `,
-    text: `Low Stock Alert: ${data.itemName} is at ${data.currentStock} units (reorder point: ${data.reorderPoint}). View inventory at ${appUrl}/crm/inventory`,
-  }),
+      text: `${items.length === 1 ? 'One item is' : `${items.length} items are`} running low (reorder point in brackets):\n${items.map((i) => `- ${i.name} (${i.sku}): ${left(i)} (${i.reorderPoint})`).join('\n')}\nView inventory at ${appUrl}/crm/inventory`,
+    }
+  },
 
   // Sent before an auto-renew service agreement renews (the agreements worker, 30 days ahead for yearly terms,
   // 14 for 3–11 months; month-to-month agreements get none). Says what renews, when, for how much, and how to cancel.

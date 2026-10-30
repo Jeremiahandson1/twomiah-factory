@@ -370,8 +370,6 @@ export const storeSettings = pgTable('store_settings', {
   pickupHours: text('pickup_hours'),
   /** The private part of the product feeds' addresses (Google Merchant Center, Meta); a new one retires the old. */
   feedToken: text('feed_token'),
-  /** The shop-local day (YYYY-MM-DD) the owner's low-stock email last went out: the claim that keeps it to one a day. */
-  lowStockDigestOn: text('low_stock_digest_on'),
   /** The return rule (store_returns): days after the order shipped (else was placed) that a return may be started. */
   returnWindowDays: integer('return_window_days').notNull().default(30),
   /** Kept from the goods' value on a return, in basis points (1000 = 10%); not kept when the return is the shop's fault. */
