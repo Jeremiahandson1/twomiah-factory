@@ -4,6 +4,8 @@ import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
+import MeasureMap from './MeasureMap'
+import AddToQuote from './AddToQuote'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -58,6 +60,7 @@ export default function AreaPricingPage() {
   const [calcResult, setCalcResult] = useState<AreaQuote | null>(null)
   const [measure, setMeasure] = useState<MeasureForm>(EMPTY_MEASURE)
   const { sites, reloadSites } = useSites()
+  const [mapSite, setMapSite] = useState('')
 
   const load = async () => {
     try {
@@ -163,6 +166,16 @@ export default function AreaPricingPage() {
         <button onClick={saveMeasurements} className="btn-secondary mt-3">Save Measurements</button>
       </section>}
 
+      {/* Measure on the satellite map */}
+      <section className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
+        <h2 className="font-semibold mb-3 flex items-center gap-2"><Ruler className="w-5 h-5" /> Measure on the Satellite Map</h2>
+        <div className="min-w-[16rem] max-w-md mb-3">
+          <label htmlFor="area-map-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
+          <SitePicker id="area-map-site" value={mapSite} sites={sites} onAdded={reloadSites} onChange={setMapSite} allowAdd={false} />
+        </div>
+        {mapSite ? <MeasureMap key={mapSite} siteId={mapSite} onSaved={() => {}} /> : <p className="text-sm text-gray-500 dark:text-slate-400">Pick a property to draw its lawn, beds, hardscape or lot. The areas are saved on the property and priced from the rate card.</p>}
+      </section>
+
       {/* Quote calculator */}
       <section className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3 flex items-center gap-2"><Calculator className="w-5 h-5" /> Price a Service for a Property</h2>
@@ -182,6 +195,7 @@ export default function AreaPricingPage() {
             <div className="text-2xl font-bold text-green-800 dark:text-green-300">{money(Number(calcResult.price))}</div>
             <div className="text-sm text-green-700 dark:text-green-300">{calcResult.lineItem?.description}</div>
             {calcResult.minChargeApplied && <div className="text-xs text-green-700 mt-1 dark:text-green-300">Minimum charge applied.</div>}
+            {calcResult.lineItem && <AddToQuote siteId={calc.siteId} serviceType={calc.serviceType} line={{ description: calcResult.lineItem.description, unitPrice: Number(calcResult.price) }} />}
           </div>
         )}
       </section>

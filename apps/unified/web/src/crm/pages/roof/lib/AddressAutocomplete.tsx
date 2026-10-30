@@ -16,7 +16,7 @@ declare global {
   }
 }
 
-function loadGooglePlaces(): Promise<void> {
+export function loadGooglePlaces(): Promise<void> {
   if (window.google?.maps?.places) return Promise.resolve()
   if (window._googleMapsLoading) return window._googleMapsLoading
 

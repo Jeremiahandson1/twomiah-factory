@@ -316,6 +316,13 @@
       "when": 1793381652974,
       "tag": "0044_job_series_weekdays",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793382256415,
+      "tag": "0045_site_shape",
+      "breakpoints": true
     }
   ]
 }

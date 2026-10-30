@@ -1,6 +1,6 @@
 // Landscaping add-on: recurring mow routes, area pricing and snow contracts. Column for column from
 // templates/crm-landscaping/backend/db/schema.ts.
-import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, invoice, invoiceLineItem, job } from './crm.ts'
@@ -149,4 +149,23 @@ export const routeVisitInvoice = pgTable('route_visit_invoice', {
   uniqueIndex('route_visit_invoice_job_idx').on(t.jobId),
   index('route_visit_invoice_invoice_id_idx').on(t.invoiceId),
   index('route_visit_invoice_company_id_idx').on(t.companyId),
+])
+
+// A shape drawn on the satellite map for a property (Area Pricing › Measure on the map). `areaType` is the property column
+// it adds to — lawnSqft, bedSqft, hardscapeSqft, lotSqft or drivewaySqft — and `mode` says whether it adds to that area or
+// cuts out of it (a bed inside a lawn). The area is worked out by the server from the corners; the property's column holds
+// the sum of its shapes of that type (data/siteShapes.ts).
+export const siteShape = pgTable('site_shape', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
+  areaType: text('area_type').notNull(),
+  mode: text('mode').default('add').notNull(), // add, cut
+  label: text('label'),
+  path: json('path').notNull(), // [[lat, lng], …] in drawing order
+  areaSqft: integer('area_sqft').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('site_shape_site_id_idx').on(t.siteId),
+  index('site_shape_company_id_idx').on(t.companyId),
 ])
