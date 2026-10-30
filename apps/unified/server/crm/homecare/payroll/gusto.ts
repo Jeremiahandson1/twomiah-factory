@@ -3,7 +3,7 @@
 //
 // Hours come from payable payroll shift reviews — the same number payroll pays (core/payrollPay.ts, the one rule
 // Payroll → Calculate uses too): overtime = payable hours over 40 in a Sunday–Saturday week. The direct "Send to Gusto"
-// push is refused (501) until it is rebuilt against Gusto's current API; the CSV is the path.
+// there is no direct push (the old POST /export answered 501 and was removed); the CSV is the path.
 //
 // The template's router was requireAdmin for every path; here every action needs care-payroll:update, the payroll write
 // a caregiver does not hold.
@@ -66,7 +66,7 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
         gustoEmployeeId: m?.gustoEmployeeId ?? null, gustoMapped: !!m?.isSynced,
         shiftCount: l.shifts,
         totalHours: l.totalHours.toFixed(2), regularHours: l.regularHours.toFixed(2),
-        overtimeHours: l.overtimeHours.toFixed(2), weekendHours: l.weekendHours.toFixed(2),
+        overtimeHours: l.overtimeHours.toFixed(2), doubleTimeHours: l.doubleTimeHours.toFixed(2), weekendHours: l.weekendHours.toFixed(2),
         hourlyRate: l.baseRate.toFixed(2), overtimeRate: l.otRate.toFixed(2), grossPay: l.grossPay.toFixed(2),
       }
     })
@@ -157,8 +157,8 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, { preview: result, totals, period: { startDate, endDate }, warnings })
   })
 
-  // POST /export — refused until the push is rebuilt against Gusto's current API.
-  app.post('/export', (c) => fail(c, 501, 'Direct Gusto push is not ready — use the CSV export and upload it in Gusto.'))
+  // There is no "send to Gusto" push: no home care product publishes one, and Gusto's own way in for hours is the CSV upload
+  // below (Gusto's Smart Import). POST /export answered 501 for every agency and has been removed (item 2).
 
   // GET /export-csv?startDate=&endDate= — upload into Gusto's hours import.
   app.get('/export-csv', async (c) => {

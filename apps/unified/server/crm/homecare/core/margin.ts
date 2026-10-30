@@ -17,14 +17,21 @@ import {
   payableReviewsWithClient, payableMinutesWithoutClient, mileagePaidByClient, marginClients, caregiverTenure,
 } from '../../../data/homecareMargin.ts'
 import { caregiverPayRates } from '../../../data/homecarePayroll.ts'
+import { payableVisits } from '../../../data/homecarePayRules.ts'
 import { companyWorkWeek, workweekStartOn } from '../../payrollExport/workWeek.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { addDays } from './agencyTime.ts'
+import { OVERTIME_RULES, buildSegments, classifyWeek, createPayRules } from './payRules.ts'
 import { PAYABLE_REVIEW_STATUSES, OT_WEEKLY_HOURS, OT_MULTIPLIER, FALLBACK_PAY_RATE, payCents } from './payrollPay.ts'
 import type { InvoiceEngine } from './invoiceEngine.ts'
 
 export const MARGIN_FEATURE = 'care_margin_reports'
 
-export interface ShiftPay { id: string; clientId: string; caregiverId: string; minutes: number; regularMinutes: number; overtimeMinutes: number }
+export interface ShiftPay {
+  id: string; clientId: string; caregiverId: string; minutes: number; regularMinutes: number; overtimeMinutes: number
+  /** care_payroll_rules: minutes at double time, and whether this is the paid travel TO the client rather than a visit (travel is paid, never billed). */
+  doubleTimeMinutes?: number; travel?: boolean
+}
 
 /**
  * Put each work week's overtime on the shifts that crossed the line. `shifts` are one caregiver's, in the order worked.
@@ -47,6 +54,8 @@ export interface ClientMarginRow {
   clientId: string; clientName: string; hours: number; overtimeHours: number
   rate: number | null; rateType: string | null; billed: number | null
   pay: number; overtimePay: number; mileage: number; cost: number
+  /** care_payroll_rules: pay for travel to this client's visits and for double time (both already inside `pay`). */
+  travelPay: number; doubleTimePay: number
   margin: number | null; marginPercent: number | null
 }
 
@@ -55,15 +64,42 @@ const money = (cents: number) => Math.round(cents) / 100
 
 export function createMargin(d: CrmDeps, deps: { invoices: InvoiceEngine }) {
   const enabled = (companyId: string) => d.features.isFeatureEnabled(companyId, MARGIN_FEATURE)
+  const payRules = createPayRules(d)
+
+  /** An agency with care_payroll_rules: the same segments payroll classifies, so the report's cost adds up to the pay run's. */
+  async function shiftsUnderRules(companyId: string, rules: NonNullable<Awaited<ReturnType<typeof payRules.forCompany>>>, start: string, end: string, startDay: number) {
+    const rule = OVERTIME_RULES[rules.overtimeRule]
+    const visits = await payableVisits(d.db, companyId, workweekStartOn(start, startDay), addDays(workweekStartOn(end, startDay), 6), PAYABLE_REVIEW_STATUSES, null)
+    const shifts: ShiftPay[] = []
+    let noClientMinutes = 0
+    for (const caregiverId of [...new Set(visits.map((v) => v.caregiverId))]) {
+      const byWeek = new Map<string, typeof visits>()
+      for (const v of visits.filter((x) => x.caregiverId === caregiverId)) { const w = workweekStartOn(v.shiftDate, startDay); byWeek.set(w, [...(byWeek.get(w) ?? []), v]) }
+      for (const wk of byWeek.values()) {
+        for (const seg of classifyWeek(buildSegments(wk, rules.travel), rule)) {
+          if (seg.date < start || seg.date > end) continue
+          if (!seg.clientId) { noClientMinutes += seg.minutes; continue }
+          shifts.push({ id: seg.id, clientId: seg.clientId, caregiverId, minutes: seg.minutes, regularMinutes: seg.regular, overtimeMinutes: seg.overtime, doubleTimeMinutes: seg.doubleTime, travel: seg.kind === 'travel' })
+        }
+      }
+    }
+    return { shifts, noClientMinutes }
+  }
 
   async function clientMargin(companyId: string, start: string, end: string) {
     const { startDay } = await companyWorkWeek(d.db, companyId)
-    const reviews = await payableReviewsWithClient(d.db, companyId, start, end, PAYABLE_REVIEW_STATUSES)
-    const noClientMinutes = await payableMinutesWithoutClient(d.db, companyId, start, end, PAYABLE_REVIEW_STATUSES)
-    const shifts: ShiftPay[] = []
-    for (const caregiverId of [...new Set(reviews.map((r) => String(r.caregiverId)))]) {
-      const mine = reviews.filter((r) => String(r.caregiverId) === caregiverId && r.clientId)
-      shifts.push(...allocateOvertime(mine.map((r) => ({ id: String(r.id), clientId: String(r.clientId), caregiverId, date: String(r.shiftDate), minutes: Number(r.payableMinutes) })), startDay))
+    const rules = await payRules.forCompany(companyId)
+    let shifts: ShiftPay[] = []
+    let noClientMinutes = 0
+    if (rules) {
+      ;({ shifts, noClientMinutes } = await shiftsUnderRules(companyId, rules, start, end, startDay))
+    } else {
+      const reviews = await payableReviewsWithClient(d.db, companyId, start, end, PAYABLE_REVIEW_STATUSES)
+      noClientMinutes = await payableMinutesWithoutClient(d.db, companyId, start, end, PAYABLE_REVIEW_STATUSES)
+      for (const caregiverId of [...new Set(reviews.map((r) => String(r.caregiverId)))]) {
+        const mine = reviews.filter((r) => String(r.caregiverId) === caregiverId && r.clientId)
+        shifts.push(...allocateOvertime(mine.map((r) => ({ id: String(r.id), clientId: String(r.clientId), caregiverId, date: String(r.shiftDate), minutes: Number(r.payableMinutes) })), startDay))
+      }
     }
     const caregiverIds = [...new Set(shifts.map((s) => s.caregiverId))]
     const people = await caregiverPayRates(d.db, companyId, caregiverIds, end)
@@ -81,26 +117,30 @@ export function createMargin(d: CrmDeps, deps: { invoices: InvoiceEngine }) {
       const mine = shifts.filter((s) => s.clientId === clientId)
       const c: any = byId.get(clientId) ?? (await marginClients(d.db, companyId, [clientId]))[0]
       if (!c) continue
-      let regPayCents = 0, otPayCents = 0, minutes = 0, otMinutes = 0
+      let regPayCents = 0, otPayCents = 0, dtPayCents = 0, travelPayCents = 0, minutes = 0, otMinutes = 0
       for (const s of mine) {
         const r = rates.get(s.caregiverId) ?? { base: FALLBACK_PAY_RATE * 100, ot: Math.round(FALLBACK_PAY_RATE * 100 * OT_MULTIPLIER) }
+        const segment = (s.regularMinutes * r.base) / 60 + (s.overtimeMinutes * r.ot) / 60 + ((s.doubleTimeMinutes ?? 0) * r.base * 2) / 60
         regPayCents += (s.regularMinutes * r.base) / 60
         otPayCents += (s.overtimeMinutes * r.ot) / 60
-        minutes += s.minutes; otMinutes += s.overtimeMinutes
+        dtPayCents += ((s.doubleTimeMinutes ?? 0) * r.base * 2) / 60
+        otMinutes += s.overtimeMinutes + (s.doubleTimeMinutes ?? 0)
+        // travel is paid, never billed: it adds to the cost but not to the hours the client is charged for
+        if (s.travel) travelPayCents += segment; else minutes += s.minutes
       }
       const resolved = await deps.invoices.resolveClientRate(companyId, c, start, end)
       const hrs = minutes / 60
       const billedDollars = resolved && resolved.rate > 0
         ? (resolved.rateType === 'hourly' ? hrs * resolved.rate : Math.round(hrs * 4 * 100) / 100 * resolved.rate)
         : null
-      const payDollars = money(regPayCents + otPayCents)
+      const payDollars = money(regPayCents + otPayCents + dtPayCents)
       const mileageDollars = Math.round((mileage[clientId] ?? 0) * 100) / 100
       const cost = Math.round((payDollars + mileageDollars) * 100) / 100
       const billed = billedDollars === null ? null : Math.round(billedDollars * 100) / 100
       rows.push({
         clientId, clientName: `${c.firstName} ${c.lastName}`.trim(), hours: hours2(minutes), overtimeHours: hours2(otMinutes),
         rate: resolved?.rate ?? null, rateType: resolved?.rateType ?? null, billed,
-        pay: payDollars, overtimePay: money(otPayCents), mileage: mileageDollars, cost,
+        pay: payDollars, overtimePay: money(otPayCents + dtPayCents), mileage: mileageDollars, cost, travelPay: money(travelPayCents), doubleTimePay: money(dtPayCents),
         margin: billed === null ? null : Math.round((billed - cost) * 100) / 100,
         marginPercent: billed === null || billed <= 0 ? null : Math.round(((billed - cost) / billed) * 1000) / 10,
       })

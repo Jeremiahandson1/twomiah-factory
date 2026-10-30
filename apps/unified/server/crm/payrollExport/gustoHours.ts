@@ -20,6 +20,8 @@ export interface GustoHoursRow {
   regularHours: number | string
   overtimeHours: number | string
   totalHours: number | string
+  /** Home care with care_payroll_rules only: hours at double time. The column appears only when someone has some. */
+  doubleTimeHours?: number | string
 }
 
 /** A text cell: quoted, and a leading = + - @ made harmless so a name can never run as a spreadsheet formula. */
@@ -30,8 +32,13 @@ const text = (v: unknown) => {
 const hours = (v: number | string) => Number(v || 0).toFixed(2)
 
 export function gustoHoursCsv(rows: GustoHoursRow[]): string {
-  const lines: string[] = [GUSTO_HOURS_HEADER.join(',')]
-  for (const r of rows) lines.push([text(r.firstName), text(r.lastName), text(r.email), hours(r.regularHours), hours(r.overtimeHours), hours(r.totalHours)].join(','))
+  const withDouble = rows.some((r) => Number(r.doubleTimeHours || 0) > 0)
+  const lines: string[] = [(withDouble ? [...GUSTO_HOURS_HEADER, 'Double Overtime Hours'] : [...GUSTO_HOURS_HEADER]).join(',')]
+  for (const r of rows) {
+    const cells = [text(r.firstName), text(r.lastName), text(r.email), hours(r.regularHours), hours(r.overtimeHours), hours(r.totalHours)]
+    if (withDouble) cells.push(hours(r.doubleTimeHours ?? 0))
+    lines.push(cells.join(','))
+  }
   return lines.join('\n')
 }
 

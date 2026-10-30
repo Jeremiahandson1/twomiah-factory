@@ -31,6 +31,8 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   npiNumber: text('npi_number'),
   taxonomyCode: text('taxonomy_code').default('374700000X'),
   evvWorkerId: text('evv_worker_id'),
+  // Item 2 (care_payroll_rules): this caregiver's id in the agency's payroll provider — the ADP file number / the Paychex worker id.
+  payrollWorkerId: text('payroll_worker_id'),
   medicaidProviderId: text('medicaid_provider_id'),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
   smsEnabled: boolean('sms_enabled').default(true),
@@ -2244,6 +2246,8 @@ export const payrollRecords = pgTable('payroll_records', {
   periodEnd: date('period_end').notNull(),
   regularHours: decimal('regular_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   overtimeHours: decimal('overtime_hours', { precision: 8, scale: 2 }).default('0').notNull(),
+  // Item 2 (care_payroll_rules): hours paid at double the rate (grossPay includes them).
+  doubleTimeHours: decimal('double_time_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   holidayHours: decimal('holiday_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   regularRate: decimal('regular_rate', { precision: 8, scale: 2 }),
   overtimeRate: decimal('overtime_rate', { precision: 8, scale: 2 }),

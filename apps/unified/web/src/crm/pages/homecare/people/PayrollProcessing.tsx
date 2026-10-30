@@ -65,6 +65,10 @@ interface PayrollLine {
   totalHours: number
   regularHours: number
   overtimeHours: number
+  /** care_payroll_rules only; 0 / absent otherwise. Travel hours are already inside the hours above. */
+  doubleTimeHours?: number
+  doubleTimePay?: number
+  travelHours?: number
   baseRate: number
   otRate: number
   regularPay: number
@@ -330,6 +334,9 @@ export default function PayrollProcessing() {
           totalHours: Number(p.totalHours) || 0,
           regularHours: Number(p.regularHours) || 0,
           overtimeHours: Number(p.overtimeHours) || 0,
+          doubleTimeHours: Number(p.doubleTimeHours) || 0,
+          doubleTimePay: Number(p.doubleTimePay) || 0,
+          travelHours: Number(p.travelHours) || 0,
           baseRate: Number(p.baseRate) || 0,
           otRate: Number(p.otRate) || 0,
           totalMiles: Number(p.totalMiles) || 0,
@@ -883,7 +890,11 @@ export default function PayrollProcessing() {
                   <tr key={payroll.caregiverId}>
                     <td><strong>{payroll.firstName} {payroll.lastName}</strong></td>
                     <td>{payroll.regularHours?.toFixed(2)}</td>
-                    <td style={{ color: payroll.overtimeHours > 0 ? 'var(--hc-warning-ink)' : undefined }}>{payroll.overtimeHours?.toFixed(2)}</td>
+                    <td style={{ color: payroll.overtimeHours > 0 ? 'var(--hc-warning-ink)' : undefined }}>
+                      {payroll.overtimeHours?.toFixed(2)}
+                      {(payroll.doubleTimeHours || 0) > 0 && <div style={{ fontSize: '0.75rem' }}>+ {payroll.doubleTimeHours?.toFixed(2)} double time</div>}
+                      {(payroll.travelHours || 0) > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--hc-muted-ink, inherit)' }}>{payroll.travelHours?.toFixed(2)} travel hrs included</div>}
+                    </td>
                     <td>{payroll.ptoHours?.toFixed(2) || '0.0'}</td>
                     <td>{parseFloat(String(payroll.totalMiles || 0)).toFixed(2)}</td>
                     <td>{formatCurrency(payroll.baseRate)}</td>
@@ -979,6 +990,14 @@ export default function PayrollProcessing() {
                         <td style={stubNum}>{selectedPayroll.overtimeHours?.toFixed(2)}</td>
                         <td style={stubNum}>{formatCurrency(Number(selectedPayroll.otRate || 0))}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.overtimePay)}</td>
+                      </tr>
+                    )}
+                    {(selectedPayroll.doubleTimeHours || 0) > 0 && (
+                      <tr>
+                        <td style={stubCell}>Double time</td>
+                        <td style={stubNum}>{selectedPayroll.doubleTimeHours?.toFixed(2)}</td>
+                        <td style={stubNum}>{formatCurrency(selectedPayroll.baseRate * 2)}</td>
+                        <td style={stubNum}>{formatCurrency(selectedPayroll.doubleTimePay || 0)}</td>
                       </tr>
                     )}
                     {(selectedPayroll.ptoHours || 0) > 0 && (

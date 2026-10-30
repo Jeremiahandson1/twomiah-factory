@@ -363,6 +363,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'care_supervisory_visits', name: 'Supervisory visits', description: 'A check-in on each client every 60 or 90 days: a schedule, a short form, and what is due or overdue on the dashboard', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
   { id: 'care_margin_reports', name: 'Client margin and caregiver turnover', description: 'What each client brings in against what their caregivers cost (overtime and mileage included), and how many caregivers join and leave', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
   { id: 'care_import', name: 'Import clients, caregivers and schedules from a spreadsheet', description: 'Bring in a CSV of clients, caregivers or recurring shifts: match the columns, preview every row, skip duplicates, run it as a dry run first, and undo a whole import', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
+  { id: 'care_payroll_rules', name: 'Pay rules: state overtime, paid travel, ADP and Paychex files', description: 'Overtime by the agency\'s own state rule (California daily overtime and double time and more), paid travel time between visits, and hours files for ADP and Paychex', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
