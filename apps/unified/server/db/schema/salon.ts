@@ -127,6 +127,9 @@ export const serviceMenu = pgTable('service_menu', {
   rebookIntervalDays: integer('rebook_interval_days'),
   requiresPatchTest: boolean('requires_patch_test').default(false).notNull(),
   bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)
+  /** Processing time (colour): the stylist is free for `processingMin` minutes starting `processingAfterMin` minutes in. Null = hands-on throughout. */
+  processingAfterMin: integer('processing_after_min'),
+  processingMin: integer('processing_min'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -276,4 +279,44 @@ export const membershipCharge = pgTable('membership_charge', {
   uniqueIndex('membership_charge_invoice_attempt_idx').on(t.invoiceId, t.attempt),
   index('membership_charge_company_id_idx').on(t.companyId),
   index('membership_charge_enrollment_id_idx').on(t.enrollmentId),
+])
+
+
+/**
+ * One service of a visit that has several (salon "multi-service visits"): in order, each with its own stylist, its place in
+ * the visit (minutes from its start), length, processing gap and price. A visit without rows is the plain one-service appointment.
+ */
+export const appointmentItem = pgTable('appointment_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  appointmentId: text('appointment_id').notNull().references(() => appointment.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
+  /** Minutes from the visit's start to this service's start. */
+  startOffsetMin: integer('start_offset_min').notNull(),
+  durationMin: integer('duration_min').notNull(),
+  processingAfterMin: integer('processing_after_min'),
+  processingMin: integer('processing_min'),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('appointment_item_appointment_id_idx').on(t.appointmentId),
+  index('appointment_item_stylist_idx').on(t.companyId, t.stylistId),
+])
+
+/** Time a chair is not bookable (lunch, training): one stylist's, or the whole salon's when no stylist is named. */
+export const bookBlock = pgTable('book_block', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'cascade' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time').notNull(),
+  reason: text('reason'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('book_block_company_start_idx').on(t.companyId, t.startTime),
 ])

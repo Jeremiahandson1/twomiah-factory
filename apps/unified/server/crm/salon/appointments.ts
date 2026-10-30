@@ -12,6 +12,8 @@ import { and, count, eq, gte, lte, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
 import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
+import { processingProblem, type Processing } from './segments.ts'
+import { findStylistConflict } from './held.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -146,14 +148,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   }
 
   /** A stylist is in one chair at a time, matched on whichever column holds them (T20 H1); cancelled rows free the slot. */
-  async function findConflict(companyId: string, stylist: StylistRef, start: Date, end: Date, ignoreId?: string, exec: any = db) {
-    const heldBy = stylist.stylistId ? eq(appointment.stylistId, stylist.stylistId) : eq(appointment.stylistMemberId, stylist.stylistMemberId!)
-    const rows: AppointmentRow[] = await exec.select().from(appointment).where(and(
-      eq(appointment.companyId, companyId), heldBy,
-      lte(appointment.startTime, end), gte(appointment.startTime, new Date(start.getTime() - 86400000)),
-      ...(ignoreId ? [ne(appointment.id, ignoreId)] : []),
-    ))
-    return rows.find((r) => !CANCELLED.includes(r.status) && overlaps(r, start, end))
+  async function findConflict(companyId: string, stylist: StylistRef, start: Date, end: Date, ignoreId?: string, exec: any = db, proc: Processing | null = null) {
+    return findStylistConflict(exec, companyId, stylist, start, end, ignoreId, proc)
   }
 
   /** A chair or room is a resource too, compared trimmed and case-insensitive. (SALON-H10) */
@@ -166,6 +162,23 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       ...(ignoreId ? [ne(appointment.id, ignoreId)] : []),
     ))
     return rows.find((r) => !CANCELLED.includes(r.status) && r.status !== 'completed' && (r.station || '').trim().toLowerCase() === wanted && overlaps(r, start, end))
+  }
+
+  /**
+   * The processing gap this appointment is booked with (salon "processing time"; setting one by hand needs the `processing_time` feature).
+   * Asked for in the body, else the service's own; a gap longer than the appointment is refused in words.
+   */
+  async function processingFor(companyId: string, serviceId: string | null, body: any, minutes: number): Promise<{ proc: Processing | null } | { problem: string }> {
+    if ('processingMin' in body || 'processingAfterMin' in body) {
+      // Setting a gap on this visit by hand needs the feature; a service that already carries one applies it as the menu says.
+      if (!(await d.features.isFeatureEnabled(companyId, 'processing_time'))) return { problem: 'Processing time is not switched on for this salon.' }
+      const problem = processingProblem(body.processingAfterMin, body.processingMin, minutes)
+      if (problem) return { problem }
+      return { proc: Number(body.processingMin) > 0 ? { afterMin: Number(body.processingAfterMin || 0), min: Number(body.processingMin) } : null }
+    }
+    if (!serviceId) return { proc: null }
+    const [svc] = await db.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin }).from(serviceMenu).where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+    return { proc: svc?.m && svc.m > 0 ? { afterMin: svc.a ?? 0, min: svc.m } : null }
   }
 
   /** Closing a visit — the sale, the visit record, loyalty, the review request — one way, wherever it closes (visit.ts). */
@@ -326,12 +339,16 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (!stylist) return unknownStylist(c, body.stylistId)
     if (own && !isOwnChair(own, stylist)) return notYourChair(c)
 
+    const made = await processingFor(currentUser.companyId, serviceId, body, Math.round((endTime.getTime() - startTime.getTime()) / 60000))
+    if ('problem' in made) return fail(c, 400, made.problem, 'BAD_PROCESSING', { processingMin: made.problem })
+    const proc = made.proc
+
     let created: AppointmentRow
     try {
       created = await db.transaction(async (tx: any) => {
         await lockAppointmentBook(tx, currentUser.companyId)
         if (stylist.stylistId || stylist.stylistMemberId) {
-          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) throw new ApptConflict('That stylist is already booked at this time')
         }
         if (body.station) {
           if (await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime, undefined, tx)) throw new ApptConflict(`${String(body.station).trim()} is already booked at this time`)
@@ -346,6 +363,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           station: body.station || null,
           startTime,
           endTime,
+          processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
           quotedPrice: body.quotedPrice ?? null,
           notes: [patchNote, body.notes].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
@@ -428,13 +446,22 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (nextEnd.getTime() <= nextStart.getTime()) return fail(c, 400, 'The end time must be after the start time.')
     if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
 
+    // The processing gap: as booked, unless the service changed (the new service's) or the desk set one for this visit.
+    let nextProc: Processing | null = existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
+    if ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body) {
+      const got = await processingFor(currentUser.companyId, nextService ?? null, body, Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000))
+      if ('problem' in got) return fail(c, 400, got.problem, 'BAD_PROCESSING', { processingMin: got.problem })
+      nextProc = got.proc
+      updates.processingAfterMin = got.proc?.afterMin ?? null
+      updates.processingMin = got.proc?.min ?? null
+    }
     const nextStation = 'station' in updates ? updates.station : existing.station
     let updated: AppointmentRow
     try {
       updated = await db.transaction(async (tx: any) => {
         await lockAppointmentBook(tx, currentUser.companyId)
         if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
-          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) throw new ApptConflict('That stylist is already booked at this time')
         }
         if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
           if (await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id, tx)) throw new ApptConflict(`${String(nextStation).trim()} is already booked at this time`)

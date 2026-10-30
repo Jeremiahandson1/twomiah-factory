@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Loader2, X, Scissors, Edit2, Trash2, Clock, RotateCcw, AlertTriangle } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useMayWrite, useAuth } from '../../../shared'
 import { money as fmtMoney } from '../../../shared'
 import { useConfirm } from '../../../shared'
 import { useToast } from '../../../shared'
@@ -34,6 +34,8 @@ interface Service {
   category?: string;
   description?: string;
   durationMin?: number;
+  processingAfterMin?: number | null;
+  processingMin?: number | null;
   price?: number | string;
   priceIsFrom?: boolean;
   rebookIntervalDays?: number | null;
@@ -195,12 +197,16 @@ export default function ServiceMenuPage() {
 
 function ServiceModal({ service, onSave, onClose }: { service: Service | null; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
+  const { hasFeature } = useAuth();
+  const showProcessing = hasFeature('processing_time');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: service?.name || '',
     category: service?.category || 'hair',
     description: service?.description || '',
     durationMin: service?.durationMin?.toString() || '60',
+    processingAfterMin: service?.processingAfterMin?.toString() || '',
+    processingMin: service?.processingMin?.toString() || '',
     price: service?.price?.toString() || '',
     priceIsFrom: service?.priceIsFrom ?? false,
     rebookIntervalDays: service?.rebookIntervalDays?.toString() || '',
@@ -229,6 +235,11 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
         bookableOnline: form.bookableOnline,
         active: form.active,
       };
+      if (showProcessing) {
+        // Blank clears the gap (the whole time is hands-on again), so it is sent as null, not left out.
+        payload.processingAfterMin = form.processingAfterMin === '' ? null : Number(form.processingAfterMin);
+        payload.processingMin = form.processingMin === '' ? null : Number(form.processingMin);
+      }
       if (service) await api.put(`/api/service-menu/${service.id}`, payload);
       else await api.post('/api/service-menu', payload);
       onSave();
@@ -279,6 +290,23 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
                 <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Blank: no reminder" />
               </div>
             </div>
+            {showProcessing && (
+              <div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hands-on work first (min)</label>
+                    <input type="number" min={0} value={form.processingAfterMin} onChange={(e) => set('processingAfterMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Blank: no gap" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Then processing (min)</label>
+                    <input type="number" min={0} value={form.processingMin} onChange={(e) => set('processingMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Blank: no gap" />
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                  For colour and the like: after the first stretch of hands-on work the client sits while it processes, and the stylist is free to take someone else for those minutes. Both blank: the stylist is held the whole time.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
               Leave rebook blank for on-demand services — those never appear on the Rebooking report.
             </p>
