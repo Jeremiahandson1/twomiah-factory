@@ -319,7 +319,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100 mb-1">Features</h2>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Every feature is included in your plan. Switch modules on or off in <a className="underline" href="/crm/settings/features">Settings › Features</a>.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Every standard feature is included in your plan (paid add-ons are sold separately). Switch modules on or off in <a className="underline" href="/crm/settings/features">Settings › Features</a>.</p>
           </div>
         </div>
       )}

@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, inArray, sql } from 'drizzle-orm'
-import { getFeaturesForTemplate, FEATURE_MAP, withinOffer } from '../featureRegistry'
+import { getFeaturesForTemplate, FEATURE_MAP, withinOffer, isPaidAddOn } from '../featureRegistry'
 import { seatRefusal } from './seats'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
 import { checkBusinessHours } from './businessHours'
@@ -510,7 +510,8 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   app.get('/features/catalog', async (c) => {
     // A feature this template has as opt-in (featureRegistry optIn: the bar's register on a restaurant) is never core HERE:
     // the owner may leave it off, and a save does not force it on.
-    const features = getFeaturesForTemplate(template).filter((f) => !f.hidden).map(({ id, name, description, category, core, optIn }) => ({ id, name, description, category, core: core && !optIn?.includes(template) }))
+    // A paid add-on is listed (so the owner knows it exists) but marked: it is bought, not switched on here.
+    const features = getFeaturesForTemplate(template).filter((f) => !f.hidden).map(({ id, name, description, category, core, optIn }) => ({ id, name, description, category, core: core && !optIn?.includes(template), addOn: isPaidAddOn(id) }))
     return c.json({ template, features })
   })
 
@@ -535,6 +536,14 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       return c.json({ error: `${names} ${notReady.length === 1 ? "isn't" : "aren't"} ready yet, so ${notReady.length === 1 ? 'it' : 'they'} can't be switched on.`, code: 'feature_not_ready', notReady }, 400)
     }
     if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)
+    // A paid add-on is sold separately: the owner's save never switches one on (the Factory does, when it is bought).
+    // One already on — bought — stays on through the save. (Higgs review 10/30: the Visualizer was an owner's free switch.)
+    const alreadyOn = new Set((current?.enabledFeatures || []) as string[])
+    const addOns = (features as string[]).filter((f) => isPaidAddOn(f) && !alreadyOn.has(f))
+    if (addOns.length) {
+      const names = addOns.map((f) => FEATURE_MAP[f].name).join(', ')
+      return c.json({ error: `${names} ${addOns.length === 1 ? 'is a paid add-on' : 'are paid add-ons'} — ask us to add ${addOns.length === 1 ? 'it' : 'them'} to your account.`, code: 'paid_add_on', addOns }, 400)
+    }
     // An id already on may come back in the save (the page sends what it was given), but only what this product still
     // offers is kept (withinOffer): a feature taken off the industry goes at the owner's next save, never kept because
     // it happened to be on (home care's shared Invoices, live test 2026-10-22).

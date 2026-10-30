@@ -7,7 +7,7 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import { errMsg } from '../invoicing/ui'
 import type { FeaturesSettingsPageProps } from './types'
 
-type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean }
+type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean; addOn?: boolean }
 
 /**
  * Features whose usefulness is decided somewhere else as well. Switching one on says the salon is
@@ -80,7 +80,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
       </button>
       <h1 className="text-2xl font-bold mb-1 text-gray-900 dark:text-white">Features</h1>
       <p className="text-gray-500 mb-6 dark:text-slate-400">
-        Every feature is included in your plan — switch on the ones you want. Changes apply to your whole team immediately.
+        Every standard feature is included in your plan — switch on the ones you want. Paid add-ons are sold separately. Changes apply to your whole team immediately.
         {!isAdmin && <span className="block mt-1 text-amber-700 font-medium dark:text-amber-300">Only admins can change features.</span>}
       </p>
 
@@ -109,6 +109,9 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
                       </div>
                       {f.core ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-slate-400" title="Core feature — always on"><Lock className="w-3 h-3" /> Included</span>
+                      ) : f.addOn ? (
+                        // Bought, not switched: the save refuses turning a paid add-on on (company.ts), so no switch is offered.
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-slate-400 whitespace-nowrap" title={on ? 'Added to your account' : 'Sold separately — ask us to add it'}><Lock className="w-3 h-3" /> {on ? 'Added' : 'Paid add-on'}</span>
                       ) : (
                         <button
                           type="button"

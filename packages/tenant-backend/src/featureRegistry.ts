@@ -437,8 +437,13 @@ export function getAdvertisableFeaturesForTemplate(template: string): FeatureDef
  */
 function includedByDefault(template: string): string[] {
   return getFeaturesForTemplate(template)
-    .filter(f => f.category !== 'Add-on Products' && !f.hidden)
+    .filter(f => !isPaidAddOn(f.id) && !f.hidden)
     .map(f => f.id)
+}
+
+/** A paid Add-on Product (Exterior Visualizer): sold separately, so never in a plan and never the owner's own switch to turn on. */
+export function isPaidAddOn(id: string): boolean {
+  return FEATURE_MAP[id]?.category === 'Add-on Products'
 }
 
 /** Every plan: includedByDefault. The plan argument stays for the callers that pass one. */

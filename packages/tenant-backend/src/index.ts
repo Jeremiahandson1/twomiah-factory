@@ -42,7 +42,7 @@ export {
   FEATURE_REGISTRY, FEATURE_MAP,
   getCategories, getFeaturesForTemplate, getDefaultFeaturesForTemplate,
   getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan, withoutNotReady, withinOffer,
-  notReadyWords, notReadyPattern, siteSectionFeature,
+  notReadyWords, notReadyPattern, siteSectionFeature, isPaidAddOn,
 } from './featureRegistry'
 export type { FeatureDef } from './featureRegistry'
 
