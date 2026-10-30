@@ -12,6 +12,7 @@ import type { CrmDeps } from '../deps.ts'
 import { createTakeoffsRoutes } from './takeoffs.ts'
 import { createSelectionsRoutes } from './selections.ts'
 import { createJobCostingRoutes } from './jobCosting.ts'
+import { createReceivablesRoutes, createWipRoutes } from './reportsDepth.ts'
 import { createRoutingRoutes } from './routing.ts'
 import { createDayRouteRoutes } from './dayRoute.ts'
 import { createMapsRoutes, createMapCenterRoutes } from './maps.ts'
@@ -26,6 +27,9 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/takeoffs', access: 'user', feature: 'takeoff_tools', router: createTakeoffsRoutes(d) },
     { path: '/api/selections', access: 'user', feature: 'selections', router: createSelectionsRoutes(d) },
     { path: '/api/job-costing', access: 'user', feature: 'job_costing', router: createJobCostingRoutes(d) },
+    // Reports a builder buys on (reportsDepth.ts): who owes what and how late, and where each open piece of work stands.
+    { path: '/api/receivables', access: 'user', feature: 'ar_aging', router: createReceivablesRoutes(d) },
+    { path: '/api/wip', access: 'user', feature: 'wip_report', router: createWipRoutes(d) },
     { path: '/api/routing', access: 'user', feature: 'route_optimization', router: createRoutingRoutes(d) },
     // One person's day in the best order, for the Schedule's lanes and the Dispatch Board: every vertical with jobs
     // (dayRoute.ts), gated as the jobs are.
