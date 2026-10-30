@@ -90,7 +90,7 @@ export function createTerritoryRoutes(d: CrmDeps) {
   })
 
   /** Every territory the caller may see, with its reps. */
-  async function visible(u: any) {
+  async function visible(u: any): Promise<ReturnType<typeof view>[]> {
     const all = await db.select().from(canvassTerritory).where(eq(canvassTerritory.companyId, u.companyId)).orderBy(canvassTerritory.name, canvassTerritory.id)
     const reps = await repsOf(u.companyId, all.map((t: any) => t.id))
     const rows = (await seesAll(u)) ? all : all.filter((t: any) => (reps.get(t.id) ?? []).some((r) => r.id === u.userId))
