@@ -10,7 +10,7 @@ import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
-import { isTravelWarning } from '../schedule/crew'
+import { isTravelWarning, BOOK_ANYWAY_TITLE } from '../schedule/crew'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
@@ -445,7 +445,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       </Modal>
 
       <ConfirmModal isOpen={!!travelAsk} onClose={() => setTravelAsk(null)} onConfirm={() => { setTravelAsk(null); return save(true) }} danger={false}
-        title="Not enough time to get there" message={travelAsk || ''} confirmText="Book anyway" />
+        title={BOOK_ANYWAY_TITLE} message={travelAsk || ''} confirmText="Book anyway" />
       <ConfirmModal isOpen={deleteOpen} onClose={() => { setDeleteOpen(false); setToDelete(null) }} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${toDelete?.title || ''}"?`} confirmText="Delete" />
     </div>
   )

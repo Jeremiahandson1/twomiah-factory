@@ -28,7 +28,7 @@ import { verticalScreens } from '../../vertical'
 import { ConfirmModal } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 import { useMapCenter, US_VIEW, HOME_ZOOM } from '@twomiah/tenant-ui/src/maps/center'
-import { UNASSIGNED, crewOf, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, personName, RouteOptimiser, type Lane } from '@twomiah/tenant-ui/src/schedule/crew'
+import { UNASSIGNED, crewOf, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, personName, RouteOptimiser, type Lane } from '@twomiah/tenant-ui/src/schedule/crew'
 
 // What this vertical calls a job (VerticalSettings.screens.jobs.labels): 'Service Call' in field service, 'Job' in
 // landscaping (its copy of this board said "Job started", "Unnamed job" — T41).
@@ -123,7 +123,10 @@ export default function DispatchBoard() {
   const mayDispatch = useMayWrite('jobs:dispatch');
   // Routing someone else's day reads their jobs: jobs:read-all (server/crm/field/dayRoute.ts).
   const mayReadAll = useMayWrite('jobs:read-all');
-  const { user } = useAuth();
+  const { user, hasFeature } = useAuth();
+  // Tech Availability (not ready): who is off or away today, painted on their lane. Closed on the server unless it is on.
+  const showAvailability = hasFeature('tech_availability');
+  const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string }>>({});
   const meId = (user as any)?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayKey());
@@ -146,23 +149,26 @@ export default function DispatchBoard() {
       // SETTLED, not all: the technician list is team:read, which a technician does not hold, and one refused
       // request emptied the whole board — staff opened Dispatch to a blank day. The day's work is the board; the
       // roster is the dispatcher's. (T62: "the Dispatch board is empty for staff, because one 403 breaks the page")
-      const [jobsOut, techsOut] = await Promise.allSettled([
+      const [jobsOut, techsOut, awayOut] = await Promise.allSettled([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
         // /assignable, NOT /api/team: GET /api/team ignores ?role, and roster-only crew are only on /assignable. (T42)
         maySeeRoster ? api.get('/api/team/assignable') : Promise.resolve({ data: [] }),
+        showAvailability ? api.get(`/api/availability/day?date=${selectedDate}`) : Promise.resolve({ people: [] }),
       ]);
       if (jobsOut.status === 'rejected') throw jobsOut.reason;
       const jobsRes = jobsOut.value as { data?: DispatchJob[] };
       const techsRes = (techsOut.status === 'fulfilled' ? techsOut.value : { data: [] }) as { data?: Tech[] };
       setJobs(Array.isArray(jobsRes?.data) ? jobsRes.data : []);
       setTechs(Array.isArray(techsRes?.data) ? techsRes.data : []);
+      const awayRes = (awayOut.status === 'fulfilled' ? awayOut.value : { people: [] }) as { people?: Array<{ personId: string; state: 'off' | 'part' | 'hours'; label: string }> };
+      setAway(Object.fromEntries((awayRes.people || []).map(p => [p.personId, { state: p.state, label: p.label }])));
     } catch (error) {
       console.error('Failed to load dispatch data:', error);
       if (!quiet) toast.error('Failed to load dispatch board');
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [selectedDate, maySeeRoster]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDate, maySeeRoster, showAvailability]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -337,13 +343,18 @@ export default function DispatchBoard() {
                 const here = jobsIn(lane.id);
                 return (
                   <section key={lane.id || 'unassigned'} data-lane={lane.id} aria-label={lane.name} {...laneDrop(lane.id)}
-                    className={`min-w-0 rounded-xl border p-3 transition ${overLane === lane.id ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50/50 dark:bg-orange-950/30' : 'border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900'} ${moving ? 'cursor-pointer' : ''}`}>
+                    className={`min-w-0 rounded-xl border p-3 transition ${away[lane.id]?.state === 'off' ? 'opacity-70 bg-gray-50 dark:bg-slate-800/60' : ''} ${overLane === lane.id ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50/50 dark:bg-orange-950/30' : 'border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900'} ${moving ? 'cursor-pointer' : ''}`}>
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-slate-700">
                       <span className="w-3 h-3 rounded-full shrink-0" style={{ background: colourOf(lane.id) }} />
                       {lane.id === UNASSIGNED ? <AlertTriangle className="w-4 h-4 text-orange-700 dark:text-orange-300" /> : <User className="w-4 h-4 text-gray-600 dark:text-slate-300" />}
                       <h2 className="font-semibold text-gray-900 dark:text-white truncate">{lane.name}</h2>
                       <span className="ml-auto text-sm text-gray-600 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-300">{here.length}</span>
                     </div>
+                    {away[lane.id] && (
+                      <p data-away={away[lane.id].state} className={`mb-2 rounded px-2 py-1 text-xs font-medium ${away[lane.id].state === 'off' ? 'bg-gray-200 text-gray-800 dark:bg-slate-700 dark:text-slate-100' : away[lane.id].state === 'part' ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100' : 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                        {away[lane.id].state === 'hours' ? `Works ${away[lane.id].label}` : away[lane.id].label}
+                      </p>
+                    )}
                     {mayRoute(lane.id) && here.filter(j => j.status !== 'completed').length > 1 && (
                       <button type="button" data-route-lane={lane.id} onClick={(e) => { e.stopPropagation(); setRouteFor(lane); }}
                         className="mb-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -399,7 +410,7 @@ export default function DispatchBoard() {
       )}
 
       <ConfirmModal isOpen={!!override} onClose={() => setOverride(null)} onConfirm={bookAnyway} danger={false}
-        title="Not enough time to get there" message={override?.message || ''} confirmText="Book anyway" />
+        title={BOOK_ANYWAY_TITLE} message={override?.message || ''} confirmText="Book anyway" />
       {routeFor && <RouteOptimiser api={api as any} toast={toast as any} date={selectedDate} person={routeFor} mayRetime={mayDispatch} mayLocate={mayUpdate}
         onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); void loadData(true); }} />}
     </div>

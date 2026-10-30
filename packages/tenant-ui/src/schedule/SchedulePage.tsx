@@ -11,7 +11,7 @@ import { ChevronLeft, ChevronRight, Calendar, Plus, Move, X, Route, Users } from
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
 import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext'
-import { UNASSIGNED, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, RouteOptimiser, type Lane } from './crew'
+import { UNASSIGNED, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, RouteOptimiser, type Lane } from './crew'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
 import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart, companyMoment, companyHHMM } from '../time/companyClock'
@@ -601,7 +601,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       ) : view === 'day' ? (cfg.lanes ? dayLanesBody() : dayBody()) : view === 'month' ? monthBody() : lanesShowing ? weekLanesBody() : weekBody()}
 
       <ConfirmModal isOpen={!!override} onClose={() => { setOverride(null); load() }} onConfirm={bookAnyway} danger={false}
-        title="Not enough time to get there"
+        title={BOOK_ANYWAY_TITLE}
         message={override?.message || ''}
         confirmText="Book anyway" />
       {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayLocateJobs} onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); load() }} />}

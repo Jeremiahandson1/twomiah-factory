@@ -20,6 +20,7 @@ import { createWeatherRoutes } from './weather.ts'
 import { createPayrollRoutes } from './payroll.ts'
 import { createJobReminderRoutes } from './jobReminderRoutes.ts'
 import { createPlanReportRoutes, createTeamRevenueRoutes } from './teamReportRoutes.ts'
+import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
@@ -43,6 +44,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue', access: 'user', feature: 'team_revenue_reports', router: createTeamRevenueRoutes(d) },
     { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: createPlanReportRoutes(d) },
+    // When each tech works and is away (crm/field/availabilityRoutes.ts); jobs.ts warns when a job is given outside it. Not ready.
+    { path: '/api/availability', access: 'user', feature: 'tech_availability', router: createAvailabilityRoutes(d) },
     // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.
     ...(d.settings?.homecare ? [] : [{ path: '/api/payroll', access: 'user' as const, feature: 'time_tracking', router: createPayrollRoutes(d) }]),
   ]

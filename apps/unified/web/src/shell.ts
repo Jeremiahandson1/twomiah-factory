@@ -2,7 +2,7 @@
 // core; with `features`, shown when any is on. A `permission` is the one the page's API asks for, so the menu never
 // offers a page that would refuse. `routeRoles` is only for pages whose server gate is a rank (requireAdmin).
 import {
-  BarChart3, Briefcase, Calculator, Calendar, CalendarCheck, CalendarDays, CheckSquare, Clock, CreditCard, DollarSign, ExternalLink, FileText,
+  BarChart3, CalendarOff, Briefcase, Calculator, Calendar, CalendarCheck, CalendarDays, CheckSquare, Clock, CreditCard, DollarSign, ExternalLink, FileText,
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
   ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy, Radio, FileSignature, Box,
@@ -82,6 +82,7 @@ const SHARED_NAV: NavItem[] = [
   // Field service's own screens (templates/crm-fieldservice/frontend/src/shellConfig.ts). The registry offers these
   // features to field service only. Dispatch reads GET /api/jobs, so it asks jobs:read like Jobs above; the other three
   // pages' list routes ask only for a session, so they carry no permission.
+  { to: '/crm/availability', icon: CalendarOff, label: 'Hours & Time Off', section: 'Field Service', features: ['tech_availability'], permission: 'jobs:dispatch' },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'], permission: 'jobs:read' },
   { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Field Service', features: ['maintenance_contracts'] },
   { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_tracking'] },

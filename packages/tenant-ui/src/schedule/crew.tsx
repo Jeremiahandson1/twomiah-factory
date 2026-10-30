@@ -46,8 +46,13 @@ export function laneMoveBody(job: CrewJob, from: string, to: string): { assigned
   return { assignedToId: next[0] || '', otherAssigneeIds: next.slice(1) }
 }
 
-/** A 409 the server lets the office book past: too little time to drive between two jobs (tenant-backend jobs.ts). */
-export const isTravelWarning = (err: unknown) => (err as any)?.data?.code === 'travel_time'
+/**
+ * A 409 the server lets the office book past (tenant-backend jobs.ts): too little time to drive between two jobs, or a
+ * person who is off that day / outside their hours (code 'unavailable', where Tech Availability is on).
+ */
+export const isTravelWarning = (err: unknown) => ['travel_time', 'unavailable'].includes((err as any)?.data?.code)
+/** The question's title: it reads the same for both kinds of warning, the message under it says which. */
+export const BOOK_ANYWAY_TITLE = 'Check before you book'
 
 interface DayRoute {
   date: string; userId: string; name?: string | null
