@@ -25,3 +25,6 @@ create index if not exists web_presence_sites_status_idx on web_presence_sites(s
 -- Row-level security ON with no policy: only the service role (the Factory's server) reads or writes this table. The staff
 -- dashboard runs Supabase's PUBLIC key in the browser; a table without RLS would be open to anyone holding it.
 alter table web_presence_sites enable row level security;
+-- Tables made in the SQL editor carry no service_role privileges in this project: without this the Factory's own writes fail
+-- 42501 "permission denied for table web_presence_sites" (the first live $19 signup, 10/29).
+grant select, insert, update, delete on table web_presence_sites to service_role;

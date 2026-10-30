@@ -21,6 +21,18 @@ describe('row-level security', () => {
   test('every table the Factory creates has row-level security switched on', () => {
     expect([...created].filter((t) => !secured.has(t)).sort()).toEqual([])
   })
+  // Tables made in this project's SQL editor carry no service_role privileges: a migration that creates one without the grant
+  // ships a table the Factory cannot write (42501 — the first live $19 signup, 10/29). Held from the first migration that
+  // needed it (2026-10-21); the earlier tables were made while the project still granted them by default.
+  test('every table a migration creates (from 2026-10-21) is granted to the Factory\'s service role', () => {
+    const missing = sqlFiles(path.join(API, 'migrations')).filter((f) => path.basename(f) >= '2026-10-21').flatMap((f) => {
+      const s = read(f)
+      return [...s.matchAll(/create table (?:if not exists )?(?:public\.)?"?([a-z_0-9]+)"?/gi)].map((m) => m[1].toLowerCase())
+        .filter((t) => !new RegExp(`grant\\s+[^;]*\\bon\\s+(?:table\\s+)?(?:public\\.)?"?${t}"?\\s+to\\s+[^;]*\\bservice_role\\b`, 'i').test(s))
+        .map((t) => `${path.basename(f)}: ${t}`)
+    })
+    expect(missing).toEqual([])
+  })
   test('the dashboard reads only tables it is meant to read with the public key', () => {
     const files: string[] = []
     const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.tsx?$/.test(e.name)) files.push(p) } }

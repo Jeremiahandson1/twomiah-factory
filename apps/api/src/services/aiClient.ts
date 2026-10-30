@@ -8,16 +8,13 @@ import { clearAlert, raiseIfAiAccountProblem } from './alerts'
 
 export function aiClient(opts: { timeout: number; maxRetries: number }): Anthropic {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, ...opts })
-  const create = client.messages.create.bind(client.messages) as (...a: any[]) => Promise<any>
-  ;(client.messages as any).create = async (...args: any[]) => {
-    try {
-      const r = await create(...args)
-      clearAlert('ai:credit'); clearAlert('ai:auth')
-      return r
-    } catch (e) {
-      raiseIfAiAccountProblem(e)
-      throw e
-    }
+  // The SDK's own APIPromise is handed back, only watched: its stream() calls create(...).withResponse(), which a plain
+  // async wrapper does not have (every signup site compose failed on it, 10/29).
+  const create = client.messages.create.bind(client.messages) as (...a: any[]) => any
+  ;(client.messages as any).create = (...args: any[]) => {
+    const p = create(...args)
+    p.then(() => { clearAlert('ai:credit'); clearAlert('ai:auth') }, (e: unknown) => raiseIfAiAccountProblem(e))
+    return p
   }
   // The site composer streams (a 32K-token answer must): its outcome is finalMessage(), so that is what is watched.
   const stream = client.messages.stream.bind(client.messages) as (...a: any[]) => any
