@@ -758,6 +758,11 @@ export const formSubmission = pgTable('form_submission', {
   signature: text('signature'),
   signedAt: timestamp('signed_at'),
   signedBy: text('signed_by'),
+  // What proves the on-site signature (as a signed quote carries it): where, on what device, what they saw, the consent.
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
 
   submittedById: text('submitted_by_id').references(() => user.id),
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),

@@ -232,7 +232,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
     options: {
       // a job also points at a piece of equipment and a service site
-      ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),
+      // A business's own kinds of job ("Furnace install"), for its checklists (crm/field/checklistRoutes.ts); the job form offers them only with Job Checklists on.
+      extraFields: { ...(sites ? { equipmentId: blankToUndefined, siteId: blankToUndefined } : {}), jobType: z.string().trim().max(40, 'A job type is at most 40 characters').optional().transform((v) => v || undefined) },
       // photos in the store, served at /media/photos/… (the website's media route serves the same prefix)
       ...(v.jobs?.photos ? { storage: s.storage } : {}),
       // a job billed on its own: POST /api/jobs/:id/invoice

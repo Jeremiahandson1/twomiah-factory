@@ -222,6 +222,7 @@ const GROUP_BY_PATH: Record<string, string> = {
   '/crm/inventory': 'Equipment & records',
   '/crm/invoices': 'Sell',
   '/crm/availability': 'Scheduling',
+  '/crm/checklists': 'Scheduling',
   '/crm/job-costing': 'Money & reports',
   '/crm/plan-reports': 'Money & reports',
   '/crm/team-revenue': 'Money & reports',
@@ -360,6 +361,7 @@ const ICON_BY_PATH: Record<string, string> = {
   '/crm/inventory': 'cube',
   '/crm/invoices': 'receipt',
   '/crm/availability': 'calendar-clear',
+  '/crm/checklists': 'clipboard',
   '/crm/job-costing': 'calculator',
   '/crm/plan-reports': 'bar-chart',
   '/crm/team-revenue': 'people',
@@ -504,6 +506,7 @@ export const PHASE_RULES: PhaseRule[] = [
   { paths: ['/crm/projects', '/crm/bids', '/crm/change-orders', '/crm/daily-logs', '/crm/punch-lists', '/crm/inspections', '/crm/pricebook', '/crm/pricebook-rates', '/crm/reports', '/crm/job-costing'], phase: 'B', why: 'projects, bids and the price book' },
   // D — desktop only
   { paths: ['/crm/tech'], phase: 'D', why: 'this IS the phone-sized field view; the app replaces it' },
+  { paths: ['/crm/checklists'], phase: 'D', why: 'building the checklists per kind of job is office set-up done at a desk; the tech fills them in on the job screen' },
   { paths: ['/crm/availability'], phase: 'D', why: 'setting each tech\'s weekly hours and time off is office set-up done at a desk' },
   { paths: ['/crm/team-revenue', '/crm/plan-reports'], phase: 'D', why: 'wide comparison tables for the owner at a desk; the phone has the Reports summary' },
   { paths: ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain'], phase: 'D', why: 'building the public website is a desk job' },

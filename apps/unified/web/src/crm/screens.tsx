@@ -13,7 +13,7 @@ import {
 import { api } from '../api'
 import { verticalScreens } from './vertical'
 import OnboardingWizard, { wizardOpens } from './pages/OnboardingWizard'
-import type { ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { dashboard as salonDashboard } from './verticals/salon'
 import { dashboard as eventsDashboard } from './verticals/restaurant'
 // 'practice': the veterinary practice's.
@@ -79,9 +79,23 @@ export function ContactDetail() {
 // repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
 const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+/** The kinds of job the owner's checklists are written for (Job Checklists, NOT READY) — the job form's "Job type" box. */
+function useChecklistJobTypes(on: boolean): string[] | undefined {
+  const [types, setTypes] = useState<string[] | undefined>()
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    client.get('/api/checklists/templates').then((r: any) => {
+      if (live) setTypes([...new Set<string>((r?.data || []).flatMap((x: any) => x.jobTypes || []))])
+    }).catch(() => { /* the box just stays away */ })
+    return () => { live = false }
+  }, [on])
+  return types
+}
 export function Jobs() {
   const { hasFeature, can } = useAuth()
-  return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
+  const jobTypes = useChecklistJobTypes(hasFeature('job_checklists'))
+  return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can, jobTypes } as any} />
 }
 export function JobDetail() {
   const { hasFeature, company } = useAuth()

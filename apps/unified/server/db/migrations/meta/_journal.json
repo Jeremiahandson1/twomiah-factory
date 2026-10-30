@@ -302,6 +302,13 @@
       "when": 1793381297929,
       "tag": "0042_tech_availability",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793382704559,
+      "tag": "0043_checklist_signatures",
+      "breakpoints": true
     }
   ]
 }

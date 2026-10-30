@@ -14,11 +14,11 @@ import { isTravelWarning, BOOK_ANYWAY_TITLE } from '../schedule/crew'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
-  address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string; locationId: string
+  address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string; locationId: string; jobType: string
 }
 type Pick = { id: string; contactId?: string | null; name?: string; firstName?: string; lastName?: string; email?: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; manufacturer?: string | null; model?: string | null; serialNumber?: string | null }
 
-const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '' })
+const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '', jobType: '' })
 const label = (s: string) => s.replace(/_/g, ' ')
 
 /**
@@ -204,7 +204,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       ...emptyForm(cfg.statuses[0], 'normal'),
       title: item.title || '', description: item.description || '', status: item.status || cfg.statuses[0], priority: item.priority || 'normal',
       scheduledDate: item.scheduledDate ? String(item.scheduledDate).slice(0, 10) : '', scheduledTime: item.scheduledTime || '', estimatedHours: item.estimatedHours != null ? String(item.estimatedHours) : '',
-      address: item.address || '', city: item.city || '', state: item.state || '', zip: item.zip || '',
+      address: item.address || '', city: item.city || '', state: item.state || '', zip: item.zip || '', jobType: (item as any).jobType || '',
       // A job can be assigned to a login user OR a roster-only crew member; the picker holds whichever id it is, and
       // the API routes it back to the right column. Seeding only from assignedToId showed "Unassigned" for crew —
       // and saving the form would then have unassigned them for real. (T21 M12)
@@ -250,6 +250,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (bookAnyway) payload.bookAnyway = true
       if (!cfg.equipment) delete payload.equipmentId
       if (!cfg.sites) delete payload.siteId
+      if (!cfg.jobTypes || !payload.jobType) delete payload.jobType
       if (!tenantHasBranches) delete payload.locationId
       if (editing) { await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`) }
       else if (repeating) {
@@ -386,6 +387,14 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
               <select value={form.siteId} onChange={(e) => { const s = sites.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, siteId: e.target.value, ...(s?.address ? { address: s.address, city: s.city || '', state: s.state || '', zip: s.zip || '' } : {}) })); if (s?.address) setUseAddressOnFile(true) }} className={inputCls}>
                 <option value="">No specific {cfg.siteLabels.singular.toLowerCase()}</option>
                 {sites.map((s) => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}
+              </select>
+            </Field>
+          )}
+          {cfg.jobTypes && (
+            <Field label="Job type">
+              <select aria-label="Job type" value={form.jobType} onChange={set('jobType')} className={inputCls}>
+                <option value="">Standard (no special type)</option>
+                {[...new Set([...(form.jobType ? [form.jobType] : []), ...cfg.jobTypes])].filter((x) => x !== 'service').map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             </Field>
           )}

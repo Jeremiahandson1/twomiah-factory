@@ -83,6 +83,7 @@ const SHARED_NAV: NavItem[] = [
   // features to field service only. Dispatch reads GET /api/jobs, so it asks jobs:read like Jobs above; the other three
   // pages' list routes ask only for a session, so they carry no permission.
   { to: '/crm/availability', icon: CalendarOff, label: 'Hours & Time Off', section: 'Field Service', features: ['tech_availability'], permission: 'jobs:dispatch' },
+  { to: '/crm/checklists', icon: ClipboardCheck, label: 'Job Checklists', section: 'Field Service', features: ['job_checklists'], permission: 'settings:update' },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'], permission: 'jobs:read' },
   { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Field Service', features: ['maintenance_contracts'] },
   { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_tracking'] },

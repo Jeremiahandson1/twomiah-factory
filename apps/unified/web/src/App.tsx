@@ -74,6 +74,7 @@ const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventor
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
 const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
 const PlanReportsPage = page(() => import('./crm/pages/PlanReportsPage'))
@@ -159,6 +160,7 @@ export default function App() {
                         <Route path="reports" element={<Crm.Reports />} />
                         <Route path="job-costing" element={<Crm.JobCosting />} />
                         <Route path="availability" element={<AvailabilityPage />} />
+                        <Route path="checklists" element={<ChecklistsPage />} />
                         <Route path="team-revenue" element={<TeamRevenuePage />} />
                         <Route path="plan-reports" element={<PlanReportsPage />} />
                         <Route path="lead-sources" element={<Crm.LeadSources />} />
