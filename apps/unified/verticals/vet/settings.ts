@@ -115,7 +115,8 @@ const vet: VerticalSettings = {
     jobCosting: {},
     time: {},
     expenses: {},
-    team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Veterinary Technician' },
+    // A clinic runs no pay week and has no Time Tracking, so the roster has no hourly rate, and no department (store gaps, item 2).
+    team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Veterinary Technician', subtitle: 'The people who work in your clinic.', department: false, hourlyRate: false },
     commissions: {},
     agreements: {},
     fleet: {},
@@ -146,7 +147,12 @@ const vet: VerticalSettings = {
     integrations: {
       callTracking: true,
     },
-    settings: { licenseNumber: false },
+    settings: {
+      licenseNumber: false,
+      // No pay run (Time Tracking is not offered to a clinic): no work week or overtime; the clock names what a clinic keeps.
+      workWeek: false,
+      timeZoneHint: 'The one clock for your clinic: your hours, appointments, reports, invoices and online bookings all keep time on it.',
+    },
   },
   site: {
     // templates/website-premium-vet: the classic look, and a clinic's words on the contact form.

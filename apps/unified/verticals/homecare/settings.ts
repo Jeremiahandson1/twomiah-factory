@@ -485,6 +485,20 @@ const homecare: VerticalSettings = {
     // The agency's own screens (web/src/crm/verticals/homecare.tsx): its dashboard at /crm/dashboard (the office's, or a
     // caregiver's day), its menu, and its public pages (the portals, paying an invoice, onboarding, careers).
     home: 'homecare',
+    // Settings in an agency's words (store gaps, item 2). The shared role list said "view jobs, log time, expenses and notes" and
+    // "full access to work and invoicing" — an agency has no jobs and bills on Financial › Billing. Each seat is described by
+    // what it holds (extraRolePermissions above; permissions.ts): the office manager runs the care and reads the billing; the
+    // caregiver has their own day. The pay week stays: an agency's payroll counts overtime over it (companyFields.ts). Its clock
+    // names what an agency keeps: no invoices book of the shared kind and no online bookings (featureRegistry).
+    settings: {
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'the office, read-only: the client directory, the week\'s visits, the caregiver list and today\'s counts; changes nothing and sees no pay, billing or client care details' },
+        { value: 'field', label: 'Caregiver', description: 'their own schedule, their clients\' visits, clocking in and out, and their own pay; not the office, billing or settings' },
+        { value: 'manager', label: 'Office Manager', description: 'runs the office: clients, the schedule, visits and the family portal, and can read billing; not billing changes, payroll, hiring, company settings or logins' },
+        { value: 'admin', label: 'Admin', description: 'full access, including billing, payroll, hiring, company settings and logins' },
+      ],
+      timeZoneHint: 'The one clock for your agency: your visit schedule, clock-ins, billing, reports and the AI Receptionist all keep time on it.',
+    },
     // The first-run wizard (templates/crm-homecare pages/OnboardingWizard.tsx): no lead marketplaces; the agency's
     // suggested addresses (support@, admin@, care@); and its HIPAA checklist, its steps pointing at pages the app has
     // (the template's said "Settings > Compliance", which never existed). Its CareSmartz360 and HHAeXchange import entries

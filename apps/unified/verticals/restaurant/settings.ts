@@ -118,7 +118,9 @@ const restaurant: VerticalSettings = {
     // (the template's ReportsDashboard.tsx set it from hasFeature). Team productivity reads time entries, and this CRM
     // has no time tracking. (T16/T17 L9)
     reporting: { jobsLabel: 'Jobs', jobs: false, quotes: false, projects: false, team: false, eventsPipeline: true, dealership: false },
-    team: { roleLabel: 'Role', rolePlaceholder: 'e.g. Event Coordinator' },
+    // The roster in a restaurant's words. It has no Time Tracking, pay run or job costing (featureRegistry), so nothing reads an
+    // hourly rate here: no Rate column or box, and no "schedule and pay" (store gaps, item 2).
+    team: { roleLabel: 'Role', rolePlaceholder: 'e.g. Event Coordinator', subtitle: 'The people who work in your restaurant.', hourlyRate: false },
     portal: {},
     leads: {
       platforms: [
@@ -164,6 +166,10 @@ const restaurant: VerticalSettings = {
       },
     },
       licenseNumber: false,
+      // No pay run behind a restaurant (Time Tracking is not offered to it), so no "Work week starts on … Overtime is hours
+      // over 40"; and its clock names what it keeps: no timesheets, online bookings or AI Receptionist (not offered to it).
+      workWeek: false,
+      timeZoneHint: 'The one clock for your restaurant: your opening hours, events, invoices and reports all keep time on it.',
       // The four rungs, described as what each does in a restaurant (the shared list said "view jobs, log time", live test
       // 2026-10-25). This replaces the shared list, so Viewer is repeated.
       roles: [
