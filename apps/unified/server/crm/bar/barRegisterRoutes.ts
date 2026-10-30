@@ -103,13 +103,13 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
     const regulars = await loyaltyRunning(actor.companyId)
     // The card reader: offered on the Pay screen only where it is switched on, a reader is registered and the business's
     // own Stripe account is connected. Otherwise Card is the old "run it on the reader, then record it" (card_external).
-    const [readerOn, settings] = await Promise.all([isFeatureEnabled(actor.companyId, ['card_reader']), bar.food.read(actor.companyId)])
+    const [readerOn, settings, tabOn] = await Promise.all([isFeatureEnabled(actor.companyId, ['card_reader']), bar.food.read(actor.companyId), isFeatureEnabled(actor.companyId, ['bar_tab_preauth'])])
     const readers = readerOn && (await d.services.stripeService.connectedAccountFor(actor.companyId)) ? (await bar.terminal.listReaders(actor.companyId)).map((r) => ({ id: r.id, label: r.label, simulated: r.simulated })) : []
     return one(c, {
       serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, giftCards: await giftCardsOn(actor),
       regulars: regulars ? { rewards: (await listRewards(actor.companyId, true)).map((x) => ({ id: x.id, name: x.name, pointsCost: x.pointsCost, type: x.type })) } : null,
       me: { name: actor.name, mayManage: manage, hasPin: pin },
-      cardReader: { readers, tipping: settings.terminal.tipping },
+      cardReader: { readers, tipping: settings.terminal.tipping, cardTabs: tabOn && readers.length > 0 },
       tabs: settings.tabs,
     })
   })

@@ -427,9 +427,16 @@ export const barTerminalCharge = pgTable('bar_terminal_charge', {
   paymentIntentId: text('payment_intent_id').notNull(),
   amountCents: integer('amount_cents').notNull(),       // toward the check; a tip the reader asks for is on top
   tipCents: integer('tip_cents').default(0).notNull(),
-  status: text('status').default('pending').notNull(), // pending | succeeded | failed | canceled | timed_out
+  status: text('status').default('pending').notNull(), // pending | succeeded | failed | canceled | timed_out | (a tab:) authorized | closing | released
   failure: text('failure'),
   paymentId: text('payment_id'),                        // bar_check_payment.id once recorded
+  // A pre-authorised tab (restaurant-bar-depth #12): 'preauth' holds the card for amountCents on the reader, manual capture,
+  // and takes what the check comes to (and the tip) when the tab is closed; 'sale' is the ordinary charge above.
+  kind: text('kind').default('sale').notNull(),
+  captureBefore: timestamp('capture_before'),           // when the card's hold lapses on its own (Stripe's capture_before)
+  cardBrand: text('card_brand'),
+  cardLast4: text('card_last4'),
+  cardholder: text('cardholder'),
   startedById: text('started_by_id').references(() => user.id, { onDelete: 'set null' }),
   startedByName: text('started_by_name'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

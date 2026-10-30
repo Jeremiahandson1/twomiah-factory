@@ -90,6 +90,15 @@ const { findCard, issueCard, cardPrefix, refundTo, spend } = giftCards
 
 function notifyRegister(companyId: string): void { emitToCompany(companyId, 'bar:register', { at: Date.now() }) }
 
+/**
+ * A check that ends without its card tab (voided, or paid another way) lets the tab's hold go (barTerminal.ts sets this;
+ * restaurant-bar-depth #12). Never throws: a hold that would not release lapses on its own and is said so on the tab.
+ */
+const hooks: { checkEnded: null | ((companyId: string, checkId: string) => Promise<void>) } = { checkEnded: null }
+async function checkEnded(companyId: string, checkId: string): Promise<void> {
+  try { if (hooks.checkEnded) await hooks.checkEnded(companyId, checkId) } catch { /* the hold lapses on its own */ }
+}
+
 async function taxRateBps(companyId: string, tx: Tx = db): Promise<number> {
   const [co] = await tx.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
   return taxRateBpsFrom(co?.settings)
@@ -417,8 +426,10 @@ async function addPayment(actor: Actor, checkId: string, input: { tender?: strin
     return closeIfPaid(tx, companyId, checkId, actor, earn)
   })
   if (fired) notifyKitchen(companyId)
+  const after = await getCheck(companyId, checkId)
+  if (after.status !== 'open') await checkEnded(companyId, checkId)
   notifyRegister(companyId)
-  return { ...(await getCheck(companyId, checkId)), changeCents: change }
+  return { ...after, changeCents: change }
 }
 
 /** Take what's owed (up to the card's balance) off a gift card. No tip off a gift card: it pays for the check. */
@@ -451,8 +462,10 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
     throw e
   }
   if (fired) notifyKitchen(companyId)
+  const ended = await getCheck(companyId, checkId)
+  if (ended.status !== 'open') await checkEnded(companyId, checkId)
   notifyRegister(companyId)
-  return { ...(await getCheck(companyId, checkId)), changeCents: null, giftCard: after }
+  return { ...ended, changeCents: null, giftCard: after }
 }
 
 /**
@@ -623,6 +636,7 @@ async function voidCheck(actor: Actor, checkId: string, reason: string, byName: 
     if (!why && view.items.length) throw new CheckError('Give a reason.')
     await tx.update(barCheck).set({ status: 'void', voidReason: why || 'empty', closedAt: new Date(), closedById: actor.id, closedByName: byName, updatedAt: new Date() }).where(eq(barCheck.id, checkId))
   })
+  await checkEnded(companyId, checkId)
   notifyRegister(companyId)
   return getCheck(companyId, checkId)
 }
@@ -713,7 +727,7 @@ async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem
 return {
   notifyRegister, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
   voidItem, sendCheck, addPayment, addGiftCardLine, voidPayment, splitItems, splitBySeat, checkNeedsManager, voidCheck, renameCheck,
-  attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine,
+  attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine, hooks, checkEnded,
 }
 }
 export type BarRegister = ReturnType<typeof createBarRegister>

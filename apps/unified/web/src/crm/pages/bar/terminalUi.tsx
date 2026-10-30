@@ -9,8 +9,9 @@ import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, LABEL, INPUT, MUTED, money, centsFrom, Dialog } from './registerUi'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
-export interface Charge { id: string; status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'timed_out'; failure: string | null; amountCents: number; tipCents: number; readerId: string; readerLabel: string | null; checkId: string | null; orderId: string | null }
+export interface Charge { id: string; status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'timed_out' | 'authorized' | 'closing' | 'released'; kind?: string; card?: { brand: string | null; last4: string | null; holder: string | null } | null; captureBefore?: string | null; failure: string | null; amountCents: number; tipCents: number; readerId: string; readerLabel: string | null; checkId: string | null; orderId: string | null }
 export interface ReaderChoice { id: string; label: string; simulated: boolean }
 
 const ENDED: Record<string, string> = { failed: 'Not paid', canceled: 'Cancelled', timed_out: 'Timed out' }
@@ -158,4 +159,84 @@ export function ReceiptPanel({ checkId, guestEmail, guestPhone }: { checkId: str
       {msg && <p className="text-sm mt-2 text-gray-900 dark:text-slate-100" role="status">{[said('email', msg.email), said('text', msg.text)].filter(Boolean).join(' ')}</p>}
     </div>
   )
+}
+
+/**
+ * A card held for a tab (feature bar_tab_preauth; server: crm/bar/barTerminal.ts startTab/closeTab/releaseTab). No card
+ * here: the guest taps on the reader, the server holds it on the business's own Stripe, and nothing is taken until the
+ * tab is closed with a tip. The register's phone screen never offers this; cards are the counter's.
+ */
+export function TabDialog({ checkId, label, balanceCents, readers, onClose, onChanged }: { checkId: string; label: string; balanceCents: number; readers: ReaderChoice[]; onClose: () => void; onChanged: () => Promise<void> }) {
+  const mayRing = useMayWrite('bar:register');
+  const [tab, setTab] = useState<Charge | null | undefined>(undefined);
+  const [readerId, setReaderId] = useState(readers[0]?.id || '');
+  const [hold, setHold] = useState('50.00');
+  const [tipPct, setTipPct] = useState<number | null>(18);
+  const [tipText, setTipText] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+  const wait = useCharge(async (c: Charge) => { setTab(c.status === 'authorized' ? c : null); await onChanged(); });
+  useEffect(() => { api.get(`/api/food/terminal/tab?checkId=${encodeURIComponent(checkId)}`).then((r) => setTab(r.tab || null)).catch((e) => { setTab(null); setErr(errorText(e, 'Could not look up the tab.')); }); }, [checkId]);
+  const holdC = tab ? tab.amountCents : centsFrom(hold) ?? 0;
+  const tipC = tipPct !== null ? Math.round(balanceCents * tipPct / 100) : centsFrom(tipText) ?? 0;
+  const start = async () => {
+    setErr(''); setBusy(true);
+    try { const r = await api.post('/api/food/terminal/tab', { checkId, readerId, amountCents: centsFrom(hold) }); wait.setCharge(r.charge); }
+    catch (e) { setErr(errorText(e, 'The reader did not take the tab.')); } finally { setBusy(false); }
+  };
+  const close = async (partial: boolean) => {
+    if (!tab) return; setErr(''); setBusy(true);
+    try { await api.post(`/api/food/terminal/tab/${tab.id}/close`, { tipCents: tipC, partial }); await onChanged(); onClose(); }
+    catch (e: any) { setOver(e?.data?.code === 'TAB_OVER_HOLD'); setErr(errorText(e, 'The tab did not close.')); } finally { setBusy(false); }
+  };
+  const release = async () => {
+    if (!tab) return; setErr(''); setBusy(true);
+    try { await api.post(`/api/food/terminal/tab/${tab.id}/release`, {}); await onChanged(); onClose(); }
+    catch (e) { setErr(errorText(e, 'The card was not released.')); } finally { setBusy(false); }
+  };
+  const simulated = !!readers.find((r) => r.id === (wait.charge?.readerId || readerId))?.simulated;
+  return (
+    <Dialog title={`Card tab · ${label}`} onClose={wait.charge?.status === 'pending' ? () => {} : onClose}>
+      {tab === undefined ? <p className={MUTED}>Looking…</p> : wait.charge && wait.charge.status === 'pending' ? (
+        <>
+          <ChargeWaiting charge={wait.charge} simulated={simulated} err={wait.err} onCancel={wait.cancel} onSimulate={wait.simulate} />
+          <p className={`text-sm mt-2 ${MUTED}`}>This only holds {money(wait.charge.amountCents)} on the card. Nothing is charged until the tab is closed.</p>
+        </>
+      ) : tab ? (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-700 p-3">
+            <p className="font-bold text-gray-900 dark:text-slate-100">{tab.card?.brand ? tab.card.brand.toUpperCase() : 'Card'}{tab.card?.last4 ? ` ····${tab.card.last4}` : ''}{tab.card?.holder ? ` · ${tab.card.holder}` : ''}</p>
+            <p className={`text-sm ${MUTED}`}>{money(tab.amountCents)} held{tab.captureBefore ? `; the hold lapses on its own ${whenDateTime(tab.captureBefore, { dateStyle: 'medium', timeStyle: 'short' })}` : ''}.</p>
+          </div>
+          {mayRing && (
+            <>
+              <div><span className={LABEL}>Tip</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {[0, 15, 18, 20].map((p) => <button key={p} type="button" aria-pressed={tipPct === p} className={`${BTN} ${tipPct === p ? ON : OFF}`} onClick={() => setTipPct(p)}>{p === 0 ? 'No tip' : `${p}%`}</button>)}
+                  <input aria-label="Other tip in dollars" inputMode="decimal" placeholder="Other $" className={`${INPUT} max-w-[8rem]`} value={tipText} onChange={(e) => { setTipText(e.target.value); setTipPct(null); }} />
+                </div>
+              </div>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100">Charge {money(balanceCents + tipC)} <span className={`text-sm font-normal ${MUTED}`}>({money(balanceCents)} + {money(tipC)} tip)</span></p>
+              {balanceCents + tipC > tab.amountCents && <p className={`text-sm ${MUTED}`}>That is more than the hold. The card is asked to raise it; if it will not, you can close it for {money(tab.amountCents)} and take the rest another way.</p>}
+              <FormError message={err} />
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button type="button" className={`${BTN} ${DANGER}`} disabled={busy} onClick={release}>Give the card back</button>
+                {over && <button type="button" className={`${BTN} ${OFF}`} disabled={busy} onClick={() => close(true)}>Close for the hold ({money(tab.amountCents)})</button>}
+                <button type="button" className={`${BTN} ${ON}`} disabled={busy || balanceCents <= 0} onClick={() => close(false)}>Close tab and charge</button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : mayRing ? (
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void start(); }}>
+          <p className={`text-sm ${MUTED}`}>The guest taps a card on the reader. It is held for the amount below and charged only when you close the tab.</p>
+          {readers.length > 1 && <div><label htmlFor="tab-reader" className={LABEL}>Reader</label><select id="tab-reader" className={`${INPUT} mt-1`} value={readerId} onChange={(e) => setReaderId(e.target.value)}>{readers.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>}
+          <div><label htmlFor="tab-hold" className={LABEL}>Hold on the card ($1 to $1,000)</label><input id="tab-hold" inputMode="decimal" className={`${INPUT} mt-1`} value={hold} onChange={(e) => setHold(e.target.value)} /></div>
+          <FormError message={err} />
+          <div className="flex justify-end"><button type="submit" className={`${BTN} ${ON}`} disabled={busy || !readerId || !(holdC >= 100)}>Hold the card on the reader</button></div>
+        </form>
+      ) : <p className={MUTED}>Ask the register to start a tab.</p>}
+    </Dialog>
+  );
 }

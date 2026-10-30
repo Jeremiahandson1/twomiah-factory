@@ -15,7 +15,7 @@ export const arr = (p: URLSearchParams, k: string) => [...p.entries()].filter(([
 
 export function terminalStripeFake() {
   const calls: StripeCall[] = []
-  const state = { n: 0, offline: false }
+  const state = { n: 0, offline: false, declineIncrement: false }
   const readers = new Map<string, any>()
   const intents = new Map<string, any>()
   const sessions = new Map<string, any>()
@@ -66,6 +66,12 @@ export function terminalStripeFake() {
         r.action = { ...r.action, status: 'failed', failure_code: 'card_declined', failure_message: 'Your card was declined.' }
       } else {
         const tip = Number(param(params, 'amount_tip') || 0)
+        if (pi.capture_method === 'manual') {
+          // Authorised and held: the card was read, nothing is taken until capture (Stripe's requires_capture).
+          Object.assign(pi, { status: 'requires_capture', amount_capturable: pi.amount, latest_charge: { id: `ch_${pi.id}`, object: 'charge', payment_method_details: { type: 'card_present', card_present: { brand: 'visa', last4: '4242', cardholder_name: 'MIKE TESTER', capture_before: Math.floor(Date.now() / 1000) + 2 * 86400 } } } })
+          r.action = { ...r.action, status: 'succeeded' }
+          return json(r)
+        }
         Object.assign(pi, { status: 'succeeded', amount: pi.amount + tip, amount_received: pi.amount + tip, amount_details: { tip: tip ? { amount: tip } : {} }, latest_charge: `ch_${pi.id}` })
         r.action = { ...r.action, status: 'succeeded' }
       }
@@ -92,13 +98,26 @@ export function terminalStripeFake() {
       intents.set(pi.id, pi)
       return json(pi)
     }
-    if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)$/)) && method === 'GET') { const pi = intents.get(m[1]); return pi ? json(pi) : err(404, 'No such payment_intent') }
+    if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)$/)) && method === 'GET') {
+      const pi = intents.get(m[1]); if (!pi) return err(404, 'No such payment_intent')
+      // expand[]=latest_charge answers the charge itself; otherwise just its id, as Stripe does.
+      const expanded = [...u.searchParams.values()].includes('latest_charge')
+      return json(!expanded && pi.latest_charge && typeof pi.latest_charge === 'object' ? { ...pi, latest_charge: pi.latest_charge.id } : pi)
+    }
     if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)\/cancel$/)) && method === 'POST') {
       const pi = intents.get(m[1]); if (!pi) return err(404, 'No such payment_intent')
       if (pi.status === 'succeeded') return err(400, 'You cannot cancel this PaymentIntent because it has a status of succeeded.', 'payment_intent_unexpected_state')
       pi.status = 'canceled'; return json(pi)
     }
-    if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)\/capture$/)) && method === 'POST') { const pi = intents.get(m[1]); pi.status = 'succeeded'; pi.amount_received = pi.amount; return json(pi) }
+    if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)\/capture$/)) && method === 'POST') {
+      const pi = intents.get(m[1]); if (!pi) return err(404, 'No such payment_intent')
+      if (pi.status !== 'requires_capture' && !(pi.status === 'requires_payment_method' && pi.capture_method === 'manual')) return err(400, `This PaymentIntent could not be captured because it has a status of ${pi.status}.`, 'payment_intent_unexpected_state')
+      const want = param(params, 'amount_to_capture') ? Number(param(params, 'amount_to_capture')) : pi.amount
+      // Capturing more than was authorised asks the card for an incremental authorisation; a card that will not leaves the original hold.
+      if (want > pi.amount) { if (state.declineIncrement) return err(402, 'Your card was declined.', 'card_declined'); pi.amount = want }
+      Object.assign(pi, { status: 'succeeded', amount_received: want, amount_capturable: 0 })
+      return json(pi)
+    }
     if (p === '/v1/refunds' && method === 'POST') return json({ id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(param(params, 'amount')), payment_intent: param(params, 'payment_intent') })
     if (p === '/v1/checkout/sessions' && method === 'POST') {
       const id = `cs_test_${++state.n}`

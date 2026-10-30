@@ -302,6 +302,13 @@
       "when": 1793382545963,
       "tag": "0042_bar_menu_count_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793383551438,
+      "tag": "0043_bar_card_tabs",
+      "breakpoints": true
     }
   ]
 }
