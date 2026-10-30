@@ -9,6 +9,7 @@ import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import RouteBillingPanel from './RouteBillingPanel'
+import RouteInsights from './RouteInsights'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -283,6 +284,8 @@ export default function RecurringRoutesPage() {
             ))}
             {(detail.stops || []).length === 0 && <p className="text-gray-500 dark:text-slate-400 text-sm">No stops yet.</p>}
           </div>
+
+          <RouteInsights routeId={detail.id} onChanged={() => openRoute(detail.id)} />
 
           {mayEditStops && <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end border-t dark:border-slate-700 pt-3">
             <div className="col-span-2">
