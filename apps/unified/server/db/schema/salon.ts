@@ -30,6 +30,8 @@ export const clientProfile = pgTable('client_profile', {
   scalpNotes: text('scalp_notes'),
   allergies: text('allergies'),
   patchTestAt: date('patch_test_at'),
+  /** 'passed' | 'failed'. Null with a date = recorded before results were kept: counts as passed. */
+  patchTestResult: text('patch_test_result'),
   preferences: text('preferences'),                      // drinks, chat/quiet, parking
   pronouns: text('pronouns'),
   birthday: date('birthday'),                            // birthday offers are a real rebooking lever

@@ -24,6 +24,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { appointment, booking, bookingService, contact, serviceMenu } from '../../db/schema/index.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
+import { patchTestHold, ruleOnFor, stateFor } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
@@ -70,7 +71,16 @@ export function createChairBooking(): BookingAddOn {
     questions: [],
     serviceList: { name: SERVICE_LIST },
 
-    async booked(tx, { companyId, contactId, booking: b, service }) {
+    async booked(tx, { companyId, contactId, booking: b, service, by }) {
+      // A service that needs a patch test is not bookable ONLINE without a passing one on record, when the salon asked for that
+      // rule (patchTest.ts); the desk books it with a reason instead (appointments.ts).
+      if (by === 'customer' && service.serviceMenuId) {
+        const [menu] = await tx.select({ requiresPatchTest: serviceMenu.requiresPatchTest, name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, service.serviceMenuId)).limit(1)
+        if (menu?.requiresPatchTest && (await ruleOnFor(tx, companyId))) {
+          const hold = patchTestHold((await stateFor(tx, contactId, new Date().toISOString().slice(0, 10))).state, menu.name || service.name || '')
+          if (hold) throw new BookingError(`${hold} Please call us to arrange a patch test, then book.`, 409, 'patch_test')
+        }
+      }
       // The Book's own lock, so a desk appointment being saved this moment and this booking can't both take the chair
       // (appointments.ts takes it around every create and move).
       await lockAppointmentBook(tx, companyId)

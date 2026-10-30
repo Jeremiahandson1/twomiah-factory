@@ -27,6 +27,7 @@ import type { SalonServices } from './services.ts'
 import { calendarDayWords } from '../../core/dayWords.ts'
 import { OWN_BOOK_SETTING, inOwnChair, isOwnChair, ownBookOnlyFrom } from './bookScope.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from './visitPhotos.ts'
+import { PATCH_TEST_RULE, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -87,6 +88,27 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     live.emitToCompany(u.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     const own = await book.ownChairOf(u)
     return one(c, { [OWN_BOOK_SETTING]: after, ownOnly: !!own, ownStylistIds: own ? [own.userId, ...own.memberIds] : [] })
+  })
+
+  /**
+   * The salon's patch-test rule (patchTest.ts): off by default; on, a service that needs a patch test is held back online
+   * without a passing one on record, and booked at the desk only with a reason. Read by anyone who reads the Book; changed by
+   * whoever changes the company, as the switch above.
+   */
+  app.get('/patch-test-rule', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user') as any
+    return one(c, { [PATCH_TEST_RULE]: await ruleOnFor(db, u.companyId) })
+  })
+  app.put('/patch-test-rule', requirePermission('company:update'), async (c) => {
+    const u = c.get('user') as any
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    if (typeof body[PATCH_TEST_RULE] !== 'boolean') return fail(c, 400, 'Say whether patch-test services are held back: on or off.', 'BAD_SETTING', { [PATCH_TEST_RULE]: 'On or off.' })
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, u.companyId)).limit(1)
+    const settings: any = (typeof co?.settings === 'string' ? JSON.parse(co.settings || '{}') : co?.settings) || {}
+    const before = ruleOn(settings)
+    await db.update(company).set({ settings: { ...settings, [PATCH_TEST_RULE]: body[PATCH_TEST_RULE] }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [PATCH_TEST_RULE]: { before, after: body[PATCH_TEST_RULE] } }, req: { user: u } })
+    return one(c, { [PATCH_TEST_RULE]: body[PATCH_TEST_RULE] })
   })
 
   /** The service, if it is on THIS salon's menu — an unknown id is named, not a foreign-key 409. (Salon T27 N17) */
@@ -261,6 +283,20 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (serviceId && !(await ownService(currentUser.companyId, serviceId))) return fail(c, 404, 'That service is not on your Service Menu.')
     // A seat that may not see prices books at the menu's price, chosen here, and cannot set another (./prices.ts).
     if (!(await canSeeMoney(currentUser))) body.quotedPrice = await menuPrice(db, currentUser.companyId, serviceId)
+    // A service that needs a patch test, for a client without a passing one on record (when the salon switched the rule on):
+    // booked only with a reason, kept on the appointment. (patchTest.ts)
+    let patchNote = ''
+    if (serviceId && body.status !== 'cancelled') {
+      const [menu] = await db.select({ name: serviceMenu.name, requiresPatchTest: serviceMenu.requiresPatchTest }).from(serviceMenu).where(eq(serviceMenu.id, serviceId)).limit(1)
+      if (menu?.requiresPatchTest && (await ruleOnFor(db, currentUser.companyId))) {
+        const hold = patchTestHold((await stateFor(db, body.contactId, await clock.salonToday(currentUser.companyId))).state, menu.name || '')
+        if (hold) {
+          const why = String(body.patchTestOverrideReason || '').trim()
+          if (why.length < 3) return fail(c, 409, `${hold} To book it anyway, say why.`, 'PATCH_TEST_NEEDED', { patchTestOverrideReason: 'Say why you are booking it anyway.' })
+          patchNote = `Booked without a passing patch test — ${why.slice(0, 300)}`
+        }
+      }
+    }
     const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
     if (endTime.getTime() <= startTime.getTime()) return fail(c, 400, 'The end time must be after the start time.')
     if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
@@ -295,7 +331,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           startTime,
           endTime,
           quotedPrice: body.quotedPrice ?? null,
-          notes: body.notes || null,
+          notes: [patchNote, body.notes].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
         }).returning()
         return row

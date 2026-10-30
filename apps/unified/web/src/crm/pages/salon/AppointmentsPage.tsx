@@ -589,9 +589,12 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
     });
   };
 
+  const [needsReason, setNeedsReason] = useState<string>('');
+  const [overrideReason, setOverrideReason] = useState<string>('');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactId) { toast.error('A client is required'); return; }
+    if (needsReason && overrideReason.trim().length < 3) { toast.error('Say why you are booking it anyway'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -606,9 +609,13 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
       if (form.station) payload.station = form.station;
       if (form.quotedPrice !== '') payload.quotedPrice = Number(form.quotedPrice);
       if (form.notes) payload.notes = form.notes;
+      // The salon's patch-test rule: a service that needs a passing test is booked only with a reason, kept on the appointment.
+      if (overrideReason.trim()) payload.patchTestOverrideReason = overrideReason.trim();
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
+      const data = (err as { data?: { code?: string } }).data;
+      if (data?.code === 'PATCH_TEST_NEEDED') { setNeedsReason((err as Error).message || 'This service needs a patch test first.'); return; }
       toast.error((err as Error).message || 'Failed to create appointment');
     } finally {
       setSaving(false);
@@ -682,6 +689,14 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {needsReason && (
+              <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="text-sm text-amber-900 dark:text-amber-100">{needsReason}</p>
+                <label className="mt-2 block text-sm font-medium text-gray-800 dark:text-slate-100">Book it anyway because
+                  <input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Tested in person today" />
+                </label>
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">

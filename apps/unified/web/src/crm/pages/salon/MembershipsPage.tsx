@@ -422,15 +422,6 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
               <label htmlFor="planActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active</label>
             </div>
 
-            {mayAutoCharge && (
-              <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200">
-                <input type="checkbox" checked={autoCharge} onChange={(e) => setAutoCharge(e.target.checked)} className="mt-0.5 h-4 w-4" />
-                <span>
-                  The client agrees to be charged this plan&rsquo;s price to their card on file each period.
-                  <span className="block text-xs text-gray-600 dark:text-slate-300">They need a card on their chart first. It is charged on your own Stripe account, and they are emailed a receipt. If a charge is declined it is tried again, then the invoice is left open for you.</span>
-                </span>
-              </label>
-            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
@@ -497,6 +488,15 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start date</label>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {mayAutoCharge && (
+              <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200">
+                <input type="checkbox" checked={autoCharge} onChange={(e) => setAutoCharge(e.target.checked)} className="mt-0.5 h-4 w-4" />
+                <span>
+                  The client agrees to be charged this plan&rsquo;s price to their card on file each period.
+                  <span className="block text-xs text-gray-600 dark:text-slate-300">They need a card on their chart first. It is charged on your own Stripe account, and they are emailed a receipt. If a charge is declined it is tried again, then the invoice is left open for you.</span>
+                </span>
+              </label>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">

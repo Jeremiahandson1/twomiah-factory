@@ -1,0 +1,1 @@
+ALTER TABLE "client_profile" ADD COLUMN "patch_test_result" text;

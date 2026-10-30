@@ -66,7 +66,7 @@ export type BookingLinks = Partial<Pick<BookingRow, 'appointmentId'>>
 export interface BookingAddOn {
   questions: BookingQuestion[]
   /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
-  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string> }): Promise<BookingLinks | void>
+  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string>; /** Who made it: a customer on the public page, or staff (a desk booking, which may carry its own override). */ by?: 'customer' | 'staff' }): Promise<BookingLinks | void>
   /** After the booking was moved ('moved') or its status changed ('status'), in the same transaction: keep the add-on's record in step. */
   changed?(exec: any, b: BookingRow, change: 'moved' | 'status'): Promise<void>
   /**
@@ -797,7 +797,7 @@ export function createBookingEngine(deps: EngineDeps) {
         // The engine's clock, not the database's: the deposit hold is measured from it.
         createdAt: new Date(now()), updatedAt: new Date(now()),
       }).returning()
-      const links = deps.addOn ? await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers }) : undefined
+      const links = deps.addOn ? await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers, by: opts.by }) : undefined
       if (links && Object.keys(links).length) {
         const [linked] = await tx.update(booking).set(links).where(eq(booking.id, made.id)).returning()
         return linked
