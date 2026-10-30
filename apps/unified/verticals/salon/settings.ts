@@ -184,7 +184,16 @@ const salon: VerticalSettings = {
       reviewerNav: ['messages'],
     },
     leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client inquiries arrive: Google, Meta, Yelp, booking apps and your website' },
-    marketing: { contactTypes: CONTACT_TYPES },
+    // The follow-up sequence form offers "starts after a completed visit / after a lapse" only where the salon has switched on the
+    // automatic messages (hidden feature `retention_sends`); screens.tsx Marketing() drops the choice otherwise.
+    marketing: {
+      contactTypes: CONTACT_TYPES,
+      sequenceTriggersFeature: 'retention_sends',
+      sequenceTriggers: [
+        { value: 'visit_completed', label: 'After a visit is completed' },
+        { value: 'lapsed', label: 'When a client has not been in for a while' },
+      ],
+    },
     messages: {},
     reviews: {},
     // Bookings in the salon's words and places (web/src/crm/vertical.ts VerticalScreens.booking): online bookings land in

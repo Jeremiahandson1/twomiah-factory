@@ -197,7 +197,10 @@ export function Reviews() {
 export function Marketing() {
   const { hasFeature, company } = useAuth()
   const { pickOne } = usePhotoPicker()
-  const config = { ...(v().marketing as any), brand: { name: company?.name, color: company?.primaryColor, logo: company?.logo }, pickImage: () => pickOne('') }
+  // A vertical may offer automatic starts for its follow-up sequences, but only once the business has the feature that fires them.
+  const { sequenceTriggersFeature, ...offered } = (v().marketing as any) || {}
+  if (sequenceTriggersFeature && !hasFeature(sequenceTriggersFeature)) delete offered.sequenceTriggers
+  const config = { ...offered, brand: { name: company?.name, color: company?.primaryColor, logo: company?.logo }, pickImage: () => pickOne('') }
   return <MarketingPage api={client} toast={useToast()} config={config} showCampaigns={hasFeature('email_marketing')} />
 }
 // The reply box carries pictures and sends later (crm/textComposer.tsx).

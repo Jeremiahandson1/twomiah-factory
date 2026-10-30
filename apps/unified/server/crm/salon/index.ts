@@ -19,6 +19,7 @@ import { createAppointmentRoutes } from './appointments.ts'
 import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
+import { createRetention, createRetentionRoutes } from './retention.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -72,6 +73,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
   // Stylist commissions: the stylist of a paid visit earns by themselves (not ready: owner tests it first).
+  const retention = createRetention(d, s)
+  // The timed pass: every 15 minutes, for each salon with automatic sends on (retention.ts). Boot only, never in tests.
+  if (salonBook) d.services.addJob(() => { setTimeout(() => { void retention.passForAll() }, 3 * 60_000); setInterval(() => { void retention.passForAll() }, 15 * 60_000) })
   const commissions = createSalonCommissions(d)
   d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
@@ -93,6 +97,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
       { path: '/api/intake-forms', access: 'user', feature: 'intake_forms', router: createIntakeFormRoutes(d) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
+    // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
+    ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
     // The paused member's private card page, linked from the email (404 while Card on file is off).

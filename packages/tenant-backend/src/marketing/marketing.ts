@@ -63,7 +63,8 @@ export interface MarketingRoutesDeps {
 }
 
 export class MarketingError extends Error { constructor(message: string, public status: number) { super(message) } }
-export const SEQUENCE_TRIGGERS = ['manual', 'new_customer', 'quote_sent', 'invoice_paid'] as const
+// 'visit_completed' and 'lapsed' are fired by the salon's retention sends (apps/unified crm/salon/retention.ts); the others are stored and not fired.
+export const SEQUENCE_TRIGGERS = ['manual', 'new_customer', 'quote_sent', 'invoice_paid', 'visit_completed', 'lapsed'] as const
 export const AUDIENCE_TYPES = ['all', 'segment', 'contacts'] as const
 const rows = (r: any): any[] => (r?.rows ?? (Array.isArray(r) ? r : [])) as any[]
 const first = (r: any): any => rows(r)[0] ?? null

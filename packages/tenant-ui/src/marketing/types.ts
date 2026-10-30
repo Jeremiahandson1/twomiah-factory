@@ -8,6 +8,11 @@ export interface MarketingApi {
 export interface MarketingToast { success: (msg: string) => void; error: (msg: string) => void }
 
 export interface MarketingConfig {
+  /**
+   * Automatic starts a sequence can have besides manual enrolment (the salon's "after a completed visit" and "after a lapse"). Absent: the
+   * sequence form has no trigger picker and every sequence is manual, exactly as before.
+   */
+  sequenceTriggers?: Array<{ value: string; label: string }>
   /** Contact types offered in the segment picker (the template's contactsConfig types). */
   contactTypes?: Array<{ value: string; label: string }>
   /** Wording — "Drip Sequences" (trades) or "Follow-Ups" (dealership). */

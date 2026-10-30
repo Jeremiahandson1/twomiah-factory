@@ -249,3 +249,24 @@ export async function salonTeamProductivity(db: any, companyId: string, range: {
   }
   return out.sort((a, b) => b.revenue - a.revenue || b.servicesCompleted - a.servicesCompleted)
 }
+
+// ─── Retention sends (crm/salon/retention.ts) ─────────────────────────────────────────────────────────────────────────
+
+/** Clients whose most recent visit was on or after `from` and before `to` — the ones who crossed a lapse line in that stretch. */
+export async function clientsLastSeenBetween(db: any, companyId: string, from: string, to: string, cap: number) {
+  const rows = await db.select({ contactId: contact.id, lastVisit: sql<string | null>`max(${serviceRecord.performedAt})` })
+    .from(contact)
+    .innerJoin(serviceRecord, eq(serviceRecord.contactId, contact.id))
+    .where(and(eq(contact.companyId, companyId), eq(serviceRecord.companyId, companyId)))
+    .groupBy(contact.id)
+    .having(sql`max(${serviceRecord.performedAt}) >= ${from} and max(${serviceRecord.performedAt}) < ${to}`)
+    .limit(cap)
+  return rows as Array<{ contactId: string; lastVisit: string | null }>
+}
+
+/** The active follow-up sequences a trigger starts (marketing's drip_sequence, trigger 'visit_completed' or 'lapsed'). */
+export async function activeSequencesForTrigger(db: any, companyId: string, trigger: string): Promise<string[]> {
+  const res: any = await db.execute(sql`SELECT id FROM drip_sequence WHERE company_id = ${companyId} AND trigger = ${trigger} AND active = true`)
+  const rows: any[] = res?.rows ?? (Array.isArray(res) ? res : [])
+  return rows.map((r) => String(r.id))
+}

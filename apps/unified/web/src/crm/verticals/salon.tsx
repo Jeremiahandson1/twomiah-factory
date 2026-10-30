@@ -2,7 +2,7 @@
 // their menu items, each gated by the template's features so no other vertical sees them (docs/UNIFIED_MOVE_GUIDE.md).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, Scissors, Users } from 'lucide-react'
+import { BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, MessageSquareText, Scissors, Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -16,6 +16,7 @@ const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
 const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
 const CardOnFileSettingsPage = page(() => import('../pages/salon/CardOnFileSettingsPage'))
 const IntakeFormsSettingsPage = page(() => import('../pages/salon/IntakeFormsSettingsPage'))
+const AutomaticMessagesSettingsPage = page(() => import('../pages/salon/AutomaticMessagesSettingsPage'))
 
 /**
  * The salon's own dashboard (the book today, the month by chair, who is due back), shown at /crm/dashboard in place of
@@ -35,6 +36,7 @@ export const routes: ReactElement[] = [
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
   <Route key="salon-card-on-file-settings" path="settings/card-on-file" element={<CardOnFileSettingsPage />} />,
   <Route key="salon-intake-forms-settings" path="settings/intake-forms" element={<IntakeFormsSettingsPage />} />,
+  <Route key="salon-automatic-messages-settings" path="settings/automatic-messages" element={<AutomaticMessagesSettingsPage />} />,
 ]
 
 /**
@@ -48,6 +50,8 @@ export const SETTINGS_EXTRA = [
   { to: '/crm/settings/card-on-file', label: 'Card on file', icon: CreditCard, permission: 'company:update', feature: 'card_on_file' },
   // Intake and consent forms (/api/intake-forms writes ask company:update, behind `intake_forms`).
   { to: '/crm/settings/intake-forms', label: 'Intake & consent forms', icon: ClipboardList, permission: 'company:update', feature: 'intake_forms' },
+  // Automatic rebooking / birthday / win-back / next-visit messages (/api/retention writes ask company:update, behind `retention_sends`).
+  { to: '/crm/settings/automatic-messages', label: 'Automatic messages', icon: MessageSquareText, permission: 'company:update', feature: 'retention_sends' },
 ]
 
 /**

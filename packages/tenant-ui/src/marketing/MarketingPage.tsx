@@ -74,7 +74,7 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
       )}
       {tab === 'campaigns' && showCampaigns && <CampaignsTab api={api} toast={toast} contactTypes={contactTypes} look={look} onChanged={loadStats} />}
       {tab === 'templates' && showCampaigns && <TemplatesTab api={api} toast={toast} look={look} />}
-      {(tab === 'sequences' || tabs.length === 1) && showSequences && <SequencesTab api={api} toast={toast} label={seqLabel} look={look} onChanged={loadStats} />}
+      {(tab === 'sequences' || tabs.length === 1) && showSequences && <SequencesTab api={api} toast={toast} label={seqLabel} look={look} triggers={config?.sequenceTriggers} onChanged={loadStats} />}
     </div>
   )
 }
@@ -315,7 +315,7 @@ function TemplateForm({ api, toast, template, look, onSaved, onClose }: { api: M
 }
 
 // ─── sequences ────────────────────────────────────────────────────────────────
-function SequencesTab({ api, toast, label, look, onChanged }: { api: MarketingApi; toast: MarketingToast; label: string; look: EditorLook; onChanged: () => void }) {
+function SequencesTab({ api, toast, label, look, triggers, onChanged }: { api: MarketingApi; toast: MarketingToast; label: string; look: EditorLook; triggers?: Array<{ value: string; label: string }>; onChanged: () => void }) {
   const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
   const copy = marketingCopy()
   const [rows, setRows] = useState<Sequence[]>([])
@@ -364,14 +364,14 @@ function SequencesTab({ api, toast, label, look, onChanged }: { api: MarketingAp
           )}
         </div>
       ))}
-      {form.open && <SequenceForm api={api} toast={toast} sequence={form.sequence} label={label} look={look} onSaved={() => { setForm({ open: false, sequence: null }); refresh() }} onClose={() => setForm({ open: false, sequence: null })} />}
+      {form.open && <SequenceForm api={api} toast={toast} sequence={form.sequence} label={label} look={look} triggers={triggers} onSaved={() => { setForm({ open: false, sequence: null }); refresh() }} onClose={() => setForm({ open: false, sequence: null })} />}
       {enroll && <EnrollModal api={api} toast={toast} sequence={enroll} onDone={() => { setEnroll(null); refresh() }} onClose={() => setEnroll(null)} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete sequence" message={copy.sequenceDeleted(toDelete?.name || '')} confirmText="Delete" />
     </div>
   )
 }
-function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence | null; label: string; look: EditorLook; onSaved: () => void; onClose: () => void }) {
-  const [form, setForm] = useState<{ name: string; active: boolean; steps: Step[] }>({ name: sequence?.name || '', active: sequence ? !!sequence.active : true, steps: sequence?.steps?.length ? sequence.steps.map((s) => ({ delayDays: Number(s.delayDays || 0), delayHours: Number(s.delayHours || 0), subject: s.subject || '', body: s.body || '' })) : [{ delayDays: 0, delayHours: 0, subject: '', body: '' }] })
+function SequenceForm({ api, toast, sequence, label, look, triggers, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; sequence: Sequence | null; label: string; look: EditorLook; triggers?: Array<{ value: string; label: string }>; onSaved: () => void; onClose: () => void }) {
+  const [form, setForm] = useState<{ name: string; trigger: string; active: boolean; steps: Step[] }>({ name: sequence?.name || '', trigger: triggers?.some((t) => t.value === sequence?.trigger) ? String(sequence?.trigger) : 'manual', active: sequence ? !!sequence.active : true, steps: sequence?.steps?.length ? sequence.steps.map((s) => ({ delayDays: Number(s.delayDays || 0), delayHours: Number(s.delayHours || 0), subject: s.subject || '', body: s.body || '' })) : [{ delayDays: 0, delayHours: 0, subject: '', body: '' }] })
   const unsaved = useUnsaved(form, onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -390,7 +390,8 @@ function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: {
       // under the cursor. They become numbers here, once.
       const steps = form.steps.map((s) => ({ ...s, delayDays: Number(s.delayDays) || 0, delayHours: Number(s.delayHours) || 0 }))
       if (steps.some((s) => s.delayDays < 0 || s.delayHours < 0)) { toast.error('A step delay cannot be negative.'); return }
-      const payload = { name: form.name.trim(), trigger: 'manual', active: form.active, steps }
+      // A template that offers automatic starts (MarketingConfig.sequenceTriggers) lets the owner pick one; every other template stays manual.
+      const payload = { name: form.name.trim(), trigger: triggers ? form.trigger : 'manual', active: form.active, steps }
       if (sequence) await api.put(`/api/marketing/sequences/${sequence.id}`, payload); else await api.post('/api/marketing/sequences', payload)
       toast.success(sequence ? 'Sequence updated' : 'Sequence created'); onSaved()
     } catch (e) { setError(errMsg(e, 'Failed to save sequence')) } finally { setSaving(false) }
@@ -403,6 +404,14 @@ function SequenceForm({ api, toast, sequence, label, look, onSaved, onClose }: {
           <Field label="Name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
           <Field label="Status"><select value={form.active ? 'active' : 'paused'} onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === 'active' }))} className={inputCls}><option value="active">{copy.sequenceActive}</option><option value="paused">Paused</option></select></Field>
         </div>
+        {triggers && triggers.length > 0 && (
+          <Field label="Starts">
+            <select value={form.trigger} onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))} className={inputCls}>
+              <option value="manual">When I enroll someone</option>
+              {triggers.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </Field>
+        )}
         <p className="text-xs text-gray-500 dark:text-slate-400">{copy.sequenceHowEnrolled}</p>
         <div className="space-y-3">
           <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm((f) => ({ ...f, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] }))} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add step</button></div>

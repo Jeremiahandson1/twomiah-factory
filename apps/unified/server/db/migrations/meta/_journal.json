@@ -337,6 +337,13 @@
       "when": 1793391021870,
       "tag": "0047_salon_commission_sales_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793392652666,
+      "tag": "0048_retention_send",
+      "breakpoints": true
     }
   ]
 }

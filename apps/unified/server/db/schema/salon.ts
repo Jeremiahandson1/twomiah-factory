@@ -363,3 +363,29 @@ export const intakeResponse = pgTable('intake_response', {
   index('intake_response_contact_idx').on(t.companyId, t.contactId),
   uniqueIndex('intake_response_once_idx').on(t.formId, t.contactId, t.bookingToken),
 ])
+
+/**
+ * What the salon's automatic retention sends (feature `retention_sends`) did, one row per client per event: a rebooking on its due date,
+ * a birthday (that year), a win-back (that lapse), a "book your next visit" prompt (that visit), a follow-up sequence started. The unique
+ * key is what makes a pass safe to run any number of times — the second look finds the row and sends nothing.
+ */
+export const retentionSend = pgTable('retention_send', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** 'rebook' | 'birthday' | 'win_back' | 'next_visit' | 'drip_visit_completed' | 'drip_lapsed' */
+  kind: text('kind').notNull(),
+  /** What this send is for: the due date and category, the year, the last visit's date, the appointment. */
+  eventKey: text('event_key').notNull(),
+  /** 'sms' | 'email' | 'drip' | null when nothing could be sent. */
+  channel: text('channel'),
+  /** 'sent' | 'skipped' | 'failed' */
+  status: text('status').notNull(),
+  /** Why it was skipped or failed, in words. */
+  reason: text('reason'),
+  message: text('message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('retention_send_once').on(t.companyId, t.contactId, t.kind, t.eventKey),
+  index('retention_send_company_created_idx').on(t.companyId, t.createdAt),
+])
