@@ -10,7 +10,7 @@
 // (Landscaping T14 H4: refunding the rest of a paid $1,000 invoice took it out of "invoiced" retroactively,
 // while a partial refund kept it at full value.)
 import { Hono } from 'hono'
-import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull, asc } from 'drizzle-orm'
+import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull, asc, type SQL } from 'drizzle-orm'
 import { overdueCutoff } from '../invoicing/money'
 import { companyTimeZone, storeDayRange, storeDayStart, storeDateString } from '../time/businessDay'
 
@@ -50,6 +50,13 @@ export interface ReportingOptions {
    * extra query.
    */
   featuresFor?: (companyId: string) => Promise<string[]>
+  /**
+   * A condition on the invoice table that is TRUE for an invoice that counts as revenue. An invoice that fails it is left out of
+   * invoiced / collected / refunded, the monthly trend, top customers and revenue by branch — the salon passes "not the sale of a gift
+   * card" (a card sold is a liability, its money is revenue when it is spent). Optional on purpose: without it every figure is exactly
+   * what it always was. Balances (outstanding / overdue) are not revenue and are not filtered.
+   */
+  revenueOnly?: SQL
 }
 
 export interface TeamProductivityRow {
@@ -115,20 +122,22 @@ export function createReportingService(deps: ReportingDeps) {
   // otherwise legacy rows stored as status='overdue' silently drop out of outstanding AND overdue and
   // the dashboard disagrees with Reports / the invoice list. See scripts/check-money-model.ts.
   const balanceExpr = sql`CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END`
+  // Only invoices that are revenue (ReportingOptions.revenueOnly); absent, nothing is left out.
+  const onlyRevenue: SQL[] = deps.options?.revenueOnly ? [deps.options.revenueOnly] : []
   const inRange = (col: any, range: DateRange) => [range.gte ? gte(col, range.gte) : undefined, range.lte ? lte(col, range.lte) : undefined].filter(Boolean) as any[]
 
   // ---------------------------------------------------------------- revenue
 
   async function revenueOverview(companyId: string, range: DateRange) {
     const [inv] = await db.select({ total: sum(t.invoice.total), count: count() }).from(t.invoice)
-      .where(and(eq(t.invoice.companyId, companyId), billed, ...inRange(t.invoice.createdAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), billed, ...onlyRevenue, ...inRange(t.invoice.createdAt, range)))
     const [col] = await db.select({ total: sum(t.payment.amount) }).from(t.payment)
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-      .where(and(eq(t.invoice.companyId, companyId), ...inRange(t.payment.paidAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), ...onlyRevenue, ...inRange(t.payment.paidAt, range)))
     // money returned in the period (refund rows are negative payments, dated when refunded)
     const [ref] = await db.select({ total: sql<string>`coalesce(sum(-(${t.payment.amount}::numeric)), 0)` }).from(t.payment)
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-      .where(and(eq(t.invoice.companyId, companyId), sql`${t.payment.amount}::numeric < 0`, ...inRange(t.payment.paidAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), sql`${t.payment.amount}::numeric < 0`, ...onlyRevenue, ...inRange(t.payment.paidAt, range)))
     // Balances are a point-in-time figure — what is owed right now, whatever the period picker says.
     const [out] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued))
@@ -160,10 +169,10 @@ export function createReportingService(deps: ReportingDeps) {
     const monthOf = (at: Date) => storeDateString(at, tz).slice(0, 7)
     const [invoices, payments] = await Promise.all([
       db.select({ total: t.invoice.total, createdAt: t.invoice.createdAt }).from(t.invoice)
-        .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), billed)),
+        .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), billed, ...onlyRevenue)),
       db.select({ amount: t.payment.amount, paidAt: t.payment.paidAt }).from(t.payment)
         .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-        .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start))),
+        .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start), ...onlyRevenue)),
     ])
     const rows: Record<string, { month: string; invoiced: number; collected: number }> = {}
     for (const k of keys) rows[k] = { month: k, invoiced: 0, collected: 0 }
@@ -181,7 +190,7 @@ export function createReportingService(deps: ReportingDeps) {
     const collectedExpr = sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
     const rows = await db.select({ contactId: t.invoice.contactId, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
       .from(t.invoice)
-      .where(and(eq(t.invoice.companyId, companyId), isNotNull(t.invoice.contactId), billed, ...inRange(t.invoice.createdAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), isNotNull(t.invoice.contactId), billed, ...onlyRevenue, ...inRange(t.invoice.createdAt, range)))
       .groupBy(t.invoice.contactId)
       .orderBy(desc(collectedExpr), desc(sum(t.invoice.total)))
       .limit(limit)
@@ -213,7 +222,7 @@ export function createReportingService(deps: ReportingDeps) {
     // GROUP BY 1: the branch expression is a subquery, and grouping by its text again would be a second copy of it.
     const rows = await db.select({ locationId: branchExpr, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
       .from(t.invoice)
-      .where(and(eq(t.invoice.companyId, companyId), billed, ...inRange(t.invoice.createdAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), billed, ...onlyRevenue, ...inRange(t.invoice.createdAt, range)))
       .groupBy(sql`1`)
     const ids = rows.map((r: any) => r.locationId).filter(Boolean) as string[]
     const branches = ids.length ? await db.select({ id: t.location.id, name: t.location.name, code: t.location.code }).from(t.location)
@@ -282,7 +291,7 @@ export function createReportingService(deps: ReportingDeps) {
     if (!ids.length) return []
     const [invoiceTotals, jobCounts] = await Promise.all([
       db.select({ projectId: t.invoice.projectId, invoiced: sum(t.invoice.total), collected: sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)` })
-        .from(t.invoice).where(and(inArray(t.invoice.projectId, ids), billed)).groupBy(t.invoice.projectId),
+        .from(t.invoice).where(and(inArray(t.invoice.projectId, ids), billed, ...onlyRevenue)).groupBy(t.invoice.projectId),
       db.select({ projectId: t.job.projectId, count: count() }).from(t.job).where(inArray(t.job.projectId, ids)).groupBy(t.job.projectId),
     ])
     const inv = new Map(invoiceTotals.map((i: any) => [i.projectId, i]))

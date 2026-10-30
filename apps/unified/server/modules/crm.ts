@@ -33,7 +33,7 @@ import {
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
-import { salonTeamProductivity } from '../data/salon.ts'
+import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
@@ -322,6 +322,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.invoices?.tips ? { tips: true } : {}),
       ...(v.invoices?.clock === 'booking' ? { timeZoneFor: (companyId: string) => salonClock.salonTimezone(companyId) } : {}),
       // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
+      // A gift card's sale is not revenue (data/salon.ts notGiftCardSale): the list's money totals leave it out, as Reports do.
+      ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
@@ -460,6 +462,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       db, tables: { invoice, payment, job, project, quote, timeEntry, user, contact, teamMember, location }, authenticate, requirePermission,
       options: {
         featuresFor: features.enabledFeaturesFor,
+        // The same condition the invoice list's totals use: the sale of a gift card is a liability, not revenue.
+        ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
         // A chair is measured by the services it performed and what they took (templates/crm-salon routes/reporting.ts, Salon T28 M6).
         ...(v.reports?.teamProductivity === 'serviceRecords' ? { teamProductivity: (companyId: string, range: { gte?: Date; lte?: Date }) => salonTeamProductivity(db, companyId, range) } : {}),
       },

@@ -95,6 +95,13 @@ export interface InvoiceOptions {
    * exactly as before. (Salon gift cards, apps/unified crm/salon/giftCards.ts)
    */
   refundTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
+  /**
+   * A condition on the invoice table that is TRUE for an invoice that counts as revenue. An invoice that fails it still lists, opens
+   * and takes payments as any other, but its money is left out of the list's money totals (/stats: totalAmount, paidAmount,
+   * outstanding, refundedAmount) — the salon passes "not the sale of a gift card", because a card sold is a liability and its money
+   * is revenue when it is spent. Absent: every invoice counts, exactly as before. Reports take the same condition (ReportingOptions.revenueOnly).
+   */
+  revenueOnly?: any
   accountBalance?: {
     /** Take `amount` off the invoice's client. A returned message refuses the payment. */
     spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
@@ -741,21 +748,23 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // visit and not the second. (T62; owner's decision 2026-10-09)
   app.get('/stats', requirePermission('invoices:read'), requirePermission('revenue:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
+    const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, ...(deps.options?.revenueOnly ? { isRevenue: sql<boolean>`${deps.options.revenueOnly}` } : {}) }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
     const tz = await zoneOf(currentUser.companyId)
     for (const inv of invoices) {
       const s = derive(inv, tz)
       stats[s] = (stats[s] || 0) + 1
-      if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
+      // An invoice that is not revenue (InvoiceOptions.revenueOnly: a gift card's sale) is counted in the invoice tallies above and left out of the money.
+      const revenue = (inv as any).isRevenue !== false
+      if (revenue && inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
-      if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
+      if (revenue && inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
       // Money that went back went back, whatever became of the invoice afterwards — and voiding REQUIRES the
       // refund first ("Refund them first, then void"), so a void invoice is precisely where refunds end up. That
       // is why skipping them here disagreed with Reports, which counts the refund ledger and cannot see a status.
       // paidAmount still skips void, and does not need to: a void invoice's paid − refunded is 0 by that rule.
       // (Contractor T29 L3)
-      stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
+      if (revenue) stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
     }
     return c.json(stats)
   })

@@ -26,12 +26,22 @@ export async function serviceNamedOnMenu(db: any, companyId: string, name: strin
   return dupe?.id ?? null
 }
 
-/** Money the client actually paid, net of refunds, across every live invoice (Salon T27 N9). */
+/**
+ * THE one definition of "this invoice is not revenue": it is the sale of a gift card. Selling a card is a liability (money owed to the
+ * holder), not income; the income is counted when the card is SPENT, as a payment by gift card on the service or product it paid for.
+ * Without this a $50 card sold and then spent on a $50 service read as $100 in every invoice-based total. Every place that adds
+ * invoices up uses this one condition (follow-up 10/30 to PR #167): the shared Reports and the invoice list's stats are handed it by
+ * the salon vertical (CrmSettings.invoices.giftCardSalesAreLiability), and the client's lifetime spend below uses it directly. It reads
+ * the card's own row (salon_gift_card.invoice_id), not the invoice's lines, so editing a sale's lines cannot turn it back into revenue.
+ */
+export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id})`
+
+/** Money the client actually paid, net of refunds, across every live invoice that is revenue (Salon T27 N9; gift-card sales are not, follow-up 10/30). */
 export async function clientLifetimePaid(db: any, companyId: string, contactId: string): Promise<number> {
   const [row] = await db
     .select({ paid: sql<string>`COALESCE(SUM(GREATEST(0, COALESCE(${invoice.amountPaid}::numeric, 0) - COALESCE(${invoice.amountRefunded}::numeric, 0))), 0)` })
     .from(invoice)
-    .where(and(eq(invoice.contactId, contactId), eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('draft', 'void')`))
+    .where(and(eq(invoice.contactId, contactId), eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('draft', 'void')`, notGiftCardSale))
   return Math.round(Number(row?.paid || 0) * 100) / 100
 }
 
