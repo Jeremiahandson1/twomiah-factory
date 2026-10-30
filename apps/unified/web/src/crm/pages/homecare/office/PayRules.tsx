@@ -4,7 +4,7 @@
 //   (server/crm/homecare/payroll/payRulesRoutes.ts)
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../../../../shared'
-import { api, errorMessage, downloadBlob, saveBlob } from '../lib/http'
+import { api, errorMessage, downloadFile, saveBlob } from '../lib/http'
 import { agencyToday } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
 
@@ -49,8 +49,9 @@ export default function PayRules() {
   }
   const download = async (kind: 'adp' | 'paychex') => {
     try {
-      const blob = await downloadBlob(`/api/pay-rules/export/${kind}?startDate=${start}&endDate=${end}`)
-      saveBlob(blob, kind === 'adp' ? `EPI-${end}.csv` : `paychex_hours_${start}_${end}.csv`)
+      // The file keeps the name the server gave it: ADP reads the name (EPI + company code + batch number), so it must not be changed.
+      const { blob, fileName } = await downloadFile(`/api/pay-rules/export/${kind}?startDate=${start}&endDate=${end}`)
+      saveBlob(blob, fileName || (kind === 'adp' ? `EPI-${end}.csv` : `paychex_hours_${start}_${end}.csv`))
     } catch (e) { toast.error(errorMessage(e)) }
   }
 

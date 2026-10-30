@@ -8,7 +8,7 @@
 //   · Pay: the caregiver's regular and overtime rates (payrollPay's), with the overtime of each work week put on the
 //     shifts that crossed the 40-hour line, in the order they were worked — so a client whose shifts fell past 40 hours
 //     bears the overtime cost. Plus mileage paid on trips recorded against the client. Paid travel TIME between visits is
-//     not in the report until the payroll item that pays it exists.
+//     in the report for an agency with care_payroll_rules (the same figure payroll pays); without it, it is not.
 //   · Money in cents; a per-15-minute rate bills units (hours × 4), as invoices do.
 //
 // TURNOVER: hires, departures and headcount over a window, from the caregiver list (there is no separation date on file,

@@ -101,7 +101,7 @@ export default function MarginReports() {
               </table>
             </div>
           )}
-          <p className="text-xs mt-2 text-gray-600 dark:text-slate-400">Pay is the same figure payroll uses (overtime goes on the visits that went past 40 hours in a week). Travel time between visits is not included yet.</p>
+          <p className="text-xs mt-2 text-gray-600 dark:text-slate-400">Pay is the same figure payroll uses (overtime goes on the visits that went past 40 hours in a week). Paid travel time and double time are included when Pay rules are on.</p>
         </>
       )}
 
