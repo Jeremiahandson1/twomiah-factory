@@ -64,7 +64,7 @@ Ray casting on flat latitude/longitude is accurate for tens of miles; it is not 
 
 ## What this change builds
 - Geometry: `server/crm/roof/field/geo.ts` (shapes, validation, point-in-shape, zip fallback) and `customerGeo.ts` (who is inside).
-- Storm paths: `storm_event.path` (migration `0041_roof_storm_territories`); `PUT /api/storm-map/events/:id/path`;
+- Storm paths: `storm_event.path` (migration `0042_roof_storm_territories`); `PUT /api/storm-map/events/:id/path`;
   `GET /api/storm-map/events/:id/customers`; the storm board's `generate-leads` reads the path.
 - Check NOAA now: `POST /api/storm-map/noaa-check` → `stormData.runStormCheck(companyId)`.
 - Territories: tables `canvass_territory` and `canvass_territory_rep`; `/api/territories` (list, one with stats, create, edit,
