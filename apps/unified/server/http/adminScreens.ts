@@ -10,8 +10,9 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 
 /** The paths that open the admin's page (react-router takes it from there). */
 // /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link; /d/<token>
-// is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*']
+// is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts); /w/<token> is a
+// crew's or sub's work order, the link in the text (server/crm/roof/crewLink.ts).
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/w/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client
@@ -33,6 +34,7 @@ const PUBLIC_TITLES: Array<[RegExp, string]> = [
   [/^\/portal(\/|$)/, 'Customer portal'],
   [/^\/d\//, 'Your quote or invoice'],
   [/^\/vendor\//, 'Vendor portal'],
+  [/^\/w\//, 'Work order'],
   [/^\/family(\/|$)/, 'Family portal'],
   [/^\/pay\//, 'Pay your invoice'],
   [/^\/payment-success$/, 'Payment received'],
