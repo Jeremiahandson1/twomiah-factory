@@ -9,7 +9,7 @@ import { forwardConnectEvent, responseStatusFor } from '../../services/connectWe
 import { raiseAlert, clearAlert } from '../../services/alerts'
 import { notifyBillingPastDue, notifyMessagingEnabled, notifyReactivated } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
-import { PRODUCTS, getProductDefaults } from '../../config/pricing'
+import { PRODUCTS, getProductDefaults, publicPlans } from '../../config/pricing'
 import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
@@ -1092,10 +1092,12 @@ factory.get('/plans', async (c) => {
   try {
     const { data } = await supabase.from('factory_pricing').select('*').eq('product', product).single()
     if (data) {
+      // Seat plans for the products that sell them (config/pricing.ts publicPlans); the stored tiers for any other.
+      const shown = publicPlans(product, data)
       return c.json({
         product,
-        plans: data.saas_tiers,
-        selfHosted: data.self_hosted,
+        plans: shown.plans,
+        selfHosted: shown.selfHosted,
         selfHostedAddons: data.self_hosted_addons,
         deployServices: data.deploy_services,
         addons: data.feature_bundles,
@@ -1106,10 +1108,11 @@ factory.get('/plans', async (c) => {
   try {
     await supabase.from('factory_pricing').upsert({ product, ...defaults })
   } catch {}
+  const shown = publicPlans(product, defaults)
   return c.json({
     product,
-    plans: defaults.saas_tiers,
-    selfHosted: defaults.self_hosted,
+    plans: shown.plans,
+    selfHosted: shown.selfHosted,
     selfHostedAddons: defaults.self_hosted_addons,
     deployServices: defaults.deploy_services,
     addons: defaults.feature_bundles,

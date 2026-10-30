@@ -17,7 +17,10 @@ type Props = {
 export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: Props) {
   const meta = PRODUCT_META[product]
   const plans = PLANS_BY_PRODUCT[product]
-  const isAnnual = plan.billingCycle === 'annual'
+  // Annual billing is only shown when some plan is actually cheaper billed yearly. The seat plans are not (annual == monthly),
+  // so the toggle and its "Save 15%" are hidden rather than promise a discount nobody gets.
+  const annualOffered = plans.some(p => p.annual < p.monthly)
+  const isAnnual = annualOffered && plan.billingCycle === 'annual'
 
   const selectedPlan = plans.find(p => p.id === plan.planId)
 
@@ -70,6 +73,7 @@ export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: 
       </div>
 
       {/* Billing toggle */}
+      {annualOffered ? (
       <div className="flex items-center justify-center gap-3 my-6">
         <span className={`text-sm font-medium ${!isAnnual ? 'text-white' : 'text-gray-500'}`}>Monthly</span>
         <button onClick={toggleBilling}
@@ -82,6 +86,7 @@ export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: 
           <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Save 15%</span>
         </span>
       </div>
+      ) : <div className="my-6" />}
 
       {/* Plan cards */}
       <div className={`grid gap-3 mb-8 ${plans.length <= 2 ? 'grid-cols-2' : plans.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
@@ -108,7 +113,12 @@ export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: 
 
               {/* Feature diff: show what this tier adds over the previous */}
               <div className="flex-1 space-y-1.5">
-                {idx === 0 ? (
+                {p.features.length === 0 ? (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-300">
+                    <Check size={10} className="text-green-500 flex-shrink-0" />
+                    <span>Every standard feature included</span>
+                  </div>
+                ) : idx === 0 ? (
                   p.features.slice(0, 6).map(f => (
                     <div key={f} className="flex items-center gap-1.5 text-xs text-gray-300">
                       <Check size={10} className="text-green-500 flex-shrink-0" />
