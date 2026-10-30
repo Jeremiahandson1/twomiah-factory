@@ -64,6 +64,8 @@ export default function ProjectsPage() {
   }, [searchParams]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
+  // The contact a project is being started for from the Lead Inbox, kept apart from the picker's list so a reload of that list cannot drop them.
+  const [startContact, setStartContact] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [search, setSearch] = useState('');
@@ -95,7 +97,28 @@ export default function ProjectsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  const openCreate = () => { setEditing(null); setForm(initialForm); setModalOpen(true); };
+  const openCreate = (contactId = '') => { setEditing(null); setForm({ ...initialForm, contactId }); setModalOpen(true); };
+
+  // A lead that has just become a contact starts a project from the Lead Inbox (/crm/projects?new=1&contactId=…): the form
+  // opens with that person chosen. Their record is fetched if the first page of the picker does not hold them.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || !can('projects:create')) return;
+    const contactId = searchParams.get('contactId') || '';
+    let cancelled = false;
+    const finish = () => {
+      if (cancelled) return;
+      openCreate(contactId);
+      searchParams.delete('new'); searchParams.delete('contactId');
+      setSearchParams(searchParams, { replace: true });
+    };
+    if (!contactId) { finish(); return () => { cancelled = true; }; }
+    api.contacts.get(contactId).then((row: unknown) => {
+      if (cancelled || !row) return;
+      setStartContact(row as Record<string, unknown>);
+    }).catch(() => {}).finally(finish);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ ...initialForm, ...(item as unknown as ProjectForm), startDate: (item.startDate as string)?.split('T')[0] || '', endDate: (item.endDate as string)?.split('T')[0] || '', estimatedValue: (item.estimatedValue as string) || '', budget: (item.budget as string) || '' }); setModalOpen(true); };
 
   const handleSave = async () => {
@@ -126,7 +149,7 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="Projects" action={can('projects:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Project</Button> : undefined} />
+      <PageHeader title="Projects" action={can('projects:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>Add Project</Button> : undefined} />
       <div className="mb-4 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -145,7 +168,7 @@ export default function ProjectsPage() {
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Type</label><select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select></div>
-          <div><label className="block text-sm font-medium mb-1">Client</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, contactId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{contacts.filter((c: Record<string, unknown>) => c.type === 'client').map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
+          <div><label className="block text-sm font-medium mb-1">Client</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, contactId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{[...contacts, ...(startContact && !contacts.some((c) => c.id === startContact.id) ? [startContact] : [])].filter((c: Record<string, unknown>) => c.type === 'client' || (!!form.contactId && c.id === form.contactId)).map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Estimated Value</label><input type="number" value={form.estimatedValue} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, estimatedValue: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Budget</label><input type="number" value={form.budget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, budget: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Start Date</label><input type="date" value={form.startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

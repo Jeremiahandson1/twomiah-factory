@@ -4,8 +4,8 @@
 // no-op. Now every call goes through the api client (refresh + retry), errors are shown, and the inbox refreshes live
 // on lead:created / lead:updated when the template passes its socket subscribe.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink, ShieldAlert, ArrowRight } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TextButton } from '../text/TextButton'
 import { TRADES_LEAD_PLATFORMS, BUILT_IN_LEAD_PLATFORMS } from './types'
@@ -16,7 +16,11 @@ import { codeLabel } from '../labels/codes'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
-  totals: { total: number; new: number; contacted: number; converted: number; dismissed: number }
+  totals: { total: number; new: number; contacted: number; converted: number; dismissed: number; spam?: number }
+  /** All-time number of enquiries in each status (the server sends it with the Spam status). */
+  counts?: Record<string, number>
+  /** The dashboard's New leads number and what it is made of: enquiries here, and contacts added as leads nobody has acted on. */
+  waiting?: { total: number; inbox: number; contacts: number }
 }
 /**
  * THE STATUS CHIPS COME FROM THE PALETTE. (T58d)
@@ -37,6 +41,7 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 
 export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig; subscribe?: LeadsSubscribe }) {
   const c = useLeadPalette()
+  const navigate = useNavigate()
   /**
    * Convert raises a CONTACT (POST /api/leads/:id/convert → `contacts:create`); Dismiss and Reopen
    * move the lead's own status (PUT /:id/status → `contacts:update`). A seat holding neither still
@@ -111,6 +116,18 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     const res = await api.post(`/api/leads/${id}/convert`)
     if (toast) toast.success(res?.matched ? `Linked to existing contact ${res.contact?.name || ''}`.trim() : `Contact ${res?.contact?.name || ''} created`.trim())
   }, 'Failed to convert lead')
+  // Convert and start the work in one step: the enquiry becomes a contact (or is linked to the one already there), and the
+  // screen for the job, quote or project opens with that person chosen. An enquiry already converted goes straight there.
+  const startAfterConvert = config?.startAfterConvert || []
+  const convertAndStart = (lead: LeadRow, opt: { id: string; label: string; to: (contactId: string) => string }) => act(`${lead.id}:start:${opt.id}`, async () => {
+    let contactId = lead.status === 'converted' ? lead.convertedContactId || '' : ''
+    if (!contactId) {
+      const res = await api.post(`/api/leads/${lead.id}/convert`)
+      contactId = res?.contact?.id || ''
+    }
+    if (!contactId) throw new Error('Could not find the contact for this enquiry')
+    navigate(opt.to(contactId))
+  }, 'Failed to start from this lead')
 
   const timeAgo = (date: string) => {
     const mins = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60000))
@@ -124,6 +141,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     return { bg, text, label: p ? p.label : (platform ? platform.replace(/_/g, ' ') : 'Other') }
   }
   const statusStyle = (status: string) => statusChip(c, status)
+  const countOf = (status: string) => (stats?.counts && typeof stats.counts[status] === 'number' ? ` (${stats.counts[status]})` : '')
   const btn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ padding: '8px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, ...extra })
 
   return (
@@ -172,6 +190,13 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
         </div>
       )}
 
+      {stats?.waiting && stats.waiting.total > 0 && (
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: c.muted }} data-testid="lead-waiting">
+          <strong style={{ color: c.text }}>{stats.waiting.total} new {stats.waiting.total === 1 ? 'lead' : 'leads'}</strong>
+          {' — '}{stats.waiting.inbox} {stats.waiting.inbox === 1 ? 'enquiry' : 'enquiries'} in this inbox
+          {stats.waiting.contacts > 0 && <> and {stats.waiting.contacts} {stats.waiting.contacts === 1 ? 'contact' : 'contacts'} added as leads that nobody has quoted, booked or billed yet. <Link to="/crm/new-leads" style={{ color: c.link }}>See them all</Link></>}
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: c.faint }} />
@@ -180,10 +205,11 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
         </div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }}>
           <option value="">All Statuses</option>
-          <option value="new">New</option>
-          <option value="contacted">Contacted</option>
-          <option value="converted">Converted</option>
-          <option value="dismissed">Dismissed</option>
+          <option value="new">New{countOf('new')}</option>
+          <option value="contacted">Contacted{countOf('contacted')}</option>
+          <option value="converted">Converted{countOf('converted')}</option>
+          <option value="dismissed">Dismissed{countOf('dismissed')}</option>
+          {config?.spam && <option value="spam">Spam{countOf('spam')}</option>}
         </select>
         <select value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }}>
           <option value="">All Sources</option>
@@ -269,12 +295,30 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                           <UserPlus size={14} /> Open contact
                         </Link>
                       ) : (
-                        mayConvert && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
+                        mayConvert && lead.status !== 'spam' && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.chip.converted.bg, color: c.chip.converted.text, border: `1px solid ${c.chip.converted.text}44`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <UserPlus size={14} /> {busy === `${lead.id}:convert` ? 'Converting…' : 'Convert to Contact'}
                         </button>
                       )}
-                      {mayTriage && lead.status !== 'dismissed' && lead.status !== 'converted' && (
+                      {mayConvert && lead.status !== 'spam' && startAfterConvert.map((opt) => (
+                        <button key={opt.id} disabled={busy === `${lead.id}:start:${opt.id}`} onClick={(e) => { e.stopPropagation(); convertAndStart(lead, opt) }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.link, border: `1px solid ${c.link}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <ArrowRight size={14} /> {busy === `${lead.id}:start:${opt.id}` ? 'Working…' : lead.status === 'converted' ? opt.label : `Convert and ${opt.label.charAt(0).toLowerCase()}${opt.label.slice(1)}`}
+                        </button>
+                      ))}
+                      {config?.spam && mayTriage && lead.status !== 'spam' && lead.status !== 'converted' && (
+                        <button disabled={busy === `${lead.id}:spam`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'spam') }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <ShieldAlert size={14} /> Spam
+                        </button>
+                      )}
+                      {config?.spam && mayTriage && lead.status === 'spam' && (
+                        <button disabled={busy === `${lead.id}:new`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'new') }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.statNew, border: `1px solid ${c.statNew}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <RefreshCw size={14} /> Not spam
+                        </button>
+                      )}
+                      {mayTriage && lead.status !== 'dismissed' && lead.status !== 'converted' && lead.status !== 'spam' && (
                         <button disabled={busy === `${lead.id}:dismissed`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'dismissed') }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <XCircle size={14} /> Dismiss

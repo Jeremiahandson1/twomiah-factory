@@ -9,6 +9,7 @@ import {
 import { api } from './api'
 import { SHELL_HERE, SETTINGS_SUB_PAGES } from './shell'
 import { verticalScreens } from './crm/vertical'
+import { leadStarts } from './leadStarts'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
@@ -87,8 +88,11 @@ export const NewLeads = () => <NewLeadsPage api={api} />
 // ownPermission: the inbox asks leads:* on both sides (server modules/company.ts; live role check, 2026-10-23).
 // phoneCalls: a call reaches the inbox only through call tracking (store final check, 2026-10-26).
 export const LeadInbox = () => {
-  const { hasFeature } = useAuth()
-  return <LeadInboxPage api={api} toast={useToast()} config={{ ...(verticalScreens().leads as any), ownPermission: true, phoneCalls: hasFeature('call_tracking') }} subscribe={subscribeLive} />
+  const { hasFeature, can } = useAuth()
+  const screens = verticalScreens() as any
+  // Convert and start the work in one step: only what this trade has, the business has on, and this seat may create (leadStarts.ts).
+  const startAfterConvert = leadStarts(screens, hasFeature, can)
+  return <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert }} subscribe={subscribeLive} />
 }
 
 export function AuditLog() {

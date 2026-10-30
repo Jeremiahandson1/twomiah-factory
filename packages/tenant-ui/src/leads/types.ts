@@ -44,6 +44,17 @@ export interface LeadsConfig {
    * (tenant-backend leads.ts `ownPermission`). Absent: the contacts permissions, as every template runs it.
    */
   ownPermission?: boolean
+  /**
+   * The server keeps a Spam status (tenant-backend leads.ts options.spam): the inbox offers "Spam" on an enquiry, "Not spam"
+   * on a spam one, a Spam filter, and counts on its filters. Absent: the four statuses every template has.
+   */
+  spam?: boolean
+  /**
+   * What the business can start for a person the moment their enquiry becomes a contact — "Start a job", "Start a quote" —
+   * each opening that screen with the new contact already chosen. The caller lists only what the trade has AND the seat may
+   * create, so nothing is offered that would be refused. Absent: Convert to Contact alone, as every template has.
+   */
+  startAfterConvert?: Array<{ id: string; label: string; to: (contactId: string) => string }>
 }
 
 export const TRADES_LEAD_PLATFORMS: LeadPlatform[] = [

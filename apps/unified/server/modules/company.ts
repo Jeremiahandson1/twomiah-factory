@@ -10,7 +10,7 @@ import {
 } from '@twomiah/tenant-backend'
 import { z } from 'zod'
 import { asc, eq } from 'drizzle-orm'
-import { company, user, emailAlias, lead, leadSource, contact } from '../db/schema/index.ts'
+import { company, user, emailAlias, lead, leadSource, contact, quote, job, invoice } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import type { Audit } from '../core/audit.ts'
 import type { EmailService } from '../core/email.ts'
@@ -131,7 +131,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
   const leads = new Hono()
     .post('/', (c) => deps.enquiryHandler(c))
     .route('/', createLeadsRoutes({
-      db, tables: { lead, leadSource, contact }, authenticate, requirePermission: permissions.requirePermission, canSee,
+      db, tables: { lead, leadSource, contact, quote, job, invoice }, authenticate, requirePermission: permissions.requirePermission, canSee,
       // The inbox is the lead_inbox feature's, on the server as in the menu; the enquiry form above is everyone's.
       requireFeature: deps.features.requireEnabledFeature('lead_inbox'),
       emitToCompany: deps.realtime.emitToCompany, EVENTS: deps.realtime.EVENTS,
@@ -139,7 +139,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       // What a converted lead becomes: a salon's is a client, in the book (templates/crm-salon routes/leads.ts, Salon T27 N13).
       // Leads are the desk's (leads:read / leads:update / leads:delete — admin and manager), not every seat that reads
       // contacts: a technician, a stylist and a viewer were handed the inbox (live role check, 2026-10-23).
-      audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead', ownPermission: true },
+      audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead', ownPermission: true,
+        // A Spam status, and the inbox's filters labelled with how many there are (leads.ts).
+        spam: true },
     } as any))
 
   const auditLogRoutes = new Hono<AppEnv>()

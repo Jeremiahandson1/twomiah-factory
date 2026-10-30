@@ -117,7 +117,10 @@ const basic: VerticalSettings = {
       labels: { myJobs: 'Jobs', agreements: 'Maintenance Plans' },
     },
     // The general lead platforms (leadsConfig.ts, T42); the ids are crm.leads.platforms.
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
     leads: {
+      startWith: ['job', 'quote'],
       platforms: [
         {
           value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo',

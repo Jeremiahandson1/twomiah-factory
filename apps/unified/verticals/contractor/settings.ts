@@ -135,7 +135,9 @@ const contractor: VerticalSettings = {
     team: { crewLogins: true },
     commissions: { roleWords: { technician: 'Crew', sales_rep: 'Sales', manager: 'Project managers', all: 'Everyone' }, planExample: 'Standard sales plan' },
     portal: {},
-    leads: {},
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
+    leads: { startWith: ['job', 'project', 'quote'] },
     marketing: {},
     messages: {},
     agreements: { planNamePlaceholder: 'e.g., Annual home maintenance plan' },

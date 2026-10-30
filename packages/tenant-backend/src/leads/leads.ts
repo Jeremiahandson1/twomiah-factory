@@ -19,12 +19,17 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { withoutPortalCredential } from '../contacts/contacts'
-import { eq, and, or, ilike, count, desc, gte, sql, asc } from 'drizzle-orm'
+import { eq, ne, and, or, ilike, count, desc, gte, sql, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import crypto from 'crypto'
 import { companyTimeZone, storeDateString } from '../time/businessDay'
+import { countNewLeads } from '../reporting/newLeads'
 
-export interface LeadsTables { lead: any; leadSource: any; contact: any }
+/**
+ * `quote`, `job` and `invoice` are optional: with them the inbox can count the lead contacts nobody has acted on beside its own
+ * enquiries (the dashboard's New leads number), and say so. Without them the inbox counts its own enquiries only, as before.
+ */
+export interface LeadsTables { lead: any; leadSource: any; contact: any; quote?: any; job?: any; invoice?: any }
 export interface LeadsOptions {
   /** Platform ids this vertical offers on the Lead Sources page. Create refuses anything else. Default: the trades set. */
   platforms?: string[]
@@ -43,6 +48,11 @@ export interface LeadsOptions {
    * (their own menus are not changed with this module).
    */
   ownPermission?: boolean
+  /**
+   * A Spam status for junk enquiries: one click to file one, one click to take it back. A spam enquiry is out of the
+   * default list, out of New and out of every count. Absent: the four statuses every template has always had.
+   */
+  spam?: boolean
 }
 export interface LeadsDeps {
   db: any
@@ -165,6 +175,9 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const contactType = deps.options?.contactType || 'lead'
   const maxLimit = deps.options?.maxLimit || 100
   const own = !!deps.options?.ownPermission
+  const spamOn = !!deps.options?.spam
+  const filterStatuses: readonly string[] = spamOn ? [...LEAD_STATUSES, 'spam'] : LEAD_STATUSES
+  const settableStatuses: readonly string[] = spamOn ? [...SETTABLE_STATUSES, 'spam'] : SETTABLE_STATUSES
   const mayRead = requirePermission(own ? 'leads:read' : 'contacts:read')
   const mayWork = requirePermission(own ? 'leads:update' : 'contacts:update')
   // Converting works the lead AND makes a contact: both, in that order, as two ordinary middlewares.
@@ -334,10 +347,12 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     const search = (c.req.query('search') || '').trim().slice(0, 100)
     const page = clampInt(c.req.query('page'), 1, 1_000_000, 1)
     const limit = clampInt(c.req.query('limit'), 1, maxLimit, 25)
-    if (status && !(LEAD_STATUSES as readonly string[]).includes(status)) return c.json({ error: 'Invalid status filter' }, 400)
+    if (status && !filterStatuses.includes(status)) return c.json({ error: 'Invalid status filter' }, 400)
 
     const conditions: any[] = [eq(t.lead.companyId, currentUser.companyId)]
     if (status) conditions.push(eq(t.lead.status, status))
+    // Spam is out of the list until someone asks for it by name.
+    else if (spamOn) conditions.push(ne(t.lead.status, 'spam'))
     if (source) conditions.push(eq(t.lead.sourcePlatform, source))
     if (search) {
       const p = `%${escapeLike(search)}%`
@@ -354,8 +369,10 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   app.get('/stats', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const leads = await db.select({ sourcePlatform: t.lead.sourcePlatform, status: t.lead.status, receivedAt: t.lead.receivedAt, contactedAt: t.lead.contactedAt })
+    const recent = await db.select({ sourcePlatform: t.lead.sourcePlatform, status: t.lead.status, receivedAt: t.lead.receivedAt, contactedAt: t.lead.contactedAt })
       .from(t.lead).where(and(eq(t.lead.companyId, currentUser.companyId), gte(t.lead.receivedAt, thirtyDaysAgo)))
+    // Spam is not a lead: it is out of the 30-day totals and the per-source rates.
+    const leads = spamOn ? recent.filter((l: any) => l.status !== 'spam') : recent
 
     const bySource: Record<string, { total: number; converted: number; totalResponseMs: number; respondedCount: number }> = {}
     for (const l of leads) {
@@ -377,7 +394,18 @@ export function createLeadsRoutes(deps: LeadsDeps) {
       converted: leads.filter((l: any) => l.status === 'converted').length,
       dismissed: leads.filter((l: any) => l.status === 'dismissed').length,
     }
-    return c.json({ stats, totals })
+    if (!spamOn) return c.json({ stats, totals })
+    // With a Spam status the inbox also labels its filters with how many there are (all time, not 30 days), and says what its
+    // "New" figure is made of: the enquiries here plus the contacts added as leads that nobody has quoted, booked or billed.
+    const byStatus = await db.select({ status: t.lead.status, c: count() }).from(t.lead)
+      .where(eq(t.lead.companyId, currentUser.companyId)).groupBy(t.lead.status)
+    const counts: Record<string, number> = { new: 0, contacted: 0, converted: 0, dismissed: 0, spam: 0 }
+    for (const r of byStatus as any[]) counts[r.status] = Number(r.c)
+    let waiting: { total: number; inbox: number; contacts: number } | undefined
+    if (t.quote && t.job && t.invoice) {
+      try { waiting = await countNewLeads(db, { lead: t.lead, contact: t.contact, quote: t.quote, job: t.job, invoice: t.invoice }, currentUser.companyId, { inbox: true }) } catch { waiting = undefined }
+    }
+    return c.json({ stats, totals: { ...totals, spam: counts.spam }, counts, ...(waiting ? { waiting } : {}) })
   })
 
   const ownLead = async (id: string, companyId: string) => {
@@ -414,8 +442,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   app.put('/:id/status', mayWork, async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
-    const parsed = z.object({ status: z.enum(SETTABLE_STATUSES) }).safeParse(await c.req.json().catch(() => ({})))
-    if (!parsed.success) return c.json({ error: `Status must be one of ${SETTABLE_STATUSES.join(', ')} (use Convert to mark a lead converted)` }, 400)
+    const parsed = z.object({ status: z.string().refine((v) => settableStatuses.includes(v)) }).safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return c.json({ error: `Status must be one of ${settableStatuses.join(', ')} (use Convert to mark a lead converted)` }, 400)
     const existing = await ownLead(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Lead not found' }, 404)
     // Converting is a one-way door, and this was the way back out. Setting a converted lead to "new"
