@@ -310,6 +310,15 @@ describe('salon: card on file and no-show / late-cancel fees', () => {
       expect(calls.filter((c) => c.what === 'charge')).toEqual([])
     })
 
+    test('the page Stripe sends a client back to opens without signing in, and keeps out of search engines', async () => {
+      const r = await t.call('/card-saved')
+      expect(r.status).toBe(200)
+      expect(r.headers.get('x-robots-tag') || '').toContain('noindex')
+      expect(await r.text()).toContain('Thank you')
+      const c = await t.call('/card-saved?cancelled=1')
+      expect(await c.text()).toContain('No card was saved')
+    })
+
     test('with the feature off, none of it is reachable', async () => {
       await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'invoices', 'client_profiles', 'service_menu', 'salon_booking', 'team', 'dashboard'] } as any).where(eq(t.schema.company.id, co))
       t.services.features.forgetFeatures()

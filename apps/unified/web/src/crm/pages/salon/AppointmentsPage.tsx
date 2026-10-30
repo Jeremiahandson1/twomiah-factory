@@ -14,6 +14,7 @@ import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } fro
 import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
+import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -111,6 +112,9 @@ export default function AppointmentsPage() {
   const mayMove = useMayWrite('schedule:update');
   // The front desk checks clients in without being able to move or cancel them (schedule:check-in).
   const mayCheckIn = useMayWrite('schedule:update') || useMayWrite('schedule:check-in');
+  // A no-show or late-cancel fee on the client's card on file: Card on File on, and a seat that may charge (invoices:update).
+  const mayChargeFees = useMayChargeFees();
+  const [feeFor, setFeeFor] = useState<Appointment | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
@@ -227,6 +231,11 @@ export default function AppointmentsPage() {
       {mayMove && CLOSED.has(a.status || 'scheduled') && a.status !== 'completed' && (
         <button onClick={() => { then(); setStatus(a, 'scheduled'); }} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Undo the cancellation / no-show">
           <RotateCcw className="w-4 h-4" /> Reopen
+        </button>
+      )}
+      {mayChargeFees && a.contactId && mayHaveFee(a.status) && (
+        <button onClick={() => { then(); setFeeFor(a); }} className="flex items-center gap-1 px-3 py-1.5 border border-amber-300 dark:border-amber-600 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 text-sm" title="Charge the client's card on file">
+          Charge a fee
         </button>
       )}
       {mayMove && !CLOSED.has(a.status || 'scheduled') && (
@@ -406,6 +415,9 @@ export default function AppointmentsPage() {
           onSave={(saved) => { setClosing(null); load(); offerCheckout(saved?.invoiceId as string | undefined); }}
           onClose={() => setClosing(null)}
         />
+      )}
+      {feeFor && (
+        <ChargeFeeModal appointmentId={feeFor.id} clientName={feeFor.clientName} onClose={() => setFeeFor(null)} onDone={load} />
       )}
       {resched && (
         <RescheduleModal appt={resched} onSave={() => { setResched(null); load(); }} onClose={() => setResched(null)} />

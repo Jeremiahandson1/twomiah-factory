@@ -13,6 +13,7 @@ import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
+import { ClientCardOnFile } from './CardOnFile'
 import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
 import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
@@ -367,6 +368,8 @@ export default function ClientDetailPage() {
         {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{profile.notes}</p>}
         {/* Points, punch card and tier — with the perk the desk honours (Loyalty Program on, loyalty:read held). */}
         <ClientLoyaltyCard contactId={ct.id} />
+        {/* The card kept for no-show / late-cancel fees (Card on File on, contacts:read held). */}
+        <ClientCardOnFile contactId={ct.id} />
       </div>
 
       {/* Tabs */}

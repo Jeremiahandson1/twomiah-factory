@@ -14,6 +14,7 @@ const ServiceMenuPage = page(() => import('../pages/salon/ServiceMenuPage'))
 const MembershipsPage = page(() => import('../pages/salon/MembershipsPage'))
 const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
 const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
+const CardOnFileSettingsPage = page(() => import('../pages/salon/CardOnFileSettingsPage'))
 
 /**
  * The salon's own dashboard (the book today, the month by chair, who is due back), shown at /crm/dashboard in place of
@@ -31,6 +32,7 @@ export const routes: ReactElement[] = [
   <Route key="salon-memberships" path="memberships" element={<MembershipsPage />} />,
   <Route key="salon-loyalty" path="loyalty" element={<LoyaltyPage />} />,
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
+  <Route key="salon-card-on-file-settings" path="settings/card-on-file" element={<CardOnFileSettingsPage />} />,
 ]
 
 /**
@@ -40,6 +42,8 @@ export const routes: ReactElement[] = [
  */
 export const SETTINGS_EXTRA = [
   { to: '/crm/settings/book', label: 'The Book', icon: Calendar, permission: 'company:update', feature: 'salon_booking' },
+  // Card on file: the no-show / late-cancel fees (PUT /api/card-on-file/policy asks company:update, behind `card_on_file`).
+  { to: '/crm/settings/card-on-file', label: 'Card on file', icon: CreditCard, permission: 'company:update', feature: 'card_on_file' },
 ]
 
 /**

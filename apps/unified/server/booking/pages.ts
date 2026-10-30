@@ -232,6 +232,23 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   })
 
   /** The deposit's payment page again (Stripe's; a new one each time — the last may have closed). */
+  // Where Stripe's card page sends a client back to (crm/salon/cardOnFile.ts). Not tied to online booking being on: a card
+  // is also saved at the desk. Says only that the page closed — whether a card was kept is the salon's to see on the chart.
+  app.get('/card-saved', async (c) => {
+    const ctx = await deps.ctxOf()
+    const cancelled = c.req.query('cancelled') === '1'
+    const body = `<section class="book-thanks"><div class="container container--narrow">
+      <div class="book-thanks__check" aria-hidden="true">${cancelled ? '–' : '✓'}</div>
+      <h1>${cancelled ? 'No card was saved' : 'Thank you'}</h1>
+      <p class="book-thanks__lead">${cancelled ? 'You closed the card page before saving. Nothing was kept.' : 'Your card is saved with us. You can close this page.'}</p>
+    </div></section>`
+    if (!ctx) {
+      c.header('X-Robots-Tag', 'noindex, nofollow')
+      return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Card</title></head><body>${body}</body></html>`)
+    }
+    return html(c, ctx, body, cancelled ? 'No card saved' : 'Card saved', '/card-saved', true)
+  })
+
   app.get('/booking/:token/pay', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
     const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
