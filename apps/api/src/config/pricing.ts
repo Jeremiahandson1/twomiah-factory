@@ -224,3 +224,34 @@ export function publicPlans(product: string, stored: { saas_tiers?: unknown; sel
   if (usesSeatPlans(product)) return { plans: seatPlanTiers(), selfHosted: seatPlanLicenses() }
   return { plans: stored?.saas_tiers ?? getProductDefaults(product).saas_tiers, selfHosted: stored?.self_hosted ?? getProductDefaults(product).self_hosted }
 }
+
+/** Where the seat plans are set. The admin Pricing page shows this next to the read-only plans. */
+export const SEAT_PLANS_SET_IN = 'packages/tenant-backend/src/plans.ts'
+
+/**
+ * One factory_pricing row as the admin Pricing page sees it. A seat product's plans (and its self-hosted licences, which are
+ * 36× the monthly) come from plans.ts, never from the stored row — the row still holds the old feature tiers and nothing reads
+ * them — and are marked read-only with where they are set. Everything else on the row (add-ons, set-up services) is as stored.
+ * Another product's row is returned as it is.
+ */
+export function adminPricingRow<T extends { product: string }>(row: T) {
+  if (!usesSeatPlans(row.product)) return row
+  return { ...row, saas_tiers: seatPlanTiers(), self_hosted: seatPlanLicenses(), seat_plans_read_only: true, seat_plans_set_in: SEAT_PLANS_SET_IN }
+}
+
+/**
+ * The columns an admin save may write for a product. A seat product's plans and licences are not the admin page's to change
+ * (they are set in plans.ts), so a save never writes them — whatever the page, or an old copy of it, sent.
+ */
+export function adminPricingWrite(product: string, body: Record<string, unknown>) {
+  const all = {
+    saas_tiers: body.saas_tiers,
+    self_hosted: body.self_hosted,
+    self_hosted_addons: body.self_hosted_addons,
+    deploy_services: body.deploy_services,
+    feature_bundles: body.feature_bundles,
+  }
+  if (!usesSeatPlans(product)) return all
+  const { saas_tiers: _t, self_hosted: _s, ...rest } = all
+  return rest
+}

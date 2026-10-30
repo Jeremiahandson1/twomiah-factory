@@ -7,9 +7,6 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import { errMsg } from '../invoicing/ui'
 import type { FeaturesSettingsPageProps } from './types'
 
-/** The registry's category for products sold separately (featureRegistry.ts). */
-const ADD_ON_CATEGORY = 'Add-on Products'
-
 type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean }
 
 /**
@@ -76,9 +73,6 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
 
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading features…</div>
 
-  // A paid add-on (the Exterior Visualizer) is sold separately, so it is never described as part of the plan.
-  const hasPaidAddOns = catalog.some((f) => f.category === ADD_ON_CATEGORY)
-
   return (
     <div className="max-w-4xl mx-auto p-6 pb-28">
       <button type="button" onClick={() => navigate('/crm/settings')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-4 dark:text-slate-400 dark:hover:text-slate-100">
@@ -86,8 +80,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
       </button>
       <h1 className="text-2xl font-bold mb-1 text-gray-900 dark:text-white">Features</h1>
       <p className="text-gray-500 mb-6 dark:text-slate-400">
-        {hasPaidAddOns ? 'Every feature except the paid add-ons is included in your plan — switch on the ones you want.' : 'Every feature is included in your plan — switch on the ones you want.'} Changes apply to your whole team immediately.
-        {hasPaidAddOns && <span className="block mt-1">Paid add-ons cost extra; switching one on here does not make it free.</span>}
+        Every feature is included in your plan — switch on the ones you want. Changes apply to your whole team immediately.
         {!isAdmin && <span className="block mt-1 text-amber-700 font-medium dark:text-amber-300">Only admins can change features.</span>}
       </p>
 
@@ -108,10 +101,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
                   return (
                     <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="font-medium text-gray-900 text-sm dark:text-slate-100">
-                          {f.name}
-                          {f.category === ADD_ON_CATEGORY && <span className="ml-2 align-middle text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Paid add-on</span>}
-                        </div>
+                        <div className="font-medium text-gray-900 text-sm dark:text-slate-100">{f.name}</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{f.description}</div>
                         {on && NEEDS_CONNECTION[f.id]?.flag(integrations) && (
                           <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{NEEDS_CONNECTION[f.id].note}</div>

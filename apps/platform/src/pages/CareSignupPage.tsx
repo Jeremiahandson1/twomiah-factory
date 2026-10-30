@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Heart, Shield, Check, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User, Palette } from 'lucide-react'
+import { TRUST_BAR_OFFER, PLAN_STEP_NOTE, REVIEW_TITLE, REVIEW_NOTE, TOTAL_LABEL, DUE_LABEL, SUBMIT_LABEL, FOOTER_OFFER } from './careSignupOffer'
 import { API_URL } from '../supabase'
 import { FALLBACK_PLANS, DEFAULT_PLAN_ID, mapApiPlansToLocal, careFeatures, annualOffered, type PlanData } from './careSignupPlans'
 
@@ -569,7 +570,7 @@ export default function CareSignupPage() {
         {/* Trust bar */}
         <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-gray-400 text-sm">
           <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> HIPAA-ready platform</div>
-          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 30-day free trial</div>
+          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> {TRUST_BAR_OFFER}</div>
           <div className="flex items-center gap-2"><FileCheck className="w-4 h-4" /> EVV compliant</div>
           <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> GPS visit verification</div>
         </div>
@@ -587,7 +588,7 @@ function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Choose your plan</h2>
-      <p className="text-gray-500 mb-6">All plans include a 30-day free trial. No credit card required.</p>
+      <p className="text-gray-500 mb-6">{PLAN_STEP_NOTE}</p>
 
       {/* Billing toggle — only if some plan is cheaper by the year (the seat plans are not: no toggle, no "Save 20%") */}
       {annualOffered(PLANS) && <div className="flex justify-center items-center gap-4 mb-8">
@@ -819,8 +820,8 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
   const total = price + addonsTotal
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-1">Review & start your free trial</h2>
-      <p className="text-gray-500 mb-6">14 days free, no credit card required. Cancel anytime.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-1">{REVIEW_TITLE}</h2>
+      <p className="text-gray-500 mb-6">{REVIEW_NOTE}</p>
 
       <div className="bg-teal-50/50 rounded-xl border border-teal-100 p-6 mb-6">
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
@@ -844,12 +845,12 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
           </div>
           <hr className="my-3 border-teal-200" />
           <div className="flex justify-between text-base">
-            <span className="text-gray-600">After trial</span>
+            <span className="text-gray-600">{TOTAL_LABEL}</span>
             <span className="font-bold text-gray-900">${total}/mo</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Due today</span>
-            <span className="text-lg font-bold text-teal-600">$0.00</span>
+            <span className="text-gray-600">{DUE_LABEL}</span>
+            <span className="text-lg font-bold text-teal-600">${price}</span>
           </div>
         </div>
       </div>
@@ -873,13 +874,13 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
         {loading ? (
           <><Loader2 className="w-5 h-5 animate-spin" /> Creating your account...</>
         ) : (
-          <><Heart className="w-5 h-5" /> Start 30-Day Free Trial</>
+          <><Heart className="w-5 h-5" /> {SUBMIT_LABEL}</>
         )}
       </button>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-gray-400 text-xs">
         <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Cancel anytime</div>
-        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> No credit card needed</div>
+        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> {FOOTER_OFFER}</div>
         <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Full platform access</div>
         <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Free onboarding call</div>
       </div>

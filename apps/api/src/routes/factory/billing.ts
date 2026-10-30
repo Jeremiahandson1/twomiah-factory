@@ -9,7 +9,7 @@ import { forwardConnectEvent, responseStatusFor } from '../../services/connectWe
 import { raiseAlert, clearAlert } from '../../services/alerts'
 import { notifyBillingPastDue, notifyMessagingEnabled, notifyReactivated } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
-import { PRODUCTS, getProductDefaults, publicPlans } from '../../config/pricing'
+import { PRODUCTS, getProductDefaults, publicPlans, adminPricingRow, adminPricingWrite, usesSeatPlans } from '../../config/pricing'
 import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
@@ -1139,9 +1139,9 @@ factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) =
   if (toSeed.length > 0 || !data?.length) {
     const { data: all, error: reloadErr } = await supabase.from('factory_pricing').select('*').order('product')
     if (reloadErr) console.error('[Pricing] Reload failed:', reloadErr.message)
-    return c.json({ products: PRODUCTS, pricing: all || [] })
+    return c.json({ products: PRODUCTS, pricing: (all || []).map(adminPricingRow) })
   }
-  return c.json({ products: PRODUCTS, pricing: data })
+  return c.json({ products: PRODUCTS, pricing: data.map(adminPricingRow) })
 })
 
 // PUT /pricing — saves pricing for a specific product
@@ -1152,14 +1152,11 @@ factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) =
     product: body.product,
     updated_at: new Date().toISOString(),
     updated_by: (c as any).get?.('userEmail') || 'admin',
-    saas_tiers: body.saas_tiers,
-    self_hosted: body.self_hosted,
-    self_hosted_addons: body.self_hosted_addons,
-    deploy_services: body.deploy_services,
-    feature_bundles: body.feature_bundles,
+    // A seat product's plans and licences are set in plans.ts: a save never writes them (config/pricing.ts adminPricingWrite).
+    ...adminPricingWrite(String(body.product), body),
   })
   if (error) return c.json({ error: error.message }, 500)
-  return c.json({ success: true })
+  return c.json({ success: true, ...(usesSeatPlans(String(body.product)) ? { readOnly: ['saas_tiers', 'self_hosted'] } : {}) })
 })
 
 }
