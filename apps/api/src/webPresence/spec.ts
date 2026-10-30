@@ -72,6 +72,9 @@ export function canonicalise(raw: unknown, spec: SiteSpec, prev: any | null): Ca
   const notes: string[] = []
   const had = new Map<string, any>(((prev?.sections as any[]) || []).map((s) => [s.id, s]))
   for (const s of model.sections) {
+    // Only a section with a choice of layouts can have picked one its content cannot fill. The rest (contact, hours, hiring…)
+    // are drawn one way: layoutFit answers "no such layout" for them, which every save of the live test site printed (10/30).
+    if (!LAYOUTS[s.type]) continue
     const why = layoutFit(s.type, s.variant, s.data)
     if (!why) continue
     const before = had.get(s.id)

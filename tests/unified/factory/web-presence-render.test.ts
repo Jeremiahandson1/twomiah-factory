@@ -194,6 +194,13 @@ describe('everything a site saves is cleaned on the server', () => {
     const noFlag = cleanModel({ ...model, sections: model.sections.map((s: any) => { const { hidden, ...r } = s; return r }) }, require('../../../apps/api/src/webPresence/spec').cleanerSpec(spec()), model)
     expect(noFlag.sections.every((s: any) => s.hidden === false)).toBe(true)
   })
+  test('saving the page as it is says nothing about layouts — for every trade', () => {
+    // 10/30 live: every save said "Contact: that layout no such layout." (contact has no layout choice).
+    for (const trade of ['landscaping', 'roofing', 'restaurant', 'salon', 'home care', 'plumbing']) {
+      const { model } = first(trade)
+      expect([trade, canonicalise(model, buildSpec(trade), model).notes]).toEqual([trade, []])
+    }
+  })
   test('a section type or layout the trade does not offer is not accepted from a request', () => {
     const { model } = first('roofing')
     const bogus = { ...model, sections: [...model.sections, { id: 'spot', type: 'spot', variant: 'today', data: {} }, { id: 'hero2', type: 'hero', variant: 'nope', data: {} }] }
