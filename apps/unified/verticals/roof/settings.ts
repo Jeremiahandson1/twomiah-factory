@@ -115,6 +115,21 @@ const roof: VerticalSettings = {
       material_ordered: 'Material Ordered', in_production: 'In Production', final_inspection: 'Final Inspection',
       new_construction: 'New Construction',
     },
+    // Job costing and commissions (offered to roofing, featureRegistry): a roof's jobs are in pipeline stages, a rep is paid on the
+    // contract or the gross profit when the whole job is paid (server/crm/roof/commissions.ts), so the screens say so.
+    jobCosting: {
+      jobsLabel: 'Jobs', costingLabel: 'Job Costing',
+      statuses: [['', 'All stages'], ['lead', 'Lead'], ['inspection_scheduled', 'Inspection Scheduled'], ['inspected', 'Inspected'], ['measurement_ordered', 'Measurement Ordered'],
+        ['proposal_sent', 'Proposal Sent'], ['signed', 'Signed'], ['material_ordered', 'Material Ordered'], ['in_production', 'In Production'],
+        ['final_inspection', 'Final Inspection'], ['invoiced', 'Invoiced'], ['collected', 'Collected'], ['lost', 'Lost'], ['cancelled', 'Cancelled']],
+    },
+    commissions: {
+      roleWords: { technician: 'Crew', sales_rep: 'Sales rep', manager: 'Manager', all: 'Everyone' },
+      planExample: 'Sales rep, 8% of the contract',
+      salesRepAutoEarn: true,
+      planTypeWords: { flat_rate: 'Flat amount per job', percent_of_invoice: '% of the contract (before tax)', percent_of_margin: '% of gross profit' },
+      planBaseWords: { percent_of_invoice: 'the contract before tax', percent_of_margin: 'the job\u2019s gross profit' },
+    },
     // A quote is for one of the homeowner's jobs (quote.job_id): the shared quote form offers them.
     // jobs: an approved quote on no job converts to a roofing job (Convert to Job; the server makes it with insertRoofJob,
     // modules/crm.ts makeJob) — the tester looked for it and found none (2026-10-22).

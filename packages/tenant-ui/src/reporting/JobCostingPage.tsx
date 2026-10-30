@@ -46,12 +46,20 @@ interface Detail {
   /** Vendor bills raised against the job — spend that never used to reach this screen. (T32 B3) */
   billDetail?: Array<{ number?: string | null; vendor?: string | null; amount?: number; status?: string }>
   invoices?: Array<{ number?: string; status?: string; revenue?: number; taxAmount?: number; shared?: boolean }>
+  /** Roofing only: what its material orders, crew and supplements add to the figures above (server crm/roof/jobCosts.ts). */
+  roof?: {
+    materialOrderCost: number; crewCost: number; crewBasis: 'clocked' | 'per_square' | 'unknown'
+    crewName: string | null; squares: number; payPerSquare: number | null
+    supplements: { approved: number; pending: number; denied: number; count: number }
+  }
+  materialOrderDetail?: Array<{ supplier?: string; orderNumber?: string | null; status?: string; cost?: number }>
+  crewDetail?: Array<{ crew?: string; squares?: number; payPerSquare?: number | null; cost?: number }>
+  supplementDetail?: Array<{ number?: string; status?: string; reason?: string; asked?: number; approved?: number | null }>
 }
 
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
 const h3 = 'font-semibold text-gray-900 dark:text-slate-100 mb-4'
 const muted = 'text-gray-500 dark:text-slate-400'
-const STATUSES: Array<[string, string]> = [['', 'All statuses'], ['completed', 'Completed'], ['in_progress', 'In progress'], ['scheduled', 'Scheduled']]
 
 /** Margin is the number people scan for, so it carries the colour — green above zero, red below. */
 const marginTone = (m: number) => (m > 0 ? 'text-emerald-700 dark:text-emerald-400' : m < 0 ? 'text-red-700 dark:text-red-400' : muted)
@@ -77,6 +85,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 
 export function JobCostingPage({ api, config }: JobCostingPageProps) {
   const cfg = resolveJobCostingConfig(config)
+  const STATUSES = cfg.statuses
   const noun = cfg.jobsLabel
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -237,6 +246,25 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
               ))}
             </div>
 
+            {detail.roof && (
+              <div className={card}>
+                <h3 className={h3}>Roof</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <Stat label="Material orders" value={money(detail.roof.materialOrderCost)} />
+                  <Stat label="Crew" value={detail.roof.crewBasis === 'per_square' ? money(detail.roof.crewCost) : detail.roof.crewBasis === 'clocked' ? 'Clocked hours' : 'Not known'} />
+                  <Stat label="Supplements approved" value={money(detail.roof.supplements.approved)} />
+                  <Stat label="Supplements waiting" value={money(detail.roof.supplements.pending)} />
+                </div>
+                <p className={`text-xs mt-3 ${muted}`}>
+                  Material orders count once they are placed (ordered, partly or fully delivered); a list not yet ordered, or a cancelled order, is not spend.
+                  {detail.roof.crewBasis === 'unknown' ? ' The crew\u2019s pay is not known: give the crew its pay per square on the Crews page, and put the roof\u2019s squares on the job.' : ''}
+                  {detail.roof.crewBasis === 'clocked' ? ' Hours were clocked on this job, so the crew is costed from those hours, not from its pay per square.' : ''}
+                  {detail.roof.crewBasis === 'per_square' ? ` ${detail.roof.crewName} is paid ${money(detail.roof.payPerSquare ?? 0)} a square on ${detail.roof.squares} squares.` : ''}
+                  {' '}Approved supplements raise the estimated revenue; they count as earned revenue once they are on an invoice.
+                </p>
+              </div>
+            )}
+
             <div className={card}>
               <h3 className={h3}>Variance</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -255,6 +283,9 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                 shows "no rate" rather than $0.00, which would read as free labour. */}
             {([['Labour', detail.laborDetail, (r: any) => [r.userName || r.user || 'Unassigned', `${r.hours ?? 0} h`, r.rateKnown === false ? 'no rate' : money(r.cost ?? 0)]],
                ['Materials', detail.materialDetail, (r: any) => [r.name || r.item || 'Item', String(r.quantity ?? ''), money(r.cost ?? 0)]],
+               ['Material orders', detail.materialOrderDetail, (r: any) => [r.supplier || 'Supplier', [r.orderNumber, r.status].filter(Boolean).join(' · '), money(r.cost ?? 0)]],
+               ['Crew', detail.crewDetail, (r: any) => [r.crew || 'Crew', `${r.squares ?? 0} squares × ${money(r.payPerSquare ?? 0)}`, money(r.cost ?? 0)]],
+               ['Supplements', detail.supplementDetail, (r: any) => [`${r.number || 'Supplement'}${r.reason ? ` — ${r.reason}` : ''}`, r.status || '', r.approved != null ? money(r.approved) : money(r.asked ?? 0)]],
                ['Expenses', detail.expenseDetail, (r: any) => [r.description || 'Expense', r.category || '', money(r.amount ?? 0)]],
                ['Vendor bills', detail.billDetail, (r: any) => [r.vendor || 'Vendor', r.number || '', money(r.amount ?? 0)]],
                ['Invoices', detail.invoices, (r: any) => [r.number || 'Invoice', r.shared ? 'project invoice' : '', money(r.revenue ?? 0)]]] as Array<[string, any[] | undefined, (r: any) => string[]]>)

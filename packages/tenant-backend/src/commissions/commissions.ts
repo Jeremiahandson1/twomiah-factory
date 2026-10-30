@@ -44,6 +44,11 @@ export interface CommissionRoutesDeps {
   canSee: (role: string, permission: string, userId?: string) => Promise<boolean>
   /** The app's audit service (log({ action, entity, … req })): void and reassign are recorded with what changed. Optional. */
   audit?: { log: (entry: any) => any }
+  /**
+   * Offer plans that pay the job's sales rep when the whole job is paid (COMMISSION_AUTO_EARN_SALES_REP), margin plans
+   * included — their margin is the job's own profit, known to the app that turns this on. Off (absent): such a plan is refused.
+   */
+  salesRepAutoEarn?: boolean
 }
 
 /**
@@ -65,6 +70,13 @@ export const COMMISSION_ROLES = ['technician', 'sales_rep', 'manager', 'all'] as
 export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'disputed', 'cancelled', 'void'] as const
 /** Who a plan pays by itself when an invoice is paid in full. */
 export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as const
+/**
+ * A job's SELLER, paid when the whole job is paid (roofing: job.assignedSalesRepId, at Collected). Not in the list above on
+ * purpose — the templates' plans never name it — and refused by the routes unless the app turns it on (salesRepAutoEarn);
+ * the app that does works it out itself (apps/unified server/crm/roof/commissions.ts), on the whole contract or the job's
+ * gross profit. The invoice-by-invoice earner below never pays it.
+ */
+export const COMMISSION_AUTO_EARN_SALES_REP = 'job_sales_rep' as const
 
 const planSchema = z.object({
   name: z.string().trim().min(1, 'A plan needs a name'),
@@ -77,7 +89,7 @@ const planSchema = z.object({
   effectiveTo: z.string().optional(),
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
-  autoEarn: z.enum(COMMISSION_AUTO_EARN).optional(),
+  autoEarn: z.enum([...COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP]).optional(),
   /**
    * The people the plan pays (login ids of this company). Empty: anyone it reaches who is not named on another plan.
    * Where the table has no column for it (a template's own schema), it is not offered.
@@ -197,10 +209,14 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (ids.some((id) => (found.get(id) as any).isActive === false && !keep.includes(id))) return 'Someone chosen for this plan has been switched off. Choose people who are still on the team.'
     return null
   }
-  const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) =>
-    autoEarn && autoEarn !== 'none' && planType === 'percent_of_margin'
+  const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) => {
+    if (autoEarn === COMMISSION_AUTO_EARN_SALES_REP) {
+      return deps.salesRepAutoEarn ? null : 'This business does not pay the job\u2019s sales rep automatically.'
+    }
+    return autoEarn && autoEarn !== 'none' && planType === 'percent_of_margin'
       ? 'A margin plan cannot pay automatically — its margin has to be entered when the commission is recorded.'
       : null
+  }
   const planValues = (data: Partial<z.infer<typeof planSchema>>) => {
     const v: Record<string, any> = { ...data }
     if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
@@ -559,7 +575,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     if (inv.status === 'paid' && inv.paidAt) {
       const paidAt = new Date(inv.paidAt)
       const plans = (await autoPlans(inv.companyId)).filter((p: any) =>
-        p.planType !== 'percent_of_margin'
+        p.planType !== 'percent_of_margin' && p.autoEarn !== COMMISSION_AUTO_EARN_SALES_REP
         && p.autoSince && new Date(p.autoSince) <= paidAt
         && (!p.effectiveFrom || new Date(p.effectiveFrom) <= paidAt)
         && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
@@ -620,7 +636,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     const companies = await db.select({ id: t.company.id, enabledFeatures: t.company.enabledFeatures }).from(t.company)
     for (const co of companies as any[]) {
       if (!((co.enabledFeatures || []) as string[]).includes('commission_tracking')) continue
-      const plans = (await autoPlans(co.id)).filter((p: any) => p.autoSince && p.planType !== 'percent_of_margin')
+      const plans = (await autoPlans(co.id)).filter((p: any) => p.autoSince && p.planType !== 'percent_of_margin' && p.autoEarn !== COMMISSION_AUTO_EARN_SALES_REP)
       const since = plans.reduce((min: Date | null, p: any) => (!min || new Date(p.autoSince) < min ? new Date(p.autoSince) : min), null as Date | null)
       const ids = new Set<string>()
       if (since) {
