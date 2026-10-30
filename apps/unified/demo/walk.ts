@@ -2,7 +2,10 @@
 // Reports what a visitor could hit: a call the demo could not answer, a screen that fell into the error page, a script error,
 // and any request that left the demo's own host. Used by tests/demo/walk.test.ts and by hand:
 //   cd apps/unified && bun run build:demo && bun demo/walk.ts contractor
-import { chromium, type CDPSession, type Page } from 'playwright-core'
+import { mkdtempSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { chromium, type Browser, type CDPSession, type Page } from 'playwright-core'
 import { serveDemo } from './serve.ts'
 import { DEMO_TRADES } from './trades.ts'
 
@@ -31,11 +34,42 @@ const within = <T>(p: Promise<T>, ms: number): Promise<T | undefined> => {
   return Promise.race([p, new Promise<undefined>((r) => { t = setTimeout(() => r(undefined), ms) })]).finally(() => clearTimeout(t))
 }
 
+/**
+ * A browser of the walk's own, driven over its DevTools websocket instead of Playwright's pipe. CI 10/30, with
+ * DEBUG=pw:browser: every phone walk's browser logged "Connection terminated while reading from pipe" a few seconds in and
+ * exited cleanly (exitCode=0) — its end of the pipe was closed under it — and Playwright, never told, waited on it until
+ * the stall limit. No pipe here: the browser's output goes nowhere, and the connection is a websocket.
+ */
+async function launchOverWebSocket(): Promise<{ browser: Browser; stop: () => Promise<void> }> {
+  const probe = Bun.serve({ port: 0, fetch: () => new Response('') })
+  const port = probe.port
+  probe.stop(true)
+  const profile = mkdtempSync(path.join(os.tmpdir(), 'demo-walk-'))
+  const proc = Bun.spawn([chromium.executablePath(), '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+    '--no-first-run', '--no-default-browser-check', '--disable-gpu', ...(process.platform === 'linux' ? ['--no-sandbox'] : []), 'about:blank'],
+  { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+  let ws = ''
+  for (let i = 0; i < 100 && !ws; i++) {
+    ws = await fetch(`http://127.0.0.1:${port}/json/version`).then((r) => r.json()).then((j: any) => j.webSocketDebuggerUrl || '').catch(() => '')
+    if (!ws) await new Promise((r) => setTimeout(r, 100))
+  }
+  if (!ws) { proc.kill(); throw new Error('the walk\'s browser did not start (no DevTools address in 10s)') }
+  const browser = await chromium.connectOverCDP(ws)
+  return {
+    browser,
+    stop: async () => {
+      await within(browser.close(), 10_000)
+      proc.kill()
+      await within(proc.exited, 5_000)
+      try { rmSync(profile, { recursive: true, force: true }) } catch { /* the folder is a temp one */ }
+    },
+  }
+}
+
 export async function walkDemo(opts: { base: string; trade: string; viewport?: { width: number; height: number }; colorScheme?: 'light' | 'dark'; maxPages?: number; page?: Page }): Promise<WalkReport> {
   const own = !opts.page
-  // The browser's own lines come from DEBUG=pw:browser (the CI job sets it): a `logger` passed here received nothing in
-  // CI (10/30).
-  const browser = own ? await chromium.launch() : null
+  const launched = own ? await launchOverWebSocket() : null
+  const browser = launched?.browser ?? null
   const context = own ? await browser!.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 }, colorScheme: opts.colorScheme ?? 'light' }) : null
   let page = opts.page ?? (await context!.newPage())
   const started = Date.now()
@@ -161,7 +195,7 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
     }
   }
   report.pages = [...visited]
-  if (own) await within(browser!.close(), 10_000)
+  if (launched) await launched.stop()
   return report
 }
 
