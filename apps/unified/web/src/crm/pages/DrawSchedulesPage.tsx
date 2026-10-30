@@ -4,9 +4,9 @@
  * Construction loan draw schedule + individual draw requests.
  */
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Check, X, Loader2 } from 'lucide-react'
+import { DollarSign, Plus, Check, X } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth, usePrompt, useToast, errorText } from '../../shared'
+import { useAuth, usePrompt, useToast, errorText, PageLoading } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -96,7 +96,7 @@ export default function DrawSchedulesPage() {
     if (selected) loadDetail(selected.id);
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
+  if (loading) return <PageLoading what="your draw schedules" />;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
