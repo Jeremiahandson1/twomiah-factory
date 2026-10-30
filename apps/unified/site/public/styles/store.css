@@ -689,3 +689,12 @@
 .account-note--bad { color: #b42318; }
 .account-add label.account-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .account-add summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
+/* returns: the "Return items" form inside an order */
+.account-return { margin-top: 12px; }
+.account-return summary { cursor: pointer; font-weight: 600; }
+.account-return label { display: block; font-weight: 600; margin: 12px 0 4px; }
+.account-return .account-return-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 400; }
+.account-return .account-return-line input { width: 5em; }
+.account-return select, .account-return input:not([type=checkbox]):not([type=number]), .account-return textarea { display: block; width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,.25); border-radius: 8px; font: inherit; }
+.account-return label.account-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.account-return .btn { margin-top: 12px; }

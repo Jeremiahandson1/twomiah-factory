@@ -27,6 +27,14 @@
       return res.json().catch(function () { return {}; }).then(function (json) { return { ok: res.ok, status: res.status, json: json }; });
     });
   }
+  // The server's errors are { error: "<sentence>", code?, fields? }; an older shape may carry { error: { message } } or { message }.
+  function errText(json, fallback) {
+    var e = json && json.error;
+    if (typeof e === 'string' && e) return e;
+    if (e && typeof e.message === 'string' && e.message) return e.message;
+    if (json && typeof json.message === 'string' && json.message) return json.message;
+    return fallback;
+  }
   function say(el, text, bad) {
     if (!el) return;
     el.textContent = text || '';
@@ -63,7 +71,7 @@
       if (!email.value || email.value.indexOf('@') < 0) return say(note, 'Enter your email address.', true);
       say(note, 'Sending…');
       api('POST', '/sign-in', { email: email.value.trim() }).then(function (r) {
-        if (!r.ok) return say(note, (r.json && r.json.error && r.json.error.message) || (r.json && r.json.message) || 'Enter a valid email address.', true);
+        if (!r.ok) return say(note, errText(r.json, 'Enter a valid email address.'), true);
         say(note, r.json.message || 'If that email belongs to a customer of this shop, we have sent a sign-in link and a code.');
         codeForm.hidden = false;
         document.getElementById('account-code-input').focus();
@@ -105,8 +113,11 @@
   function load() {
     api('GET', '/me').then(function (me) {
       if (!me.ok) return showSignIn();
-      Promise.all([api('GET', '/orders'), api('GET', '/addresses')]).then(function (both) {
-        draw(me.json, (both[0].json && both[0].json.data) || [], (both[1].json && both[1].json.data) || []);
+      // Returns are only asked for when the shop has them on (me.returns); else that page does not exist.
+      var wanted = [api('GET', '/orders'), api('GET', '/addresses')];
+      if (me.json && me.json.returns) wanted.push(api('GET', '/returns'));
+      Promise.all(wanted).then(function (all) {
+        draw(me.json, (all[0].json && all[0].json.data) || [], (all[1].json && all[1].json.data) || [], (all[2] && all[2].json && all[2].json.data) || []);
       });
     });
   }
@@ -129,7 +140,104 @@
       '<p class="account-total">Total ' + money(o.totalCents) + (o.refundedCents ? ' <span class="account-muted">(' + money(o.refundedCents) + ' refunded)</span>' : '') + '</p>' +
       '<button type="button" class="btn btn--secondary" data-again="' + esc(o.id) + '">Order again</button>' +
       '<span class="account-note" data-again-note="' + esc(o.id) + '" role="status"></span>' +
+      returnFormHtml(o) +
       '</article>';
+  }
+
+  // ── Returns ───────────────────────────────────────────────────────────────────────────────────────────────────
+  var REASONS = [['changed_mind', 'I changed my mind'], ['defective', 'It arrived damaged or does not work'], ['wrong_item', 'I was sent the wrong item'], ['not_as_described', 'It is not as described'], ['other', 'Something else']];
+  var RETURN_STATUS = { requested: 'Waiting for the shop', approved: 'Approved. Send it back', received: 'Received. Your refund is next', refunded: 'Refunded', exchanged: 'Exchanged', declined: 'Not accepted', cancelled: 'Cancelled' };
+
+  // The "Return items" form of one order: only when the shop has returns on (o.returnable is then present) and something is left to send back.
+  function returnFormHtml(o) {
+    var can = o.returnable;
+    if (!can) return '';
+    var left = {};
+    (can.lines || []).forEach(function (l) { left[l.orderItemId] = l; });
+    var rows = (o.items || []).filter(function (i) { return left[i.id] && left[i.id].left > 0; });
+    if (!can.open || !rows.length) {
+      var why = !can.open && can.why ? can.why : (!rows.length ? 'Everything on this order has already been returned or cannot be returned.' : '');
+      return why ? '<p class="account-muted" data-return-why="' + esc(o.id) + '">' + esc(why) + '</p>' : '';
+    }
+    var lines = rows.map(function (i) {
+      var name = i.variantName && i.variantName !== 'Default' ? i.productName + ' — ' + i.variantName : i.productName;
+      var max = left[i.id].left;
+      return '<label class="account-return-line"><span>' + esc(name) + ' <span class="account-muted">(up to ' + esc(max) + ')</span></span>' +
+        '<input type="number" min="0" max="' + esc(max) + '" value="0" inputmode="numeric" data-return-qty="' + esc(i.id) + '" aria-label="How many of ' + esc(name) + ' to return"></label>';
+    }).join('');
+    var reasons = REASONS.map(function (r) { return '<option value="' + r[0] + '">' + esc(r[1]) + '</option>'; }).join('');
+    return '<details class="account-return" data-return="' + esc(o.id) + '"><summary>Return items</summary>' +
+      '<p class="account-muted">You can ask to return items until ' + esc(when(can.endsAt)) + '.</p>' +
+      '<form data-return-form="' + esc(o.id) + '" novalidate>' + lines +
+      '<label>Why are you returning it?<select name="reason">' + reasons + '</select></label>' +
+      '<label>What would you like?<select name="resolution"><option value="refund">My money back</option><option value="exchange">An exchange</option></select></label>' +
+      '<label class="account-check"><input type="checkbox" name="preferCredit"> Give me store credit instead of a refund to my card</label>' +
+      '<label data-wanted-label hidden>What would you like instead? (size, colour…)<input name="wanted" maxlength="500"></label>' +
+      '<label>Anything we should know? (optional)<textarea name="note" maxlength="1000" rows="2"></textarea></label>' +
+      '<button class="btn btn--primary" type="submit">Ask to return</button>' +
+      '<p class="account-note" data-return-note="' + esc(o.id) + '" role="status"></p></form></details>';
+  }
+
+  function returnHtml(r) {
+    var lines = (r.lines || []).map(function (l) {
+      var name = l.variantName && l.variantName !== 'Default' ? l.productName + ' — ' + l.variantName : l.productName;
+      return '<li>' + esc(l.quantity) + ' × ' + esc(name) + '</li>';
+    }).join('');
+    var open = r.status === 'requested' || r.status === 'approved';
+    var money2 = '';
+    if (r.status === 'refunded' || r.status === 'exchanged') {
+      var toCard = (Number(r.refundCents) || 0) - (Number(r.creditCents) || 0);
+      var bits = [];
+      if (toCard > 0) bits.push(money(toCard) + ' back to your card');
+      if (r.creditCents > 0) bits.push(money(r.creditCents) + ' as store credit');
+      if (r.exchangeOrderNumber) bits.push('exchange sent as order ' + esc(r.exchangeOrderNumber));
+      money2 = bits.length ? '<p class="account-total">' + bits.join(', ') + '</p>' : '';
+    }
+    var fees = (Number(r.restockingFeeCents) || 0) + (Number(r.returnShippingFeeCents) || 0);
+    return '<article class="account-order" data-return-id="' + esc(r.id) + '">' +
+      '<header><strong>Return ' + esc(r.returnNumber) + '</strong> <span class="account-muted">order ' + esc(r.orderNumber || '') + ' · ' + esc(when(r.createdAt)) + '</span>' +
+      '<span class="account-status">' + esc(RETURN_STATUS[r.status] || r.status) + '</span></header>' +
+      '<ul>' + lines + '</ul>' +
+      (r.status === 'approved' && fees > 0 ? '<p class="account-muted">The shop keeps ' + money(fees) + ' of the refund.</p>' : '') +
+      (r.label && r.label.url ? '<p><a href="' + esc(r.label.url) + '" rel="noopener">Print your return label</a> <span class="account-muted">' + esc(r.label.carrier || '') + ' ' + esc(r.label.tracking || '') + '</span></p>' : '') +
+      (r.status === 'declined' && r.declineReason ? '<p class="account-muted">' + esc(r.declineReason) + '</p>' : '') +
+      money2 +
+      (open ? '<button type="button" class="btn btn--secondary" data-return-cancel="' + esc(r.id) + '">Cancel this return</button><span class="account-note" data-return-cancel-note="' + esc(r.id) + '" role="status"></span>' : '') +
+      '</article>';
+  }
+
+  function wireReturns() {
+    root.querySelectorAll('[data-return-form]').forEach(function (form) {
+      var resolution = form.elements.resolution, wanted = form.querySelector('[data-wanted-label]');
+      resolution.addEventListener('change', function () { wanted.hidden = resolution.value !== 'exchange'; });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var id = form.getAttribute('data-return-form'), note = root.querySelector('[data-return-note="' + id + '"]');
+        var items = [];
+        form.querySelectorAll('[data-return-qty]').forEach(function (inp) {
+          var q = Math.floor(Number(inp.value) || 0);
+          if (q > 0) items.push({ orderItemId: inp.getAttribute('data-return-qty'), quantity: q });
+        });
+        if (!items.length) return say(note, 'Choose how many of at least one item.', true);
+        var body = { orderId: id, items: items, reason: form.elements.reason.value, resolution: resolution.value, preferCredit: !!form.elements.preferCredit.checked };
+        if ((form.elements.note.value || '').trim()) body.note = form.elements.note.value.trim();
+        if (resolution.value === 'exchange' && (form.elements.wanted.value || '').trim()) body.wanted = form.elements.wanted.value.trim();
+        say(note, 'Sending…');
+        api('POST', '/returns', body).then(function (r) {
+          if (!r.ok) return say(note, errText(r.json, 'That return could not be started.'), true);
+          load();
+        });
+      });
+    });
+    root.querySelectorAll('[data-return-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-return-cancel'), note = root.querySelector('[data-return-cancel-note="' + id + '"]');
+        api('POST', '/returns/' + id + '/cancel', {}).then(function (r) {
+          if (!r.ok) return say(note, errText(r.json, 'That return could not be cancelled.'), true);
+          load();
+        });
+      });
+    });
   }
 
   function addressHtml(a) {
@@ -139,15 +247,17 @@
       '<button type="button" class="btn btn--secondary" data-remove="' + esc(a.id) + '">Remove</button></div>';
   }
 
-  function draw(me, orders, addresses) {
+  function draw(me, orders, addresses, returns) {
     var bits = [];
     if (me.group) bits.push('<span class="account-status">' + esc(me.group) + ' prices</span>');
     if (me.points != null) bits.push('<span class="account-muted">' + esc(me.points) + ' reward points</span>');
+    var credit = (me.credit || []).map(function (c) { return '<p class="account-muted">Store credit: <strong>' + money(c.balanceCents) + '</strong> — use code <code>' + esc(c.code) + '</code> at checkout.</p>'; }).join('');
     root.innerHTML =
-      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + '</div>' +
+      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + credit + '</div>' +
       '<button type="button" class="btn btn--secondary" id="account-out">Sign out</button></div>' +
       '<section class="account-section"><h2>Your orders</h2>' +
       (orders.length ? orders.map(orderHtml).join('') : '<p class="store-empty">No orders yet. <a href="/shop">Start shopping</a></p>') + '</section>' +
+      (me.returns && returns.length ? '<section class="account-section"><h2>Your returns</h2>' + returns.map(returnHtml).join('') + '</section>' : '') +
       '<section class="account-section"><h2>Saved addresses</h2><div id="account-addresses">' +
       (addresses.length ? addresses.map(addressHtml).join('') : '<p class="account-muted">No saved addresses yet.</p>') + '</div>' +
       '<details class="account-add"><summary>Add an address</summary>' +
@@ -166,6 +276,7 @@
     document.getElementById('account-out').addEventListener('click', function () {
       api('POST', '/sign-out', {}).then(function () { showSignIn('You are signed out.'); });
     });
+    wireReturns();
     root.querySelectorAll('[data-again]').forEach(function (btn) {
       btn.addEventListener('click', function () { orderAgain(btn.getAttribute('data-again')); });
     });
@@ -184,7 +295,7 @@
       if (v('line2')) address.line2 = v('line2');
       if (v('state')) address.state = v('state');
       api('POST', '/addresses', { name: v('name'), address: address, isDefault: !!f.elements.isDefault.checked }).then(function (r) {
-        if (!r.ok) return say(note, (r.json && r.json.error && r.json.error.message) || 'That address could not be saved.', true);
+        if (!r.ok) return say(note, errText(r.json, 'That address could not be saved.'), true);
         load();
       });
     });

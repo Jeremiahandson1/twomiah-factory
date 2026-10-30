@@ -342,6 +342,11 @@ describe("the shopper's pages on the shop's website", () => {
     expect(js.status).toBe(200)
     expect(js.headers.get('content-type')).toContain('javascript')
     expect(js.text).toContain('/api/public/account')
+    // The page shows returns and store credit when the shop has them on, and reads the server's plain-string errors.
+    expect(js.text).toMatch(/api\(["']POST["'], ["']\/returns["']/)
+    expect(js.text).toContain('Return items')
+    expect(js.text).toMatch(/typeof e === ["']string["']/)
+    expect(js.text).not.toContain('error.message')
     const shop = await k.pub('GET', '/shop')
     expect(shop.text).toContain('data-account-link')
   })

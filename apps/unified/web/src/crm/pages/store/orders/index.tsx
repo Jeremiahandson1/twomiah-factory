@@ -11,6 +11,7 @@
 //   Dashboard  /crm/dashboard   GET /api/admin/orders/stats            orders:read
 //   Orders     /crm/orders(/:id) GET /api/admin/orders(/:id)           orders:read
 //   Customers  /crm/customers   GET /api/admin/orders/customers        orders:read
+//   Returns    /crm/returns     GET /api/admin/store-returns          orders:read, with the store_returns feature
 //   Sales      /crm/sales       GET /api/admin/sales-reports           revenue:read, with the store_sales_reports feature
 //   Payments   /crm/payments    GET /api/admin/payments                payments:update — the owner's, reading as connecting
 //                                                                      (the template's GET asked none; closed 2026-10-19)
@@ -20,7 +21,7 @@
 // The dashboard is not a route here: it is the store's home at /crm/dashboard (crm/screens.tsx HOMES, `dashboard`).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BarChart3, CreditCard, Home, Package, ShieldAlert, ShoppingBag, Truck, Users } from 'lucide-react'
+import { BarChart3, CreditCard, Home, Package, ShieldAlert, ShoppingBag, Truck, Undo2, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -33,6 +34,7 @@ const SuppliersPage = page(() => import('./SuppliersPage'))
 const NewOrderPage = page(() => import('./NewOrderPage'))
 const DisputesPage = page(() => import('./DisputesPage'))
 const SalesPage = page(() => import('./SalesPage'))
+const ReturnsPage = page(() => import('./ReturnsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -43,6 +45,8 @@ export const routes: ReactElement[] = [
   <Route key="store-order" path="orders/:id" element={<OrderDetailPage />} />,
   // Sales reports (GET /api/admin/sales-reports: store_sales_reports + revenue:read; the route is gated below, in routeGates).
   <Route key="store-sales" path="sales" element={<SalesPage />} />,
+  // Returns and exchanges (GET /api/admin/store-returns: store_returns + orders:read; gated below, in routeGates).
+  <Route key="store-returns" path="returns" element={<ReturnsPage />} />,
   <Route key="store-customers" path="customers" element={<CustomersPage />} />,
   <Route key="store-payments" path="payments" element={<PaymentsPage />} />,
   <Route key="store-shipping" path="shipping" element={<ShippingPage />} />,
@@ -53,6 +57,8 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/dashboard', icon: Home, label: 'Dashboard', exact: true, permission: 'orders:read' },
   { to: '/crm/orders', icon: ShoppingBag, label: 'Orders', permission: 'orders:read' },
+  // Returns: behind the store_returns switch; reading is orders:read (the buttons that decide are orders:refund, which the server asks).
+  { to: '/crm/returns', icon: Undo2, label: 'Returns', features: ['store_returns'], permission: 'orders:read' },
   { to: '/crm/customers', icon: Users, label: 'Customers', permission: 'orders:read' },
   // Sales reports: behind the store_sales_reports switch and the takings' permission (revenue:read), as the server asks both.
   { to: '/crm/sales', icon: BarChart3, label: 'Sales', features: ['store_sales_reports'], permission: 'revenue:read' },
@@ -71,6 +77,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/orders': 'orders:read',
   '/crm/customers': 'orders:read',
   '/crm/sales': 'revenue:read',
+  '/crm/returns': 'orders:read',
   '/crm/payments': 'payments:update',
   '/crm/suppliers': 'integrations:update',
   '/crm/shipping': 'shipping:configure',
@@ -78,7 +85,7 @@ export const routePermissions: Record<string, string> = {
 }
 
 /** Addresses typed in: the feature each needs, as its menu row does (the shell's routeGates). */
-export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'] }
+export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'], '/crm/returns': ['store_returns'] }
 
 /** The store's home at /crm/dashboard (its sales, orders to ship, set-up). */
 export const dashboard: import('react').ComponentType | null = page(() => import('./DashboardPage'))
