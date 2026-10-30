@@ -1,5 +1,5 @@
 {
-  "id": "57a4ad21-5263-4a5a-ae25-415f859ebbe4",
+  "id": "c9705d25-f6da-471f-81be-573d1402ce34",
   "prevId": "120eb0cf-96f9-4b15-b77c-6be5191725ef",
   "version": "7",
   "dialect": "postgresql",
@@ -67345,12 +67345,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "low_stock_alerted_at": {
-          "name": "low_stock_alerted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "gtin": {
           "name": "gtin",
           "type": "text",
@@ -67555,6 +67549,12 @@
         },
         "feed_token": {
           "name": "feed_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "low_stock_digest_on": {
+          "name": "low_stock_digest_on",
           "type": "text",
           "primaryKey": false,
           "notNull": false

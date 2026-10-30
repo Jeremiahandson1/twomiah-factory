@@ -45,7 +45,6 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { productSearchCondition, lowStockProductCondition } from '../tileConditions.ts'
-import { settleLowStockStamp } from '../../../data/storeCheckout.ts'
 import { changedKeys } from './audit.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
@@ -85,7 +84,7 @@ const variantSchema = z.object({
   weightOz: z.number().int().nonnegative().max(2147483647).optional().nullable(),
   // Inventory can't go negative — this was accepted and stored as -99. (BUG-03)
   inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
-  // Low-stock alert (store_low_stock): tell the owner once when a sale takes the count down to this. null = no alert.
+  // Low-stock level (store_low_stock): at or under it, the option is on the Low stock list and the owner's daily email. null = no level.
   lowStockAt: z.number().int().min(0, 'The low-stock level cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string(), z.string()).optional().nullable(),
   position: z.number().int().optional(),
@@ -257,9 +256,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const product = await productOf(u.companyId, c.req.param('id'))
     if (!product) return fail(c, 404, 'Product not found')
     if (parsed.data.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
-    const [made] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
-    if (made.lowStockAt != null) await settleLowStockStamp(db, made.id)
-    const created = made
+    const [created] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
     // Its own row: the floor would file this under the product the URL names (create product TEA-1).
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await currency(u.companyId))}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
     return one(c, created, 201)
@@ -287,8 +284,6 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       // (The template also sent the count as inventoryQty; the sentence names it.)
       return fail(c, 409, `The stock changed to ${stands} since this page loaded (a sale, or someone else's count), so nothing was saved. Check the count and save again.`, 'inventory_changed')
     }
-    // A count or a level changed by hand: the once-stamp follows it (data/storeCheckout.ts settleLowStockStamp).
-    if (fields.inventoryQty !== undefined || fields.lowStockAt !== undefined) await settleLowStockStamp(db, updated.id)
     const from = guarded ? { ...before, inventoryQty: inventoryFrom } : before
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: changedKeys(from, updated, Object.keys(fields)), req: c })
     return one(c, updated)

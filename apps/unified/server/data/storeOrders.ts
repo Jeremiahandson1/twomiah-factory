@@ -8,7 +8,6 @@ import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeOrderRefund, storeProductVariant } from '../db/schema/store.ts'
 import { toPackCondition, atSupplierCondition, countedOrderCondition } from '../crm/store/tileConditions.ts'
-import { settleLowStockStamp } from './storeCheckout.ts'
 
 type Order = typeof storeOrder.$inferSelect
 
@@ -95,8 +94,6 @@ export async function restockVariant(tx: any, variantId: string, quantity: numbe
     .set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${quantity}`, updatedAt: new Date() } as any)
     .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} is not null`))
     .returning({ id: storeProductVariant.id })
-  // Back above its low-stock level, the variant can tell the owner again (storeCheckout.ts settleLowStockStamp).
-  if (back.length > 0) await settleLowStockStamp(tx, variantId)
   return back.length > 0
 }
 

@@ -73,12 +73,8 @@ export const storeProductVariant = pgTable('product_variants', {
   compareAtPriceCents: integer('compare_at_price_cents'),
   weightOz: integer('weight_oz'),
   inventoryQty: integer('inventory_qty'), // null = not tracked
-  /**
-   * Low-stock alert: when the count falls to this or below, the owner is told once (store_low_stock). null = no alert for
-   * this variant. `lowStockAlertedAt` is that once: set by the sale that crossed it, cleared when the count rises back above.
-   */
+  /** Low-stock level (store_low_stock): at or under it, the option is on the Low stock list and the owner's daily email. null = no level. */
   lowStockAt: integer('low_stock_at'),
-  lowStockAlertedAt: timestamp('low_stock_alerted_at'),
   /** The feeds' identifiers, sent when present. */
   gtin: text('gtin'),
   mpn: text('mpn'),
@@ -271,6 +267,8 @@ export const storeSettings = pgTable('store_settings', {
   pickupHours: text('pickup_hours'),
   /** The private part of the product feeds' addresses (Google Merchant Center, Meta); a new one retires the old. */
   feedToken: text('feed_token'),
+  /** The shop-local day (YYYY-MM-DD) the owner's low-stock email last went out: the claim that keeps it to one a day. */
+  lowStockDigestOn: text('low_stock_digest_on'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_settings_company_unique').on(t.companyId)])
 
