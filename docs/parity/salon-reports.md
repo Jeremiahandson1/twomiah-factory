@@ -36,7 +36,7 @@ What those pages say, so nothing below claims more:
 - **Off by default.** The feature id `salon_reports` is registered not-ready (hidden), mounted at `/api/salon-reports`, and each report asks `reports:read`.
 - Dates are the salon's own calendar days; a period is up to two years; the default is the last 90 days. A period with more than 50,000 visits is said to be cut (never silently).
 - **Visits are the service records** a completed visit writes; a visit with no stylist recorded is grouped as "No stylist recorded".
-- **Retail** needs retail lines on sales (line type `retail`). Until checkout at the chair (#7) adds them, they come only from lines the desk types onto a sale, so this report is empty for most salons today.
+- **Retail** needs retail lines on sales (line type `retail`). The Sell retail panel (#7, `salon_retail`) adds them; a salon without that feature has only lines typed onto a sale by hand, so this report is empty for it.
 - **Revenue and gift cards.** These reports do not count money, except retail. The invoice-based revenue totals elsewhere count a gift card's sale and the later service paid with it (see `salon-gift-cards.md`).
 - Proving test: `apps/unified/tests/salon-reports.test.ts` (5) — closed until the feature and seat rights; range validation and zeros for an empty salon; retention figures against a hand-worked set of seven clients; rebook rate per stylist including a cancelled booking that must not count; retail paid-only, by item and by stylist. It fails without the change (no routes).
 - The screen is type-checked and built but **not click-tested in a browser**.

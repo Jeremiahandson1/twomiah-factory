@@ -29,7 +29,7 @@ Vagaro's and GlossGenius's commission help pages were searched for and not reach
 ## Decisions and limits to know
 
 - **Off by default.** `salon_commissions` is registered not-ready (hidden). Until a salon is given it the commission routes are closed (the Commissions screen is not in the menu) and nothing is earned. The trades' Commission Tracking is untouched.
-- **Retail** is read from a bill line marked `retail`. Nothing in the salon raises those lines yet — checkout at the chair (#7) will. Until then retail commission is only proven by the test adding a line.
+- **Retail** is read from a bill line marked `retail`. The Sell retail panel (#7, `salon_retail`) raises those lines; a salon without that feature has none, so no retail commission is earned there. Retail on a walk-in sale has no stylist, so it earns none.
 - **A stylist needs a login** to be paid through the CRM. A chair-only stylist on the Team page (no login) earns nothing; give them a login.
 - Two plans naming the same stylist for the same kind of sale would both pay them. The screen does not stop it; name a stylist once per kind.
 - The shared package changes are additive and behind a flag the salon turns on: `commission_plan.sales_kind` (default `all`), the plan routes accept `salesKind` and `visit_stylist` only where `salesKinds` is passed, and the page shows the extra controls only where its config says so. No other vertical's plans change.
