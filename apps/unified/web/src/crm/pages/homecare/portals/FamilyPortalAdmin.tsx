@@ -85,11 +85,45 @@ const RELATIONSHIP_COLOURS: Record<string, string> = {
   other: '#616161',
 }
 
+/** The hours when no arrival text goes out (the agency's own clock). GET/PUT /api/family-portal/admin/family-texts. */
+function QuietHours() {
+  const toast = useToast()
+  const [start, setStart] = useState('21:00')
+  const [end, setEnd] = useState('08:00')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    api.get('/api/family-portal/admin/family-texts').then((r: any) => {
+      const h = r?.data ?? r
+      if (h?.quietHoursStart) setStart(h.quietHoursStart)
+      if (h?.quietHoursEnd) setEnd(h.quietHoursEnd)
+    }).catch(() => { /* keeps the defaults shown */ })
+  }, [])
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.put('/api/family-portal/admin/family-texts', { quietHoursStart: start, quietHoursEnd: end })
+      toast.success('Quiet hours saved')
+    } catch (error) { toast.error(errorMessage(error, 'Could not save the quiet hours')) } finally { setSaving(false) }
+  }
+  return (
+    <div className="hc-card" style={{ marginBottom: '1rem' }}>
+      <h4 style={{ marginTop: 0 }}>Arrival texts: quiet hours</h4>
+      <p style={{ color: 'var(--hc-muted)', marginTop: 0 }}>No arrival or departure text is sent between these times (your agency's clock). A text held back is not sent later.</p>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="form-group" style={{ margin: 0 }}><label>Quiet from</label><input type="time" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+        <div className="form-group" style={{ margin: 0 }}><label>until</label><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+        <button className="hc-btn hc-btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  )
+}
+
 export default function FamilyPortalAdmin() {
   const toast = useToast()
   const prompt = usePrompt()
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
+  const showQuietHours = useAuth().hasFeature('care_family_texts') && can('care-portal:update')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<FamilyMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -273,6 +307,8 @@ export default function FamilyPortalAdmin() {
         <h2>👨‍👩‍👧 Family Portal Management</h2>
         {mayCreate && <button className="hc-btn hc-btn-primary" onClick={() => setShowAddModal(true)}>+ Add Family Member</button>}
       </div>
+
+      {showQuietHours && <QuietHours />}
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '1rem' }}>
         <div className="hc-stat-card">

@@ -93,8 +93,11 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     else if (caregiverId) conditions.push(eq(timeEntries.caregiverId, caregiverId))
     if (clientId) conditions.push(eq(timeEntries.clientId, clientId))
     if (isComplete !== undefined) conditions.push(eq(timeEntries.isComplete, isComplete === 'true'))
-    if (startDate) conditions.push(gte(timeEntries.startTime, new Date(startDate)))
-    if (endDate) conditions.push(lte(timeEntries.startTime, new Date(new Date(endDate).setHours(23, 59, 59))))
+    // A day is the agency's own day (midnight to midnight in its zone). The filter used to cut at UTC midnight (start) and at 23:59:59 in the
+    // server's zone (end), so for a Central agency a visit at 8 PM on the end date, or one at 7 PM the evening before the start date, landed on the wrong side.
+    const span = await core.time.range(companyId, startDate, endDate)
+    if (span.from) conditions.push(gte(timeEntries.startTime, span.from))
+    if (span.before) conditions.push(lt(timeEntries.startTime, span.before))
     const whereClause = and(...conditions)
 
     const [entries, [{ value: total }]] = await Promise.all([

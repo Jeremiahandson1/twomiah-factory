@@ -102,3 +102,16 @@ export async function releaseHardDeclines(q: Q, companyId: string, clientId: str
     WHERE company_id = ${companyId} AND client_id = ${clientId} AND status = 'failed' AND hard_decline AND attempt_no < ${maxAttempts}
     RETURNING id`)).length
 }
+
+/**
+ * The stored billing contact (name, email) of the client's payer, when the payer is a private-pay one and the contact has an email;
+ * otherwise null. Who is told first when a charge to the client's card fails. Only a private-pay payer: an insurer's or a referral
+ * source's billing office is never told about a family's card.
+ */
+export async function billingContactOf(q: Q, companyId: string, clientId: string): Promise<{ name: string | null; email: string } | null> {
+  const r = camelFirst(await q.execute(sql`SELECT rs.billing_contact_name, rs.billing_contact_email
+      FROM clients c JOIN referral_sources rs ON rs.id = c.referred_by_id AND rs.company_id = ${companyId}
+     WHERE c.id = ${clientId} AND c.company_id = ${companyId} AND rs.payer_type = 'private_pay'`)) as any
+  const email = String(r?.billingContactEmail ?? '').trim()
+  return email ? { name: String(r?.billingContactName ?? '').trim() || null, email } : null
+}

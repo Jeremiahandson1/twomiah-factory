@@ -1737,10 +1737,15 @@ export const medicationLogs = pgTable('medication_logs', {
   dosageGiven: text('dosage_given'),
   witnessedBy: text('witnessed_by'),
   effectiveStatus: text('effective_status'),
+  // Follow-up 10/30 (care_offline_saves): one dose given once. Set (company|medicine|due time) only on a 'given' / 'self_administered' entry with a
+  // due time, by an agency with the feature on; empty on every other entry, including all that existed before. The unique index lets the database,
+  // not a read-then-write, say no to a second save of the same dose at the same moment.
+  doseKey: text('dose_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('medication_logs_company_id_idx').on(t.companyId),
   index('medication_logs_time_entry_idx').on(t.timeEntryId),
+  uniqueIndex('medication_logs_dose_key_idx').on(t.doseKey),
 ])
 
 export const shiftSwaps = pgTable('shift_swaps', {

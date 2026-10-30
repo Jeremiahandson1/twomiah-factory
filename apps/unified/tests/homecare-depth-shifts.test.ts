@@ -2,8 +2,9 @@
 //   · 6: POST /api/open-shifts/:id/broadcast used to set a flag and answer "Broadcast sent to N" while telling nobody. It now
 //     tells every caregiver who could take the shift — an in-app notice and a phone push, a text when asked — answers with the
 //     count it really reached, and never marks a posting broadcast when nobody was told.
-//   · 7: the menu heading "Clinical" is "Daily care", and the medication screen says "Medication reminders", in the menu, the
-//     incident notice, the phone's More menu and the assistant's description.
+//   · 7: the menu heading "Clinical" is "Daily care". The medicine screen first said "Medication reminders" (it sends no reminder); since the
+//     owner's follow-up 10/30 it says "Medicine list & dose log" — in the menu, the screen and its tabs, the phone's More menu and visit
+//     screen, the assistant's description and the client report PDF.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -131,22 +132,35 @@ describe('home care — "Daily care", not "Clinical" (item 7)', () => {
     const menu = read('web/src/crm/verticals/homecare.tsx')
     expect(menu).not.toMatch(/'Clinical'/)
     expect(menu).toContain("['/crm/medications', 'Daily care']")
-    expect(read('web/src/crm/pages/homecare/clients/index.tsx')).toContain("label: 'Medication reminders'")
-    expect(read('web/src/crm/pages/homecare/clients/MedicationsManagement.tsx')).toContain('Medication reminders')
+    expect(read('web/src/crm/pages/homecare/clients/index.tsx')).toContain("label: 'Medicine list & dose log'")
+    const screen = read('web/src/crm/pages/homecare/clients/MedicationsManagement.tsx')
+    expect(screen).toContain('Medicine list &amp; dose log')
+    expect(screen).toContain('Medicine list ({activeMeds.length})')
+    expect(screen).toContain('Dose log ({logs.length})')
+    expect(screen).not.toMatch(/Medication reminders|Administration Log/i)
   })
 
   test('the phone\'s More menu names the same rows', () => {
     const generated = read('../mobile/src/more/menu.generated.ts')
     const row = generated.split('\n').find((l) => l.includes('"path":"/crm/medications"'))!
-    expect(row).toContain('"label":"Medication reminders"')
-    expect(generated).not.toMatch(/Clinical/)
+    expect(row).toContain('"label":"Medicine list & dose log"')
+    expect(generated).not.toMatch(/Clinical|Medication reminders/)
+    expect(read('../mobile/src/care/components/VisitParts.tsx')).toContain('<SectionTitle>Medicine list & dose log</SectionTitle>')
+  })
+
+  test('the client report PDF names the list and the log the same way', () => {
+    const reports = read('server/crm/homecare/planning/reports.ts')
+    expect(reports).toContain("sectionHeader('Medicine list')")
+    expect(reports).toContain("'Dose log (period)'")
+    expect(reports).not.toContain('Medication Administration (period)')
   })
 
   test('the incident notice and the assistant\'s description use the new words', () => {
     expect(read('server/crm/homecare/office/incidents.ts')).toContain('Open Daily care → Incidents')
     expect(read('server/crm/homecare/office/incidents.ts')).not.toMatch(/Open Clinical/)
     const settings = read('verticals/homecare/settings.ts')
-    expect(settings).toContain('Daily care (daily-living tasks, medication reminders')
+    expect(settings).toContain('Daily care (daily-living tasks, the medicine list and dose log')
+    expect(settings).not.toMatch(/medication reminders/i)
     expect(settings).not.toMatch(/Clinical \(ADLs/)
   })
 })

@@ -526,13 +526,6 @@ export async function openShiftsToFill(q: Q, companyId: string, start: string, e
     ORDER BY CASE os.urgency WHEN 'critical' THEN 0 WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, os.date, os.start_time`))
 }
 
-/** Active caregivers not marked unavailable, with position and cap (auto-fill). */
-export async function caregiversForAutoFill(q: Q, companyId: string): Promise<any[]> {
-  return camelRows(await q.execute(sql`SELECT u.id, u.first_name, u.last_name, u.latitude, u.longitude, ca.max_hours_per_week
-    FROM "user" u LEFT JOIN caregiver_availability ca ON u.id = ca.caregiver_id AND ca.company_id = ${companyId}
-    WHERE u.company_id = ${companyId} AND ${IS_CAREGIVER()} AND u.is_active = true AND (ca.status IS NULL OR ca.status <> 'unavailable')`))
-}
-
 // ══ Authorization advice (helpers/authorizationCheck.ts) ═════════════════════════════════════════════════════════
 
 /** The client's active authorization covering today (the one ending soonest), with its balance and health, or null. */

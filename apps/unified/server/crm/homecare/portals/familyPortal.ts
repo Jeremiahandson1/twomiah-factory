@@ -87,6 +87,23 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
 
   // ════ THE OFFICE ════════════════════════════════════════════════════════════════════════
 
+  // GET /admin/family-texts, PUT /admin/family-texts { quietHoursStart, quietHoursEnd } — the hours (agency clock) when no arrival text is sent.
+  // Only for an agency with care_family_texts; the office's care-portal:update, like the relatives' own opt-in.
+  const textsOn = async (c: Context, companyId: string) => (await d.features.isFeatureEnabled(companyId, 'care_family_texts'))
+    ? null : fail(c, 403, 'Family arrival texts are not switched on for this agency.', 'FEATURE_NOT_ENABLED')
+  app.get('/admin/family-texts', ...staff('care-portal:update'), async (c) => {
+    const companyId = (c.get('user' as never) as any).companyId as string
+    return (await textsOn(c, companyId)) ?? one(c, await core.familyTexts.quietHours(companyId))
+  })
+  app.put('/admin/family-texts', ...staff('care-portal:update'), async (c) => {
+    const companyId = (c.get('user' as never) as any).companyId as string
+    const off = await textsOn(c, companyId)
+    if (off) return off
+    const b = await c.req.json().catch(() => ({})) as any
+    const out = await core.familyTexts.saveQuietHours(companyId, b.quietHoursStart, b.quietHoursEnd)
+    return 'problem' in out ? fail(c, 400, out.problem, 'bad_quiet_hours') : one(c, out)
+  })
+
   // GET /admin/members?status=active|inactive&clientId=
   app.get('/admin/members', ...staff('care-portal:update'), async (c) => {
     const { status, clientId } = c.req.query()

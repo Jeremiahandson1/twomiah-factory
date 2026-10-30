@@ -208,9 +208,16 @@ export function createIvrRoutes(core: HomecareCore, d: CrmDeps) {
       const payer = await payerOf(db, companyId, entry.clientId)
       const dec = decideBilling({ durationSeconds: (now.getTime() - new Date(entry.startTime).getTime()) / 1000, allottedMinutes: entry.allottedMinutes, isPrivatePay: isPrivatePayer(payer) })
 
+      // Required tasks (care_required_tasks): a caller cannot be shown a list of tasks, so the call is never refused. The visit is closed as
+      // it was told to be and flagged for the office to review, with the tasks named (the same flag the app's offline clock-out uses).
+      const openRequired = await core.requiredTasks.pendingFor(companyId, entry)
+      const flag = openRequired.length
+        ? { needsApproval: true, approvalReason: [dec.approvalReason, `Clocked out by phone with required tasks not done: ${openRequired.map((t) => t.taskName).join('; ')}`].filter(Boolean).join(' · ') }
+        : { needsApproval: dec.needsApproval, approvalReason: dec.approvalReason }
+
       await db.update(timeEntries).set({
         endTime: now, durationMinutes: dec.durationMinutes, billableMinutes: dec.billableMinutes, discrepancyMinutes: dec.discrepancyMinutes,
-        needsApproval: dec.needsApproval, approvalReason: dec.approvalReason, isComplete: true,
+        needsApproval: flag.needsApproval, approvalReason: flag.approvalReason, isComplete: true,
         notes: (entry.notes || '') + ' | Clocked out via IVR phone call', updatedAt: now,
       }).where(and(eq(timeEntries.id, timeEntryId), eq(timeEntries.companyId, companyId), isNull(timeEntries.endTime)))
 

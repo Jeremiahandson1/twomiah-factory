@@ -215,9 +215,9 @@ describe('the caregiver Full Profile overview', () => {
     await t.db.insert(S.caregiverRates).values({ companyId: coA, caregiverId: ids.cg1, rateType: 'base', hourlyRate: '24.00', effectiveDate: '2025-01-01', notes: 'Raise' } as any)
     await t.db.insert(S.payrollShiftReviews).values({ companyId: coA, caregiverId: ids.cg1, clientId: cl.id, shiftDate: today, payPeriodStart: today, payPeriodEnd: today, payableMinutes: 90, status: 'approved' } as any)
     await t.db.insert(S.schedules).values([
-      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'recurring', dayOfWeek: 2, startTime: new Date('2026-01-01T09:00:00'), endTime: new Date('2026-01-01T12:30:00') },
-      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2020-01-01', startTime: new Date('2020-01-01T09:00:00'), endTime: new Date('2020-01-01T10:00:00') },
-      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2099-03-04', startTime: new Date('2099-03-04T13:00:00'), endTime: new Date('2099-03-04T15:00:00') },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'recurring', dayOfWeek: 2, startTime: new Date('2026-01-01T09:00:00Z'), endTime: new Date('2026-01-01T12:30:00Z') },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2020-01-01', startTime: new Date('2020-01-01T09:00:00Z'), endTime: new Date('2020-01-01T10:00:00Z') },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2099-03-04', startTime: new Date('2099-03-04T13:00:00Z'), endTime: new Date('2099-03-04T15:00:00Z') },
     ] as any)
   })
 

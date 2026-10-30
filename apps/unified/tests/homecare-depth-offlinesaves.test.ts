@@ -189,3 +189,39 @@ describe('with care_offline_saves', () => {
     expect(kept).toHaveLength(0)
   })
 })
+
+// Follow-up 10/30 (3): the check above reads, then writes, so two saves landing at the same moment could both pass it. The database now
+// keeps one: medication_logs.dose_key is unique, set on a given dose that has a due time.
+describe('two saves of the same dose at the same moment (follow-up 10/30)', () => {
+  beforeAll(async () => { await setFeatures([...BASE, 'care_offline_saves']) })
+
+  test('exactly one is kept; the other gets the same plain refusal', async () => {
+    const due = '2026-11-20T14:00:00Z'
+    const [a, b] = await Promise.all([
+      dose('ann', { administeredAt: ago(60_000), scheduledTime: due }, 'race-ann-0001').then(json),
+      dose('bea', { administeredAt: ago(60_000), scheduledTime: due }, 'race-bea-0001').then(json),
+    ])
+    expect([a.status, b.status].sort()).toEqual([201, 409])
+    const refused = a.status === 409 ? a : b
+    expect(refused.body.code).toBe('dose_already_recorded')
+    expect(refused.body.error).toContain('already recorded this dose as given')
+    const kept = (await logsFor(ids.med)).filter((l) => new Date(l.scheduledTime).toISOString() === new Date(due).toISOString())
+    expect(kept).toHaveLength(1)
+  })
+
+  test('the database itself refuses a second copy, whatever the route does', async () => {
+    const due = new Date('2026-11-21T14:00:00Z')
+    const key = `${companyId}|${ids.med}|${due.toISOString()}`
+    const row = { companyId, medicationId: ids.med, clientId: ids.pat, administeredAt: new Date(), scheduledTime: due, status: 'given', doseKey: key }
+    await ins(t.schema.medicationLogs, row)
+    await expect(ins(t.schema.medicationLogs, row)).rejects.toThrow()
+  })
+
+  test('a dose that is not "given" (refused, held) does not use up the due time', async () => {
+    const due = '2026-11-22T14:00:00Z'
+    const refused = await json(await dose('ann', { status: 'refused', administeredAt: ago(60_000), scheduledTime: due }, 'race-ann-0002'))
+    expect(refused.status).toBe(201)
+    const given = await json(await dose('bea', { administeredAt: ago(60_000), scheduledTime: due }, 'race-bea-0002'))
+    expect(given.status).toBe(201)
+  })
+})

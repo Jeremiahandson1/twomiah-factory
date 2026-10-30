@@ -504,3 +504,46 @@ describe('long-term care insurance billing', () => {
     expect((Array.isArray(list) ? list : list.data).some((i: any) => i.id === plainInvoice)).toBe(false)
   })
 })
+
+// Follow-up 10/30 (6): a failed automatic payment is told to the billing contact stored on the client's private-pay payer first, else the
+// portal email, else the client's own email. (The only billing contact the data holds is the payer's — referral_sources.billing_contact_*.)
+describe('who is told when a charge fails (follow-up 10/30)', () => {
+  const payer = async (type: string, extra: any = {}) => (await ins(t.schema.referralSources, { companyId, name: `Payer ${++n}`, payerType: type, ...extra })).id as string
+  const withCard = async (extra: any) => {
+    const client = (await ins(t.schema.clients, { companyId, firstName: 'Bo', lastName: 'Payer', isActive: true, isPrivatePay: true, ...extra })).id
+    await ins(t.schema.clientAutopay, { companyId, clientId: client, status: 'active', stripeAccount: 'acct_agency', stripeCustomerId: 'cus_bo', paymentMethodId: 'pm_bo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2031 })
+    return client as string
+  }
+  const failOnce = async (client: string) => {
+    const inv = await invoice(45, { clientId: client })
+    script = () => cardError('insufficient_funds')
+    sent.length = 0
+    await release(inv.id)
+    return lastMail('homecareAutopayFailed')
+  }
+
+  test('the billing contact gets it, by name, when one is stored — not the portal email', async () => {
+    await setFeatures(['contacts', 'scheduling', 'team', 'online_payments', 'care_autopay'])
+    const rae = await payer('private_pay', { billingContactName: 'Rae Payer', billingContactEmail: 'rae@family.example' })
+    const client = await withCard({ email: 'bo@client.example', portalEmail: 'bo-portal@client.example', referredById: rae })
+    const mail = await failOnce(client)
+    expect(mail!.to).toBe('rae@family.example')
+    expect(mail!.data.contactName).toBe('Rae Payer')
+  })
+
+  test('with no billing contact (or none with an email) it goes to the portal email, then to the client\'s own email', async () => {
+    const noEmail = await payer('private_pay', { billingContactName: 'A name but no email', billingContactEmail: '   ' })
+    const a = await withCard({ email: 'cy@client.example', portalEmail: 'cy-portal@client.example', referredById: noEmail })
+    expect((await failOnce(a))!.to).toBe('cy-portal@client.example')
+    const b = await withCard({ email: 'di@client.example' })
+    expect((await failOnce(b))!.to).toBe('di@client.example')
+  })
+
+  test('an insurer\'s or referral source\'s billing office is never told about a family\'s card', async () => {
+    const insurer = await payer('medicaid', { billingContactName: 'Claims desk', billingContactEmail: 'claims@insurer.example' })
+    const client = await withCard({ email: 'ed@client.example', portalEmail: 'ed-portal@client.example', referredById: insurer })
+    const mail = await failOnce(client)
+    expect(mail!.to).toBe('ed-portal@client.example')
+    expect(sent.some((m) => m.to === 'claims@insurer.example')).toBe(false)
+  })
+})

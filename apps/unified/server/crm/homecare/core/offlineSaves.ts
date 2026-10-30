@@ -91,6 +91,17 @@ export function createOfflineSaves(d: CrmDeps, deps: { time: AgencyTime; notify:
     return { sentence: `${[row.first, row.last].filter(Boolean).join(' ') || 'Someone'} already recorded this dose as given at ${when}. If you gave it too, tell the office before giving anything more.` }
   }
 
+  /** The key the database keeps one-of: this company's medicine at this due time (medication_logs.dose_key). */
+  const doseKey = (companyId: string, medicationId: string, due: Date) => `${companyId}|${medicationId}|${due.toISOString()}`
+
+  /** Did this insert fail because another save of the same dose got there first? (Postgres 23505 on the dose_key index, as the driver wraps it.) */
+  function isDoseKeyClash(e: any): boolean {
+    for (let x = e, n = 0; x && n < 4; x = x.cause, n++) {
+      if (x.code === '23505' || /medication_logs_dose_key_idx|duplicate key value/i.test(String(x.message || ''))) return true
+    }
+    return false
+  }
+
   /** A dose of a medicine that was stopped before it was given: recorded all the same; the office is told. */
   async function tellOfficeIfStopped(companyId: string, med: { name: string; status: string; endDate: string | null }, givenAt: Date) {
     if (med.status === 'active') return false
@@ -102,7 +113,7 @@ export function createOfflineSaves(d: CrmDeps, deps: { time: AgencyTime; notify:
     return true
   }
 
-  return { enabled, savedOnce, savedTime, doseAlreadyRecorded, tellOfficeIfStopped }
+  return { enabled, savedOnce, savedTime, doseAlreadyRecorded, doseKey, isDoseKeyClash, tellOfficeIfStopped }
 }
 
 export type OfflineSaves = ReturnType<typeof createOfflineSaves>

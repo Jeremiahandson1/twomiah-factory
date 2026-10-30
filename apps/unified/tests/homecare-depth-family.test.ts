@@ -134,3 +134,40 @@ describe('home care — family text on clock-in / clock-out (item 9)', () => {
     expect((await t.db.select().from(t.schema.familyVisitText).where(and(eq(t.schema.familyVisitText.companyId, companyId), eq(t.schema.familyVisitText.familyMemberId, ids.joe)))).length).toBe(0)
   })
 })
+
+// Follow-up 10/30 (7): the quiet hours are the agency's setting (default 9 PM–8 AM), not a fixed rule.
+describe('quiet hours are an agency setting (follow-up 10/30)', () => {
+  const put = (who: string, body: any) => as(who)('/api/family-portal/admin/family-texts', { method: 'PUT', json: body })
+
+  test('the default is 9 PM–8 AM; only the office may change it; nonsense is refused; it needs the feature', async () => {
+    const got = await json(await as('owner')('/api/family-portal/admin/family-texts'))
+    expect(got.body).toEqual({ quietHoursStart: '21:00', quietHoursEnd: '08:00' })
+    expect((await put('ann', { quietHoursStart: '22:00', quietHoursEnd: '06:00' })).status).toBe(403)
+    for (const bad of [{ quietHoursStart: '25:00', quietHoursEnd: '06:00' }, { quietHoursStart: '22:00' }, { quietHoursStart: '22:00', quietHoursEnd: '22:00' }, { quietHoursStart: '10pm', quietHoursEnd: '6am' }]) {
+      const r = await json(await put('owner', bad))
+      expect([r.status, r.body.code]).toEqual([400, 'bad_quiet_hours'])
+    }
+    expect((await json(await as('owner')('/api/family-portal/admin/family-texts'))).body.quietHoursStart).toBe('21:00') // nothing was saved
+    await setFeatures(['contacts', 'scheduling', 'team'])
+    expect((await put('owner', { quietHoursStart: '22:00', quietHoursEnd: '06:00' })).status).toBe(403)
+    await setFeatures(['contacts', 'scheduling', 'team', 'care_family_texts'])
+  })
+
+  test('a changed setting is honoured: 10:30 PM–6 AM lets a 9:30 PM and a 6:30 AM arrival through and holds one at 11 PM', async () => {
+    const saved = await json(await put('owner', { quietHoursStart: '22:30', quietHoursEnd: '06:00' }))
+    expect(saved.body).toEqual({ quietHoursStart: '22:30', quietHoursEnd: '06:00' })
+    texts.length = 0
+    const evening = at('2026-12-04T03:30:00Z') // 9:30 PM Central (quiet by the default, not by this setting)
+    const e1 = await entry()
+    expect(await core.familyTexts.onClockEvent(companyId, e1, 'clock_in', evening, evening)).toBe(1)
+    const morning = at('2026-12-04T12:30:00Z') // 6:30 AM Central
+    const e2 = await entry()
+    expect(await core.familyTexts.onClockEvent(companyId, e2, 'clock_in', morning, morning)).toBe(1)
+    const late = at('2026-12-04T05:00:00Z') // 11:00 PM Central
+    const e3 = await entry()
+    expect(await core.familyTexts.onClockEvent(companyId, e3, 'clock_in', late, late)).toBe(0)
+    expect((await logRows(e3.id)).map((r) => r.status)).toEqual(['skipped_quiet'])
+    expect(texts.length).toBe(2)
+    await put('owner', { quietHoursStart: '21:00', quietHoursEnd: '08:00' })
+  })
+})

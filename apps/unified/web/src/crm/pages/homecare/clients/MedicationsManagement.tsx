@@ -193,7 +193,7 @@ const MedicationsManagement = () => {
   return (
     <div>
       <div className="page-header">
-        <h2>💊 Medication reminders</h2>
+        <h2>💊 Medicine list &amp; dose log</h2>
       </div>
 
       {/* Client Selector */}
@@ -218,10 +218,10 @@ const MedicationsManagement = () => {
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
             <button className={`hc-btn ${activeTab === 'medications' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('medications')}>
-              Medications ({activeMeds.length})
+              Medicine list ({activeMeds.length})
             </button>
             <button className={`hc-btn ${activeTab === 'logs' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('logs')}>
-              Administration Log ({logs.length})
+              Dose log ({logs.length})
             </button>
             <button className={`hc-btn ${activeTab === 'vitals' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('vitals')}>
               📋 Vitals
@@ -334,7 +334,7 @@ const MedicationsManagement = () => {
           {activeTab === 'logs' && (
             <div className="hc-card">
               {logs.length === 0 ? (
-                <p>No administration logs for the past 30 days.</p>
+                <p>No doses recorded in the past 30 days.</p>
               ) : (
                 <table className="hc-table">
                   <thead>
@@ -388,7 +388,7 @@ const MedicationsManagement = () => {
         <div className="modal active" onClick={() => setShowLogModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Log Medication Administration</h3>
+              <h3>Record a dose</h3>
               <button className="modal-close" onClick={() => setShowLogModal(false)}>×</button>
             </div>
             <LogForm medications={activeMeds} onSubmit={logAdministration} onCancel={() => setShowLogModal(false)} />

@@ -982,8 +982,8 @@ function renderClientReportPdf(doc: PDFKit.PDFDocument, data: any, agency: strin
   }
 
   if (data.medications) {
-    sectionHeader('Medications')
-    if (data.medications.length === 0) emptyNote('No medications on file.')
+    sectionHeader('Medicine list')
+    if (data.medications.length === 0) emptyNote('No medicines on file.')
     else renderTable([
       { label: 'Medication', w: 0.26, key: 'medicationName' }, { label: 'Dosage', w: 0.12, key: 'dosage' },
       { label: 'Frequency', w: 0.15, key: 'frequency' }, { label: 'Route', w: 0.10, key: 'route' },
@@ -992,10 +992,10 @@ function renderClientReportPdf(doc: PDFKit.PDFDocument, data: any, agency: strin
     ], data.medications)
     if (data.medicationLogs) {
       doc.moveDown(0.3)
-      doc.fontSize(11).font('Helvetica-Bold').fillColor(INK).text('Medication Administration (period)', 50, doc.y)
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(INK).text('Dose log (period)', 50, doc.y)
       doc.moveDown(0.2)
       renderTable([
-        { label: 'Administered', w: 0.24, get: (r) => fmtDateTime(r.administeredTime) },
+        { label: 'Given', w: 0.24, get: (r) => fmtDateTime(r.administeredTime) },
         { label: 'Medication', w: 0.24, key: 'medicationName' }, { label: 'Status', w: 0.14, key: 'status' },
         { label: 'Caregiver', w: 0.20, key: 'caregiverName' }, { label: 'Notes', w: 0.18, key: 'notes' },
       ], data.medicationLogs)

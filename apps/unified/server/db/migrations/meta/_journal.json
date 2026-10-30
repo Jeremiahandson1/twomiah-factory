@@ -351,6 +351,13 @@
       "when": 1793385281179,
       "tag": "0049_careless_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793400510676,
+      "tag": "0050_vengeful_grandmaster",
+      "breakpoints": true
     }
   ]
 }

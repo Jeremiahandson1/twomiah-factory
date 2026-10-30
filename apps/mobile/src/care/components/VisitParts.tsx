@@ -155,7 +155,7 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
   }
   return (
     <View>
-      <SectionTitle>Medications (MAR)</SectionTitle>
+      <SectionTitle>Medicine list & dose log</SectionTitle>
       {meds.map((med) => {
         // GET /api/medications/due/:clientId → { id, medicationName, name, dosage, route, frequency, instructions, isPrn };
         // GET /api/medications/logs/time-entry/:id → { medicationId, status, administeredTime, administeredAt }.

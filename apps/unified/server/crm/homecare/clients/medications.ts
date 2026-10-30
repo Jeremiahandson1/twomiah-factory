@@ -173,16 +173,26 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
     if (!caregiverId) return fail(c, 404, 'Caregiver not found')
     const visit = await visitRefusal(c, user, companyId, me, b.clientId, b.timeEntryId)
     if (visit) return visit
-    if (offline && (status === 'given' || status === 'self_administered')) {
+    const oneDose = offline && (status === 'given' || status === 'self_administered') && scheduledTime
+    if (oneDose) {
       const dup = await core.offlineSaves.doseAlreadyRecorded(companyId, med.id, b.clientId, scheduledTime)
       if (dup) return fail(c, 409, dup.sentence, 'dose_already_recorded')
     }
-    const [row] = await db.insert(medicationLogs).values({
-      companyId, medicationId: med.id, clientId: b.clientId, caregiverId,
-      timeEntryId: b.timeEntryId || null, scheduledTime, administeredAt,
-      status, effectiveStatus: status, dosageGiven: b.dosageGiven || null,
-      notes: b.notes || null, witnessedBy: b.witnessedBy ? String(b.witnessedBy).trim() || null : null,
-    }).returning()
+    let row: any
+    try {
+      // The read above is the friendly answer; the unique dose_key is the guard: two saves landing together cannot both be kept.
+      ;[row] = await db.insert(medicationLogs).values({
+        companyId, medicationId: med.id, clientId: b.clientId, caregiverId,
+        timeEntryId: b.timeEntryId || null, scheduledTime, administeredAt,
+        status, effectiveStatus: status, dosageGiven: b.dosageGiven || null,
+        notes: b.notes || null, witnessedBy: b.witnessedBy ? String(b.witnessedBy).trim() || null : null,
+        doseKey: oneDose ? core.offlineSaves.doseKey(companyId, med.id, scheduledTime) : null,
+      }).returning()
+    } catch (e: any) {
+      if (!oneDose || !core.offlineSaves.isDoseKeyClash(e)) throw e
+      const dup = await core.offlineSaves.doseAlreadyRecorded(companyId, med.id, b.clientId, scheduledTime)
+      return fail(c, 409, dup?.sentence ?? 'Someone already recorded this dose as given. If you gave it too, tell the office before giving anything more.', 'dose_already_recorded')
+    }
     // A dose of a stopped medicine is recorded (it happened) and the office is told.
     const stopped = offline && status !== 'refused' && status !== 'missed' && status !== 'held' && await core.offlineSaves.tellOfficeIfStopped(companyId, med, administeredAt)
     return one(c, stopped ? { ...row, warning: 'This medicine was marked as stopped. The office has been told.' } : row, 201)

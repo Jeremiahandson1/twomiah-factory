@@ -24,7 +24,7 @@ import { and, eq } from 'drizzle-orm'
 import { documentLinkToken, documentLinkPath } from '@twomiah/tenant-backend'
 import { autopayAttempt, clientAutopay, clients, company, invoices } from '../../../db/schema/index.ts'
 import {
-  attemptByIntent, attemptsForInvoice, attemptsNeedingAttention, autopayClients, claimAttempt, companiesWithAutopay, invoicesDueForCharge,
+  attemptByIntent, attemptsForInvoice, attemptsNeedingAttention, autopayClients, billingContactOf, claimAttempt, companiesWithAutopay, invoicesDueForCharge,
   reclaimStaleAttempt, releaseHardDeclines,
 } from '../../../data/homecareAutopay.ts'
 import { invoiceForEmail } from '../../../data/homecareBillingRoutes.ts'
@@ -239,10 +239,13 @@ export function createAutopay(d: CrmDeps, deps: { invoices: Pick<InvoiceEngine, 
     const number = String(inv.seqNumber ?? inv.invoiceNumber)
     const amountDue = (attempt.amountCents / 100).toFixed(2)
     const retryOn = nextAt ? ymdIn(nextAt, tz) : null
-    if (inv.clientEmail && deps.email.isConfigured) {
+    // The stored billing contact first (the person who pays), else the portal email, else the client's own email.
+    const billing = await billingContactOf(d.db, attempt.companyId, inv.clientId)
+    const to = billing?.email || inv.clientEmail
+    if (to && deps.email.isConfigured) {
       const token = await documentLinkToken(d.db, invoices, attempt.invoiceId)
-      await deps.email.sendAutopayFailed(inv.clientEmail, {
-        companyName: await agencyName(attempt.companyId), contactName: `${inv.firstName} ${inv.lastName}`.trim(),
+      await deps.email.sendAutopayFailed(to, {
+        companyName: await agencyName(attempt.companyId), contactName: (billing?.email ? billing.name : null) || `${inv.firstName} ${inv.lastName}`.trim(),
         invoiceNumber: number, amountDue, reason, retryOn, documentPath: token ? documentLinkPath(token) : null,
       }).catch((e: any) => d.logger.error('[autopay] email not sent', { error: e?.message }))
     }
