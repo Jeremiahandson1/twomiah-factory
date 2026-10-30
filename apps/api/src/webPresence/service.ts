@@ -132,8 +132,8 @@ async function setUp(d: Deps, tenantId: string, tenant: any): Promise<Provisione
 
     // The site's own settings, set BEFORE the deploy that first reads them. The team's token is never among them.
     await nl.setEnv(row!.netlify_site_id!, {
-      WP_SITE_ID: { value: row!.id }, WP_SECRET: { value: await siteSecret(masterKey(d.env), row!.id), secret: true },
-      WP_FACTORY_URL: { value: factoryUrl(d.env) }, WP_TENANT_ID: { value: tenantId }, WP_FACTORY_KEY: { value: factoryKey, secret: true },
+      WP_SITE_ID: { value: row!.id }, WP_SECRET: { value: await siteSecret(masterKey(d.env), row!.id) },
+      WP_FACTORY_URL: { value: factoryUrl(d.env) }, WP_TENANT_ID: { value: tenantId }, WP_FACTORY_KEY: { value: factoryKey },
     })
     const first = await publish(d, row!, tenant)
     await reconcileForms(d, row!, first)

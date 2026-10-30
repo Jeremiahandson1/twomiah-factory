@@ -46,9 +46,14 @@ export class Netlify {
     try { await this.call('DELETE', `/sites/${encodeURIComponent(id)}`) } catch (e) { if (e instanceof NetlifyError && e.status === 404) return; throw e }
   }
 
-  /** The site's own settings for its function (read at run time). Set BEFORE the deploy that first needs them. */
-  async setEnv(siteId: string, vars: Record<string, { value: string; secret?: boolean }>): Promise<void> {
-    const body = Object.entries(vars).map(([key, v]) => ({ key, scopes: ['functions', 'runtime'], is_secret: !!v.secret, values: [{ context: 'all', value: v.value }] }))
+  /**
+   * The site's own settings for its function (read at run time). Set BEFORE the deploy that first needs them.
+   * Plain settings, all scopes: the team's plan refuses chosen scopes ("Upgrade your Netlify account to set specific scopes", 403)
+   * and a secret without them ("Secrets are not allowed to run in 'post_processing' scopes", 422) — measured 10/30. They are read
+   * only by the team's own login and never written into the site's files.
+   */
+  async setEnv(siteId: string, vars: Record<string, { value: string }>): Promise<void> {
+    const body = Object.entries(vars).map(([key, v]) => ({ key, values: [{ context: 'all', value: v.value }] }))
     await this.call('POST', `/accounts/${encodeURIComponent(this.cfg.team)}/env?site_id=${encodeURIComponent(siteId)}`, { json: body })
   }
 

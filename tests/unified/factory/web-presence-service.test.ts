@@ -40,6 +40,9 @@ function fakeNetlify() {
       const id = 'ns-' + ++n; sites.set(id, { id, name: body.name, team: mm[1] }); log.push({ op: 'createSite', name: body.name, team: mm[1], token: init.headers.Authorization })
       return respond({ id, name: body.name, url: `http://${body.name}.netlify.app`, ssl_url: `https://${body.name}.netlify.app` })
     }
+    // Netlify's answers on the team's plan (measured 10/30): chosen scopes are refused, and so is a secret without them.
+    if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/) && body.some((b: any) => b.scopes)) return respond({ code: 403, message: 'Upgrade your Netlify account to set specific scopes' }, 403)
+    if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/) && body.some((b: any) => b.is_secret)) return respond({ code: 422, message: "Secrets are not allowed to run in 'post_processing' scopes." }, 422)
     if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/)) { const id = u.searchParams.get('site_id')!; env.set(id, body); log.push({ op: 'setEnv', siteId: id, keys: body.map((b: any) => b.key), body }); return respond(null, 201) }
     if (m === 'POST' && (mm = p.match(/^\/sites\/([^/]+)\/deploys$/))) { log.push({ op: 'deploy', siteId: mm[1], files: Object.keys(body.files), functions: Object.keys(body.functions), envAtDeploy: (env.get(mm[1]) || []).map((e: any) => e.key) }); return respond({ id: 'dep-' + ++n, required: Object.values(body.files), required_functions: Object.values(body.functions) }) }
     if (m === 'PUT' && p.match(/^\/deploys\/[^/]+\/(files|functions)/)) { log.push({ op: 'upload', path: p }); return respond({}) }
@@ -154,8 +157,6 @@ describe('set-up: one Netlify site per customer', () => {
     const all = JSON.stringify(env.body)
     expect(all).not.toContain('team-token')
     expect(all).not.toContain(MASTER)
-    expect(env.body.find((b: any) => b.key === 'WP_SECRET').is_secret).toBe(true)
-    expect(env.body.find((b: any) => b.key === 'WP_FACTORY_KEY').is_secret).toBe(true)
     // the per-site secret is derived, and differs per site
     expect(env.body.find((b: any) => b.key === 'WP_SECRET').values[0].value).toBe(await siteSecret(MASTER, out.row.id))
     expect(await siteSecret(MASTER, 'a')).not.toBe(await siteSecret(MASTER, 'b'))
