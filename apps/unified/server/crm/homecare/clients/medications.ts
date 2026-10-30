@@ -146,7 +146,9 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
   app.post('/:id/discontinue', requirePermission('care-clients:update'), discontinue)
 
   // ── MAR ──
-  app.post('/log', requirePermission('evv:create'), async (c) => {
+  // Item 4 (care_offline_saves): a dose saved on the phone without signal is recorded once (Idempotency-Key), at the time it was
+  // given, refused if someone already recorded it, and flagged to the office if the medicine had been stopped. Off: as ever.
+  app.post('/log', requirePermission('evv:create'), core.offlineSaves.savedOnce, async (c) => {
     const { user, companyId, me } = who(c)
     const b = await body(c)
     if (!b.medicationId || !b.clientId) return fail(c, 400, 'medicationId and clientId are required')
@@ -154,25 +156,36 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
     if (refused) return refused
     // 'given' is the default; anything else outside the MAR list is 'given' too (the source CRM's rule).
     const status = MAR_STATUSES.includes(b.status) ? b.status : 'given'
-    const when = b.administeredTime ?? b.administeredAt
+    const offline = await core.offlineSaves.enabled(companyId)
+    const when = b.administeredTime ?? b.administeredAt ?? (offline ? b.savedAt : undefined)
     const administeredAt = when ? new Date(when) : new Date()
     if (isNaN(administeredAt.getTime())) return fail(c, 400, 'The time given is not a valid date and time')
+    if (offline && when) {
+      const t = core.offlineSaves.savedTime(administeredAt)
+      if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+    }
     const scheduledTime = b.scheduledTime ? new Date(b.scheduledTime) : null
     if (scheduledTime && isNaN(scheduledTime.getTime())) return fail(c, 400, 'The scheduled time is not a valid date and time')
-    const [med] = await db.select({ id: medications.id, clientId: medications.clientId }).from(medications)
+    const [med] = await db.select({ id: medications.id, clientId: medications.clientId, name: medications.name, status: medications.status, endDate: medications.endDate }).from(medications)
       .where(and(eq(medications.id, b.medicationId), eq(medications.companyId, companyId))).limit(1)
     if (!med || med.clientId !== b.clientId) return fail(c, 404, 'Medication not found for this client')
     const caregiverId = await attributedTo(user, companyId, me, b.caregiverId)
     if (!caregiverId) return fail(c, 404, 'Caregiver not found')
     const visit = await visitRefusal(c, user, companyId, me, b.clientId, b.timeEntryId)
     if (visit) return visit
+    if (offline && (status === 'given' || status === 'self_administered')) {
+      const dup = await core.offlineSaves.doseAlreadyRecorded(companyId, med.id, b.clientId, scheduledTime)
+      if (dup) return fail(c, 409, dup.sentence, 'dose_already_recorded')
+    }
     const [row] = await db.insert(medicationLogs).values({
       companyId, medicationId: med.id, clientId: b.clientId, caregiverId,
       timeEntryId: b.timeEntryId || null, scheduledTime, administeredAt,
       status, effectiveStatus: status, dosageGiven: b.dosageGiven || null,
       notes: b.notes || null, witnessedBy: b.witnessedBy ? String(b.witnessedBy).trim() || null : null,
     }).returning()
-    return one(c, row, 201)
+    // A dose of a stopped medicine is recorded (it happened) and the office is told.
+    const stopped = offline && status !== 'refused' && status !== 'missed' && status !== 'held' && await core.offlineSaves.tellOfficeIfStopped(companyId, med, administeredAt)
+    return one(c, stopped ? { ...row, warning: 'This medicine was marked as stopped. The office has been told.' } : row, 201)
   })
 
   // The MAR rows with the medication and who gave it (administeredTime is administeredAt, the screens' name).

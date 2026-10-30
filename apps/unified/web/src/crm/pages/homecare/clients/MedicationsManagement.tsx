@@ -2,7 +2,7 @@
 // the administration record (MAR) and vitals. (server/crm/homecare/clients/medications.ts: rows are camelCase; a
 // medication carries medicationName / prescriber / isActive beside the table's name / prescribedBy / status.)
 import { useState, useEffect, type FormEvent } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
@@ -33,6 +33,8 @@ interface Medication {
 interface MedLog {
   id: string
   administeredTime: string
+  /** When the entry reached the server (the row's created_at). */
+  createdAt?: string | null
   medicationName: string
   dosage?: string | null
   dosageGiven?: string | null
@@ -79,6 +81,8 @@ const MedicationsManagement = () => {
   const may = useMay('care-clients')
   const mayEvv = useMay('evv')
   const toast = useToast()
+  // Item 4 (care_offline_saves): an entry that reached us long after it was given says so (it was saved on a phone without signal).
+  const showLate = useAuth().hasFeature('care_offline_saves')
   const confirm = useConfirm()
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState('')
@@ -347,7 +351,9 @@ const MedicationsManagement = () => {
                   <tbody>
                     {logs.map((log) => (
                       <tr key={log.id}>
-                        <td>{formatDateTime(log.administeredTime)}</td>
+                        <td>{formatDateTime(log.administeredTime)}{showLate && log.createdAt && Date.parse(log.createdAt) - Date.parse(log.administeredTime) > 15 * 60_000 && (
+                          <div className="text-xs text-gray-500 dark:text-slate-400">Saved on the phone, sent {formatDateTime(log.createdAt)}</div>
+                        )}</td>
                         <td><strong>{log.medicationName}</strong></td>
                         <td>{log.dosageGiven || log.dosage || '-'}</td>
                         <td>{getLogStatusBadge(log.effectiveStatus || log.status)}</td>

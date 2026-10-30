@@ -34,6 +34,7 @@ import { createMargin } from './margin.ts'
 import { createCsvImport } from './csvImport.ts'
 import { createAutopay } from './autopay.ts'
 import { createLtc } from './ltc.ts'
+import { createOfflineSaves } from './offlineSaves.ts'
 import { createVisitJobs } from './visitJobs.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
@@ -112,6 +113,7 @@ function buildHomecareCore(d: CrmDeps) {
   const overtime = createOvertimeAlerts(d, { time, profile, notify })
   const certReminders = createCertReminders(d, { time, notify })
   const autopay = createAutopay(d, { invoices, time, notify, email })
+  const offlineSaves = createOfflineSaves(d, { time, notify })
   const familyTexts = createFamilyTexts(d, { time, notify, profile })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time })
@@ -124,7 +126,7 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, margin, csvImport, autopay, ltc,
+    invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
     reminders, overtime, certReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */

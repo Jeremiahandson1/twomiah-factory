@@ -673,9 +673,16 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     return te ?? null
   }
 
-  app.post('/:id/photos', requirePermission('evv:create'), async (c) => {
+  app.post('/:id/photos', requirePermission('evv:create'), core.offlineSaves.savedOnce, async (c) => {
     const { user: u, companyId, me } = who(c)
-    const { imageBase64, caption, category } = await c.req.json().catch(() => ({})) as any
+    const { imageBase64, caption, category, takenAt } = await c.req.json().catch(() => ({})) as any
+    // Item 4 (care_offline_saves): a photo saved on the phone without signal keeps the time it was taken.
+    let taken: Date | null = null
+    if (takenAt !== undefined && await core.offlineSaves.enabled(companyId)) {
+      const t = core.offlineSaves.savedTime(takenAt)
+      if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+      taken = t.at
+    }
     if (!imageBase64 || !String(imageBase64).startsWith('data:image')) return fail(c, 400, 'imageBase64 (data URI) is required')
     if (String(imageBase64).length > MAX_PHOTO_CHARS) return fail(c, 400, 'Photo too large — keep under ~5MB raw')
     const te = await entryOwner(companyId, c.req.param('id'))
@@ -688,7 +695,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     const [p] = await db.insert(visitPhotos).values({
       companyId, timeEntryId: c.req.param('id'), caregiverId: te.caregiverId, clientId: te.clientId,
       caption: caption ? String(caption).slice(0, 200) : null, category: category ? String(category).slice(0, 40) : null,
-      imageBase64: String(imageBase64), imageSize: Math.floor(String(imageBase64).length * 0.75),
+      imageBase64: String(imageBase64), imageSize: Math.floor(String(imageBase64).length * 0.75), ...(taken ? { takenAt: taken } : {}),
     }).returning({ id: visitPhotos.id, caption: visitPhotos.caption, category: visitPhotos.category, takenAt: visitPhotos.takenAt, imageSize: visitPhotos.imageSize })
     return one(c, p, 201)
   })

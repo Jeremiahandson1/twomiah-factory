@@ -3031,3 +3031,21 @@ export const clientLtcPolicy = pgTable('client_ltc_policy', {
 }, (t) => [
   uniqueIndex('client_ltc_policy_client_key').on(t.clientId),
 ])
+
+// Item 4 (care_offline_saves): a save the phone made without signal and sent later may reach us twice (the reply was lost).
+// The phone gives each save one Idempotency-Key, the same on every try; the FIRST successful answer is kept here and any
+// later try with the key gets that answer back instead of doing the work again (core/offlineSaves.ts). Only a successful
+// answer is kept: a refused save can be fixed and sent again under the same key. Rows older than 30 days are dropped.
+export const savedRequest = pgTable('saved_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  key: text('key').notNull(),
+  route: text('route').notNull(), // METHOD + path, so a key cannot be reused for another save
+  status: integer('status'), // null while the first try is still running
+  response: text('response'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('saved_request_key').on(t.companyId, t.userId, t.key),
+  index('saved_request_created_idx').on(t.createdAt),
+])

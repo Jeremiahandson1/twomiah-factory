@@ -221,7 +221,14 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       .where(and(eq(clientTaskTemplates.id, c.req.param('taskId')), eq(clientTaskTemplates.companyId, companyId))).limit(1)
     if (!task || task.clientId !== entry.clientId) return fail(c, 404, 'Task not found for this client')
 
-    const completedAt = b.status === 'completed' ? new Date() : null
+    // Item 4 (care_offline_saves): a task done on the phone without signal is stamped with the time it was done, not the time it arrived.
+    let doneAt = new Date()
+    if (b.savedAt !== undefined && await core.offlineSaves.enabled(companyId)) {
+      const t = core.offlineSaves.savedTime(b.savedAt)
+      if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+      if (t.at) doneAt = t.at
+    }
+    const completedAt = b.status === 'completed' ? doneAt : null
     const notes = b.notes && String(b.notes).trim() ? String(b.notes).trim() : null
     // A refusal is a care event the office and the visit record must be able to explain, so it carries the reason.
     if (b.status === 'refused' && !notes) return fail(c, 400, REFUSAL_NEEDS_REASON)
