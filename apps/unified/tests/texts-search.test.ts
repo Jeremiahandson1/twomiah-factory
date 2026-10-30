@@ -22,8 +22,9 @@ beforeAll(async () => {
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken
   const [dana] = await t.db.insert(t.schema.contact).values({ companyId, name: 'Dana Whitfield', mobile: '(715) 555-0101' } as any).returning()
   const S = t.schema as any
-  ids.dana = (await t.db.insert(S.smsConversation).values({ companyId, contactId: dana.id, phoneNumber: '+17155550101', lastMessageAt: new Date() }).returning())[0].id
-  ids.stranger = (await t.db.insert(S.smsConversation).values({ companyId, phoneNumber: '+16085550188', lastMessageAt: new Date() }).returning())[0].id
+  const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
+  ids.dana = (await ins(S.smsConversation, { companyId, contactId: dana.id, phoneNumber: '+17155550101', lastMessageAt: new Date() })).id
+  ids.stranger = (await ins(S.smsConversation, { companyId, phoneNumber: '+16085550188', lastMessageAt: new Date() })).id
 }, 120_000)
 
 describe('the texting inbox search', () => {

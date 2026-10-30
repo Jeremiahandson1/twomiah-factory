@@ -42,17 +42,19 @@ beforeAll(async () => {
   const S = t.schema as any
   await t.db.update(S.company).set({ enabledFeatures: ['contacts', 'jobs', 'time_tracking', 'expense_tracking', 'online_booking', 'google_reviews', 'google_business', 'reports'] }).where(eq(S.company.id, companyId))
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken
-  const [crew] = await t.db.insert(S.user).values({ email: 'crew@test.example', passwordHash: 'x', firstName: 'Casey', lastName: 'Crew', role: 'field', companyId }).returning()
-  ids.time = (await t.db.insert(S.timeEntry).values({ companyId, userId: crew.id, date: new Date(), hours: '7.5', description: 'Framing' }).returning())[0].id
-  ids.expense = (await t.db.insert(S.expense).values({ companyId, category: (await call('GET', '/api/expenses/categories')).body.categories[0].value, description: 'Tile spacers', amount: '24.50', submittedById: crew.id }).returning())[0].id
-  const svc = (await t.db.insert(S.bookingService).values({ companyId, slug: 'estimate', name: 'Estimate', durationMinutes: 60 }).returning())[0]
+  // One row in, the row back (the same helper as mobile-trade-tiles.test.ts).
+  const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
+  const crew = await ins(S.user, { email: 'crew@test.example', passwordHash: 'x', firstName: 'Casey', lastName: 'Crew', role: 'field', companyId })
+  ids.time = (await ins(S.timeEntry, { companyId, userId: crew.id, date: new Date(), hours: '7.5', description: 'Framing' })).id
+  ids.expense = (await ins(S.expense, { companyId, category: (await call('GET', '/api/expenses/categories')).body.categories[0].value, description: 'Tile spacers', amount: '24.50', submittedById: crew.id })).id
+  const svc = await ins(S.bookingService, { companyId, slug: 'estimate', name: 'Estimate', durationMinutes: 60 })
   // One that began half a minute ago (today, and it may be marked done); one an hour ahead (it may not, yet).
   const start = new Date(Date.now() - 30_000), ahead = new Date(Date.now() + 3_600_000)
-  ids.booking = (await t.db.insert(S.booking).values({ companyId, serviceId: svc.id, startAt: start, endAt: new Date(start.getTime() + 3_600_000), customerName: 'Pat Booker', customerEmail: 'pat@example.net', customerPhone: '715-555-0199', status: 'pending', token: 'tok-1' }).returning())[0].id
-  ids.later = (await t.db.insert(S.booking).values({ companyId, serviceId: svc.id, startAt: ahead, endAt: new Date(ahead.getTime() + 3_600_000), customerName: 'Lou Later', customerEmail: 'lou@example.net', status: 'confirmed', token: 'tok-2' }).returning())[0].id
-  ids.wait = (await t.db.insert(S.bookingWaitlist).values({ companyId, serviceId: svc.id, customerName: 'Wren Waiting', customerEmail: 'wren@example.net' }).returning())[0].id
-  const [contact] = await t.db.insert(S.contact).values({ companyId, name: 'Rae Reviewer', email: 'rae@example.net' }).returning()
-  ids.request = (await t.db.insert(S.reviewRequest).values({ companyId, contactId: contact.id, status: 'sent', sentAt: new Date() }).returning())[0].id
+  ids.booking = (await ins(S.booking, { companyId, serviceId: svc.id, startAt: start, endAt: new Date(start.getTime() + 3_600_000), customerName: 'Pat Booker', customerEmail: 'pat@example.net', customerPhone: '715-555-0199', status: 'pending', token: 'tok-1' })).id
+  ids.later = (await ins(S.booking, { companyId, serviceId: svc.id, startAt: ahead, endAt: new Date(ahead.getTime() + 3_600_000), customerName: 'Lou Later', customerEmail: 'lou@example.net', status: 'confirmed', token: 'tok-2' })).id
+  ids.wait = (await ins(S.bookingWaitlist, { companyId, serviceId: svc.id, customerName: 'Wren Waiting', customerEmail: 'wren@example.net' })).id
+  const contact = await ins(S.contact, { companyId, name: 'Rae Reviewer', email: 'rae@example.net' })
+  ids.request = (await ins(S.reviewRequest, { companyId, contactId: contact.id, status: 'sent', sentAt: new Date() })).id
 }, 180_000)
 
 describe('the phone office screens, by their own requests', () => {
