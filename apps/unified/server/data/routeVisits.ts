@@ -69,12 +69,12 @@ const stopsInOrder = (db: any, companyId: string, routeId: string) =>
  * job routes' own lock, so the numbers are the ones every other job gets.
  */
 export async function makeRouteVisits(
-  db: any, companyId: string, userId: string,
+  db: any, companyId: string, userId: string | null,
   route: { id: string; dayOfWeek: number; startTime: string; assignedToId: string | null },
-  opts: { from: string; weeks: number },
+  opts: { from: string; weeks: number; until?: string },
 ) {
   const rows: any[] = await stopsInOrder(db, companyId, route.id)
-  const dates = routeDates(route.dayOfWeek, opts.from, opts.weeks)
+  const dates = routeDates(route.dayOfWeek, opts.from, opts.weeks).filter((d) => !opts.until || d <= opts.until)
   if (!rows.length || !dates.length) return { made: [] as any[], alreadyThere: 0, dates }
   const times = stopTimes(route.startTime, rows.map((r) => r.stop))
   const stopIds = rows.map((r) => r.stop.id)
@@ -171,4 +171,43 @@ export async function visitsOfRoute(db: any, companyId: string, routeId: string,
       gte(job.scheduledDate, dayDate(from)), sql`${job.scheduledDate} <= ${dayDate(to)}`,
     ))
     .orderBy(asc(job.scheduledDate), asc(job.scheduledTime))
+}
+
+/** How far ahead the daily top-up keeps a route's visits on the calendar: four weeks, as Yardbook and Jobber show. */
+export const TOP_UP_DAYS = 28
+
+/**
+ * The rolling top-up: every active route that already has visits is extended so its visits reach `horizonDays` ahead. It
+ * continues AFTER the route's last visit (never before), so a visit the owner deleted by hand is not made again, and a
+ * route nobody has pressed "Make visits" on is left alone — the owner opts a route in by making its first visits. Safe to
+ * run any number of times: a stop already visited that day is skipped by makeRouteVisits and by the database index.
+ */
+export async function topUpRouteVisits(
+  db: any, opts: { now?: Date; horizonDays?: number; enabled?: (companyId: string) => Promise<boolean> } = {},
+) {
+  const now = opts.now ?? new Date()
+  const horizonDays = opts.horizonDays ?? TOP_UP_DAYS
+  const today = now.toISOString().slice(0, 10)
+  const end = new Date(dayDate(today).getTime() + horizonDays * 86_400_000).toISOString().slice(0, 10)
+  const routes: any[] = await db.select().from(recurringRoute).where(eq(recurringRoute.status, 'active'))
+  const out: Array<{ routeId: string; companyId: string; made: number }> = []
+  const on = new Map<string, boolean>()
+  for (const route of routes) {
+    if (opts.enabled) {
+      if (!on.has(route.companyId)) on.set(route.companyId, await opts.enabled(route.companyId))
+      if (!on.get(route.companyId)) continue
+    }
+    const [last] = await db.select({ day: sql<Date | null>`max(${job.scheduledDate})`, by: sql<string | null>`max(${job.createdById})` }).from(job)
+      .innerJoin(recurringRouteStop, eq(job.recurringRouteStopId, recurringRouteStop.id))
+      .where(and(eq(recurringRouteStop.recurringRouteId, route.id), eq(job.companyId, route.companyId)))
+    if (!last?.day) continue
+    const lastDay = new Date(last.day).toISOString().slice(0, 10)
+    const next = new Date(dayDate(lastDay).getTime() + 86_400_000).toISOString().slice(0, 10)
+    const from = next > today ? next : today
+    if (from > end) continue
+    const weeks = Math.min(MAX_VISIT_WEEKS, Math.ceil((dayDate(end).getTime() - dayDate(from).getTime()) / (7 * 86_400_000)) + 1)
+    const r = await makeRouteVisits(db, route.companyId, last.by ?? route.assignedToId ?? null, route, { from, weeks, until: end })
+    if (r.made.length) out.push({ routeId: route.id, companyId: route.companyId, made: r.made.length })
+  }
+  return out
 }

@@ -11,8 +11,18 @@ import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSiteRoutes } from './sites.ts'
+import { topUpRouteVisits } from '../../data/routeVisits.ts'
 
 export function landscapingMounts(d: CrmDeps): Mount[] {
+  // Route visits keep themselves four weeks ahead: a minute after boot, then every 6 hours, for each company with the Route Board on.
+  // Timed work: started with the CRM's at boot, never in tests (data/routeVisits.ts topUpRouteVisits).
+  d.services.addJob(() => {
+    const tick = () => topUpRouteVisits(d.db, { enabled: (companyId) => d.features.isFeatureEnabled(companyId, 'recurring_routes') })
+      .then((r) => { if (r.length) d.logger.info('[routes] visits topped up', { routes: r.length, visits: r.reduce((n, x) => n + x.made, 0) }) })
+      .catch((err: any) => d.logger.error('[routes] visit top-up failed', { error: err?.message }))
+    setTimeout(() => { void tick() }, 60_000)
+    setInterval(() => { void tick() }, 6 * 3600_000)
+  })
   return [
     // Billing the route's visits (preview, the monthly run and its undo, one visit). Mounted BEFORE the board's own router, so
     // /api/recurring-routes/billing/... is never read as a route id.
