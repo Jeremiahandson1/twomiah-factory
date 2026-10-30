@@ -634,6 +634,44 @@ export const barTimeOff = pgTable('bar_time_off', {
   index('bar_time_off_company_day_idx').on(t.companyId, t.day),
 ])
 
+// When a person can work, week by week (restaurant-bar-depth #10, crm/bar/barStaffRequests.ts). A person with no approved
+// windows can work any time; with some, they can work only inside them. What a person submits waits ('pending') for a
+// manager; a manager's own entry is approved at once.
+export const barAvailability = pgTable('bar_availability', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  dow: integer('dow').notNull(),                 // 0 Sunday … 6 Saturday
+  startTime: text('start_time').notNull(),       // HH:MM
+  endTime: text('end_time').notNull(),           // HH:MM, after the start (all day is 00:00 to 23:59)
+  status: text('status').default('approved').notNull(), // approved | pending
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_availability_user_idx').on(t.companyId, t.userId, t.status),
+])
+
+// A shift put up to give away, or offered in a swap (restaurant-bar-depth #10). give: open -> a claimant -> pending ->
+// a manager decides. swap: offered to one person with a shift of theirs in return -> they accept -> pending -> a manager decides.
+export const barShiftRequest = pgTable('bar_shift_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  kind: text('kind').notNull(),                  // give | swap
+  shiftId: text('shift_id').notNull().references(() => barScheduleShift.id, { onDelete: 'cascade' }),
+  withShiftId: text('with_shift_id').references(() => barScheduleShift.id, { onDelete: 'cascade' }),  // swap: the shift offered back
+  fromUserId: text('from_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  toUserId: text('to_user_id').references(() => user.id, { onDelete: 'cascade' }),   // give: whoever claimed it; swap: who it is offered to
+  status: text('status').default('open').notNull(), // open | offered | pending | approved | denied | declined | cancelled
+  note: text('note'),
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_shift_request_company_idx').on(t.companyId, t.status),
+])
+
 // STOCK AND COSTING (services/barStock.ts, the pure arithmetic in barCosting.ts). Stock is bought by the pack (a
 // case, a ½ bbl keg, a 750 ml bottle) and used by the unit (each, oz, lb, fl oz): cost per unit = pack cost / pack
 // size. On hand is never typed in except by counting; between counts it is estimated — the last count + what was

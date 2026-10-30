@@ -1,6 +1,8 @@
 // The bar's services (templates/crm-bar/backend/src/services/bar*.ts), each made once with the app's database, live
 // updates, permissions, feature gate, audit and email — the template imported its own of each. The routes (./*Routes.ts)
 // and the suite's service files (tests/unified/harness) use these.
+import { eq } from 'drizzle-orm'
+import { company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { BarDb } from './db.ts'
 import { createBarLive } from './barLive.ts'
@@ -16,6 +18,7 @@ import { createBarStock } from './barStock.ts'
 import { createFoodSettings, foodDefaults } from './foodSettings.ts'
 import { createBarTerminal, terminalStripe } from './barTerminal.ts'
 import { createBarTips } from './barTips.ts'
+import { createBarStaffRequests } from './barStaffRequests.ts'
 import { createBarReceipts } from './barReceipts.ts'
 import { createBarOrders } from './barOrders.ts'
 import { hasConsent, recordConsent } from '../../site/smsConsent.ts'
@@ -32,6 +35,7 @@ export function createBarServices(d: CrmDeps) {
   const register = createBarRegister(db, emit, kitchen, loyalty, giftCards)
   const reports = createBarReports(db, live, register, (m) => d.services.emailService.sendRaw(m))
   const schedule = createBarSchedule(db, d.audit, live)
+  const staffRequests = createBarStaffRequests(db, schedule, (m) => d.services.emailService.sendRaw(m), async (companyId) => (await db.select({ email: company.email }).from(company).where(eq(company.id, companyId)).limit(1))[0]?.email ?? null)
   const stock = createBarStock(db)
   const tips = createBarTips(db, live)
   // Food service: the card reader on the business's own Stripe account, receipts, the kiosk and online orders.
@@ -64,6 +68,6 @@ export function createBarServices(d: CrmDeps) {
   }
   const sendEmail = (m: { to: string; subject: string; html: string; fromName?: string }) => d.services.emailService.sendRaw(m)
   const receipts = createBarReceipts({ db, register, timezone: (companyId) => reports.barTimezone(companyId), sendEmail, sendText })
-  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, stock, tips, food, terminal, receipts, orders }
+  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, staffRequests, stock, tips, food, terminal, receipts, orders }
 }
 export type BarServices = ReturnType<typeof createBarServices>

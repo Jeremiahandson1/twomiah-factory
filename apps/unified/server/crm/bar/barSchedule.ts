@@ -187,7 +187,7 @@ async function copyWeek(actor: Actor, fromDay: string, toDay: string, replace: b
 
 async function publishWeek(actor: Actor, day: string) {
   const w = await loadWeek(actor.companyId, day)
-  const snapshot = w.shifts.map(s => ({ userId: s.userId, name: s.name, day: s.day, start: s.start, end: s.end, position: s.position, note: s.note }))
+  const snapshot = w.shifts.map(s => ({ id: s.id, userId: s.userId, name: s.name, day: s.day, start: s.start, end: s.end, position: s.position, note: s.note }))
   const now = new Date()
   await db.insert(barScheduleWeek).values({ weekStart: w.weekStart, publishedAt: now, publishedByName: actor.name, snapshot, changedAt: now, companyId: actor.companyId })
     .onConflictDoUpdate({ target: [barScheduleWeek.companyId, barScheduleWeek.weekStart], set: { publishedAt: now, publishedByName: actor.name, snapshot, changedAt: now } })
