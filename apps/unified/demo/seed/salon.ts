@@ -37,6 +37,9 @@ export default async function seed(k: Kit) {
   const ines = await client('Ines Carvalho', { email: 'ines.carvalho@example.com', phone: '(715) 555-0226' })
   const wren = await client('Wren Tallis', { email: 'wren.tallis@example.com', phone: '(715) 555-0227', source: 'website' })
   const kit = await client('Kit Oyelaran', { email: 'kit.oyelaran@example.com', phone: '(715) 555-0228' })
+  // A regular who is overdue and has not rebooked: the one the rebooking list is for, at any hour (everyone else here has a
+  // visit booked, and Marlo dropped off the list each morning until her 11:00 had passed — 10/30).
+  const juno = await client('Juno Pell', { email: 'juno.pell@example.com', phone: '(715) 555-0229' })
   await post('/api/contacts', { type: 'lead', name: 'Dana Whitcomb', email: 'dana.whitcomb@example.com', phone: '(715) 555-0231', source: 'website', notes: 'Asked about a bridal trial. Wants a Saturday in spring.' })
   await post('/api/contacts', { type: 'lead', name: 'Emery Stroud', email: 'emery.stroud@example.com', phone: '(715) 555-0232', source: 'google', notes: 'Asked whether we colour curly hair.' })
   await post('/api/contacts', { type: 'vendor', name: 'Prairie Beauty Supply', company: 'Prairie Beauty Supply', email: 'orders@prairiebeauty.example', phone: '(715) 555-0241' })
@@ -78,6 +81,7 @@ export default async function seed(k: Kit) {
   await done(ines, -21, '14:00', manicure, stylist.reese)
   await done(wren, -3, '16:00', brows, stylist.reese)
   await done(kit, -10, '12:00', blow, stylist.devon)
+  await done(juno, -48, '10:30', cut, stylist.sky, { result: 'Shoulder length, blunt.' })
   void a1
 
   // Memberships sold: the first month is billed when the client joins.

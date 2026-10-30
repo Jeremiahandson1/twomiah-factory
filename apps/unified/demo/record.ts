@@ -11,7 +11,8 @@ import { canonicalKey, looksLikeId } from '../web/demo/keys.ts'
 import { daysBetween } from '../web/demo/shift.ts'
 import { shiftString, shiftValue } from '../web/demo/shift.ts'
 import type { DemoData, PageInfo, RecordedResponse } from '../web/demo/store.ts'
-import { bootDemoTenant, type Kit } from './seed/kit.ts'
+import { bootDemoTenant, DEMO_ZONE, type Kit } from './seed/kit.ts'
+import { businessDayOf } from '../server/crm/bar/barLive.ts'
 import type { DemoTrade } from './trades.ts'
 
 export interface PostRead { path: string; body: unknown }
@@ -80,11 +81,15 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
   const { t, trade } = kit
   const responses: Record<string, RecordedResponse> = {}
   const shiftBy = daysBetween(manifest.discoveredOn, kit.today)
+  // A bar's register keys everything by its NIGHT, which runs to 4 AM (barLive.ts businessDayOf); its other screens by the
+  // calendar. Recorded at 3 AM, a register date moved by the calendar asked for a night with no sales in it yet (10/30).
+  const nightShift = trade.vertical === 'bar' ? daysBetween(manifest.discoveredOn, businessDayOf(new Date(), DEMO_ZONE)) : shiftBy
 
   const ask = async (address: string) => {
     const url = new URL(address, 'http://demo.local')
     // The manifest's dates are the day it was walked; the data's are today's.
-    for (const [k, v] of [...url.searchParams.entries()]) url.searchParams.set(k, shiftString(v, shiftBy))
+    const by = url.pathname.startsWith('/api/register/') ? nightShift : shiftBy
+    for (const [k, v] of [...url.searchParams.entries()]) url.searchParams.set(k, shiftString(v, by))
     const res = await t.call(url.pathname + url.search, { headers: kit.headers })
     const text = await res.text()
     let body: unknown = null

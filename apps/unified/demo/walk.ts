@@ -33,7 +33,11 @@ const within = <T>(p: Promise<T>, ms: number): Promise<T | undefined> => {
 
 export async function walkDemo(opts: { base: string; trade: string; viewport?: { width: number; height: number }; colorScheme?: 'light' | 'dark'; maxPages?: number; page?: Page }): Promise<WalkReport> {
   const own = !opts.page
-  const browser = own ? await chromium.launch() : null
+  // The browser's own last words (its stderr, through Playwright's 'browser' log): a stall where no script was running and
+  // no new tab would open is the browser's, not the page's (CI 10/30), and only it can say why.
+  const browserSaid: string[] = []
+  const logger = { isEnabled: (name: string) => name === 'browser', log: (_n: string, _s: string, m: string | Error) => { browserSaid.push(String(m).slice(0, 300)); if (browserSaid.length > 15) browserSaid.shift() } }
+  const browser = own ? await chromium.launch({ logger, args: ['--enable-logging=stderr', '--v=0'] }) : null
   const context = own ? await browser!.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 }, colorScheme: opts.colorScheme ?? 'light' }) : null
   let page = opts.page ?? (await context!.newPage())
   const started = Date.now()
@@ -96,6 +100,14 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
     const said = `stopped answering for ${STALL_MS / 1000}s during "${step}" at ${page.url().replace(opts.base, '')} — ${where}; ${fresh ?? 'the whole browser had stopped too'}; just before: ${recent.join(' | ')}`
     report.pageErrors.push(`${href}: ${said}`)
     console.log(`  [walk ${opts.trade} ${opts.viewport?.width ?? 1440}px] ${href} STALLED — ${said}`)
+    // What the machine says at that moment: each browser process's state (R running, S sleeping, D waiting on the disk), its
+    // CPU and memory, what it waits in; the free memory and shared memory; then the browser's last log lines.
+    if (process.platform === 'linux') {
+      const sh = (cmd: string) => { try { return Bun.spawnSync(['sh', '-c', cmd]).stdout.toString().trim() } catch (e) { return String(e) } }
+      console.log(`  [walk ${opts.trade}] processes:\n${sh("ps -eo pid,ppid,stat,pcpu,rss,wchan:24,args --sort=-pcpu | grep -i -E 'chrom|headless' | grep -v grep | cut -c1-220 | head -12")}`)
+      console.log(`  [walk ${opts.trade}] memory:\n${sh('free -m; df -h /dev/shm')}`)
+    }
+    console.log(`  [walk ${opts.trade}] the browser's last log lines:\n${browserSaid.map((l) => '    ' + l).join('\n') || '    (none)'}`)
     return undefined
   }
 
