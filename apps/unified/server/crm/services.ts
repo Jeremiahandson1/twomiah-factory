@@ -32,6 +32,7 @@ import { createInvoiceReminders } from './billing/invoiceReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
+import { billOnComplete } from '../data/routeBilling.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -181,6 +182,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
     } : {}),
     onComplete: async ({ job: done, companyId }) => {
       if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
+      // A route billed per visit gets its draft invoice as the crew finishes the visit (data/routeBilling.ts); a failure here
+      // never holds up completing the job.
+      if ((done as any).recurringRouteStopId) {
+        await billOnComplete(db, companyId, done as any).catch((err: any) => logger.warn('[jobs] route visit not billed', { error: err?.message }))
+      }
       const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
       if (((co?.enabledFeatures || []) as string[]).includes('google_reviews')) {
         reviews.scheduleReviewRequest(done.id).catch((err: any) => logger.warn('[jobs] review request not scheduled', { error: err?.message }))

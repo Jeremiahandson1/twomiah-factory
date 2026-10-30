@@ -8,6 +8,7 @@ import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowU
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
+import RouteBillingPanel from './RouteBillingPanel'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -38,10 +39,12 @@ interface Stop {
   pricePerVisit?: string | number;
 }
 
-interface RouteDetail { id: string; name: string; dayName: string; startTime?: string; stops?: Stop[] }
+/** GET /api/recurring-routes/:id → billing (only for a seat that may see invoices): how the visits are billed and why. */
+interface RouteBilling { mode: string; chosen: boolean; note: string | null; covered: Array<{ name: string }> }
+interface RouteDetail { id: string; name: string; dayName: string; startTime?: string; stops?: Stop[]; billing?: RouteBilling }
 
 /** A visit of GET /api/recurring-routes/:id/visits — a job the route made. */
-interface Visit { id: string; number: string; title: string; status: string; scheduledDate: string; scheduledTime: string | null }
+interface Visit { id: string; number: string; title: string; status: string; scheduledDate: string; scheduledTime: string | null; invoice?: { number: string; status: string } | null }
 
 const STATUS_WORDS: Record<string, string> = {
   scheduled: 'Scheduled', dispatched: 'On the way', in_progress: 'In progress', completed: 'Done', cancelled: 'Cancelled',
@@ -90,6 +93,8 @@ export default function RecurringRoutesPage() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [weeks, setWeeks] = useState('4')
   const [making, setMaking] = useState(false)
+  // Choosing how a route is billed, and billing one visit, are the seat that may raise invoices (the server asks the same).
+  const mayBill = useMayWrite('invoices:create')
   const { sites, reloadSites } = useSites()
 
   const loadBoard = async () => {
@@ -129,6 +134,17 @@ export default function RecurringRoutesPage() {
       await api.put(`/api/recurring-routes/${detail.id}/stops/reorder`, { stopIds: ids })
       await openRoute(detail.id)
     } catch (error) { toast.error(serverMessage(error, 'Failed to move the stop')) }
+  }
+
+  const setBilling = async (billingMode: string) => {
+    if (!detail) return
+    try { await api.put(`/api/recurring-routes/${detail.id}`, { billingMode }); toast.success('Billing saved'); await openRoute(detail.id) }
+    catch (error) { toast.error(serverMessage(error, 'Could not save how this route is billed')) }
+  }
+
+  const billVisit = async (visitId: string) => {
+    try { await api.post(`/api/recurring-routes/billing/visits/${visitId}`); toast.success('Draft invoice made'); if (detail) await loadVisits(detail.id) }
+    catch (error) { toast.error(serverMessage(error, 'Could not bill this visit')) }
   }
 
   const makeVisits = async () => {
@@ -279,6 +295,19 @@ export default function RecurringRoutesPage() {
             <button onClick={addStop} className="btn-primary">Add Stop</button>
           </div>}
 
+          {detail.billing && (
+            <div className="border-t dark:border-slate-700 mt-4 pt-3">
+              <label htmlFor="route-billing" className="block text-sm font-medium">How this route is billed</label>
+              <select id="route-billing" className="input mt-1" disabled={!mayBill} value={detail.billing.chosen ? detail.billing.mode : 'auto'} onChange={(e) => setBilling(e.target.value === 'auto' ? '' : e.target.value)}>
+                <option value="auto">Automatic ({detail.billing.mode === 'elsewhere' ? 'billed elsewhere' : detail.billing.mode === 'monthly' ? 'monthly' : 'per visit'})</option>
+                <option value="per_visit">Per visit — a draft invoice when the crew finishes it</option>
+                <option value="monthly">Monthly — one draft per customer from the run below</option>
+                <option value="elsewhere">Billed elsewhere — an agreement or recurring invoice</option>
+              </select>
+              {detail.billing.note && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{detail.billing.note}</p>}
+            </div>
+          )}
+
           {/* The route made into the crew's days: real jobs on the Schedule, Crew View and phone. */}
           <div className="border-t dark:border-slate-700 mt-4 pt-3">
             <div className="flex items-end justify-between gap-3 flex-wrap mb-2">
@@ -304,7 +333,14 @@ export default function RecurringRoutesPage() {
                   {visits.map((v) => (
                     <div key={v.id} className="flex justify-between text-sm border-b dark:border-slate-700 py-1.5">
                       <span><span className="text-gray-500 dark:text-slate-400 mr-2">{dayWords(v.scheduledDate)}{v.scheduledTime ? ` · ${v.scheduledTime}` : ''}</span>{v.title}</span>
-                      <span className="text-xs text-gray-600 dark:text-slate-300">{STATUS_WORDS[v.status] || v.status}</span>
+                      <span className="text-xs text-gray-600 dark:text-slate-300 flex items-center gap-2">
+                        {STATUS_WORDS[v.status] || v.status}
+                        {v.invoice
+                          ? <span className="text-green-700 dark:text-green-300">Billed {v.invoice.number}</span>
+                          : mayBill && v.status === 'completed' && detail.billing && detail.billing.mode !== 'elsewhere'
+                            ? <button onClick={() => billVisit(v.id)} className="underline">Bill</button>
+                            : null}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -312,6 +348,8 @@ export default function RecurringRoutesPage() {
           </div>
         </div>
       )}
+
+      <RouteBillingPanel />
     </div>
   )
 }

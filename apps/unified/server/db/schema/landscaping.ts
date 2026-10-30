@@ -1,9 +1,9 @@
 // Landscaping add-on: recurring mow routes, area pricing and snow contracts. Column for column from
 // templates/crm-landscaping/backend/db/schema.ts.
-import { pgTable, text, boolean, integer, decimal, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
-import { contact, invoice } from './crm.ts'
+import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
 
 // A named per-weekday crew route (e.g. "Monday Route A").
@@ -17,6 +17,11 @@ export const recurringRoute = pgTable('recurring_route', {
   // When the crew leaves the yard, 'HH:MM'. The first stop starts here; each next stop starts when the one before is
   // done, so the stop order IS the day's order on the Schedule, Crew View and the phone.
   startTime: text('start_time').default('08:00').notNull(),
+  // How this route's visits are billed: 'per_visit' (a draft invoice when the crew marks the visit complete), 'monthly'
+  // (the batch run makes one draft per customer) or 'elsewhere' (an agreement or recurring invoice bills it). NULL = not
+  // chosen yet: it reads as 'elsewhere' when a customer on the route has an active agreement or recurring invoice, so
+  // nothing already billing bills twice, and as 'monthly' otherwise (data/routeBilling.ts).
+  billingMode: text('billing_mode'),
   status: text('status').default('active').notNull(), // active, paused, archived
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -111,4 +116,37 @@ export const snowEvent = pgTable('snow_event', {
   index('snow_event_company_id_idx').on(t.companyId),
   index('snow_event_contract_id_idx').on(t.snowContractId),
   index('snow_event_serviced_at_idx').on(t.servicedAt),
+])
+
+// One run of "bill the completed visits" (monthly batch): kept so the whole batch can be undone while its invoices are drafts.
+export const routeBillingBatch = pgTable('route_billing_batch', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  fromDate: text('from_date').notNull(), // YYYY-MM-DD, the visits' service days
+  toDate: text('to_date').notNull(),
+  groupBy: text('group_by').default('none').notNull(), // none, property
+  invoiceCount: integer('invoice_count').default(0).notNull(),
+  visitCount: integer('visit_count').default(0).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  undoneAt: timestamp('undone_at'),
+}, (t) => [
+  index('route_billing_batch_company_id_idx').on(t.companyId),
+])
+
+// A route visit's bill. One row per visit, ever (unique job_id): the database's refusal under "never bill a visit twice".
+// A deleted invoice takes its rows with it, so those visits are billable again; a voided one is cleared by the billing code.
+export const routeVisitInvoice = pgTable('route_visit_invoice', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  invoiceLineItemId: text('invoice_line_item_id').references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
+  batchId: text('batch_id').references(() => routeBillingBatch.id, { onDelete: 'set null' }),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(), // what this visit billed, before tax
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('route_visit_invoice_job_idx').on(t.jobId),
+  index('route_visit_invoice_invoice_id_idx').on(t.invoiceId),
+  index('route_visit_invoice_company_id_idx').on(t.companyId),
 ])

@@ -8,6 +8,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
+import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling.ts'
 import { makeRouteVisits, retimeRouteVisits, cancelOpenVisits, visitsOfRoute, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -63,6 +64,12 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
   const maySeeMoney = async (c: any): Promise<boolean> => {
     const u = c.get('user')
     try { return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId)) } catch { return false }
+  }
+
+  /** Changing how a route is billed is a billing decision: the seat that may raise invoices. */
+  const mayBill = async (c: any): Promise<boolean> => {
+    const u = c.get('user')
+    try { return hasPermission(u?.role, 'invoices:create', await getExtraPermissions(u?.userId)) } catch { return false }
   }
 
   async function routeWithStops(routeId: string, companyId: string) {
@@ -141,8 +148,9 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const u = c.get('user')
     const route = await routeWithStops(c.req.param('id'), u.companyId)
     if (!route) return fail(c, 404, 'Route not found')
-    if (await maySeeMoney(c)) return one(c, route)
-    return one(c, { ...route, stops: route.stops.map(withoutPrice) })
+    if (await maySeeMoney(c)) return one(c, { ...route, billing: await billingFor(db, u.companyId, route) })
+    const { billingMode: _mode, ...crewRoute } = route
+    return one(c, { ...crewRoute, stops: route.stops.map(withoutPrice) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {
@@ -198,6 +206,13 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     if (body.startTime != null && body.startTime !== '') {
       if (!HHMM.test(String(body.startTime))) return fail(c, 400, START_HELP, undefined, { startTime: START_HELP })
       patch.startTime = String(body.startTime)
+    }
+    // How the visits are billed: per visit, monthly, billed elsewhere — or '' / null to go back to automatic.
+    if (body.billingMode !== undefined) {
+      if (!(await mayBill(c))) { const why = 'Choosing how a route is billed is for an owner or manager.'; return fail(c, 403, why, undefined, { billingMode: why }) }
+      if (body.billingMode === null || body.billingMode === '' || body.billingMode === 'auto') patch.billingMode = null
+      else if ((BILLING_MODES as readonly string[]).includes(String(body.billingMode))) patch.billingMode = String(body.billingMode)
+      else { const why = 'Choose per visit, monthly, or billed elsewhere.'; return fail(c, 400, why, undefined, { billingMode: why }) }
     }
     // Read BEFORE the write, so the audit entry can say what moved (T58k: route edits were not audited).
     const [before] = await db.select().from(recurringRoute)
@@ -346,7 +361,9 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return fail(c, 400, 'Give the days as YYYY-MM-DD.')
     const rows = await visitsOfRoute(db, u.companyId, route.id, from, to)
     const money = await maySeeMoney(c)
-    return listAll(c, rows.map((r: any) => money ? r : (({ estimatedValue: _v, ...rest }) => rest)(r)))
+    if (!money) return listAll(c, rows.map((r: any) => (({ estimatedValue: _v, ...rest }) => rest)(r)))
+    const { billed } = await billedVisits(db, u.companyId, rows.map((r: any) => r.id))
+    return listAll(c, rows.map((r: any) => ({ ...r, invoice: billed.get(r.id) ?? null })))
   })
 
   return app
