@@ -15,6 +15,7 @@ import { createBarSchedule } from './barSchedule.ts'
 import { createBarStock } from './barStock.ts'
 import { createFoodSettings, foodDefaults } from './foodSettings.ts'
 import { createBarTerminal, terminalStripe } from './barTerminal.ts'
+import { createBarTips } from './barTips.ts'
 import { createBarReceipts } from './barReceipts.ts'
 import { createBarOrders } from './barOrders.ts'
 import { hasConsent, recordConsent } from '../../site/smsConsent.ts'
@@ -32,6 +33,7 @@ export function createBarServices(d: CrmDeps) {
   const reports = createBarReports(db, live, register, (m) => d.services.emailService.sendRaw(m))
   const schedule = createBarSchedule(db, d.audit, live)
   const stock = createBarStock(db)
+  const tips = createBarTips(db, live)
   // Food service: the card reader on the business's own Stripe account, receipts, the kiosk and online orders.
   const food = createFoodSettings(db, foodDefaults({ tabs: d.settings?.foodService?.tabs }))
   const terminal = createBarTerminal({
@@ -62,6 +64,6 @@ export function createBarServices(d: CrmDeps) {
   }
   const sendEmail = (m: { to: string; subject: string; html: string; fromName?: string }) => d.services.emailService.sendRaw(m)
   const receipts = createBarReceipts({ db, register, timezone: (companyId) => reports.barTimezone(companyId), sendEmail, sendText })
-  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, stock, food, terminal, receipts, orders }
+  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, stock, tips, food, terminal, receipts, orders }
 }
 export type BarServices = ReturnType<typeof createBarServices>

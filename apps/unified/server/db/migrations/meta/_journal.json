@@ -309,6 +309,13 @@
       "when": 1793383551438,
       "tag": "0043_bar_card_tabs",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793384216486,
+      "tag": "0044_bar_tip_payout",
+      "breakpoints": true
     }
   ]
 }

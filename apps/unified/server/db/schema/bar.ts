@@ -120,6 +120,29 @@ export const barCloseout = pgTable('bar_closeout', {
   index('bar_closeout_company_day_idx').on(t.companyId, t.businessDay),
 ])
 
+// Who got what of a night's tips, frozen when the night is closed (restaurant-bar-depth #9, crm/bar/barTips.ts). One row
+// per person per night; closing the night again replaces that night's rows.
+export const barTipPayout = pgTable('bar_tip_payout', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessDay: text('business_day').notNull(),
+  closeoutId: text('closeout_id').references(() => barCloseout.id, { onDelete: 'set null' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  role: text('role').notNull(),
+  hoursX100: integer('hours_x100').default(0).notNull(),      // hours worked, in hundredths
+  tipsCents: integer('tips_cents').default(0).notNull(),      // tips on the checks they closed
+  salesCents: integer('sales_cents').default(0).notNull(),    // food and drink on those checks, before tax
+  keptCents: integer('kept_cents').default(0).notNull(),
+  tipOutPaidCents: integer('tip_out_paid_cents').default(0).notNull(),
+  tipOutReceivedCents: integer('tip_out_received_cents').default(0).notNull(),
+  poolShareCents: integer('pool_share_cents').default(0).notNull(),
+  totalCents: integer('total_cents').default(0).notNull(),    // what they take home in tips
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_tip_payout_day_user_key').on(t.companyId, t.businessDay, t.userId),
+])
+
 export const barEvent = pgTable('bar_event', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   slug: text('slug').notNull(),

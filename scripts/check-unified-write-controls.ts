@@ -73,7 +73,6 @@ const NO_ASK: Record<string, string> = {
   'apps/unified/web/src/crm/pages/PricebookTrialPage.tsx': 'its one write raises a ticket with Twomiah (POST /api/platform-support/tickets, open to every signed-in person)',
   'apps/unified/web/src/crm/pages/roof/reports/EstimatorTrialPage.tsx': 'its one write raises a ticket with Twomiah (POST /api/platform-support/tickets, open to every signed-in person)',
   'apps/unified/web/src/crm/pages/bar/ClockPage.tsx': "a person's OWN clock in/out (POST /api/register/clock); bar:register is the page gate (bar.tsx routePermissions)",
-  'apps/unified/web/src/crm/pages/bar/CloseoutPage.tsx': "POST /api/register/closeout asks bar:register, the page gate; the server decides the night's scope (manager) or the person's own",
   'apps/unified/web/src/crm/pages/bar/CountPage.tsx': 'POST /api/stock/count/* asks the counter gate (bar:register), the page gate',
   'apps/unified/web/src/crm/pages/bar/GrillPage.tsx': 'POST /api/grill/bump and /recall ask bar:register, the page gate',
   'apps/unified/web/src/crm/pages/bar/GiftCardsPage.tsx': 'bar:manage is the page gate (bar.tsx) and its writes (void, adjust) ask bar:manage (barGiftCardRoutes.ts)',
