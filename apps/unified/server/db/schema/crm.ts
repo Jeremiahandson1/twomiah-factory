@@ -395,10 +395,36 @@ export const quoteLineItem = pgTable('quote_line_item', {
   // into the job and the invoice. A line that is not optional is always selected.
   optional: boolean('optional').default(false).notNull(),
   selected: boolean('selected').default(true).notNull(),
+  // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
+  // exactly while its option is the one the customer chose. Null for the lines every option shares.
+  proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('quote_line_item_quote_id_idx').on(t.quoteId),
+  index('quote_line_item_proposal_option_id_idx').on(t.proposalOptionId),
+])
+
+// One choice in a quote's proposal — Good, Better, Best: the customer picks ONE and signs, and the quote's price is the
+// lines every option shares plus the chosen option's lines (packages/tenant-backend invoicing/quoteOptions.ts). It rides
+// on the optional-lines rule: an option's lines are optional lines ticked together, so the quote's totals, its job, its
+// invoice and its billing already count only the chosen option. `photos` are image addresses (a /media path or https).
+export const quoteProposalOption = pgTable('quote_proposal_option', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tier: text('tier'),
+  brand: text('brand'),
+  warranty: text('warranty'),
+  description: text('description'),
+  photos: json('photos'),
+  recommended: boolean('recommended').default(false).notNull(),
+  chosen: boolean('chosen').default(false).notNull(),
+  chosenAt: timestamp('chosen_at'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('quote_proposal_option_quote_id_idx').on(t.quoteId),
 ])
 
 export const invoice = pgTable('invoice', {

@@ -29,7 +29,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest,
 } from '../db/schema/index.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity } from '../data/salon.ts'
@@ -77,6 +77,7 @@ import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
 import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
+import { syncJobValueFromProposal } from '../crm/roof/proposalValue.ts'
 import { roofMounts } from '../crm/roof/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
@@ -141,6 +142,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const canTakeCardPayments = cardPaymentsFor({ features, services: s })
   // A quote billed in parts: its deposit on approval, progress invoices, the final invoice crediting them (crm/billing).
   const quoteBilling = createQuoteBilling(own, { canTakeCardPayments })
+  // A quote with Good / Better / Best options, approved for one: the job it was written for is worth that option (roof/proposalValue.ts).
+  const afterQuoteApproved = (companyId: string, quoteId: string) => syncJobValueFromProposal(db, companyId, quoteId).catch((err: Error) => logger.error('[quotes] job value not updated from the chosen option', { quoteId, error: err.message }))
 
   /**
    * What keeps a contact from being deleted, and the delete itself: ONE rule (tenant-backend createContactDeleter) for
@@ -242,7 +245,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     loadPdf: loadQuotePdf,
@@ -250,7 +253,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       hasLineCost: true, timeZoneFor,
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
-      onApproved: ({ companyId, quote: q }: any) => quoteBilling.raiseDeposit(companyId, q.id),
+      onApproved: async ({ companyId, quote: q }: any) => { await afterQuoteApproved(companyId, q.id); return quoteBilling.raiseDeposit(companyId, q.id) },
+      // Good / Better / Best: only a business with the feature on builds options (a quote that has them is answered either way).
+      proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       billedBefore: (tx: any, q: any) => quoteBilling.billedBefore(tx, q),
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
       // the field-service copies had them, the base CRM didn't).
@@ -503,7 +508,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
-        contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        contact, company, user, quote, quoteLineItem, quoteProposalOption, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).
@@ -519,7 +524,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       enabledFeaturesFor: features.enabledFeaturesFor,
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
-      quoteDeposit: { onApproved: (companyId: string, q: any) => quoteBilling.raiseDeposit(companyId, q.id), depositFor: quoteBilling.depositFor },
+      quoteDeposit: { onApproved: async (companyId: string, q: any) => { await afterQuoteApproved(companyId, q.id); return quoteBilling.raiseDeposit(companyId, q.id) }, depositFor: quoteBilling.depositFor },
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

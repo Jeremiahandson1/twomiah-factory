@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, CHOOSE_FIRST } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -25,6 +25,8 @@ import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 export interface PortalTables {
   contact: any; company: any; user: any
   quote: any; quoteLineItem: any; invoice: any; invoiceLineItem: any; payment: any
+  /** The unified app's proposal options (invoicing/quoteOptions.ts): a quote the customer chooses one option of. */
+  quoteProposalOption?: any
   message: any; auditLog: any
   activity?: any
   project?: any; job?: any; changeOrder?: any; changeOrderLineItem?: any
@@ -162,6 +164,8 @@ const MAX_SIGNATURE_BYTES = 500_000
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
 const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected'] as const
+// What a customer is shown of a proposal option: no cost, no item code.
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -689,9 +693,19 @@ export function createPortalRoutes(deps: PortalDeps) {
   const customerQuote = async (companyId: string, found: any, lineItems: any[], company: any) => {
     const asks = 'depositType' in found ? depositAmount(found) : 0
     const deposit = asks > 0 && found.status === 'approved' && deps.quoteDeposit ? await deps.quoteDeposit.depositFor(companyId, found.id).catch(() => null) : null
+    // A quote with options: the lines every option shares are the quote's lines, and the options come apart with their own.
+    const view = await proposalView(db, t, found)
+    const proposal = view ? {
+      chosenOptionId: view.chosenOptionId, needsChoice: view.needsChoice,
+      options: await Promise.all(view.options.map(async (op) => ({
+        ...pick(op, PORTAL_OPTION_FIELDS),
+        lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      }))),
+    } : null
     return {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
-      lineItems: (await customerLines(db, companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
       company: { name: company.name, email: company.email, phone: company.phone },
     }
@@ -711,6 +725,21 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
 
+  /** The customer chooses one of a quote's options while the quote is theirs to answer; the price follows. */
+  const chooseProposal = async (c: any) => {
+    const { contact, company } = P(c)
+    const quoteId = c.req.param('quoteId')
+    const found = await visibleQuote(quoteId, contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
+    if (refused) return c.json({ error: refused }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId)
+    if ('error' in r) return c.json({ error: r.error }, r.status)
+    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
+    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
+  }
+
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
   function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
     const signature = body?.signature
@@ -723,12 +752,12 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
   const documentFingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown }) {
+  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null }) {
     try {
       await db.insert(t.auditLog).values({
         companyId: params.companyId, action: `${params.entity}.signed`, entity: params.entity, entityId: params.entityId, entityName: params.entityName,
         ipAddress: params.ip, userAgent: params.userAgent, userName: params.signerName, userEmail: params.signerEmail || null,
-        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
+        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, ...(params.option ? { option: params.option } : {}), consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
       })
     } catch (err) { log.error('[esign] audit write failed', { error: (err as Error).message }) }
   }
@@ -753,13 +782,17 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
+    // A quote with options is signed for ONE of them: the customer chooses before they sign.
+    if (await proposalNeedsChoice(db, t, quoteId)) return c.json({ error: CHOOSE_FIRST }, 400)
+    const view = await proposalView(db, t, found)
+    const chosenOption = view?.options.find((op) => op.chosen) || null
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
     const lineItems = includedLines(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
-    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
+    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
-    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total })
-    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
+    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null })
+    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}) } })
     // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
     let deposit: unknown = null
     if (deps.quoteDeposit) {
@@ -857,6 +890,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
   app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
+  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseProposal)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -871,6 +905,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
   app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
+  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)
