@@ -38,6 +38,7 @@ import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobMaterials from '../field/JobMaterials'
+import JobWorkOrders from '../field/JobWorkOrders'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
@@ -941,6 +942,7 @@ export default function JobDetailPage() {
 
             {/* Materials ordered for this job (the materials feature; GET/POST /api/materials?jobId=). */}
             {job && hasFeature('materials') && <JobMaterials jobId={job.id} jobAddress={job.address} />}
+            {job && hasFeature('roof_work_orders') && <JobWorkOrders jobId={job.id} jobAddress={job.address} />}
           </div>
         </div>
       </div>

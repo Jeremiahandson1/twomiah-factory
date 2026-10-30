@@ -7,6 +7,8 @@ import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
 import { createRoofCollector } from './collected.ts'
+import { createWorkOrderRoutes } from './workOrders.ts'
+import { createCrewLinkRoutes } from './crewLink.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -17,5 +19,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     ...insuranceMounts(d),
     ...reportsMounts(d),
     ...fieldMounts(d),
+    // Work orders for crews and subs (not ready): the office's side, and the crew's private link (no sign-in).
+    { path: '/api/work-orders', access: 'user', feature: 'roof_work_orders', router: createWorkOrderRoutes(d) },
+    { path: '/api/crew-link', access: 'public', feature: 'roof_work_orders', router: createCrewLinkRoutes(d) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'roof' }))
 }

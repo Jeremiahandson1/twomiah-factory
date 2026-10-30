@@ -64,6 +64,7 @@ const SupportPage = page(() => import('./crm/pages/SupportPage'))
 const ContactSupportPage = page(() => import('./crm/pages/ContactSupportPage'))
 const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
+const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -254,6 +255,9 @@ export default function App() {
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />
+
+                    {/* A crew's or sub's work order, by the private link in the text (no sign-in, no shell). */}
+                    <Route path="/w/:token" element={<CrewLinkPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

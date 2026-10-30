@@ -6,11 +6,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { Package, Plus } from 'lucide-react'
 import { api } from '../../../../api'
 import { money } from '@twomiah/tenant-ui/src/money'
-import { useMayWrite, usePermissions } from '../../../../shared'
+import { useAuth, useMayWrite, usePermissions } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
 import { listOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
+import MaterialListBuilder from './MaterialListBuilder'
 
 interface Order {
   id: string; supplier?: string | null; status?: string | null; orderDate?: string | null; deliveryDate?: string | null
@@ -22,6 +23,9 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
   const showCost = usePermissions().can('margin:read')
   const [orders, setOrders] = useState<Order[]>([])
   const [open, setOpen] = useState(false)
+  // The squares → material list calculator (roof_material_list, not ready): offered with the same permission that orders.
+  const hasList = useAuth().hasFeature('roof_material_list')
+  const [listOpen, setListOpen] = useState(false)
 
   const load = useCallback(async () => {
     try { setOrders(listOf<Order>(await api.get('/api/materials', { jobId, limit: 100 }))) } catch { setOrders([]) }
@@ -34,11 +38,18 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
         <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <Package className="w-4 h-4 text-gray-400" /> Materials
         </h2>
+        <div className="flex items-center gap-4">
+        {mayAdd && hasList && (
+          <button type="button" onClick={() => setListOpen(true)} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-300">
+            Material list
+          </button>
+        )}
         {mayAdd && (
           <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-300">
             <Plus className="w-4 h-4" /> New order
           </button>
         )}
+        </div>
       </div>
       {orders.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">No material orders</p>
@@ -61,6 +72,7 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
           ))}
         </div>
       )}
+      {listOpen && <MaterialListBuilder jobId={jobId} onClose={() => setListOpen(false)} onSaved={load} />}
       {open && <MaterialOrderForm jobId={jobId} jobAddress={jobAddress} onClose={() => setOpen(false)} onSaved={load} />}
     </div>
   )

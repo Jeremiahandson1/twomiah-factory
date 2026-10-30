@@ -345,3 +345,43 @@ export const stormRadarEventMatch = pgTable('storm_event_match', {
   index('storm_event_match_storm_radar_event_id_idx').on(t.stormRadarEventId),
   index('storm_event_match_status_idx').on(t.status),
 ])
+
+/**
+ * A work order: the job a crew or subcontractor is asked to do — scope, address, start date, the material list and some of
+ * the job's photos — texted to them as a private link (public_token, 64 hex characters) they accept, reject or complete
+ * from with no sign-in (server/crm/roof/workOrders). `material_lines` carry NO prices: a sub never sees what the roofer
+ * pays. `photo_ids` are the job photos shared with the crew; `completion_photo_ids` the ones the crew took, which are also
+ * the job's own photos. The link stops answering at `token_expires_at`.
+ */
+export const workOrder = pgTable('work_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  crewId: text('crew_id').references(() => crew.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  scope: text('scope'),
+  address: text('address'),
+  startDate: timestamp('start_date'),
+  recipientName: text('recipient_name').notNull(),
+  recipientPhone: text('recipient_phone').notNull(),
+  materialLines: json('material_lines').default([]).notNull(),
+  photoIds: json('photo_ids').default([]).notNull(),
+  // draft → sent → accepted | rejected → completed; cancelled by the office from any stage short of completed.
+  status: text('status').default('draft').notNull(),
+  publicToken: text('public_token'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  sentAt: timestamp('sent_at'),
+  respondedAt: timestamp('responded_at'),
+  respondedByName: text('responded_by_name'),
+  rejectReason: text('reject_reason'),
+  completedAt: timestamp('completed_at'),
+  completionNote: text('completion_note'),
+  completionPhotoIds: json('completion_photo_ids').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('work_order_company_id_idx').on(t.companyId),
+  index('work_order_job_id_idx').on(t.jobId),
+  uniqueIndex('work_order_public_token_uniq').on(t.publicToken),
+])
