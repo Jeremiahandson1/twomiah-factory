@@ -10,11 +10,12 @@
 // Permissions: none of these pages' reads asks one beyond signing in — GET /api/crews, /api/materials,
 // /api/canvassing/sessions (scoped to the seat on the server), /api/storms/events and /api/storm-radar/status all take
 // any signed-in seat of a company with the feature — so no menu item and no route carries a permission, and
-// routePermissions is empty. The writes are gated on each page by the permission each route asks (crews:*,
+// routePermissions is empty — except Storm Map (storms:read: it lists the company's customers, which the field seat does not
+// read). The writes are gated on each page by the permission each route asks (crews:*,
 // marketing:update for scripts, canvassing:create / :update, storms:create).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { HardHat, MapPin, Package, Radio, Zap } from 'lucide-react'
+import { CloudLightning, HardHat, MapPin, MapPinned, Package, Radio, Zap } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -23,6 +24,8 @@ const MaterialsPage = page(() => import('./MaterialsPage'))
 const CanvassingDashboard = page(() => import('./CanvassingDashboard'))
 const StormLeadsPage = page(() => import('./StormLeadsPage'))
 const StormRadarPage = page(() => import('./StormRadarPage'))
+const StormMapPage = page(() => import('./StormMapPage'))
+const TerritoriesPage = page(() => import('./TerritoriesPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -31,6 +34,8 @@ export const routes: ReactElement[] = [
   <Route key="roof-canvassing" path="canvassing" element={<CanvassingDashboard />} />,
   <Route key="roof-storm-leads" path="storm-leads" element={<StormLeadsPage />} />,
   <Route key="roof-storm-radar" path="storm-radar" element={<StormRadarPage />} />,
+  <Route key="roof-storm-map" path="storm-map" element={<StormMapPage />} />,
+  <Route key="roof-territories" path="territories" element={<TerritoriesPage />} />,
 ]
 
 /** Menu items, each gated by the feature the template's menu used. */
@@ -41,10 +46,17 @@ export const nav: NavItem[] = [
   { to: '/crm/canvassing', icon: MapPin, label: 'Canvassing', features: ['canvassing_tool'] },
   { to: '/crm/storm-leads', icon: Zap, label: 'Storm Leads', features: ['storm_lead_gen'] },
   { to: '/crm/storm-radar', icon: Radio, label: 'Storm Radar', features: ['storm_radar_overlay'] },
+  // Roofing depth gap 9 (both not ready): past customers in a storm's path; drawn canvass territories.
+  { to: '/crm/storm-map', icon: CloudLightning, label: 'Storm Map', features: ['storm_customer_map'], permission: 'storms:read' },
+  { to: '/crm/territories', icon: MapPinned, label: 'Territories', features: ['canvass_territories'] },
 ]
 
 /** '/crm/<path>' → the permission its page's main API asks: none of this group's reads asks one (above). */
-export const routePermissions: Record<string, string> = {}
+export const routePermissions: Record<string, string> = {
+  // Storm Map lists the company's customers, which the office alone reads (server: storms:read). Territories asks none: the
+  // server shows a rep only the territories they are on.
+  '/crm/storm-map': 'storms:read',
+}
 
 /**
  * The canvasser's full-screen field tool (the template's /canvass, outside the layout: no menu, no sidebar). Not a route

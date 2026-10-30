@@ -295,6 +295,13 @@
       "when": 1793380482789,
       "tag": "0041_roof_work_order",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793380483789,
+      "tag": "0042_roof_storm_territories",
+      "breakpoints": true
     }
   ]
 }
