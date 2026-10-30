@@ -51,11 +51,6 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   jobSeries?: any
   /**
-   * A weekly repeat can name its days of the week (`repeat.weekdays`, 0 = Sunday … 6 = Saturday: Monday and Thursday is
-   * [1, 4]) — needs job_series.weekdays. Off → `weekdays` is refused in words, and a repeat is one weekday as before.
-   */
-  repeatWeekdays?: boolean
-  /**
    * The other people on a job (job_assignee: job_id + user_id or member_id). Present → a job can carry
    * `otherAssigneeIds` beside its lead (assignedToId / assignedToMemberId), every one of them is checked for
    * double-booking, and a person's own jobs include the ones they are on (./onJob.ts). Absent → one person per job.
@@ -81,6 +76,11 @@ export function jobHookFor(status: string, hooks: JobHooks | undefined): JobHook
 
 export interface JobOptions {
   numbering?: { prefix?: string; pad?: number }
+  /**
+   * A weekly repeat can name its days of the week (`repeat.weekdays`, 0 = Sunday … 6 = Saturday: Monday and Thursday is
+   * [1, 4]) — needs job_series.weekdays. Off → `weekdays` is refused in words, and a repeat is one weekday as before.
+   */
+  repeatWeekdays?: boolean
   /**
    * A new job's type when none is given, on a job table with a job_type column. The templates each left it to their own
    * database default ('service' in basic and bar, 'repair' in field service and landscaping); one shared database

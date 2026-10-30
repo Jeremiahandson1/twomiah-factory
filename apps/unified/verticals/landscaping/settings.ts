@@ -68,8 +68,6 @@ const landscaping: VerticalSettings = {
     warranties: { namePlaceholder: 'e.g., Plantings — one-year replacement', categoryPlaceholder: 'e.g., plantings', claimTitlePlaceholder: 'e.g., Shrub died after planting', claimLocationPlaceholder: 'e.g., Front bed, left of the driveway' },
     // The menu in this trade's words, by page address (shellConfig.ts). Field service's own items sit under
     // "Operations" here (T58: each named after what it is, so no pair reads as the same thing).
-    // A repeating job can run on chosen days of the week (Monday and Thursday); the server's jobs.repeatWeekdays is the same switch.
-    jobs: { repeatWeekdays: true },
     nav: { '/crm/tech': 'Crew View', '/crm/parts': 'Parts & Materials', '/crm/pricebook-rates': 'Flat-Rate Pricing' },
     navSections: { 'Field Service': 'Operations' },
     searchPlaceholder: 'Search contacts, jobs, invoices...',
@@ -80,7 +78,8 @@ const landscaping: VerticalSettings = {
     // and job forms.
     sites: { singular: 'Property', plural: 'Properties', namePlaceholder: 'e.g. "Home", "Lake cottage"' },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
+    // repeatWeekdays: a repeating job can run on chosen days of the week (Monday and Thursday); the server's jobs.repeatWeekdays is the same switch.
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, repeatWeekdays: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },
     // markup/projects: construction's, as for field service (the template still offered both; projects is not offered
     // to this vertical).
