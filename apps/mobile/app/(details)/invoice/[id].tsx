@@ -13,6 +13,7 @@ import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
 import { invoiceStatusLabel, paymentMethodLabel } from '../../../src/home/labels'
 import { useAuth } from '../../../src/auth/AuthContext'
+import { useVertical } from '../../../src/vertical/VerticalContext'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { useRealTimeEvent, EVENTS } from '../../../src/socket/SocketContext'
@@ -48,6 +49,10 @@ export default function InvoiceDetailScreen() {
   const [sheet, setSheet] = useState<'pay' | 'send' | null>(null)
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('cash')
+  // A salon records the stylist's tip with the payment, as its desktop does (verticals/salon/settings.ts invoicing.tips).
+  const { vertical } = useVertical()
+  const tips = vertical === 'salon'
+  const [tip, setTip] = useState('')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -67,12 +72,14 @@ export default function InvoiceDetailScreen() {
   const canPay = canUpdate && balance > 0 && !['void', 'draft', 'refunded'].includes(invoice?.status)
   const canSend = canUpdate && !['void', 'refunded', 'paid'].includes(invoice?.status)
 
-  const openPay = () => { setAmount(balance > 0 ? balance.toFixed(2) : ''); setMethod('cash'); setSheet('pay') }
+  const openPay = () => { setAmount(balance > 0 ? balance.toFixed(2) : ''); setMethod('cash'); setTip(''); setSheet('pay') }
   const recordPayment = async () => {
     const dollars = paymentDollars(amount)
     if (dollars === null) { toast.error('Enter an amount greater than zero'); return }
+    const tipDollars = tips && tip.trim() ? paymentDollars(tip) : null
+    if (tips && tip.trim() && tipDollars === null) { toast.error('Enter the tip as an amount, or leave it empty'); return }
     setBusy(true)
-    const res = await post(`/api/invoices/${id}/payments`, { amount: dollars, method })
+    const res = await post(`/api/invoices/${id}/payments`, { amount: dollars, method, ...(tipDollars ? { tipAmount: tipDollars } : {}) })
     setBusy(false)
     if (res.ok) { haptics.success(); toast.success('Payment recorded'); setSheet(null); load() }
     else { haptics.error(); toast.error(res.error || 'Could not record the payment') }
@@ -142,6 +149,7 @@ export default function InvoiceDetailScreen() {
         <View style={{ gap: space[3] }}>
           <DText variant="callout" tone="textSecondary">Record a payment you already received.</DText>
           <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" prefix="$" />
+          {tips ? <TextField label="Tip (optional)" helper="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice." value={tip} onChangeText={setTip} keyboardType="decimal-pad" prefix="$" /> : null}
           <DText variant="captionStrong" tone="textSecondary">How was it paid?</DText>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>{METHODS.map((m) => <Chip key={m.id} label={m.label} selected={method === m.id} onPress={() => setMethod(m.id)} />)}</View>
           <Button label="Record payment" size="lg" fullWidth loading={busy} onPress={recordPayment} />

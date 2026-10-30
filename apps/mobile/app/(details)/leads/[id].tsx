@@ -9,6 +9,7 @@ import { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post, put } from '../../../src/api/client'
 import { useAuth } from '../../../src/auth/AuthContext'
+import { useVertical } from '../../../src/vertical/VerticalContext'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { Screen, Card, Group, ListRow, SectionHeader, DText, Badge, Button, TextField, ChipRow, Chip, EmptyState, SkeletonRows, space, layout } from '../../../src/design'
@@ -24,13 +25,16 @@ export default function LeadDetail() {
   const toast = useToast()
   const haptics = useHaptics()
   const { can } = useAuth()
+  const { hasFeature } = useVertical()
   const [lead, setLead] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const canWork = can('leads:update')
   const canConvert = can('leads:update') && can('contacts:create')
-  const canQuote = canConvert && can('quotes:create')
+  // Only where the business has quotes: the owner holds every permission, so in a salon or a bar (no quotes) the button
+  // showed and opened a form for something the business does not do (10/30, the lead inbox going native in every trade).
+  const canQuote = canConvert && can('quotes:create') && hasFeature('quotes')
 
   const load = useCallback(async () => {
     const res = await get(`/api/leads/${id}`)

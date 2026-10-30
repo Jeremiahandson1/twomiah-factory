@@ -61,12 +61,29 @@ const VERTICAL_FILTERS: Record<string, { key: string; label: string }[]> = {
     { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Homeowner' },
     { key: 'subcontractor', label: 'Sub' }, { key: 'vendor', label: 'Vendor' },
   ],
+  // Each trade's own types and words, in its order (apps/unified/verticals/<trade>/settings.ts crm.contacts.types). Without
+  // them these trades fell back to the contractor's chips — a "Sub" the server refuses (10/30, contacts going native).
+  salon: [
+    { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'vendor', label: 'Supplier' },
+  ],
+  restaurant: [
+    { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'vendor', label: 'Vendor' },
+  ],
+  bar: [
+    { key: 'all', label: 'All' }, { key: 'client', label: 'Guest' }, { key: 'lead', label: 'Lead' }, { key: 'vendor', label: 'Supplier' },
+  ],
+  vet: [
+    { key: 'all', label: 'All' }, { key: 'client', label: 'Owner' }, { key: 'lead', label: 'Inquiry' }, { key: 'vendor', label: 'Supplier' },
+  ],
 }
+/** A salon client opens on their chart, as on the desktop (salon settings contacts.chart; server crm/salon/people.ts
+ *  NON_CLIENT_TYPES — every type but these is a client). */
+const SALON_NOT_CLIENTS = ['lead', 'vendor', 'other']
 
 export default function ContactsScreen() {
   const router = useRouter()
   const t = useTheme()
-  const { vertical } = useVertical()
+  const { vertical, hasFeature } = useVertical()
   const toast = useToast()
   const haptics = useHaptics()
   const { can } = useAuth()
@@ -131,7 +148,9 @@ export default function ContactsScreen() {
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
           <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
-            onPress={() => router.push(`/(details)/contact/${contact.id}`)} activeOpacity={0.7}>
+            onPress={() => (vertical === 'salon' && hasFeature('client_profiles') && !SALON_NOT_CLIENTS.includes(String(contact.type))
+              ? router.push({ pathname: '/(details)/t/[spec]/[id]', params: { spec: 'salon-clients', id: contact.id } } as any)
+              : router.push(`/(details)/contact/${contact.id}`))} activeOpacity={0.7}>
             <View style={styles.row}>
               <AvatarCircle name={contact.name} size={40} />
               <View style={{ flex: 1 }}>

@@ -136,10 +136,12 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], how: 'tab', what: 'Jobs tab + job detail + new/edit job form', files: ['app/(tabs)/jobs.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/jobs'], trades: ['fieldservice'], how: 'tab', what: 'Service Calls tab + job detail + form', files: ['app/(tabs)/service-calls.tsx', 'app/(details)/job/[id].tsx', 'app/(details)/job/form.tsx'] },
   { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], how: 'tab', what: 'Contacts tab + contact detail + form', files: ['app/(tabs)/contacts.tsx', 'app/(details)/contact/[id].tsx', 'app/(details)/contact/form.tsx'] },
+  { paths: ['/crm/contacts'], trades: ['salon', 'restaurant', 'bar', 'vet'], how: 'screen', what: 'Contacts list (More) in the trade\'s own types and words + contact detail (a salon client opens on their chart)', files: ['app/(tabs)/contacts.tsx', 'app/(details)/contact/[id].tsx', 'app/(details)/contact/form.tsx'] },
   { paths: ['/crm/quotes'], trades: ['contractor', 'basic'], how: 'tab', what: 'Quotes tab + quote detail + form', files: ['app/(tabs)/quotes.tsx', 'app/(details)/quote/[id].tsx', 'app/(details)/quote/form.tsx'] },
   { paths: ['/crm/quotes'], trades: ['fieldservice', 'landscaping', 'roofing'], how: 'screen', what: 'Quotes list (More, or the Pending quotes tile) + quote detail + form', files: ['app/(tabs)/quotes.tsx', 'app/(details)/quote/[id].tsx', 'app/(details)/quote/form.tsx'] },
   { paths: ['/crm/invoices'], how: 'screen', what: 'Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice', files: ['app/(details)/invoices.tsx', 'app/(details)/invoice/[id].tsx'] },
   { paths: ['/crm/schedule'], trades: ['fieldservice', 'landscaping'], how: 'tab', what: 'Schedule tab', files: ['app/(tabs)/schedule.tsx'] },
+  { paths: ['/crm/schedule'], trades: ['contractor', 'basic', 'roofing'], how: 'screen', what: 'Schedule (More): the day\'s jobs, read only', files: ['app/(tabs)/schedule.tsx'] },
   { paths: ['/crm/schedule'], trades: ['homecare'], how: 'tab', what: 'Schedule tab (two weeks: swap, move, miss)', files: ['app/(tabs)/care-schedule.tsx'] },
   { paths: ['/crm/leads', '/crm/new-leads'], how: 'screen', what: 'Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add', files: ['app/(details)/leads/index.tsx', 'app/(details)/leads/[id].tsx', 'app/(details)/lead/quick-add.tsx'] },
   { paths: ['/crm/canvassing'], trades: ['roofing'], how: 'tab', what: 'Canvass tab (door-to-door)', files: ['app/(tabs)/canvass.tsx'] },
@@ -426,11 +428,16 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/pipeline'], trades: ['roofing'], route: '/(tabs)/pipeline' },
   { paths: ['/crm/jobs'], trades: ['contractor', 'basic', 'landscaping', 'roofing'], route: '/(tabs)/jobs' },
   { paths: ['/crm/jobs'], trades: ['fieldservice'], route: '/(tabs)/service-calls' },
-  { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv'], route: '/(tabs)/contacts' },
+  // Tier 1 (owner 10/30, "option 3"): contacts, invoices, leads and the schedule open on the phone in every trade whose
+  // desktop page reads the same lists (each checked against its desktop page: the trade's contact types and words, the
+  // "Open" tab invoices and salon's tip, roofing's ?date day). Home care's Contacts stay on the desktop page: the phone's
+  // list there is the care clients, not the desktop's contacts.
+  { paths: ['/crm/contacts'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(tabs)/contacts' },
   { paths: ['/crm/quotes'], trades: JOBS_TRADES, route: '/(tabs)/quotes' },
-  { paths: ['/crm/invoices'], trades: JOBS_TRADES, route: '/(details)/invoices' },
-  { paths: ['/crm/leads', '/crm/new-leads'], trades: JOBS_TRADES, route: '/(details)/leads' },
-  { paths: ['/crm/schedule'], trades: ['fieldservice', 'landscaping'], route: '/(tabs)/schedule' },
+  { paths: ['/crm/invoices'], trades: [...JOBS_TRADES, 'rv', 'salon', 'bar', 'vet'], route: '/(details)/invoices' },
+  { paths: ['/crm/invoices'], trades: ['restaurant'], for: 'field', route: '/(details)/invoices' },
+  { paths: ['/crm/leads', '/crm/new-leads'], trades: [...JOBS_TRADES, 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/leads' },
+  { paths: ['/crm/schedule'], trades: ['fieldservice', 'landscaping', 'contractor', 'basic', 'roofing'], route: '/(tabs)/schedule' },
   { paths: ['/crm/schedule'], trades: ['homecare'], for: 'field', route: '/(tabs)/care-schedule' },
   { paths: ['/crm/canvassing'], trades: ['roofing'], route: '/(tabs)/canvass' },
   { paths: ['/crm/time'], trades: ['homecare'], for: 'field', route: '/(tabs)/time-clock' },

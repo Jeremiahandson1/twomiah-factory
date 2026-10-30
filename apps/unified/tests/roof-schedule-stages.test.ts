@@ -91,6 +91,16 @@ describe('a roofing job on the calendar', () => {
     expect(after.body.data.map((j: any) => j.id)).not.toContain(ids.job)
   })
 
+  test("the phone's day (?date) finds it on its day only — roofing listed every job for any day (10/30)", async () => {
+    const day = await json(await as('/api/jobs?date=2026-11-03&limit=100'))
+    expect(day.status).toBe(200)
+    expect(day.body.data.map((j: any) => j.id)).toContain(ids.job)
+    for (const other of ['2026-11-02', '2026-11-04']) {
+      const r = await json(await as(`/api/jobs?date=${other}&limit=100`))
+      expect(r.body.data.map((j: any) => j.id)).not.toContain(ids.job)
+    }
+  })
+
   test('a time that is not one, or a day that is not one, is refused; blank clears', async () => {
     expect((await as(`/api/jobs/${ids.job}`, { method: 'PUT', json: { scheduledTime: '25:00' } })).status).toBe(400)
     expect((await as(`/api/jobs/${ids.job}`, { method: 'PUT', json: { scheduledDate: '2026-02-30' } })).status).toBe(400)

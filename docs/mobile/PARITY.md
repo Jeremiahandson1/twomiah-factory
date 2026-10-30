@@ -10,16 +10,16 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 67 | 6 | 10 | 9 | 25 | 23 |
-| Basic (general service business) | 48 | 6 | 10 | 3 | 17 | 18 |
+| Contractor | 67 | 7 | 10 | 9 | 25 | 23 |
+| Basic (general service business) | 48 | 7 | 10 | 3 | 17 | 18 |
 | Field service | 52 | 7 | 10 | 4 | 19 | 19 |
 | Landscaping | 55 | 7 | 11 | 4 | 21 | 19 |
-| Roofing | 32 | 7 | 9 | 2 | 6 | 15 |
+| Roofing | 32 | 8 | 9 | 2 | 6 | 15 |
 | Home care | 67 | 7 | 11 | 1 | 25 | 30 |
 | RV / powersports dealership | 45 | 9 | 8 | 1 | 21 | 15 |
-| Salon / barber / spa | 36 | 4 | 5 | 5 | 10 | 16 |
-| Restaurant / caterer / event venue | 36 | 5 | 7 | 5 | 6 | 18 |
-| Bar / tavern | 44 | 6 | 8 | 8 | 7 | 21 |
+| Salon / barber / spa | 36 | 5 | 5 | 5 | 10 | 16 |
+| Restaurant / caterer / event venue | 36 | 6 | 7 | 5 | 6 | 18 |
+| Bar / tavern | 44 | 7 | 8 | 8 | 7 | 21 |
 | Online store | 28 | 4 | 4 | 2 | 3 | 19 |
 | Veterinary practice | 34 | 0 | 6 | 4 | 9 | 15 |
 
@@ -45,7 +45,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
-| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
+| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
@@ -128,7 +128,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
-| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
+| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
@@ -339,7 +339,7 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Adjusters | `/crm/adjusters` | — | insurance_workflow (on by default) | all | none | C |
-| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | none | A — the day's work |
+| Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | none | C |
 | Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
@@ -540,7 +540,7 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: who is due to rebook, today's book |
-| Business | All Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
+| Business | All Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts list (More) in the trade's own types and words + contact detail (a salon client opens on their chart) | C |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful on the phone, not the chair's daily loop |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
@@ -593,7 +593,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: the events book and what is owed on it |
-| Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | B — useful later; the event already names the client and the room |
+| Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts list (More) in the trade's own types and words + contact detail (a salon client opens on their chart) | B — useful later; the event already names the client and the room |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Overdue tab (payments overdue, office seats only) | A — deposits and balances: status and chasing (nothing is charged on the phone) |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
@@ -646,7 +646,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: tonight and the private-party book |
-| Business | Guests | `/crm/contacts` | contacts:read | contacts (on by default) | all | none | C |
+| Business | Guests | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts list (More) in the trade's own types and words + contact detail (a salon client opens on their chart) | C |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | none | B — useful later, not the bar's nightly loop |
 | Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | A — my shifts, time off and the clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | none | C |
