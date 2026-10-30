@@ -83,13 +83,16 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
   }
 
   async function createProduct(companyId: string, b: Record<string, unknown>, actor: any) {
+    // Everything is checked before anything is written: a refused product leaves nothing behind.
     const values = readProduct(b, false)
-    const [row] = await db.insert(salonRetailProduct).values({ ...values, companyId } as any).returning()
-    // Opening stock is the first stock-in, so the history starts at the beginning.
     const opening = b.openingStock === undefined || b.openingStock === '' ? 0 : Number(b.openingStock)
     if (!Number.isInteger(opening) || opening < 0 || opening > 100_000) throw new RetailError('Opening stock is a whole number of units.', 400, 'BAD_QUANTITY', 'openingStock')
-    if (opening > 0) await db.insert(salonStockMove).values({ companyId, productId: row.id, quantity: opening, kind: 'received', note: 'Opening stock', byName: nameOf(actor) })
-    return view(row, opening, true)
+    return db.transaction(async (tx: Tx) => {
+      const [row] = await tx.insert(salonRetailProduct).values({ ...values, companyId } as any).returning()
+      // Opening stock is the first stock-in, so the history starts at the beginning.
+      if (opening > 0) await tx.insert(salonStockMove).values({ companyId, productId: row.id, quantity: opening, kind: 'received', note: 'Opening stock', byName: nameOf(actor) })
+      return view(row, opening, true)
+    })
   }
 
   async function updateProduct(companyId: string, id: string, b: Record<string, unknown>) {
