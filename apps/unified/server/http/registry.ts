@@ -35,6 +35,8 @@ export interface Gates {
   authenticate: MiddlewareHandler
   requireEnabledFeature: (feature: string | string[]) => MiddlewareHandler
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
+  /** Idempotency-Key for every signed-in write (http/savedOnce.ts), right after sign-in. */
+  savedOnce?: MiddlewareHandler
   /** The one company this database holds (one company per tenant database, SPEC §2). */
   companyId: () => Promise<string | null>
 }
@@ -73,6 +75,7 @@ export function mountAll(app: Hono<any, any, any>, mounts: Mount[], gates: Gates
     if (m.access === 'factory') guards.push(factoryOnly)
     if (m.access === 'user') {
       guards.push(gates.authenticate)
+      if (gates.savedOnce) guards.push(gates.savedOnce)
       if (m.feature) guards.push(gates.requireEnabledFeature(m.feature))
     }
     if (m.access === 'public' && m.feature) {

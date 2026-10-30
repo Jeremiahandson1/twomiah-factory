@@ -249,3 +249,22 @@ export const auditLog = pgTable('audit_log', {
   index('audit_log_user_id_idx').on(t.userId),
   index('audit_log_created_at_idx').on(t.createdAt),
 ])
+
+/**
+ * A write sent with an Idempotency-Key (a phone's queued save, sent again until it is answered): the first successful
+ * answer, kept so a repeat gets it back and nothing is done twice (http/savedOnce.ts). One row per company + person + key;
+ * `status` is null while the first try is still running. Kept 30 days.
+ */
+export const savedRequest = pgTable('saved_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  key: text('key').notNull(),
+  route: text('route').notNull(), // METHOD + path, so a key cannot be reused for another save
+  status: integer('status'),
+  response: text('response'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('saved_request_key').on(t.companyId, t.userId, t.key),
+  index('saved_request_created_idx').on(t.createdAt),
+])

@@ -31,6 +31,7 @@ import { loadSiteContext } from './site/context.ts'
 import { createBookingPages } from './booking/pages.ts'
 import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
+import { savedOnce } from './http/savedOnce.ts'
 import { createAdminScreens, HOMECARE_PAGES } from './http/adminScreens.ts'
 import { contentSecurityPolicy, sitePolicy, frameOptions, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
@@ -230,6 +231,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // The public mounts' gate (a feature off answers 404) follows the same testing seam as the signed-in one.
     isFeatureEnabled: deps.testing?.featureGates === false ? async () => true : features.isFeatureEnabled,
     companyId,
+    savedOnce: savedOnce(db),
   })
 
   app.onError(errorHandler)
