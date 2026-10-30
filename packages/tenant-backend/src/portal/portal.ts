@@ -54,11 +54,26 @@ export interface PortalOptions {
   /** Status a portal service request is created in. Default 'pending' (unscheduled, waiting for the office). */
   serviceRequestStatus?: string
   /** Endpoint groups to leave unmounted even though their tables exist. */
-  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets'>
+  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'jobFiles'>
+}
+/**
+ * The photos and documents a business has chosen to show this customer, for a vertical that keeps them on the job (roofing:
+ * apps/unified/server/crm/roof/portalFiles). The portal adds a "job files" section only when this is passed; every other
+ * template and vertical leaves it out and has no such section. The vertical decides what "shared" means; the portal only
+ * authenticates the customer (their private link) and hands THEIR contact row to both functions, which must answer for
+ * that customer's own jobs alone.
+ */
+export interface PortalJobFiles {
+  /** What is shared with this customer: items of kind 'photo' | 'document' | 'report', each with the job it belongs to. */
+  list: (contact: any) => Promise<any[]>
+  /** One shared item's bytes, or null when it is not shared with this customer (read as "not found"). */
+  file: (contact: any, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
 }
 export interface PortalDeps {
   db: any
   tables: PortalTables
+  /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
+  jobFiles?: PortalJobFiles
   authenticate: any
   requirePermission: (permission: string) => any
   /** emailService.send — templates: portalInvite, collaboratorAction. */
@@ -128,6 +143,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   changeOrders: ['change_orders'],
   selections: ['selections'],
   sharedDocuments: ['documents'],
+  // The photos and documents a roofer chose to show a homeowner: only where that switch (not ready) is on.
+  jobFiles: ['portal_job_files'],
   projectFiles: ['documents', 'projects'],
   equipment: ['equipment_tracking'],
   agreements: [['service_agreements', 'maintenance_contracts']],
@@ -186,6 +203,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     submittals: !!t.submittal && !off('collaborators'),
     rfis: !!t.rfi && !off('collaborators'),
     sharedDocuments: !!t.document && !!t.documentShare && !off('sharedDocuments'),
+    // Only for a vertical that passes deps.jobFiles: every other portal's section list is exactly what it was.
+    ...(deps.jobFiles ? { jobFiles: !off('jobFiles') } : {}),
     projectFiles: !!t.document && !!t.project && !!fileService && !off('projectFiles'),
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
@@ -1193,6 +1212,23 @@ export function createPortalRoutes(deps: PortalDeps) {
         : db.select(base).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
       const rows = await q.where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt), asc(t.documentShare.id))
       return c.json(rows)
+    })
+  }
+
+  // ---- job files: the photos and documents the business chose to show THIS customer (deps.jobFiles decides what that is)
+  if (has.jobFiles && deps.jobFiles) {
+    const jobFiles = deps.jobFiles
+    app.get('/p/:token/job-files', portalAuth, gate('jobFiles'), async (c) => {
+      c.header('Cache-Control', 'private, no-store')
+      return c.json({ data: await jobFiles.list(P(c).contact) })
+    })
+    app.get('/p/:token/job-files/:kind/:id/file', portalAuth, gate('jobFiles'), async (c) => {
+      const file = await jobFiles.file(P(c).contact, c.req.param('kind'), c.req.param('id'))
+      if (!file) return c.json({ error: 'File not found' }, 404)
+      return new Response(file.body, { headers: {
+        'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',
+        'Content-Disposition': `${file.inline ? 'inline' : 'attachment'}; filename="${String(file.filename).replace(/["\r\n\\]/g, '')}"`,
+      } })
     })
   }
 

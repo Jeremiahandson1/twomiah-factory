@@ -254,17 +254,16 @@ describe('who may do what', () => {
       edit: await g(`/api/inspection-reports/${ids.reportA}`, { method: 'PUT', json: { intro: `by ${who}` } }),
       link: await g(`/api/inspection-reports/${ids.reportA}/link`, { method: 'POST', json: {} }),
       unlink: await g(`/api/inspection-reports/${ids.reportA}/link`, { method: 'DELETE' }) === 200 ? 200 : 0,
-      portal: await g(`/api/inspection-reports/${ids.reportA}/portal`, { method: 'PUT', json: { sharedWithCustomer: false } }),
     }
   }
   test('owner, admin and manager read, build, edit and share', async () => {
-    for (const who of ['owner', 'admin', 'manager']) expect([who, await doors(who)]).toEqual([who, { list: 200, read: 200, pdf: 200, build: 201, edit: 200, link: 200, unlink: 200, portal: 200 }])
+    for (const who of ['owner', 'admin', 'manager']) expect([who, await doors(who)]).toEqual([who, { list: 200, read: 200, pdf: 200, build: 201, edit: 200, link: 200, unlink: 200 }])
   })
-  test('a field seat builds and edits on its own job but cannot share the link or list it in the portal', async () => {
-    expect(await doors('field')).toEqual({ list: 200, read: 200, pdf: 200, build: 201, edit: 200, link: 403, unlink: 0, portal: 403 })
+  test('a field seat builds and edits on its own job but cannot share the link', async () => {
+    expect(await doors('field')).toEqual({ list: 200, read: 200, pdf: 200, build: 201, edit: 200, link: 403, unlink: 0 })
   })
   test('a viewer reads and downloads, and changes nothing', async () => {
-    expect(await doors('viewer')).toEqual({ list: 200, read: 200, pdf: 200, build: 403, edit: 403, link: 403, unlink: 0, portal: 403 })
+    expect(await doors('viewer')).toEqual({ list: 200, read: 200, pdf: 200, build: 403, edit: 403, link: 403, unlink: 0 })
     expect((await as('viewer')(`/api/inspection-reports/${ids.reportA}`, { method: 'DELETE' })).status).toBe(403)
   })
   test('a seat that reads only its own jobs cannot reach the report of a job that is not its own', async () => {
@@ -279,7 +278,7 @@ describe('who may do what', () => {
   test('nobody signed out reaches the office routes', async () => {
     for (const p of [`/api/inspection-reports?jobId=${jobA}`, `/api/inspection-reports/${ids.reportA}`, `/api/inspection-reports/${ids.reportA}/pdf`]) expect([p, (await t.call(p)).status]).toEqual([p, 401])
   })
-  test('listing a photo for the homeowner needs the portal permission and the feature, and a caption edit needs only the job’s', async () => {
+  test('a photo’s caption is the job’s permission (jobs:update): a field seat edits it, a viewer cannot', async () => {
     const edit = await json(await as('field')(`/api/jobs/${jobA}/photos/${photos.general.id}`, { method: 'PUT', json: { caption: 'Truck, front', photoType: 'during' } }))
     expect([edit.status, edit.body.caption, edit.body.photoType]).toEqual([200, 'Truck, front', 'during'])
     expect((await as('viewer')(`/api/jobs/${jobA}/photos/${photos.general.id}`, { method: 'PUT', json: { caption: 'no' } })).status).toBe(403)

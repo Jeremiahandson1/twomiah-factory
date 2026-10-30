@@ -614,14 +614,13 @@ export function createRoofJobRoutes(d: CrmDeps) {
     return one(c, photo, 201)
   })
 
-  // PUT /:id/photos/:photoId — a photo's caption and kind (jobs:update), and whether the homeowner's portal shows it
-  // (portal:share, off until someone with it turns it on, and only where Homeowner Photos & Documents is switched on).
+  // PUT /:id/photos/:photoId — a photo's caption and kind (jobs:update). Showing it to the homeowner is another door,
+  // with its own permission (portal/jobFiles.ts: PUT /api/job-files/photos/:id, portal:share).
   app.put('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
     const me = c.get('user')
     const parsed = z.object({
       caption: z.string().transform(stripHtml).pipe(z.string().max(500, 'A caption is 500 characters at most')).nullable().optional(),
       photoType: z.enum(JOB_PHOTO_TYPES).optional(),
-      sharedWithCustomer: z.boolean().optional(),
     }).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const [existing] = await db.select().from(jobPhoto)
@@ -630,11 +629,6 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const set: Record<string, unknown> = {}
     if (parsed.data.caption !== undefined) set.caption = parsed.data.caption || null
     if (parsed.data.photoType !== undefined) set.photoType = parsed.data.photoType
-    if (parsed.data.sharedWithCustomer !== undefined) {
-      if (!(await canSee(me.role, 'portal:share', me.userId))) return fail(c, 403, 'Sharing with the homeowner needs the portal sharing permission.', 'permission_denied')
-      if (!(await d.features.isFeatureEnabled(me.companyId, 'portal_job_files'))) return fail(c, 404, 'Not found')
-      set.sharedWithCustomer = parsed.data.sharedWithCustomer
-    }
     if (!Object.keys(set).length) return one(c, existing)
     const [photo] = await db.update(jobPhoto).set(set as any).where(and(eq(jobPhoto.id, existing.id), eq(jobPhoto.companyId, me.companyId))).returning()
     return one(c, photo)

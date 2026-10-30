@@ -78,6 +78,7 @@ import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
 import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
 import { roofMounts } from '../crm/roof/index.ts'
+import { roofPortalJobFiles } from '../crm/roof/portalFiles/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
@@ -514,6 +515,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
       fileService: s.storage,
+      // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
+      ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,

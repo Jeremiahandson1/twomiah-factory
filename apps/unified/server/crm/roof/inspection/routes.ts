@@ -10,7 +10,6 @@
 //     GET    /:id/pdf              the PDF                                                  jobs:read
 //     POST   /:id/link             switch the private link on (renew: a new address; expiresAt: a last day)   portal:share
 //     DELETE /:id/link             switch it off                                            portal:share
-//     PUT    /:id/portal           list it (or not) in the homeowner's portal               portal:share
 //
 //   /api/inspection-report-view    the homeowner's or adjuster's, by the private link — no sign-in
 //     GET /:token                  the page
@@ -30,9 +29,9 @@ import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { canSeeWith } from '../../deps.ts'
-import { ownJobsWhere } from '../../ownWork.ts'
-import { renderReportHtml, renderReportPdf } from './render.ts'
+import { createSeatJob } from '../seatJob.ts'
+import { renderReportHtml } from './render.ts'
+import { reportFileName, reportPdf } from './pdf.ts'
 import { buildReportView, sectionsOf, type ReportSection, type ReportView } from './view.ts'
 
 export const VIEW_PATH = '/api/inspection-report-view'
@@ -58,28 +57,15 @@ const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
 }
 const PAGE_CSP = "default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-const fileName = (n: string) => `inspection-report-${String(n || 'job').replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`
 
 export function createInspectionReportRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
-  const canSee = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
   const storage = d.services.storage as any
 
-  /** This seat's job: the company's, and — unless the seat reads every job — one of its own. Null reads as 404. */
-  async function jobFor(c: any, jobId: string) {
-    const u = c.get('user')
-    const [row] = await db.select().from(job).where(and(eq(job.id, jobId), eq(job.companyId, u.companyId))).limit(1)
-    if (!row) return null
-    let all = false
-    try { all = !!(await canSee(u.role, 'jobs:read-all', u.userId)) } catch { all = false }
-    if (!all) {
-      const [mine] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, u.companyId), ownJobsWhere(db, String(u.userId)))).limit(1)
-      if (!mine) return null
-    }
-    return row
-  }
+  /** This seat's job (../seatJob.ts): the company's, and unless the seat reads every job, one of its own. Null reads as 404. */
+  const jobFor = createSeatJob(d)
   /** The report, if it is the company's and its job is this seat's. */
   async function reportFor(c: any, id: string) {
     const u = c.get('user')
@@ -203,36 +189,16 @@ export function createInspectionReportRoutes(d: CrmDeps) {
     return done(c)
   })
 
-  app.put('/:id/portal', requirePermission('portal:share'), async (c) => {
-    const r = await reportFor(c, c.req.param('id'))
-    if (!r) return fail(c, 404, 'Report not found')
-    const parsed = z.object({ sharedWithCustomer: z.boolean() }).safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) return invalid(c, parsed.error)
-    const [saved] = await db.update(inspectionReport).set({ sharedWithCustomer: parsed.data.sharedWithCustomer, updatedAt: new Date() } as any).where(and(eq(inspectionReport.id, r.id), eq(inspectionReport.companyId, r.companyId))).returning()
-    return one(c, { sharedWithCustomer: !!saved.sharedWithCustomer })
-  })
-
-  /** A stored file's bytes by its /media address — only the files this report shows (its photos and the company's logo). */
-  const readerFor = (view: ReportView) => {
-    const allowed = new Set<string>([...view.sections.flatMap((s) => s.photos.map((p) => p.url)), ...(view.brand.logo ? [view.brand.logo] : [])])
-    return async (url: string): Promise<Buffer | null> => {
-      if (!allowed.has(url) || !url.startsWith(MEDIA_PREFIX) || url.includes('..')) return null
-      try {
-        const obj = await storage.getObject(url.slice(MEDIA_PREFIX.length))
-        return obj && String(obj.contentType || '').startsWith('image/') ? Buffer.from(obj.body) : null
-      } catch { return null }
-    }
-  }
-  async function pdfResponse(view: ReportView, _companyId: string, extra: Record<string, string> = {}) {
-    const pdf = await renderReportPdf(view, readerFor(view))
-    return new Response(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${fileName(view.job.number)}"`, ...securityHeaders, ...extra } })
+  async function pdfResponse(view: ReportView, _companyId: string) {
+    const pdf = await reportPdf(storage, view)
+    return new Response(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${reportFileName(view.job.number)}"`, ...securityHeaders } })
   }
 
-  return { app, pdfResponse, readerFor }
+  return { app, pdfResponse }
 }
 
 /** The link's side: a homeowner or adjuster opens one report by its token. */
-export function createInspectionViewRoutes(d: CrmDeps, shared: { pdfResponse: (view: ReportView, companyId: string) => Promise<Response>; readerFor: (view: ReportView) => (url: string) => Promise<Buffer | null> }) {
+export function createInspectionViewRoutes(d: CrmDeps, shared: { pdfResponse: (view: ReportView, companyId: string) => Promise<Response> }) {
   const { db } = d
   const app = new Hono<AppEnv>()
   const NOT_VALID = 'This link is not valid. Please contact the business that sent it.'

@@ -39,6 +39,7 @@ import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import InspectionReports from './InspectionReports'
 import PhotoDetails from './PhotoDetails'
+import ShareWithHomeowner from './ShareWithHomeowner'
 import JobMaterials from '../field/JobMaterials'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -725,6 +726,9 @@ export default function JobDetailPage() {
 
             {/* Inspection report — behind its own switch (not ready); the photos above are what it is built from. */}
             {hasPhotos && hasFeature('inspection_reports') && <InspectionReports jobId={job.id} photos={photos} />}
+
+            {/* What the homeowner's portal shows of this job — behind its own switch (not ready); off for each file until chosen. */}
+            {hasFeature('portal_job_files') && job.contact && <ShareWithHomeowner jobId={job.id} homeowner={job.contact.name || null} refreshKey={photos.length} />}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
