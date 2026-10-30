@@ -24,8 +24,8 @@ describe('a restaurant has the food side', () => {
     const byId = Object.fromEntries(cat.json.features.map((f: any) => [f.id, f]))
     for (const f of ['bar_menu', 'bar_register', 'bar_tonight', 'card_reader', 'order_kiosk', 'online_ordering', 'draft_taps', 'event_bookings']) expect(byId[f]).toBeTruthy()
     expect([byId.bar_menu.core, byId.bar_register.core, byId.bar_tonight.core]).toEqual([false, false, false])
-    // The bar-only parts a restaurant has never had stay off it: stock, the schedule.
-    expect(byId.bar_stock).toBeUndefined()
+    // Stock and the schedule are offered too, opt-in and in the kitchen's words (restaurant-bar-depth #8), never forced on.
+    expect([byId.bar_stock?.core, byId.bar_schedule?.core]).toEqual([false, false])
     // A save without the register leaves it off (a core feature would be forced back on).
     const saved = await k.O('PUT', '/api/company/features', { features: ['contacts', 'invoices', 'dashboard', 'event_bookings'] })
     expect(saved.status).toBe(200)

@@ -78,7 +78,7 @@ const restaurant: VerticalSettings = {
     // shellConfig.ts: the menu keeps the base CRM's words; the events items are crm/verticals/restaurant.tsx's.
     searchPlaceholder: 'Search events, contacts, the menu...',
     // The bar's food screens (crm/verticals/bar.tsx) in a restaurant's words; the tap list only with draft taps on.
-    nav: { '/crm/bar-settings': 'Hours & Settings' },
+    nav: { '/crm/bar-settings': 'Hours & Settings', '/crm/stock': 'Kitchen Stock', '/crm/shifts': 'Staff Schedule' },
     navSections: { 'The Bar': 'Kitchen & Counter' },
     navFeatures: { '/crm/taps': ['draft_taps'] },
     // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx), and no bar of its own: the
