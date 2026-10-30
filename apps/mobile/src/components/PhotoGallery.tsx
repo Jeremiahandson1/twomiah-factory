@@ -24,6 +24,7 @@ import { useTheme } from '../theme/ThemeContext'
 import { OVERLAY_INK } from '../theme/actions'
 import { get, upload, getApiUrl, getAccessToken } from '../api/client'
 import { useCamera } from '../hooks/useCamera'
+import { stampFields, type PhotoStamp } from '../photos/stamp'
 import { useToast } from './ToastProvider'
 import { useHaptics } from '../hooks/useHaptics'
 import { useVertical } from '../vertical/VerticalContext'
@@ -50,11 +51,13 @@ export async function loadJobPhotos(vertical: string, jobId: string): Promise<{ 
 }
 
 /** One photo onto a job, to the store this vertical keeps them in. */
-export function uploadJobPhoto(vertical: string, jobId: string, uri: string) {
+export function uploadJobPhoto(vertical: string, jobId: string, uri: string, stamp?: PhotoStamp) {
   const fd = new FormData()
   const file = { uri, type: 'image/jpeg', name: `photo_${Date.now()}.jpg` } as any
   if (photosOnJob(vertical)) {
     fd.append('photo', file)
+    // Where and when the camera says it was taken, if it said (the inspection report prints them under the photo).
+    for (const [k, v] of Object.entries(stampFields(stamp))) fd.append(k, v)
     return upload(`/api/jobs/${jobId}/photos`, fd)
   }
   fd.append('jobId', jobId)
@@ -108,7 +111,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
     const result = mode === 'camera' ? await takePhoto() : await pickImage()
     if (!result) return
     setUploading(true)
-    const res = await uploadJobPhoto(vertical, jobId, result.uri)
+    const res = await uploadJobPhoto(vertical, jobId, result.uri, result.stamp)
     if (res.ok) {
       haptics.success()
       toast.success('Photo uploaded')

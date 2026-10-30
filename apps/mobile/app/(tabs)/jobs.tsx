@@ -148,7 +148,7 @@ export default function JobsScreen() {
   const handlePhoto = async (job: any) => {
     const photo = await takePhoto()
     if (!photo) return
-    const res = await uploadJobPhoto(vertical, job.id, photo.uri)
+    const res = await uploadJobPhoto(vertical, job.id, photo.uri, photo.stamp)
     if (res.ok) { haptics.success(); toast.success(`Photo added to ${job.number}`) }
     else { haptics.error(); toast.error(res.error || 'Photo upload failed') }
   }

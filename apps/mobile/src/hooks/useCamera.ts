@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import * as ImagePicker from 'expo-image-picker'
 import { Alert } from 'react-native'
+import { stampFromExif, type PhotoStamp } from '../photos/stamp'
 
 export interface PhotoResult {
   uri: string
   width: number
   height: number
   base64?: string
+  /** Where and when the camera says it took the photo (from its EXIF; empty when it said nothing). */
+  stamp?: PhotoStamp
 }
 
 export function useCamera() {
@@ -29,7 +32,7 @@ export function useCamera() {
       })
       if (result.canceled || !result.assets[0]) return null
       const asset = result.assets[0]
-      return { uri: asset.uri, width: asset.width, height: asset.height }
+      return { uri: asset.uri, width: asset.width, height: asset.height, stamp: stampFromExif(asset.exif as any) }
     } finally {
       setLoading(false)
     }

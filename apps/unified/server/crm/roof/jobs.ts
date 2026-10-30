@@ -30,7 +30,7 @@ import { z } from 'zod'
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
 import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer, JOB_DISPATCH_PERMISSION, dispatchRefusal } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage, user } from '../../db/schema/index.ts'
-import { cleanText, cleanLines } from '../../core/sanitize.ts'
+import { cleanText, cleanLines, stripHtml } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one, listAll } from '../../http/reply.ts'
@@ -48,6 +48,31 @@ import { partialOf } from '@twomiah/tenant-backend'
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MEDIA_PREFIX = '/media/'
+
+/**
+ * Where and when the phone says a photo was taken (the inspection report prints them under the photo): both coordinates
+ * or neither, within the earth's range, and a time that is not in the future (a phone whose clock runs fast is stamped
+ * with the moment it was uploaded). Nothing is asked of the phone here — it sends what it already has.
+ */
+function photoStamp(get: (key: string) => unknown): { error?: { field: string; message: string }; latitude: string | null; longitude: string | null; takenAt: Date } {
+  const text = (k: string) => { const v = get(k); return typeof v === 'string' ? v.trim() : '' }
+  const out = { latitude: null as string | null, longitude: null as string | null, takenAt: new Date() }
+  const lat = text('latitude'), lng = text('longitude')
+  if (lat || lng) {
+    const la = lat === '' ? NaN : Number(lat), lo = lng === '' ? NaN : Number(lng)
+    if (!Number.isFinite(la) || la < -90 || la > 90) return { ...out, error: { field: 'latitude', message: 'Latitude is a number from -90 to 90, sent with the longitude' } }
+    if (!Number.isFinite(lo) || lo < -180 || lo > 180) return { ...out, error: { field: 'longitude', message: 'Longitude is a number from -180 to 180, sent with the latitude' } }
+    out.latitude = la.toFixed(7)
+    out.longitude = lo.toFixed(7)
+  }
+  const at = text('takenAt')
+  if (at) {
+    const when = new Date(at)
+    if (Number.isNaN(when.getTime())) return { ...out, error: { field: 'takenAt', message: 'takenAt is a date and time' } }
+    if (when.getTime() <= Date.now()) out.takenAt = when
+  }
+  return out
+}
 
 // Date fields arrive as strings from the form; an unparseable one reached Postgres as an Invalid Date and 500'd. '' clears
 // the field, a bad value is a 400 naming it. The date of loss is a calendar day (the CRM's day marker, as an invoice's due
@@ -573,6 +598,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (file.size > MAX_PHOTO_SIZE) return fail(c, 400, 'Photo exceeds 10MB limit')
     const photoType = (form.get('photoType') as string) || 'general'
     if (!(JOB_PHOTO_TYPES as readonly string[]).includes(photoType)) return fail(c, 400, `photoType must be one of: ${JOB_PHOTO_TYPES.join(', ')}`)
+    const stamp = photoStamp((k) => form.get(k))
+    if (stamp.error) return fail(c, 400, stamp.error.message, 'validation_failed', { [stamp.error.field]: stamp.error.message })
     const buffer = Buffer.from(await file.arrayBuffer())
     const type = sniffType(buffer) || ''
     if (!PHOTO_EXT[type]) return fail(c, 400, 'That file is not an image. JPEG, PNG, GIF and WebP are supported.')
@@ -582,9 +609,35 @@ export function createRoofJobRoutes(d: CrmDeps) {
     await d.services.storage.put(key, buffer, type)
     const [photo] = await db.insert(jobPhoto).values({
       companyId: me.companyId, jobId: id, uploadedById: me.userId, photoType, url: MEDIA_PREFIX + key,
-      caption: (form.get('caption') as string) || null, takenAt: new Date(),
+      caption: (form.get('caption') as string) || null, takenAt: stamp.takenAt, latitude: stamp.latitude, longitude: stamp.longitude,
     } as any).returning()
     return one(c, photo, 201)
+  })
+
+  // PUT /:id/photos/:photoId — a photo's caption and kind (jobs:update), and whether the homeowner's portal shows it
+  // (portal:share, off until someone with it turns it on, and only where Homeowner Photos & Documents is switched on).
+  app.put('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
+    const me = c.get('user')
+    const parsed = z.object({
+      caption: z.string().transform(stripHtml).pipe(z.string().max(500, 'A caption is 500 characters at most')).nullable().optional(),
+      photoType: z.enum(JOB_PHOTO_TYPES).optional(),
+      sharedWithCustomer: z.boolean().optional(),
+    }).safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const [existing] = await db.select().from(jobPhoto)
+      .where(and(eq(jobPhoto.id, c.req.param('photoId')), eq(jobPhoto.jobId, c.req.param('id')), eq(jobPhoto.companyId, me.companyId))).limit(1)
+    if (!existing) return fail(c, 404, 'Photo not found')
+    const set: Record<string, unknown> = {}
+    if (parsed.data.caption !== undefined) set.caption = parsed.data.caption || null
+    if (parsed.data.photoType !== undefined) set.photoType = parsed.data.photoType
+    if (parsed.data.sharedWithCustomer !== undefined) {
+      if (!(await canSee(me.role, 'portal:share', me.userId))) return fail(c, 403, 'Sharing with the homeowner needs the portal sharing permission.', 'permission_denied')
+      if (!(await d.features.isFeatureEnabled(me.companyId, 'portal_job_files'))) return fail(c, 404, 'Not found')
+      set.sharedWithCustomer = parsed.data.sharedWithCustomer
+    }
+    if (!Object.keys(set).length) return one(c, existing)
+    const [photo] = await db.update(jobPhoto).set(set as any).where(and(eq(jobPhoto.id, existing.id), eq(jobPhoto.companyId, me.companyId))).returning()
+    return one(c, photo)
   })
 
   app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {

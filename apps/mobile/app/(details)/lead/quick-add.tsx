@@ -104,7 +104,7 @@ export default function QuickAddLeadScreen() {
       return
     }
     if (photo && res.data?.id) {
-      const up = await uploadJobPhoto(vertical, res.data.id, photo.uri)
+      const up = await uploadJobPhoto(vertical, res.data.id, photo.uri, photo.stamp)
       if (!up.ok) toast.error(`Lead added; the photo did not upload (${up.error || 'try again on the job'})`)
     }
     haptics.success()

@@ -6,6 +6,7 @@ import type { CrmDeps } from '../deps.ts'
 import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
+import { inspectionMounts } from './inspection/index.ts'
 import { createRoofCollector } from './collected.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
@@ -17,5 +18,6 @@ export function roofMounts(d: CrmDeps): Mount[] {
     ...insuranceMounts(d),
     ...reportsMounts(d),
     ...fieldMounts(d),
+    ...inspectionMounts(d),
   ] as Mount[]).map((m) => ({ ...m, addon: 'roof' }))
 }
