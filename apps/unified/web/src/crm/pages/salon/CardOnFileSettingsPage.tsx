@@ -36,9 +36,11 @@ export default function CardOnFileSettingsPage() {
   const [lateValue, setLateValue] = useState('')
   const [windowMin, setWindowMin] = useState<number>(1440)
   const [text, setText] = useState('')
+  const [requirement, setRequirement] = useState<string>('off')
 
   const fill = (p: Policy) => {
     setLoaded(p)
+    setRequirement(p.cardRequirement || 'off')
     setNoShowMode(modeOf(p.noShowFeeAmount, p.noShowFeePercent))
     setNoShowValue(String(p.noShowFeeAmount ?? p.noShowFeePercent ?? ''))
     setLateMode(modeOf(p.lateCancelFeeAmount, p.lateCancelFeePercent))
@@ -58,8 +60,7 @@ export default function CardOnFileSettingsPage() {
     const n = (v: string) => (v.trim() === '' ? null : Number(v))
     try {
       const p: Policy = await api.put('/api/card-on-file/policy', {
-        // Asking clients for a card when they book online is not part of this release: the setting is kept as it is.
-        cardRequirement: loaded.cardRequirement,
+        cardRequirement: requirement,
         noShowFeeAmount: noShowMode === 'amount' ? n(noShowValue) : null, noShowFeePercent: noShowMode === 'percent' ? n(noShowValue) : null,
         lateCancelFeeAmount: lateMode === 'amount' ? n(lateValue) : null, lateCancelFeePercent: lateMode === 'percent' ? n(lateValue) : null,
         lateCancelWindowMinutes: lateMode === 'none' ? null : windowMin,
@@ -117,6 +118,22 @@ export default function CardOnFileSettingsPage() {
           )}
         </div>
         <p className={hint}>Nothing is charged by itself. When a client no-shows or cancels late, someone with permission presses &ldquo;Charge a fee&rdquo; on that appointment in The Book, sees the amount and the card, and confirms.</p>
+      </section>
+
+      <section className={box} aria-label="Asking for a card when booking online">
+        <label className="block text-sm font-medium text-gray-900 dark:text-slate-100">
+          When a client books online, ask for a card
+          <select value={requirement} disabled={!mayEdit} onChange={(e) => setRequirement(e.target.value)} className={fieldClass}>
+            <option value="off">Never (the default)</option>
+            <option value="new_clients">From new clients only</option>
+            <option value="all">From every client without a card on file</option>
+          </select>
+        </label>
+        <p className={hint}>
+          They are shown your policy and tick to agree, then leave a card on Stripe&rsquo;s own page. <strong>Nothing is charged</strong> by this step. Their time is held
+          until the card is saved, or released after the booking hold runs out. A client with a card on file is not asked again. Needs a fee or policy words
+          above, and your Stripe account connected.
+        </p>
       </section>
 
       <section className={box} aria-label="Your policy words">

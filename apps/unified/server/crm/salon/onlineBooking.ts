@@ -24,6 +24,8 @@ import { createId } from '@paralleldrive/cuid2'
 import { appointment, booking, bookingService, contact, serviceMenu } from '../../db/schema/index.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
+import { policyWords, type CardOnFile } from './cardOnFile.ts'
+import { siteOrigin } from '../../booking/happenings.ts'
 import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
@@ -66,10 +68,41 @@ const DEFAULT_MINUTES = 60
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
-export function createChairBooking(): BookingAddOn {
+export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean> } = {}): BookingAddOn {
   return {
     questions: [],
     serviceList: { name: SERVICE_LIST },
+
+    // The salon's card step at online booking (Settings › Card on file: who is asked — nobody by default). A customer who must leave
+    // a card has their time held, like a deposit's, until Stripe's own page has kept it on the salon's own account.
+    card: {
+      async needed({ companyId, email }) {
+        const cards = opts.cards?.()
+        if (!cards || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'card_on_file'))) return false
+        const policy = await cards.policyOf(companyId)
+        if (policy.cardRequirement === 'off') return false
+        if (!(await cards.connectedAccount(companyId))) return false
+        const [known] = await cards.db.select({ id: contact.id }).from(contact).where(and(eq(contact.companyId, companyId), eq(contact.email, email))).limit(1)
+        if (known) {
+          if ((await cards.cardsOf(companyId, known.id)).length) return false
+          if (policy.cardRequirement === 'new_clients') {
+            const [seen] = await cards.db.select({ id: appointment.id }).from(appointment).where(and(eq(appointment.companyId, companyId), eq(appointment.contactId, known.id), notInArray(appointment.status, INACTIVE))).limit(1)
+            if (seen) return false
+          }
+        }
+        return true
+      },
+      async terms(companyId) {
+        const cards = opts.cards?.()
+        return cards ? policyWords(await cards.policyOf(companyId)) : ''
+      },
+      async page({ companyId, contactId, token }) {
+        const cards = opts.cards?.()
+        if (!cards) return null
+        const made = await cards.startSetup(companyId, contactId, 'client_online', null, `${siteOrigin()}/booking/${token}?card=saved`, { booking_token: token })
+        return made?.url ?? null
+      },
+    },
 
     async booked(tx, { companyId, contactId, booking: b, service, by }) {
       // A service that needs a patch test is not bookable ONLINE without a passing one on record, when the salon asked for that

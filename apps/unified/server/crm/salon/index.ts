@@ -70,6 +70,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
+  // The card an online booking waited for: saved, so the booking stands (booking/engine.ts cardSaved).
+  d.services.bookingCard.cards = s.cards
+  s.cards.onSaved(async ({ companyId, metadata }) => { if (metadata.booking_token) await d.services.bookingCard.confirm?.(companyId, metadata.booking_token) })
   return [
     // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
     ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: priced(createClientRoutes(d, s)) } as Mount]),

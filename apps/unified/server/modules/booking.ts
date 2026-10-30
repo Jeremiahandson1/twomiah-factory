@@ -41,7 +41,7 @@ const publicBooking = (b: BookingRow, engine: BookingEngine, cutoffOpen: boolean
   depositStatus: b.depositStatus, canChange: cutoffOpen,
 })
 
-export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean> }) {
+export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; bookingCard?: { cards: any | null } }) {
   const { db, email, logger, permissions } = deps
   // People's own Google / Outlook calendars: their busy time, and their bookings put on them (booking/calendars.ts).
   const calendars = deps.calendars ?? createCalendars({ db, logger })
@@ -55,7 +55,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
     db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
     addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true })
-      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking() : undefined,
+      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled }) : undefined,
     onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
     // "Convert to job": numbered as the vertical's job module numbers its jobs — roofing's own (crm/roof/jobs.ts
     // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
@@ -257,7 +257,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
       answers: answersOf(engine, b), smsConsent: ticked(b),
     }, { by: 'customer' })
-    return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit }, 201)
+    return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit, ...(r.card ? { needsCard: true } : {}) }, 201)
   }) as Promise<Response>))
   pub.post('/services/:slug/waitlist', (c) => withCompany(c, (id) => guard(c, async () => {
     const b = await body(c)

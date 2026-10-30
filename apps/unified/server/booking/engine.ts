@@ -82,6 +82,19 @@ export interface BookingAddOn {
    * nothing, and /book offered a separate list the menu never saw, so a booking carried no menu item, price or rebook.
    */
   serviceList?: { name: string }
+  /**
+   * A customer's booking that waits for a card before it stands (the salon's card on file, owner's setting). It is held like a
+   * deposit is — pending, for the business's hold minutes, then released — and confirmed when the card is saved (cardSaved).
+   * Nothing is charged by this step: it only keeps the card, on the business's own payment account, for the policy shown.
+   */
+  card?: {
+    /** Before the booking's transaction (it reads the business's own settings and payment link): does THIS customer, by email, have to leave a card? False when the option is off or cards can't be taken. */
+    needed(a: { companyId: string; email: string; service: ServiceRow }): Promise<boolean>
+    /** The policy the customer agrees to, in words, shown beside the button. */
+    terms(companyId: string): Promise<string>
+    /** The payment provider's own page for the card (a new one each time); null = can't now. */
+    page(a: { companyId: string; contactId: string; token: string }): Promise<string | null>
+  }
 }
 
 export interface EngineDeps {
@@ -773,6 +786,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
     const depositOwed = svc.depositAmount != null ? dollars(svc.depositAmount) : svc.depositPercent != null ? dollars(svc.price) * svc.depositPercent / 100 : 0
     const takeDeposit = customer && depositOwed > 0 && !!deps.deposits
+    const cardHold = customer && !takeDeposit && !!deps.addOn?.card && await deps.addOn.card.needed({ companyId, email, service: svc })
     const tipPercent = input.tipPercent != null && Array.isArray(svc.tipPresets) && (svc.tipPresets as number[]).includes(Number(input.tipPercent)) ? Number(input.tipPercent) : null
     const tip = tipPercent && svc.price != null ? dollars(svc.price) * tipPercent / 100 : null
 
@@ -786,12 +800,12 @@ export function createBookingEngine(deps: EngineDeps) {
         companyId, serviceId: svc.id, contactId, seriesId: opts.seriesId ?? null, seriesIndex: opts.seriesIndex ?? null,
         startAt, endAt, customerName: name, customerEmail: email, customerPhone: phone, customerAddress: address, customerZip: zip,
         customerNotes: String(input.notes || '').trim().slice(0, 2000) || null,
-        status: takeDeposit ? 'pending' : 'confirmed',
+        status: takeDeposit || cardHold ? 'pending' : 'confirmed',
         assignedUserId: opts.assignedUserId ?? pickWho(who),
         source: opts.source ?? (customer ? 'public' : 'staff'),
         sourcePath: text(input.sourcePath, 500) ?? null, sourceReferrer: text(input.sourceReferrer, 1000) ?? null, sourceVariant: text(input.sourceVariant, 60) ?? null,
         token: newToken(),
-        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit ? 'pending' : 'none',
+        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit || cardHold ? 'pending' : 'none',
         tipAmount: tip ? money(tip) : null,
         ...overrideMark(opts),
         // The engine's clock, not the database's: the deposit hold is measured from it.
@@ -820,7 +834,7 @@ export function createBookingEngine(deps: EngineDeps) {
       }
     }
     if (final.status === 'confirmed') await emit({ event: 'booking.created', booking: final, service: svc, settings: s, by: opts.by })
-    return { booking: final, service: svc, deposit }
+    return { booking: final, service: svc, deposit, card: cardHold }
   }
 
   /** The provider's page for a booking's deposit (its amount and tip as booked), open until the hold runs out. */
@@ -891,6 +905,41 @@ export function createBookingEngine(deps: EngineDeps) {
     // Confirmed by hand, or already happened, while the customer paid: the money is recorded on it.
     await db.update(booking).set(paid).where(eq(booking.id, b.id))
     return 'done'
+  }
+
+  /** A booking waiting for a card (not a deposit): pending, deposit pending, no amount. */
+  const waitingForCard = (b: BookingRow) => b.status === 'pending' && b.depositStatus === 'pending' && b.depositAmount == null
+
+  /** The words the customer agrees to before the card page, when this booking waits for a card. */
+  async function cardTerms(b: BookingRow): Promise<string | null> {
+    return waitingForCard(b) && deps.addOn?.card ? deps.addOn.card.terms(b.companyId) : null
+  }
+
+  /** The payment provider's page for the card a booking waits for (a new one each time). Null when it isn't waiting, the hold ran out, or the page can't open. */
+  async function cardPage(companyId: string, b: BookingRow): Promise<string | null> {
+    const s = await settingsOf(companyId)
+    await expireHolds(companyId, s)
+    const [cur]: BookingRow[] = await db.select().from(booking).where(and(eq(booking.id, b.id), eq(booking.companyId, companyId))).limit(1)
+    if (!cur || !waitingForCard(cur) || !deps.addOn?.card || !cur.contactId) return null
+    return deps.addOn.card.page({ companyId, contactId: cur.contactId, token: cur.token }).catch(() => null)
+  }
+
+  /**
+   * The card was saved (the payment provider's event, told by the vertical): a booking waiting for it stands. Told twice, once.
+   * A hold that ran out first is not brought back — the card stays kept on the customer, the time was offered to others.
+   */
+  async function cardSaved(companyId: string, token: string): Promise<'confirmed' | 'already' | 'gone'> {
+    const b = await byToken(companyId, token)
+    if (!b) return 'gone'
+    if (b.status === 'confirmed' || b.status === 'completed') return 'already'
+    if (!waitingForCard(b)) return 'gone'
+    const s = await settingsOf(b.companyId)
+    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    const [u]: BookingRow[] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'none', updatedAt: new Date(now()) }).where(and(eq(booking.id, b.id), eq(booking.status, 'pending'))).returning()
+    if (!u) return 'gone'
+    await mirror(db, u, 'status')
+    await emit({ event: 'booking.created', booking: u, service: svc, settings: s, by: 'customer' })
+    return 'confirmed'
   }
 
   /** The refund depositPaid asked for, made: recorded on the booking. */
@@ -1097,7 +1146,7 @@ export function createBookingEngine(deps: EngineDeps) {
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,
-    book, depositPaid, depositRefunded, depositPage, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
+    book, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,
     isBanned, emit,
   }

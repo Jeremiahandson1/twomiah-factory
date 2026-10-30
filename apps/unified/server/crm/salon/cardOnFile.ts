@@ -306,7 +306,7 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
     return { charge: row, receipt }
   }
 
-  return { policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, connectedAccount, onSaved }
+  return { db, policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, connectedAccount, onSaved }
 }
 
 export type CardOnFile = ReturnType<typeof createCardOnFile>

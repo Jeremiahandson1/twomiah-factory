@@ -195,14 +195,21 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     if (!b) return c.notFound()
     const svc = b.serviceId ? await engine.serviceById(s.ctx.companyId, b.serviceId) : null
     const tz = safeTz(s.settings.timezone)
-    const status = ({ pending: 'Waiting for the deposit', confirmed: 'Confirmed', cancelled: 'Cancelled', completed: 'Completed', no_show: 'Missed' } as Record<string, string>)[b.status] || b.status
+    const waitingCard = engine.waitingForCard(b)
+    const status = ({ pending: waitingCard ? 'Waiting for your card' : 'Waiting for the deposit', confirmed: 'Confirmed', cancelled: 'Cancelled', completed: 'Completed', no_show: 'Missed' } as Record<string, string>)[b.status] || b.status
     const open = engine.selfServiceOpen(b, s.settings)
     // A deposit still owed: its amount, and how long the time is held for it (the engine releases it after that).
-    const owed = b.status === 'pending' && b.depositStatus === 'pending'
+    const owed = b.status === 'pending' && b.depositStatus === 'pending' && !waitingCard
     const holdEnds = new Date(b.createdAt.getTime() + s.settings.depositHoldMinutes * 60_000)
     const held = owed && holdEnds.getTime() > Date.now()
     const amount = price(String(Number(b.depositAmount || 0) + Number(b.tipAmount || 0)))
-    const note = c.req.query('moved') ? '<p class="book-ok" role="status">Your booking has its new time. A confirmation is on its way.</p>'
+    const holdsCard = waitingCard && holdEnds.getTime() > Date.now()
+    const terms = holdsCard ? await engine.cardTerms(b) : null
+    const note = c.req.query('card') === 'saved' && !c.req.query('cancelled') ? (b.status === 'confirmed'
+        ? '<p class="book-ok" role="status">Thank you — your card is saved and your booking is confirmed. A confirmation is on its way.</p>'
+        : waitingCard ? '<p class="book-ok" role="status">Thank you — your card is being confirmed. This usually takes a few seconds; refresh to see it.</p>' : '')
+      : (c.req.query('card') === 'cancelled' || (c.req.query('card') && c.req.query('cancelled'))) && holdsCard ? `<p class="book-error" role="alert">No card was saved. Your time is held until ${escHtml(whenText(holdEnds, tz))} — add your card below to keep it.</p>`
+      : c.req.query('moved') ? '<p class="book-ok" role="status">Your booking has its new time. A confirmation is on its way.</p>'
       : c.req.query('cancelled') ? '<p class="book-ok" role="status">Your booking is cancelled.</p>'
       : c.req.query('deposit') === 'paid' ? (b.depositStatus === 'paid'
         ? '<p class="book-ok" role="status">Thank you — your deposit is paid and your booking is confirmed. A confirmation is on its way.</p>'
@@ -219,6 +226,13 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
         ${b.depositAmount ? `<div><span>Deposit</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
+      ${holdsCard ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/card"${top(c)}>
+        <p class="book-thanks__lead">To keep this time, please leave a card. It is kept securely on our payment provider's page and is <strong>not charged now</strong>.</p>
+        ${terms ? `<p class="book-card__terms">${escHtml(terms)}</p>` : ''}
+        <label class="book-check"><input type="checkbox" name="agree" value="1" required> I agree to the above and to keeping my card on file.</label>
+        <div class="book-actions"><button type="submit" class="book-submit">Add my card</button></div>
+        <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>
+      </form>` : waitingCard ? '<p class="book-error" role="alert">The hold ran out before a card was added, and the time has been offered to others. Please book again.</p>' : ''}
       ${held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>Pay the ${escHtml(amount)} deposit</a></div>
       <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>` : ''}
       ${open ? `<div class="book-actions">
@@ -247,6 +261,20 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Card</title></head><body>${body}</body></html>`)
     }
     return html(c, ctx, body, cancelled ? 'No card saved' : 'Card saved', '/card-saved', true)
+  })
+
+  // The card a held booking waits for: the customer agrees to the policy shown, then goes to the payment provider's own page.
+  app.post('/booking/:token/card', async (c) => {
+    const s = await site(c); if (!s) return c.notFound()
+    const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
+    if (!b) return c.notFound()
+    const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
+    const back = (why: string) => c.redirect(`/booking/${b.token}?error=${encodeURIComponent(why)}`, 303)
+    if (!form.agree) return back('Please tick the box to agree before adding your card.')
+    const url = await engine.cardPage(s.ctx.companyId, b)
+    if (url) return c.redirect(url, 303)
+    const now = await engine.byToken(s.ctx.companyId, b.token)
+    return back(now?.status === 'cancelled' ? 'The time was not held any longer — please book again.' : now?.status === 'confirmed' ? 'Your booking is already confirmed.' : 'Card saving is not available right now — please get in touch.')
   })
 
   app.get('/booking/:token/pay', async (c) => {

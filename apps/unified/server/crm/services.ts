@@ -80,6 +80,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // They are asked in turn; the first to answer owns the event. Until then (and for every vertical with neither) an
   // event is the invoices' as before.
   const connectedEvents: ConnectedEventClaim[] = []
+  // The salon's card step at online booking: the salon module hands in its cards service, the app hands in the booking
+  // engine's "card saved" (the booking module is made after these services).
+  const bookingCard: { cards: any | null; confirm: ((companyId: string, token: string) => Promise<unknown>) | null } = { cards: null, confirm: null }
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
@@ -220,6 +223,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
     useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
+    /** The salon's card step at online booking (crm/salon/onlineBooking.ts, booking/engine.ts cardSaved). */
+    bookingCard,
     /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
     useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
