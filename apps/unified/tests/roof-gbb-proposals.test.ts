@@ -219,6 +219,7 @@ describe('the homeowner chooses and signs on the quote\'s own link', () => {
     const audit = await t.db.select().from(t.schema.auditLog).where(eq(t.schema.auditLog.entityId, quoteId))
     const signedRow = audit.find((a: any) => a.action === 'quote.signed')
     expect(signedRow).toBeTruthy()
+    expect((signedRow as any).metadata.option).toBe('Better')
     const [row] = await t.db.select().from(t.schema.quote).where(eq(t.schema.quote.id, quoteId))
     expect(row.signedBy).toBe('Lee Marsh')
     expect(row.signatureHash).toBeTruthy()

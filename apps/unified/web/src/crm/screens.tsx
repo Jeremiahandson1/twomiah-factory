@@ -32,6 +32,7 @@ import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './finan
 import { DocumentAside } from './invoiceAside'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
+import { ProposalPanel } from './proposalOptions'
 import { TextComposer } from './textComposer'
 import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
 
@@ -118,7 +119,7 @@ export function Quotes() {
 /** Customer financing on a quote or an invoice (crm/financing.tsx): shown only with consumer_financing on. */
 const financingAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <FinancingPanel kind={kind} record={record} />
 /** Beside a quote: financing, and its billing in parts — deposit, progress invoices, what is left (crm/quoteBilling.tsx). */
-const quoteAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <>{financingAside({ kind, record })}<QuoteBillingPanel record={record} /></>
+const quoteAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <>{financingAside({ kind, record })}{kind === 'quote' && <ProposalPanel record={record} />}<QuoteBillingPanel record={record} /></>
 export { FinancingPage }
 export function QuoteDetail() {
   const { company, hasFeature } = useAuth()

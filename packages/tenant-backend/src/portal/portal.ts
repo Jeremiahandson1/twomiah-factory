@@ -752,12 +752,12 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
   const documentFingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown }) {
+  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null }) {
     try {
       await db.insert(t.auditLog).values({
         companyId: params.companyId, action: `${params.entity}.signed`, entity: params.entity, entityId: params.entityId, entityName: params.entityName,
         ipAddress: params.ip, userAgent: params.userAgent, userName: params.signerName, userEmail: params.signerEmail || null,
-        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
+        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, ...(params.option ? { option: params.option } : {}), consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
       })
     } catch (err) { log.error('[esign] audit write failed', { error: (err as Error).message }) }
   }
@@ -791,7 +791,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
     const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
-    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total })
+    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null })
     notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}) } })
     // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
     let deposit: unknown = null
