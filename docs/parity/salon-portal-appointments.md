@@ -2,10 +2,10 @@
 
 ## Sources (help-centre pages actually read)
 
-- Fresha — Manage appointments from the client portal / online booking links: https://www.fresha.com/help-center (no single page on a client portal reached; the product's client profile and booking-link pages were read)
-- Boulevard, Vagaro and GlossGenius: help-centre pages on a client portal were not reached; **nothing below claims a match against them.**
+- Altegio — Personal account in the online booking widget: https://alteg.io/en/support/knowledge-base/4903552434461-personal-account-in-online-booking-widget/ (My bookings: Upcoming tab with reschedule/cancel, Past tab with repeat, plus memberships, gift cards, loyalty)
+- Slick — Client: manage, cancel or modify appointments: https://help.getslick.com/en/articles/15343687-client-manage-cancel-or-modify-appointments (view and cancel in the portal subject to the salon's timing and policy; reschedule is by contacting the salon)
 
-(Searched in this session before any code was written; the parity claims below are to what the brief names — "upcoming appointments, reschedule/cancel through the booking's private link" — and what the code now does.)
+Searches for Fresha, Vagaro, Boulevard and GlossGenius pages on a client account/portal returned no help-centre page I could read, so **nothing below claims a match against those four.** The two pages above are other salon products, used only to say what a client portal commonly offers.
 
 ## Where this stands
 
@@ -13,9 +13,11 @@
 |---|---|---|
 | A client sees their upcoming appointments after signing in to their private portal link | Portal › Appointments: service, day and time, and the stylist's first name, soonest first (up to 50) | **Matches** |
 | Home page shows how many are coming and when the next is | "Upcoming Appointments" and "Next Appointment" tiles | **Matches** |
-| Move or cancel from the portal | A booking made **online** shows "Move or cancel", which opens its own booking page — where the salon's own notice rules decide whether it can still be changed. A desk booking says "please call us" | **Matches for online bookings; desk bookings are call-only** |
+| Move or cancel from the portal (Altegio: reschedule or cancel; Slick: cancel only, subject to the salon's policy) | A booking made **online** shows "Move or cancel", which opens its own booking page — where the salon's own notice rules decide whether it can still be changed. A desk booking says "please call us" | **Matches for online bookings; desk bookings are call-only** |
 | Prices, notes, formulas, other clients | Never in the payload (proved in the test) | **By rule** |
-| Past, cancelled, no-show and completed appointments | Not shown | — |
+| Past appointments tab with "repeat" (Altegio) | Not shown | **Not built** |
+| Memberships, gift cards and loyalty balances in the same account (Altegio) | Not in the portal | **Not built** |
+| Cancelled, no-show and completed appointments | Not shown | — |
 | Book a new appointment from the portal | Not built (the booking page is the way) | **Not doing** |
 | A chair-only stylist (a Team member with no login) | Their name is not shown ("with" is empty) | **Not built** |
 
