@@ -18,7 +18,7 @@
 //     dark: class — one pair now; the recent order's total had no ink of its own).
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowRight, CheckCircle2, DollarSign, Package, RotateCcw, ShoppingBag, Truck } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle2, DollarSign, Package, PackageMinus, RotateCcw, ShoppingBag, Truck } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { formatDate } from '../../../date'
@@ -28,6 +28,8 @@ interface Stats {
   paidCount: number; pendingFulfillment: number; atSupplier: number
   /** null: not this seat's to see (revenue:read). */
   revenueCents?: number | null; refundedCount: number; refundedCents?: number | null; netCents?: number | null
+  /** Products with an option at or under its low-stock level; absent unless the shop has low-stock alerts on. */
+  lowStock?: number
 }
 interface PaymentStatus { config: { provider: string; mode: string; connected: boolean } | null }
 
@@ -83,6 +85,8 @@ export default function DashboardPage() {
     <StatCard key="orders" icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />,
     <StatCard key="fulfill" icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />,
     stats.atSupplier > 0 && <StatCard key="supplier" icon={Truck} label="At supplier" value={String(stats.atSupplier)} />,
+    // Low-stock alerts (store_low_stock): the list it opens counts the same products.
+    stats.lowStock != null && <Link key="lowstock" to="/crm/products?filter=low_stock" className="block"><StatCard icon={PackageMinus} label="Running low" value={String(stats.lowStock)} highlight={stats.lowStock > 0} /></Link>,
   ].filter(Boolean) : []
 
   return (

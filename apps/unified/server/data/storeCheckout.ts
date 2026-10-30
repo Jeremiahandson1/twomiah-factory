@@ -11,15 +11,41 @@ export async function countDiscountUse(db: any, companyId: string, code: string)
     .where(and(eq(discountCode.companyId, companyId), eq(discountCode.code, code)))
 }
 
+/** A variant a sale took down to its low-stock level: what the owner is told. */
+export interface LowStockCrossing { variantId: string; sku: string; variantName: string; quantity: number; lowStockAt: number }
+
 /**
  * Take a paid line's units off its variant's stock, IN the update. Reading the count and writing count − qty let two
  * orders paid at the same moment both read 10 and both write their own remainder — one sale never left the stock.
  * Untracked stock (inventory_qty NULL) is left alone; never below zero.
+ *
+ * With `alert` (the shop has low-stock alerts on), the variant is also CLAIMED when this sale left it at or under its
+ * level: a conditional update on the once-stamp (low_stock_alerted_at still empty), so of any number of sales — at once
+ * or one after another — exactly one gets the row back and sends the email; the rest find the stamp set. The stamp
+ * comes off again when the count rises above the level (settleLowStockStamp). The crossing, or null.
  */
-export async function decrementStock(db: any, variantId: string, quantity: number): Promise<void> {
+export async function decrementStock(db: any, variantId: string, quantity: number, alert = false): Promise<LowStockCrossing | null> {
   await db.update(storeProductVariant)
     .set({ inventoryQty: sql`GREATEST(0, ${storeProductVariant.inventoryQty} - ${quantity}::int)`, updatedAt: new Date() } as any)
     .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} IS NOT NULL`))
+  if (!alert) return null
+  const [row] = await db.update(storeProductVariant).set({ lowStockAlertedAt: new Date() } as any)
+    .where(and(
+      eq(storeProductVariant.id, variantId), sql`${storeProductVariant.lowStockAt} IS NOT NULL`, sql`${storeProductVariant.inventoryQty} IS NOT NULL`,
+      sql`${storeProductVariant.inventoryQty} <= ${storeProductVariant.lowStockAt}`, sql`${storeProductVariant.lowStockAlertedAt} IS NULL`,
+    )).returning({ variantId: storeProductVariant.id, sku: storeProductVariant.sku, variantName: storeProductVariant.name, quantity: storeProductVariant.inventoryQty, lowStockAt: storeProductVariant.lowStockAt })
+  return row ? { ...row, quantity: Number(row.quantity), lowStockAt: Number(row.lowStockAt) } : null
+}
+
+/**
+ * Keep the once-stamp true to the count: at or under its level the stamp is set (the owner is already looking at it — a
+ * level set on something already low, a count typed in by hand, never an email), above it (or with no level, or untracked)
+ * the stamp is cleared, so the next sale that takes it down to the level tells the owner again.
+ */
+export async function settleLowStockStamp(db: any, variantId: string): Promise<void> {
+  await db.update(storeProductVariant).set({
+    lowStockAlertedAt: sql`CASE WHEN ${storeProductVariant.lowStockAt} IS NOT NULL AND ${storeProductVariant.inventoryQty} IS NOT NULL AND ${storeProductVariant.inventoryQty} <= ${storeProductVariant.lowStockAt} THEN COALESCE(${storeProductVariant.lowStockAlertedAt}, now()) ELSE NULL END`,
+  } as any).where(eq(storeProductVariant.id, variantId))
 }
 
 /** Approved rating summary for a set of the company's products, keyed by product id. */

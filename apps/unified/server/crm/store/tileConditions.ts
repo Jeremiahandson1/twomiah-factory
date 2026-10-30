@@ -24,4 +24,4 @@ export const countedOrderCondition = (order: any) => notInArray(order.status, ['
 /** "Reviews to approve": a review nobody has decided. */
 export const pendingReviewCondition = (review: any) => eq(review.status, 'pending')
 
-export { productSearchCondition } from '../../data/tileSql.ts'
+export { productSearchCondition, lowStockProductCondition } from '../../data/tileSql.ts'

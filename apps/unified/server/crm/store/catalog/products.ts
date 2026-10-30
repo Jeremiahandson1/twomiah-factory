@@ -44,7 +44,8 @@ import { PUBLIC_PHOTO_PREFIX } from '../../../site/admin.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
-import { productSearchCondition } from '../tileConditions.ts'
+import { productSearchCondition, lowStockProductCondition } from '../tileConditions.ts'
+import { settleLowStockStamp } from '../../../data/storeCheckout.ts'
 import { changedKeys } from './audit.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
@@ -84,6 +85,8 @@ const variantSchema = z.object({
   weightOz: z.number().int().nonnegative().max(2147483647).optional().nullable(),
   // Inventory can't go negative — this was accepted and stored as -99. (BUG-03)
   inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
+  // Low-stock alert (store_low_stock): tell the owner once when a sale takes the count down to this. null = no alert.
+  lowStockAt: z.number().int().min(0, 'The low-stock level cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string(), z.string()).optional().nullable(),
   position: z.number().int().optional(),
   // The feeds' identifiers: a barcode (GTIN: UPC, EAN or ISBN, 8 to 14 digits) and the maker's part number.
@@ -147,6 +150,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
   // Taking something off sale for good — deleting a product or a variant — is products:delete, the manager's.
   app.use('*', requirePermission('products:read'))
 
+  /** A low-stock level is the store_low_stock feature's: off, the API refuses it (the screens do not show the box). */
+  const lowStockOff = (c: any) => fail(c, 403, 'Low-stock alerts are not switched on.', 'FEATURE_NOT_ENABLED')
   const currency = async (companyId: string) => (await core.settings(companyId)).currency || 'usd'
   /** This company's product, or nothing. */
   const productOf = async (companyId: string, id: string) =>
@@ -172,7 +177,12 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const page = Math.max(parseInt(c.req.query('page') || '1') || 1, 1)
     // ?q= is the stock look-up: a product's name, or a variant's name, SKU or barcode (../tileConditions.ts).
     const q = (c.req.query('q') || '').trim()
-    const mine = q ? and(eq(storeProduct.companyId, u.companyId), productSearchCondition(storeProduct, storeProductVariant, q))! : eq(storeProduct.companyId, u.companyId)
+    // ?filter=low_stock: the products with an option at or under its level (the Dashboard's tile counts the same condition).
+    const filter = c.req.query('filter')
+    if (filter !== undefined && filter !== '' && filter !== 'low_stock') return fail(c, 400, 'Unknown filter.', 'validation_failed', { filter: 'Not low_stock' })
+    if (filter === 'low_stock' && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
+    const byLow = filter === 'low_stock' ? [lowStockProductCondition(storeProduct, storeProductVariant)] : []
+    const mine = and(eq(storeProduct.companyId, u.companyId), ...(q ? [productSearchCondition(storeProduct, storeProductVariant, q)] : []), ...byLow)!
     const base = db.select().from(storeProduct).where(mine).orderBy(asc(storeProduct.position), desc(storeProduct.createdAt))
     const rows: Array<typeof storeProduct.$inferSelect> = limit !== undefined ? await base.limit(limit).offset((page - 1) * limit) : await base
     const [{ total }] = limit !== undefined ? await db.select({ total: count() }).from(storeProduct).where(mine) : [{ total: rows.length }]
@@ -246,7 +256,10 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     if (!parsed.success) return invalid(c, parsed.error)
     const product = await productOf(u.companyId, c.req.param('id'))
     if (!product) return fail(c, 404, 'Product not found')
-    const [created] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
+    if (parsed.data.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
+    const [made] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
+    if (made.lowStockAt != null) await settleLowStockStamp(db, made.id)
+    const created = made
     // Its own row: the floor would file this under the product the URL names (create product TEA-1).
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await currency(u.companyId))}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
     return one(c, created, 201)
@@ -261,6 +274,7 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     // starting figure is the one the person saw (inventoryFrom), which is exactly what the row should say it went from.
     const before = await variantOf(u.companyId, c.req.param('variantId'))
     if (!before) return fail(c, 404, 'Not found')
+    if (fields.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
     const guarded = inventoryFrom !== undefined && fields.inventoryQty !== undefined
     const where = guarded
       ? and(eq(storeProductVariant.id, before.id), inventoryFrom === null ? isNull(storeProductVariant.inventoryQty) : eq(storeProductVariant.inventoryQty, inventoryFrom))
@@ -273,6 +287,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       // (The template also sent the count as inventoryQty; the sentence names it.)
       return fail(c, 409, `The stock changed to ${stands} since this page loaded (a sale, or someone else's count), so nothing was saved. Check the count and save again.`, 'inventory_changed')
     }
+    // A count or a level changed by hand: the once-stamp follows it (data/storeCheckout.ts settleLowStockStamp).
+    if (fields.inventoryQty !== undefined || fields.lowStockAt !== undefined) await settleLowStockStamp(db, updated.id)
     const from = guarded ? { ...before, inventoryQty: inventoryFrom } : before
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: changedKeys(from, updated, Object.keys(fields)), req: c })
     return one(c, updated)

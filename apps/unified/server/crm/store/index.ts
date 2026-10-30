@@ -55,7 +55,7 @@ export interface Storefront {
 // `audit`: finishing an order from the thank-you page writes its "paid" row (checkoutService finalizeOrder). Without it the
 // website's copy crashed right after marking the order paid — no order emails, no audit row (store final check, 2026-10-26);
 // an `as CrmDeps` cast had hidden the missing piece from the type check.
-export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' | 'audit'>): Storefront {
+export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' | 'audit' | 'features'>): Storefront {
   const core = coreFor(d)
   const checkout = createCheckoutService(d, core)
   return {

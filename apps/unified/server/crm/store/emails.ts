@@ -177,6 +177,14 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
       ${itemsTable(items, order.currency)}
       <p style="color:#666;font-size:13px;margin-top:24px;">Bring this email or your order number.${supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
   ),
+  /** To the shop: a sale took these options down to the level the owner set — sent once per option, not on every sale. */
+  storeLowStock: (p: { items: { productName: string; variantName: string; sku: string; quantity: number; lowStockAt: number }[]; productsUrl: string }, b) => done(
+    p.items.length === 1 ? `Running low: ${p.items[0].productName}${p.items[0].variantName && p.items[0].variantName !== 'Default' ? ' — ' + p.items[0].variantName : ''}` : `${p.items.length} products are running low`,
+    wrap(b.companyName, 'Running low', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">${p.items.length === 1 ? 'A sale just took this down to the level you set' : 'Sales just took these down to the levels you set'}. You will not get another email about ${p.items.length === 1 ? 'it' : 'them'} until ${p.items.length === 1 ? 'it is' : 'they are'} back in stock.</p>
+      <ul style="color:#444;font-size:14px;line-height:1.7;margin:12px 0 0;padding-left:18px;">${p.items.map((i) => `<li><strong>${esc(i.productName)}</strong>${i.variantName && i.variantName !== 'Default' ? ` — ${esc(i.variantName)}` : ''} (${esc(i.sku)}): <strong>${i.quantity} left</strong>, you asked to know at ${i.lowStockAt}</li>`).join('')}</ul>
+      ${button(p.productsUrl, 'See what is low')}`),
+  ),
   /** To the shop: a chargeback was opened, with the deadline to answer it. */
   storeDisputeOpened: (p: { orderNumber: string | null; amount: string; reason: string; dueBy: string | null; respondUrl: string; disputesUrl: string }, b) => done(
     `Chargeback opened${p.orderNumber ? ' on ' + p.orderNumber : ''} — ${p.amount}`,

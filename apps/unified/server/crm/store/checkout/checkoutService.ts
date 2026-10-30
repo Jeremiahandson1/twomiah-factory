@@ -28,7 +28,7 @@ import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne } from 'drizzle-o
 import { randomBytes } from 'node:crypto'
 import type { Context } from 'hono'
 import { productReview, storeOrder, storeOrderItem, storeProduct } from '../../../db/schema/store.ts'
-import { countDiscountUse, decrementStock } from '../../../data/storeCheckout.ts'
+import { countDiscountUse, decrementStock, type LowStockCrossing } from '../../../data/storeCheckout.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { emailItems, emailOrder } from '../emails.ts'
@@ -103,7 +103,7 @@ export interface OrderSummary {
 }
 
 /** Exactly what it uses: a caller with less is a type error, never a crash halfway through a payment. */
-export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'>, core: StoreCore) {
+export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit' | 'features'>, core: StoreCore) {
   const { db, logger } = d
   const giftCards = createStoreGiftCards(d, core)
 
@@ -176,9 +176,15 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
 
     // The decrement happens IN the update (server/data/storeCheckout.ts). Untracked stock is left alone.
     const items: Array<typeof storeOrderItem.$inferSelect> = await db.select().from(storeOrderItem).where(eq(storeOrderItem.orderId, order.id))
+    // Low-stock alerts (store_low_stock): each variant this order took down to its level is claimed once in decrementStock,
+    // and the owner gets ONE email for the order listing them — never one per sale.
+    let alerts = false
+    try { alerts = !!(await d.features.isFeatureEnabled(companyId, 'store_low_stock')) } catch { /* no alert rather than no stock count */ }
+    const crossed: Array<LowStockCrossing & { productName: string }> = []
     for (const it of items) {
       if (!it.variantId) continue
-      await decrementStock(db, it.variantId, it.quantity)
+      const crossing = await decrementStock(db, it.variantId, it.quantity, alerts)
+      if (crossing) crossed.push({ ...crossing, productName: it.productName })
     }
 
     // Notify the buyer (confirmation) + the merchant (new order). Non-blocking — never fail the order because email
@@ -191,6 +197,15 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       if (co?.email) void core.mail(co.email, 'storeMerchantNewOrder', { order: mailOrder, items: mailItems })
     } catch (e: any) {
       logger.warn('[store] order emails failed', { error: e?.message })
+    }
+
+    if (crossed.length) {
+      try {
+        const co = await core.shop()
+        if (co?.email) void core.mail(co.email, 'storeLowStock', { items: crossed.map((x) => ({ productName: x.productName, variantName: x.variantName, sku: x.sku, quantity: x.quantity, lowStockAt: x.lowStockAt })), productsUrl: `${siteBase()}/crm/products?filter=low_stock` })
+      } catch (e: any) {
+        logger.warn('[store] low-stock email failed', { error: e?.message })
+      }
     }
 
     logger.info('[store] order finalized', { order: orderNumber })

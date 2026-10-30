@@ -35,7 +35,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { storeOrder, storeOrderRefund, productReview, type RefundLine } from '../../../db/schema/store.ts'
+import { storeOrder, storeOrderRefund, productReview, storeProduct, storeProductVariant, type RefundLine } from '../../../db/schema/store.ts'
 import { orderStats, storeCustomers, moveOrderFrom, reservePartMoney, reserveLineUnits, shippingRefundedCents } from '../../../data/storeOrders.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { requestScope } from '../../../core/audit.ts'
@@ -47,7 +47,7 @@ import { SHOPPER_TYPE } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { COUNTED, hasParcel, isFulfilment, mayMove, moveRefusal, changedUnderYou, noParcelRefusal, refundRefusal, seatOf, orderForSeat, fitsFulfillment, fulfillmentRefusal } from './rules.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
-import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition } from '../tileConditions.ts'
+import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition, lowStockProductCondition } from '../tileConditions.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { holdsRefund, quoteRefund, type MoneyBack, type OrderRefunds } from './refunds.ts'
 
@@ -151,7 +151,12 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     // "Reviews to approve" is a tile of the reviews:read seat — the list it opens (/api/admin/reviews?tile=pending) is gated the same.
     const mayReviews = await canSeeWith(d.permissions)((c as any).get('user').role, 'reviews:read', (c as any).get('user').userId)
     const reviewsPending = mayReviews ? Number((await db.select({ n: count() }).from(productReview).where(and(eq(productReview.companyId, own(c)), pendingReviewCondition(productReview))))[0]?.n ?? 0) : null
+    // "Running low" is a tile of the products:read seat, with the switch on: the list it opens (?filter=low_stock) asks the same.
+    const mayProducts = await canSeeWith(d.permissions)((c as any).get('user').role, 'products:read', (c as any).get('user').userId)
+    const lowStock = mayProducts && await d.features.isFeatureEnabled(own(c), 'store_low_stock')
+      ? Number((await db.select({ n: count() }).from(storeProduct).where(and(eq(storeProduct.companyId, own(c)), lowStockProductCondition(storeProduct, storeProductVariant))))[0]?.n ?? 0) : null
     return one(c, {
+      ...(lowStock !== null ? { lowStock } : {}),
       paidCount: row.paidCount,
       pendingFulfillment: row.pendingFulfillment,
       atSupplier: row.atSupplier,

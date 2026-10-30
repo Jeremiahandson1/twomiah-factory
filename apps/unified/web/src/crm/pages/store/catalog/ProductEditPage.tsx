@@ -29,7 +29,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Plus, Star, Trash2, Upload } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useConfirm, useKnownPermission, useMayWrite, useToast } from '../../../../shared'
+import { PageError, errorText, useAuth, useConfirm, useKnownPermission, useMayWrite, useToast } from '../../../../shared'
 import {
   formatMoney, fromHundredths, listOf, refusalOf, toHundredths, toWhole, useStoreCurrency,
   type Product, type ProductImage, type ProductVariant,
@@ -319,11 +319,13 @@ export default function ProductEditPage() {
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 interface SupplierLink { ref: string; name: string | null }
-interface RowEdit { price: string; compareAt: string; inv: string; options: string; ref: string; gtin: string; mpn: string }
+interface RowEdit { price: string; compareAt: string; inv: string; low: string; options: string; ref: string; gtin: string; mpn: string }
 
 function VariantsSection({ product, currency, mayUpdate, onChange }: { product: Product; currency: string; mayUpdate: boolean; onChange: () => Promise<void> }) {
   const toast = useToast()
   const confirm = useConfirm()
+  // Low-stock alerts (store_low_stock): the "Tell me at" box is there only where the shop has them on.
+  const lowStockOn = useAuth().hasFeature('store_low_stock')
   // Dropship: variant → supplier item links, shown only when a supplier is connected. The supplier connection is the
   // owner's (integrations:update): asked only once the answer is known to be yes, never a request other seats are refused.
   const mayLinkSupplier = useKnownPermission('integrations:update')
@@ -392,6 +394,8 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
     if (next.compareAt.trim() && compare === null) { toast.error('Enter the compare-at price as a number, or leave it blank.'); return false }
     const inventoryQty = toWhole(next.inv)
     if (Number.isNaN(inventoryQty)) { toast.error('Stock is a whole number, or blank for untracked.'); return false }
+    const lowStockAt = toWhole(next.low)
+    if (Number.isNaN(lowStockAt) || (lowStockAt !== null && lowStockAt < 0)) { toast.error('The low-stock level is a whole number, or blank for no alert.'); return false }
     const options = parseOptions(next.options)
     if (options === 'invalid') { toast.error('Write options as name=value, separated by commas (size=M, color=Red).'); return false }
     try {
@@ -401,6 +405,7 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
       if (priceCents !== v.priceCents) body.priceCents = priceCents
       if (compare !== v.compareAtPriceCents) body.compareAtPriceCents = compare
       if (inventoryQty !== v.inventoryQty) { body.inventoryQty = inventoryQty; body.inventoryFrom = v.inventoryQty }
+      if (lowStockOn && lowStockAt !== (v.lowStockAt ?? null)) body.lowStockAt = lowStockAt
       if (optionsText(options) !== optionsText(v.options)) body.options = options
       if (next.gtin.trim() !== (v.gtin || '')) body.gtin = next.gtin.trim() || null
       if (next.mpn.trim() !== (v.mpn || '')) body.mpn = next.mpn.trim() || null
@@ -437,6 +442,7 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
         {product.variants.map((v) => (
           <VariantRow
             key={v.id} v={v} currency={currency} mayUpdate={mayUpdate}
+            lowStockOn={lowStockOn}
             supplierConnected={supplierConnected} supplierRef={supplierMap[v.id]?.ref ?? ''} supplierName={supplierMap[v.id]?.name ?? null}
             onSave={(next) => saveRow(v, next)}
             onDelete={mayDeleteVariant ? () => del(v) : undefined}
@@ -465,10 +471,12 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
 }
 
 // One editable variant row: controlled inputs and an explicit Save that lights up only when something changed.
-function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
+function VariantRow({ v, currency, mayUpdate, lowStockOn, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
   v: ProductVariant
   currency: string
   mayUpdate: boolean
+  /** Low-stock alerts are on: show the "Tell me at" box. */
+  lowStockOn: boolean
   supplierConnected: boolean
   supplierRef: string
   supplierName: string | null
@@ -478,7 +486,7 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
 }) {
   const fromVariant = (): RowEdit => ({
     price: fromHundredths(v.priceCents), compareAt: fromHundredths(v.compareAtPriceCents),
-    inv: v.inventoryQty == null ? '' : String(v.inventoryQty), options: optionsText(v.options), ref: supplierRef,
+    inv: v.inventoryQty == null ? '' : String(v.inventoryQty), low: v.lowStockAt == null ? '' : String(v.lowStockAt), options: optionsText(v.options), ref: supplierRef,
     gtin: v.gtin || '', mpn: v.mpn || '',
   })
   const [edit, setEdit] = useState<RowEdit>(fromVariant)
@@ -486,10 +494,10 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
 
   // Re-sync when the variant changes underneath (a reload after a save, or the stock moved).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, optionsText(v.options), supplierRef, v.gtin, v.mpn])
+  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, v.lowStockAt, optionsText(v.options), supplierRef, v.gtin, v.mpn])
 
   const base = fromVariant()
-  const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || edit.options !== base.options
+  const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || (lowStockOn && edit.low !== base.low) || edit.options !== base.options
     || edit.gtin.trim() !== base.gtin || edit.mpn.trim() !== base.mpn
     || (supplierConnected && edit.ref.trim() !== supplierRef)
 
@@ -535,6 +543,11 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
         <label className="block text-xs text-gray-600 dark:text-slate-400">Stock
           <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="∞" title="Blank = not tracked" value={edit.inv} onChange={(e) => setEdit({ ...edit, inv: e.target.value })} />
         </label>
+        {lowStockOn && (
+          <label className="block text-xs text-gray-600 dark:text-slate-400">Tell me at
+            <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="No alert" title="One email when a sale takes the stock down to this number" value={edit.low} onChange={(e) => setEdit({ ...edit, low: e.target.value })} />
+          </label>
+        )}
         <label className="block text-xs text-gray-600 dark:text-slate-400">Options
           <input className="input mt-1 py-1.5" placeholder="size=M" value={edit.options} onChange={(e) => setEdit({ ...edit, options: e.target.value })} />
         </label>

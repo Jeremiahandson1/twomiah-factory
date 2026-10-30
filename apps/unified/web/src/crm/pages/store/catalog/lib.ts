@@ -14,6 +14,8 @@ export interface ProductVariant {
   compareAtPriceCents: number | null; weightOz: number | null
   inventoryQty: number | null; options: Record<string, string> | null; position: number
   gtin?: string | null; mpn?: string | null
+  /** Tell the owner when stock reaches this (store_low_stock); null = no alert. */
+  lowStockAt?: number | null
 }
 export interface Product {
   id: string; slug: string; name: string; tagline: string | null; description: string | null

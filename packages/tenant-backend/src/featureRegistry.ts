@@ -246,6 +246,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // store's own days (revenue:read: the owner and the managers). Hidden until the owner has run it on the live shop, so no
   // plan, signup, Features page or Factory save switches it on (apps/unified/tests/not-ready-unseen.test.ts).
   { id: 'store_sales_reports', name: 'Store Sales Reports', description: 'Sales over time, top products, repeat customers and the average order, for your own days', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store low-stock alerts — NOT ready (2026-10-30). A threshold per option, a Low stock filter and tile on Products, and ONE email
+  // to the owner when a sale takes an option down to it. Hidden until the owner has run it on the live shop.
+  { id: 'store_low_stock', name: 'Store Stock Alerts', description: 'Set a level per product option; get one email when a sale takes it down to that level, and see what is running low', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance
