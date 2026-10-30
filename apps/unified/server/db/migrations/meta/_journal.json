@@ -316,6 +316,13 @@
       "when": 1793383484564,
       "tag": "0044_store_books",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793385339912,
+      "tag": "0045_shopper_accounts",
+      "breakpoints": true
     }
   ]
 }

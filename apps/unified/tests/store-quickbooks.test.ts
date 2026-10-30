@@ -102,6 +102,8 @@ describe('a paid order is one sales receipt', () => {
     // A gift card (25.00) and a mug (20.00) = 45.00, 10.00 of it paid with another gift card: 35.00 on the card.
     orderB = await order('S-2', { lines: [[card, 1, 2500], [mug, 1, 2000]], total: 4500, gift: 1000, pi: 'pi_B' })
     await order('S-3', { lines: [[mug, 1, 2000]], total: 2000, status: 'pending', paid: false })
+    // An abandoned checkout the shop cancelled: it has a number but no money was ever taken. It is not a sale.
+    await order('S-4', { lines: [[mug, 1, 2000]], total: 2000, status: 'cancelled' })
 
     const first = await run()
     expect(first).toMatchObject({ status: 'ok', orders: 2, refunds: 0, failed: 0 })

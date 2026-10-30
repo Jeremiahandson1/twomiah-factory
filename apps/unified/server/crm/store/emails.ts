@@ -158,6 +158,16 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
         <p style="color:#666;font-size:13px;margin-top:24px;">${p.supportEmail ? 'Questions? Reply to this email.' : 'Thanks for shopping with us.'}</p>`),
     )
   },
+  /** A shopper's sign-in: the link (which asks them to press Sign in) and the code to type instead. */
+  storeSignIn: (p: { name?: string | null; code: string; link: string; minutes: number; supportEmail?: string | null }, b) => done(
+    `Sign in to ${b.companyName}`,
+    wrap(b.companyName, 'Sign in', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.name)} — press the button to sign in to your ${esc(b.companyName)} account.</p>
+      ${button(p.link, 'Sign in')}
+      <p style="color:#444;font-size:14px;line-height:1.6;margin-top:22px;">Or type this code on the sign-in page:</p>
+      <p style="margin:6px 0 0;font-size:26px;letter-spacing:6px;font-family:Consolas,Menlo,monospace;color:#111;"><strong>${esc(p.code)}</strong></p>
+      <p style="color:#666;font-size:13px;margin-top:24px;">The link and the code work for ${p.minutes} minutes, once. If you did not ask to sign in, you can ignore this email — nobody can sign in without it.</p>`),
+  ),
   /** The codes a paid order bought, one per card. */
   storeGiftCard: (p: { orderNumber: string | null; currency: string; cards: { code: string; cents: number }[]; supportEmail?: string | null }, b) => done(
     p.cards.length === 1 ? `Your ${b.companyName} gift card` : `Your ${p.cards.length} ${b.companyName} gift cards`,

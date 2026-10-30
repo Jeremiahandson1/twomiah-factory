@@ -414,3 +414,53 @@ export const storeDispute = pgTable('store_disputes', {
   uniqueIndex('store_disputes_provider_dispute_unique').on(t.provider, t.providerDisputeId),
   index('store_disputes_company_idx').on(t.companyId),
 ])
+
+// ── Shopper accounts ─────────────────────────────────────────────────────────
+// A shopper signs in with an emailed link or code (crm/store/accounts). Their session is NOT the staff session: its own
+// cookie, its own table, and it reaches only the shopper's own orders and addresses.
+
+/**
+ * One emailed sign-in: a link's token and a short code, both kept only as keyed hashes, good for 15 minutes, used once.
+ * `attempts` counts wrong codes: after five the sign-in is spent and a new one must be asked for.
+ */
+export const shopperLogin = pgTable('shopper_logins', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  codeHash: text('code_hash').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  expiresAt: timestamp('expires_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('shopper_logins_token_unique').on(t.tokenHash),
+  index('shopper_logins_contact_idx').on(t.contactId, t.createdAt),
+])
+
+/** A signed-in shopper's browser: the cookie holds a random token, this holds its hash. Ending it signs the browser out. */
+export const shopperSession = pgTable('shopper_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('shopper_sessions_token_unique').on(t.tokenHash),
+  index('shopper_sessions_contact_idx').on(t.contactId),
+])
+
+/** An address a shopper saved on their account. */
+export const shopperAddress = pgTable('shopper_addresses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  label: text('label'),
+  name: text('name').notNull(),
+  phone: text('phone'),
+  address: json('address').$type<StoreAddress>().notNull(),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('shopper_addresses_contact_idx').on(t.contactId)])

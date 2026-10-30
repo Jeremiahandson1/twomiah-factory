@@ -46,6 +46,9 @@ import { requestOrigin, type CheckoutService } from './checkoutService.ts'
 import { createOrderStarter, usesStripeTax } from './placeOrder.ts'
 import { createFeedRoutes } from './feeds.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { createShopperAccounts } from '../accounts/shopperAccounts.ts'
+import { shopperOf } from '../accounts/routes.ts'
+import { pricingForContact } from '../catalog/groupPricing.ts'
 import { createPaymentNotices, type PaymentNotices } from './paymentNotices.ts'
 
 export { computeShipping, computeTaxBps, checkoutImageUrl } from './placeOrder.ts'
@@ -148,7 +151,11 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   pub.get('/status', async (c) => {
     const co = await core.shop()
     // Only THAT it is unavailable and the shop's name — never why, and nothing about the bill.
-    return one(c, { open: !(await core.isClosed()), storeName: co?.name ?? null })
+    // `accounts`: whether shoppers can sign in (the header's Account link is drawn only then).
+    const open = !(await core.isClosed())
+    // A closed shop says no more than it did: no `accounts` key.
+    if (!open) return one(c, { open, storeName: co?.name ?? null })
+    return one(c, { open, storeName: co?.name ?? null, accounts: co ? await d.features.isFeatureEnabled(co.id, 'store_accounts').catch(() => false) : false })
   })
 
   // ── Catalog reads (public, active products only) ─────────────────────────────
@@ -240,12 +247,24 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     }
   })
 
+  const accounts = createShopperAccounts(d, core)
+  /** The signed-in shopper checkout is for, when shopper accounts are on and the browser holds a live session; else null. */
+  async function signedInShopper(c: Context, companyId: string) {
+    if (!(await d.features.isFeatureEnabled(companyId, 'store_accounts').catch(() => false))) return null
+    const s = await shopperOf(accounts, c, companyId)
+    if (!s) return null
+    const where = await accounts.defaultAddress(companyId, s.contactId)
+    return { contactId: s.contactId, email: s.email, name: s.name, pricing: await pricingForContact(d.db, companyId, s.contactId), ...(where ? { shipping: { name: where.name, address: where.address } } : {}) }
+  }
+
   pub.post('/checkout', shopperDoor, async (c) => {
     const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return fail(c, 400, 'Invalid cart', 'validation_failed', fieldsOf(parsed.error))
     const s = await theShop(c); if (s.reply) return s.reply
+    // A signed-in shopper (their account's own cookie, never the typed email): their group's prices, their address ready.
+    const shopper = await signedInShopper(c, s.co.id)
     // The origin the shopper is actually on — from the request, never the body (see the header).
-    const r = await starter.start({ ...parsed.data, companyId: s.co.id, origin: requestOrigin(c) })
+    const r = await starter.start({ ...parsed.data, companyId: s.co.id, origin: requestOrigin(c), ...(shopper ? { shopper } : {}) })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     return one(c, { url: r.url, ...(r.paidByGiftCard ? { paidByGiftCard: true } : {}) })
   })

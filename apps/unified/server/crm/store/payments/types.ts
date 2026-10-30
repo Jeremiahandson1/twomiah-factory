@@ -38,6 +38,11 @@ export type CreateCheckoutInput = {
   automaticTax?: boolean
   /** Ask for the billing address (automatic tax on an order with no shipping address: a pickup, a gift card). */
   collectBillingAddress?: boolean
+  /**
+   * A signed-in shopper's saved address, to start the payment page with (Stripe: a Customer carrying it as shipping, so
+   * Checkout opens with the address filled in and the shopper can still change it). Only Stripe uses it.
+   */
+  prefill?: { name: string; shipping: { name: string; address: Address } }
   // Correlates the provider session back to our pending order row.
   clientReferenceId: string
   metadata?: Record<string, string>

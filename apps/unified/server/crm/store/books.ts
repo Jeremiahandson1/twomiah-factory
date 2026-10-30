@@ -13,7 +13,7 @@
 // Behind the quickbooks feature (offered to a store as opt-in) and settings:update for its settings routes, the QuickBooks
 // routes' own line. The money is the merchant's own Stripe account's (Connect): nothing here holds a card number.
 import { Hono } from 'hono'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { contact, storeBooks, storeOrder, storeOrderItem, storeOrderRefund, storePayout, storeProduct } from '../../db/schema/index.ts'
 import type { SweepHelpers } from '../office/quickbooksAutoSync.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -21,6 +21,7 @@ import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { StoreCore } from './core.ts'
 import { cardShareOfRefund } from './giftCards.ts'
+import { wasPaid } from './lib/paid.ts'
 import type { PayoutLine } from './payments/types.ts'
 
 /** The accounts and items the books use, found in QuickBooks by name or made there the first time. */
@@ -288,7 +289,7 @@ export function createStoreBooks(d: CrmDeps, core: StoreCore) {
   async function pass(companyId: string, h: SweepHelpers) {
     const out = { orders: 0, refunds: 0, payouts: 0, failed: 0 }
     const skipO = await h.heldBack('order')
-    const orders: Order[] = await db.select().from(storeOrder).where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.orderNumber), ne(storeOrder.status, 'pending'), isNull(storeOrder.qbSalesReceiptId))).orderBy(asc(storeOrder.createdAt)).limit(200)
+    const orders: Order[] = await db.select().from(storeOrder).where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.orderNumber), wasPaid(), isNull(storeOrder.qbSalesReceiptId))).orderBy(asc(storeOrder.createdAt)).limit(200)
     for (const o of orders) {
       if (skipO.has(o.id)) continue
       try {

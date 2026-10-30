@@ -78,6 +78,16 @@ export class StripeProvider implements PaymentProvider {
       })
     }
 
+    let prefillCustomer: string | null = null
+    if (input.prefill && input.collectShippingAddress) {
+      const a = input.prefill.shipping.address
+      const customer = await this.stripe.customers.create({
+        ...(input.customerEmail ? { email: input.customerEmail } : {}), name: input.prefill.name,
+        shipping: { name: input.prefill.shipping.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } },
+      }, this.opts)
+      prefillCustomer = customer.id
+    }
+
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       line_items,
@@ -88,7 +98,9 @@ export class StripeProvider implements PaymentProvider {
       phone_number_collection: { enabled: true },
       ...(auto ? { automatic_tax: { enabled: true } } : {}),
       ...(input.collectBillingAddress ? { billing_address_collection: 'required' as const } : {}),
-      ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+      // A signed-in shopper's saved address: a Stripe Customer (on the merchant's own account) that carries it, so the
+      // payment page opens with it filled in. Checkout takes the customer in place of customer_email.
+      ...(prefillCustomer ? { customer: prefillCustomer, customer_update: { shipping: 'auto' as const, name: 'auto' as const } } : input.customerEmail ? { customer_email: input.customerEmail } : {}),
       ...(input.collectShippingAddress
         ? { shipping_address_collection: { allowed_countries: ['US'] } }
         : {}),

@@ -44,6 +44,7 @@ export function stripeMock() {
       const s = sessions.get(decodeURIComponent(m[1]))
       return s ? json(s) : json({ error: { type: 'invalid_request_error', message: 'No such checkout.session' } }, 404)
     }
+    if (u.pathname === '/v1/customers' && method === 'POST') return json({ id: `cus_${++state.n}`, object: 'customer', email: params.get('email'), name: params.get('name') })
     if (u.pathname === '/v1/payouts' && method === 'GET') {
       const since = Number(u.searchParams.get('arrival_date[gte]') || 0)
       return json({ object: 'list', url: '/v1/payouts', has_more: false, data: payouts.filter((p) => p.status === (u.searchParams.get('status') || p.status) && p.arrival_date >= since) })
