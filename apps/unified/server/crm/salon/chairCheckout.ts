@@ -17,8 +17,8 @@
 // payment says so; a card taken on a sale that was voided meanwhile is marked for a person to refund.
 import Stripe from 'stripe'
 import { Hono } from 'hono'
-import { and, desc, eq } from 'drizzle-orm'
-import { invoiceBalance, recordInvoicePayment, round2 } from '@twomiah/tenant-backend'
+import { and, desc, eq, like, lt } from 'drizzle-orm'
+import { invoiceBalance, recordInvoicePayment, recordInvoiceRefund, round2 } from '@twomiah/tenant-backend'
 import { company, invoice, payment, salonReader, salonTerminalCharge } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -305,7 +305,50 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return row.status === 'pending' ? pollCharge(companyId, row.id) : chargeView(row)
   }
 
-  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor }
+  // ─── Refunds ──────────────────────────────────────────────────────────────────────────────────
+  /**
+   * Give (part of) a reader payment back to the card, through Stripe on the salon's account, then record it on the sale. This is the way back
+   * for a card the reader took: the sale's ordinary refund only writes a line in the books and sends no money. The SALE amount comes back; the
+   * tip was the stylist's and is refunded in Stripe's dashboard if it must be. Stripe's idempotency key is the charge and what was refunded
+   * before, so a retried click cannot refund twice; the record is written once per Stripe refund id.
+   */
+  async function refundPayment(actor: any, paymentId: string, input: { amountCents?: unknown; reason?: unknown }) {
+    const companyId = actor.companyId
+    const [charge] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.paymentId, String(paymentId || '')), eq(salonTerminalCharge.companyId, companyId))).limit(1)
+    if (!charge) throw new TerminalError('That is not a card reader payment. Refund it from the sale.', 404, 'NOT_READER_PAYMENT')
+    const marker = `Card reader refund (${charge.id})`
+    const before = await db.select({ amount: payment.amount }).from(payment).where(and(eq(payment.invoiceId, charge.invoiceId), lt(payment.amount, '0'), like(payment.notes, `${marker}%`)))
+    const refundedCents = before.reduce((t, r: any) => t + Math.round(-Number(r.amount) * 100), 0)
+    const left = charge.amountCents - refundedCents
+    if (left <= 0) throw new TerminalError('That payment has already been refunded in full.', 409, 'ALREADY_REFUNDED')
+    const want = input.amountCents == null || input.amountCents === '' ? left : Number(input.amountCents)
+    if (!Number.isInteger(want) || want <= 0) throw new TerminalError('Enter an amount to refund.', 400, 'BAD_AMOUNT', 'amountCents')
+    if (want > left) throw new TerminalError(`Only ${dollars(left)} of that payment can still be refunded.`, 400, 'OVER_REFUND', 'amountCents')
+    const reason = String(input.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 120)
+    if (!reason) throw new TerminalError('Give a reason for the refund.', 400, 'REASON_REQUIRED', 'reason')
+    const { stripe } = await account(companyId)
+    let refund: any
+    try {
+      refund = await stripe.refunds.create({ payment_intent: charge.paymentIntentId, amount: want, metadata: { twomiah_charge: charge.id, reason } },
+        { stripeAccount: charge.stripeAccount, idempotencyKey: `twomiah-chair-refund-${charge.id}-${refundedCents}-${want}` })
+    } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not make the refund. Try again.'), 502) }
+    const out = await recordInvoiceRefund(db, { invoice, payment }, {
+      invoiceId: charge.invoiceId, companyId, amount: round2(want / 100), method: 'card', reference: refund.id, notes: `${marker}: ${reason}`, idempotentByReference: true,
+    })
+    if (!out.ok) {
+      // Stripe has refunded and the books refused: said plainly, so a person can fix the record; Stripe's refund id is in the log.
+      logger.error('[chair-checkout] refund issued but not recorded', { company: companyId, charge: charge.id, refund: refund.id, error: out.error })
+      throw new TerminalError(`The card was refunded in Stripe, but the sale could not record it (${out.error}). Do not refund again.`, 409, 'NOT_RECORDED')
+    }
+    live.emitToCompany(companyId, live.EVENTS.INVOICE_UPDATED, out.invoice)
+    try {
+      await d.audit.log({ action: 'refund', entity: 'invoice', entityId: charge.invoiceId, entityName: out.row.number, companyId, req: { user: actor }, metadata: { amount: round2(want / 100), method: 'card reader', reason, stripeRefund: refund.id } })
+    } catch (e: any) { logger.warn('[chair-checkout] refund not audited', { error: e?.message }) }
+    void d.services.earnCommission(charge.invoiceId).catch(() => {})
+    return { refundedCents: want, invoiceStatus: out.newStatus }
+  }
+
+  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, refundPayment }
 }
 export type ChairCheckout = ReturnType<typeof createChairCheckout>
 
@@ -362,6 +405,12 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
   app.post('/charges/:id/cancel', requirePermission('invoices:update'), async (c) => {
     const u = c.get('user') as any
     return act(c, 200, async () => ({ charge: await t.cancelCharge(u, c.req.param('id')) }))
+  })
+  // Money back to the card: the right every refund asks for (payments:delete), not the right a payment asks.
+  app.post('/payments/:paymentId/refund', requirePermission('payments:delete'), async (c) => {
+    const u = c.get('user') as any
+    const b = await body(c)
+    return act(c, 200, async () => t.refundPayment(u, c.req.param('paymentId'), b))
   })
   // A test card on a simulated reader: configuration-level, because it exists to set the reader up.
   app.post('/charges/:id/simulate', requirePermission('company:update'), async (c) => {

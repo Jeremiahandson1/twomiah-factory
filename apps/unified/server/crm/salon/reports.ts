@@ -2,10 +2,11 @@
 //   GET /retention  who came, who came back, how often, who has slipped away, and whether first-timers returned
 //   GET /rebook     the rebook rate of each stylist: of the visits they did, how many left with a next appointment
 //   GET /retail     retail sold on paid sales, by item and by stylist
+//   GET /tips       tips taken on sales, by the stylist of the visit (card reader, or typed in with a payment)
 // All three take ?from=YYYY-MM-DD&to=YYYY-MM-DD in the salon's own calendar (default: the last 90 days) and ask reports:read.
 // What each figure means is written on the report, in words; a window too big to read is said, never quietly cut.
 import { Hono } from 'hono'
-import { clientsWithFutureBooking, REPORT_VISIT_CAP, retailSold, visitorsBetween, visitsForReport, visitSpans } from '../../data/salon.ts'
+import { clientsWithFutureBooking, REPORT_VISIT_CAP, retailSold, tipsReceived, visitorsBetween, visitsForReport, visitSpans } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -126,7 +127,22 @@ export function createSalonReports(d: CrmDeps) {
     return { range: { from: w.from, to: w.to, days: w.days }, total: round2(total), units, byItem: fin(items), byStylist: fin(people) }
   }
 
-  return { retention, rebook, retail }
+  /** Tips taken in the window, each to the stylist of the visit the sale closed; a tip on a sale with no visit is "No stylist recorded". */
+  async function tips(companyId: string, q: { from?: string; to?: string }) {
+    const w = await windowOf(companyId, q)
+    const rows = await tipsReceived(db, companyId, w.start, w.end)
+    const by = new Map<string, { id: string | null; name: string; tips: number; payments: number }>()
+    let total = 0, payments = 0
+    for (const r of rows) {
+      const p = whoIs(r), t = Number(r.tips) || 0, n = Number(r.payments) || 0
+      total += t; payments += n
+      const e = by.get(p.key) || { id: p.id, name: p.name, tips: 0, payments: 0 }; e.tips += t; e.payments += n; by.set(p.key, e)
+    }
+    const stylists = [...by.values()].map((e) => ({ ...e, tips: round2(e.tips) })).sort((a, b) => b.tips - a.tips || a.name.localeCompare(b.name))
+    return { range: { from: w.from, to: w.to, days: w.days }, total: round2(total), payments, stylists }
+  }
+
+  return { retention, rebook, retail, tips }
 }
 export type SalonReports = ReturnType<typeof createSalonReports>
 
@@ -134,7 +150,7 @@ export type SalonReports = ReturnType<typeof createSalonReports>
 export function createSalonReportRoutes(d: CrmDeps, reports: SalonReports) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
-  const answer = (name: 'retention' | 'rebook' | 'retail') => async (c: any) => {
+  const answer = (name: 'retention' | 'rebook' | 'retail' | 'tips') => async (c: any) => {
     const u = c.get('user') as any
     c.header('Cache-Control', 'no-store')
     try {
@@ -148,5 +164,6 @@ export function createSalonReportRoutes(d: CrmDeps, reports: SalonReports) {
   app.get('/retention', requirePermission('reports:read'), answer('retention'))
   app.get('/rebook', requirePermission('reports:read'), answer('rebook'))
   app.get('/retail', requirePermission('reports:read'), answer('retail'))
+  app.get('/tips', requirePermission('reports:read'), answer('tips'))
   return app
 }
