@@ -331,6 +331,11 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (updates.serviceId && updates.serviceId !== existing.serviceId) updates.quotedPrice = await menuPrice(db, currentUser.companyId, updates.serviceId)
     }
     if ('status' in updates && !APPT_STATUSES.includes(updates.status)) return fail(c, 400, `status must be one of ${APPT_STATUSES.join(', ')}`)
+    // The moment it was cancelled is kept: a late-cancel fee is measured from it (cardOnFile.ts). Reopened, it has none.
+    if ('status' in updates) {
+      if (updates.status === 'cancelled' && existing.status !== 'cancelled') updates.cancelledAt = new Date()
+      else if (updates.status !== 'cancelled' && existing.status === 'cancelled') updates.cancelledAt = null
+    }
     if ('quotedPrice' in updates && updates.quotedPrice != null && updates.quotedPrice !== '' && (isNaN(Number(updates.quotedPrice)) || Number(updates.quotedPrice) < 0)) return fail(c, 400, 'Quoted price cannot be negative.')
     if ('quotedPrice' in updates && roundsToNothing(updates.quotedPrice)) return fail(c, 400, `${updates.quotedPrice} rounds to $0.00 — enter 0 if it is free, or at least one cent.`)
     if (updates.startTime) {
@@ -438,7 +443,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (!existing) return fail(c, 404, 'Appointment not found')
     { const own = await book.ownChairOf(currentUser); if (own && !isOwnChair(own, existing)) return notInBook(c) }
 
-    const [updated] = await db.update(appointment).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(appointment.id, id)).returning()
+    const [updated] = await db.update(appointment).set({ status: 'cancelled', updatedAt: new Date(), ...(existing.status !== 'cancelled' ? { cancelledAt: new Date() } : {}) }).where(eq(appointment.id, id)).returning()
     // Cancelling from the book and from the list are the same act. (LY0928 M1)
     if (existing.status === 'completed') await onVisitUncompleted(updated)
 

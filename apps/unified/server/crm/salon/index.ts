@@ -20,6 +20,7 @@ import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
+import { createCardOnFileRoutes } from './cardOnFile.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
 import { Hono } from 'hono'
@@ -66,6 +67,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     setTimeout(() => { void tick() }, 5 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
+  // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
+  d.services.useConnectedEvents?.(s.cards.claim)
   return [
     // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
     ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: priced(createClientRoutes(d, s)) } as Mount]),
@@ -76,6 +79,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
       { path: '/api/appointments', access: 'user', feature: 'salon_booking', router: priced(createAppointmentRoutes(d, s)) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
+    // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
+    ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]
 }

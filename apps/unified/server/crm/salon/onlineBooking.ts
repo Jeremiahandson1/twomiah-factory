@@ -106,7 +106,7 @@ export function createChairBooking(): BookingAddOn {
       if (!b.appointmentId) return
       const own = and(eq(appointment.id, b.appointmentId), eq(appointment.companyId, b.companyId), notInArray(appointment.status, ['completed', 'in_chair', 'checked_in']))
       if (change === 'moved') await exec.update(appointment).set({ startTime: b.startAt, endTime: b.endAt, stylistId: b.assignedUserId ?? null, updatedAt: new Date() }).where(own)
-      else if (b.status === 'cancelled' || b.status === 'no_show') await exec.update(appointment).set({ status: b.status, updatedAt: new Date() }).where(own)
+      else if (b.status === 'cancelled' || b.status === 'no_show') await exec.update(appointment).set({ status: b.status, updatedAt: new Date(), ...(b.status === 'cancelled' ? { cancelledAt: b.cancelledAt ?? new Date() } : {}) }).where(own)
     },
 
     // The Book's own appointments hold their time online, as the template's did (calendars.ts busy): the stylist's time

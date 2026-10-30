@@ -406,6 +406,25 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, your ${data.agreementName} (${data.agreementNumber}) renews automatically on ${data.renewalDate} through ${data.newEndDate} at $${data.amount} ${data.billingFrequency}. To cancel, reply to this email or contact ${data.companyName}${data.companyPhone ? ` at ${data.companyPhone}` : ''} before ${data.renewalDate}.`,
   }),
+  // The receipt for a no-show or late-cancellation fee charged to the card a client keeps on file (salon/cardOnFile.ts).
+  cardFeeReceipt: (data, b) => ({
+    subject: `Receipt: ${data.label} — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Receipt</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We charged a ${escHtml(String(data.label).toLowerCase())} of <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your appointment on ${escHtml(data.when)}.</p>
+          <div class="highlight"><p style="margin:0;"><strong>Why:</strong> ${escHtml(data.reason)}</p></div>
+          <p>If you think this is a mistake, please reply to this email or contact us and we will look into it.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we charged a ${String(data.label).toLowerCase()} of $${data.amount} to your ${data.card} for your appointment on ${data.when}. Why: ${data.reason}. If you think this is a mistake, reply to this email or contact ${b.companyName}.`,
+  }),
 }
 
 /**

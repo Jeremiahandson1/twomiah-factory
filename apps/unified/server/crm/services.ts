@@ -75,17 +75,21 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
-  // The store's orders on the connected account (crm/store/checkout/paymentNotices.ts): its module mounts after these
-  // services and hands its claim in with useConnectedEvents. Until then (and for every vertical without the store) an
+  // The store's orders on the connected account (crm/store/checkout/paymentNotices.ts) and the salon's saved cards
+  // (crm/salon/cardOnFile.ts): each module mounts after these services and hands its claim in with useConnectedEvents.
+  // They are asked in turn; the first to answer owns the event. Until then (and for every vertical with neither) an
   // event is the invoices' as before.
-  let connectedEvents: ConnectedEventClaim | null = null
+  const connectedEvents: ConnectedEventClaim[] = []
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
       bookingCalendarKind: 'job',
       onBookingDeposit: (p: DepositPayment) => (bookingDeposits ? bookingDeposits.paid(p) : Promise.resolve('unknown' as const)),
       onBookingDepositRefunded: async (p: DepositPayment) => { await bookingDeposits?.refunded(p) },
-      claimConnectedEvent: (event: Stripe.Event, stripeAccount: string) => (connectedEvents ? connectedEvents(event, stripeAccount) : Promise.resolve(null)),
+      claimConnectedEvent: async (event: Stripe.Event, stripeAccount: string) => {
+        for (const claim of connectedEvents) { const answer = await claim(event, stripeAccount); if (answer) return answer }
+        return null
+      },
       afterInvoicePayment: async (invoiceId: string) => {
         await commissionEarner.earnForInvoice(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
@@ -216,8 +220,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
     useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
-    /** Who claims a connected-account event before the invoices see it (the store's orders). */
-    useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents = claim },
+    /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
+    useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()

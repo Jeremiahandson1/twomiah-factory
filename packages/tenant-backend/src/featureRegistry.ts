@@ -137,6 +137,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'client_profiles', name: 'Client Profiles', description: 'Per-client chart — hair type, allergies and patch-test dates, preferences, regular stylist, lifetime value', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
   { id: 'service_menu', name: 'Service Menu', description: 'Priced menu with durations and per-service rebook intervals — the input to rebooking reminders', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
   { id: 'salon_booking', name: 'The Book', description: 'Chair and stylist scheduling with check-in, duration from the menu, and double-book protection', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
+  { id: 'card_on_file', name: 'Card on File', description: 'Clients leave a card on Stripe\'s own page; a no-show or late-cancel fee is charged to it from The Book with one confirmed action and a receipt — all on your own Stripe account', category: 'Salon & Barber', core: false, templates: ['crm-salon'], hidden: true },
   { id: 'rebooking_reminders', name: 'Rebooking & Recall', description: 'Who is due back, who has lapsed, whose birthday is coming — with bulk texting', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
   { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages that burn down per redeem', category: 'Salon & Barber', core: false, templates: ['crm-salon'] },
 
