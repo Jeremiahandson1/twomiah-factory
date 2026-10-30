@@ -8,6 +8,7 @@ import type { Mount } from '../../http/registry.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createRecurringRouteRoutes } from './recurringRoutes.ts'
 import { createRouteBillingRoutes } from './routeBilling.ts'
+import { createRainDayRoutes } from './rainDay.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSiteRoutes } from './sites.ts'
@@ -27,6 +28,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     // Billing the route's visits (preview, the monthly run and its undo, one visit). Mounted BEFORE the board's own router, so
     // /api/recurring-routes/billing/... is never read as a route id.
     { path: '/api/recurring-routes/billing', access: 'user', feature: 'recurring_routes', router: createRouteBillingRoutes(d) },
+    // Rain day: push a day's jobs forward and text the customers. Before the board's router for the same reason.
+    { path: '/api/recurring-routes/rain-day', access: 'user', feature: 'recurring_routes', router: createRainDayRoutes(d) },
     { path: '/api/recurring-routes', access: 'user', feature: 'recurring_routes', router: createRecurringRouteRoutes(d) },
     { path: '/api/area-pricing', access: 'user', feature: 'area_pricing', router: createAreaPricingRoutes(d) },
     { path: '/api/snow', access: 'user', feature: 'snow_billing', router: createSnowBillingRoutes(d) },

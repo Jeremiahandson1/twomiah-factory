@@ -10,6 +10,7 @@ import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import RouteBillingPanel from './RouteBillingPanel'
 import RouteInsights from './RouteInsights'
+import RainDayPanel from './RainDayPanel'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -352,6 +353,7 @@ export default function RecurringRoutesPage() {
         </div>
       )}
 
+      <RainDayPanel onDone={() => { loadBoard(); if (detail) openRoute(detail.id) }} />
       <RouteBillingPanel />
     </div>
   )
