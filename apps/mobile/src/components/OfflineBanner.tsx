@@ -12,19 +12,21 @@ import { useOfflineQueue } from '../offline/OfflineContext'
 
 export function OfflineBanner() {
   const { isOffline } = useNetworkStatus()
-  const { pendingCount, isSyncing } = useOfflineQueue()
+  const { pendingCount, failedCount, isSyncing } = useOfflineQueue()
   // Edge-to-edge: the banner is the top-most thing on screen, so it starts below the status bar, not under its clock.
   const insets = useSafeAreaInsets()
 
-  if (!isOffline && !isSyncing && pendingCount === 0) return null
+  if (!isOffline && !isSyncing && pendingCount === 0 && failedCount === 0) return null
 
-  const label = isSyncing
+  const failedNote = failedCount > 0 ? `${failedCount} couldn't send` : ''
+  const base = (isSyncing
     ? `Syncing ${pendingCount} pending...`
     : isOffline && pendingCount > 0
       ? `No internet \u2014 ${pendingCount} pending`
       : isOffline
         ? 'No internet connection'
-        : `Syncing ${pendingCount} pending...`
+        : pendingCount > 0 ? `Syncing ${pendingCount} pending...` : '')
+  const label = [base, failedNote].filter(Boolean).join(' \u00b7 ')
 
   return (
     <Animated.View
