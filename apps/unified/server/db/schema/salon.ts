@@ -160,3 +160,78 @@ export const serviceRecord = pgTable('service_record', {
   // is unaffected. (LY0928 H1)
   uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId),
 ])
+
+// ── Card on file (gap #1) ─────────────────────────────────────────────────────────────────────────────────────────────
+// Every card here lives on the SALON'S OWN Stripe account (the Connect account it linked in Settings › Integrations);
+// nothing is held or charged on Twomiah's. Only Stripe's ids and the card's brand/last four are kept — never a number.
+
+/** A card a client gave the salon to keep on file, saved on Stripe's own page. Removed = the salon or client took it off. */
+export const clientCard = pgTable('client_card', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** The salon's connected account the customer and card belong to: a card is only ever charged on this one. */
+  stripeAccount: text('stripe_account').notNull(),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  paymentMethodId: text('payment_method_id').notNull(),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  /** Consent: when it was given, the policy words the client agreed to as they stood then, and how it was given. */
+  consentAt: timestamp('consent_at').notNull(),
+  consentText: text('consent_text').notNull(),
+  /** 'client_online' (ticked on the booking form) | 'staff_at_desk' (the client agreed in person; the seat that recorded it is below). */
+  consentVia: text('consent_via').notNull(),
+  consentUserId: text('consent_user_id').references(() => user.id, { onDelete: 'set null' }),
+  removedAt: timestamp('removed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_card_client_idx').on(t.companyId, t.contactId),
+  uniqueIndex('client_card_payment_method_key').on(t.companyId, t.paymentMethodId),
+])
+
+/** The salon's card policy: one row per salon. Fees are a flat amount OR a percent of the service price, never both. */
+export const cardPolicy = pgTable('card_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** Who must leave a card to book online: 'off' | 'new_clients' | 'all'. */
+  cardRequirement: text('card_requirement').default('off').notNull(),
+  noShowFeeAmount: decimal('no_show_fee_amount', { precision: 10, scale: 2 }),
+  noShowFeePercent: integer('no_show_fee_percent'),
+  /** Cancelling inside this many minutes of the start is a late cancel. Null = no late-cancel fee. */
+  lateCancelWindowMinutes: integer('late_cancel_window_minutes'),
+  lateCancelFeeAmount: decimal('late_cancel_fee_amount', { precision: 10, scale: 2 }),
+  lateCancelFeePercent: integer('late_cancel_fee_percent'),
+  /** The salon's own words, shown at booking, in the confirmation and on the card page. Null = the standard sentence. */
+  policyText: text('policy_text'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('card_policy_company_id_key').on(t.companyId),
+])
+
+/** Each time the salon charged (or tried to charge) a no-show or late-cancel fee: the ledger, with the reason and the receipt. */
+export const cardFeeCharge = pgTable('card_fee_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  cardId: text('card_id').references(() => clientCard.id, { onDelete: 'set null' }),
+  /** 'no_show' | 'late_cancel' */
+  kind: text('kind').notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  /** 'succeeded' | 'declined' | 'needs_action' */
+  status: text('status').notNull(),
+  /** Why, in the words of the person who charged it: kept with the charge. */
+  reason: text('reason').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureMessage: text('failure_message'),
+  chargedByUserId: text('charged_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  receiptSentAt: timestamp('receipt_sent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('card_fee_charge_company_idx').on(t.companyId, t.createdAt),
+  index('card_fee_charge_appointment_idx').on(t.appointmentId),
+  index('card_fee_charge_contact_idx').on(t.contactId),
+])

@@ -28,6 +28,8 @@ export const appointment = pgTable('appointment', {
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  /** When it was cancelled (the book, the client's own link): what a late-cancel fee is measured from. Null until cancelled. */
+  cancelledAt: timestamp('cancelled_at'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
   ownerId: text('owner_id').references(() => contact.id, { onDelete: 'set null' }),

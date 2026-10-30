@@ -288,6 +288,13 @@
       "when": 1793361622441,
       "tag": "0040_email_alias_member",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793378952053,
+      "tag": "0041_card_on_file",
+      "breakpoints": true
     }
   ]
 }
