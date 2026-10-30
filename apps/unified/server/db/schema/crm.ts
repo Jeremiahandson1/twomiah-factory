@@ -395,10 +395,43 @@ export const quoteLineItem = pgTable('quote_line_item', {
   // into the job and the invoice. A line that is not optional is always selected.
   optional: boolean('optional').default(false).notNull(),
   selected: boolean('selected').default(true).notNull(),
+  /**
+   * Estimating depth (0041, packages/tenant-backend invoicing/quoteSections.ts). `section` is the phase a line sits under
+   * ("Demolition", "Framing"); lines of one section are shown together with a subtotal. `markup_pct` is the markup on
+   * `unit_cost` the price was worked out from (the server sets unit_price from it) — cost-side, so margin:read only.
+   * `allowance` marks a line as an allowance the customer chooses against: approving the quote opens it on Selections.
+   * `cost_code` is the budget line the work files under once the quote is approved (project_budget_line).
+   */
+  section: text('section'),
+  markupPct: decimal('markup_pct', { precision: 7, scale: 2 }),
+  allowance: boolean('allowance').default(false).notNull(),
+  costCode: text('cost_code'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('quote_line_item_quote_id_idx').on(t.quoteId),
+])
+
+/**
+ * What an approved quote says the project should cost, by cost code (0041, apps/unified server/crm/billing/quoteBudget.ts):
+ * one row per cost code per quote, made when the quote is approved and replaced if it is approved again. Job Costing reads
+ * it as the project's estimated cost and price. Not a ledger — nothing here moves money.
+ */
+export const projectBudgetLine = pgTable('project_budget_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  quoteId: text('quote_id').references(() => quote.id, { onDelete: 'cascade' }),
+  /** The cost code, else the line's section, else 'Uncoded'. */
+  costCode: text('cost_code').notNull(),
+  estimatedCost: decimal('estimated_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  estimatedPrice: decimal('estimated_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  /** Lines in this code with no cost recorded, so the estimate says how much of it is a guess. */
+  uncostedLines: integer('uncosted_lines').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_budget_line_project_id_idx').on(t.projectId),
+  index('project_budget_line_quote_id_idx').on(t.quoteId),
 ])
 
 export const invoice = pgTable('invoice', {

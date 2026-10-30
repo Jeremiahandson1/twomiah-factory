@@ -7,6 +7,7 @@ import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money, quoteSentMessage } from './ui'
+import { SectionedRows, AllowanceTag } from './sections'
 
 type Q = Record<string, any>
 // Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES): a quote the customer has opened is still the office's to
@@ -106,13 +107,13 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-gray-900 dark:text-slate-100">
-                {(quote.lineItems || []).map((li: any, i: number) => <tr key={i} className={li.optional && !li.selected ? 'text-gray-500 dark:text-slate-400' : ''}><td className="px-4 py-3">{li.description}{li.optional && (
+                <SectionedRows lines={quote.lineItems || []} colSpan={4} row={(li: any, i: number) => <tr key={i} className={li.optional && !li.selected ? 'text-gray-500 dark:text-slate-400' : ''}><td className="px-4 py-3 whitespace-pre-line">{li.description}{li.allowance && <AllowanceTag />}{li.optional && (
                   <span className="ml-2 inline-flex items-center gap-1.5 text-xs">
                     {editable && mayUpdate
                       ? <label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!li.selected} disabled={busy} onChange={(e) => choose(li.id, e.target.checked)} aria-label={`Include ${li.description}`} /> Optional — {li.selected ? 'included' : 'not included'}</label>
                       : <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-slate-800 dark:text-slate-200">Optional — {li.selected ? 'included' : 'not included'}</span>}
                   </span>
-                )}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>)}
+                )}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>} />
                 {(quote.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">

@@ -8,6 +8,7 @@ import type { LineItemInput, PricebookPick } from './types'
 import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 import { useConfirm } from '../ui/confirmContext'
+import { groupLines } from './sections'
 
 // ---------------------------------------------------------------- formatting
 // The one money formatter (../money.ts): the sign before the dollar sign.
@@ -562,18 +563,27 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
  * The line is then filled with everything else and left uncosted, which job costing counts and
  * reports rather than guessing — the right outcome for someone who is not shown the figure.
  */
-export function LineItemsEditor({ items, onChange, pricebook, optional }: {
+export function LineItemsEditor({ items, onChange, pricebook, optional, estimating }: {
   items: LineItemInput[]
   onChange: (items: LineItemInput[]) => void
-  pricebook?: { items: PricebookPick[]; canSeeCost?: boolean }
+  pricebook?: { items: PricebookPick[]; canSeeCost?: boolean; /** The book has been fetched: only then can "it is empty" be said. */ loaded?: boolean }
   /** Offer "Optional" on each line, and "Included" on an optional one (a quote's optional lines). */
   optional?: boolean
+  /**
+   * A quote's estimating tools (opt-in; off for invoices and for every template that does not pass it): lines in sections
+   * (phases) with a subtotal each, a description that can run to several lines, a markup on our cost, and — where asked —
+   * allowances and cost codes. The server keeps and works from the same fields (tenant-backend invoicing/quoteSections.ts).
+   */
+  estimating?: { allowances?: boolean; costCodes?: boolean }
 }) {
   const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
   const lineError = moneyInputError(items, 0, 0)
   const withPricebook = !!pricebook && pricebook.items.length > 0
   /** Cost is only shown when this vertical records it AND this person is allowed to see it. */
   const showCost = !!pricebook && pricebook.canSeeCost !== false
+  const est = !!estimating
+  const showMarkup = est && showCost
+  const priced = (cost: number, pct: number) => round2(cost * (1 + pct / 100))
 
   /** A catalogue item becomes a line: everything the book knows, carried over in one go. */
   const addFromPricebook = (id: string) => {
@@ -581,6 +591,117 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
     if (!pb) return
     onChange([...items, pricebookLine(pb)])
   }
+  // Sections, in the order each first appears (same rule as the server's and the customer's page).
+  const groups = est ? groupLines(items.map((li) => ({ ...li, total: round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }))) : null
+  const namedSections = !!groups && groups.some((g) => g.name !== '')
+  const sectionNames = groups ? groups.map((g) => g.name).filter(Boolean) : []
+  // Columns before the price (description, kind, qty), the cost/markup pair, then price + total, then optional + remove.
+  const nameSpan = 2 + (showCost ? 1 : 0)
+  const midSpan = showMarkup ? 2 : showCost ? 1 : 0
+  /** Rename a section — every line in it moves with it. */
+  const renameSection = (from: string, to: string) => onChange(items.map((li) => ((li.section || '') === from ? { ...li, section: to } : li)))
+  /** A markup for the whole section: every costed line in it is priced from its cost. */
+  const markSection = (name: string, pct: number | undefined) => onChange(items.map((li) => {
+    if ((li.section || '') !== name || li.unitCost === undefined || li.unitCost === null) return li
+    return pct === undefined ? { ...li, markupPct: undefined } : { ...li, markupPct: pct, unitPrice: priced(li.unitCost, pct) }
+  }))
+  const addSection = () => {
+    const n = sectionNames.length + 1
+    let name = `Section ${n}`
+    while (sectionNames.includes(name)) name = `${name}+`
+    // a blank first line is replaced; otherwise the new section starts with a blank line of its own
+    const kept = items.filter((li) => li.description.trim() || Number(li.unitPrice) > 0 || li.section)
+    onChange([...kept, { description: '', quantity: 1, unitPrice: 0, section: name }])
+  }
+
+  const row = (li: LineItemInput, i: number) => (
+    <tr key={i}>
+      <td className="px-3 py-2">
+        {est
+          ? <textarea rows={Math.min(6, Math.max(1, String(li.description).split('\n').length))} value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="Description — press Enter for another line" aria-label="Description" className={inputCls} />
+          : <input value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="Description" className={inputCls} />}
+        {est && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-700 dark:text-slate-200">
+            {namedSections && (
+              <label className="flex items-center gap-1">Section
+                <select aria-label="Section" value={li.section || ''} onChange={(e) => update(i, { section: e.target.value || undefined })} className={`${selectCls} py-0.5 text-xs`}>
+                  <option value="">None</option>
+                  {sectionNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            )}
+            {estimating?.costCodes && (
+              <label className="flex items-center gap-1">Cost code
+                <input aria-label="Cost code" value={li.costCode || ''} onChange={(e) => update(i, { costCode: e.target.value || undefined })} placeholder="e.g. 06-Framing" className={`${inputCls} w-32 py-0.5 text-xs`} />
+              </label>
+            )}
+            {estimating?.allowances && (
+              <label className="flex items-center gap-1" title="The customer chooses against this amount; approving the quote adds it to Selections.">
+                <input type="checkbox" checked={!!li.allowance} onChange={(e) => update(i, { allowance: e.target.checked })} aria-label="Allowance line" /> Allowance
+              </label>
+            )}
+          </div>
+        )}
+      </td>
+      {showCost && (
+        <td className="px-3 py-2">
+          <select aria-label="Line kind" value={li.type || ''} onChange={e => update(i, { type: (e.target.value || undefined) as LineItemInput['type'] })} className={selectCls}>
+            <option value="">—</option>
+            <option value="labor">Labour</option>
+            <option value="material">Material</option>
+            <option value="part">Part</option>
+            <option value="service">Service</option>
+            <option value="other">Other</option>
+          </select>
+        </td>
+      )}
+      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Quantity" value={li.quantity} onValue={n => update(i, { quantity: n })} className={inputCls} /></td>
+      {showCost && (
+        <td className="px-3 py-2">
+          {/*
+            Empty means "not costed", and that is a real answer — jobCosting counts the line
+            rather than pricing it at nothing. So this stays a blank-able field instead of
+            defaulting to 0, which would claim the work is free.
+          */}
+          <input
+            type="number" min="0" step="0.01" aria-label="Our cost per unit"
+            value={li.unitCost === undefined || li.unitCost === null ? '' : String(li.unitCost)}
+            onChange={e => {
+              const unitCost = e.target.value === '' ? undefined : Number(e.target.value)
+              // a line priced from a markup follows its cost
+              update(i, unitCost !== undefined && li.markupPct !== undefined ? { unitCost, unitPrice: priced(unitCost, li.markupPct) } : { unitCost })
+            }}
+            placeholder="—" className={inputCls}
+          />
+        </td>
+      )}
+      {showMarkup && (
+        <td className="px-3 py-2">
+          <input
+            type="number" min="0" max="1000" step="0.1" aria-label="Markup percent"
+            value={li.markupPct === undefined || li.markupPct === null ? '' : String(li.markupPct)}
+            disabled={li.unitCost === undefined || li.unitCost === null}
+            title={li.unitCost === undefined || li.unitCost === null ? 'Enter our cost first — the markup is worked out from it.' : undefined}
+            onChange={e => {
+              const markupPct = e.target.value === '' ? undefined : Number(e.target.value)
+              update(i, markupPct !== undefined && li.unitCost !== undefined ? { markupPct, unitPrice: priced(li.unitCost, markupPct) } : { markupPct })
+            }}
+            placeholder="%" className={inputCls}
+          />
+        </td>
+      )}
+      {/* typing a price over a markup-priced line takes the markup off it: the price typed is the price */}
+      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, li.markupPct !== undefined ? { unitPrice: n, markupPct: undefined } : { unitPrice: n })} className={inputCls} /></td>
+      <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
+      {optional && (
+        <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!li.optional} onChange={(e) => update(i, { optional: e.target.checked, selected: e.target.checked ? false : true })} aria-label="Optional line" /> Optional</label>
+          {li.optional && <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={!!li.selected} onChange={(e) => update(i, { selected: e.target.checked })} aria-label="Included in the total" /> Included</label>}
+        </td>
+      )}
+      <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700 dark:text-red-300" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
+    </tr>
+  )
   return (
     <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-x-auto">
       {/*
@@ -591,65 +712,51 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
         and this frame scrolls sideways when it will not fit: desktop unchanged, and a phone gets a table
         it can push around rather than boxes it cannot type in. (Field Service T30, phone width)
       */}
-      <table className={`w-full text-sm ${showCost ? 'min-w-[46rem]' : 'min-w-[34rem]'}`}>
+      <table className={`w-full text-sm ${showMarkup ? 'min-w-[56rem]' : showCost ? 'min-w-[46rem]' : 'min-w-[34rem]'}`}>
         <thead className="bg-gray-50 dark:bg-slate-800/60 text-gray-600 dark:text-slate-300"><tr>
           <th className="px-3 py-2 text-left text-xs font-medium">Description</th>
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-28">Kind</th>}
           <th className="px-3 py-2 text-left text-xs font-medium w-24">Qty</th>
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-32">Our cost</th>}
+          {showMarkup && <th className="px-3 py-2 text-left text-xs font-medium w-24">Markup %</th>}
           <th className="px-3 py-2 text-left text-xs font-medium w-36">Unit Price</th>
           <th className="px-3 py-2 text-right text-xs font-medium w-32">Total</th>
           {optional && <th className="px-3 py-2 text-left text-xs font-medium w-32">Optional</th>}
           <th className="w-10" />
         </tr></thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-          {items.map((li, i) => (
-            <tr key={i}>
-              <td className="px-3 py-2"><input value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="Description" className={inputCls} /></td>
-              {showCost && (
-                <td className="px-3 py-2">
-                  <select aria-label="Line kind" value={li.type || ''} onChange={e => update(i, { type: (e.target.value || undefined) as LineItemInput['type'] })} className={selectCls}>
-                    <option value="">—</option>
-                    <option value="labor">Labour</option>
-                    <option value="material">Material</option>
-                    <option value="part">Part</option>
-                    <option value="service">Service</option>
-                    <option value="other">Other</option>
-                  </select>
-                </td>
-              )}
-              <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Quantity" value={li.quantity} onValue={n => update(i, { quantity: n })} className={inputCls} /></td>
-              {showCost && (
-                <td className="px-3 py-2">
-                  {/*
-                    Empty means "not costed", and that is a real answer — jobCosting counts the line
-                    rather than pricing it at nothing. So this stays a blank-able field instead of
-                    defaulting to 0, which would claim the work is free.
-                  */}
-                  <input
-                    type="number" min="0" step="0.01" aria-label="Our cost per unit"
-                    value={li.unitCost === undefined || li.unitCost === null ? '' : String(li.unitCost)}
-                    onChange={e => update(i, { unitCost: e.target.value === '' ? undefined : Number(e.target.value) })}
-                    placeholder="—" className={inputCls}
-                  />
-                </td>
-              )}
-              <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
-              <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
-              {optional && (
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">
-                  <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!li.optional} onChange={(e) => update(i, { optional: e.target.checked, selected: e.target.checked ? false : true })} aria-label="Optional line" /> Optional</label>
-                  {li.optional && <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={!!li.selected} onChange={(e) => update(i, { selected: e.target.checked })} aria-label="Included in the total" /> Included</label>}
-                </td>
-              )}
-              <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700 dark:text-red-300" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
-            </tr>
-          ))}
+          {groups && namedSections
+            ? groups.map((g) => (
+              <React.Fragment key={`s-${g.items[0].index}`}>
+                <tr className="bg-gray-50 dark:bg-slate-800/60">
+                  <td colSpan={nameSpan} className="px-3 py-2">
+                    {g.name === ''
+                      ? <span className="text-sm font-semibold text-gray-900 dark:text-white">Other lines</span>
+                      : <input aria-label="Section name" value={g.name} onChange={(e) => renameSection(g.name, e.target.value)} className={`${inputCls} font-semibold`} />}
+                  </td>
+                  {midSpan > 0 && (
+                    <td colSpan={midSpan} className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">
+                      {showMarkup && g.name !== '' && (
+                        <label className="flex items-center gap-1">Markup for all
+                          <input type="number" min="0" max="1000" step="0.1" aria-label={`Markup for every costed line in ${g.name}`} placeholder="%" className={`${inputCls} w-20`}
+                            onChange={(e) => markSection(g.name, e.target.value === '' ? undefined : Number(e.target.value))} />
+                        </label>
+                      )}
+                    </td>
+                  )}
+                  <td colSpan={2} className="px-3 py-2 text-right text-sm font-semibold text-gray-900 dark:text-slate-100">{g.name || 'Other lines'} · {money(g.subtotal)}</td>
+                  <td colSpan={(optional ? 1 : 0) + 1} />
+                </tr>
+                {g.items.map(({ index }) => row(items[index], index))}
+              </React.Fragment>
+            ))
+            : items.map((li, i) => row(li, i))}
         </tbody>
       </table>
       {lineError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{lineError}</p>}
       <div className="p-2 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
+        <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0, ...(est && sectionNames.length ? { section: sectionNames[sectionNames.length - 1] } : {}) }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
+        {est && <button type="button" onClick={addSection} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add section</button>}
         {withPricebook && (
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
             <span>or from the pricebook</span>
@@ -667,6 +774,10 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
               ))}
             </select>
           </label>
+        )}
+        {/* The picker is hidden when the book has nothing in it — say so, or it looks like the feature is missing. */}
+        {!!pricebook && pricebook.loaded === true && pricebook.items.length === 0 && (
+          <p role="note" className="text-sm text-gray-600 dark:text-slate-300">Your pricebook is empty, so there is nothing to pick from here yet. Add items on the Pricebook page and they will show up in this list.</p>
         )}
       </div>
       {showCost && items.some(li => li.unitCost === undefined || li.unitCost === null) && (

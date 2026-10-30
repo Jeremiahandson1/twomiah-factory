@@ -718,6 +718,8 @@ export const projectBaseline = pgTable('project_baseline', {
 
 export const projectSelection = pgTable('project_selection', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  /** The quote line this allowance came from (0041): approving a quote opens its allowance lines here, once each. */
+  quoteLineItemId: text('quote_line_item_id'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
   categoryId: text('category_id').references(() => selectionCategory.id),

@@ -6,6 +6,7 @@ import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
 import { codeLabel } from '../labels/codes'
+import { SectionedRows } from '../invoicing/sections'
 
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' }
 const RESPONDABLE = ['sent', 'viewed']
@@ -14,7 +15,7 @@ export interface PortalQuoteData {
   id: string; number: string; name?: string | null; status: string; total: string | number; subtotal?: string | number
   taxAmount?: string | number; taxRate?: string | number; discount?: string | number; terms?: string | null
   expiryDate?: string | null; approvedAt?: string | null; signature?: string | null; signedBy?: string | null; approvedBy?: string | null
-  lineItems?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; optional?: boolean; selected?: boolean }>
+  lineItems?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; optional?: boolean; selected?: boolean; section?: string | null; allowance?: boolean }>
   /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
   depositAmount?: string
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
@@ -128,9 +129,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           <table className="w-full">
             <thead><tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400 dark:border-slate-700"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Total</th></tr></thead>
-            <tbody>{quote.lineItems?.map((item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 dark:text-slate-100">{item.optional && canRespond && item.id
+            <tbody><SectionedRows lines={quote.lineItems || []} colSpan={4} pad="py-2" row={(item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 whitespace-pre-line dark:text-slate-100">{item.allowance && <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Allowance</span>}{item.optional && canRespond && item.id
               ? <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!item.selected} disabled={busy} onChange={(e) => choose(item.id!, e.target.checked)} aria-label={`Add ${item.description}`} /><span>{item.description} <span className="text-xs text-gray-600 dark:text-slate-400">(optional)</span></span></label>
-              : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400"> (optional{item.selected ? ', included' : ', not included'})</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>)}</tbody>
+              : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400"> (optional{item.selected ? ', included' : ', not included'})</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>} /></tbody>
           </table>
         </div>
         <div className="p-6 bg-gray-50 dark:bg-slate-800/60">

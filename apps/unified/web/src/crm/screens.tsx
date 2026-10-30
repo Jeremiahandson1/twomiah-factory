@@ -112,7 +112,10 @@ export function JobDetail() {
 const invoicingFor = (hasFeature: (f: string) => boolean) => {
   const i = v().invoicing as any
   // Optional quote lines and a deposit on approval: every vertical's quotes have the columns (server 0034).
+  // Estimating: sections, markup on cost and multi-line lines for every vertical's quotes (server 0041). Allowances only where
+  // Selections is on (a contractor's), cost codes only where quotes attach to projects (the approved quote's budget).
   return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true,
+    quoteSections: true, quoteAllowances: hasFeature('selections'), quoteCostCodes: !!i.projects && hasFeature('projects'),
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),
     jobs: !!i.jobs && hasFeature('jobs'),
