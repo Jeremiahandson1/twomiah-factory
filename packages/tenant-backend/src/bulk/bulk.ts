@@ -30,6 +30,12 @@ export interface BulkServiceDeps {
    * review and makes its agreement's next visit, the same as one completed from its page. Absent: none run, as before.
    */
   jobHooks?: JobHooks
+  /**
+   * Runs after each invoice bulk "mark paid" records a payment on — the same follow-up every other way money lands on an
+   * invoice gets (a payment typed in, the processor's), so one rule decides what a paid invoice sets going. A failure is
+   * logged and never stops the rest of the batch. Absent: none runs, as before.
+   */
+  afterInvoicePaid?: (invoiceId: string) => Promise<unknown>
 }
 
 export function createBulkService(deps: BulkServiceDeps) {
@@ -242,6 +248,7 @@ export function createBulkService(deps: BulkServiceDeps) {
       });
       if (!outcome.ok) { console.warn(`[Bulk] Invoice ${inv.number} not marked paid: ${outcome.error}`); continue; }
       updated++;
+      if (deps.afterInvoicePaid) await deps.afterInvoicePaid(inv.id).catch((err: any) => console.error('[Bulk] after-payment step failed', err?.message || err));
     }
     return updated;
   }

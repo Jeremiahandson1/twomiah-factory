@@ -208,7 +208,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   }
 
   // Bulk status changes run the same moments as the job routes (packages/tenant-backend jobs.ts jobHookFor).
-  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks } as any)
+  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks, afterInvoicePaid } as any)
 
   // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
   // vertical's invoices, and home care's Billing invoices where this is home care.

@@ -12,7 +12,7 @@ Sources
 
 | # | What the leaders do | Twomiah (roofing) | Mark |
 |---|---|---|---|
-| 1 | Card (Visa, Mastercard, Amex, Discover) from the invoice — JobNimbus, Roofr, Leap | The homeowner's invoice page takes a card; the charge is made on the roofer's own connected Stripe account, never ours (`roof-online-payments.test.ts`) | **Matches** |
+| 1 | Card (Visa, Mastercard, Amex, Discover) from the invoice — JobNimbus, Roofr, Leap | The homeowner's invoice page takes a card (for a business with Online Payments on — not offered to roofing until released); the charge is made on the roofer's own connected Stripe account, never ours (`roof-online-payments.test.ts`) | **Matches** |
 | 2 | Bank payment (ACH / e-check) — all three | Offered by the same page wherever the roofer has turned bank payments on in their own Stripe account (the page uses Stripe's automatic payment methods) | **Matches**, with that condition |
 | 3 | The customer pays from a link on the invoice, no login — JobNimbus, Roofr | The invoice's own `/d/<token>` page, in the invoice email and now in the Invoiced-stage text | **Matches** |
 | 4 | Text-to-pay — JobNimbus (with Engage) | The Invoiced stage texts the homeowner the invoice page ("Pay online at …"). Before this change that text linked the customer *portal*, which only exists when the portal is on, so it often carried no link at all | **Matches** at the Invoiced stage |
@@ -32,9 +32,16 @@ Sources
 | 18 | Payments dashboard with funding status — Roofr; financial reporting — Leap | The roofer's own Stripe dashboard shows payouts; the CRM's invoice list and reports show what is paid | **Different by design** |
 
 ## What this change builds
-- Online Payments is offered to roofing (`featureRegistry.ts`), so the roof portal's payments tab and the Settings › Integrations Stripe card have a switch behind them.
-- Collected on payment (`server/crm/roof/collected.ts`), run from both ways money arrives.
+- Collected on payment (`server/crm/roof/collected.ts`), run from every way money lands on an invoice: a payment typed in on the screen, a card or bank payment on the roofer's Stripe, and bulk "mark paid" (the shared bulk service takes an optional after-payment step, `packages/tenant-backend/src/bulk/bulk.ts`).
 - The Invoiced text links the invoice's own page (`server/crm/roof/stageEffects.ts`).
+- Proven end to end on the real server (`apps/unified/tests/roof-online-payments.test.ts`), for a roofing business that has Online Payments on.
+
+## Release gate (owner, 2026-10-30)
+Roofing is **not offered** Online Payments yet: it is built and proven but not released, and offering a feature advertises it
+(signup question, Features page). The registry line carries the release steps: add `crm-roof` to `online_payments` in
+`packages/tenant-backend/src/featureRegistry.ts`, drop `roofing` from `SIGNUP_PAGE_HIDES.online_payments` in
+`apps/unified/tests/signup-questions.test.ts`, flip the "not offered" assertion in `roof-online-payments.test.ts`, and edit
+the website signup page's `ASK_HIDDEN_FOR` (the owner's other session).
 
 ## Still needed for full parity (not in this change)
 Rows 6 (verify or add the amount box), 13, 14 and 15. Rows 16 and 17 are the owner's call.

@@ -13,7 +13,7 @@ const { takesBookings } = (await import(FACTORY)) as { takesBookings: (tenant: a
 // two cannot drift without a failing test.
 const SIGNUP_PAGE_HIDES = {
   bookings: ['home_care', 'roofing', 'dispensary', 'rv', 'food_truck', 'restaurant', 'bar_and_grill', 'retail'],
-  online_payments: ['dispensary', 'retail'],
+  online_payments: ['roofing', 'dispensary', 'retail'],
 }
 const SIGNUP_INDUSTRIES = ['general_contractor', 'remodeler', 'roofing', 'hvac', 'plumbing', 'electrical', 'landscaping', 'painter', 'concrete', 'flooring',
   'home_care', 'veterinary', 'dispensary', 'rv', 'food_truck', 'restaurant', 'bar_and_grill', 'salon', 'fitness', 'retail', 'other']
@@ -29,7 +29,7 @@ describe('which signup questions a business is asked', () => {
   })
 
   test("an answer to a question the trade isn't asked is dropped, whoever sent it", () => {
-    expect(signupChoices({ industry: 'roofing', goals: ['bookings', 'online_payments'], addons: ['texting'] })).toEqual({ goals: ['online_payments'], addons: ['texting'] })
+    expect(signupChoices({ industry: 'roofing', goals: ['bookings', 'online_payments'], addons: ['texting'] })).toEqual({ goals: [], addons: ['texting'] })
     expect(signupChoices({ industry: 'home_care', goals: ['bookings', 'online_payments'] })).toEqual({ goals: ['online_payments'], addons: [] })
     expect(signupChoices({ industry: 'hvac', goals: ['BOOKINGS', 'bookings', 'nonsense'], addons: ['texting', 'free_money'] })).toEqual({ goals: ['bookings'], addons: ['texting'] })
   })

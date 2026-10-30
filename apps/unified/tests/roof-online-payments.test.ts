@@ -1,6 +1,7 @@
 // Roofers are paid online (docs/parity/roof-online-payments.md; roofing depth, gap 1), through the real server as the
 // roofing vertical against a fake Stripe:
-//   · Online Payments is offered to a roofing business — the registry lists it for crm-roof, the portal page offers Pay;
+//   · NOT offered to roofing yet (owner, 2026-10-30: not released, and offering a feature advertises it) — but for a business
+//     that has it on, the homeowner's page offers Pay;
 //   · the homeowner's card payment is made on the roofer's OWN connected Stripe account, never the platform's;
 //   · Stripe's payment, forwarded by the Factory, pays the invoice and moves the job from Invoiced to Collected, with the
 //     stage-change note the timeline reads and a note saying why; a retried event moves nothing a second time;
@@ -94,8 +95,9 @@ const cardPaid = (invoiceId: string, pi: string, cents: number) => t.call('/api/
 })
 
 describe('roofers are paid online', () => {
-  test('Online Payments is offered to a roofing business, and the homeowner’s page offers Pay on the roofer’s own Stripe account', async () => {
-    expect(getFeaturesForTemplate('crm-roof').map((f: any) => f.id)).toContain('online_payments')
+  test('for a business that has Online Payments on, the homeowner’s page offers Pay on the roofer’s own Stripe account; roofing is not offered it yet', async () => {
+    // The owner's release gate (featureRegistry.ts): offering the feature advertises it. Releasing it flips this line.
+    expect(getFeaturesForTemplate('crm-roof').map((f: any) => f.id)).not.toContain('online_payments')
     const jobId = await jobAt('invoiced', '1 Shingle Way')
     const inv = await sentInvoice(jobId)
     const token = inv.token
@@ -180,6 +182,27 @@ describe('roofers are paid online', () => {
     expect(msg2).not.toContain('Pay online')
     await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'invoices', 'online_payments', 'two_way_texting'] } as any).where(eq(t.schema.company.id, companyId))
     t.services.features.forgetFeatures()
+  })
+
+  test('bulk “mark paid” collects the job the same way a single payment does', async () => {
+    const jobId = await jobAt('invoiced', '9 Bulk Blvd')
+    const first = await sentInvoice(jobId, 3000)
+    const second = await sentInvoice(jobId, 1000)
+    const done = await json(await as('owner')('/api/bulk/invoices/mark-paid', { method: 'POST', json: { ids: [first.id, second.id] } }))
+    expect([done.status, done.body.updated]).toEqual([200, 2])
+    expect(await settled(jobId, 'collected')).toBe('collected')
+    expect((await notesOf(jobId)).filter((n) => n === 'Status changed: invoiced → collected').length).toBe(1)
+    // A job still being built is not collected by money on it, in bulk either.
+    const building = await jobAt('in_production', '10 Bulk Blvd')
+    const deposit = await sentInvoice(building, 500)
+    expect((await as('owner')('/api/bulk/invoices/mark-paid', { method: 'POST', json: { ids: [deposit.id] } })).status).toBe(200)
+    await new Promise((r) => setTimeout(r, 200))
+    expect(await statusOf(building)).toBe('in_production')
+    // The seat without invoices:update is refused, and nothing moves.
+    const held = await jobAt('invoiced', '11 Bulk Blvd')
+    const heldInv = await sentInvoice(held)
+    expect((await as('viewer')('/api/bulk/invoices/mark-paid', { method: 'POST', json: { ids: [heldInv.id] } })).status).toBe(403)
+    expect(await statusOf(held)).toBe('invoiced')
   })
 
   test('a seat without invoices:update cannot record a payment, and a forwarded event without the Factory’s key is refused', async () => {
