@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -344,4 +344,44 @@ export async function retailSold(db: any, companyId: string, from: Date, to: Dat
     .where(and(eq(invoice.companyId, companyId), eq(invoice.status, 'paid'), eq(invoiceLineItem.type, 'retail'), gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
     .groupBy(invoiceLineItem.description, appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
   return rows as Array<{ description: string; qty: string; total: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
+}
+
+// ─── Retail stock and tips (salon #7; crm/salon/retail.ts, reports.ts) ───────────────────────────────────────────────
+
+/** Lock one retail product for the length of the caller's transaction: two sales of the last unit are taken one after the other. */
+export async function lockRetailProduct(tx: any, companyId: string, productId: string) {
+  const [row] = await tx.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.id, productId), eq(salonRetailProduct.companyId, companyId))).limit(1).for('update')
+  return row as typeof salonRetailProduct.$inferSelect | undefined
+}
+
+/**
+ * Units on hand per product: stock received and corrected, less the units on sales that stand. A void sale gives its units back by itself
+ * (nothing is "returned" by a second write that could be missed). `ids` null = every product of the salon.
+ */
+export async function retailOnHand(exec: any, companyId: string, ids: string[] | null): Promise<Map<string, number>> {
+  const only = (col: AnyColumn) => (ids ? sql`${col} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})` : sql`true`)
+  const moved = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), only(salonStockMove.productId))).groupBy(salonStockMove.productId)
+  const sold = await exec.select({ productId: salonRetailSale.productId, n: sql<string>`coalesce(sum(${salonRetailSale.quantity}), 0)` })
+    .from(salonRetailSale).innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .where(and(eq(salonRetailSale.companyId, companyId), sql`${invoice.status} <> 'void'`, only(salonRetailSale.productId))).groupBy(salonRetailSale.productId)
+  const out = new Map<string, number>()
+  for (const r of moved) out.set(r.productId, Number(r.n) || 0)
+  for (const r of sold) out.set(r.productId, (out.get(r.productId) || 0) - (Number(r.n) || 0))
+  return out
+}
+
+/** Tips taken in [from, to) with the stylist of the visit the sale closed (a sale with no visit has none). Refunds are not tips and are left out. */
+export async function tipsReceived(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*)`,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(payment)
+    .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric > 0`, sql`${payment.amount}::numeric >= 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
+    .groupBy(appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
+  return rows as Array<{ tips: string; payments: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
 }

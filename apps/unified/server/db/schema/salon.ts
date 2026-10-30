@@ -4,7 +4,7 @@ import { pgTable, text, boolean, integer, decimal, timestamp, date, json, unique
 import { createId } from '@paralleldrive/cuid2'
 import { appointment } from './appointments.ts'
 import { company, user } from './core.ts'
-import { contact, invoice, teamMember } from './crm.ts'
+import { contact, invoice, invoiceLineItem, teamMember } from './crm.ts'
 
 export const clientAccountEntry = pgTable('client_account_entry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -436,4 +436,99 @@ export const salonGiftCardLedger = pgTable('salon_gift_card_ledger', {
 }, (t) => [
   index('salon_gift_card_ledger_card_idx').on(t.cardId, t.at),
   index('salon_gift_card_ledger_invoice_idx').on(t.companyId, t.invoiceId),
+])
+
+// ─── Checkout at the chair (salon gap #7) ────────────────────────────────────────────────────────────────────────
+
+/** A Stripe card reader paired to the salon's OWN connected Stripe account (server-driven Terminal). Simulated readers are for testing. */
+export const salonReader = pgTable('salon_reader', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stripeReaderId: text('stripe_reader_id').notNull(),
+  /** The connected account the reader belongs to: a reader is only ever used on this one. */
+  stripeAccount: text('stripe_account').notNull(),
+  locationId: text('location_id').notNull(),
+  label: text('label').notNull(),
+  deviceType: text('device_type'),
+  serialNumber: text('serial_number'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_reader_company_reader_key').on(t.companyId, t.stripeReaderId),
+])
+
+/**
+ * One card payment sent to a reader for a sale. `pending` until Stripe says the PaymentIntent succeeded (then the sale's payment is
+ * written ONCE, with the tip) or the reader's action failed / was cancelled / ran out of time. The tip asked for at the desk is added to
+ * the PaymentIntent (amountCents + tipCents) and recorded as the payment's tip.
+ */
+export const salonTerminalCharge = pgTable('salon_terminal_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  readerId: text('reader_id').notNull().references(() => salonReader.id, { onDelete: 'cascade' }),
+  stripeAccount: text('stripe_account').notNull(),
+  paymentIntentId: text('payment_intent_id').notNull(),
+  /** What goes on the sale, in cents (without the tip). */
+  amountCents: integer('amount_cents').notNull(),
+  /** The tip, in cents: what the desk asked for, then what Stripe says was received above the amount. */
+  tipCents: integer('tip_cents').notNull().default(0),
+  /** 'pending' | 'succeeded' | 'failed' | 'canceled' | 'timed_out' */
+  status: text('status').notNull().default('pending'),
+  failure: text('failure'),
+  paymentId: text('payment_id'),
+  startedById: text('started_by_id'),
+  startedByName: text('started_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_terminal_charge_pi_key').on(t.companyId, t.paymentIntentId),
+  index('salon_terminal_charge_invoice_idx').on(t.invoiceId),
+])
+
+/** A retail product the salon sells off the shelf. Stock on hand is NOT stored: it is what came in less what sits on sales that stand (salonStockMove, salonRetailSale). */
+export const salonRetailProduct = pgTable('salon_retail_product', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  brand: text('brand'),
+  sku: text('sku'),
+  priceCents: integer('price_cents').notNull(),
+  costCents: integer('cost_cents'),
+  /** On hand at or below this = low. Null = never flagged. */
+  reorderAt: integer('reorder_at'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_retail_product_company_idx').on(t.companyId, t.active),
+])
+
+/** Stock in (+) and corrections (±) with who and why. Sales are not moves: they are salonRetailSale rows, so a void sale gives its stock back by itself. */
+export const salonStockMove = pgTable('salon_stock_move', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull(),
+  /** 'received' | 'adjust' */
+  kind: text('kind').notNull(),
+  note: text('note'),
+  byName: text('by_name'),
+  at: timestamp('at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_stock_move_product_idx').on(t.productId),
+])
+
+/** A retail product on a sale: the invoice line it is (type 'retail') and how many. Removing the line, or voiding the sale, returns the stock. */
+export const salonRetailSale = pgTable('salon_retail_sale', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  lineItemId: text('line_item_id').notNull().references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_retail_sale_line_key').on(t.lineItemId),
+  index('salon_retail_sale_product_idx').on(t.productId),
+  index('salon_retail_sale_invoice_idx').on(t.invoiceId),
 ])

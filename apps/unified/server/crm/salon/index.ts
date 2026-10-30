@@ -22,6 +22,8 @@ import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
 import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
+import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
+import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -104,6 +106,10 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     ] as Mount[] : []),
     // Client retention, rebook-rate and retail reports (not ready: owner tests it first).
     { path: '/api/salon-reports', access: 'user', feature: 'salon_reports', router: createSalonReportRoutes(d, createSalonReports(d)) } as Mount,
+    // Retail products with stock, sold onto a sale (not ready: owner tests it first).
+    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
+    // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
+    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d)) } as Mount,
     // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
     { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).

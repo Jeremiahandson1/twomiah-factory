@@ -351,6 +351,13 @@
       "when": 1793394123446,
       "tag": "0049_salon_gift_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793396191095,
+      "tag": "0050_chair_checkout",
+      "breakpoints": true
     }
   ]
 }
