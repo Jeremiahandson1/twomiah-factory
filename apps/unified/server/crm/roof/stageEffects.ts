@@ -5,6 +5,7 @@ import { documentLinkPath, documentLinkToken } from '@twomiah/tenant-backend'
 import { company, contact, invoice } from '../../db/schema/index.ts'
 import { cardPaymentsFor } from '../cardPayments.ts'
 import type { CrmDeps } from '../deps.ts'
+import { createDepreciationReminder } from './insurance/extras.ts'
 import { firstNameOf } from './validation.ts'
 
 /** The stage at which a roofing job is done and the homeowner is asked for a review (askForReview). */
@@ -45,6 +46,17 @@ export function createStageEffects(d: CrmDeps) {
       if (!(await companyFeatures(companyId)).includes('google_reviews')) return
       await d.services.reviews.scheduleReviewRequest(jobId)
     } catch (err) { d.logger?.warn?.('[roof] review request not scheduled', { error: (err as Error).message }) }
+  }
+
+  /**
+   * Everything that follows a job reaching a stage, after the stage itself is saved: the review request when it is done, and
+   * the reminder to send the certificate of completion where the carrier is holding depreciation. Advance, the job form
+   * and a payment all call this one thing.
+   */
+  const remindDepreciation = createDepreciationReminder(d)
+  async function stageReached(companyId: string, jobId: string, stage: string) {
+    await askForReview(companyId, jobId, stage)
+    await remindDepreciation(companyId, jobId, stage)
   }
 
   /** The business's switched-on features (company.enabled_features). */
@@ -93,5 +105,5 @@ export function createStageEffects(d: CrmDeps) {
     await d.services.sms.sendSMS(companyId, { contactId: who.id, message, jobId: row.id })
   }
 
-  return { companyFeatures, askForReview, textHomeowner }
+  return { companyFeatures, askForReview, stageReached, textHomeowner }
 }

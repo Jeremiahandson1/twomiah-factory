@@ -30,7 +30,7 @@ export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
 // The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
 // and the storm leads under the field tools, where a roofer never looked (live test 2026-10-22).
-const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters']
+const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters', '/crm/insurance-follow-ups']
 // …and its field tools under their own heading.
 const FIELD = ['/crm/canvassing', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports']
 
