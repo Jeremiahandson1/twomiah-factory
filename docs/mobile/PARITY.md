@@ -14,7 +14,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
 | Field service | 52 | 17 | 12 | 4 | 19 | 17 |
 | Landscaping | 55 | 17 | 13 | 4 | 21 | 17 |
-| Roofing | 32 | 13 | 11 | 2 | 6 | 13 |
+| Roofing | 34 | 13 | 11 | 3 | 7 | 13 |
 | Home care | 67 | 9 | 13 | 1 | 25 | 28 |
 | RV / powersports dealership | 45 | 14 | 10 | 1 | 21 | 13 |
 | Salon / barber / spa | 36 | 13 | 7 | 5 | 10 | 14 |
@@ -341,6 +341,7 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Adjusters | `/crm/adjusters` | — | insurance_workflow (on by default) | all | none | C |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
+| Business | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
@@ -349,6 +350,7 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Exterior Visualizer | `/crm/visualizer` | — | visualizer (off by default (add-on or opt-in)) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page | B — projects, bids and the price book |
+| Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Roofing | Canvassing | `/crm/canvassing` | — | canvassing_tool (on by default) | all | Canvass tab (door-to-door) | A — door-to-door, already on the phone |
 | Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
