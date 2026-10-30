@@ -17,7 +17,7 @@ const CLOSED = new Set(['paid', 'void', 'refunded', 'draft'])
 
 interface Reader { id: string; label: string; deviceType: string | null; simulated: boolean; status?: string | null }
 interface Charge { id: string; status: string; failure: string | null; amountCents: number; tipCents: number; readerLabel: string | null; paymentId: string | null }
-interface ReaderPayment { chargeId: string; paymentId: string; amountCents: number; tipCents: number; refundedCents: number }
+interface ReaderPayment { chargeId: string; paymentId: string; amountCents: number; tipCents: number; refundedCents: number; tipRefundedCents?: number }
 
 const STATUS_WORDS: Record<string, string> = {
   pending: 'Waiting for the card on the reader…', succeeded: 'Paid.', failed: 'The card did not go through.', canceled: 'Cancelled — nothing was taken.',
@@ -89,13 +89,31 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
     try { const r = await api.post(`/api/chair-checkout/charges/${charge.id}/simulate`, { outcome }); setCharge(r.charge); if (r.charge.status === 'succeeded') { toast.success('Card payment taken'); reload?.() } }
     catch (e: any) { setProblem(e?.message || 'The test card was not taken.') } finally { setBusy(false) }
   }
-  const refund = async (p: ReaderPayment) => {
+  /**
+   * Refund to the card. The rest of the payment (`part` false) always takes the tip with it; a part of it asks whether the tip goes back too
+   * (the server decides the same way, whatever this screen sends).
+   */
+  const refund = async (p: ReaderPayment, part = false) => {
     const left = p.amountCents - p.refundedCents
-    const why = await prompt(`Why is ${cents(left)} going back to the card? (The tip is not included.)`, { title: 'Refund to the card', confirmText: 'Refund' })
+    const tipLeft = Math.max(0, p.tipCents - (p.tipRefundedCents || 0))
+    let amount = left
+    if (part) {
+      const typed = await prompt(`How much of the ${cents(left)} still on this payment goes back to the card? (dollars)`, { title: 'Refund part of it', confirmText: 'Next' })
+      if (!typed) return
+      amount = toCents(typed)
+      if (!Number.isFinite(amount) || amount <= 0 || amount > left) { toast.error(`Enter an amount up to ${cents(left)}.`); return }
+    }
+    const everything = amount === left
+    const why = await prompt(`Why is ${cents(amount)} going back to the card?`, { title: 'Refund to the card', confirmText: 'Next' })
     if (!why) return
-    if (!(await confirm(`Refund ${cents(left)} to the client's card? This sends the money back through your Stripe account.`, { title: 'Refund to the card', confirmText: 'Refund' }))) return
+    let includeTip = everything && tipLeft > 0
+    // Part of it: the person chooses whether the stylist's tip goes back too. "No" keeps the tip.
+    if (!everything && tipLeft > 0) includeTip = await confirm(`Give the ${cents(tipLeft)} tip back as well? Choose "No" to leave the tip with the stylist.`, { title: 'The tip', confirmText: 'Yes, give the tip back', danger: false })
+    const total = amount + (includeTip ? tipLeft : 0)
+    const tipNote = includeTip ? ` (${cents(amount)} of the sale and the ${cents(tipLeft)} tip)` : tipLeft > 0 ? ' (the tip stays)' : ''
+    if (!(await confirm(`Refund ${cents(total)} to the client's card${tipNote}? This sends the money back through your Stripe account.`, { title: 'Refund to the card', confirmText: 'Refund' }))) return
     setBusy(true)
-    try { await api.post(`/api/chair-checkout/payments/${p.paymentId}/refund`, { reason: why }); toast.success('Refunded to the card'); loadPaid(); reload?.() }
+    try { await api.post(`/api/chair-checkout/payments/${p.paymentId}/refund`, { reason: why, ...(everything ? {} : { amountCents: amount, includeTip }) }); toast.success('Refunded to the card'); loadPaid(); reload?.() }
     catch (e: any) { toast.error(e?.message || 'The refund did not go through.') } finally { setBusy(false) }
   }
 
@@ -140,8 +158,13 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
         <ul className="mt-3 divide-y divide-gray-100 text-sm text-gray-900 dark:divide-slate-800 dark:text-slate-100" aria-label="Card reader payments on this sale">
           {paid.map((p) => (
             <li key={p.chargeId} className="flex items-center justify-between gap-2 py-1.5">
-              <span>Card {cents(p.amountCents)}{p.tipCents ? ` + ${cents(p.tipCents)} tip` : ''}{p.refundedCents ? ` · ${cents(p.refundedCents)} refunded` : ''}</span>
-              {known && can('payments:delete') && p.amountCents - p.refundedCents > 0 && <Button variant="secondary" onClick={() => refund(p)} disabled={busy}>Refund to card</Button>}
+              <span>Card {cents(p.amountCents)}{p.tipCents ? ` + ${cents(p.tipCents)} tip` : ''}{p.refundedCents ? ` · ${cents(p.refundedCents + (p.tipRefundedCents || 0))} refunded` : ''}</span>
+              {known && can('payments:delete') && p.amountCents - p.refundedCents > 0 && (
+                <span className="flex gap-2">
+                  {p.amountCents - p.refundedCents > 1 && <Button variant="secondary" onClick={() => refund(p, true)} disabled={busy}>Refund part</Button>}
+                  <Button variant="secondary" onClick={() => refund(p)} disabled={busy}>Refund to card</Button>
+                </span>
+              )}
             </li>
           ))}
         </ul>

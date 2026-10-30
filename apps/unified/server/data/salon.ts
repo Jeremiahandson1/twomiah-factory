@@ -381,17 +381,27 @@ export async function retailOnHand(exec: any, companyId: string, ids: string[] |
   return out
 }
 
-/** Tips taken in [from, to) with the stylist of the visit the sale closed (a sale with no visit has none). Refunds are not tips and are left out. */
+/** The tips on a sale not yet given back: every tip taken, less every tip a refund returned (a refund line carries its tip as a negative). Dollars. */
+export async function tipsOutstanding(db: any, invoiceId: string): Promise<number> {
+  const [row] = await db.select({ n: sql<string>`coalesce(sum(${payment.tipAmount}::numeric), 0)` }).from(payment).where(eq(payment.invoiceId, invoiceId))
+  return Math.max(0, Math.round(Number(row?.n || 0) * 100) / 100)
+}
+
+/**
+ * Tips in [from, to), NET of tips given back, with the stylist of the visit the sale closed (a sale with no visit has none). A refund that
+ * returned a tip carries it as a negative tip on its own line, dated when it was refunded, so it comes off the stylist's tips in the period
+ * of the refund (follow-up 10/30); `payments` counts only the payments that took a tip.
+ */
 export async function tipsReceived(db: any, companyId: string, from: Date, to: Date) {
   const rows = await db.select({
-    tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*)`,
+    tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*) FILTER (WHERE ${payment.tipAmount}::numeric > 0)`,
     stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
   }).from(payment)
     .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
     .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
     .leftJoin(user, eq(appointment.stylistId, user.id))
     .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
-    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric > 0`, sql`${payment.amount}::numeric >= 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
+    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
     .groupBy(appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
   return rows as Array<{ tips: string; payments: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
 }

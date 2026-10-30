@@ -24,6 +24,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { platformStripe } from '../platformStripe.ts'
+import { tipsOutstanding } from '../../data/salon.ts'
 
 type Tx = any
 export type ChargeRow = typeof salonTerminalCharge.$inferSelect
@@ -313,11 +314,14 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
   /** The card payments the reader took on a sale, with what has been refunded of each (so the sale's screen can offer "refund to card"). */
   async function paymentsFor(companyId: string, invoiceId: string) {
     const rows: ChargeRow[] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, invoiceId), eq(salonTerminalCharge.status, 'succeeded'))).orderBy(salonTerminalCharge.createdAt)
-    const neg = await db.select({ amount: payment.amount, notes: payment.notes }).from(payment).where(and(eq(payment.invoiceId, invoiceId), lt(payment.amount, '0')))
+    const neg = await db.select({ amount: payment.amount, tip: payment.tipAmount, notes: payment.notes }).from(payment).where(and(eq(payment.invoiceId, invoiceId), lt(payment.amount, '0')))
     return rows.map((r) => {
       const marker = `Card reader refund (${r.id})`
-      const refundedCents = neg.filter((n: any) => String(n.notes || '').startsWith(marker)).reduce((t: number, n: any) => t + Math.round(-Number(n.amount) * 100), 0)
-      return { chargeId: r.id, paymentId: r.paymentId, amountCents: r.amountCents, tipCents: r.tipCents, refundedCents, at: r.updatedAt.toISOString() }
+      const mine = neg.filter((n: any) => String(n.notes || '').startsWith(marker))
+      const refundedCents = mine.reduce((t: number, n: any) => t + Math.round(-Number(n.amount) * 100), 0)
+      // The tip that already went back to the card (a refund row carries it as a negative tip).
+      const tipRefundedCents = mine.reduce((t: number, n: any) => t + Math.round(-Number(n.tip || 0) * 100), 0)
+      return { chargeId: r.id, paymentId: r.paymentId, amountCents: r.amountCents, tipCents: r.tipCents, refundedCents, tipRefundedCents, at: r.updatedAt.toISOString() }
     }).filter((r) => r.paymentId)
   }
 
@@ -331,32 +335,42 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
   // ─── Refunds ──────────────────────────────────────────────────────────────────────────────────
   /**
    * Give (part of) a reader payment back to the card, through Stripe on the salon's account, then record it on the sale. This is the way back
-   * for a card the reader took: the sale's ordinary refund only writes a line in the books and sends no money. The SALE amount comes back; the
-   * tip was the stylist's and is refunded in Stripe's dashboard if it must be. Stripe's idempotency key is the charge and what was refunded
-   * before, so a retried click cannot refund twice; the record is written once per Stripe refund id.
+   * for a card the reader took: the sale's ordinary refund only writes a line in the books and sends no money.
+   *
+   * THE TIP (follow-up 10/30): refunding the rest of a payment — the refund that makes it fully refunded — gives back the tip with it,
+   * always: a client who is refunded the whole sale does not keep paying the stylist. A partial refund leaves the tip unless the person
+   * chooses `includeTip`, which returns the whole tip still outstanding on the payment. The tip goes back to the card in the same Stripe
+   * refund (the PaymentIntent held sale + tip) and comes off the stylist's tips as a negative tip on the refund line.
+   * Stripe's idempotency key is the charge, what was refunded before and what this refund is, so a retried click cannot refund twice; the
+   * record is written once per Stripe refund id.
    */
-  async function refundPayment(actor: any, paymentId: string, input: { amountCents?: unknown; reason?: unknown }) {
+  async function refundPayment(actor: any, paymentId: string, input: { amountCents?: unknown; reason?: unknown; includeTip?: unknown }) {
     const companyId = actor.companyId
     const [charge] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.paymentId, String(paymentId || '')), eq(salonTerminalCharge.companyId, companyId))).limit(1)
     if (!charge) throw new TerminalError('That is not a card reader payment. Refund it from the sale.', 404, 'NOT_READER_PAYMENT')
     const marker = `Card reader refund (${charge.id})`
-    const before = await db.select({ amount: payment.amount }).from(payment).where(and(eq(payment.invoiceId, charge.invoiceId), lt(payment.amount, '0'), like(payment.notes, `${marker}%`)))
+    const before = await db.select({ amount: payment.amount, tip: payment.tipAmount }).from(payment).where(and(eq(payment.invoiceId, charge.invoiceId), lt(payment.amount, '0'), like(payment.notes, `${marker}%`)))
     const refundedCents = before.reduce((t: number, r: any) => t + Math.round(-Number(r.amount) * 100), 0)
+    const tipRefundedCents = before.reduce((t: number, r: any) => t + Math.round(-Number(r.tip || 0) * 100), 0)
     const left = charge.amountCents - refundedCents
     if (left <= 0) throw new TerminalError('That payment has already been refunded in full.', 409, 'ALREADY_REFUNDED')
     const want = input.amountCents == null || input.amountCents === '' ? left : Number(input.amountCents)
     if (!Number.isInteger(want) || want <= 0) throw new TerminalError('Enter an amount to refund.', 400, 'BAD_AMOUNT', 'amountCents')
     if (want > left) throw new TerminalError(`Only ${dollars(left)} of that payment can still be refunded.`, 400, 'OVER_REFUND', 'amountCents')
+    // The tip still on this payment, and what the sale as a whole can still give back (the sale's own refund may have returned some).
+    const tipLeft = Math.max(0, Math.min(charge.tipCents - tipRefundedCents, Math.round((await tipsOutstanding(db, charge.invoiceId)) * 100)))
+    const tipBack = want === left || input.includeTip === true ? tipLeft : 0
     const reason = String(input.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 120)
     if (!reason) throw new TerminalError('Give a reason for the refund.', 400, 'REASON_REQUIRED', 'reason')
     const { stripe } = await account(companyId)
     let refund: any
     try {
-      refund = await stripe.refunds.create({ payment_intent: charge.paymentIntentId, amount: want, metadata: { twomiah_charge: charge.id, reason } },
-        { stripeAccount: charge.stripeAccount, idempotencyKey: `twomiah-chair-refund-${charge.id}-${refundedCents}-${want}` })
+      refund = await stripe.refunds.create({ payment_intent: charge.paymentIntentId, amount: want + tipBack, metadata: { twomiah_charge: charge.id, reason, tip_cents: String(tipBack) } },
+        { stripeAccount: charge.stripeAccount, idempotencyKey: `twomiah-chair-refund-${charge.id}-${refundedCents}-${tipRefundedCents}-${want}-${tipBack}` })
     } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not make the refund. Try again.'), 502) }
     const out = await recordInvoiceRefund(db, { invoice, payment }, {
       invoiceId: charge.invoiceId, companyId, amount: round2(want / 100), method: 'card', reference: refund.id, notes: `${marker}: ${reason}`, idempotentByReference: true,
+      tips: { amount: round2(tipBack / 100) },
     })
     if (!out.ok) {
       // Stripe has refunded and the books refused: said plainly, so a person can fix the record; Stripe's refund id is in the log.
@@ -365,10 +379,10 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     }
     live.emitToCompany(companyId, live.EVENTS.INVOICE_UPDATED, out.invoice)
     try {
-      await d.audit.log({ action: 'refund', entity: 'invoice', entityId: charge.invoiceId, entityName: out.row.number, companyId, req: { user: actor }, metadata: { amount: round2(want / 100), method: 'card reader', reason, stripeRefund: refund.id } })
+      await d.audit.log({ action: 'refund', entity: 'invoice', entityId: charge.invoiceId, entityName: out.row.number, companyId, req: { user: actor }, metadata: { amount: round2(want / 100), tip: round2(tipBack / 100), method: 'card reader', reason, stripeRefund: refund.id } })
     } catch (e: any) { logger.warn('[chair-checkout] refund not audited', { error: e?.message }) }
     void d.services.earnCommission(charge.invoiceId).catch(() => {})
-    return { refundedCents: want, invoiceStatus: out.newStatus }
+    return { refundedCents: want, tipRefundedCents: tipBack, invoiceStatus: out.newStatus }
   }
 
   return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment }

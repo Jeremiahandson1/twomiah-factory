@@ -42,7 +42,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '', tipAmount: '' })
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [refundOpen, setRefundOpen] = useState(false)
-  const [refund, setRefund] = useState({ amount: '', method: '', reference: '', notes: '' })
+  const [refund, setRefund] = useState({ amount: '', method: '', reference: '', notes: '', returnTip: false })
   const [creditOpen, setCreditOpen] = useState(false)
   const [creditForm, setCreditForm] = useState({ amount: '', reason: '' })
   const [busy, setBusy] = useState(false)
@@ -62,6 +62,8 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const total = Number(invoice.total) || 0
   const paidGross = Number(invoice.amountPaid || 0)
   const netPaid = paidGross - Number(invoice.amountRefunded || 0)
+  // Gratuity on this sale not yet given back (every tip taken less every tip a refund returned) — salon only (cfg.tips).
+  const tipsLeft = cfg.tips ? Math.max(0, Math.round(((invoice.payments || []) as any[]).reduce((n, p) => n + Number(p.tipAmount || 0), 0) * 100) / 100) : 0
   // One rule decides what is owed, and it lives on the server (invoiceBalance): void → 0, whole sale returned
   // → 0, fully paid → 0, otherwise total − (paid − refunded). This page used to re-derive it from the STATUS
   // string, so an invoice carrying status 'refunded' read Balance Due $0.00 while its own record said 100 —
@@ -96,6 +98,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
     if (!(Number(refund.amount) > 0)) { toast.error('Enter a valid amount'); return }
     const body: any = { amount: Number(refund.amount), reference: refund.reference || undefined, notes: refund.notes || undefined }
     if (refund.method) body.method = refund.method
+    if (cfg.tips && refund.returnTip) body.returnTip = true
     if (await run(() => api.post(`/api/invoices/${id}/refund`, body), 'Refund recorded', 'Could not record the refund')) setRefundOpen(false)
   }
   const handleCredit = async () => {
@@ -139,7 +142,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
             * keeps crm-roof and crm-store (no PermissionsProvider) working as they do today.
             */}
           {!closed && balance > 0.005 && mayRefund && <Button variant="secondary" onClick={() => { setCreditForm({ amount: '', reason: '' }); setCreditOpen(true) }}><Tag className="w-4 h-4" /> Apply credit</Button>}
-          {invoice.status !== 'void' && netPaid > 0.005 && mayRefund && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
+          {invoice.status !== 'void' && netPaid > 0.005 && mayRefund && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '', returnTip: false }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
           {invoice.status !== 'void' && netPaid <= 0.005 && mayVoid && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
           {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && maySyncQuickBooks && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
@@ -262,6 +265,13 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund((prev) => ({ ...prev, method: e.target.value }))} className={inputCls}><option value="">Same as payment</option>{refundMethodsFor(invoice.accountBalance != null && !!invoice.contactId).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
           <Field label="Reference"><input value={refund.reference} onChange={e => setRefund((prev) => ({ ...prev, reference: e.target.value }))} className={inputCls} /></Field>
           <Field label="Reason"><input value={refund.notes} onChange={e => setRefund((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} placeholder="Why the money went back" /></Field>
+          {/* Salon: the tip is the stylist's. Refunding everything collected gives it back too; a part-refund gives it back only when ticked. */}
+          {tipsLeft > 0 && (
+            <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-300">
+              <input type="checkbox" className="mt-1" checked={refund.returnTip || Number(refund.amount) >= netPaid - 0.005} disabled={Number(refund.amount) >= netPaid - 0.005} onChange={e => setRefund((prev) => ({ ...prev, returnTip: e.target.checked }))} />
+              <span>Give back the {money(tipsLeft)} tip too{Number(refund.amount) >= netPaid - 0.005 ? ' (refunding everything gives the tip back)' : ''}. It comes off the stylist's tips.</span>
+            </label>
+          )}
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setRefundOpen(false)}>Cancel</Button><Button variant="warn" onClick={handleRefund} disabled={busy}>{busy ? 'Recording…' : 'Record Refund'}</Button></div>
       </Modal>

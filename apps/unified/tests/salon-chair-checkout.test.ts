@@ -31,7 +31,9 @@ describe('salon: checkout at the chair (card reader, tips, split tender)', () =>
   async function visitSale() {
     const client = await ins(S.contact, { companyId: co, name: `Client ${ip}`, email: `c${ip}-${hour}@example.com`, type: 'client' })
     hour += 1
-    const made = await as('owner', '/api/appointments', 'POST', { contactId: client.id, startTime: wall(day, `${String(hour).padStart(2, '0')}:00`), serviceId: cut, stylistId: ana })
+    // Twelve working hours a day, then the day before — a long file books many visits.
+    const slot = hour - 8
+    const made = await as('owner', '/api/appointments', 'POST', { contactId: client.id, startTime: wall(addDays(day, -Math.floor(slot / 12)), `${String(8 + (slot % 12)).padStart(2, '0')}:00`), serviceId: cut, stylistId: ana })
     expect(made.status).toBe(201)
     expect((await as('owner', `/api/appointments/${made.body.id}`, 'PUT', { status: 'completed' })).status).toBe(200)
     const [inv] = await t.db.select().from(S.invoice).where(eq(S.invoice.appointmentId, made.body.id))
@@ -275,15 +277,89 @@ describe('salon: checkout at the chair (card reader, tips, split tender)', () =>
     expect(sent.account).toBe('acct_biz')
     expect(Number(sent.params.get('amount'))).toBe(4000)
     expect(Number((await invoiceOf(sale)).amountRefunded)).toBe(40)
-    // The rest comes back; a third try finds nothing left. The tip is not part of it.
+    // The rest comes back — and, because that makes the payment fully refunded, the $7 tip with it (follow-up 10/30); a third try finds nothing left.
     expect((await as('owner', url, 'POST', { reason: 'the rest' })).status).toBe(200)
-    expect(Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))).toBe(6000)
+    expect(Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))).toBe(6700)
     expect((await invoiceOf(sale)).status).toBe('refunded')
     expect((await as('owner', url, 'POST', { reason: 'again' })).status).toBe(409)
     // A payment that was not the reader's is not refunded here.
     const cash = await visitSale()
     expect((await as('owner', `/api/invoices/${cash}/payments`, 'POST', { amount: 100, method: 'cash' })).status).toBeLessThan(300)
     expect((await as('owner', `/api/chair-checkout/payments/${(await paymentsOf(cash))[0].id}/refund`, 'POST', { reason: 'x' })).status).toBe(404)
+  })
+
+  /** What the tips report says Ana took, net of tips given back. */
+  const anaTips = async () => ((await as('owner', '/api/salon-reports/tips')).body.stylists as any[]).find((x) => x.id === ana)?.tips ?? 0
+  /** A $100 reader payment with a $7 tip typed at the desk. */
+  async function paidWithTip() {
+    const sale = await visitSale()
+    const c = (await startCard(sale, { tipCents: 700 })).body.charge
+    expect((await tap(c.id)).body.charge.status).toBe('succeeded')
+    return { sale, pay: (await paymentsOf(sale)).find((p: any) => Number(p.amount) > 0), url: '' }
+  }
+
+  test('a FULL refund to the card gives the tip back with it, and takes it off the stylist\'s tips — whether or not the person ticks anything', async () => {
+    await k.features([...FEATURES, 'chair_checkout', 'salon_reports'])
+    const before = await anaTips()
+    const { sale, pay } = await paidWithTip()
+    expect(await anaTips()).toBe(before + 7)
+    const url = `/api/chair-checkout/payments/${pay.id}/refund`
+    // Ticking "leave the tip" does not matter on a full refund: the whole payment goes back, tip included.
+    const full = await as('owner', url, 'POST', { reason: 'client unhappy', includeTip: false })
+    expect(full.status).toBe(200)
+    expect([full.body.refundedCents, full.body.tipRefundedCents]).toEqual([10000, 700])
+    const sent = k.stripe.posts('/v1/refunds').pop()!
+    expect(sent.account).toBe('acct_biz')
+    expect(Number(sent.params.get('amount'))).toBe(10700)                         // the sale AND the tip came off the card
+    const rows = await paymentsOf(sale)
+    const back = rows.find((p: any) => Number(p.amount) < 0)
+    expect([Number(back.amount), Number(back.tipAmount)]).toEqual([-100, -7])       // the refund line carries the tip as a negative tip
+    expect(await anaTips()).toBe(before)                                          // off the stylist's tips
+    expect((await as('owner', url, 'POST', { reason: 'again' })).status).toBe(409)  // nothing is returned twice
+  })
+
+  test('a PARTIAL refund lets the person choose: without the tick the tip stays; with it the whole tip goes back once, and the last of the sale takes nothing more', async () => {
+    const before = await anaTips()
+    const { sale, pay } = await paidWithTip()
+    const url = `/api/chair-checkout/payments/${pay.id}/refund`
+    // Partial, tip left alone (the default).
+    const keep = await as('owner', url, 'POST', { reason: 'goodwill', amountCents: 3000 })
+    expect([keep.status, keep.body.tipRefundedCents, Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))]).toEqual([200, 0, 3000])
+    expect(await anaTips()).toBe(before + 7)
+    // Partial, tip chosen: $20 of the sale and the whole $7 tip.
+    const withTip = await as('owner', url, 'POST', { reason: 'service redone', amountCents: 2000, includeTip: true })
+    expect([withTip.status, withTip.body.tipRefundedCents, Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))]).toEqual([200, 700, 2700])
+    expect(await anaTips()).toBe(before)
+    // Choosing it again returns nothing more; the rest of the sale ($50) goes back with no second tip.
+    const again = await as('owner', url, 'POST', { reason: 'a little more', amountCents: 1000, includeTip: true })
+    expect([again.status, again.body.tipRefundedCents, Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))]).toEqual([200, 0, 1000])
+    const rest = await as('owner', url, 'POST', { reason: 'the rest' })
+    expect([rest.status, rest.body.tipRefundedCents, Number(k.stripe.posts('/v1/refunds').pop()!.params.get('amount'))]).toEqual([200, 0, 4000])
+    const net = (await paymentsOf(sale)).reduce((n: number, p: any) => n + Number(p.tipAmount), 0)
+    expect(net).toBe(0)                                                            // taken 7, returned 7 — once
+    expect((await invoiceOf(sale)).status).toBe('refunded')
+  })
+
+  test('the sale\'s ordinary refund (cash, or a card taken some other way) follows the same rule: a full refund returns the tip, a partial one only when ticked', async () => {
+    const before = await anaTips()
+    const sale = await visitSale()
+    expect((await as('owner', `/api/invoices/${sale}/payments`, 'POST', { amount: 100, method: 'cash', tipAmount: 10 })).status).toBeLessThan(300)
+    expect(await anaTips()).toBe(before + 10)
+    // Partial without the tick: tip stays. Partial with it: the $10 goes back. Then the rest of the sale: nothing more.
+    const p1 = await as('owner', `/api/invoices/${sale}/refund`, 'POST', { amount: 30, reason: 'goodwill' })
+    expect([p1.status, p1.body.tipReturned]).toEqual([200, 0])
+    expect(await anaTips()).toBe(before + 10)
+    const p2 = await as('owner', `/api/invoices/${sale}/refund`, 'POST', { amount: 20, reason: 'redo', returnTip: true })
+    expect([p2.status, p2.body.tipReturned]).toEqual([200, 10])
+    expect(await anaTips()).toBe(before)
+    const rest = await as('owner', `/api/invoices/${sale}/refund`, 'POST', { amount: 50, reason: 'the rest' })
+    expect([rest.status, rest.body.tipReturned]).toEqual([200, 0])
+    // And a sale refunded in one go gives its tip back without being asked.
+    const whole = await visitSale()
+    expect((await as('owner', `/api/invoices/${whole}/payments`, 'POST', { amount: 100, method: 'cash', tipAmount: 12 })).status).toBeLessThan(300)
+    const all = await as('owner', `/api/invoices/${whole}/refund`, 'POST', { amount: 100, reason: 'full' })
+    expect([all.status, all.body.tipReturned]).toEqual([200, 12])
+    expect(await anaTips()).toBe(before)
   })
 
   test('a reader from another Stripe account is not used; with no Stripe key on the server the desk is told so; a reader on a pending payment cannot be removed', async () => {
