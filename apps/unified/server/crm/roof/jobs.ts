@@ -42,6 +42,7 @@ import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
 import { loadPipelineConfig, stageLabelFor } from './pipeline.ts'
+import { createRoofCommissions } from './commissions.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -186,6 +187,12 @@ export function createRoofJobRoutes(d: CrmDeps) {
   // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
   // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
   const { companyFeatures, stageReached, textHomeowner } = createStageEffects(d)
+  // The rep is paid when the job is Collected (commissions.ts) — also when the office moves it there by hand.
+  const roofCommissions = createRoofCommissions(d)
+  const payRep = async (companyId: string, jobId: string, stage: string) => {
+    if (stage !== 'collected') return
+    try { await roofCommissions.earnForJob(companyId, jobId) } catch (err) { d.logger?.warn?.('[roof] commission not earned', { error: (err as Error).message }) }
+  }
 
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
   /**
@@ -386,7 +393,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       ...withoutJobMoney(found, withheld),
       // The homeowner's portal credential never travels with their record (T42).
       contact: jobContact[0] ? withoutPortalCredential(jobContact[0]) : null,
-      crew: jobCrew[0] || null,
+      // What the crew is paid per square is the shop's cost (margin:read, as materialCost is): not in the job's crew card.
+      crew: jobCrew[0] ? (withheld.includes('materialCost') ? (({ payPerSquare: _p, ...rest }: any) => rest)(jobCrew[0]) : jobCrew[0]) : null,
       measurementReport: measurement[0] ? (seesCost ? measurement[0] : (({ cost: _c, ...rest }: any) => rest)(measurement[0])) : null,
       // What people wrote. What happened to the job (stage moves, closing, reopening) is the timeline's (jobRecord.ts).
       photos, notes: notes.filter((n: any) => !jobEvent(n.body)),
@@ -432,7 +440,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     // Moved to the last stage from the job's own form: the same ask as Advance (askForReview).
-    if (data.status) await stageReached(me.companyId, id, data.status)
+    if (data.status) { await stageReached(me.companyId, id, data.status); await payRep(me.companyId, id, data.status) }
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
@@ -555,6 +563,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: statusChangeBody(existing.status, next) } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
     await stageReached(me.companyId, id, next)
+    await payRep(me.companyId, id, next)
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 

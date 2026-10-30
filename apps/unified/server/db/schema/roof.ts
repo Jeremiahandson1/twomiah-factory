@@ -17,6 +17,9 @@ export const crew = pgTable('crew', {
   isSubcontractor: boolean('is_subcontractor').default(false).notNull(),
   subcontractorCompanyName: text('subcontractor_company_name'),
   isActive: boolean('is_active').default(true).notNull(),
+  // What the crew is paid per square (100 sq ft) of roof: the job's crew cost is this times the job's squares (job costing,
+  // server/crm/roof/jobCosts.ts). Null: not set, so the crew's cost on a job is not known — never read as free.
+  payPerSquare: decimal('pay_per_square', { precision: 10, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

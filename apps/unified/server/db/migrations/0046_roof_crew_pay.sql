@@ -1,0 +1,1 @@
+ALTER TABLE "crew" ADD COLUMN "pay_per_square" numeric(10, 2);

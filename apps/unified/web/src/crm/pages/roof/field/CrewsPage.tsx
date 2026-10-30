@@ -9,7 +9,9 @@
 //   · the form marks Foreman Name, Foreman Phone and Crew Size required, as the server requires them (the template
 //     sent them blank and showed the 400), and sends `size` alone (it also sent `crewSize`, which nothing reads);
 //   · the Notes box is gone: a crew has no notes column, and the server dropped what was typed;
-//   · the server's sentence is shown on a refusal; delete asks through the app's confirm dialog.
+//   · the server's sentence is shown on a refusal; delete asks through the app's confirm dialog;
+//   · Pay per square: what the crew is paid for each square (100 sq ft) it lays, which job costing prices the crew's work
+//     with. It is the shop's cost (margin:read), so the box and the figure are shown only to a seat that holds it.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Briefcase, HardHat, Phone, Plus, Users, X } from 'lucide-react'
@@ -33,6 +35,8 @@ interface Crew {
   foremanPhone: string | null
   size: number | null
   isSubcontractor: boolean
+  /** Dollars a square; not sent to a seat without margin:read. */
+  payPerSquare?: string | number | null
   activeJobs?: CrewJob[]
   /** Jobs assigned to the crew and not finished or closed (GET /api/crews). */
   activeJobCount?: number
@@ -43,9 +47,9 @@ interface Crew {
 interface Login { id: string; firstName?: string | null; lastName?: string | null; email?: string | null; role?: string | null; isActive?: boolean | null }
 const loginName = (u: Login) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Login'
 
-interface CrewForm { name: string; foremanName: string; foremanPhone: string; crewSize: string; isSubcontractor: boolean }
+interface CrewForm { name: string; foremanName: string; foremanPhone: string; crewSize: string; isSubcontractor: boolean; payPerSquare: string }
 
-const EMPTY_FORM: CrewForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false }
+const EMPTY_FORM: CrewForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, payPerSquare: '' }
 
 export default function CrewsPage() {
   // crews:* is manager and above. A crew member reads the roster — who is on which crew is the
@@ -53,6 +57,8 @@ export default function CrewsPage() {
   const mayAddCrew = useMayWrite('crews:create')
   const mayEditCrew = useMayWrite('crews:update')
   const mayRemoveCrew = useMayWrite('crews:delete')
+  // What the crew is paid is the shop's cost (margin:read): the box is shown, and sent, only to a seat that holds it.
+  const maySeePay = useMayWrite('margin:read')
   const toast = useToast()
   const confirm = useConfirm()
   // The toast object is made afresh on every render of its provider: read through a ref, so a failed load's toast
@@ -114,6 +120,7 @@ export default function CrewsPage() {
     setForm({
       name: crew.name || '', foremanName: crew.foremanName || '', foremanPhone: crew.foremanPhone || '',
       crewSize: crew.size != null ? String(crew.size) : '', isSubcontractor: !!crew.isSubcontractor,
+      payPerSquare: crew.payPerSquare != null ? String(Number(crew.payPerSquare)) : '',
     })
     setModalOpen(true)
   }
@@ -136,6 +143,7 @@ export default function CrewsPage() {
       const body = {
         name: form.name, foremanName: form.foremanName, foremanPhone: form.foremanPhone,
         size: form.crewSize ? Number(form.crewSize) : null, isSubcontractor: form.isSubcontractor,
+        ...(maySeePay ? { payPerSquare: form.payPerSquare.trim() === '' ? null : Number(form.payPerSquare) } : {}),
       }
       let savedId = editingId
       if (editingId) await api.put(`/api/crews/${encodeURIComponent(editingId)}`, body)
@@ -223,6 +231,7 @@ export default function CrewsPage() {
                       <Users className="w-3.5 h-3.5" />
                       {crew.size || '—'} members
                     </span>
+                    {maySeePay && crew.payPerSquare != null && <span>${Number(crew.payPerSquare).toFixed(2)}/sq</span>}
                     <button
                       onClick={() => toggleJobs(crew)}
                       disabled={!crew.activeJobCount}
@@ -282,6 +291,13 @@ export default function CrewsPage() {
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew Size *</label>
                 <input type="number" min={1} value={form.crewSize} onChange={(e) => setForm({ ...form, crewSize: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
+              {maySeePay && (
+                <div>
+                  <label htmlFor="crew-pay" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Pay per square ($)</label>
+                  <input id="crew-pay" type="number" min={0} step="0.01" value={form.payPerSquare} onChange={(e) => setForm({ ...form, payPerSquare: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">What this crew is paid for each square it lays. Job costing uses it, with the job&rsquo;s squares, as the crew&rsquo;s cost.</p>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
                 <input type="checkbox" checked={form.isSubcontractor} onChange={(e) => setForm({ ...form, isSubcontractor: e.target.checked })} className="rounded" />
                 Subcontractor

@@ -6,7 +6,9 @@
 //   · GET / is { data, pagination } (was a bare array);
 //   · a crew's jobs carry the CRM's job columns (decision 2): `number` and `address` where the template sent
 //     `jobNumber` and `propertyAddress`;
-//   · an edit and a delete are scoped to the company in the write itself, not only in the lookup before it.
+//   · an edit and a delete are scoped to the company in the write itself, not only in the lookup before it;
+//   · what a crew is paid per square (payPerSquare) is the shop's cost, so it is margin:read like a material order's price
+//     (materials.ts): withheld from every read for a seat without it, and not written by one (job costing reads it).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, desc, eq, inArray, notInArray } from 'drizzle-orm'
@@ -30,7 +32,12 @@ const crewSchema = z.object({
   isSubcontractor: z.boolean().default(false),
   subcontractorCompanyName: z.string().optional(),
   isActive: z.boolean().default(true),
+  // Dollars a square; null clears it. Needs margin:read to send (the route says so).
+  payPerSquare: z.number().finite().nonnegative().nullable().optional(),
 })
+
+/** A crew row with the pay rate removed, for a seat that may not see what the shop pays. */
+const withoutPay = (row: any) => { const { payPerSquare: _p, ...rest } = row; return rest }
 
 /** A crew's job is active until it is finished (invoiced, collected) or closed (lost, cancelled). */
 const ACTIVE_EXCLUDES = ['invoiced', 'collected', 'lost', 'cancelled']
@@ -39,6 +46,8 @@ export function createCrewRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
+  const canSee = canSeeWith(d.permissions)
+  const maySeePay = async (c: any) => { const u = c.get('user'); try { return !!(await canSee(u.role, 'margin:read', u.userId)) } catch { return false } }
   const ownCrew = async (companyId: string, id: string) =>
     (await db.select().from(crew).where(and(eq(crew.id, id), eq(crew.companyId, companyId))).limit(1))[0]
 
@@ -56,15 +65,17 @@ export function createCrewRoutes(d: CrmDeps) {
     const byCrew = new Map(counts.map((r: any) => [r.crewId, Number(r.n)]))
     // …and the logins on each crew (crew_login): whose phones the crew's jobs reach (2026-10-24).
     const logins = await loginsOn(db, companyId, 'crewId', crews.map((r: any) => r.id))
-    const rows = crews.map((r: any) => ({ ...r, activeJobCount: byCrew.get(r.id) ?? 0, logins: logins[r.id] || [] }))
+    const sees = await maySeePay(c)
+    const rows = crews.map((r: any) => ({ ...(sees ? r : withoutPay(r)), activeJobCount: byCrew.get(r.id) ?? 0, logins: logins[r.id] || [] }))
     return listAll(c, rows)
   })
 
   app.post('/', requirePermission('crews:create'), async (c) => {
     const parsed = crewSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
-    const [created] = await db.insert(crew).values({ ...parsed.data, companyId: c.get('user').companyId } as any).returning()
-    return one(c, created, 201)
+    if (parsed.data.payPerSquare !== undefined && !(await maySeePay(c))) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to set it.', 'crew_pay_not_permitted')
+    const [created] = await db.insert(crew).values({ ...parsed.data, payPerSquare: parsed.data.payPerSquare == null ? undefined : String(parsed.data.payPerSquare), companyId: c.get('user').companyId } as any).returning()
+    return one(c, (await maySeePay(c)) ? created : withoutPay(created), 201)
   })
 
   // GET /:id — the crew and its active jobs: assigned to it and not finished (invoiced, collected) or closed (lost,
@@ -82,7 +93,7 @@ export function createCrewRoutes(d: CrmDeps) {
       id: job.id, number: job.number, jobType: job.jobType, status: job.status,
       address: job.address, city: job.city, state: job.state, installDate: job.installDate,
     }).from(job).where(and(eq(job.assignedCrewId, id), eq(job.companyId, companyId), notInArray(job.status, ACTIVE_EXCLUDES), all ? undefined : ownJobsWhere(db, String(u.userId)))).orderBy(desc(job.createdAt), desc(job.id))
-    return one(c, { ...found, activeJobs, logins: (await loginsOn(db, companyId, 'crewId', [id]))[id] || [] })
+    return one(c, { ...((await maySeePay(c)) ? found : withoutPay(found)), activeJobs, logins: (await loginsOn(db, companyId, 'crewId', [id]))[id] || [] })
   })
 
   app.put('/:id', requirePermission('crews:update'), async (c) => {
@@ -91,9 +102,13 @@ export function createCrewRoutes(d: CrmDeps) {
     const parsed = partialOf(crewSchema).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     if (!(await ownCrew(companyId, id))) return fail(c, 404, 'Crew not found')
-    const [updated] = await db.update(crew).set({ ...parsed.data, updatedAt: new Date() } as any)
+    const sees = await maySeePay(c)
+    // The edit form posts the crew back whole: a seat that never saw the rate sends none, and one that did sends it unchanged.
+    if (parsed.data.payPerSquare !== undefined && !sees) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to change it.', 'crew_pay_not_permitted')
+    const { payPerSquare, ...rest } = parsed.data
+    const [updated] = await db.update(crew).set({ ...rest, ...(payPerSquare === undefined ? {} : { payPerSquare: payPerSquare === null ? null : String(payPerSquare) }), updatedAt: new Date() } as any)
       .where(and(eq(crew.id, id), eq(crew.companyId, companyId))).returning()
-    return one(c, updated)
+    return one(c, sees ? updated : withoutPay(updated))
   })
 
   // PUT /:id/logins — exactly these logins are on the crew ({ userIds }); each then reads the crew's jobs as its own.

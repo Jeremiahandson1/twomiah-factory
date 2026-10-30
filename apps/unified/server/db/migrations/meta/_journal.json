@@ -323,6 +323,13 @@
       "when": 1793380486789,
       "tag": "0045_quote_proposal_options",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793380487789,
+      "tag": "0046_roof_crew_pay",
+      "breakpoints": true
     }
   ]
 }

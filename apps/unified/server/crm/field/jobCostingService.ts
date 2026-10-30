@@ -10,6 +10,7 @@ import {
 import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/jobCosting.ts'
 import type { CrmDeps } from '../deps.ts'
+import { createRoofJobCosts, type RoofJobCost } from '../roof/jobCosts.ts'
 
 /** Not revenue: a draft has not been raised, and a void one never was (invoicing's own stats rule). */
 const NOT_REVENUE = ['draft', 'void']
@@ -39,6 +40,11 @@ export interface JobCost {
   /** Vendor bills raised against the job, excluding void ones. */
   billedCost: number
   totalCost: number
+  /**
+   * Roofing only (CrmSettings.roof): the material orders and the crew's pay that are INSIDE materialCost and laborCost
+   * above, kept apart so the screen can show them, and the job's supplements. Absent for every other trade.
+   */
+  roof?: RoofJobCost & { crewBasis: 'clocked' | 'per_square' | 'unknown' }
 }
 
 const EMPTY_COST: JobCost = {
@@ -86,6 +92,8 @@ const SUMMARY_JOB_COLUMNS = {
 
 export function createJobCostingService(d: CrmDeps) {
   const { db } = d
+  // A roofer's material orders, crew pay and supplements (roof/jobCosts.ts): in the costs only where the add-on is on.
+  const roof = d.settings?.roof ? createRoofJobCosts(d) : null
 
   /** Actual cost per job from every ledger that holds job cost; set-based, four queries per 500 jobs. */
   async function costsByJob(companyId: string, jobIds: string[]): Promise<Map<string, JobCost>> {
@@ -108,6 +116,20 @@ export function createJobCostingService(d: CrmDeps) {
         c.expenseCost = num(r.total); c.subcontractorCost = num(r.subcontractor)
       }
       for (const r of bills) { const c = out.get(r.jobId as string); if (c) c.billedCost = num(r.billed) }
+    }
+
+    // Roofing: the supplier orders placed for the job and the crew's pay by the square join the materials and the labour.
+    // A crew's pay counts only where nobody clocked time, or the same labour would be counted twice (roof/jobCosts.ts).
+    if (roof) {
+      const extra = await roof.roofCostsByJob(companyId, jobIds)
+      for (const [id, r] of extra) {
+        const c = out.get(id); if (!c) continue
+        const clocked = c.laborHours > 0 || c.laborCost > 0
+        const crewCost = clocked ? 0 : r.crewCost
+        c.materialCost += r.materialOrderCost
+        c.laborCost += crewCost
+        c.roof = { ...r, crewCost, crewBasis: clocked ? 'clocked' : r.crewCostKnown ? 'per_square' : 'unknown' }
+      }
     }
 
     // Subcontractor cost is a SLICE of expense cost, reported separately; adding it again would double-count.
@@ -283,7 +305,8 @@ export function createJobCostingService(d: CrmDeps) {
       .where(and(eq(vendorBill.companyId, companyId), eq(vendorBill.jobId, jobId), inArray(vendorBill.status, BILL_IS_SPEND)))
       .orderBy(desc(vendorBill.billDate))
 
-    const estimatedRevenue = estimatedRevenueOf(quoteRow, jobRow.estimatedValue)
+    // A roof's approved supplements are work the carrier agreed to pay for on top of the original: expected revenue.
+    const estimatedRevenue = round2(estimatedRevenueOf(quoteRow, jobRow.estimatedValue) + (cost.roof?.supplements.approved ?? 0))
     // The catalogue's hours where the quote was priced from it, else whatever was typed on the job.
     const estimatedLaborHours = est.laborHours > 0 ? est.laborHours : num(jobRow.estimatedHours)
     const estimatedCost = round2(est.labor + est.material)
@@ -387,6 +410,22 @@ export function createJobCostingService(d: CrmDeps) {
         // A project invoice appears on every job of the project; it is counted once in any total.
         shared: !(i.quoteId && i.quoteId === jobRow.quoteId),
       })),
+      // Roofing: what its material orders, crew and supplements add (roof/jobCosts.ts). Absent for every other trade.
+      ...(roof && cost.roof ? {
+        roof: {
+          materialOrderCost: cost.roof.materialOrderCost,
+          crewCost: cost.roof.crewCost,
+          crewBasis: cost.roof.crewBasis,
+          crewName: cost.roof.crewName,
+          squares: cost.roof.squares,
+          payPerSquare: cost.roof.payPerSquare,
+          supplements: cost.roof.supplements,
+        },
+        ...(await roof.roofDetail(companyId, jobId)),
+        crewDetail: cost.roof.crewBasis === 'per_square' && cost.roof.crewName
+          ? [{ crew: cost.roof.crewName, squares: cost.roof.squares, payPerSquare: cost.roof.payPerSquare, cost: cost.roof.crewCost }]
+          : [],
+      } : {}),
     }
   }
 
@@ -426,7 +465,7 @@ export function createJobCostingService(d: CrmDeps) {
       const rev = byJob.get(j.id) || { directRevenue: 0, sharedRevenue: 0, revenue: 0, salesTax: 0, collected: 0, invoiceIds: [], invoices: [] }
       const cost = costMap.get(j.id) || EMPTY_COST
       const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0, laborHours: 0 }
-      const estimatedRevenue = estimatedRevenueOf(j.quoteTotal != null ? { total: j.quoteTotal, taxAmount: j.quoteTax } : null, j.estimatedValue)
+      const estimatedRevenue = round2(estimatedRevenueOf(j.quoteTotal != null ? { total: j.quoteTotal, taxAmount: j.quoteTax } : null, j.estimatedValue) + (cost.roof?.supplements.approved ?? 0))
       const estimatedCost = round2(est.labor + est.material)
       const profit = round2(rev.revenue - cost.totalCost)
       return {
