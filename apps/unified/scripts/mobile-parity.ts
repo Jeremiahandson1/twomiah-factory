@@ -147,6 +147,7 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/canvassing'], trades: ['roofing'], how: 'tab', what: 'Canvass tab (door-to-door)', files: ['app/(tabs)/canvass.tsx'] },
   { paths: ['/crm/time'], trades: ['homecare'], how: 'tab', what: 'Clock tab (clock in/out, open visit)', files: ['app/(tabs)/time-clock.tsx'] },
   { paths: ['/crm/messages'], trades: ['homecare'], how: 'tab', what: 'Messages tab + thread + compose', files: ['app/(tabs)/messages.tsx', 'app/(care)/thread/[id].tsx', 'app/(care)/compose.tsx'] },
+  { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], how: 'screen', what: 'Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text', files: ['app/(details)/texts/index.tsx', 'app/(details)/texts/[id].tsx', 'app/(details)/texts/new.tsx'] },
   { paths: ['/crm/units'], trades: ['rv'], how: 'tab', what: 'Inventory tab + unit detail', files: ['app/(tabs)/units.tsx', 'app/(details)/unit/[id].tsx'] },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], how: 'tab', what: 'Parts tab (sample catalogue)', files: ['app/(tabs)/parts.tsx'] },
   { paths: ['/crm/ai-trade'], trades: ['rv'], how: 'tab', what: 'Trade tab (appraisal)', files: ['app/(tabs)/ai-trade.tsx'] },
@@ -442,6 +443,8 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/canvassing'], trades: ['roofing'], route: '/(tabs)/canvass' },
   { paths: ['/crm/time'], trades: ['homecare'], for: 'field', route: '/(tabs)/time-clock' },
   { paths: ['/crm/messages'], trades: ['homecare'], route: '/(tabs)/messages' },
+  // Everywhere else Messages is the customer texting inbox (/api/sms — not home care's staff board above).
+  { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/texts' },
   { paths: ['/crm/units'], trades: ['rv'], route: '/(tabs)/units' },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], route: '/(tabs)/parts' },
   { paths: ['/crm/ai-trade'], trades: ['rv'], route: '/(tabs)/ai-trade' },

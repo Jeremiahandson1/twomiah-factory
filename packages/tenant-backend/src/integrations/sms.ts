@@ -234,12 +234,22 @@ export function createSmsService(deps: SmsServiceDeps) {
     await db.update(t.smsMessage).set(patch).where(eq(t.smsMessage.twilioSid, MessageSid))
   }
 
-  async function getConversations(companyId: string, { status = 'active', unreadOnly = false, contactId, page = 1, limit = 50 }: { status?: string; unreadOnly?: boolean; search?: string; contactId?: string; page?: number; limit?: number } = {}) {
+  async function getConversations(companyId: string, { status = 'active', unreadOnly = false, search, contactId, page = 1, limit = 50 }: { status?: string; unreadOnly?: boolean; search?: string; contactId?: string; page?: number; limit?: number } = {}) {
     const conditions: any[] = [eq(t.smsConversation.companyId, companyId)]
     if (status) conditions.push(eq(t.smsConversation.status, status))
     if (unreadOnly) conditions.push(gt(t.smsConversation.unreadCount, 0))
     // Scope to one contact when asked — the contact Messages panel used to show the company's first conversation for EVERY contact.
     if (contactId) conditions.push(eq(t.smsConversation.contactId, contactId))
+    // The inbox's search box: the contact's name, or the number's digits. The route passed ?search and nothing read it,
+    // so the box filtered nothing on the desktop either (found 10/30 building the phone's inbox).
+    const words = String(search || '').trim()
+    if (words) {
+      const digits = words.replace(/\D/g, '')
+      conditions.push(or(
+        sql`${t.smsConversation.contactId} in (select ${t.contact.id} from ${t.contact} where ${t.contact.companyId} = ${companyId} and ${t.contact.name} ilike ${'%' + words + '%'})`,
+        ...(digits.length >= 3 ? [sql`regexp_replace(coalesce(${t.smsConversation.phoneNumber}, ''), '\\D', '', 'g') like ${'%' + digits + '%'}`] : []),
+      ))
+    }
     const where = and(...conditions)
     // A thread opened before its number belonged to a contact (or before the digit match existed) is linked
     // the next time the list is read — only unlinked threads, only on a match, so it runs once per thread. (T17 N2)

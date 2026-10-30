@@ -10,16 +10,16 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 67 | 7 | 10 | 9 | 25 | 23 |
-| Basic (general service business) | 48 | 7 | 10 | 3 | 17 | 18 |
-| Field service | 52 | 7 | 10 | 4 | 19 | 19 |
-| Landscaping | 55 | 7 | 11 | 4 | 21 | 19 |
-| Roofing | 32 | 8 | 9 | 2 | 6 | 15 |
+| Contractor | 67 | 8 | 10 | 9 | 25 | 23 |
+| Basic (general service business) | 48 | 8 | 10 | 3 | 17 | 18 |
+| Field service | 52 | 8 | 10 | 4 | 19 | 19 |
+| Landscaping | 55 | 8 | 11 | 4 | 21 | 19 |
+| Roofing | 32 | 9 | 9 | 2 | 6 | 15 |
 | Home care | 67 | 7 | 11 | 1 | 25 | 30 |
-| RV / powersports dealership | 45 | 9 | 8 | 1 | 21 | 15 |
-| Salon / barber / spa | 36 | 5 | 5 | 5 | 10 | 16 |
-| Restaurant / caterer / event venue | 36 | 6 | 7 | 5 | 6 | 18 |
-| Bar / tavern | 44 | 7 | 8 | 8 | 7 | 21 |
+| RV / powersports dealership | 45 | 10 | 8 | 1 | 21 | 15 |
+| Salon / barber / spa | 36 | 6 | 5 | 5 | 10 | 16 |
+| Restaurant / caterer / event venue | 36 | 7 | 7 | 5 | 6 | 18 |
+| Bar / tavern | 44 | 8 | 8 | 8 | 7 | 21 |
 | Online store | 28 | 4 | 4 | 2 | 3 | 19 |
 | Veterinary practice | 34 | 0 | 6 | 4 | 9 | 15 |
 
@@ -69,7 +69,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Takeoffs | `/crm/takeoffs` | takeoffs:read | takeoff_tools (on by default) | owner, admin, manager | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Business | Exterior Visualizer | `/crm/visualizer` | — | visualizer (off by default (add-on or opt-in)) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Business | Tasks | `/crm/tasks` | — | projects, patient_records (on by default) | all | none | C |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
@@ -149,7 +149,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
@@ -215,7 +215,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Service Call Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
@@ -284,7 +284,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
@@ -347,7 +347,7 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | Exterior Visualizer | `/crm/visualizer` | — | visualizer (off by default (add-on or opt-in)) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Roofing | Canvassing | `/crm/canvassing` | — | canvassing_tool (on by default) | all | Canvass tab (door-to-door) | A — door-to-door, already on the phone |
@@ -491,7 +491,7 @@ The dealership's own dashboard (apps/unified/web/src/crm/pages/rv/DashboardPage.
 | Business | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up and review screens for the owner at a desk |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | none | A — texting customers |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
@@ -550,7 +550,7 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | A — texting clients from the chair |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting clients from the chair |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | C |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
@@ -601,7 +601,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | none | A — the first to answer a wedding enquiry usually books it |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — the first to answer a wedding enquiry usually books it |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — useful later; the event already names the client and the room |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
@@ -658,7 +658,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Business | Call Tracking | `/crm/call-tracking` | calltracking:read | call_tracking (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
-| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | none | B — useful later, not the bar's nightly loop |
+| Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | B — useful later, not the bar's nightly loop |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | none | B — useful later, not the bar's nightly loop |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
