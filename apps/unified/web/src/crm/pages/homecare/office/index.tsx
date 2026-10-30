@@ -13,7 +13,7 @@
 import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import {
-  AlertTriangle, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
+  AlertTriangle, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
   Smartphone, ToggleLeft, TrendingUp, Upload, UserCog,
 } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
@@ -36,6 +36,7 @@ const MarginReports = page(() => import('./MarginReports'))
 const DataImport = page(() => import('./DataImport'))
 const PayRules = page(() => import('./PayRules'))
 const Autopay = page(() => import('./Autopay'))
+const LtcBilling = page(() => import('./LtcBilling'))
 const Home = page(() => import('./OfficeHome'))
 
 /**
@@ -50,6 +51,7 @@ const Home = page(() => import('./OfficeHome'))
  *                                             care-hr:read; the page shows each tab only to whoever holds its permission
  *   pay-rules           care-payroll:read     payroll/payRulesRoutes.ts: reading asks :read, saving and the ADP / Paychex files ask :update (the page shows those only to whoever holds it)
  *   autopay             care-billing:read     billing/autopayRoutes.ts: reading asks :read; saving a card, removing it and "Try now" ask :update (the page shows those only to whoever holds it)
+ *   ltc-billing         care-billing:read     billing/ltcRoutes.ts: reading and the claim packet ask :read; saving a policy asks :update (the page shows the form's Save only to whoever holds it)
  *   data-import         care-clients:create   office/csvImport.ts: each kind asks its own area's :create (clients care-clients, caregivers care-hr,
  *                                             recurring shifts care-schedule) and the page offers only the kinds the person holds
  *   communication-log   care-portal:update    portals/communication.ts (caregivers hold care-portal:read)
@@ -75,6 +77,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/data-import': 'care-clients:create',
   '/crm/pay-rules': 'care-payroll:read',
   '/crm/autopay': 'care-billing:read',
+  '/crm/ltc-billing': 'care-billing:read',
   '/crm/communication-log': 'care-portal:update',
   '/crm/sms': 'care-portal:update',
   '/crm/alerts': 'care-compliance:read',
@@ -95,6 +98,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
   <Route key="hc-office-autopay" path="autopay" element={<Autopay />} />,
+  <Route key="hc-office-ltc-billing" path="ltc-billing" element={<LtcBilling />} />,
   <Route key="hc-office-communication-log" path="communication-log" element={<CommunicationLog />} />,
   <Route key="hc-office-sms" path="sms" element={<SMSManagement />} />,
   <Route key="hc-office-alerts" path="alerts" element={<AlertsManagement />} />,
@@ -116,6 +120,7 @@ export const nav: NavItem[] = [
   { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create'], features: ['care_import'] },
   { to: '/crm/pay-rules', icon: Calculator, label: 'Pay rules', permission: PERMISSION['/crm/pay-rules'], features: ['care_payroll_rules'] },
   { to: '/crm/autopay', icon: CreditCard, label: 'Automatic payments', permission: PERMISSION['/crm/autopay'], features: ['care_autopay'] },
+  { to: '/crm/ltc-billing', icon: FileText, label: 'Long-term care insurance', permission: PERMISSION['/crm/ltc-billing'], features: ['care_ltc_billing'] },
   { to: '/crm/communication-log', icon: ClipboardList, label: 'Communication Log', permission: PERMISSION['/crm/communication-log'] },
   { to: '/crm/sms', icon: Smartphone, label: 'SMS', permission: PERMISSION['/crm/sms'], features: ['two_way_texting'] },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', permission: PERMISSION['/crm/alerts'] },

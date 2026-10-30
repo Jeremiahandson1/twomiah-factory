@@ -417,3 +417,90 @@ describe('the agency\'s own account, always', () => {
     expect((await as('owner')(`/api/care-autopay/clients/${clientId}`, { method: 'DELETE' })).status).toBe(404)
   })
 })
+
+
+// ── Long-term care insurance: the payer type, the policy and the claim packet ─────────────────────────────────────────────
+describe('long-term care insurance billing', () => {
+  let ltcClient = '', ltcPayer = '', ltcInvoice = '', plainInvoice = ''
+  /** The text of an (uncompressed) pdfkit page: each TJ's hex pieces, joined and decoded, one string per line of text. */
+  const pdfLines = (pdf: Buffer) => [...pdf.toString('latin1').matchAll(/\[(.*?)\] TJ/g)].map((m) => [...m[1]!.matchAll(/<([0-9a-f]*)>/g)].map((h) => Buffer.from(h[1]!, 'hex').toString('latin1')).join(''))
+
+  test('off (refused) without care_ltc_billing: the routes, and the payer type itself', async () => {
+    expect((await json(await as('owner')('/api/care-ltc/invoices'))).body.code).toBe('FEATURE_NOT_ENABLED')
+    const r = await json(await as('owner')('/api/payers', { method: 'POST', json: { name: 'Acme Life', payerType: 'ltc_insurance' } }))
+    expect(r.status).toBe(403)
+    expect(r.body.code).toBe('FEATURE_NOT_ENABLED')
+  })
+
+  test('with the feature on: the payer type is accepted, and a caregiver seat is refused everywhere', async () => {
+    await setFeatures(['contacts', 'scheduling', 'team', 'online_payments', 'care_autopay', 'care_ltc_billing'])
+    const r = await json(await as('owner')('/api/payers', { method: 'POST', json: { name: 'Acme Life', payerType: 'ltc_insurance', address: '1 Main St', city: 'Madison', state: 'WI', zip: '53703', payerIdNumber: 'ACME-77' } }))
+    expect(r.status).toBe(201)
+    ltcPayer = r.body.id
+    expect([r.body.payerType, r.body.type]).toEqual(['ltc_insurance', 'insurance'])
+    for (const [method, path] of [['GET', '/api/care-ltc/invoices'], ['GET', `/api/care-ltc/clients/${clientId}/policy`], ['PUT', `/api/care-ltc/clients/${clientId}/policy`], ['GET', '/api/care-ltc/invoices/x/claim-packet']]) {
+      expect((await as('ann')(path, { method })).status).toBe(403)
+    }
+  })
+
+  test('the policy is saved per client; a bad daily maximum and another agency\'s client are refused', async () => {
+    ltcClient = (await ins(t.schema.clients, { companyId, firstName: 'Lena', lastName: 'Long', email: 'lena@family.example', isActive: true, referredById: ltcPayer, dateOfBirth: '1940-02-03', address: '9 Elm St', city: 'Eau Claire', state: 'WI', zip: '54701' })).id
+    const bad = await json(await as('owner')(`/api/care-ltc/clients/${ltcClient}/policy`, { method: 'PUT', json: { dailyMax: -5 } }))
+    expect(bad.status).toBe(400)
+    expect((await json(await as('owner')('/api/care-ltc/clients/not-a-client/policy', { method: 'PUT', json: { policyNumber: 'X' } }))).status).toBe(404)
+    const ok = await json(await as('owner')(`/api/care-ltc/clients/${ltcClient}/policy`, { method: 'PUT', json: { policyNumber: 'LTC-123', claimNumber: 'CLM-9', dailyMax: 150, insuredName: 'Lena M. Long' } }))
+    expect(ok.status).toBe(200)
+    expect(ok.body).toMatchObject({ policyNumber: 'LTC-123', claimNumber: 'CLM-9', dailyMax: 150, insuredName: 'Lena M. Long' })
+  })
+
+  test('the packet: cover sheet with insurer, policy and claim; every service with caregiver and time; the day over the daily maximum is marked', async () => {
+    const cg = (await t.db.select().from(t.schema.user).where(eq(t.schema.user.email, 'ann@test.example')))[0] as any
+    const [inv] = await t.db.insert(t.schema.invoices).values({ companyId, invoiceNumber: 'HC-LTC-1', clientId: ltcClient, referralSourceId: ltcPayer, invoiceType: 'insurance', billingPeriodStart: '2026-10-01', billingPeriodEnd: '2026-10-14', subtotal: '380', total: '380', paymentStatus: 'pending', paymentDueDate: '2026-11-20' } as any).returning()
+    ltcInvoice = inv.id
+    const line = (date: string, start: string, end: string, hours: string, amount: string) => t.db.insert(t.schema.invoiceLineItems).values({ companyId, invoiceId: inv.id, caregiverId: cg.id, description: 'Personal care', serviceDate: date, hours, rate: '40.00', rateType: 'hourly', amount, startTime: start, endTime: end } as any)
+    await line('2026-10-05', '09:00', '13:00', '4.00', '160.00')
+    await line('2026-10-05', '15:00', '17:00', '2.00', '80.00') // that day: $240, $90 over the $150 maximum
+    await line('2026-10-06', '09:00', '12:00', '3.00', '120.00')
+    const draft = await json(await as('owner')(`/api/care-ltc/invoices/${inv.id}/claim-packet`))
+    expect([draft.status, draft.body.code]).toEqual([400, 'draft'])
+    await release(inv.id)
+    const res = await as('owner')(`/api/care-ltc/invoices/${inv.id}/claim-packet`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('application/pdf')
+    expect(res.headers.get('content-disposition')).toContain('claim-packet-invoice-')
+    const pdf = Buffer.from(await res.arrayBuffer())
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
+    // The text is compressed in the PDF; read it back from the pure pieces instead of the bytes.
+    const { dayTotals } = await import('../server/crm/homecare/core/ltc.ts')
+    expect(dayTotals([{ serviceDate: '2026-10-05', amount: '160.00' }, { serviceDate: '2026-10-05', amount: '80.00' }, { serviceDate: '2026-10-06', amount: '120.00' }], 150))
+      .toEqual([{ date: '2026-10-05', total: 240, over: 90 }, { date: '2026-10-06', total: 120, over: 0 }])
+    expect(dayTotals([{ serviceDate: '2026-10-05', amount: '999' }], null)[0]!.over).toBe(0)
+    // Nothing on the invoice was changed to make it.
+    const after = await row(inv.id)
+    expect([after.total, after.paymentStatus]).toEqual(['380.00', 'pending'])
+    const lines = pdfLines(pdf)
+    const has = (needle: string) => expect(lines.some((l) => l.includes(needle))).toBe(true)
+    for (const needle of ['Test Builders', 'Long-term care insurance', 'Acme Life', 'ACME-77', 'Lena M. Long', '02/03/1940', 'LTC-123', 'CLM-9', '$150.00', '10/01/2026', '$380.00', 'Services provided', 'Personal care', 'Ann Carer', '9:00 AM', '$160.00']) has(needle)
+    has("is $90.00 over the policy's daily maximum of $150.00")
+    expect(lines.filter((l) => l.includes('over the policy')).length).toBe(1) // 10/06 is under the maximum
+    has('Charges above the daily maximum')
+  })
+
+  test('a packet needs a policy number and an LTC payer', async () => {
+    await t.db.update(t.schema.clientLtcPolicy).set({ policyNumber: null } as any).where(eq(t.schema.clientLtcPolicy.clientId, ltcClient))
+    const none = await json(await as('owner')(`/api/care-ltc/invoices/${ltcInvoice}/claim-packet`))
+    expect([none.status, none.body.code]).toEqual([400, 'no_policy'])
+    const plain = await invoice(10, { sentAt: new Date() })
+    plainInvoice = plain.id
+    const notLtc = await json(await as('owner')(`/api/care-ltc/invoices/${plainInvoice}/claim-packet`))
+    expect([notLtc.status, notLtc.body.code]).toEqual([400, 'not_ltc'])
+    expect((await json(await as('owner')('/api/care-ltc/invoices/missing/claim-packet'))).status).toBe(404)
+  })
+
+  test('the list shows invoices billed to an LTC payer and whether the policy is on file', async () => {
+    const list = (await json(await as('owner')('/api/care-ltc/invoices'))).body
+    const mine = (Array.isArray(list) ? list : list.data).find((i: any) => i.id === ltcInvoice)
+    expect(mine).toMatchObject({ payerName: 'Acme Life', hasPolicy: true })
+    expect((Array.isArray(list) ? list : list.data).some((i: any) => i.id === plainInvoice)).toBe(false)
+  })
+})

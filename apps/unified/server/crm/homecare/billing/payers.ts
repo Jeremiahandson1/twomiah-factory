@@ -20,6 +20,8 @@ export const PAYER_TYPES = [
   'MCO', 'IRIS', 'medicaid', 'HMO', 'medicare', 'va', 'managed_care', 'private_pay', 'other',
   // Accepted for rows that already carry them (seed / imports); the screen offers the list above.
   'mco_family_care', 'FFS',
+  // Item 3 (care_ltc_billing): a long-term care insurer. The routes below accept it only for an agency with the feature on.
+  'ltc_insurance',
 ] as const
 export const PAYER_FIELDS = [
   'name', 'payerType', 'contactName', 'email', 'phone', 'address', 'city', 'state', 'zip',
@@ -51,6 +53,9 @@ export function payerData(b: any): { data: Record<string, any>; error?: string }
 }
 
 export function createPayerRoutes(_core: HomecareCore, d: CrmDeps) {
+  /** A long-term care payer type may be set only by an agency that has care_ltc_billing on (the type is not ready for everyone). */
+  const ltcRefused = async (companyId: string, payerType: unknown) =>
+    payerType === 'ltc_insurance' && !(await d.features.isFeatureEnabled(companyId, 'care_ltc_billing'))
   const { db } = d
   const { requirePermission, requireAnyPermission } = d.permissions
   const app = new Hono<AppEnv>()
@@ -68,6 +73,7 @@ export function createPayerRoutes(_core: HomecareCore, d: CrmDeps) {
     const { data, error } = payerData(await c.req.json().catch(() => null))
     if (error) return fail(c, 400, error)
     if (!data.name) return fail(c, 400, 'Name is required')
+    if (await ltcRefused(who(c).companyId, data.payerType)) return fail(c, 403, 'Long-term care insurance billing is not switched on for your agency.', 'FEATURE_NOT_ENABLED')
     data.payerType = data.payerType || 'other'
     // The referral-source kind, as the seed sets it for payers.
     data.type = data.payerType === 'private_pay' ? 'private_pay' : 'insurance'
@@ -79,6 +85,7 @@ export function createPayerRoutes(_core: HomecareCore, d: CrmDeps) {
   app.put('/:id', requirePermission('care-billing:update'), async (c) => {
     const { data, error } = payerData(await c.req.json().catch(() => null))
     if (error) return fail(c, 400, error)
+    if (await ltcRefused(who(c).companyId, data.payerType)) return fail(c, 403, 'Long-term care insurance billing is not switched on for your agency.', 'FEATURE_NOT_ENABLED')
     const [payer] = await db.update(referralSources).set({ ...data, updatedAt: new Date() })
       .where(and(eq(referralSources.id, c.req.param('id')), eq(referralSources.companyId, who(c).companyId))).returning()
     if (!payer) return fail(c, 404, 'Payer not found')
