@@ -7,6 +7,7 @@
 import { cleanLead, cleanApplication, checkResume, checkImage, effectiveForms, RESUME_TYPES } from './clean.mjs'
 import { verifySignin, mintSession, verifySession, signRequest, verifyRequest, rateLimit, hashAddr, randomId } from './session.mjs'
 import { LIMITS } from './shapes.mjs'
+import { routeOf } from './routes.mjs'
 
 const COOKIE = 'wp_s'
 const NO_STORE = 'no-store'
@@ -301,7 +302,7 @@ export function createHandler(deps) {
   // ── routing ─────────────────────────────────────────────────────────────
   return async function handle(req) {
     const u = new URL(req.url)
-    const r = (u.searchParams.get('r') || 'page').replace(/^\/+/, '')
+    const r = routeOf(u)
     const m = req.method
     try {
       if (r === 'page' && (m === 'GET' || m === 'HEAD')) { await count('page'); return await page('page') }

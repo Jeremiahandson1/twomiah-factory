@@ -129,9 +129,9 @@ describe('the editor saves into the site, not the Factory', () => {
     expect(await (await s.call('privacy')).text()).toBe('<html>saved privacy</html>')
     // a redeploy bundles a NEW initial page; the owner's saved page and model stay
     const again = createHandler({ store: s.store, env: { WP_SITE_ID: 'site-a', WP_SECRET: s.secret, WP_FACTORY_URL: 'https://factory.test' }, fetchImpl: fetch, now: () => s.t.now, initial: { index: '<html>NEW DEPLOY</html>', privacy: 'p', model: model() }, spec: {} })
-    const page = await again(new Request('https://acme.netlify.app/?r=page'))
+    const page = await again(new Request('https://acme.netlify.app/'))
     expect(await page.text()).toBe('<html>saved page</html>')
-    const mm = await again(new Request('https://acme.netlify.app/?r=api/model', { headers: { cookie: await s.cookieFor() } }))
+    const mm = await again(new Request('https://acme.netlify.app/api/model', { headers: { cookie: await s.cookieFor() } }))
     expect((await mm.json()).model.business.name).toBe('Acme Roofing')
   })
   test('before any save, the page is the one deployed', async () => {

@@ -11,7 +11,7 @@ export function toRequest(event) {
   const body = hasBody ? (event.isBase64Encoded ? Buffer.from(event.body, 'base64') : Buffer.from(event.body, 'utf8')) : undefined
   return new Request(url, { method, headers, body })
 }
-/** The query the redirect rules add (?r=api/model) reaches the handler as the Request's own query. */
+/** The response back as the event Netlify expects. (The route is the request's path: routes.mjs.) */
 export async function fromResponse(res) {
   const headers = {}
   res.headers.forEach((v, k) => { headers[k] = v })

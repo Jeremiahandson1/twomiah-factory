@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { zip } from './zip.ts'
 import type { OnePageOutput } from '../../../unified/server/site/onePage.ts'
 import type { SiteSpec } from './spec.ts'
+import { ROUTES } from './site/routes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SITE_DIR = join(HERE, 'site')
@@ -26,15 +27,10 @@ const HERO_DIR = join(HERE, '..', '..', 'assets', 'hero-library')
 
 export const FUNCTION_NAME = 'site'
 
-/** The redirects: every dynamic address goes to the one function; each is spelled out (no pattern a host could read differently). */
+/** The redirects: every dynamic address goes to the one function; each is spelled out (no pattern a host could read differently).
+ *  The function tells them apart by the path (site/routes.mjs) — Netlify drops a query a rewrite rule adds. */
 export function redirectsFile(): string {
-  const to = (r: string) => `/.netlify/functions/${FUNCTION_NAME}?r=${r}`
-  const rows: Array<[string, string]> = [
-    ['/', 'page'], ['/privacy', 'privacy'], ['/privacy/', 'privacy'], ['/media', 'img'],
-    ['/api/signin', 'api/signin'], ['/api/signout', 'api/signout'], ['/api/link', 'api/link'], ['/api/model', 'api/model'],
-    ['/api/upload', 'api/upload'], ['/api/leads', 'api/leads'], ['/api/apply', 'api/apply'], ['/api/me', 'api/me'], ['/api/usage', 'api/usage'], ['/api/export', 'api/export'], ['/api/adopt', 'api/adopt'], ['/api/domain/status', 'api/domain/status'], ['/api/domain/attach', 'api/domain/attach'], ['/api/domain/buy', 'api/domain/buy'],
-  ]
-  return rows.map(([from, r]) => `${from.padEnd(16)} ${to(r)} 200`).join('\n') + '\n/edit              /edit/              301\n'
+  return Object.keys(ROUTES).map((from) => `${from.padEnd(18)} /.netlify/functions/${FUNCTION_NAME} 200`).join('\n') + '\n/edit              /edit/              301\n'
 }
 
 /** Headers for the static files. (The function sets its own on what it serves.) */

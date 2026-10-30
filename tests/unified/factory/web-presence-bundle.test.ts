@@ -7,8 +7,15 @@ import { test, expect, beforeAll, afterAll } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { bundleFunction } from '../../../apps/api/src/webPresence/publish.ts'
+import { bundleFunction, redirectsFile } from '../../../apps/api/src/webPresence/publish.ts'
 import { mintSignin } from '../../../apps/api/src/webPresence/site/session.mjs'
+
+// The address a visitor asks for, read from the published redirect rules (so a route the rules don't send to the function fails).
+const pathOf = (r: string) => {
+  const want = { page: '/', privacy: '/privacy' }[r] ?? '/' + r
+  if (!new RegExp(`^${want.replace(/[/]/g, '\\/')}\\s+/\\.netlify/functions/site 200$`, 'm').test(redirectsFile())) throw new Error('no rule for ' + want)
+  return want
+}
 
 const SITE_ROW = 'row-1', SECRET = 'a'.repeat(64)
 const blobs = new Map<string, string>()
@@ -38,11 +45,12 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(() => { srv?.stop(true); try { fs.rmSync(dir, { recursive: true, force: true }) } catch { /* temp */ } })
 
-// What Netlify passes a Lambda-style function: the Blobs context (url + token, and NO uncachedEdgeURL) and the site headers.
+// What Netlify passes a Lambda-style function a redirect rule rewrote to: the VISITOR's path and query (the rule's own query is
+// dropped — 10/30, /privacy served the home page), the Blobs context (url + token, NO uncachedEdgeURL) and the site headers.
 const event = (r: string, method = 'GET', body: string | null = null) => ({
-  rawUrl: `https://acme.netlify.app/.netlify/functions/site?r=${r}`, path: '/.netlify/functions/site', httpMethod: method,
+  rawUrl: `https://acme.netlify.app${pathOf(r)}`, path: pathOf(r), httpMethod: method,
   headers: { host: 'acme.netlify.app', 'x-nf-site-id': 'nf-site-1', 'x-nf-deploy-id': 'dep-1', ...(body ? { 'content-type': 'application/json' } : {}) },
-  queryStringParameters: { r }, rawQuery: `r=${r}`, body, isBase64Encoded: false,
+  queryStringParameters: {}, rawQuery: '', body, isBase64Encoded: false,
   blobs: Buffer.from(JSON.stringify({ url: `http://localhost:${srv.port}`, token: 'tok' })).toString('base64'),
 })
 

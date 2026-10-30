@@ -101,7 +101,7 @@ function world(over: { env?: Record<string, string>; tenants?: any[]; sites?: an
     fetch: async (url, init) => {
       calls.push({ url, init })
       const o = new URL(url); const fn = sites.get(o.origin)
-      if (fn) return fn(new Request(o.origin + '/?r=' + o.pathname.slice(1), { method: init?.method, headers: init?.headers, body: init?.body }))
+      if (fn) return fn(new Request(o.origin + o.pathname + o.search, { method: init?.method, headers: init?.headers, body: init?.body }))
       return new Response('{}', { status: 200 })
     },
     sleep: async () => {},
