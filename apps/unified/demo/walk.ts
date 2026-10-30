@@ -39,6 +39,11 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
   const started = Date.now()
   const report: WalkReport = { trade: opts.trade, pages: [], unavailable: [], errorPages: [], pageErrors: [], outside: [], unavailableText: [] }
   let here = ''
+  /** The browser step in progress, and the last things the page did: what a stall report names. */
+  let step = ''
+  const recent: string[] = []
+  const note = (what: string) => { recent.push(`${((Date.now() - started) / 1000).toFixed(1)}s ${what}`); if (recent.length > 8) recent.shift() }
+  let stalled = false
   // The debugger is switched on while the page still answers: a page already stuck never answers "enable", only "pause".
   let cdp: CDPSession | null = null
   const attach = (p: Page) => {
@@ -49,6 +54,11 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
     p.setDefaultTimeout(15_000)
     p.setDefaultNavigationTimeout(30_000)
     p.on('pageerror', (e) => report.pageErrors.push(`${here}: ${e.message.slice(0, 160)}`))
+    p.on('framenavigated', (f) => { if (f === p.mainFrame()) note(`navigated ${f.url().replace(opts.base, '')}`) })
+    p.on('popup', (w) => { note(`popup ${w.url()}`); w.close().catch(() => {}) })
+    p.on('download', (d) => note(`download ${d.suggestedFilename()}`))
+    p.on('dialog', (d) => { note(`dialog ${d.type()} "${d.message().slice(0, 60)}"`); d.dismiss().catch(() => {}) })
+    p.on('console', (m) => { if (m.type() === 'error') note(`console ${m.text().slice(0, 80)}`) })
     p.on('request', (r) => {
       const u = r.url()
       if (!u.startsWith(opts.base) && !u.startsWith('data:') && !u.startsWith('blob:') && !u.startsWith('about:')) report.outside.push(`${here}: ${u}`)
@@ -73,19 +83,19 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
       return `stuck in ${frames.join(' <- ')} | code: ${near}`
     } catch (e) { return `could not look: ${(e as Error).message.slice(0, 160)}` }
   }
-  /** One screen's work, given STALL_MS: a stall is reported with where the page was stuck, and the walk goes on in a new page. */
+  /** One screen's work, given STALL_MS. A stall is reported with the step it stopped on, what the page did just before, and
+   *  where its script was; then the walk ends (CI 10/30: after a stall even a new page in the same browser never opened). */
   const guarded = async <T>(href: string, run: () => Promise<T>): Promise<T | undefined> => {
     const work = run()
     work.catch(() => {})
     const done = await within(work.then((v) => ({ v })), STALL_MS)
     if (done) return done.v
+    stalled = true
     const where = await whereStuck()
-    report.pageErrors.push(`${href}: stopped answering for ${STALL_MS / 1000}s — ${where}`)
-    console.log(`  [walk ${opts.trade} ${opts.viewport?.width ?? 1440}px] ${href} STALLED — ${where}`)
-    const old = page
-    page = await old.context().newPage()
-    attach(page)
-    old.close().catch(() => {})
+    const fresh = await within(page.context().browser()!.newContext().then(async (c) => { const p = await c.newPage(); await p.goto(`${opts.base}/`); c.close().catch(() => {}); return 'a fresh browser tab still opened' }), 10_000).catch(() => undefined)
+    const said = `stopped answering for ${STALL_MS / 1000}s during "${step}" at ${page.url().replace(opts.base, '')} — ${where}; ${fresh ?? 'the whole browser had stopped too'}; just before: ${recent.join(' | ')}`
+    report.pageErrors.push(`${href}: ${said}`)
+    console.log(`  [walk ${opts.trade} ${opts.viewport?.width ?? 1440}px] ${href} STALLED — ${said}`)
     return undefined
   }
 
@@ -94,36 +104,41 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
   const visit = async (href: string, first = false) => {
     here = href
     try {
+      step = 'goto'
       await page.goto(first ? `${opts.base}${href}?trade=${opts.trade}` : `${opts.base}${href}`, { waitUntil: 'networkidle', timeout: 30_000 })
       await page.waitForTimeout(350)
-      for (const tab of (await page.$$('[role="tab"]')).slice(0, 8)) { try { await tab.click({ timeout: 1500 }); await page.waitForTimeout(300) } catch { /* not clickable now */ } }
+      step = 'tabs'
+      for (const tab of (await page.$$('[role="tab"]')).slice(0, 8)) { step = `tab ${await tab.innerText().catch(() => '?')}`; try { await tab.click({ timeout: 1500 }); await page.waitForTimeout(300) } catch { /* not clickable now */ } }
       // A list whose rows open on a click: the first row is opened, as a visitor would.
       const here0 = page.url()
       try {
+        step = 'first row click'
         await page.locator('tbody tr').first().click({ timeout: 1200 })
         await page.waitForTimeout(450)
         const opened = await page.innerText('body').catch(() => '')
         if (/Something went wrong/.test(opened)) report.errorPages.push(`${href} (first row)`)
-        if (page.url() !== here0) await page.goBack({ waitUntil: 'networkidle' })
-        else await page.keyboard.press('Escape')
+        if (page.url() !== here0) { step = 'back from the row'; await page.goBack({ waitUntil: 'networkidle' }) }
+        else { step = 'Escape after the row'; await page.keyboard.press('Escape') }
       } catch { /* no rows, or not clickable */ }
+      step = 'reading the page'
       const text = await page.innerText('body').catch(() => '')
       if (/Something went wrong/.test(text)) report.errorPages.push(href)
       if (/not available in the demo/i.test(text)) report.unavailableText.push(href)
+      step = 'reading the demo log'
       for (const u of await drained()) report.unavailable.push(`${u}  (on ${href})`)
     } catch (e) { report.pageErrors.push(`${href}: ${(e as Error).message.slice(0, 120)}`) }
   }
 
-  const nav = ((await guarded('/crm', async () => { await visit('/crm', true); return links() })) ?? []).filter((h) => !SKIP.some((re) => re.test(h)))
+  const nav = ((await guarded('/crm', async () => { await visit('/crm', true); step = 'reading the links'; return links() })) ?? []).filter((h) => !SKIP.some((re) => re.test(h)))
   const visited = new Set<string>(['/crm'])
   const perSection = new Map<string, number>()
   const queue = [...nav]
-  while (queue.length && visited.size < (opts.maxPages ?? MAX_PAGES)) {
+  while (!stalled && queue.length && visited.size < (opts.maxPages ?? MAX_PAGES)) {
     const href = queue.shift()!
     if (visited.has(href)) continue
     visited.add(href)
     const t = Date.now()
-    const found0 = await guarded(href, async () => { await visit(href); return links() })
+    const found0 = await guarded(href, async () => { await visit(href); step = 'reading the links'; return links() })
     const took = (Date.now() - t) / 1000
     if (process.env.DEMO_WALK_LOG || took > 20) console.log(`  [walk ${opts.trade} ${opts.viewport?.width ?? 1440}px] ${href} ${took.toFixed(1)}s (${visited.size} screens, ${((Date.now() - started) / 1000).toFixed(0)}s in)`)
     for (const found of found0 ?? []) {
@@ -135,7 +150,7 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
     }
   }
   report.pages = [...visited]
-  if (own) await browser!.close()
+  if (own) await within(browser!.close(), 10_000)
   return report
 }
 
