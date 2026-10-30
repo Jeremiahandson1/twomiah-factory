@@ -23,7 +23,7 @@ import { BarChart3, TrendingUp, DollarSign, Users, Briefcase, Download } from 'l
 import { api } from '../../../../api'
 import { useAuth, useKnownPermission, usePermissions, useToast } from '../../../../shared'
 import { displayName } from '../lib/user'
-import { PIPELINE_STATUSES, TERMINAL_STATUSES, jobValue, pipelineFor, rowsOf } from './model'
+import { PIPELINE_STATUSES, TERMINAL_STATUSES, jobValue, pipelineFor, pipelineNames, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 import { downloadCsv, csvName, type CsvCell } from '@twomiah/tenant-ui/src/reporting/csv'
@@ -41,6 +41,8 @@ function CsvButton({ title, head, rows }: { title: string; head: string[]; rows:
 const csvMoney = (n: number) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2)
 
 /** The chart's shorter labels for the pipeline stages. */
+/** A stage in the reports' short words — or the company's own name for it where it has renamed it (Pipeline Stages & Boards). */
+const reportLabel = (stage: string) => pipelineNames()?.overrides?.[stage] ?? STAGE_LABELS[stage] ?? stage
 const STAGE_LABELS: Record<string, string> = {
   lead: 'Lead',
   inspection_scheduled: 'Inspection Sched.',
@@ -340,7 +342,7 @@ export default function ReportsPage() {
               <div className="flex items-start justify-between gap-3">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Pipeline Value by Stage</h2>
                 <CsvButton title="Pipeline Value by Stage" head={['Stage', 'Jobs', 'Value']}
-                  rows={() => pipelineFor(hasFeature, jobs).map((stage) => [STAGE_LABELS[stage] || stage, pipelineCountByStage[stage] || 0, csvMoney(pipelineByStage[stage] || 0)])} />
+                  rows={() => pipelineFor(hasFeature, jobs).map((stage) => [reportLabel(stage), pipelineCountByStage[stage] || 0, csvMoney(pipelineByStage[stage] || 0)])} />
               </div>
               {/* What the bars below add up to, and what they leave out. (T41) */}
               <p className="text-xs text-gray-500 mb-4 mt-1 dark:text-slate-400">
@@ -352,7 +354,7 @@ export default function ReportsPage() {
                 {pipelineFor(hasFeature, jobs).map((stage) => (
                   <div key={stage}>
                     <Bar
-                      label={`${STAGE_LABELS[stage]} (${pipelineCountByStage[stage] || 0})`}
+                      label={`${reportLabel(stage)} (${pipelineCountByStage[stage] || 0})`}
                       value={pipelineByStage[stage] || 0}
                       max={maxPipelineValue}
                       color="#3b82f6"

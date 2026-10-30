@@ -41,6 +41,7 @@ import { ownJobsWhere } from '../ownWork.ts'
 import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
+import { loadPipelineConfig, stageLabelFor } from './pipeline.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -634,8 +635,11 @@ export function createRoofJobRoutes(d: CrmDeps) {
         .from(smsMessage).innerJoin(smsConversation, eq(smsMessage.conversationId, smsConversation.id))
         .where(and(eq(smsConversation.companyId, me.companyId), eq(smsConversation.contactId, found.contactId), gt(smsMessage.createdAt, found.createdAt)))
       : []
+    // The company's own stage names, where Pipeline Stages & Boards is on; the standard names otherwise.
+    const names = (await companyFeatures(me.companyId)).includes('pipeline_boards') ? await loadPipelineConfig(db, me.companyId) : null
+    const stageName = (stage: string) => stageLabelFor(names, stage, found.jobType)
     const timeline: any[] = [
-      ...notes.flatMap((n: any) => { const e = jobEvent(n.body); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
+      ...notes.flatMap((n: any) => { const e = jobEvent(n.body, stageName); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
       // An event on a timeline says what happened (N2): a photo carries a body like a note does.
       ...photos.map((p: any) => ({ type: 'photo', id: p.id, url: p.url, caption: p.caption, photoType: p.photoType, createdAt: p.createdAt,
         body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}` })),

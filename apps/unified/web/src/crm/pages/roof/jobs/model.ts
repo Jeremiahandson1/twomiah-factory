@@ -1,4 +1,5 @@
 import { money } from '@twomiah/tenant-ui/src/money'
+import { verticalScreens } from '../../../vertical'
 // What the jobs group's pages read, in one place: the pipeline's stages and the rows the server answers.
 //
 // The stages are the server's (apps/unified/server/crm/roof/validation.ts PIPELINE_STATUSES and TERMINAL_STATUSES),
@@ -41,6 +42,43 @@ export const STAGE_LABELS: Record<string, string> = {
   final_inspection: 'Final Inspection',
   invoiced: 'Invoiced',
   collected: 'Collected',
+}
+
+/** The company's names for its stages, as GET /api/roof-pipeline and the page answer (server/crm/roof/pipeline.ts). */
+export interface PipelineNames {
+  /** The company's name for every stage. */
+  stageLabels: Record<string, string>
+  /** Only the names the company changed. */
+  overrides?: Record<string, string>
+  boards: Array<{ id: 'retail' | 'insurance'; name: string; stageLabels: Record<string, string> }>
+}
+
+let names: PipelineNames | null | undefined
+/** The company's names, or null where it has none (the feature is off, or the page was served without them). Read once. */
+export function pipelineNames(): PipelineNames | null {
+  if (names === undefined) {
+    const p = verticalScreens().pipeline as Partial<PipelineNames> | null | undefined
+    names = p && typeof p === 'object' && p.stageLabels && Array.isArray(p.boards) ? (p as PipelineNames) : null
+  }
+  return names
+}
+/** After the settings page saves: the screens that draw next draw the new names. */
+export function setPipelineNames(n: PipelineNames | null) { names = n }
+
+/** The board a job of this type is on: insurance jobs on Insurance, every other type on Retail. */
+export const boardOf = (jobType: string | null | undefined): 'retail' | 'insurance' => (jobType === 'insurance' ? 'insurance' : 'retail')
+
+/**
+ * A stage's name: the board's own, else the company's, else the standard one (STAGE_LABELS), else the code made readable
+ * (lost, cancelled). Pass the job's type for a job; pass a board id for a board's column; pass nothing for "everywhere".
+ */
+export function stageLabel(stage: string | null | undefined, jobTypeOrBoard?: string | null): string {
+  const key = stage || ''
+  const fallback = STAGE_LABELS[key] ?? formatStatus(key)
+  const n = pipelineNames()
+  if (!n) return fallback
+  const board = jobTypeOrBoard ? n.boards.find((b) => b.id === boardOf(jobTypeOrBoard)) : undefined
+  return board?.stageLabels[key] ?? n.stageLabels[key] ?? fallback
 }
 
 /** The job types the forms offer; the data may hold others (GET /api/jobs/types). */

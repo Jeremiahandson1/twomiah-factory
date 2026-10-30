@@ -229,7 +229,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
   // Not ready (owner tests it first): the held-depreciation reminder when a job is done, and mortgage-company check tracking.
-  { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, and tracks mortgage-company checks through endorsement', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },  // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is
+  { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, and tracks mortgage-company checks through endorsement', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // Not ready (owner tests it first): rename the pipeline stages and keep separate Retail and Insurance boards. Display names only.
+  { id: 'pipeline_boards', name: 'Pipeline Stages & Boards', description: 'Rename the pipeline stages and keep separate Retail and Insurance boards', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is
   // no state of the product where it is off, and the Settings toggle could never do anything. `core` is a
   // global flag, but this feature is offered to crm-roof alone, so marking it core locks it to "Included"
   // for roofers and touches nothing else. (roof T18 L9)

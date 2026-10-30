@@ -15,6 +15,7 @@ import { statCardWidth } from '../theme/insets'
 import { Screen, StatTile, SectionHeader, Group, ListRow, EmptyState, SkeletonRows, Button, layout, space, DText } from '../design'
 import { sourcesFor, resolveTiles, roofStages, type Shown } from './tiles'
 import { tileRoute } from './useTile'
+import { useStageName } from '../pipeline/useStageName'
 
 const QUICK: { label: string; icon: string; any: string[]; to: string; verticals?: string[] }[] = [
   { label: 'New job', icon: 'add-circle', any: ['jobs:create'], to: '/(tabs)/jobs', verticals: ['contractor', 'basic', 'landscaping', 'roofing'] },
@@ -27,6 +28,7 @@ export default function HomeScreen() {
   const t = useTheme()
   const { user, can } = useAuth()
   const { vertical, hasFeature } = useVertical()
+  const { stageName } = useStageName()
   const { width } = useWindowDimensions()
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [today, setToday] = useState<any[]>([])
@@ -54,7 +56,7 @@ export default function HomeScreen() {
   useRealTimeEvent(EVENTS.JOB_CREATED, load)
 
   const shown: Shown[] = useMemo(() => resolveTiles(vertical, ctx, answers), [vertical, ctx, answers])
-  const stages = useMemo(() => (vertical === 'roofing' && can('jobs:read') ? roofStages(answers['/api/dashboard/stats'], hasFeature) : []), [vertical, answers, can, hasFeature])
+  const stages = useMemo(() => (vertical === 'roofing' && can('jobs:read') ? roofStages(answers['/api/dashboard/stats'], hasFeature, (s) => stageName(s)) : []), [vertical, answers, can, hasFeature, stageName])
   const w = statCardWidth(width)
   const quick = QUICK.filter((q) => q.any.some((p) => can(p)) && (!q.verticals || q.verticals.includes(vertical)))
 

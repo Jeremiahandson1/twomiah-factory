@@ -26,6 +26,8 @@ import { AvatarCircle } from '../../src/components/AvatarCircle'
 import { FAB } from '../../src/components/FAB'
 import { EmptyState } from '../../src/components/EmptyState'
 import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
+import { useStageName } from '../../src/pipeline/useStageName'
+import { boardOf } from '../../src/pipeline/labels'
 
 /** The pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES), and the two ways a job ends unpaid. */
 const STAGES = [
@@ -56,6 +58,9 @@ export default function PipelineScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedStage, setSelectedStage] = useState<string | null>(null)
+  // The company's own stage names and its Retail / Insurance boards (Pipeline Stages & Boards; GET /api/roof-pipeline, the desktop's route).
+  const { stageName, names } = useStageName()
+  const [board, setBoard] = useState<'all' | 'retail' | 'insurance'>('all')
 
   const loadJobs = useCallback(async () => {
     const res = await get(`/api/jobs?limit=${PAGE}`)
@@ -78,7 +83,8 @@ export default function PipelineScreen() {
 
   // A stage's tint: the business's colour while the job is open; its end keeps its meaning.
   const tint = (s: { end?: 'success' | 'error' | 'neutral' }) => s.end === 'success' ? t.success : s.end === 'error' ? t.error : s.end === 'neutral' ? t.textMuted : t.primary
-  const grouped = STAGES.map(stage => ({ ...stage, color: tint(stage), items: jobs.filter(j => j.status === stage.key) }))
+  const boardJobs = names && board !== 'all' ? jobs.filter(j => boardOf(j.jobType) === board) : jobs
+  const grouped = STAGES.map(stage => ({ ...stage, label: stageName(stage.key, board === 'all' ? undefined : board) ?? stage.label, color: tint(stage), items: boardJobs.filter(j => j.status === stage.key) }))
   // Closed stages only appear when something is in them.
   const visible = grouped.filter(s => !['lost', 'cancelled'].includes(s.key) || s.items.length > 0)
   const filteredStages = selectedStage ? visible.filter(s => s.key === selectedStage) : visible
@@ -94,6 +100,16 @@ export default function PipelineScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: t.background }]}>
+      {/* Boards: only where the company has Pipeline Stages & Boards on */}
+      {names && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stagePills}>
+          {([['all', 'All jobs'], ...names.boards.map(b => [b.id, b.name])] as Array<['all' | 'retail' | 'insurance', string]>).map(([id, name]) => (
+            <TouchableOpacity key={id} style={[styles.pill, board === id && { backgroundColor: t.primary }]} onPress={() => { setBoard(id); setSelectedStage(null) }}>
+              <Text style={[styles.pillText, { color: board === id ? t.onPrimary : t.textSecondary }]}>{name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
       {/* Stage pills */}
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stagePills}>
@@ -101,7 +117,7 @@ export default function PipelineScreen() {
             style={[styles.pill, !selectedStage && { backgroundColor: t.primary }]}
             onPress={() => setSelectedStage(null)}
           >
-            <Text style={[styles.pillText, { color: !selectedStage ? t.onPrimary : t.textSecondary }]}>All ({jobs.length})</Text>
+            <Text style={[styles.pillText, { color: !selectedStage ? t.onPrimary : t.textSecondary }]}>All ({boardJobs.length})</Text>
           </TouchableOpacity>
           {visible.map(stage => {
             const active = selectedStage === stage.key

@@ -381,3 +381,18 @@ export const stormRadarEventMatch = pgTable('storm_event_match', {
   index('storm_event_match_storm_radar_event_id_idx').on(t.stormRadarEventId),
   index('storm_event_match_status_idx').on(t.status),
 ])
+
+/**
+ * How a roofing company names its pipeline (roofing depth, gap 8): one row per company. `config` holds DISPLAY NAMES only —
+ * `{ stageLabels: { invoiced: 'Billed' }, boards: { retail: { name, stageLabels }, insurance: { name, stageLabels } } }` — over
+ * the same stage keys every job is stored with, so the stage texts, the review request and "paid → Collected" never read it
+ * (server/crm/roof/pipeline.ts). No row, or an empty config, is today's names.
+ */
+export const roofPipelineConfig = pgTable('roof_pipeline_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  config: json('config').default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
+])

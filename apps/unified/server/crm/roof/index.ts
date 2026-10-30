@@ -7,6 +7,7 @@ import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
 import { createRoofCollector } from './collected.ts'
+import { createPipelineRoutes } from './pipeline.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -17,5 +18,7 @@ export function roofMounts(d: CrmDeps): Mount[] {
     ...insuranceMounts(d),
     ...reportsMounts(d),
     ...fieldMounts(d),
+    // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
+    { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'roof' }))
 }

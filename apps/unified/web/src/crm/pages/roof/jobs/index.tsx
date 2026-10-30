@@ -19,6 +19,7 @@ const PipelineBoard = page(() => import('./PipelineBoard'))
 const JobsPage = page(() => import('./JobsPage'))
 const JobDetailPage = page(() => import('./JobDetailPage'))
 const ReportsPage = page(() => import('./ReportsPage'))
+const PipelineSettingsPage = page(() => import('./PipelineSettingsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -26,6 +27,8 @@ export const routes: ReactElement[] = [
   <Route key="roof-jobs" path="jobs" element={<JobsPage />} />,
   <Route key="roof-job" path="jobs/:id" element={<JobDetailPage />} />,
   <Route key="roof-reports" path="reports" element={<ReportsPage />} />,
+  // Not ready (pipeline_boards): the company's names for its stages. Reached from Settings (verticals/roof.tsx SETTINGS_EXTRA).
+  <Route key="roof-pipeline-settings" path="settings/pipeline" element={<PipelineSettingsPage />} />,
 ]
 
 /** Menu items, each gated by the feature and permission its page's API asks. */

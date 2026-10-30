@@ -56,7 +56,7 @@ const NOT_BUILT = '<!doctype html><html lang="en"><head><meta charset="utf-8"><m
 
 export function createAdminScreens(deps: {
   companyName: () => Promise<string | null>
-  screens: () => Record<string, unknown>
+  screens: () => Record<string, unknown> | Promise<Record<string, unknown>>
   distDir?: string
   extraPages?: readonly string[]
   /**
@@ -76,7 +76,7 @@ export function createAdminScreens(deps: {
     const name = (await deps.companyName()) || ''
     // The vertical's screen settings (VerticalSettings.screens) as data the page reads: not run, and < escaped so no
     // value can close the element.
-    const screens = JSON.stringify(deps.screens()).replace(/</g, '\\u003c')
+    const screens = JSON.stringify(await deps.screens()).replace(/</g, '\\u003c')
     const colours = (await deps.brand?.()) ?? null
     const hex = (v?: string | null) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '')
     const head = `<title>${escHtml(tabTitle(c.req.path, name))}</title><meta name="company-name" content="${escHtml(name)}">` +

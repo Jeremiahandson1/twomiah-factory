@@ -2,7 +2,7 @@
 // quotes, invoices, documents and the rest are the CRM's shared screens; its jobs pages are roofing's own, over the CRM's
 // job (the server's /api/jobs is roofing's module for this vertical), so they are registered before the CRM's.
 import type { ReactElement } from 'react'
-import { Calculator } from 'lucide-react'
+import { Calculator, LayoutDashboard } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { verticalScreens } from '../vertical'
 import * as jobs from '../pages/roof/jobs'
@@ -70,7 +70,11 @@ export const CanvassView = field.canvassView
  * snippet — for whoever may change the company (PUT /api/settings/estimator asks company:update), with the estimator on.
  */
 export const SETTINGS_EXTRA = isRoofing
-  ? [{ to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' }]
+  ? [
+    { to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' },
+    // Not ready (pipeline_boards): rename the pipeline stages and name the Retail and Insurance boards' stages.
+    { to: '/crm/settings/pipeline', label: 'Pipeline stages', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_boards' },
+  ]
   : []
 /** The roofer's home at /crm/dashboard (crm/screens.tsx HOMES). */
 export const dashboard = jobs.dashboard
