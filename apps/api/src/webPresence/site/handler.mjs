@@ -46,6 +46,7 @@ export function createHandler(deps) {
     if (!tok) return null
     const s = await verifySession(secret, tok, siteId, now())
     if (!s.ok) return null
+    // Signing out clears the cookie at once; the revocation reaches every edge within Blobs' 60-second propagation (eventual).
     if (await kv.get('revoked:' + s.sid)) return null
     return s
   }
@@ -85,9 +86,11 @@ export function createHandler(deps) {
     try { body = await req.json() } catch { /* below */ }
     const v = await verifySignin(secret, body && body.token, siteId, now())
     if (!v.ok) return json({ error: v.error === 'expired' ? 'That link has expired. Ask for a new one.' : 'That sign-in link is not valid.' }, 401)
-    // Single use: the first exchange records the link's id; a second one is refused.
-    if (await kv.get('used:' + v.jti)) return json({ error: 'That link was already used. Ask for a new one.' }, 401)
-    await kv.set('used:' + v.jti, String(v.exp))
+    // Single use, atomically: the first exchange creates `used:<id>` ONLY IF IT IS NEW (checked at Blobs' origin, so two tries at
+    // once from two places cannot both pass); a write that changed nothing means the link was already used. (A read-then-write
+    // needed a strong read, which this function's store cannot do — entry.mjs.)
+    const first = await store.set('used:' + v.jti, String(v.exp), { onlyIfNew: true })
+    if (first && first.modified === false) return json({ error: 'That link was already used. Ask for a new one.' }, 401)
     const ses = await mintSession(secret, siteId, now())
     return json({ ok: true }, 200, { 'set-cookie': `${COOKIE}=${encodeURIComponent(ses)}; Path=/; Max-Age=${12 * 3600}; HttpOnly; Secure; SameSite=Strict` })
   }
