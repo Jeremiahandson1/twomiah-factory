@@ -9,7 +9,7 @@
 export { asInstant, withInstants } from './instants'
 export { partialOf } from './partialOf'
 
-export { createEmailAliasesRoutes, createEmailAliasesInternalRoute } from './emailAliases'
+export { createEmailAliasesRoutes, createEmailAliasesInternalRoute, resyncAliasesAfterTeamChange, deliversTo } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createInboundMessagesRoutes } from './inboundMessages'
 export { createGbpAdminRoutes, createGbpInternalRoutes } from './gbp'
@@ -27,6 +27,7 @@ export type { PlanDef, TenantSubscription } from './plans'
 export { createFactoryApiClient } from './factoryClient'
 export type {
   EmailAliasesDeps,
+  AliasMember,
   EmailAliasState,
   EmailAliasStatusReport,
   InboundParseDeps,

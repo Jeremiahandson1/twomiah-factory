@@ -20,7 +20,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { stripSource as strip } from './lib/stripComments.ts'
 
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1') // a path with spaces arrives %20-encoded
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const read = (p: string) => strip(readFileSync(join(ROOT, p), 'utf8').replace(/\r\n/g, '\n'))
@@ -54,7 +54,7 @@ else {
   if (keyAt < 0 || readAt < 0 || keyAt > readAt) fail('createEmailAliasesInternalRoute must check X-Factory-Key BEFORE reading the table')
   if (!/if \(!key\) return c\.json\([^)]*503\)/.test(internal)) fail('createEmailAliasesInternalRoute must refuse (503) when FACTORY_SYNC_KEY is not set — never an open list')
 }
-if (!/export \{ createEmailAliasesRoutes, createEmailAliasesInternalRoute \} from '\.\/emailAliases'/.test(read('packages/tenant-backend/src/index.ts'))) fail('packages/tenant-backend/src/index.ts must export createEmailAliasesInternalRoute')
+if (!/export \{[^}]*\bcreateEmailAliasesInternalRoute\b[^}]*\} from '\.\/emailAliases'/.test(read('packages/tenant-backend/src/index.ts'))) fail('packages/tenant-backend/src/index.ts must export createEmailAliasesInternalRoute')
 
 // ── 2. the Factory reconciles at every moment a domain can become usable ──────────────────────────────
 const lifecycle = read('apps/api/src/routes/factory/lifecycle.ts')

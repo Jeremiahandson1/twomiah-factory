@@ -23,6 +23,7 @@ export const UNLINKED_PERSON_COLUMNS: Array<[table: string, column: string]> = [
 const WORDS: Record<string, [string, string]> = {
   job: ['job', 'jobs'], commission: ['commission', 'commissions'], commission_plan: ['commission plan', 'commission plans'],
   task: ['task', 'tasks'], schedules: ['shift', 'shifts'], time_entry: ['time entry', 'time entries'],
+  email_alias: ['email address', 'email addresses'],
 }
 const say = (table: string, n: number) => {
   const w = WORDS[table] || [`${table.replace(/_/g, ' ')} record`, `${table.replace(/_/g, ' ')} records`]

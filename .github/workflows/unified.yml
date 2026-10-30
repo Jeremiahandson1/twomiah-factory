@@ -118,7 +118,9 @@ jobs:
         run: |
           bun test --timeout 240000 tests/demo/outbound.test.ts
           bun test --timeout 240000 tests/demo/reset.test.ts
-          DEMO_WALK_LOG=1 bun test --timeout 1800000 tests/demo/walk.test.ts
+          # pw:browser: the browser process's own lines (its start, its stderr, its exit) — the phone walks' browser stops
+          # answering here and nowhere else, with nothing said (10/30).
+          DEMO_WALK_LOG=1 DEBUG=pw:browser bun test --timeout 1800000 tests/demo/walk.test.ts
 
   # The Factory's side (apps/api/src/unified): a test signup built with its own database server, repo and service,
   # then updated and torn down: the tenant repo installed from its lockfile, built, migrated, served and provisioned.

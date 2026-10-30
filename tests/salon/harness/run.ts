@@ -6,7 +6,7 @@
 //   KEEP=1 bun tests/salon/harness/run.ts   # leave the sandbox in place to poke at
 import { runSuite } from '../../harness/runSuite.ts'
 
-const ROOT = new URL('../../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = decodeURIComponent(new URL('../../../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1') // a path with spaces arrives %20-encoded
 process.exit(await runSuite({
   root: ROOT,
   suiteDir: ROOT + 'tests/salon',

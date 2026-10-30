@@ -73,13 +73,16 @@ export const defaultDeps = (): AliasSyncDeps => ({
 })
 
 /** Where an address's mail goes: the forward-to inbox, or the CRM's inbound-parse address. */
-export function aliasDestination(tenantId: string, alias: CrmAlias, parseHost: string): { destination: string } | { error: string } {
+export function aliasDestination(tenantId: string, alias: CrmAlias, parseHost: string, domain?: string): { destination: string } | { error: string } {
   if (alias.routingMode === 'crm') {
     if (!parseHost) return { error: 'Into-the-CRM mail is not set up on the Factory (SENDGRID_INBOUND_PARSE_HOSTNAME)' }
     return { destination: tenantId.replace(/-/g, '') + '-' + alias.localPart + '@' + parseHost }
   }
   const to = String(alias.forwardTo || '').trim().toLowerCase()
   if (!to.includes('@')) return { error: 'No forward-to address' }
+  // An inbox on the business's own domain is one of these addresses (or will be): forwarding to it sends the mail round
+  // in a loop. A team member who signs in as billy@theirdomain cannot be billy@'s inbox (10/30, team-member forwarding).
+  if (domain && to.endsWith('@' + domain.toLowerCase())) return { error: to + ' is on ' + domain + ' itself — mail forwarded there would loop. Forward to an inbox on another domain.' }
   return { destination: to }
 }
 
@@ -160,7 +163,7 @@ export async function applyAliasRule(
     for (const r of same) await deps.cf.deleteEmailRoutingRule(zoneId, r.tag)
     return { action: same.length ? 'removed' : 'noop' }
   }
-  const d = aliasDestination(tenantId, alias, deps.parseHost)
+  const d = aliasDestination(tenantId, alias, deps.parseHost, domain)
   if ('error' in d) return { action: 'noop', error: d.error }
   const rule = { matcherValue: matcher, forwardTo: d.destination, enabled: true, name: RULE_PREFIX + alias.localPart }
   const [keep, ...dupes] = same
@@ -243,7 +246,7 @@ export async function reconcileTenantAliases(tenant: TenantForAliases, deps: Ali
       // rule to an inbox it does not have, so registering it after the rule never ran: the owner was told to click an
       // email that was never sent (Perch and Prarie, 10/29: three addresses "Not set up", "Destination address is not
       // verified").
-      const pre = a.enabled ? aliasDestination(tenant.id, a, deps.parseHost) : null
+      const pre = a.enabled ? aliasDestination(tenant.id, a, deps.parseHost, domain) : null
       if (pre && !('error' in pre)) await ensureDestination(deps, known, pre.destination).catch(() => {})
       const waitingOn = (dest: string) => ({
         localPart: a.localPart, address, destination: dest, state: 'confirm_destination' as const,

@@ -53,7 +53,14 @@ export interface EmailAliasesDeps {
   db: any
   emailAliasesTable: any
   factoryApiClient: FactoryApiClient
+  /**
+   * The team, for an address that belongs to a team member (its table then has userId). Optional: a template without
+   * it keeps typed forward-to inboxes only, exactly as before.
+   */
+  members?: () => Promise<AliasMember[]>
 }
+
+export interface AliasMember { id: string; name: string; email: string; active: boolean; owner: boolean }
 
 export interface InboundParseDeps {
   /** Reply-from-branded-address: sends mail AS localPart@tenantDomain via the

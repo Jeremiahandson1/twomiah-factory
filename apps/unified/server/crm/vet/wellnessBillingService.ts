@@ -12,19 +12,19 @@
 // names the period and only matches a row not yet billed for it. Two concurrent runs, or a retry after a half-finished
 // one, can only produce one invoice per period.
 import { and, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm'
-import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom, businessToday, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
+import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom, businessToday, companyTimeZone, storeDateString, addMonthsClamped } from '@twomiah/tenant-backend'
 import { wellnessPlan, wellnessEnrollment, patient, invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
 
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const isAnnual = (cycle: string) => ['annual', 'yearly'].includes(String(cycle).toLowerCase())
 
-/** The next renewal date after `from`: monthly plans roll a month, annual plans a year. */
-export function nextRenewal(from: string, cycle: string): string {
-  const d = new Date(`${from}T00:00:00.000Z`)
-  if (isAnnual(cycle)) d.setUTCFullYear(d.getUTCFullYear() + 1)
-  else d.setUTCMonth(d.getUTCMonth() + 1)
-  return iso(d)
+/**
+ * The next renewal date after `from`: monthly plans roll a month, annual plans a year, on the plan's own day of the month
+ * (`anchor`, its start date) or that month's last day — Oct 31 renews Nov 30, not Dec 1 (salon's same fix, 10/30).
+ */
+export function nextRenewal(from: string, cycle: string, anchor: string = from): string {
+  return addMonthsClamped(from.slice(0, 8) + anchor.slice(8, 10), isAnnual(cycle) ? 12 : 1)
 }
 
 /** What one period of this plan costs, and what the invoice line says. */
@@ -72,7 +72,7 @@ export function createWellnessBillingService(db: any) {
       } as any, [{ description: `${plan?.name || 'Wellness plan'}${pet?.name ? ` — ${pet.name}` : ''} (${period}, per ${unit})`, quantity: 1, unitPrice: price }] as any)
 
       await tx.update(wellnessEnrollment)
-        .set({ lastInvoiceId: created.id, renewsAt: nextRenewal(period, row.billingCycle), updatedAt: new Date() })
+        .set({ lastInvoiceId: created.id, renewsAt: nextRenewal(period, row.billingCycle, row.startDate || period), updatedAt: new Date() })
         .where(eq(wellnessEnrollment.id, row.id))
       return { enrollmentId: row.id, invoiceId: created.id, number: created.number, period, amount: price }
     })

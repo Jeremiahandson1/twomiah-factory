@@ -56,6 +56,12 @@ export interface CompanyDeps {
   /** this template's id in the feature registry, e.g. 'crm-salon' */
   template: string
   options?: { roles?: string[] }
+  /**
+   * Called (not awaited) after a login is switched off or on, or deleted: the email addresses that are a team member's
+   * follow them (emailAliases.ts resyncAliasesAfterTeamChange). No route changes a login's email today; one that does
+   * calls this too.
+   */
+  onTeamChanged?: () => void
   /** Called (not awaited) after a successful feature save with the saved list — e.g. the Ads connector registers the tenant when paid_ads turns on. */
   onFeaturesChanged?: (features: string[]) => void
   /**
@@ -849,6 +855,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       logSeat(c, changes.role ? (deps.audit?.ACTIONS?.ROLE_CHANGE ?? 'role_change') : (deps.audit?.ACTIONS?.UPDATE ?? 'update'), { ...target, ...row },
         Object.keys(changes).length ? changes : null,
         access ? (data.isActive ? `Access restored — ${target.email}` : `Access revoked — ${target.email}`) : null)
+      if (access) deps.onTeamChanged?.()
     }
     // An edit that does not touch the role still returns the stored one, which may be the legacy word.
     return c.json(withCanonicalRole(row as any))
@@ -981,9 +988,11 @@ export function createCompanyRoutes(deps: CompanyDeps) {
           held,
         }, 409)
       }
+      deps.onTeamChanged?.()
       return c.body(null, 204)
     }
     await db.delete(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId)))
+    deps.onTeamChanged?.()
     return c.body(null, 204)
   })
 

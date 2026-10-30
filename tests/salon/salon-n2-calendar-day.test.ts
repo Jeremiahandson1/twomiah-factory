@@ -22,6 +22,12 @@ const check = (name: string, ok: boolean, detail?: unknown) => { if (ok) { passe
 const dayIn = (tz: string, d = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 const utcDay = () => new Date().toISOString().slice(0, 10)
+/** A month on from the shop's day, on the same day or that month's last day (Oct 31 → Nov 30). */
+const aMonthOn = (ymd: string) => {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10)
+}
 const plusDays = (ymd: string, n: number) => {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d) + n * 86400000).toISOString().slice(0, 10)
@@ -66,8 +72,9 @@ for (const tz of ['Pacific/Kiritimati', 'Pacific/Niue']) {
   const lines = inv ? await db.select().from(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, inv.id)) : []
   check(`${tz}: the invoice line names the shop's period`, !!lines[0]?.description?.includes(shopDay), lines[0]?.description)
 
-  // the renewal anniversary is a month from the shop's day, not UTC's
-  check(`${tz}: the renewal anniversary follows the shop's day`, enrol.json?.renewsAt?.slice(8) === shopDay.slice(8), { renewsAt: enrol.json?.renewsAt, shopDay })
+  // the renewal anniversary is a month from the shop's day, not UTC's — the same day, or the month's last when it is
+  // shorter (the 31st renews on Nov 30; it rolled over to Dec 1 until 10/30, when CI reached a Kiritimati Oct 31)
+  check(`${tz}: the renewal anniversary follows the shop's day`, enrol.json?.renewsAt === aMonthOn(shopDay), { renewsAt: enrol.json?.renewsAt, shopDay, want: aMonthOn(shopDay) })
 
   // --- the future-visit guard ----------------------------------------------
   const okToday = await call('PUT', `/api/clients/${ct.id}/profile`, { patchTestAt: shopDay })

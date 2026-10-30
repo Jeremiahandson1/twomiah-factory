@@ -6,7 +6,7 @@
 // POST /api/memberships/billing/run. Every charge is CLAIMED first: the UPDATE that sets last_billed_for names the
 // period and only matches a row not yet billed for it, so two runs can only produce one invoice per period.
 import { and, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm'
-import { dueDateFromTerms } from '@twomiah/tenant-backend'
+import { dueDateFromTerms, addMonthsClamped } from '@twomiah/tenant-backend'
 import { membershipPlan, membershipEnrollment, contact, invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonClock } from './days.ts'
@@ -24,13 +24,14 @@ const cycleOf = (plan: PlanRow | undefined | null) => String(plan?.billingCycle 
 /** A one-off membership is charged once and never renews. */
 export const isOneTime = (cycle: string) => cycle === 'one_time' || cycle === 'once'
 
-/** The next renewal date after `from`. Null for a plan that does not renew. */
-export function nextRenewal(from: string, cycle: string): string | null {
+/**
+ * The next renewal date after `from`, on the membership's own day of the month (`anchor`, its start date) or that
+ * month's last day: joined on the 31st, it renews Nov 30, then Dec 31. Null for a plan that does not renew. Rolling the
+ * Date's month instead turned Oct 31 into Dec 1, skipping November (CI on a Kiritimati shop's Oct 31, 10/30).
+ */
+export function nextRenewal(from: string, cycle: string, anchor: string = from): string | null {
   if (isOneTime(cycle)) return null
-  const d = new Date(`${from}T00:00:00.000Z`)
-  if (cycle === 'annual' || cycle === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1)
-  else d.setUTCMonth(d.getUTCMonth() + 1)
-  return iso(d)
+  return addMonthsClamped(from.slice(0, 8) + anchor.slice(8, 10), cycle === 'annual' || cycle === 'yearly' ? 12 : 1)
 }
 
 export type BilledOne = { enrollmentId: string; invoiceId: string; number: string; period: string; amount: number }
@@ -56,7 +57,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
       const [plan] = await tx.select().from(membershipPlan).where(eq(membershipPlan.id, row.planId)).limit(1)
       const cycle = cycleOf(plan)
       const price = round2(Number(plan?.price) || 0)
-      const renewsAt = nextRenewal(period, cycle)
+      const renewsAt = nextRenewal(period, cycle, row.startDate || period)
       // A new period is a new allowance.
       const credits = plan?.creditsTotal ?? null
 
@@ -125,7 +126,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
       const from = await today(row.companyId)
       await db.update(membershipEnrollment)
         // last_billed_for is today as well: the current period is treated as settled, so adopting raises no charge.
-        .set({ renewsAt: nextRenewal(from, cycle), lastBilledFor: from, updatedAt: new Date() } as any)
+        .set({ renewsAt: nextRenewal(from, cycle, row.startDate || from), lastBilledFor: from, updatedAt: new Date() } as any)
         .where(and(eq(membershipEnrollment.id, row.id), isNull(membershipEnrollment.renewsAt)))
     }
     return orphans.length

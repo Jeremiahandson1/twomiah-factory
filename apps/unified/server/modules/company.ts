@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
-  createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
+  createEmailAliasesRoutes, createEmailAliasesInternalRoute, resyncAliasesAfterTeamChange, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
   withoutNotReady, withinOffer, isValidTimeZone, companyRowTimeZone,
 } from '@twomiah/tenant-backend'
 import { z } from 'zod'
@@ -88,6 +88,11 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     return next()
   }
 
+  // The team, for an email address that is a team member's (billy@ → Billy, packages/tenant-backend emailAliases.ts).
+  const aliasMembers = async () => (await db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, isActive: user.isActive }).from(user))
+    .map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email, email: u.email, active: u.isActive !== false, owner: u.role === 'owner' }))
+  const aliasDeps = { db, emailAliasesTable: emailAlias, factoryApiClient, members: aliasMembers }
+
   const companyRoutes = createCompanyRoutes({
     db, tables: { company, user }, authenticate, requireAdmin: isAdmin,
     requirePermission: permissions.requirePermission, requireAnyPermission: permissions.requireAnyPermission,
@@ -95,6 +100,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     audit, template: vertical.featureSet,
     // A login that still holds work (jobs, commissions, shifts …) is deactivated, never deleted (data/userHolds.ts).
     heldBy: userHolds,
+    // Switched off, back on or removed: that person's addresses follow at once (to the owner, or back to them).
+    onTeamChanged: () => { void resyncAliasesAfterTeamChange(aliasDeps as any).catch(() => {}) },
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
@@ -117,7 +124,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
   const billing = new Hono().use('*', isAdmin).route('/', createSubscriptionRoutes({ db, permissions, factoryApiClient }))
 
   const account = new Hono().use('*', isAdmin).route('/', createAccountRoutes({ factoryApiClient }))
-  const emailAliases = new Hono().use('*', isAdmin).route('/', createEmailAliasesRoutes({ db, emailAliasesTable: emailAlias, factoryApiClient } as any))
+  const emailAliases = new Hono().use('*', isAdmin).route('/', createEmailAliasesRoutes(aliasDeps as any))
 
   // POST / is the public enquiry; the rest is the lead inbox, which signs people in itself (after its two inbound
   // routes, which carry their own secrets).
@@ -217,7 +224,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       { path: '/api/admin/domain', access: 'user' as const, router: createDomainRoutes({ permissions, factoryApiClient, businessAddress: async (id) => (await db.select({ phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, id)).limit(1))[0] ?? null }) },
       { path: '/api/audit', access: 'user' as const, router: auditLogRoutes },
       { path: '/api/leads', access: 'public' as const, router: leads },
-      { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute({ db, emailAliasesTable: emailAlias } as any) },
+      { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute(aliasDeps as any) },
       { path: '/api/internal/sync-subscription', access: 'factory' as const, router: createSubscriptionSyncRoute(billingDeps as any) },
       { path: '/api/internal/sync-features', access: 'factory' as const, router: syncFeatures },
       // The Factory's first call: the business, its owner, features and starting website (modules/provision.ts).

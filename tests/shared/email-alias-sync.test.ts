@@ -253,5 +253,13 @@ const T = tenant({ domain: 'pat-care.com', cloudflare_zone_id: 'z1' })
   crmAliases = saved
 }
 
+{
+  // An inbox on the business's own domain loops (a team member who signs in as billy@theirdomain, 10/30).
+  const loop = sync.aliasDestination('t-1', { localPart: 'billy', routingMode: 'forward', forwardTo: 'Billy@Pat-Care.com', enabled: true }, PARSE, 'pat-care.com')
+  check('a forward to the business\'s own domain is refused as a loop', 'error' in loop && /loop/.test((loop as any).error), loop)
+  const ok = sync.aliasDestination('t-1', { localPart: 'billy', routingMode: 'forward', forwardTo: 'billy@gmail.com', enabled: true }, PARSE, 'pat-care.com')
+  check('…an inbox elsewhere is not', 'destination' in ok && ok.destination === 'billy@gmail.com', ok)
+}
+
 console.log(`\nemail-alias-sync: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

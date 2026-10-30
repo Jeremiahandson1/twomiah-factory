@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { api } from '../api/client'
 
@@ -15,7 +15,16 @@ interface Alias {
   routingMode: 'forward' | 'crm'
   forwardTo: string | null
   enabled: boolean
+  /** A team member's address (the server sends these only where addresses can be a member's): */
+  userId?: string | null
+  deliversTo?: string | null
+  member?: { id: string; name: string; active: boolean } | null
+  fallback?: 'off' | 'removed' | null
 }
+
+/** The people an address can be given to; sent by the server only where it supports it. */
+interface Member { id: string; name: string; email: string }
+const OTHER = '__other__'
 
 interface CompanyInfo {
   domain?: string | null
@@ -57,7 +66,10 @@ export function EmailAliasesPage(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
-  const [newAlias, setNewAlias] = useState({ localPart: '', routingMode: 'forward' as 'forward' | 'crm', forwardTo: '' })
+  const [newAlias, setNewAlias] = useState({ localPart: '', routingMode: 'forward' as 'forward' | 'crm', forwardTo: '', userId: '' })
+  const [members, setMembers] = useState<Member[] | null>(null)
+  /** Once "Forward to" is picked by hand, typing the address no longer suggests a team member. */
+  const chosenByHand = useRef(false)
   const [status, setStatus] = useState<StatusReport | null>(null)
   const [resent, setResent] = useState<string>('')
 
@@ -93,6 +105,7 @@ export function EmailAliasesPage(): React.ReactElement {
       if (!aRes.ok) throw new Error('Failed to load aliases: ' + aRes.status)
       const aData = await aRes.json()
       setAliases(aData.aliases || [])
+      setMembers(Array.isArray(aData.members) ? aData.members : null)
       if (cRes.ok) {
         const cData = await cRes.json()
         setCompany({ domain: cData?.domain || cData?.company?.domain || null, email: cData?.email || cData?.company?.email || null })
@@ -110,12 +123,14 @@ export function EmailAliasesPage(): React.ReactElement {
     try {
       const res = await api.raw('/api/email-aliases', {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify(newAlias),
+        // A team member's address goes by their id; otherwise the typed inbox.
+        body: JSON.stringify(newAlias.userId ? { localPart: newAlias.localPart, routingMode: 'forward', userId: newAlias.userId } : { localPart: newAlias.localPart, routingMode: newAlias.routingMode, forwardTo: newAlias.forwardTo }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Create failed'); return }
       setAliases(prev => [...prev, data.alias])
-      setNewAlias({ localPart: '', routingMode: 'forward', forwardTo: company.email || '' })
+      setNewAlias({ localPart: '', routingMode: 'forward', forwardTo: company.email || '', userId: '' })
+      chosenByHand.current = false
       setAdding(false)
       loadStatus()
     } catch (err: any) { setError(err.message) }
@@ -204,7 +219,7 @@ export function EmailAliasesPage(): React.ReactElement {
           )}
 
           {aliases.map(a => (
-            <AliasRow key={a.id} alias={a} domain={domain} state={stateOf(a.localPart)} onResend={resendConfirmation} onUpdate={patch => updateAlias(a.id, patch)} onDelete={() => deleteAlias(a.id)} />
+            <AliasRow key={a.id} alias={a} domain={domain} members={members} state={stateOf(a.localPart)} onResend={resendConfirmation} onUpdate={patch => updateAlias(a.id, patch)} onDelete={() => deleteAlias(a.id)} />
           ))}
 
           {adding && domain && (
@@ -213,7 +228,12 @@ export function EmailAliasesPage(): React.ReactElement {
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Address</label>
                   <div className="flex items-center">
-                    <input type="text" placeholder="support" value={newAlias.localPart} onChange={e => setNewAlias(v => ({ ...v, localPart: e.target.value.trim().toLowerCase() }))} className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md text-sm" />
+                    <input type="text" placeholder="support" value={newAlias.localPart} onChange={e => {
+                      const localPart = e.target.value.trim().toLowerCase()
+                      // billy@ suggests Billy (first name, or first.last), until a choice is made by hand.
+                      const named = members?.find(m => { const [f, ...r] = m.name.toLowerCase().split(/\s+/); return localPart === f || localPart === [f, ...r].join('.') })
+                      setNewAlias(v => ({ ...v, localPart, ...(chosenByHand.current ? {} : { userId: named?.id ?? '' }) }))
+                    }} className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md text-sm" />
                     <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600 dark:text-slate-300 dark:bg-slate-800">@{domain}</span>
                   </div>
                 </div>
@@ -227,8 +247,16 @@ export function EmailAliasesPage(): React.ReactElement {
               </div>
               {newAlias.routingMode === 'forward' && (
                 <div className="mb-3">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Forward to</label>
-                  <input type="email" placeholder="you@yourbusiness.com" value={newAlias.forwardTo} onChange={e => setNewAlias(v => ({ ...v, forwardTo: e.target.value.trim() }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                  <label htmlFor="alias-forward-to" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Forward to</label>
+                  {members && members.length > 0 && (
+                    <select id="alias-forward-to" value={newAlias.userId || OTHER} onChange={e => { chosenByHand.current = true; setNewAlias(v => ({ ...v, userId: e.target.value === OTHER ? '' : e.target.value })) }} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-2">
+                      {members.map(m => <option key={m.id} value={m.id}>{m.name} — {m.email}</option>)}
+                      <option value={OTHER}>Another email…</option>
+                    </select>
+                  )}
+                  {newAlias.userId
+                    ? <p className="text-xs text-gray-600 dark:text-slate-300">Goes to the email they sign in with. If they are switched off, it goes to the owner instead.</p>
+                    : <input type="email" aria-label="Forward to email" placeholder="you@yourbusiness.com" value={newAlias.forwardTo} onChange={e => setNewAlias(v => ({ ...v, forwardTo: e.target.value.trim() }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />}
                 </div>
               )}
               <div className="flex gap-2">
@@ -247,20 +275,34 @@ export function EmailAliasesPage(): React.ReactElement {
   )
 }
 
-function AliasRow({ alias, domain, state, onResend, onUpdate, onDelete }: {
+function AliasRow({ alias, domain, members, state, onResend, onUpdate, onDelete }: {
   alias: Alias; domain: string | null | undefined
+  members: Member[] | null
   state?: StatusReport['aliases'][number]
   onResend: (destination: string) => void
   onUpdate: (patch: Partial<Alias>) => void; onDelete: () => void
 }) {
   const [editingForward, setEditingForward] = useState(false)
   const [forwardDraft, setForwardDraft] = useState(alias.forwardTo || '')
+  const [choice, setChoice] = useState<string>(alias.userId && alias.member?.active ? alias.userId : OTHER)
+  const save = () => {
+    onUpdate(choice !== OTHER ? { userId: choice } : { forwardTo: forwardDraft })
+    setEditingForward(false)
+  }
+  // Where the mail goes, in words: the member's name and inbox, the owner's while they are switched off, or the typed inbox.
+  const where = alias.member?.active
+    ? <>Forwards to <strong>{alias.member.name}</strong> ({alias.deliversTo})</>
+    : alias.fallback
+      ? <>Forwards to the owner (<strong>{alias.deliversTo || 'no owner email'}</strong>)</>
+      : <>Forwards to <strong>{alias.deliversTo ?? alias.forwardTo ?? '—'}</strong></>
 
   return (
-    <div className="border border-gray-200 rounded-md p-4 flex items-center gap-4">
+    // On a phone the controls go under the address: beside it they squeezed the address to "billy…" and its words to one
+    // per line (screenshot, 10/30).
+    <div className="border border-gray-200 rounded-md p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-sm truncate">{alias.localPart}{domain ? '@' + domain : ''}</span>
+          <span className="font-semibold text-sm break-all">{alias.localPart}{domain ? '@' + domain : ''}</span>
           {state && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${CHIP[state.state].cls}`}>{CHIP[state.state].label}</span>}
         </div>
         {state?.detail && (
@@ -271,27 +313,42 @@ function AliasRow({ alias, domain, state, onResend, onUpdate, onDelete }: {
             )}
           </div>
         )}
+        {alias.routingMode === 'forward' && alias.fallback && (
+          <div className="text-xs mt-0.5 text-amber-900 dark:text-amber-200">
+            {alias.fallback === 'off'
+              ? <>{alias.member?.name || 'Its team member'} is switched off, so this address goes to the owner. Give it to someone else, or delete it.</>
+              : <>Its team member was removed, so this address goes to the owner. Give it to someone else, or delete it.</>}
+          </div>
+        )}
         <div className="text-xs text-gray-500 dark:text-slate-400">
           {alias.routingMode === 'forward'
             ? (editingForward
-                ? <span className="inline-flex items-center gap-2">
-                    <input type="email" value={forwardDraft} onChange={e => setForwardDraft(e.target.value)} className="px-2 py-0.5 border border-gray-300 rounded text-xs" />
-                    <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600 dark:text-orange-200">Save</button>
-                    <button onClick={() => { setForwardDraft(alias.forwardTo || ''); setEditingForward(false) }} className="text-xs text-gray-500 dark:text-slate-400">Cancel</button>
+                ? <span className="inline-flex flex-wrap items-center gap-2">
+                    {members && members.length > 0 && (
+                      <select aria-label={'Forward ' + alias.localPart + ' to'} value={choice} onChange={e => setChoice(e.target.value)} className="px-2 py-0.5 border border-gray-300 rounded text-xs">
+                        {members.map(m => <option key={m.id} value={m.id}>{m.name} — {m.email}</option>)}
+                        <option value={OTHER}>Another email…</option>
+                      </select>
+                    )}
+                    {choice === OTHER && <input type="email" aria-label={'Forward ' + alias.localPart + ' to email'} value={forwardDraft} onChange={e => setForwardDraft(e.target.value)} className="px-2 py-0.5 border border-gray-300 rounded text-xs" />}
+                    <button onClick={save} className="text-xs text-orange-600 dark:text-orange-200">Save</button>
+                    <button onClick={() => { setForwardDraft(alias.forwardTo || ''); setChoice(alias.userId && alias.member?.active ? alias.userId : OTHER); setEditingForward(false) }} className="text-xs text-gray-500 dark:text-slate-400">Cancel</button>
                   </span>
-                : <>Forwards to <strong>{alias.forwardTo || '—'}</strong>{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">change</button></>)
+                : <>{where}{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">change</button></>)
             : <>Routes into CRM conversations</>}
         </div>
       </div>
-      <select value={alias.routingMode} onChange={e => onUpdate({ routingMode: e.target.value as any })} className="px-2 py-1 border border-gray-300 rounded text-xs">
-        <option value="forward">Forward</option>
-        <option value="crm">CRM</option>
-      </select>
-      <label className="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
-        <input type="checkbox" checked={alias.enabled} onChange={e => onUpdate({ enabled: e.target.checked })} />
-        Enabled
-      </label>
-      <button onClick={onDelete} className="text-xs text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200">Delete</button>
+      <div className="flex items-center gap-4 shrink-0">
+        <select aria-label={'How ' + alias.localPart + ' is handled'} value={alias.routingMode} onChange={e => onUpdate({ routingMode: e.target.value as any })} className="px-2 py-1 border border-gray-300 rounded text-xs">
+          <option value="forward">Forward</option>
+          <option value="crm">CRM</option>
+        </select>
+        <label className="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
+          <input type="checkbox" checked={alias.enabled} onChange={e => onUpdate({ enabled: e.target.checked })} />
+          Enabled
+        </label>
+        <button onClick={onDelete} className="text-xs text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200">Delete</button>
+      </div>
     </div>
   )
 }

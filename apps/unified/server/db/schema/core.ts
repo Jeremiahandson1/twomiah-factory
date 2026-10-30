@@ -212,6 +212,9 @@ export const emailAlias = pgTable('email_alias', {
   localPart: text('local_part').notNull(),
   routingMode: text('routing_mode').notNull().default('forward'), // 'forward' | 'crm'
   forwardTo: text('forward_to'),
+  // The team member the address is theirs (billy@ → Billy): it forwards to their email, follows it when it changes, and
+  // goes to the owner once they are switched off or removed (packages/tenant-backend emailAliases.ts deliversTo).
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
   enabled: boolean('enabled').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
