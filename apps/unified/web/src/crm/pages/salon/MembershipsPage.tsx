@@ -130,6 +130,20 @@ export default function MembershipsPage() {
     }
   };
 
+  // Paused for a declined card: start it again — billing restarts and the unpaid invoice is charged to the card on file now.
+  const resume = async (e: Enrollment) => {
+    if (!(await confirm(`Start ${e.clientName || 'this client'}'s ${e.planName || 'membership'} again? The unpaid invoice is charged to the card on file now. If it is declined, the membership stays paused.`, { title: 'Resume membership', confirmText: 'Resume it', danger: false }))) return;
+    try {
+      const r: any = await api.post(`/api/memberships/enrollments/${e.id}/resume`, {});
+      const result = r?.data?.resumeResult ?? r?.resumeResult;
+      if (result === 'paid' || result === 'no_invoice') toast.success('Membership resumed');
+      else toast.error('The card was not accepted — the membership is still paused. The member has been sent a new link to update their card.');
+      load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to resume the membership');
+    }
+  };
+
   const setAutoCharge = async (e: Enrollment, on: boolean) => {
     if (on && !(await confirm(`Has ${e.clientName || 'the client'} agreed to be charged for ${e.planName || 'this plan'} on their card on file each period? Each charge is made on your own Stripe account and they are emailed a receipt.`, { title: 'Charge their card automatically', confirmText: 'They agreed', danger: false }))) return;
     try {
@@ -267,6 +281,9 @@ export default function MembershipsPage() {
                               )}
                             </span>
                           )}
+                          {e.status === 'paused' && (
+                            <span className="mb-1 block text-xs text-amber-800 dark:text-amber-200" data-testid="paused-note">Paused — the card was declined on every try. The member has been emailed a link to update it; no credits can be used until it is paid.</span>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -279,7 +296,10 @@ export default function MembershipsPage() {
                           {mayAutoCharge && e.status === 'active' && !e.autoCharge && (
                             <button onClick={() => setAutoCharge(e, true)} className="ml-3 text-xs text-teal-700 hover:underline dark:text-teal-300">Charge card automatically</button>
                           )}
-                          {mayWorkEnrollment && e.status === 'active' && (
+                          {mayAutoCharge && e.status === 'paused' && (
+                            <button onClick={() => resume(e)} className="ml-3 text-xs text-teal-700 hover:underline dark:text-teal-300">Resume</button>
+                          )}
+                          {mayWorkEnrollment && (e.status === 'active' || e.status === 'paused') && (
                             <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
                           )}
                         </td>

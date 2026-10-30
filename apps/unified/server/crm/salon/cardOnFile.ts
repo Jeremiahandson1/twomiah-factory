@@ -166,12 +166,12 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
    * Stripe's own page to save a card, for a client — `via` says who agreed to the policy: the client (ticked on the booking
    * form) or the client in person at the desk (the seat that recorded it is kept). Null = card payments are not set up.
    */
-  async function startSetup(companyId: string, contactId: string, via: 'client_online' | 'staff_at_desk', userId: string | null, back: string = siteOrigin() + '/card-saved'): Promise<{ url: string } | null> {
+  async function startSetup(companyId: string, contactId: string, via: 'client_online' | 'staff_at_desk', userId: string | null, back: string = siteOrigin() + '/card-saved', extra: Record<string, string> = {}): Promise<{ url: string } | null> {
     const [c] = await db.select().from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1)
     if (!c) return null
     const page = await stripe().createCardSetupCheckout({
       companyId, contactRow: c, successUrl: back, cancelUrl: back + (back.includes('?') ? '&' : '?') + 'cancelled=1',
-      metadata: { consent_via: via, ...(userId ? { consent_user_id: userId } : {}) },
+      metadata: { ...extra, consent_via: via, ...(userId ? { consent_user_id: userId } : {}) },
     })
     return page ? { url: page.url } : null
   }
@@ -181,6 +181,11 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
    * card is kept on the client, with the policy words as they stand now and who agreed. Null = not ours, left to the invoices.
    * Told twice (Stripe retries), once: a card is one row per payment method.
    */
+  /** Told after a client's card is kept (or was already), with what the card page carried (a booking or a membership it was for). Idempotent callers only: Stripe repeats events. */
+  type SavedHook = (e: { companyId: string; contactId: string; metadata: Record<string, string> }) => Promise<void>
+  const savedHooks: SavedHook[] = []
+  const onSaved = (fn: SavedHook) => { savedHooks.push(fn) }
+
   async function claim(event: Stripe.Event, stripeAccount: string): Promise<Record<string, unknown> | null> {
     if (event.type !== 'checkout.session.completed') return null
     const session = event.data.object as Stripe.Checkout.Session
@@ -205,6 +210,7 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
       await audit.log({ action: 'create', entity: 'client_card', entityId: made.id, metadata: { contactId, brand: saved.brand, last4: saved.last4, consentVia: via }, companyId, req: consentUserId ? { user: { userId: consentUserId, id: consentUserId, companyId } } : undefined })
       live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'client_card' })
     }
+    for (const hook of savedHooks) await hook({ companyId, contactId, metadata: (session.metadata || {}) as Record<string, string> }).catch((e: any) => logger.error('[cardOnFile] after-card step failed', { error: e?.message || String(e) }))
     return { handled: true, cardSaved: !!made, contactId }
   }
 
@@ -300,7 +306,7 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
     return { charge: row, receipt }
   }
 
-  return { policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, connectedAccount }
+  return { policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, connectedAccount, onSaved }
 }
 
 export type CardOnFile = ReturnType<typeof createCardOnFile>

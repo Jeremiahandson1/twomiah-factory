@@ -309,6 +309,13 @@
       "when": 1793381086144,
       "tag": "0043_patch_test_result",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793382530350,
+      "tag": "0044_membership_pause",
+      "breakpoints": true
     }
   ]
 }

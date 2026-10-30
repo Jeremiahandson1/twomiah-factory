@@ -13,8 +13,17 @@ const calls: Array<{ args: any; opts: any }> = []
 let intents = 0
 const byKey = new Map<string, any>()
 const declining = new Set<string>()
+let sessions = 0
+const sessionMeta: Record<string, Record<string, string>> = {}
+const sessionCalls: Array<{ args: any; opts: any }> = []
 const fakeStripe = {
   customers: { retrieve: async (id: string) => ({ id, deleted: false }), create: async () => ({ id: 'cus_1' }) },
+  checkout: {
+    sessions: {
+      create: async (args: any, opts: any) => { sessionCalls.push({ args, opts }); sessions++; const id = 'cs_' + sessions; sessionMeta[id] = args.metadata; return { id, url: 'https://checkout.stripe.com/c/setup/' + id } },
+      retrieve: async (id: string) => ({ id, mode: 'setup', customer: 'cus_new', metadata: sessionMeta[id], setup_intent: { payment_method: { id: 'pm_' + id, type: 'card', card: { brand: 'visa', last4: '1111', exp_month: 11, exp_year: 2032 } } } }),
+    },
+  },
   paymentIntents: {
     create: async (args: any, opts: any) => {
       calls.push({ args, opts })
@@ -64,6 +73,7 @@ describe('salon: memberships charged to the card on file', () => {
   const settle = () => as('owner', '/api/memberships/enrollments')
 
   beforeAll(async () => {
+    process.env.FACTORY_SYNC_KEY = 'factory-key'
     t = await bootTenant({ vertical: 'salon', stripe: fakeStripe })
     const s = await seedOwner(t)
     co = s.company.id
@@ -75,6 +85,7 @@ describe('salon: memberships charged to the card on file', () => {
       ids[key] = u.id
       tokens[key] = ((await (await t.call('/api/auth/login', { method: 'POST', json: { email, password: PASSWORD } })).json()) as any).accessToken
     }
+    await t.db.update(t.schema.company).set({ email: 'salon@example.com' } as any).where(eq(t.schema.company.id, co))
     plan = (await ins(t.schema.membershipPlan, { companyId: co, name: 'Glow Club', price: '60', billingCycle: 'monthly' })).id
     const real = t.services.email.send.bind(t.services.email)
     ;(t.services.email as any).send = async (to: string, name: string, data: any) => { sent.push({ to, name, data }); return real(to, name, data) }
@@ -178,22 +189,108 @@ describe('salon: memberships charged to the card on file', () => {
     expect((await ledger(r.body.id)).map((x: any) => x.status)).toEqual(['declined', 'succeeded'])
   })
 
-  test('three declines switch auto-charge off for that member; the invoice stays open; nothing more is tried', async () => {
+  test('three declines PAUSE the membership: no credits, no new invoices, the invoice stays open, the member gets a card link, the salon is told', async () => {
     const c = await client('Hopeless Hal')
     declining.add(c)
     calls.length = 0; sent.length = 0
     const r = await enrol('manager', c, agreed)
     for (let i = 0; i < 2; i++) { await backdateTries(r.body.id, 4 * (i + 1)); await settle() }
     expect((await ledger(r.body.id)).map((x: any) => x.status)).toEqual(['declined', 'declined', 'declined'])
-    expect((await enrolment(r.body.id)).autoCharge).toBe(false)
-    expect(sent.filter((m) => m.name === 'membershipPaymentFailed').pop()!.data.next).toContain('will not try again')
+    const row = await enrolment(r.body.id)
+    expect(row.status).toBe('paused')
+    expect(row.pausedForPaymentAt).toBeTruthy()
+    expect(row.autoCharge).toBe(true)                          // the agreement stands: a new card is charged on resume
+    // the member: told, with a private link; the salon: told too
+    const toMember = sent.filter((m) => m.name === 'membershipPaused')
+    expect(toMember).toHaveLength(1)
+    expect(toMember[0].data.link).toBe(`${process.env.PUBLIC_URL || toMember[0].data.link.split('/api/')[0]}/api/member-card/${row.cardUpdateToken}`)
+    expect(sent.filter((m) => m.name === 'membershipPausedSalon')).toHaveLength(1)
+    // nothing more is tried, however long we wait
     const before = charges().length
     await backdateTries(r.body.id, 30)
     await settle(); await settle()
     expect(charges()).toHaveLength(before)
     expect((await invoiceOf(r.body.invoiceId)).status).toBe('open')
-    expect((await enrolment(r.body.id)).status).toBe('active')
+    // no credits while unpaid, and no renewal invoice raised for a paused member
+    await t.db.update(t.schema.membershipEnrollment).set({ creditsRemaining: 3 } as any).where(eq(t.schema.membershipEnrollment.id, r.body.id))
+    const spend = await as('manager', `/api/memberships/enrollments/${r.body.id}/redeem`, 'POST')
+    expect(spend.status).toBe(400)
+    expect((await enrolment(r.body.id)).creditsRemaining).toBe(3)
+    await dueNow(r.body.id)
+    await settle()
+    expect(await t.db.select().from(t.schema.invoice).where(eq(t.schema.invoice.contactId, c))).toHaveLength(1)
     declining.delete(c)
+  })
+
+  test('the member\'s private card link: bad link 404; the page opens Stripe on the salon\'s account; the new card restarts the membership and pays the open invoice', async () => {
+    const c = await client('Updating Uma')
+    declining.add(c)
+    const r = await enrol('manager', c, agreed)
+    for (let i = 0; i < 2; i++) { await backdateTries(r.body.id, 4 * (i + 1)); await settle() }
+    const token = (await enrolment(r.body.id)).cardUpdateToken as string
+    expect(token).toBeTruthy()
+    expect((await t.call('/api/member-card/not-a-real-token-at-all-1234')).status).toBe(404)
+    const pageRes = await t.call(`/api/member-card/${token}`)
+    expect(pageRes.status).toBe(200)
+    expect(await pageRes.text()).toContain('Update my card')
+    sessionCalls.length = 0
+    const go = await t.call(`/api/member-card/${token}`, { method: 'POST', redirect: 'manual' } as any)
+    expect(go.status).toBe(303)
+    expect(go.headers.get('location')).toStartWith('https://checkout.stripe.com/c/setup/')
+    expect(sessionCalls).toHaveLength(1)
+    expect(sessionCalls[0].opts.stripeAccount).toBe('acct_salon')   // the salon's own account, never Twomiah's
+    const sid = go.headers.get('location')!.split('/').pop()!
+    expect(sessionMeta[sid].membership_enrollment_id).toBe(r.body.id)
+    // the card is good now; Stripe tells us the page was finished
+    declining.delete(c)
+    calls.length = 0
+    const done = await t.call('/api/stripe/factory-event', {
+      method: 'POST', headers: { 'X-Factory-Key': 'factory-key' },
+      json: { event: { type: 'checkout.session.completed', account: 'acct_salon', data: { object: { id: sid, mode: 'setup', metadata: sessionMeta[sid] } } } },
+    })
+    expect(done.status).toBe(200)
+    const row = await enrolment(r.body.id)
+    expect(row.status).toBe('active')
+    expect(row.cardUpdateToken).toBeNull()
+    expect(row.pausedForPaymentAt).toBeNull()
+    expect((await invoiceOf(r.body.invoiceId)).status).toBe('paid')
+    expect(charges()).toHaveLength(1)
+    expect(charges()[0].args.payment_method).toBe(`pm_${sid}`)       // the NEW card
+    // the link is spent
+    expect((await t.call(`/api/member-card/${token}`)).status).toBe(404)
+    // Stripe repeating the event charges nothing more
+    await t.call('/api/stripe/factory-event', {
+      method: 'POST', headers: { 'X-Factory-Key': 'factory-key' },
+      json: { event: { type: 'checkout.session.completed', account: 'acct_salon', data: { object: { id: sid, mode: 'setup', metadata: sessionMeta[sid] } } } },
+    })
+    expect(charges()).toHaveLength(1)
+  })
+
+  test('resume by hand: a seat without payment rights is refused; one with them restarts it; a card that still declines pauses it again', async () => {
+    const c = await client('Resuming Rex')
+    declining.add(c)
+    const r = await enrol('manager', c, agreed)
+    for (let i = 0; i < 2; i++) { await backdateTries(r.body.id, 4 * (i + 1)); await settle() }
+    expect((await enrolment(r.body.id)).status).toBe('paused')
+    const refused = await as('ana', `/api/memberships/enrollments/${r.body.id}/resume`, 'POST')
+    expect(refused.status).toBe(403)
+    expect((await enrolment(r.body.id)).status).toBe('paused')
+    // still declining: one fresh try, then paused again with a new link
+    const oldToken = (await enrolment(r.body.id)).cardUpdateToken
+    const again = await as('manager', `/api/memberships/enrollments/${r.body.id}/resume`, 'POST')
+    expect(again.status).toBe(200)
+    const row = await enrolment(r.body.id)
+    expect(row.status).toBe('paused')
+    expect(row.cardUpdateToken).not.toBe(oldToken)
+    expect((await ledger(r.body.id)).map((x: any) => x.status)).toEqual(['declined', 'declined', 'declined', 'declined'])
+    // the card works now
+    declining.delete(c)
+    const ok = await as('manager', `/api/memberships/enrollments/${r.body.id}/resume`, 'POST')
+    expect(ok.status).toBe(200)
+    expect((await enrolment(r.body.id)).status).toBe('active')
+    expect((await invoiceOf(r.body.invoiceId)).status).toBe('paid')
+    // not paused any more: nothing to resume
+    expect((await as('manager', `/api/memberships/enrollments/${r.body.id}/resume`, 'POST')).status).toBe(409)
   })
 
   test('a try that died half-way is resumed under the same key — Stripe cannot charge it twice', async () => {

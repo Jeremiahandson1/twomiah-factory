@@ -21,6 +21,7 @@ import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
 import { createCardOnFileRoutes } from './cardOnFile.ts'
+import { createMemberCardRoutes } from './cardPages.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
 import { Hono } from 'hono'
@@ -81,6 +82,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     ] as Mount[] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
+    // The paused member's private card page, linked from the email (404 while Card on file is off).
+    ...(salonBook ? [{ path: '/api/member-card', access: 'public', feature: 'card_on_file', router: createMemberCardRoutes(d, s.cards) } as Mount] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]
 }

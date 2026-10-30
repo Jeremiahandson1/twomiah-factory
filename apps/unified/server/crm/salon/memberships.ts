@@ -198,6 +198,18 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     return one(c, updated)
   })
 
+  // POST /memberships/enrollments/:id/resume — start a membership paused for a declined card again; billing restarts and the
+  // unpaid invoice is charged to the card on file now. Spending money, so it asks for what taking a payment asks for.
+  app.post('/enrollments/:id/resume', requirePermission('invoices:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const out = await billing.resume(c.req.param('id'), currentUser.companyId)
+    if (!out) return fail(c, 404, 'Enrollment not found')
+    if (out.status === 'not_paused') return fail(c, 409, 'Only a membership paused for a declined card can be resumed.', 'NOT_PAUSED')
+    refresh(currentUser.companyId, 'membership_enrollment')
+    const [row] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, c.req.param('id'))).limit(1)
+    return one(c, { ...row, resumeResult: out.outcome })
+  })
+
   app.put('/enrollments/:id', requirePermission('contacts:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
@@ -210,6 +222,8 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     // The agreement to be charged was given by THIS client: moving the membership to another client ends it.
     if (body.contactId && body.contactId !== existing.contactId && existing.autoCharge) updates.autoCharge = false
     if (updates.cancelledAt) updates.cancelledAt = new Date(updates.cancelledAt)
+    // Any status change ends the pause for a card: the private card link stops working and the note on it is cleared.
+    if (existing.status === 'paused' && 'status' in body && body.status !== 'paused') { updates.pausedForPaymentAt = null; updates.cardUpdateToken = null }
     if (body.status === 'cancelled' && !existing.cancelledAt && !updates.cancelledAt) updates.cancelledAt = new Date()
 
     const [updated] = await db.update(membershipEnrollment).set(updates).where(eq(membershipEnrollment.id, id)).returning()

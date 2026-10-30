@@ -81,6 +81,10 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
   autoCharge: boolean('auto_charge').default(false).notNull(),
   autoChargeConsentAt: timestamp('auto_charge_consent_at'),
   autoChargeConsentUserId: text('auto_charge_consent_user_id').references(() => user.id, { onDelete: 'set null' }),
+  /** Paused because the card was declined on every try (status 'paused' too): no credits while unpaid. Resuming clears it. */
+  pausedForPaymentAt: timestamp('paused_for_payment_at'),
+  /** The private link in the member's email that opens Stripe's card page for a new card (/membership/card/<token>); cleared on resume. */
+  cardUpdateToken: text('card_update_token'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
