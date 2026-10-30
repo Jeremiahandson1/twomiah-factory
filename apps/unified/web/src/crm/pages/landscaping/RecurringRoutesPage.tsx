@@ -4,7 +4,7 @@
 // id, which nothing on the screen showed. It is the property picker Snow Billing and Area Pricing use (T14 M7's fix,
 // never carried to this page).
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowUp, ArrowDown, CalendarPlus } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
@@ -38,12 +38,20 @@ interface Stop {
   pricePerVisit?: string | number;
 }
 
-interface RouteDetail { id: string; name: string; dayName: string; stops?: Stop[] }
+interface RouteDetail { id: string; name: string; dayName: string; startTime?: string; stops?: Stop[] }
 
-type RouteForm = { name: string; dayOfWeek: number; estimatedHours: string; notes: string }
+/** A visit of GET /api/recurring-routes/:id/visits — a job the route made. */
+interface Visit { id: string; number: string; title: string; status: string; scheduledDate: string; scheduledTime: string | null }
+
+const STATUS_WORDS: Record<string, string> = {
+  scheduled: 'Scheduled', dispatched: 'On the way', in_progress: 'In progress', completed: 'Done', cancelled: 'Cancelled',
+}
+const dayWords = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+type RouteForm = { name: string; dayOfWeek: number; startTime: string; estimatedHours: string; notes: string }
 type StopForm = { siteId: string; serviceType: string; estimatedMinutes: string; pricePerVisit: string }
 
-const EMPTY_ROUTE: RouteForm = { name: '', dayOfWeek: 1, estimatedHours: '', notes: '' }
+const EMPTY_ROUTE: RouteForm = { name: '', dayOfWeek: 1, startTime: '07:00', estimatedHours: '', notes: '' }
 const EMPTY_STOP: StopForm = { siteId: '', serviceType: 'mowing', estimatedMinutes: '30', pricePerVisit: '' }
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
@@ -78,6 +86,10 @@ export default function RecurringRoutesPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<RouteForm>(EMPTY_ROUTE)
   const [stopForm, setStopForm] = useState<StopForm>(EMPTY_STOP)
+  // The route's visits on the calendar, and the weeks to make next (a mowing month by default).
+  const [visits, setVisits] = useState<Visit[]>([])
+  const [weeks, setWeeks] = useState('4')
+  const [making, setMaking] = useState(false)
   const { sites, reloadSites } = useSites()
 
   const loadBoard = async () => {
@@ -95,7 +107,39 @@ export default function RecurringRoutesPage() {
     try {
       const res = await api.get(`/api/recurring-routes/${id}`) as RouteDetail
       setSelected(id); setDetail(res)
+      await loadVisits(id)
     } catch (error) { toast.error(serverMessage(error, 'Failed to load route')) }
+  }
+
+  const loadVisits = async (id: string) => {
+    try {
+      const res = await api.get(`/api/recurring-routes/${id}/visits`) as { data?: Visit[] }
+      setVisits(Array.isArray(res?.data) ? res.data : [])
+    } catch { setVisits([]) }
+  }
+
+  /** One stop up or down: the order is sent whole, and the server re-times the visits still to do to match. */
+  const moveStop = async (index: number, by: -1 | 1) => {
+    if (!detail?.stops) return
+    const ids = detail.stops.map((s) => s.id)
+    const to = index + by
+    if (to < 0 || to >= ids.length) return
+    ;[ids[index], ids[to]] = [ids[to], ids[index]]
+    try {
+      await api.put(`/api/recurring-routes/${detail.id}/stops/reorder`, { stopIds: ids })
+      await openRoute(detail.id)
+    } catch (error) { toast.error(serverMessage(error, 'Failed to move the stop')) }
+  }
+
+  const makeVisits = async () => {
+    if (!detail) return
+    setMaking(true)
+    try {
+      const res = await api.post(`/api/recurring-routes/${detail.id}/visits`, { weeks: Number(weeks) }) as { message?: string }
+      toast.success(res?.message || 'Visits made')
+      await loadVisits(detail.id)
+    } catch (error) { toast.error(serverMessage(error, 'Failed to make visits')) }
+    finally { setMaking(false) }
   }
 
   const createRoute = async () => {
@@ -154,11 +198,14 @@ export default function RecurringRoutesPage() {
       </div>
 
       {showForm && (
-        <div className="bg-white border dark:border-slate-700 rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 items-end dark:bg-slate-900">
+        <div className="bg-white border dark:border-slate-700 rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-5 gap-3 items-end dark:bg-slate-900">
           <input className="input" aria-label="Route name" placeholder="Route name (e.g. Monday A)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <select className="input" aria-label="Day" value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: parseInt(e.target.value, 10) })}>
             {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
           </select>
+          <label className="text-xs text-gray-600 dark:text-slate-400">Crew leaves at
+            <input className="input mt-1" aria-label="Crew leaves at" type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+          </label>
           <input className="input" aria-label="Estimated hours" type="number" placeholder="Est. hours" value={form.estimatedHours} onChange={(e) => setForm({ ...form, estimatedHours: e.target.value })} />
           <button onClick={createRoute} className="btn-primary">Create</button>
         </div>
@@ -196,7 +243,7 @@ export default function RecurringRoutesPage() {
         <div className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
           <div className="flex justify-between items-start mb-3">
             <div>
-              <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}</span></h2>
+              <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}{detail.startTime ? ` · crew leaves ${detail.startTime}` : ''}</span></h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
             </div>
             {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete route</button>}
@@ -208,6 +255,12 @@ export default function RecurringRoutesPage() {
                 <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {codeLabel(s.serviceType)} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
                   {s.pricePerVisit !== undefined && <span className="font-medium">{money(Number(s.pricePerVisit))}</span>}
+                  {mayEditStops && (
+                    <span className="flex items-center">
+                      <button aria-label={`Move ${s.siteName || 'stop'} earlier`} disabled={i === 0} onClick={() => moveStop(i, -1)} className="p-1 disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
+                      <button aria-label={`Move ${s.siteName || 'stop'} later`} disabled={i === (detail.stops?.length ?? 0) - 1} onClick={() => moveStop(i, 1)} className="p-1 disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
+                    </span>
+                  )}
                   {mayEditStops && <button aria-label="Remove stop" onClick={() => removeStop(s.id)} className="text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                 </span>
               </div>
@@ -225,6 +278,38 @@ export default function RecurringRoutesPage() {
             {maySeeMoney && <input className="input" aria-label="Price per visit" type="number" placeholder="Price/visit" value={stopForm.pricePerVisit} onChange={(e) => setStopForm({ ...stopForm, pricePerVisit: e.target.value })} />}
             <button onClick={addStop} className="btn-primary">Add Stop</button>
           </div>}
+
+          {/* The route made into the crew's days: real jobs on the Schedule, Crew View and phone. */}
+          <div className="border-t dark:border-slate-700 mt-4 pt-3">
+            <div className="flex items-end justify-between gap-3 flex-wrap mb-2">
+              <div>
+                <h3 className="font-medium text-sm">Visits on the schedule</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Each stop becomes a job on {detail.dayName}s, in this order, so the crew sees the day on the Schedule and their phone.</p>
+              </div>
+              {mayCreateRoute && (
+                <div className="flex items-end gap-2">
+                  <label className="text-xs text-gray-600 dark:text-slate-400">Weeks to make
+                    <input className="input mt-1 w-20" aria-label="Weeks to make" type="number" min={1} max={26} value={weeks} onChange={(e) => setWeeks(e.target.value)} />
+                  </label>
+                  <button onClick={makeVisits} disabled={making || (detail.stops || []).length === 0} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+                    <CalendarPlus className="w-4 h-4" /> {making ? 'Making…' : 'Make visits'}
+                  </button>
+                </div>
+              )}
+            </div>
+            {visits.length === 0
+              ? <p className="text-gray-500 dark:text-slate-400 text-sm">No visits in the next four weeks.</p>
+              : (
+                <div className="space-y-1">
+                  {visits.map((v) => (
+                    <div key={v.id} className="flex justify-between text-sm border-b dark:border-slate-700 py-1.5">
+                      <span><span className="text-gray-500 dark:text-slate-400 mr-2">{dayWords(v.scheduledDate)}{v.scheduledTime ? ` · ${v.scheduledTime}` : ''}</span>{v.title}</span>
+                      <span className="text-xs text-gray-600 dark:text-slate-300">{STATUS_WORDS[v.status] || v.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
         </div>
       )}
     </div>
