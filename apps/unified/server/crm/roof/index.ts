@@ -6,10 +6,13 @@ import type { CrmDeps } from '../deps.ts'
 import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
+import { createRoofCollector } from './collected.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
   if (!d.settings?.roof) return []
+  // A job whose invoices are all paid is Collected (./collected.ts), however the money came in.
+  d.services.onInvoicePaid?.(createRoofCollector(d).collectIfPaid)
   return ([
     ...insuranceMounts(d),
     ...reportsMounts(d),

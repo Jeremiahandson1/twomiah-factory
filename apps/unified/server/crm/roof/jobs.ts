@@ -40,6 +40,7 @@ import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
+import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -47,8 +48,6 @@ import { partialOf } from '@twomiah/tenant-backend'
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MEDIA_PREFIX = '/media/'
-/** The stage at which a roofing job is done and the homeowner is asked for a review (askForReview). */
-const REVIEW_STAGE = 'collected'
 
 // Date fields arrive as strings from the form; an unparseable one reached Postgres as an Invalid Date and 500'd. '' clears
 // the field, a bad value is a 400 naming it. The date of loss is a calendar day (the CRM's day marker, as an invoice's due
@@ -68,23 +67,6 @@ const jobDates = (data: Record<string, any>, tz: string): { error?: string; valu
     values[f] = r.value
   }
   return { values }
-}
-
-/**
- * What the homeowner is texted when a job reaches a stage. A link only where the office has given them the portal: the
- * CRM's portal is a private link per customer, so a text without one says where else to look.
- */
-const AUTO_SMS: Record<string, (p: { first: string; company: string; date: string; link: string | null }) => string> = {
-  inspection_scheduled: (p) => `Hi ${p.first}, your roof inspection is scheduled for ${p.date}. – ${p.company}`,
-  inspected: (p) => `Hi ${p.first}, your roof inspection is complete! We'll be preparing your estimate shortly. – ${p.company}`,
-  measurement_ordered: (p) => `Hi ${p.first}, we've ordered measurements for your roof. We'll have your proposal ready soon. – ${p.company}`,
-  proposal_sent: (p) => `Hi ${p.first}, your roof proposal is ready for review. ${p.link ? `View it at ${p.link}` : 'Check your email for it'}. – ${p.company}`,
-  signed: (p) => `Hi ${p.first}, your contract is signed! We'll be in touch to schedule installation. – ${p.company}`,
-  material_ordered: (p) => `Hi ${p.first}, materials for your roof have been ordered and are on the way. – ${p.company}`,
-  in_production: (p) => `Hi ${p.first}, your roof installation has started today! Our crew is on-site. – ${p.company}`,
-  final_inspection: (p) => `Hi ${p.first}, your new roof is complete! We'll be doing a final inspection. – ${p.company}`,
-  invoiced: (p) => `Hi ${p.first}, your invoice is ready.${p.link ? ` Pay online at ${p.link}` : ''} – ${p.company}`,
-  collected: (p) => `Hi ${p.first}, payment received — thank you!${p.link ? ` Your warranty info is at ${p.link}` : ''} – ${p.company}`,
 }
 
 /** The refusal for the measurement stage while Measurement Reports is off (./validation.ts pipelineFor). */
@@ -200,6 +182,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const canSee = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
+  // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
+  // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
+  const { companyFeatures, askForReview, textHomeowner } = createStageEffects(d)
 
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
   /**
@@ -572,46 +557,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
-  /**
-   * A finished roof asks the homeowner for a review, as a completed job does everywhere else (crm/services.ts
-   * jobHooks.onComplete): when Review Requests is on, a request is made for the processor to send — or not, where the
-   * owner has left Auto-Request off (the reviews service decides; live test 2026-10-22). Collected is the end of a
-   * roofing job: built, inspected, billed and paid. One request per job, however often the stage is reached.
-   */
-  async function askForReview(companyId: string, jobId: string, stage: string) {
-    if (stage !== REVIEW_STAGE) return
-    try {
-      if (!(await companyFeatures(companyId)).includes('google_reviews')) return
-      await d.services.reviews.scheduleReviewRequest(jobId)
-    } catch (err) { d.logger?.warn?.('[roof] review request not scheduled', { error: (err as Error).message }) }
-  }
-
-  /** The business's switched-on features (company.enabled_features). */
-  async function companyFeatures(companyId: string): Promise<string[]> {
-    const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-    return (co?.enabledFeatures as string[] | null) || []
-  }
   /** A stage a job may be put in here: a terminal one, or one of the pipeline this business walks (pipelineFor). */
   async function stageOpen(companyId: string, status: string): Promise<boolean> {
     return status !== MEASUREMENT_STAGE || pipelineFor(await companyFeatures(companyId)).includes(status)
-  }
-
-  /** The stage's text to the homeowner, through the shared sender (it refuses an opted-out number and unset-up texting). */
-  async function textHomeowner(companyId: string, row: any, stage: string) {
-    if (!row.contactId) return
-    const [co] = await db.select({ name: company.name, enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-    const features = (co?.enabledFeatures as string[] | null) || []
-    if (!features.includes('two_way_texting') && !features.includes('all')) return
-    const [who] = await db.select().from(contact).where(and(eq(contact.id, row.contactId), eq(contact.companyId, companyId))).limit(1)
-    if (!who?.mobile && !who?.phone) return
-    const portalOpen = who.portalEnabled && who.portalToken && (!who.portalTokenExp || new Date(who.portalTokenExp) > new Date())
-    const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
-    const message = AUTO_SMS[stage]({
-      first: firstNameOf(who.name), company: co?.name || '',
-      date: row.inspectionDate ? new Date(row.inspectionDate).toLocaleDateString('en-US') : 'TBD',
-      link: portalOpen && origin ? `${origin}/portal/${who.portalToken}` : null,
-    })
-    await d.services.sms.sendSMS(companyId, { contactId: who.id, message, jobId: row.id })
   }
 
   // POST /:id/photos — a photo, its type read from its bytes (an HTML file sent as image/png was stored as one, M9).

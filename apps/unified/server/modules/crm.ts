@@ -303,7 +303,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
     loadPdf: loadInvoicePdf, audit,
     options: {
-      timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId),
+      timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.commissionEarner.earnForInvoice(invoiceId); await s.afterInvoicePaid(invoiceId) },
       // A deposit, progress or final invoice is never edited above what is left of its quote (crm/billing/quoteBilling.ts).
       checkTotal: (existing: any, total: number) => quoteBilling.checkTotal(existing, total),
       // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
