@@ -32,10 +32,14 @@ Housecall Pro — [Mobile FAQ](https://help.housecallpro.com/en/articles/4747652
 completion gate (row 8), offline reading (row 11) and auto-timekeeping (row 9) are what a full match still needs.
 
 **Unverified:** none of the phone screens has been run on a device or emulator in this session. The rule and wording are tested
-as plain TypeScript; the screens were type-checked and pass the design-kit and route tests. **Delivery of the at-least-once
-queue:** the server ignores `Idempotency-Key`; the moves are safe to repeat (a status change to the status it is already in is
-refused with 409, which would show as "couldn't send" for a send that actually landed — see Decisions), the checklist carries its own id.
+as plain TypeScript; the screens were type-checked and pass the design-kit and route tests.
 
-**Decisions for the owner:** (1) If the phone loses the reply to a "start" the server did take, the repeat is refused ("already
-started") and shows as *Couldn't send — tap to fix* even though the job moved. Fixing it properly is server-side idempotency (a
-migration). (2) A queued "on my way" texts the customer when it is sent, which can be well after the tap.
+**What the shared server does with a repeated or late move (read in `jobs.ts` `transition`, not tested here):** `/dispatch`,
+`/start` and `/complete` set the status without checking where the job was. So (a) a move repeated after the phone lost the
+reply is harmless to the status, but runs the job's hook again — a second "on my way" / "arrived" text to the customer where
+`textArrival` is on; (b) a move that arrives late, after the office has already moved the job on (say completed it), moves it back
+and clears the completion stamp. The queue keeps one job's moves in order, so the tech's own sequence is safe; it is the race
+with the office that is open. Closing both is a server rule ("only forward") in the shared jobs module — not done here.
+
+**Decisions for the owner:** (1) Should a late move from a phone be refused when the job has already moved past it? (2) A queued
+"on my way" texts the customer when it is sent, which can be well after the tap.
