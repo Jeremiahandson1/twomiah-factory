@@ -257,6 +257,12 @@ describe('#7 where enquiries come from', () => {
     expect(years.json.totals.value).toBeGreaterThanOrEqual(5500)
     expect((await k.O('GET', '/api/event-reports/years?year=1800')).status).toBe(400)
   })
+
+  test('with the feature off the source stays the free text it always was', async () => {
+    await k.features([...BASE, ...DEPTH.filter((f) => f !== 'event_reports')])
+    expect((await k.O('POST', '/api/events', { name: 'Free text', eventDate: later(170), source: 'a billboard' })).status).toBe(201)
+    await k.features([...BASE, ...DEPTH])
+  })
 })
 
 describe('#3 the catering form goes into the event book', () => {

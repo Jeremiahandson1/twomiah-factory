@@ -101,7 +101,7 @@ export function createEventPaymentRoutes(d: CrmDeps) {
         id: p.id, label: p.label, amount: p.amount, dueDate: p.dueDate, state: p.state, paidAmount: p.paidAmount,
         remindedBeforeAt: r?.reminderBeforeAt || null, remindedDueAt: r?.reminderDueAt || null, remindedOverdueAt: r?.reminderOverdueAt || null,
         autopayStatus: r?.autopayStatus || null, autopayError: r?.autopayError || null,
-        ...(mayLink && p.state !== 'paid' && p.state !== 'void' ? { payPath: `/pay/${await payTokenFor(db, p.id)}` } : {}),
+        ...(mayLink && p.state !== 'paid' && p.state !== 'void' ? { payPath: `/event-pay/${await payTokenFor(db, p.id)}` } : {}),
       })
     }
     const [auto] = await db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, ev.id), eq(eventAutopay.companyId, u.companyId))).limit(1)
@@ -156,7 +156,7 @@ async function sendReminder(d: CrmDeps, p: any, kind: Kind): Promise<{ ok: true 
     (auto && kind !== 'overdue' ? ` We will charge the ${auto.brand || 'card'} ending ${auto.last4} you left for this event on that day.` : ' You can pay by card with the button below.')
   await d.services.emailService.send(client.email, 'eventNote', {
     companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: `${m.inst.label}: ${money(m.owed)} ${kind === 'overdue' ? 'past due' : 'for ' + m.ev.name}`,
-    headline, body, button: auto && kind !== 'overdue' ? 'See your payment' : 'Pay now', path: `/pay/${m.row.payToken}`,
+    headline, body, button: auto && kind !== 'overdue' ? 'See your payment' : 'Pay now', path: `/event-pay/${m.row.payToken}`,
   })
   return { ok: true }
 }
@@ -257,7 +257,7 @@ export async function runAutopay(d: CrmDeps, now = new Date()): Promise<number> 
           if (client?.email && !client.emailOptOut) {
             await d.services.emailService.send(client.email, 'eventNote', {
               companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: `We could not charge your card for ${ev.name}`,
-              headline: `The card ending ${auto.last4} did not go through for ${inst.label}.`, body: `${money(owed)} is due. Please pay with another card with the button below.`, button: 'Pay now', path: `/pay/${token}`,
+              headline: `The card ending ${auto.last4} did not go through for ${inst.label}.`, body: `${money(owed)} is due. Please pay with another card with the button below.`, button: 'Pay now', path: `/event-pay/${token}`,
             })
           }
         } catch { /* the failure is on the event either way */ }

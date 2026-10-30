@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
+import { SpaceMinimums } from '../../eventDepth'
 import FormError, { errorText } from '../../ui/FormError'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 import { MenuName } from '@twomiah/tenant-ui/src/shell/menuName'
@@ -130,6 +131,8 @@ export default function SpacesPage() {
                 {Number(s.hireFee) > 0 ? <p className={Number(s.minimumSpend) > 0 ? 'text-xs text-gray-500 dark:text-slate-400 pl-6' : 'flex items-center gap-2 text-gray-700 dark:text-slate-200'}>{Number(s.minimumSpend) > 0 ? <>plus {money(s.hireFee)} hire fee</> : <><Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" /><span className="font-semibold">{money(s.hireFee)}</span><span className="text-gray-500 dark:text-slate-400">hire fee</span></>}</p> : null}
               </div>
               )}
+
+              <SpaceMinimums spaceId={s.id} />
 
               {(s.amenities || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">

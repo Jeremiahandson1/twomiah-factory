@@ -11,7 +11,8 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 /** The paths that open the admin's page (react-router takes it from there). */
 // /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link; /d/<token>
 // is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*']
+// /event-proposal/<token> and /event-pay/<token> are a private event's proposal and one of its payments (crm/restaurant).
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/event-proposal/*', '/event-pay/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client
@@ -33,6 +34,8 @@ const PUBLIC_TITLES: Array<[RegExp, string]> = [
   [/^\/portal(\/|$)/, 'Customer portal'],
   [/^\/d\//, 'Your quote or invoice'],
   [/^\/vendor\//, 'Vendor portal'],
+  [/^\/event-proposal\//, 'Your event proposal'],
+  [/^\/event-pay\//, 'Pay for your event'],
   [/^\/family(\/|$)/, 'Family portal'],
   [/^\/pay\//, 'Pay your invoice'],
   [/^\/payment-success$/, 'Payment received'],

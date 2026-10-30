@@ -211,7 +211,7 @@ export function createEventRoutes(d: CrmDeps) {
   app.post('/', requirePermission('contacts:create'), async (c) => {
     const currentUser = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-    const vErr = validateEventInput(body) || sourceRefusal(body.source)
+    const vErr = validateEventInput(body) || ((await d.features.isFeatureEnabled(currentUser.companyId, 'event_reports')) ? sourceRefusal(body.source) : null)
     if (vErr) return fail(c, 400, vErr)
     const cErr = await coordinatorRefusal(db, currentUser.companyId, body.coordinatorId)
     if (cErr) return fail(c, 400, cErr)
@@ -253,7 +253,7 @@ export function createEventRoutes(d: CrmDeps) {
     if (!editorSeesMoney) for (const k of EVENT_MONEY_KEYS) delete updates[k]
 
     // The same rules as a create, against the effective values, so editing one of start/end re-checks the pair.
-    const vErr = validateEventInput(updates, existing) || ('source' in updates && updates.source !== existing.source ? sourceRefusal(updates.source) : null)
+    const vErr = validateEventInput(updates, existing) || ('source' in updates && updates.source !== existing.source && (await d.features.isFeatureEnabled(currentUser.companyId, 'event_reports')) ? sourceRefusal(updates.source) : null)
     if (vErr) return fail(c, 400, vErr)
     // The guest count is locked from the guarantee cutoff: a manager changes it with a reason (eventGuarantee.ts).
     const countChanged = ['guestCount', 'guestCountFinal'].some((k) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? ''))

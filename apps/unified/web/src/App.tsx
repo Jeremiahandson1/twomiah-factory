@@ -38,6 +38,8 @@ import * as storeScreens from './crm/verticals/store'
 const PortalApp = lazy(() => import('./crm/portal'))
 // A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
 const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
+// A private event's proposal and payment pages, by the link in the client's email (no sign-in; crm/guest.tsx).
+const EventGuestApp = lazy(() => import('./crm/guest'))
 const DomainPage = page(() => import('./crm/pages/DomainPage'))
 /** The vertical's own book, where its online bookings land beside the desk's (VerticalScreens.booking.calendarPath). */
 const OWN_BOOK = verticalScreens().booking.calendarPath
@@ -251,6 +253,9 @@ export default function App() {
                     {/* A quote's or an invoice's own page, by the link in its email (no sign-in, no portal needed). A
                         home-care agency's invoices are its Billing book's: their /d/<token> is in its public routes above. */}
                     {!homecareScreens.isHomecare && <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />}
+
+                    <Route path="/event-proposal/:token" element={<Suspense fallback={null}><EventGuestApp which="proposal" /></Suspense>} />
+                    <Route path="/event-pay/:token" element={<Suspense fallback={null}><EventGuestApp which="pay" /></Suspense>} />
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />

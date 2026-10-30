@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, List } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite, useConfirm } from '../../../shared'
+import { useMayWrite, useConfirm, useAuth } from '../../../shared'
+import { SourcePicker } from '../../eventDepth'
 import ClientPicker from './ClientPicker'
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
 import FormError, { errorText } from '../../ui/FormError'
@@ -277,6 +278,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
   const [err, setErr] = useState<string>('');
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const { hasFeature } = useAuth();
   const [contactId, setContactId] = useState<string>(initialContactId || '');
   const [form, setForm] = useState({
     name: '', eventType: 'private_dining', eventDate: '', startTime: '', endTime: '',
@@ -392,10 +394,12 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
               An inquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
             </p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How did they find you?</label>
-              <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Website, walk-in, referral..." />
-            </div>
+            {hasFeature('event_reports')
+              ? <SourcePicker value={form.source} onChange={(v) => set('source', v)} />
+              : <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How did they find you?</label>
+                <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Website, walk-in, referral..." />
+              </div>}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />

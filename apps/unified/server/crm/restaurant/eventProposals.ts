@@ -183,7 +183,7 @@ export function createEventProposalRoutes(d: CrmDeps) {
   }
   const shown = async (u: any, p: any) => {
     const row = (await mayEvidence(u)) ? p : withoutSigningEvidence(p)
-    return { ...row, ...(p.publicToken && (await mayEvidence(u)) ? { path: `/proposal/${p.publicToken}` } : { publicToken: undefined }) }
+    return { ...row, ...(p.publicToken && (await mayEvidence(u)) ? { path: `/event-proposal/${p.publicToken}` } : { publicToken: undefined }) }
   }
   const stale = async (p: any) => {
     const [ev] = await db.select().from(event).where(eq(event.id, p.eventId)).limit(1)
@@ -267,7 +267,7 @@ export function createEventProposalRoutes(d: CrmDeps) {
     await d.services.emailService.send(client.email, 'eventNote', {
       companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: `Your proposal for ${eventDayWords(ev.eventDate)} from ${co?.name || 'us'}`,
       headline: `Your proposal for ${ev.name} is ready.`, body: `${row.message ? row.message + '\n\n' : ''}Open it to see the menu and the price, choose what you would like and sign. It stays open until ${eventDayWords(row.expiresAt.toISOString().slice(0, 10))}.`,
-      button: 'Open your proposal', path: `/proposal/${token}`,
+      button: 'Open your proposal', path: `/event-proposal/${token}`,
     })
     await audit.log({ action: 'update', entity: 'event_proposal', entityId: row.id, entityName: `Proposal ${row.version} sent — ${ev.name}`, metadata: { to: client.email }, req: { user: u } })
     emitToCompany(u.companyId, REFRESH, { entity: 'event' })
