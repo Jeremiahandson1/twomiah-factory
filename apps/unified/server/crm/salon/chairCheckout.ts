@@ -34,6 +34,8 @@ export class TerminalError extends Error { constructor(message: string, public s
 export const CHARGE_TIMEOUT_MS = 3 * 60_000
 export const MIN_CARD_CENTS = 50
 export const MAX_TIP_CENTS = 100_000
+/** What the reader suggests when the client picks the tip on its own screen. */
+export const TIP_PERCENTAGES = [15, 18, 20]
 
 const nameOf = (u: any) => [u?.firstName, u?.lastName].filter(Boolean).join(' ').trim() || u?.email || 'Staff'
 const dollars = (c: number) => '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100))
@@ -85,10 +87,17 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     if (have) return have.locationId
     const [co] = await db.select({ name: company.name, address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, companyId)).limit(1)
     if (!co?.address || !co.city || !co.state || !co.zip) throw new TerminalError('Stripe needs the salon\'s address for a card reader. Add it in Settings › Company, then add the reader again.', 409, 'ADDRESS_NEEDED')
+    let loc: any
     try {
-      const loc: any = await stripe.terminal.locations.create({ display_name: co.name.slice(0, 100), address: { line1: co.address, city: co.city, state: co.state, postal_code: co.zip, country: 'US' } }, { stripeAccount: acct })
-      return loc.id as string
+      loc = await stripe.terminal.locations.create({ display_name: co.name.slice(0, 100), address: { line1: co.address, city: co.city, state: co.state, postal_code: co.zip, country: 'US' } }, { stripeAccount: acct })
     } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not take the salon\'s address. Check it in Settings › Company.'), 400) }
+    // On-reader tipping (the client picks 15 / 18 / 20% on the reader's own screen) is a Terminal configuration set on the location. A charge that
+    // takes its tip at the desk hides that screen (skip_tipping), so having it here costs nothing; if Stripe refuses, desk tips still work.
+    try {
+      const cfg: any = await stripe.terminal.configurations.create({ tipping: { usd: { percentages: TIP_PERCENTAGES } } } as any, { stripeAccount: acct })
+      await stripe.terminal.locations.update(loc.id, { configuration_overrides: cfg.id } as any, { stripeAccount: acct })
+    } catch (e: any) { logger.warn('[chair-checkout] on-reader tipping not set up', { error: e?.message }) }
+    return loc.id as string
   }
 
   async function registerReader(actor: any, input: { code?: unknown; label?: unknown }) {
@@ -141,7 +150,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
    * Send an amount to the reader. `amountCents` is what goes on the sale (default: the whole balance; less is a split bill),
    * `tipCents` the tip the client chose at the desk — the card is charged both, the tip is recorded beside the payment.
    */
-  async function startCharge(actor: any, input: { invoiceId?: unknown; readerId?: unknown; amountCents?: unknown; tipCents?: unknown }): Promise<ChargeView> {
+  async function startCharge(actor: any, input: { invoiceId?: unknown; readerId?: unknown; amountCents?: unknown; tipCents?: unknown; tipOnReader?: unknown }): Promise<ChargeView> {
     const companyId = actor.companyId
     const reader = await readerOf(companyId, String(input.readerId ?? ''))
     const { stripe, acct, opts } = await account(companyId)
@@ -156,6 +165,8 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     if (amount > dueCents) throw new TerminalError(`Only ${dollars(dueCents)} is owing on that sale.`, 400, 'OVER_DUE', 'amountCents')
     const tip = input.tipCents == null || input.tipCents === '' ? 0 : Number(input.tipCents)
     if (!Number.isInteger(tip) || tip < 0 || tip > MAX_TIP_CENTS) throw new TerminalError(`A tip is a whole number of cents, up to ${dollars(MAX_TIP_CENTS)}.`, 400, 'BAD_TIP', 'tipCents')
+    const onReader = input.tipOnReader === true
+    if (onReader && tip > 0) throw new TerminalError('Either type the tip here or let the client choose it on the reader, not both.', 400, 'BAD_TIP', 'tipCents')
     const [busy] = await db.select({ id: salonTerminalCharge.id }).from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, inv.id), eq(salonTerminalCharge.status, 'pending'))).limit(1)
     if (busy) throw new TerminalError('A card payment for this sale is already on a reader.', 409, 'ALREADY_PENDING')
 
@@ -167,8 +178,9 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
       }, opts)
     } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not start the payment. Try again.'), 502) }
     try {
-      // The tip was chosen at the desk: the reader is not asked for one.
-      await stripe.terminal.readers.processPaymentIntent(reader.stripeReaderId, { payment_intent: pi.id, process_config: { skip_tipping: true, enable_customer_cancellation: true } } as any, opts)
+      // A tip chosen at the desk is already in the amount: the reader is not asked for one. Otherwise the reader shows its own tip screen first,
+      // and the tip the client picks arrives on the PaymentIntent (recorded as the tip when Stripe confirms it).
+      await stripe.terminal.readers.processPaymentIntent(reader.stripeReaderId, { payment_intent: pi.id, process_config: onReader ? { enable_customer_cancellation: true } : { skip_tipping: true, enable_customer_cancellation: true } } as any, opts)
     } catch (e) {
       // The reader is offline, busy or asleep: nothing was taken. The PaymentIntent goes, so it never lingers.
       try { await stripe.paymentIntents.cancel(pi.id, {}, opts) } catch { /* nothing to cancel */ }

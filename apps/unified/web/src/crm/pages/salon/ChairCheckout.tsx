@@ -34,6 +34,7 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
   const [readerId, setReaderId] = useState('')
   const [amount, setAmount] = useState('')
   const [tip, setTip] = useState('')
+  const [onReaderTip, setOnReaderTip] = useState(false)
   const [charge, setCharge] = useState<Charge | null>(null)
   const [paid, setPaid] = useState<ReaderPayment[]>([])
   const [problem, setProblem] = useState('')
@@ -72,7 +73,7 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
   const send = async () => {
     setBusy(true); setProblem('')
     try {
-      const r = await api.post('/api/chair-checkout/charges', { invoiceId, readerId, ...(amount ? { amountCents: toCents(amount) } : {}), ...(tip ? { tipCents: toCents(tip) } : {}) })
+      const r = await api.post('/api/chair-checkout/charges', { invoiceId, readerId, ...(amount ? { amountCents: toCents(amount) } : {}), ...(onReaderTip ? { tipOnReader: true } : tip ? { tipCents: toCents(tip) } : {}) })
       setCharge(r.charge); poll(r.charge.id)
     } catch (e: any) { setProblem(e?.message || 'The reader could not be reached.') } finally { setBusy(false) }
   }
@@ -111,16 +112,17 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
           {charge && charge.status !== 'succeeded' && <p role="alert" className="text-red-700 dark:text-red-300">{STATUS_WORDS[charge.status] || charge.status}{charge.failure ? ` ${charge.failure}` : ''}</p>}
           <div className="grid grid-cols-2 gap-2">
             <label>Amount ($)<input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(dueCents / 100).toFixed(2)} className={inputCls + ' mt-1'} /></label>
-            <label>Tip ($)<input inputMode="decimal" aria-label="Tip" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0.00" className={inputCls + ' mt-1'} /></label>
+            <label className={onReaderTip ? 'opacity-50' : ''}>Tip ($)<input inputMode="decimal" aria-label="Tip" value={tip} disabled={onReaderTip} onChange={(e) => setTip(e.target.value)} placeholder="0.00" className={inputCls + ' mt-1'} /></label>
           </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Tip shortcuts">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={onReaderTip} onChange={(e) => { setOnReaderTip(e.target.checked); if (e.target.checked) setTip('') }} />Let the client choose the tip on the reader</label>
+          <div className={'flex flex-wrap gap-2' + (onReaderTip ? ' hidden' : '')} role="group" aria-label="Tip shortcuts">
             {[15, 18, 20].map((n) => <button key={n} type="button" onClick={() => chip(n)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">{n}%</button>)}
             <button type="button" onClick={() => setTip('')} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">No tip</button>
           </div>
           {readers.length > 1 && <label className="block">Reader<select value={readerId} onChange={(e) => setReaderId(e.target.value)} className={inputCls + ' mt-1'}>{readers.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></label>}
           {problem && <p role="alert" className="text-red-700 dark:text-red-300">{problem}</p>}
-          <Button onClick={send} disabled={busy || !readerId}>{busy ? 'Sending…' : `Send ${cents(sale + (tip ? toCents(tip) : 0))} to the reader`}</Button>
-          <p className="text-xs text-gray-600 dark:text-slate-400">The card is charged the amount and the tip together. The tip is recorded for the stylist. Part of the balance can go on the reader and the rest in cash or on a gift card.</p>
+          <Button onClick={send} disabled={busy || !readerId}>{busy ? 'Sending…' : onReaderTip ? `Send ${cents(sale)} to the reader` : `Send ${cents(sale + (tip ? toCents(tip) : 0))} to the reader`}</Button>
+          <p className="text-xs text-gray-600 dark:text-slate-400">The card is charged the amount and the tip together; the tip is recorded for the stylist. Part of the balance can go on the reader and the rest in cash or on a gift card.</p>
         </div>
       )}
       {pending && charge && (

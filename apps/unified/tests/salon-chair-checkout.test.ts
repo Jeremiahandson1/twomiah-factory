@@ -127,6 +127,31 @@ describe('salon: checkout at the chair (card reader, tips, split tender)', () =>
     expect(rep.stylists).toEqual([expect.objectContaining({ id: ana, name: 'Ana Stylist', tips: 18, payments: 1 })])
   })
 
+  test('the client can choose the tip on the reader\'s own screen: it is recorded as the tip; a typed tip and a reader tip together are refused', async () => {
+    // The location carries a tipping configuration (15 / 18 / 20 %) made on the salon's account when it was created.
+    const cfg = k.stripe.posts('/v1/terminal/configurations')
+    expect(cfg.length).toBeGreaterThan(0)
+    expect([...cfg[0].params.entries()].filter(([key]) => key.startsWith('tipping[usd][percentages]')).map(([, v]) => v)).toEqual(['15', '18', '20'])
+    expect(cfg[0].account).toBe('acct_biz')
+    expect(k.stripe.calls.some((c) => c.path.startsWith('/v1/terminal/locations/') && c.params.get('configuration_overrides'))).toBe(true)
+    const sale = await visitSale()
+    expect((await startCard(sale, { tipOnReader: true, tipCents: 500 })).status).toBe(400)
+    const started = await startCard(sale, { tipOnReader: true })
+    expect(started.status).toBe(201)
+    const sentToReader = k.stripe.posts(`/v1/terminal/readers/${[...k.stripe.readers.keys()][0]}/process_payment_intent`).pop()!
+    expect(sentToReader.params.get('process_config[skip_tipping]')).toBeNull()          // the reader is allowed to ask
+    expect(started.body.charge.tipCents).toBe(0)
+    const done = await tap(started.body.charge.id, 'approve', 2000)                      // the client picked $20 on the reader
+    expect(done.body.charge).toMatchObject({ status: 'succeeded', tipCents: 2000 })
+    const [pay] = await paymentsOf(sale)
+    expect([Number(pay.amount), Number(pay.tipAmount)]).toEqual([100, 20])
+    // A tip typed at the desk, by contrast, hides the reader's tip screen.
+    const other = await visitSale()
+    await startCard(other, { tipCents: 300 })
+    expect(k.stripe.posts(`/v1/terminal/readers/${[...k.stripe.readers.keys()][0]}/process_payment_intent`).pop()!.params.get('process_config[skip_tipping]')).toBe('true')
+    await as('owner', `/api/chair-checkout/charges/${(await t.db.select().from(S.salonTerminalCharge).where(eq(S.salonTerminalCharge.invoiceId, other)))[0].id}/cancel`, 'POST')
+  })
+
   test('six polls at the same instant after the reader approves still write one payment', async () => {
     const sale = await visitSale()
     const started = (await startCard(sale, { tipCents: 500 })).body.charge
