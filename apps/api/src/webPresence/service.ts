@@ -86,6 +86,17 @@ export async function provisionSite(d: Deps, tenantId: string): Promise<Provisio
   requireWebPresence(d.env)
   const tenant = await loadTenant(d, tenantId)
   if (tenant.plan !== WEB_PRESENCE_PLAN_ID) throw new Error('This customer is not on the Web presence plan')
+  // A paid customer whose site is not made is told to staff whatever stopped it — the set-up below alerts itself; this covers
+  // everything before it (a missing setting, the site row refused: 42501 on the first live signup was only a log line, 10/29).
+  try {
+    return await setUp(d, tenantId, tenant)
+  } catch (e: any) {
+    await d.alert('web-presence-provision:' + tenantId, 'A Web presence site could not be set up', String(e?.message || e), tenantId)
+    throw e
+  }
+}
+
+async function setUp(d: Deps, tenantId: string, tenant: any): Promise<Provisioned> {
   if (!masterKey(d.env)) throw new Error('WEB_PRESENCE_SECRET_KEY is not set')
   if (!factoryUrl(d.env)) throw new Error('TWOMIAH_FACTORY_URL is not set')
 
@@ -130,8 +141,7 @@ export async function provisionSite(d: Deps, tenantId: string): Promise<Provisio
     row = { ...row!, status: 'live' }
   } catch (e: any) {
     await patchRow(d, row!.id, { status: 'failed' }).catch(() => {})
-    await d.alert('web-presence-provision:' + tenantId, 'A Web presence site could not be set up', String(e?.message || e), tenantId)
-    throw e
+    throw e                                              // provisionSite alerts
   }
   try {
     const link = await signinLinkFor(d, row!, { force: true })
@@ -268,10 +278,18 @@ export async function removeSite(d: Deps, tenantId: string, why: string): Promis
 }
 
 /** The scheduler's pass: sites whose paid period is over go; sites waiting on a certificate are asked again. */
-export async function sweep(d: Deps): Promise<{ removed: string[]; secured: string[] }> {
-  const out = { removed: [] as string[], secured: [] as string[] }
+export async function sweep(d: Deps): Promise<{ removed: string[]; secured: string[]; retried: string[] }> {
+  const out = { removed: [] as string[], secured: [] as string[], retried: [] as string[] }
   if (!(d.env.WEB_PRESENCE_ON && ['1', 'true', 'on', 'yes'].includes(String(d.env.WEB_PRESENCE_ON).trim().toLowerCase()))) return out
   const nowIso = new Date(d.now()).toISOString()
+  // A customer who has paid and has no live site is set up again, every hour until it works: the paid webhook tries once, and a
+  // failure there (10/29: the site row refused) otherwise left a paying customer with nothing. Each failure alerts (provisionSite).
+  const { data: paid } = await d.db.from('tenants').select('id').eq('plan', WEB_PRESENCE_PLAN_ID).eq('billing_status', 'active')
+  for (const t of (paid as Array<{ id: string }>) || []) {
+    const r = await siteRowFor(d, { tenantId: t.id })
+    if (r && r.status !== 'failed' && r.status !== 'creating') continue
+    try { await provisionSite(d, t.id); out.retried.push(t.id) } catch {}
+  }
   const { data: due } = await d.db.from('web_presence_sites').select('*').eq('status', 'canceling').lt('cancel_at', nowIso)
   for (const r of (due as SiteRow[]) || []) { if (await removeSite(d, r.tenant_id, 'paid period ended')) out.removed.push(r.tenant_id) }
   // An upgraded customer's old site goes once the full plan's own business is live; the old $19 subscription ends then, and not before.

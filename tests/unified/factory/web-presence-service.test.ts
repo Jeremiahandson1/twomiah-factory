@@ -135,7 +135,7 @@ describe('the switch', () => {
     await refused(() => siteUsage(w.d))
     await refused(() => webPresenceSignup({ name: 'Acme', email: 'a@b.co' }, { db: w.db, env: {}, allocateSlug: async (b) => b, compose: () => ({}), checkout: async () => ({ url: 'x' }) }))
     await refused(() => signinLinkFor(w.d, { id: 's-1' } as any))
-    expect(await sweep(w.d)).toEqual({ removed: [], secured: [] })
+    expect(await sweep(w.d)).toEqual({ removed: [], secured: [], retried: [] })
     expect(w.nl.log).toEqual([])
     expect(w.db.writes.filter((x) => x.table === 'tenants' || x.table === 'factory_jobs')).toEqual([])
   })
@@ -203,6 +203,23 @@ describe('set-up: one Netlify site per customer', () => {
     const a = await provisionSite(w.d, 't-1'); const b = await provisionSite(w.d, 't-2')
     expect(a.row.netlify_site_id).not.toBe(b.row.netlify_site_id)
     expect(w.mail[0].link).not.toBe(w.mail[1].link)
+  })
+  // 10/29, the first live $19 signup: the site row was refused (42501), the failure was a log line, nothing retried it.
+  test('a paid customer whose site could not even be recorded: staff are alerted, and the hourly sweep sets it up once it can', async () => {
+    const w = world({ tenants: [tenant(), tenant({ id: 't-2', slug: 'unpaid-co', billing_status: 'pending' })] })
+    const db = w.d.db as any
+    const refuse = { message: 'permission denied for table web_presence_sites' }
+    w.d.db = { from: (t: string) => t !== 'web_presence_sites' ? db.from(t) : { ...db.from(t), insert: () => ({ select: () => ({ single: async () => ({ data: null, error: refuse }) }) }) } } as any
+    await expect(provisionSite(w.d, 't-1')).rejects.toThrow(/permission denied/)
+    expect(w.alerts.map((a) => a.key)).toEqual(['web-presence-provision:t-1'])
+    expect(w.nl.log.some((x) => x.op === 'createSite')).toBe(false)
+    expect((await sweep(w.d)).retried).toEqual([])                       // still refused: not set up, alerted again
+    w.d.db = db                                                          // the grant is run
+    expect((await sweep(w.d)).retried).toEqual(['t-1'])                  // the unpaid customer is not set up
+    expect(w.db.tables.web_presence_sites.map((r: any) => [r.tenant_id, r.status])).toEqual([['t-1', 'live']])
+    expect(w.mail.map((m) => m.why)).toEqual(['welcome'])
+    expect((await sweep(w.d)).retried).toEqual([])                       // live: never made again
+    expect(w.nl.log.filter((x) => x.op === 'createSite')).toHaveLength(1)
   })
   test('a taken site name is retried with a suffix', async () => {
     const w = world(); w.nl.taken.add('twomiah-acme-roofing')
