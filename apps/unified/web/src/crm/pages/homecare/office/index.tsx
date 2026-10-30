@@ -14,7 +14,7 @@ import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, ClipboardList, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
-  Smartphone, ToggleLeft, UserCog,
+  Smartphone, ToggleLeft, TrendingUp, UserCog,
 } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
@@ -32,6 +32,7 @@ const MessageBoard = page(() => import('./MessageBoard'))
 const NotificationCenter = page(() => import('./NotificationCenter'))
 const IntegrationsHub = page(() => import('./IntegrationsHub'))
 const UserManagement = page(() => import('./UserManagement'))
+const MarginReports = page(() => import('./MarginReports'))
 const Home = page(() => import('./OfficeHome'))
 
 /**
@@ -42,6 +43,8 @@ const Home = page(() => import('./OfficeHome'))
  *                                             owner's decision 2026-10-09 — a manager holds care-compliance, not this)
  *   incidents(/:id)     care-compliance:read  office/incidents.ts
  *   reports             care-billing:read     planning/reports.ts (the overview; other tabs ask more, the page says so)
+ *   margin-reports      care-billing:read     planning/marginReports.ts: client margin asks billing AND payroll read, turnover asks
+ *                                             care-hr:read; the page shows each tab only to whoever holds its permission
  *   communication-log   care-portal:update    portals/communication.ts (caregivers hold care-portal:read)
  *   sms                 care-portal:update    portals/sms.ts
  *   alerts              care-compliance:read  visits/alerts.ts
@@ -61,6 +64,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/login-activity': 'audit:read',
   '/crm/incidents': 'care-compliance:read',
   '/crm/reports': 'care-billing:read',
+  '/crm/margin-reports': 'care-billing:read',
   '/crm/communication-log': 'care-portal:update',
   '/crm/sms': 'care-portal:update',
   '/crm/alerts': 'care-compliance:read',
@@ -77,6 +81,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-incidents" path="incidents" element={<IncidentReporting />} />,
   <Route key="hc-office-incident" path="incidents/:id" element={<IncidentDetail />} />,
   <Route key="hc-office-reports" path="reports" element={<ReportsAnalytics />} />,
+  <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
   <Route key="hc-office-communication-log" path="communication-log" element={<CommunicationLog />} />,
   <Route key="hc-office-sms" path="sms" element={<SMSManagement />} />,
   <Route key="hc-office-alerts" path="alerts" element={<AlertsManagement />} />,
@@ -94,6 +99,7 @@ export const nav: NavItem[] = [
   { to: '/crm/login-activity', icon: KeyRound, label: 'Login Activity', permission: PERMISSION['/crm/login-activity'] },
   { to: '/crm/incidents', icon: AlertTriangle, label: 'Incidents', permission: PERMISSION['/crm/incidents'] },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports & Analytics', permission: PERMISSION['/crm/reports'], features: ['reports'] },
+  { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
   { to: '/crm/communication-log', icon: ClipboardList, label: 'Communication Log', permission: PERMISSION['/crm/communication-log'] },
   { to: '/crm/sms', icon: Smartphone, label: 'SMS', permission: PERMISSION['/crm/sms'], features: ['two_way_texting'] },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', permission: PERMISSION['/crm/alerts'] },
