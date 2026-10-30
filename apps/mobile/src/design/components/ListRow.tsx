@@ -17,10 +17,12 @@ export function ListRow({ title, subtitle, meta, badge, badgeTone = 'neutral', i
 }) {
   const { c } = useDesign()
   const t = c.tones[iconTone]
+  // The business's colour fills the square, as on the home tiles (StatTile); a status tone keeps its soft square and its meaning.
+  const brand = iconTone === 'accent'
   const label = [title, subtitle, meta, badge].filter(Boolean).join(', ')
   const body = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: Math.max(56, MIN_TARGET), paddingVertical: space[2], paddingHorizontal: space[4] }}>
-      {leading ?? (icon ? <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: t.soft, alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={20} tone={iconTone} /></View> : null)}
+      {leading ?? (icon ? <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: brand ? t.fill : t.soft, alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={20} tone={brand ? 'onAccent' : iconTone} /></View> : null)}
       <View style={{ flex: 1, minWidth: 0 }}>
         <DText variant="bodyStrong" tone={destructive ? 'danger' : 'text'}>{title}</DText>
         {subtitle ? <DText variant="callout" tone="textSecondary">{subtitle}</DText> : null}

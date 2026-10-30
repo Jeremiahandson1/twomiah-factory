@@ -24,8 +24,10 @@ export function StatTile({ label, value, icon, tone = 'accent', opens, hint, onP
         width, minHeight: 96, backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: space[3], gap: space[2],
       }, elevationStyle(1, c.dark), pressed && { backgroundColor: c.surfaceAlt, transform: [{ scale: motion.pressScale }] }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: t.soft, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name={icon} size={20} tone="accent" />
+        {/* The square is FILLED with the business's own colour, the icon in its ink: a dark brand colour lightened to read as
+            an icon on a dark screen changes its look (Higgs's red came out pink, 10/30); filled, it is exactly theirs. */}
+        <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: t.fill, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={icon} size={20} tone="onAccent" />
         </View>
         <View style={{ width: 28, height: 28, borderRadius: radius.pill, backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="chevron-forward" size={16} tone="subtle" />
