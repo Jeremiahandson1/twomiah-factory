@@ -93,6 +93,33 @@ jobs:
           SHARD: ${{ matrix.shard }}/6
         run: bun run test
 
+  # The free "Try the demo" (apps/unified/demo, web/demo; docs/DEMO.md): the real CRM screens in a browser with an in-page backend
+  # answering from recorded sample data. Built here and driven in a real browser: nothing in it may reach outside its own host,
+  # every screen of every trade renders from its data, and Reset takes every change away. (The drift check — a re-recording against
+  # the committed data — is tests/demo-drift.test.ts, run in the shards above.)
+  unified-demo:
+    name: Demo — built, then every trade walked in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.14
+      - name: Install
+        run: bun install
+      - name: A browser to drive the demo
+        working-directory: apps/unified
+        run: bunx playwright-core install --with-deps chromium
+      - name: Demo build
+        working-directory: apps/unified
+        run: bun run build:demo
+      - name: Nothing leaves the page; changes live in memory and Reset takes them; every screen renders
+        working-directory: apps/unified
+        run: |
+          bun test --timeout 240000 tests/demo/outbound.test.ts
+          bun test --timeout 240000 tests/demo/reset.test.ts
+          bun test --timeout 1800000 tests/demo/walk.test.ts
+
   # The Factory's side (apps/api/src/unified): a test signup built with its own database server, repo and service,
   # then updated and torn down: the tenant repo installed from its lockfile, built, migrated, served and provisioned.
   factory:

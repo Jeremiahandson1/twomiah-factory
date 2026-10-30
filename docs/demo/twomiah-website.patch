@@ -1,0 +1,20 @@
+diff --git a/index.html b/index.html
+index b753464..83330cb 100644
+--- a/index.html
++++ b/index.html
+@@ -375,6 +375,7 @@ footer{background:#090909;border-top:1px solid rgba(255,255,255,0.05);padding:56
+     <li><a href="#crm">CRM</a></li>
+     <li><a href="#doors">Pricing</a></li>
+     <li><a href="#proof">Our work</a></li>
++    <li><a href="https://demo.twomiah.com/demo" rel="noopener">Try the demo</a></li>
+     <li><a href="#build-live" class="nav-cta" id="navStart">Get started</a></li>
+   </ul>
+ </nav>
+@@ -525,6 +526,7 @@ footer{background:#090909;border-top:1px solid rgba(255,255,255,0.05);padding:56
+       <div class="hub-ctas">
+         <a href="/signup.html?plan=starter10" class="btn-primary">Start &mdash; $99/mo &rarr;</a>
+         <a href="#build-live" class="btn-ghost">See the website you'd also get</a>
++        <a href="https://demo.twomiah.com/demo" class="btn-ghost" rel="noopener">Try the CRM &mdash; free demo, sample data &rarr;</a>
+       </div>
+     </div>
+     <div class="hub-col reveal">
