@@ -475,3 +475,27 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
 }, (t) => [
   uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
 ])
+
+
+// A job's inspection report (docs/parity/roof-inspection-report.md): a branded write-up built from the job's photos, in
+// roof sections, that the roofer shares as a private link (public_token, the same kind a quote's link is) and a PDF.
+// `sections` is [{ title, notes, photoIds[] }]; the photos themselves are the job's (job_photo), read when the report is
+// opened, so a caption fixed later shows. public_token is empty while the link is off.
+export const inspectionReport = pgTable('inspection_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  intro: text('intro'),
+  sections: json('sections').default([]).notNull(),
+  publicToken: text('public_token').unique(),
+  linkExpiresAt: timestamp('link_expires_at'),
+  // Listed in the homeowner's portal under Photos & documents (the portal opens it by their own login link, not this one).
+  sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('inspection_report_company_id_idx').on(t.companyId),
+  index('inspection_report_job_id_idx').on(t.jobId),
+])

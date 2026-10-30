@@ -330,6 +330,20 @@
       "when": 1793380487789,
       "tag": "0046_roof_crew_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793380488789,
+      "tag": "0047_roof_inspection_report",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793380489789,
+      "tag": "0048_portal_job_files",
+      "breakpoints": true
     }
   ]
 }

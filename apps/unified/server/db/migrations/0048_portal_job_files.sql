@@ -1,0 +1,1 @@
+ALTER TABLE "document" ADD COLUMN "shared_with_customer" boolean DEFAULT false NOT NULL;

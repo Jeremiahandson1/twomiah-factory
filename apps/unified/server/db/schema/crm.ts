@@ -637,6 +637,9 @@ export const document = pgTable('document', {
   // From the near-copy CRMs (see each column): document's columns they added.
   // A file belongs to the animal, not only to the person who pays the bill. (Vet T12 M6)
   patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+  // Shown to the homeowner of the job it is filed under, in their portal (roofing's Photos & Documents). Off until someone
+  // with portal:share turns it on; only roofing's /api/job-files writes it.
+  sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),

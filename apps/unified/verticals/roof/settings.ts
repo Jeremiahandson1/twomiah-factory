@@ -102,7 +102,8 @@ const roof: VerticalSettings = {
     // inspection and install dates, read-only — packages/tenant-backend portal.ts /my-jobs carries no money.
     portal: {
       providerNoun: 'roofing team',
-      clientNav: ['myJobs', 'quotes', 'invoices', 'paymentMethods', 'serviceRequest', 'messages'],
+      // jobFiles: the photos and documents the roofer chose to share (portal_job_files, not ready — absent until it is on).
+      clientNav: ['myJobs', 'jobFiles', 'quotes', 'invoices', 'paymentMethods', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Jobs' },

@@ -190,7 +190,7 @@ export { signQboState, verifyQboState, QBO_STATE_TTL_MS } from './integrations/q
 export type { QboStatePayload } from './integrations/quickbooksState'
 export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } from './integrations/reviews'
 export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'
-export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'
+export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService, PortalJobFiles } from './portal/portal'
 
 // Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
 export { createTeamRoutes, teamMemberSchema } from './team/team'

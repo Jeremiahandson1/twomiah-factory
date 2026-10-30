@@ -37,6 +37,9 @@ import { displayName } from '../lib/user'
 import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
+import InspectionReports from './InspectionReports'
+import PhotoDetails from './PhotoDetails'
+import ShareWithHomeowner from './ShareWithHomeowner'
 import JobMaterials from '../field/JobMaterials'
 import JobWorkOrders from '../field/JobWorkOrders'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
@@ -79,7 +82,7 @@ const MEASUREMENT_STATUS_COLORS: Record<string, string> = {
 
 /** The homeowner, the whole CRM contact on GET /api/jobs/:id. */
 interface JobContact { id: string; name?: string | null; phone?: string | null; mobile?: string | null; email?: string | null; source?: string | null }
-interface JobPhoto { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null }
+interface JobPhoto { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null; takenAt?: string | null; latitude?: string | null; longitude?: string | null }
 interface JobNote { id: string; body?: string | null; createdAt?: string | null }
 interface JobQuote { id: string; number?: string | null; status?: string | null; total?: string | number | null }
 interface JobInvoice { id: string; number?: string | null; status?: string | null; total?: string | number | null; amountPaid?: string | number | null; amountRefunded?: string | number | null }
@@ -703,6 +706,7 @@ export default function JobDetailPage() {
                   className="hidden"
                   onChange={(e) => e.target.files && uploadPhotos(e.target.files)}
                 />
+                <PhotoDetails jobId={job.id} photos={filteredPhotos} onSaved={(saved) => setPhotos((prev) => prev.map((p) => (p.id === saved.id ? { ...p, ...saved } as JobPhoto : p)))} />
                 <PhotoViewer
                   label={`${formatStatus(photoTab)} photos`}
                   photos={filteredPhotos.map((p) => ({ id: p.id, src: p.url || p.thumbnailUrl, caption: p.caption }))}
@@ -720,6 +724,12 @@ export default function JobDetailPage() {
                 </button>)}
               </div>
             )}
+
+            {/* Inspection report — behind its own switch (not ready); the photos above are what it is built from. */}
+            {hasPhotos && hasFeature('inspection_reports') && <InspectionReports jobId={job.id} photos={photos} />}
+
+            {/* What the homeowner's portal shows of this job — behind its own switch (not ready); off for each file until chosen. */}
+            {hasFeature('portal_job_files') && job.contact && <ShareWithHomeowner jobId={job.id} homeowner={job.contact.name || null} refreshKey={photos.length} />}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">

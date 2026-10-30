@@ -228,6 +228,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Roofing
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'quote_proposals', name: 'Proposal Options', description: 'One quote with two to six priced options, each with photos, a brand and a warranty, that the customer picks between and signs', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // Not ready (roofing depth, gaps 6 and 10): the owner tests them first.
+  { id: 'inspection_reports', name: 'Inspection Reports', description: 'A branded photo report of a roof inspection, shared by a private link and as a PDF', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'portal_job_files', name: 'Homeowner Photos & Documents', description: 'The photos and documents you choose to share with a homeowner, in their portal', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
   // Not ready (owner tests it first): the held-depreciation reminder when a job is done, and mortgage-company check tracking.
   { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, and tracks mortgage-company checks through endorsement', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
