@@ -7,6 +7,9 @@ import { sql } from 'drizzle-orm'
 export const commissionIsAuto = sql`source = 'auto'`
 export const commissionIsReversal = sql`source = 'reversal'`
 
+/** job: one visit per route stop per day — making a route's visits twice cannot stack two on one day (landscaping routes). */
+export const jobOnRouteStop = sql`recurring_route_stop_id IS NOT NULL`
+
 /** invoice: a number is held by one live invoice per company; a voided one gives its number up (Vet T41, T58d). */
 export const invoiceIsLive = sql`status <> 'void'`
 

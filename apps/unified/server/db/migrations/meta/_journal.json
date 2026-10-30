@@ -288,6 +288,13 @@
       "when": 1793361622441,
       "tag": "0040_email_alias_member",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793378817792,
+      "tag": "0041_route_visits",
+      "breakpoints": true
     }
   ]
 }

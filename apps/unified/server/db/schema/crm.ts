@@ -12,7 +12,7 @@ import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { crew, measurementReport } from './roof.ts'
 import { company, user } from './core.ts'
-import { commissionIsAuto, commissionIsReversal, invoiceIsLive } from '../../data/indexWhere.ts'
+import { commissionIsAuto, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
 
 export const contact = pgTable('contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -268,8 +268,15 @@ export const job = pgTable('job', {
   /** The repeating series this visit belongs to (job_series), and its place in it: 3 of 12. */
   seriesId: text('series_id').references((): AnyPgColumn => jobSeries.id, { onDelete: 'set null' }),
   seriesIndex: integer('series_index'),
+  /**
+   * The Route Board stop this visit was made from (recurring_route_stop, landscaping). Plain text like location_id: the
+   * stop lives in the landscaping schema, which imports this file. A deleted stop leaves its visits as they were.
+   */
+  recurringRouteStopId: text('recurring_route_stop_id'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
+  // One visit per stop per day: making a route's visits twice adds nothing the second time.
+  uniqueIndex('job_route_stop_day_idx').on(t.recurringRouteStopId, t.scheduledDate).where(jobOnRouteStop),
   index('job_status_idx').on(t.status),
   index('job_scheduled_date_idx').on(t.scheduledDate),
   index('job_assigned_to_id_idx').on(t.assignedToId),

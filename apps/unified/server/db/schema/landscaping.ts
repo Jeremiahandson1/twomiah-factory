@@ -14,6 +14,9 @@ export const recurringRoute = pgTable('recurring_route', {
   dayOfWeek: integer('day_of_week').notNull(), // 0=Sun .. 6=Sat
   assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
   estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  // When the crew leaves the yard, 'HH:MM'. The first stop starts here; each next stop starts when the one before is
+  // done, so the stop order IS the day's order on the Schedule, Crew View and the phone.
+  startTime: text('start_time').default('08:00').notNull(),
   status: text('status').default('active').notNull(), // active, paused, archived
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
