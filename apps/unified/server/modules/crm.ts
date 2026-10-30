@@ -56,6 +56,7 @@ import type { CrmDeps } from '../crm/deps.ts'
 import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
+import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH } from '../crm/comms/smsMedia.ts'
@@ -124,6 +125,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
   const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, store: deps.store }
+  // A job is not completed with a required checklist unfinished (crm/field/checklistRoutes.ts); in front of the jobs mount below.
+  const completionGate = createCompletionGate(own)
   // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
   // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
   // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).
@@ -376,11 +379,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/text-activity', access: 'user', feature: 'contacts', router: createTextActivityRoutes({ db, requirePermission, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId) }) },
     // A job's photos are photo_capture's, as the field-service and basic copies' index.ts gated /api/jobs/:id/photos.
     // Roofing's own job module over the same table (CrmSettings.roof; server/crm/roof/jobs.ts) — one mount, never two.
-    { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.roof
+    { path: '/api/jobs', access: 'user', feature: 'jobs', router: new Hono().use('/:id/complete', completionGate).use('/:id', completionGate).route('/', v.roof
       ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', createRoofJobRoutes(own))
       : v.jobs?.photos
       ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', jobs)
-      : jobs },
+      : jobs) },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
     { path: '/api/invoices', access: 'user', feature: 'invoices', router: invoices },
     // A quote's deposit and progress invoices, billed against what is left (crm/billing/quoteBilling.ts).

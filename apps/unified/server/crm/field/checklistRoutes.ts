@@ -84,6 +84,62 @@ const shapeTemplate = (r: any) => ({
 const appliesTo = (tpl: ReturnType<typeof shapeTemplate>, jobType: string | null | undefined) =>
   tpl.jobTypes.length === 0 || tpl.jobTypes.includes(String(jobType || ''))
 
+/**
+ * What a job's checklists still owe: the active checklists for the job's type, the copies filled in so far, and for each checklist
+ * with no finished copy a line saying why ("not filled in yet" / "needs the customer to sign").
+ * `required` marks the ones that must be done before the job can be completed: a checklist with a required question, or that asks
+ * for the customer's signature or a photo. A checklist of nothing but optional questions is offered, never demanded.
+ */
+export async function owedOnJob(db: any, companyId: string, j: { id: string; jobType?: string | null }) {
+  const templates = (await db.select().from(formTemplate)
+    .where(and(eq(formTemplate.companyId, companyId), eq(formTemplate.category, CHECKLIST_CATEGORY), eq(formTemplate.active, true)))
+    .orderBy(asc(formTemplate.name), asc(formTemplate.id))).map(shapeTemplate).filter((tpl: any) => appliesTo(tpl, j.jobType))
+  const subs = await db.select().from(formSubmission)
+    .where(and(eq(formSubmission.companyId, companyId), eq(formSubmission.jobId, j.id), inArray(formSubmission.templateId, templates.length ? templates.map((x: any) => x.id) : ['-'])))
+    .orderBy(desc(formSubmission.createdAt), desc(formSubmission.id))
+  const finished = (tplId: string) => subs.some((s: any) => s.templateId === tplId && (s.status === 'signed' || s.status === 'submitted'))
+  const waiting = (tplId: string) => subs.find((s: any) => s.templateId === tplId && s.status === 'awaiting_signature')
+  const outstanding = templates.filter((x: any) => !finished(x.id)).map((x: any) => ({
+    templateId: x.id, name: x.name, why: waiting(x.id) ? 'needs the customer to sign' : 'not filled in yet', submissionId: waiting(x.id)?.id ?? null,
+    required: x.requireSignature || x.requirePhoto || x.fields.some((f: Field) => f.required),
+  }))
+  return { templates, subs, outstanding }
+}
+
+/** The sentence a refused completion carries: what is left, by name. */
+export const owedSentence = (owed: Array<{ name: string; why: string }>) =>
+  `This job can't be completed yet: ${owed.map((o) => `the checklist “${o.name}” ${o.why.startsWith('needs') ? o.why : `is ${o.why}`}`).join('; ')}.`
+
+/**
+ * In front of the jobs routes: a job is not completed while a required checklist is unfinished — by the Complete button
+ * (POST /:id/complete) or by the status box / Dispatch Board (PUT /:id with status completed). One rule for the phone, the office
+ * screen and the API. It only speaks for a business with Job Checklists on, and only to a seat that may update jobs (anyone else
+ * is refused by the route as before). A job that is already completed is left to the route. It does not touch the status moves
+ * themselves: it only answers "may this job be completed now?".
+ */
+export function createCompletionGate(d: CrmDeps) {
+  const canSee = canSeeWith(d.permissions)
+  return async (c: any, next: () => Promise<void>) => {
+    const method = c.req.method
+    const isComplete = method === 'POST' && /\/complete\/?$/.test(c.req.path)
+    const isPut = method === 'PUT' && /\/api\/jobs\/[^/]+\/?$/.test(c.req.path)
+    if (!isComplete && !isPut) return next()
+    const u = c.get('user')
+    if (!u?.companyId || !(await d.features.isFeatureEnabled(u.companyId, 'job_checklists'))) return next()
+    if (!(await canSee(u.role, 'jobs:update', u.userId))) return next()
+    if (isPut) {
+      const body = await c.req.json().catch(() => null)
+      if (body?.status !== 'completed') return next()
+    }
+    const id = isComplete ? c.req.path.replace(/\/complete\/?$/, '').split('/').pop() : c.req.path.replace(/\/$/, '').split('/').pop()
+    const [j] = await d.db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, u.companyId))).limit(1)
+    if (!j || j.status === 'completed') return next()
+    const owed = (await owedOnJob(d.db, u.companyId, j)).outstanding.filter((o: any) => o.required)
+    if (!owed.length) return next()
+    return fail(c, 400, owedSentence(owed), 'checklist_outstanding')
+  }
+}
+
 export function createChecklistRoutes(d: CrmDeps) {
   const { db, audit } = d
   const { requirePermission } = d.permissions
@@ -161,18 +217,7 @@ export function createChecklistRoutes(d: CrmDeps) {
   // ── on a job ───────────────────────────────────────────────────────────────────────────────────────────────────────
   /** What is filled in on the job and what is still owed: the checklists for this job's type with no finished copy. */
   const jobView = async (c: any, j: any) => {
-    const companyId = c.get('user').companyId
-    const templates = (await db.select().from(formTemplate)
-      .where(and(eq(formTemplate.companyId, companyId), eq(formTemplate.category, CHECKLIST_CATEGORY), eq(formTemplate.active, true)))
-      .orderBy(asc(formTemplate.name), asc(formTemplate.id))).map(shapeTemplate).filter((tpl: any) => appliesTo(tpl, j.jobType))
-    const subs = await db.select().from(formSubmission)
-      .where(and(eq(formSubmission.companyId, companyId), eq(formSubmission.jobId, j.id), inArray(formSubmission.templateId, templates.length ? templates.map((x: any) => x.id) : ['-'])))
-      .orderBy(desc(formSubmission.createdAt), desc(formSubmission.id))
-    const finished = (tplId: string) => subs.some((s: any) => s.templateId === tplId && (s.status === 'signed' || s.status === 'submitted'))
-    const waiting = (tplId: string) => subs.find((s: any) => s.templateId === tplId && s.status === 'awaiting_signature')
-    const outstanding = templates.filter((x: any) => !finished(x.id)).map((x: any) => ({
-      templateId: x.id, name: x.name, why: waiting(x.id) ? 'needs the customer to sign' : 'not filled in yet', submissionId: waiting(x.id)?.id ?? null,
-    }))
+    const { templates, subs, outstanding } = await owedOnJob(db, c.get('user').companyId, j)
     return { jobId: j.id, jobType: j.jobType ?? null, templates, submissions: await Promise.all(subs.map((s: any) => shapeSubmission(c, s))), outstanding }
   }
 

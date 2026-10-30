@@ -60,6 +60,14 @@ const stateOf = (f: ReturnType<typeof buildFlow>, k: string) => f.steps.find((s)
   check('Complete is held back while a checklist is owed', f.completeBlockedBy !== null && f.completeBlockedBy.includes('Tune-up'), f.completeBlockedBy)
 }
 {
+  // Same rule as the server's completion gate: a checklist of only optional questions is offered, not demanded.
+  const lists = { templates: [sig], outstanding: [{ templateId: 't1', name: 'Extras', why: 'not filled in yet', required: false }] }
+  const f = buildFlow(base({ status: 'in_progress', checklists: lists, photoCount: 1 }))
+  check('an optional-only checklist does not hold Complete back', f.completeBlockedBy === null)
+  const must = buildFlow(base({ status: 'in_progress', checklists: { templates: [sig], outstanding: [{ templateId: 't1', name: 'Safety', why: 'not filled in yet', required: true }, { templateId: 't2', name: 'Extras', why: 'not filled in yet', required: false }] }, photoCount: 1 }))
+  check('a required one does, and only it is named', must.completeBlockedBy === 'Safety not filled in yet', must.completeBlockedBy)
+}
+{
   const lists = { templates: [sig], outstanding: [{ templateId: 't1', name: 'Tune-up', why: 'needs the customer to sign', submissionId: 's1' }] }
   const f = buildFlow(base({ status: 'in_progress', checklists: lists, photoCount: 2 }))
   check('a filled-in checklist waiting for the signature: checklist done, signature next', stateOf(f, 'checklist') === 'done' && f.next === 'signature')

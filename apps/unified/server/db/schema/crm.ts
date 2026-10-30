@@ -536,6 +536,10 @@ export const timeEntry = pgTable('time_entry', {
   isAutoClocked: boolean('is_auto_clocked').default(false).notNull(),
   clockIn: timestamp('clock_in'),
   clockOut: timestamp('clock_out'),
+  // How many minutes after the tap the phone's clock-in / clock-out reached the server (null: on time, or not tapped on a phone).
+  // The entry carries the time the person tapped, so the office sees it flagged "time set by phone, sent late" when approving.
+  clockInLateMinutes: integer('clock_in_late_minutes'),
+  clockOutLateMinutes: integer('clock_out_late_minutes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

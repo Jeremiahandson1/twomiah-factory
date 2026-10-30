@@ -17,7 +17,7 @@ export interface FlowStep { key: StepKey; label: string; state: StepState; note?
 
 export interface ChecklistInfo {
   /** What is still owed on this job: a checklist not filled in, or one that needs the customer's signature. */
-  outstanding: Array<{ templateId: string; name: string; why: string; submissionId?: string | null }>
+  outstanding: Array<{ templateId: string; name: string; why: string; submissionId?: string | null; required?: boolean }>
   /** The checklists for this job at all (outstanding or not). */
   templates: Array<{ id: string; name: string; requireSignature: boolean; requirePhoto: boolean }>
 }
@@ -87,8 +87,11 @@ export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]
   }
   steps.push({ key: 'complete', label: 'Complete', ...moveState('/complete', 'completed') })
 
-  // The phone will not offer Complete while a checklist is owed (the server does not stop it — see the PR notes).
-  const owedAny = lists?.outstanding?.length ? lists.outstanding.map((o) => `${o.name} ${o.why}`).join('; ') : null
+  // The phone will not offer Complete while a REQUIRED checklist is owed — the same rule the server now holds (crm/field/checklistRoutes.ts
+  // createCompletionGate). A checklist of only optional questions is offered, not demanded; an older server that does not say
+  // `required` is treated as required, as before.
+  const mustDo = lists?.outstanding?.filter((o) => o.required !== false) ?? []
+  const owedAny = mustDo.length ? mustDo.map((o) => `${o.name} ${o.why}`).join('; ') : null
   const status = effectiveStatus(input)
   const completeBlockedBy = status === 'completed' ? null : owedAny
   const firstOpen = steps.find((s) => s.state === 'todo' || s.state === 'failed')

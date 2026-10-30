@@ -69,6 +69,15 @@ export type ClockResult =
   | { ok: true; discarded: true; message: string }
   | { ok: false; status: 400 | 409; error: string; entry?: any }
 
+/** A tapped time that reaches the server more than this many minutes after the tap is flagged "sent late" (a queued tap, no signal). */
+export const SENT_LATE_MINUTES = 5
+/** Minutes the tap was late reaching us, or null when it arrived on time (or no tapped time came with it). */
+export const lateByMinutes = (at: Date | undefined, now: Date = new Date()): number | null => {
+  if (!at) return null
+  const m = Math.round((now.getTime() - at.getTime()) / 60000)
+  return m > SENT_LATE_MINUTES ? m : null
+}
+
 export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>) {
   const { db, tables: t, audit } = deps
   const activeEntry = async (userId: string, companyId: string) => {
@@ -81,6 +90,7 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
     // `at`: the moment the person tapped, when the phone sent it later (no signal). Without it, now.
     const now = data.at ?? new Date()
+    const late = lateByMinutes(data.at)
     // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
     // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
     // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
@@ -89,6 +99,8 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     const [row] = await db.insert(t.timeEntry).values({
       userId: person.userId, companyId: person.companyId, jobId: data.jobId ?? null, projectId: data.projectId ?? null,
       clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: true, description: data.description || null,
+      // Only where the table has the column (the unified app); the older template copies keep exactly what they had.
+      ...(late && t.timeEntry.clockInLateMinutes ? { clockInLateMinutes: late } : {}),
     }).returning()
     return { ok: true, entry: row }
   }
@@ -108,7 +120,8 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     const worked = Math.round(elapsedMinutes) - (data.breakMinutes || 0)
     // Same answer a manual entry gives, instead of silently saving nothing worked.
     if (worked <= 0) return { ok: false, status: 400, error: 'Break is longer than the time worked' }
-    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: data.description || open.description, updatedAt: new Date() })
+    const late = lateByMinutes(data.at)
+    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: data.description || open.description, updatedAt: new Date(), ...(late && t.timeEntry.clockOutLateMinutes ? { clockOutLateMinutes: late } : {}) })
       .where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, person.companyId))).returning()
     return { ok: true, entry: row }
   }
