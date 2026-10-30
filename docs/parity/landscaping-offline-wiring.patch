@@ -1,0 +1,78 @@
+diff --git a/apps/mobile/src/trades/ActionSheet.tsx b/apps/mobile/src/trades/ActionSheet.tsx
+index 9e8c023..66fafce 100644
+--- a/apps/mobile/src/trades/ActionSheet.tsx
++++ b/apps/mobile/src/trades/ActionSheet.tsx
+@@ -4,6 +4,7 @@ import { View } from 'react-native'
+ import { BottomSheet, Button, DText, TextField, Chip, space } from '../design'
+ import { api, get } from '../api/client'
+ import { useToast } from '../components/ToastProvider'
++import { useOfflineApi } from '../offline/useOfflineApi'
+ import { unwrap, type Action } from './kit'
+ 
+ /** The choices wrap onto more lines instead of hiding behind a sideways scroll: every answer is on the screen. */
+@@ -11,6 +12,7 @@ const Wrap = ({ children }: { children: React.ReactNode }) => <View style={{ fle
+ 
+ export function ActionSheet({ action, row, onClose, onDone }: { action: Action | null; row: any; onClose: () => void; onDone: () => void }) {
+   const toast = useToast()
++  const offline = useOfflineApi()
+   const [values, setValues] = useState<Record<string, string>>({})
+   const [busy, setBusy] = useState(false)
+   // Choices the server offers (rates for a label): { label → value }, or a sentence when it has none / refuses.
+@@ -37,10 +39,14 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
+     const sent = { ...values }
+     for (const inp of action.inputs || []) if (inp.options) sent[inp.id] = offered[inp.id]?.map[values[inp.id]] ?? ''
+     const req = action.request(row, sent)
+-    const r = await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
++    const keep = action.offline?.(row)
++    const r: any = keep
++      ? await ({ POST: offline.post, PUT: offline.put, PATCH: offline.patch, DELETE: (p: string, _b: unknown, o: any) => offline.del(p, o) } as const)[req.method](req.path, req.body, { recordKey: keep.key, label: keep.label })
++      : await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
+     setBusy(false)
+     if (!r.ok) { toast.show(r.error || 'That did not go through', 'error'); return }
+-    toast.show(action.done, 'success'); onClose(); onDone()
++    // Kept on the phone, not done yet: said as waiting, never as done.
++    toast.show(r.queued ? 'Saved on your phone. It will be sent when you have signal.' : action.done, r.queued ? 'info' : 'success'); onClose(); onDone()
+   }
+   return (
+     <BottomSheet visible={!!action} title={action?.confirm?.title || action?.label || ''} onClose={onClose}>
+diff --git a/apps/mobile/src/trades/kit.ts b/apps/mobile/src/trades/kit.ts
+index 2b99bbc..a6caff0 100644
+--- a/apps/mobile/src/trades/kit.ts
++++ b/apps/mobile/src/trades/kit.ts
+@@ -38,6 +38,8 @@ export interface Action {
+   confirm?: { title: string; body: (d: any) => string; button: string }
+   inputs?: Input[]
+   /** DELETE only for taking a row off a list that is the business's own (a waitlist entry), and always with `confirm`. */
++  /** Keep the save on the phone when there is no signal (src/offline). ONLY for a call that is safe to send twice — the queue is at-least-once. `key` groups saves of one record. */
++  offline?: (d: any) => { key: string; label: string }
+   request: (d: any, values: Record<string, string>) => { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string; body?: any }
+   done: string
+ }
+diff --git a/apps/mobile/src/trades/landscaping.ts b/apps/mobile/src/trades/landscaping.ts
+index 4a4ae10..b7aec25 100644
+--- a/apps/mobile/src/trades/landscaping.ts
++++ b/apps/mobile/src/trades/landscaping.ts
+@@ -56,6 +56,7 @@ export const LANDSCAPING: ScreenSpec[] = [
+           request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/complete` }), done: 'Stop finished' },
+         { id: 'note', label: 'Note for the customer', icon: 'chatbox-ellipses', any: ['jobs:update'], feature: 'visit_reports',
+           inputs: [{ id: 'note', label: 'What did you do? (the customer reads this)', kind: 'multiline', required: true }],
++          offline: (d) => ({ key: `visit:${d.id}`, label: `${d.number || 'Visit'} · note for the customer` }),
+           request: (d, v) => ({ method: 'PUT', path: `/api/visit-reports/job/${d.id}`, body: { note: v.note } }), done: 'Note saved' },
+       ],
+     },
+@@ -78,6 +79,7 @@ export const LANDSCAPING: ScreenSpec[] = [
+       ],
+       actions: [
+         { id: 'start', label: 'Start this stop', icon: 'play', any: ['jobs:update'], when: (d) => d.status === 'open',
++          offline: (d) => ({ key: `storm-stop:${d.id}`, label: `${d.siteName || 'Snow stop'} · started` }),
+           request: (d) => ({ method: 'POST', path: `/api/snow/storms/stops/${d.id}/start` }), done: 'Started' },
+         { id: 'log', label: 'Log this visit', icon: 'checkmark-circle', any: ['jobs:update'], when: (d) => d.status === 'open' || d.status === 'working',
+           inputs: [
+@@ -85,6 +87,7 @@ export const LANDSCAPING: ScreenSpec[] = [
+             { id: 'salt', label: 'Salt put down?', kind: 'choice', choices: ['no', 'yes'], initial: () => 'no' },
+             { id: 'hours', label: 'Hours (leave empty to use your Start time)', kind: 'number' }, { id: 'notes', label: 'Note', kind: 'multiline' },
+           ],
++          offline: (d) => ({ key: `storm-stop:${d.id}`, label: `${d.siteName || 'Snow stop'} · logged` }),
+           request: (d, v) => ({ method: 'POST', path: `/api/snow/storms/stops/${d.id}/log`, body: {
+             pushes: num(v.pushes), snowfallInches: num(v.snowfall), saltApplied: v.salt === 'yes', ...(num(v.hours) !== undefined ? { hours: num(v.hours) } : {}), ...(v.notes?.trim() ? { notes: v.notes.trim() } : {}),
+           } }), done: 'Visit logged' },

@@ -44,3 +44,23 @@ Kit changes (additive, phone only): an action or section may name the business s
 
 Skip-with-reason, ETA "on my way", before-photos and photo markup, materials used, required forms, map of the day, end-of-day recap,
 a Today's route tab (the bar is full; this is an owner decision), photos with no signal.
+
+## Offline (row 11): written and tested on a scratch merge, NOT on this branch
+
+The rebuilt offline queue (`apps/mobile/src/offline/`) is on `cloud/fieldservice-depth`, not here, and that folder is that session's.
+So this branch does not import it. The wiring is saved as `docs/parity/landscaping-offline-wiring.patch` (3 files:
+`kit.ts`, `ActionSheet.tsx`, `landscaping.ts`). **Apply it after `cloud/fieldservice-depth` has merged** (`git apply`). On a scratch merge
+of the two branches (nothing committed or pushed) it type-checks and all 16 phone test files pass; **it has not been run on a device.**
+
+What goes through the queue: only saves that are safe to send twice, because the queue sends at least once and the server ignores the
+`Idempotency-Key` it sends:
+- **Snow Start / Log** (`storm-stop:<id>`): a second Start changes nothing; a second Log returns the same visit (`alreadyLogged`).
+- **Note for the customer** (`visit:<id>`): replaces the whole note.
+
+What does **not**: **Start / Finish of an ordinary visit.** Sending `POST /api/jobs/:id/complete` twice moves the completion time and
+runs the job hooks again (customer texts), so queuing it would risk a double message. Parity needs the server to honour the
+`Idempotency-Key` (or a "complete only if not already completed" rule) in the shared jobs route; that is shared code outside this
+task. Until then Start / Finish need signal on this screen. Photos are not queued by that queue either.
+
+Heads-up for the merge: `cloud/fieldservice-depth` also adds a phone job flow (on my way, arrived, checklist, photos, complete) on the
+Job page. "Today's route" lists the day and opens its own detail; it does not replace that flow.
