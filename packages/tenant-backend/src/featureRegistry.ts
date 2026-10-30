@@ -349,7 +349,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Add-on Products
   // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never included in a plan.
-  { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
+  { id: 'visualizer', name: 'Exterior Visualizer', description: 'Paid add-on (extra cost) — AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
   // Instant Roof Estimator — NOT ready (2026-08-20). Its routes/pages still exist in crm and
   // crm-roof and every surface is gated on this id. Offered to NO template and hidden, so it can
   // never be seeded, toggled or sold; the id stays in the vocabulary so the gates are not "unknown".

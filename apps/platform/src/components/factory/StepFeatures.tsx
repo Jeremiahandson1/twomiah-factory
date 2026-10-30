@@ -36,7 +36,7 @@ const CRM_PRESETS: { id: string; name: string; icon: string; description: string
 const WEBSITE_PRESETS = [
   { id: 'lead-capture', name: 'Lead Capture', icon: '📋', description: 'Single page. Hero, services, contact form.', features: ['contact_form'] },
   { id: 'brochure', name: 'Brochure Site', icon: '📄', description: '3–5 pages. Services, about, contact.', features: ['contact_form','services_pages','testimonials'] },
-  { id: 'full-site', name: 'Full Site', icon: '🌐', description: 'All pages — gallery, blog, testimonials, visualizer.', features: ['contact_form','services_pages','gallery','blog','testimonials','analytics'] },
+  { id: 'full-site', name: 'Full Site', icon: '🌐', description: 'All pages — gallery, blog, testimonials. (The Exterior Visualizer is a paid add-on, picked separately.)', features: ['contact_form','services_pages','gallery','blog','testimonials','analytics'] },
   { id: 'custom', name: 'Custom', icon: '⚙️', description: 'Full control over every feature.', features: null },
 ]
 
@@ -175,7 +175,7 @@ const CRM_REGISTRY = [
     { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', core: false },
   ]},
   { category: 'Add-on Products', features: [
-    { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior rendering tool', core: false },
+    { id: 'visualizer', name: 'Exterior Visualizer', description: 'Paid add-on (extra cost) — AI-powered exterior rendering tool', core: false },
   ]},
 ]
 
