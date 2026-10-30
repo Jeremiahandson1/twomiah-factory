@@ -149,6 +149,14 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/messages'], trades: ['homecare'], how: 'tab', what: 'Messages tab + thread + compose', files: ['app/(tabs)/messages.tsx', 'app/(care)/thread/[id].tsx', 'app/(care)/compose.tsx'] },
   { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], how: 'screen', what: 'Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text', files: ['app/(details)/texts/index.tsx', 'app/(details)/texts/[id].tsx', 'app/(details)/texts/new.tsx'] },
   { paths: ['/crm/email'], how: 'screen', what: 'Email (More): the inbox + a message as text + reply as the address written to', files: ['app/(details)/email/index.tsx', 'app/(details)/email/[id].tsx'] },
+  // Tier 2 (src/trades/office.ts)
+  { paths: ['/crm/reports'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], how: 'screen', what: 'Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page', files: ['app/(details)/reports-summary.tsx'] },
+  { paths: ['/crm/time'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], how: 'screen', what: 'Hours (More): waiting approval / all + approve', files: ['app/(details)/office-time.tsx'] },
+  { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], how: 'screen', what: 'Expenses (More): list + approve + add one with a receipt photo', files: ['app/(details)/expenses/index.tsx', 'app/(details)/expenses/new.tsx'] },
+  { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], how: 'screen', what: 'Review requests (More): sent / clicked + send a reminder', files: ['app/(details)/office-review-requests.tsx'] },
+  { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], how: 'screen', what: 'Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop)', files: ['app/(details)/office-google-reviews.tsx'] },
+  { paths: ['/crm/bookings', '/crm/bookings/calendar'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], how: 'screen', what: 'Bookings (More): today / 7 days / all + confirm, done, no-show, cancel', files: ['app/(details)/office-bookings.tsx'] },
+  { paths: ['/crm/bookings/waitlist'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], how: 'screen', what: 'Waitlist (More): call / email + take off', files: ['app/(details)/office-waitlist.tsx'] },
   { paths: ['/crm/units'], trades: ['rv'], how: 'tab', what: 'Inventory tab + unit detail', files: ['app/(tabs)/units.tsx', 'app/(details)/unit/[id].tsx'] },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], how: 'tab', what: 'Parts tab (sample catalogue)', files: ['app/(tabs)/parts.tsx'] },
   { paths: ['/crm/ai-trade'], trades: ['rv'], how: 'tab', what: 'Trade tab (appraisal)', files: ['app/(tabs)/ai-trade.tsx'] },
@@ -448,6 +456,15 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/texts' },
   // The Email inbox (mail to an address routed into the CRM): every trade has it.
   { paths: ['/crm/email'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/email' },
+  // Tier 2 (owner 10/30): the office pages owners open away from the desk, in every trade whose desktop page reads the same
+  // routes (apps/mobile/src/trades/office.ts). Home care's own Reports and Expenses (other routes) stay on the desktop page.
+  { paths: ['/crm/reports'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/reports-summary' },
+  { paths: ['/crm/time'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/office-time' },
+  { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/expenses' },
+  { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/office-review-requests' },
+  { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/office-google-reviews' },
+  { paths: ['/crm/bookings', '/crm/bookings/calendar'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], route: '/(details)/office-bookings' },
+  { paths: ['/crm/bookings/waitlist'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], route: '/(details)/office-waitlist' },
   { paths: ['/crm/units'], trades: ['rv'], route: '/(tabs)/units' },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], route: '/(tabs)/parts' },
   { paths: ['/crm/ai-trade'], trades: ['rv'], route: '/(tabs)/ai-trade' },
@@ -469,7 +486,7 @@ export const PHASE_RULES: PhaseRule[] = [
   // A — daily field and office work
   { paths: ['/crm/dashboard', '/crm/pipeline'], phase: 'A', why: 'the home screen' },
   { paths: ['/crm/leads', '/crm/new-leads'], phase: 'A', why: 'leads are answered from the phone' },
-  { paths: ['/crm/email'], phase: 'A', why: "answering customers' email" },
+  { paths: ['/crm/email', '/crm/google-reviews'], phase: 'A', why: "answering customers' email and reviews" },
   { paths: ['/crm/jobs', '/crm/dispatch', '/crm/schedule', '/crm/recurring-routes'], phase: 'A', why: 'the day\'s work' },
   { paths: ['/crm/contacts', '/crm/clients'], phase: 'A', why: 'who the work is for' },
   { paths: ['/crm/quotes', '/crm/invoices'], phase: 'A', why: 'quote on site, take payment on site' },
@@ -482,7 +499,7 @@ export const PHASE_RULES: PhaseRule[] = [
   // D — desktop only
   { paths: ['/crm/tech'], phase: 'D', why: 'this IS the phone-sized field view; the app replaces it' },
   { paths: ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain'], phase: 'D', why: 'building the public website is a desk job' },
-  { paths: ['/crm/audit', '/crm/geofences', '/crm/locations', '/crm/google-reviews', '/crm/ai-receptionist', '/crm/call-tracking', '/crm/ads', '/crm/marketing'], phase: 'D', why: 'set-up and review screens for the owner at a desk' },
+  { paths: ['/crm/audit', '/crm/geofences', '/crm/locations', '/crm/ai-receptionist', '/crm/call-tracking', '/crm/ads', '/crm/marketing'], phase: 'D', why: 'set-up and review screens for the owner at a desk' },
   { paths: ['/crm/gantt', '/crm/takeoffs', '/crm/aia-forms', '/crm/visualizer', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports', '/crm/measurements'], phase: 'D', why: 'needs a large canvas (chart, plan or map) or is an add-on' },
   { paths: ['/crm/help', '/crm/contact-support'], phase: 'D', why: 'a link out is enough' },
   { paths: ['/crm/lead-sources'], phase: 'D', why: 'connecting lead sources is a set-up task' },
@@ -496,9 +513,9 @@ export const PHASE_RULES: PhaseRule[] = [
  * rule names is C. The phone is never a register: nothing that takes a card or rings a sale is anything but D.
  */
 const SITE = ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain']
-const SETUP = ['/crm/audit', '/crm/marketing', '/crm/google-reviews', '/crm/lead-sources']
+const SETUP = ['/crm/audit', '/crm/marketing', '/crm/lead-sources']
 /** Answering a customer's email is phone work (owner 10/30, Tier 1): the Email inbox has its own screen. */
-const EMAIL: PhaseRule = { paths: ['/crm/email'], phase: 'A', why: "answering customers' email" }
+const EMAIL: PhaseRule = { paths: ['/crm/email', '/crm/google-reviews'], phase: 'A', why: "answering customers' email and reviews" }
 const LINKS = ['/crm/help', '/crm/contact-support']
 export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
   salon: [

@@ -35,7 +35,8 @@ export interface Action {
   /** Ask first: a sheet with these words and a confirm button. */
   confirm?: { title: string; body: (d: any) => string; button: string }
   inputs?: Input[]
-  request: (d: any, values: Record<string, string>) => { method: 'POST' | 'PUT' | 'PATCH'; path: string; body?: any }
+  /** DELETE only for taking a row off a list that is the business's own (a waitlist entry), and always with `confirm`. */
+  request: (d: any, values: Record<string, string>) => { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string; body?: any }
   done: string
 }
 export interface Chip { id: string; label: string; query: Record<string, string> }
@@ -67,6 +68,16 @@ export interface ScreenSpec {
   }
   /** Actions on the list itself (e.g. "Start a count"). */
   actions?: Action[]
+  /** A "+" in the header that opens a form screen of its own (an expense with its receipt photo), for a seat with `any`. */
+  create?: { label: string; route: string; any: string[] }
+}
+/** A chip's day, worked out when the list loads (a chip's query is fixed data): {dayStart} / {dayEnd} are today's start and
+ *  end on this phone's clock, {weekEnd} the end of the seventh day — as instants, the bookings list's from/to. */
+export const fillDates = (query: Record<string, string>, now = new Date()): Record<string, string> => {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const end = (days: number) => new Date(start.getTime() + days * 86_400_000 - 1).toISOString()
+  const values: Record<string, string> = { '{dayStart}': start.toISOString(), '{dayEnd}': end(1), '{weekEnd}': end(7) }
+  return Object.fromEntries(Object.entries(query).map(([k, v]) => [k, values[v] ?? v]))
 }
 export const unwrap = (b: any) => (b && typeof b === 'object' && 'data' in b && !Array.isArray(b.data) && b.data && typeof b.data === 'object' ? b.data : b)
 export const words = (s: unknown) => String(s ?? '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())

@@ -9,7 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useVertical } from '../vertical/VerticalContext'
 import { FilterBanner } from '../home/FilterBanner'
 import { specFor } from './specs'
-import { mayUse, rowCache, type Action } from './kit'
+import { mayUse, rowCache, fillDates, type Action } from './kit'
 import { ActionSheet } from './ActionSheet'
 
 export function TradeList({ spec: id, tab, params, banner, from }: { spec: string; tab?: boolean; params?: Record<string, string>; banner?: { label: string; onClear: () => void }; /** the tile's list: the chip with this query starts selected */ from?: Req }) {
@@ -23,7 +23,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
   const [refreshing, setRefreshing] = useState(false)
   const url = useMemo(() => {
     if (!spec) return null
-    const query = { ...(spec.list.query || {}), ...(spec.chips?.find((c) => c.id === chip)?.query || {}), ...(params || {}) }
+    const query = fillDates({ ...(spec.list.query || {}), ...(spec.chips?.find((c) => c.id === chip)?.query || {}), ...(params || {}) })
     if (spec.search && q.trim()) query[spec.search.param] = q.trim()
     return reqUrl({ path: spec.list.path, query })
   }, [spec, chip, q, params])
@@ -36,7 +36,8 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
     return v.meta && v.meta.length > 12 ? { ...v, subtitle: [v.subtitle, v.meta].filter(Boolean).join(' · '), meta: undefined } : v
   })
   return (
-    <Screen title={spec.title} onBack={tab ? undefined : () => router.back()} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false) }}>
+    <Screen title={spec.title} onBack={tab ? undefined : () => router.back()} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false) }}
+      actions={spec.create && spec.create.any.some((p) => can(p)) ? [{ icon: 'add', label: spec.create.label, onPress: () => router.push(spec.create!.route as any) }] : undefined}>
       <View style={{ gap: space[3] }}>
         {banner ? <FilterBanner label={banner.label} count={total ?? (loading ? undefined : rows.length)} onClear={banner.onClear} /> : null}
         {spec.search ? <SearchField value={q} onChangeText={setQ} placeholder={spec.search.placeholder} /> : null}
