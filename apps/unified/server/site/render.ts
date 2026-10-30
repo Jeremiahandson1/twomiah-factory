@@ -39,6 +39,12 @@ export interface PageMeta { title?: string | null; metaTitle?: string | null; me
 export interface RenderOptions {
   currentPath: string
   origin: string
+  /**
+   * The page is served by this server, which answers /img/<width>/… (site/variants.ts): heroes use those sized copies.
+   * Off, a hero keeps its original photo. The $19 one-page site (Netlify) and the signup preview (inside twomiah.com) have
+   * no /img/ route — the copies were 404s there and every hero was blank (owner, 10/30).
+   */
+  sizedPhotos?: boolean
   /** Nav items this page adds when the owner's nav lacks them (Inventory, Visualizer). */
   extraNav?: Array<{ label: string; href: string }>
   /** Collects sections that failed to render (tests read it; the page itself still renders). */
@@ -94,7 +100,7 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
     ? pick(firstHero.data?.coverImageSmall, firstHero.data?.coverImage, firstHero.data?.titleImageSmall, firstHero.data?.titleImage, firstHero.data?.art)
     : pick(firstHero?.data?.image)
   // Each hero's photo as the site's own sized copy, and the first one preloaded (heroImages.ts).
-  const hero = withHeroImages(sections)
+  const hero = o.sizedPhotos ? withHeroImages(sections) : { sections, preloads: [] as Preload[] }
   const homepage = { sections: hero.sections }
   // Each section gets its own data, the site's settings and words, and — for a vertical whose sections read live facts
   // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.

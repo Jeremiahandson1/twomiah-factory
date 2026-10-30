@@ -123,6 +123,29 @@ describe('the published page', () => {
   })
 })
 
+describe('the hero photo', () => {
+  test('names a photo the deploy ships — never a sized /img/ copy, which only the full site\'s server answers', async () => {
+    // 10/30 live: every $19 hero was blank — the page asked for /img/960/stock/…, which Netlify has no route for.
+    // The photo as a live signup's hero has it (the Factory's library, absolute), and as a copy the deploy ships (relative).
+    const photos = ['https://twomiah-factory-api.onrender.com/hero-library/landscaping/landscaping-01.jpg', '/hero-library/landscaping/landscaping-01.jpg']
+    for (const [trade, variant] of [['landscaping', 'full-bleed'], ['landscaping', 'split'], ['roofing', 'full-bleed'], ['salon', 'split']]) {
+      for (const image of photos) {
+        const { model } = first(trade)
+        const hero = model.sections.find((s: any) => s.type === 'hero')
+        Object.assign(hero, { variant }); hero.data = { ...hero.data, image }
+        const out = await draw(trade, canonicalise(model, buildSpec(trade), null).model)
+        const html = String(out.files['index.html'])
+        expect([trade, variant, /\/img\/\d+\//.test(html)]).toEqual([trade, variant, false])
+        const built = await buildSiteFiles(out, buildSpec(trade))
+        const shown = [...html.matchAll(/background-image: ?url\('([^']+)'\)/g)].map((m) => m[1])
+        expect([trade, variant, shown]).toEqual([trade, variant, [image]])
+        // A relative photo is one the deploy carries; an absolute one is the Factory's own library (it serves /hero-library).
+        if (image.startsWith('/')) expect(!!built.files[image.slice(1)]).toBe(true)
+      }
+    }
+  })
+})
+
 describe('what the owner types shows on the page', () => {
   test('"Where you work" is listed in the contact details, not only in the data Google reads', async () => {
     // 10/30 live: the owner typed Eau Claire in the box, saved, and saw no change — it reached only the JSON-LD.

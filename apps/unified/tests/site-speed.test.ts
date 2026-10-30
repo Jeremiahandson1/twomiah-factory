@@ -19,7 +19,7 @@ const ctx = (design = 'classic', settings: Record<string, any> = {}): any => {
   }
 }
 const render = (sections: any[], settings: Record<string, any> = {}, meta: any = { title: 'Home' }) =>
-  renderSections(ctx('classic', settings), sections, meta, { currentPath: '/', origin: 'https://x.example', facts: null })
+  renderSections(ctx('classic', settings), sections, meta, { currentPath: '/', origin: 'https://x.example', facts: null, sizedPhotos: true }) // as the site's own server renders (routes.ts)
 const hero = (image: string, extra: Record<string, any> = {}) => ({ type: 'hero', variant: 'full-bleed', data: { title: 'Westridge', subtitle: 'Kitchens, baths and additions built the way you pictured them.', image, ...extra } })
 
 describe('the first screen\'s photo', () => {

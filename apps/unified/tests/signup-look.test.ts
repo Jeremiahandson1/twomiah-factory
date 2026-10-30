@@ -59,6 +59,16 @@ describe('the signup preview is the site renderer', () => {
     }
   })
 
+  test('the hero photo is the library photo itself — the preview is shown inside twomiah.com, which has no /img/ copies', async () => {
+    // 10/30: every preview hero was blank — it asked for /img/960/stock/…, a path only a CRM site's own server answers.
+    const photo = 'https://twomiah-factory-api.onrender.com/hero-library/roofing/roofing-01.jpg'
+    for (const variant of ['split', 'full-bleed']) {
+      const html = await renderSitePreview({ vertical: 'roofing', design: null, company: { name: 'Westridge Roofing', primaryColor: '#FF3D00' }, settings: { nav: [] }, sections: [{ type: 'hero', variant, data: { title: 'Roofs done right', image: photo } }], features: [] })
+      expect([variant, /\/img\/\d+\//.test(html)]).toEqual([variant, false])
+      expect(html).toContain(`background-image: url('${photo}')`)
+    }
+  })
+
   test('no look: the vertical’s own default', async () => {
     const html = await draw(null)
     for (const f of ['Barlow+Condensed', 'Instrument+Serif', 'Plus+Jakarta']) expect(html).not.toContain(f)

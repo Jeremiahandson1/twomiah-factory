@@ -226,7 +226,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       })
     }
     const f = pageFacts ?? await factsOf(ctx)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), sizedPhotos: true, extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
