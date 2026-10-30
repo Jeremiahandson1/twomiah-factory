@@ -58,7 +58,11 @@ export function amount(n: unknown): string {
   return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export interface LineInput { quantity: number; unitPrice: number }
+/**
+ * `taxable: false` marks a line the invoice's tax does not apply to (the private-events module's food-and-beverage
+ * minimum shortfall, when the venue does not tax it). A line that does not say is taxed, exactly as before.
+ */
+export interface LineInput { quantity: number; unitPrice: number; taxable?: boolean }
 
 /**
  * Subtotal → discount → tax on the discounted amount (US convention) → total, all in whole cents.
@@ -68,7 +72,9 @@ export interface LineInput { quantity: number; unitPrice: number }
 export function calcTotals(items: LineInput[], taxRate: number, discount = 0) {
   const subtotal = round2(items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.unitPrice) || 0), 0))
   const effectiveDiscount = round2(Math.min(Math.max(0, Number(discount) || 0), subtotal))
-  const taxable = Math.max(0, subtotal - effectiveDiscount)
+  // Untaxed lines (taxable: false) come off the base the tax is worked on; the discount comes off the taxed lines first.
+  const untaxed = round2(items.reduce((s, i) => s + (i.taxable === false ? Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.unitPrice) || 0) : 0), 0))
+  const taxable = Math.max(0, subtotal - untaxed - effectiveDiscount)
   const taxAmount = round2(taxable * (Math.max(0, Number(taxRate) || 0) / 100))
   const total = round2(subtotal - effectiveDiscount + taxAmount)
   return { subtotal, effectiveDiscount, taxAmount, total }

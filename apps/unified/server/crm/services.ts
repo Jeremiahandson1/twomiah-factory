@@ -212,6 +212,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
     fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync, scheduledTexts,
+    /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
+    eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */

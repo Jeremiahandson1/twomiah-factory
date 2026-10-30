@@ -29,6 +29,10 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, done, listAll } from '../../http/reply.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { EVENT_TILES, eventTileCondition } from './tileConditions.ts'
+import { countChangeVerdict, overrideColumns, guaranteeFor, guaranteeOn } from './eventGuarantee.ts'
+import { getEventSettings } from './eventSettings.ts'
+import { sourceRefusal } from './eventSources.ts'
+import { offerWaitlist } from './eventCalendar.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
   EXIT_STATUSES, HELD, DATE_RE, venueToday, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
@@ -181,7 +185,14 @@ export function createEventRoutes(d: CrmDeps) {
      */
     const maySeeMoney = await maySeeEventMoney(currentUser)
     const menuRows = ledger?.menu || []
+    // The guarantee cutoff and whether it has passed, where the venue has switched the cutoff on.
+    let guarantee: { cutoff: string | null; locked: boolean; days: number } | null = null
+    if (await guaranteeOn(d, currentUser.companyId)) {
+      const days = (await getEventSettings(db, currentUser.companyId)).guaranteeDays
+      guarantee = { ...guaranteeFor(ev, days, await venueToday(db, currentUser.companyId)), days }
+    }
     return one(c, {
+      ...(guarantee ? { guarantee } : {}),
       event: maySeeMoney ? ev : without(ev, EVENT_MONEY_KEYS),
       // the customer's portal credential never travels with their record (T42)
       client: client ? withoutPortalCredential(client) : null,
@@ -200,7 +211,7 @@ export function createEventRoutes(d: CrmDeps) {
   app.post('/', requirePermission('contacts:create'), async (c) => {
     const currentUser = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-    const vErr = validateEventInput(body)
+    const vErr = validateEventInput(body) || sourceRefusal(body.source)
     if (vErr) return fail(c, 400, vErr)
     const cErr = await coordinatorRefusal(db, currentUser.companyId, body.coordinatorId)
     if (cErr) return fail(c, 400, cErr)
@@ -242,8 +253,15 @@ export function createEventRoutes(d: CrmDeps) {
     if (!editorSeesMoney) for (const k of EVENT_MONEY_KEYS) delete updates[k]
 
     // The same rules as a create, against the effective values, so editing one of start/end re-checks the pair.
-    const vErr = validateEventInput(updates, existing)
+    const vErr = validateEventInput(updates, existing) || ('source' in updates && updates.source !== existing.source ? sourceRefusal(updates.source) : null)
     if (vErr) return fail(c, 400, vErr)
+    // The guest count is locked from the guarantee cutoff: a manager changes it with a reason (eventGuarantee.ts).
+    const countChanged = ['guestCount', 'guestCountFinal'].some((k) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? ''))
+    if (countChanged) {
+      const verdict = await countChangeVerdict(d, currentUser, existing, body.overrideReason)
+      if (!verdict.ok) return fail(c, verdict.status, verdict.message, verdict.code)
+      if (verdict.override) Object.assign(updates, overrideColumns(verdict.override))
+    }
     if ('coordinatorId' in updates) {
       const cErr = await coordinatorRefusal(db, currentUser.companyId, updates.coordinatorId)
       if (cErr) return fail(c, 400, cErr)
@@ -258,9 +276,10 @@ export function createEventRoutes(d: CrmDeps) {
       updated = await db.transaction(async (tx: any) => {
         await lockEventBook(tx, currentUser.companyId)
         if (nextSpace && HELD.includes(nextStatus)) {
-          const held = await findClash(tx, currentUser.companyId, nextSpace, nextDate, id)
+          const held = await findClash(tx, currentUser.companyId, nextSpace, nextDate, id, { startTime: 'startTime' in updates ? updates.startTime : existing.startTime, endTime: 'endTime' in updates ? updates.endTime : existing.endTime })
           if (held) throw new SpaceClash(clashMessage(nextDate, held), held.id)
         }
+        if (['confirmed', 'completed'].includes(nextStatus) && !existing.bookedAt) updates.bookedAt = new Date()
         const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
         if ((existing.spaceId || null) !== (row.spaceId || null)) await syncHireLine(tx, currentUser.companyId, row)
         // Leaving the book closes the invoice (void, or deposit retained — body.keepDeposit); anything else keeps the
@@ -285,6 +304,10 @@ export function createEventRoutes(d: CrmDeps) {
     }
     await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
     emitToCompany(currentUser.companyId, REFRESH, { entity: 'event' })
+    // A hold let go (stage, room, day or hours changed) is offered to whoever is waiting for it.
+    if (HELD.includes(existing.status) && (!HELD.includes(updated.status) || existing.spaceId !== updated.spaceId || existing.eventDate !== updated.eventDate || existing.startTime !== updated.startTime || existing.endTime !== updated.endTime)) {
+      await offerWaitlist(d, currentUser.companyId, existing.spaceId, existing.eventDate)
+    }
     // Only what this edit changed is warned about, so re-saving a past event for another reason is quiet.
     const changed = (k: string) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? '')
     const warnings = await eventWarnings(db, currentUser.companyId, updated, { date: changed('eventDate'), capacity: changed('spaceId') || changed('guestCount') || changed('guestCountFinal') })
@@ -314,6 +337,7 @@ export function createEventRoutes(d: CrmDeps) {
 
     await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
     emitToCompany(currentUser.companyId, REFRESH, { entity: 'event' })
+    if (HELD.includes(existing.status)) await offerWaitlist(d, currentUser.companyId, existing.spaceId, existing.eventDate)
     return one(c, { success: true, event: updated })
   })
 
@@ -387,6 +411,13 @@ export function createEventRoutes(d: CrmDeps) {
     const mErr = ('unitPrice' in updates ? moneyRefusal(updates.unitPrice, 'Unit price') : null)
       || ('quantity' in updates ? quantityRefusal(updates.quantity) : null)
     if (mErr) return fail(c, 400, mErr)
+    // After the guarantee cutoff a per-head line may not go down without a manager's reason.
+    if (existing.perPerson && 'quantity' in updates && Number(updates.quantity) < Number(existing.quantity)) {
+      const ev = await ownEvent(currentUser.companyId, eventId)
+      const verdict = ev ? await countChangeVerdict(d, currentUser, ev, body.overrideReason) : { ok: true as const }
+      if (!verdict.ok) return fail(c, verdict.status, verdict.message, verdict.code)
+      if (verdict.override) await db.update(event).set(overrideColumns(verdict.override)).where(eq(event.id, eventId))
+    }
     // The billing floor holds on edit too. (T16 M9)
     if (existing.packageId && ('quantity' in updates || 'perPerson' in updates || 'notes' in updates)) {
       const [pkg] = await db.select().from(menuPackage).where(and(eq(menuPackage.id, existing.packageId), eq(menuPackage.companyId, currentUser.companyId))).limit(1)
@@ -424,6 +455,12 @@ export function createEventRoutes(d: CrmDeps) {
     const [existing] = await db.select().from(eventMenuItem)
       .where(and(eq(eventMenuItem.id, lineId), eq(eventMenuItem.eventId, eventId), eq(eventMenuItem.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Menu line not found')
+    if (existing.perPerson && !existing.spaceId) {
+      const ev = await ownEvent(currentUser.companyId, eventId)
+      const verdict = ev ? await countChangeVerdict(d, currentUser, ev, c.req.query('overrideReason')) : { ok: true as const }
+      if (!verdict.ok) return fail(c, verdict.status, verdict.message, verdict.code)
+      if (verdict.override) await db.update(event).set(overrideColumns(verdict.override)).where(eq(event.id, eventId))
+    }
 
     try {
       await db.transaction(async (tx: any) => {

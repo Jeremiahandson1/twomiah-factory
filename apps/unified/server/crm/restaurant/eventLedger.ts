@@ -16,6 +16,7 @@ import {
 import { event, eventMenuItem, eventPayment, invoice, invoiceLineItem, payment, contact, project, quote, company } from '../../db/schema/index.ts'
 import { lockEventLedger, lockEventInvoiceRow, eventsWithPaymentsAndNoInvoice } from '../../data/restaurantEvents.ts'
 import { EXIT_STATUSES } from './eventBooking.ts'
+import { minimumFor, type MinimumResult } from './eventMinimums.ts'
 import type { Logger } from '../../core/logger.ts'
 
 // The invoice routes' numbering (the shared default), so an event invoice takes the next INV-00000 in the one sequence.
@@ -32,17 +33,18 @@ export class LedgerError extends Error {
   constructor(message: string, public status: 400 | 404 | 409 = 400) { super(message) }
 }
 
-type Line = { description: string; quantity: number; unitPrice: number }
+type Line = { description: string; quantity: number; unitPrice: number; taxable?: boolean }
 
 /** Invoice lines for an event: its menu, topped up to the quoted total while the menu is still below it. */
-export function eventInvoiceLines(ev: { name: string; quotedTotal: any }, menu: Array<{ name: string; quantity: any; unitPrice: any }>): Line[] {
+export function eventInvoiceLines(ev: { name: string; quotedTotal: any }, menu: Array<{ name: string; quantity: any; unitPrice: any }>, extra: Line[] = []): Line[] {
   const lines: Line[] = menu.map((l) => ({ description: l.name, quantity: Math.max(0, Number(l.quantity) || 0), unitPrice: Math.max(0, Number(l.unitPrice) || 0) }))
   const menuTotal = round2(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0))
   const quoted = round2(Number(ev.quotedTotal) || 0)
   if (quoted > menuTotal + 0.005) {
     lines.push({ description: lines.length ? 'Balance of quoted total' : `Quoted total — ${ev.name}`, quantity: 1, unitPrice: round2(quoted - menuTotal) })
   }
-  return lines
+  // The food-and-beverage minimum shortfall (eventMinimums.ts), after everything the guest chose.
+  return [...lines, ...extra]
 }
 
 export type InstallmentState = 'paid' | 'part_paid' | 'unpaid' | 'refunded' | 'void'
@@ -74,6 +76,9 @@ export function invoiceDueDate(ev: { eventDate: string }, states: Array<{ state:
   return new Date(next?.dueDate || ev.eventDate)
 }
 
+/** The quoted total not yet on a menu line (it is billed as "Balance of quoted total"). */
+const quoteTopUp = (ev: { quotedTotal: any }, menu: any[]) => Math.max(0, round2(Number(ev.quotedTotal) || 0) - round2(menu.reduce((s: number, l: any) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0)))
+
 async function readEventMoney(exec: any, companyId: string, eventId: string, forUpdate: boolean) {
   const [ev] = await exec.select().from(event).where(and(eq(event.id, eventId), eq(event.companyId, companyId))).limit(1)
   if (!ev) return null
@@ -85,7 +90,8 @@ async function readEventMoney(exec: any, companyId: string, eventId: string, for
     .orderBy(asc(eventPayment.dueDate), asc(eventPayment.createdAt))
   if (forUpdate) await lockEventInvoiceRow(exec, companyId, eventId)
   const [inv] = await exec.select().from(invoice).where(and(eq(invoice.eventId, eventId), eq(invoice.companyId, companyId))).limit(1)
-  return { ev, menu, schedule, inv: inv || null }
+  const minimum: MinimumResult = await minimumFor(exec, companyId, ev, menu, quoteTopUp(ev, menu))
+  return { ev, menu, schedule, inv: inv || null, minimum }
 }
 
 /** Read-only view for the event page, the BEO and the dashboard. */
@@ -93,7 +99,7 @@ export async function loadEventLedger(db: any, companyId: string, eventId: strin
   if (!eventId) return null
   const m = await readEventMoney(db, companyId, eventId, false)
   if (!m) return null
-  const { ev, menu, schedule, inv } = m
+  const { ev, menu, schedule, inv, minimum } = m
   const menuTotal = round2(menu.reduce((s: number, l: any) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0))
   // Minimum spend is food & beverage: the room-hire line (spaceId set) doesn't count toward it.
   const fbTotal = round2(menu.filter((l: any) => !l.spaceId).reduce((s: number, l: any) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0))
@@ -103,7 +109,7 @@ export async function loadEventLedger(db: any, companyId: string, eventId: strin
     ? { menuTotal, fbTotal, quoted, invoiced: true, total: round2(Number(inv.total)), tax: round2(Number(inv.taxAmount)),
         paid: round2(Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0)), refunded: round2(Number(inv.amountRefunded || 0)), outstanding: invoiceBalance(inv) }
     : { menuTotal, fbTotal, quoted, invoiced: false, total: Math.max(menuTotal, quoted), tax: 0, paid: 0, refunded: 0, outstanding: Math.max(menuTotal, quoted) }
-  return { ev, menu, payments, invoice: inv, totals }
+  return { ev, menu, payments, invoice: inv, totals: { ...totals, minimum }, minimum }
 }
 
 /**
@@ -125,7 +131,7 @@ export async function ensureEventInvoice(tx: any, companyId: string, eventId: st
     companyId, contactId: m.ev.contactId, notes: `Event: ${m.ev.name} — ${m.ev.eventDate}`,
     issueDate: createdAt < now ? createdAt : now, dueDate: new Date(m.ev.eventDate),
     taxRate: defaultTaxRateFrom(co?.settings), status: EVENT_INVOICE_STATUS,
-  } as any, eventInvoiceLines(m.ev, m.menu))
+  } as any, eventInvoiceLines(m.ev, m.menu, m.minimum.lines))
   await tx.update(invoice).set({ eventId }).where(eq(invoice.id, created.id))
   return { ...m, inv: { ...created, eventId } }
 }
@@ -148,7 +154,7 @@ export async function syncEventInvoice(tx: any, companyId: string, eventId: stri
   const inv = m.inv
   const updates: Record<string, any> = {}
   if (linesToo && !EXIT_STATUSES.includes(m.ev.status) && inv.status !== 'void' && inv.status !== 'refunded') {
-    const lines = eventInvoiceLines(m.ev, m.menu)
+    const lines = eventInvoiceLines(m.ev, m.menu, m.minimum.lines)
     const current = await tx.select().from(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, inv.id)).orderBy(asc(invoiceLineItem.sortOrder))
     if (!sameLines(current, lines)) {
       const retotal: any = retotalInvoice(inv, lines, Number(inv.taxRate), Number(inv.discount))

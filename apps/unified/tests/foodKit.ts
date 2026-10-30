@@ -19,6 +19,8 @@ export function terminalStripeFake() {
   const readers = new Map<string, any>()
   const intents = new Map<string, any>()
   const sessions = new Map<string, any>()
+  const setups = new Map<string, any>()
+  const detached: string[] = []
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_test' } })
   const err = (status: number, message: string, code?: string) => json({ error: { type: 'invalid_request_error', message, ...(code ? { code } : {}) } }, status)
   const handle = async (url: string, init: any): Promise<Response> => {
@@ -69,8 +71,23 @@ export function terminalStripeFake() {
       }
       return json(r)
     }
+    // Customers, saved cards and SetupIntents (the event depth: a card left for the rest of an event, charged off session).
+    if (p === '/v1/customers' && method === 'POST') return json({ id: `cus_${++state.n}`, object: 'customer', name: param(params, 'name') })
+    if (p === '/v1/setup_intents' && method === 'POST') {
+      const si: any = { id: `seti_${++state.n}`, object: 'setup_intent', client_secret: `seti_secret_${state.n}`, status: 'requires_payment_method', customer: param(params, 'customer'), payment_method: null }
+      setups.set(si.id, si)
+      return json(si)
+    }
+    if ((m = p.match(/^\/v1\/setup_intents\/([^/]+)$/)) && method === 'GET') { const si = setups.get(m[1]); return si ? json(si) : err(404, 'No such setup_intent') }
+    if ((m = p.match(/^\/v1\/payment_methods\/([^/]+)\/detach$/)) && method === 'POST') { detached.push(m[1]); return json({ id: m[1], object: 'payment_method', customer: null }) }
+    if ((m = p.match(/^\/v1\/payment_methods\/([^/]+)$/)) && method === 'GET') return json({ id: m[1], object: 'payment_method', card: { brand: 'visa', last4: m[1] === 'pm_declined' ? '0002' : '4242' } })
     if (p === '/v1/payment_intents' && method === 'POST') {
-      const pi = { id: `pi_${++state.n}`, object: 'payment_intent', amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), metadata: {} as Record<string, string>, amount_details: {} }
+      const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), metadata: {} as Record<string, string>, amount_details: {} }
+      // confirm=true with a saved card is an off-session charge: the declining test card fails the way Stripe's does.
+      if (param(params, 'confirm') === 'true') {
+        if (pi.payment_method === 'pm_declined') return err(402, 'Your card was declined.', 'card_declined')
+        pi.status = 'succeeded'; pi.amount_received = pi.amount
+      }
       for (const [k, v] of params) { const mm = k.match(/^metadata\[(.+)\]$/); if (mm) pi.metadata[mm[1]] = v }
       intents.set(pi.id, pi)
       return json(pi)
@@ -98,7 +115,11 @@ export function terminalStripeFake() {
   }
   /** The customer pays on Stripe's page: the session completes. */
   const paySession = (id: string) => { const s = sessions.get(id); Object.assign(s, { payment_status: 'paid', status: 'complete', payment_intent: `pi_for_${id}` }) }
-  return { calls, state, readers, intents, sessions, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
+  /** The cardholder confirmed the SetupIntent in the browser: the card is saved. */
+  const completeSetup = (id: string, pm: string) => { Object.assign(setups.get(id), { status: 'succeeded', payment_method: pm }) }
+  /** The cardholder paid a PaymentIntent in the browser. */
+  const succeedIntent = (id: string, pm = 'pm_card') => { const pi = intents.get(id); Object.assign(pi, { status: 'succeeded', amount_received: pi.amount, payment_method: pm }) }
+  return { calls, state, readers, intents, sessions, setups, detached, completeSetup, succeedIntent, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
 }
 
 export async function bootFood(opts: { vertical?: string; features: string[]; adminDist?: string }) {

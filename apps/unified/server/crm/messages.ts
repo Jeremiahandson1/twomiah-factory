@@ -406,6 +406,26 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, your ${data.agreementName} (${data.agreementNumber}) renews automatically on ${data.renewalDate} through ${data.newEndDate} at $${data.amount} ${data.billingFrequency}. To cancel, reply to this email or contact ${data.companyName}${data.companyPhone ? ` at ${data.companyPhone}` : ''} before ${data.renewalDate}.`,
   }),
+
+  // The private-events module's notes to a client (server/crm/restaurant): a line, one button, the venue's name.
+  // data: { companyName, contactName, headline, body, button, path } — path is the link's address on this app.
+  eventNote: (data, b, appUrl) => ({
+    subject: String(data.subject ?? data.headline ?? ''),
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p><strong>${escHtml(data.headline)}</strong></p>
+          <p style="white-space:pre-wrap;">${escHtml(data.body)}</p>
+          ${data.path ? `<p style="text-align:center;"><a href="${appUrl}${escHtml(data.path)}" class="button">${escHtml(data.button || 'Open')}</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, ${data.headline}\n\n${data.body}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
+  }),
 }
 
 /**

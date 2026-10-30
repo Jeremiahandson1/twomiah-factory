@@ -54,6 +54,8 @@ const restaurant: VerticalSettings = {
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.
     dashboard: 'events',
     events: true,
+    // The catering form's dated enquiries open in the event book (crm/restaurant/eventEnquiry.ts; 'event_web_enquiries').
+    websiteForms: 'events',
     // The food side: a restaurant's register rings walk-ups and tables until the owner turns long tabs on, and its tap
     // list needs 'draft_taps' as well as the menu (server/crm/bar barRegisterRoutes.ts, barRoutes.ts).
     foodService: { tabs: false, tapsFeature: 'draft_taps' },

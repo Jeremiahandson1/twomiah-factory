@@ -242,9 +242,10 @@ export interface CrmSettings {
   /**
    * The vertical's own website forms, by `formType`: 'bar' answers the party request (a dated one opens an enquiry
    * in the party book) and the Regulars sign-up (crm/bar/enquiry.ts; templates/crm-bar routes/webhooks.ts). Any
-   * other form is an ordinary enquiry.
+   * other form is an ordinary enquiry. 'events' is a restaurant's: its catering form, with a real event date, opens an
+   * enquiry in the event book (crm/restaurant/eventEnquiry.ts), when the 'event_web_enquiries' feature is on.
    */
-  websiteForms?: 'bar'
+  websiteForms?: 'bar' | 'events'
   /** The home-care add-on: its records, routes and timed work (server/crm/homecare; templates/crm-homecare). */
   homecare?: boolean
   /**
