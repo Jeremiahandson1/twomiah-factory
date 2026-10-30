@@ -6,6 +6,9 @@ import { companyTimeZone, jobLocalDay } from '@twomiah/tenant-backend'
 import { ownJobsWhere } from '../crm/ownWork.ts'
 import { contact, job } from '../db/schema/index.ts'
 
+/** A job's day is this company day, by the same reading — the condition roofing's jobs list adds for ?date (10/30). */
+export const jobOnDay = (date: string, tz: string) => sql`${jobLocalDay(job.scheduledDate, job.source, tz)} = ${date}::date`
+
 export async function openJobsOnDay(db: any, companyId: string, date: string, person: string | null, extra: any[] = []): Promise<any[]> {
   const tz = await companyTimeZone(db, companyId)
   return db.select().from(job).where(and(

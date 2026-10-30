@@ -27,8 +27,8 @@
 //   · every read asks jobs:read, as the shared jobs module's do (the template's reads asked only that you were signed in).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt, sql } from 'drizzle-orm'
-import { companyTimeZone, jobLocalDay, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer, JOB_DISPATCH_PERMISSION, dispatchRefusal } from '@twomiah/tenant-backend'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
+import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer, JOB_DISPATCH_PERMISSION, dispatchRefusal } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage, user } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
@@ -38,6 +38,7 @@ import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
+import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
@@ -314,7 +315,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     // One day, the company's (?date=YYYY-MM-DD) — the rule every other CRM's jobs list uses (packages/tenant-backend
     // jobs.ts, jobLocalDay). Roofing ignored it, so the phone's Schedule day listed every job (10/30).
     if (q.date && /^\d{4}-\d{2}-\d{2}$/.test(q.date) && !isNaN(new Date(`${q.date}T00:00:00Z`).getTime())) {
-      conditions.push(sql`${jobLocalDay(job.scheduledDate, job.source, await companyTimeZone(db, me.companyId))} = ${q.date}::date`)
+      conditions.push(jobOnDay(q.date, await companyTimeZone(db, me.companyId)))
     }
     // The calendar's week (the shared Schedule page sends ?startDate&endDate, as for every CRM's jobs).
     if (q.startDate) { const d = new Date(q.startDate); if (!isNaN(d.getTime())) conditions.push(gte(job.scheduledDate, d)) }
