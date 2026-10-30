@@ -23,6 +23,8 @@ const ORDER = [
   // The Lead Inbox: the website's enquiries, in the CRM rather than only the owner's email (store live test, 2026-10-26).
   '/crm/dashboard', '/crm/products', '/crm/orders', '/crm/sales', '/crm/customers', '/crm/leads', '/crm/customer-groups', '/crm/payments', '/crm/disputes',
   '/crm/discounts', '/crm/gift-cards', '/crm/store-loyalty',
+  // Email marketing and review requests, offered to the store (opt-in: the owner switches them on in Settings › Features).
+  '/crm/marketing', '/crm/reviews',
   '/crm/suppliers', '/crm/shipping', '/crm/product-reviews', '/crm/google-reviews', '/crm/email', '/crm/domain',
   '/crm/store-settings', '/crm/audit',
 ]
@@ -35,7 +37,10 @@ const ORDER = [
 export function storeMenu(shared: NavItem[]): NavItem[] {
   const own = new Map(nav.map((i) => [i.to, i]))
   const base = shared.filter((i) => !nav.includes(i) && !own.has(i.to) && i.to !== '/crm/contacts')
-  const theirs = new Map(base.map((i) => [i.to, i]))
+  // The FIRST item for an address is the shared one: other verticals' menus reuse an address for their own word (the dealership's
+  // Follow-Up is at /crm/marketing), and a later duplicate must not stand in for the shared Marketing item.
+  const theirs = new Map<string, NavItem>()
+  for (const i of base) if (!theirs.has(i.to)) theirs.set(i.to, i)
   const ordered = ORDER.map((to) => own.get(to) ?? theirs.get(to)).filter(Boolean) as NavItem[]
   const used = new Set(ORDER)
   const rest = [...nav.filter((i) => !used.has(i.to)), ...base.filter((i) => !used.has(i.to))]

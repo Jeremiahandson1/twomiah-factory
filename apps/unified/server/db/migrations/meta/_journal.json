@@ -302,6 +302,13 @@
       "when": 1793379471452,
       "tag": "0042_store_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793382501201,
+      "tag": "0043_marketing_automations",
+      "breakpoints": true
     }
   ]
 }

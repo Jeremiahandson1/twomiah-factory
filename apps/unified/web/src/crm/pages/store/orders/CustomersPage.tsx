@@ -23,7 +23,7 @@ import { formatDate } from '../../../date'
 import { cents, listOf } from './lib'
 
 interface Customer {
-  id: string; name: string; email: string | null; phone: string | null
+  id: string; name: string; email: string | null; phone: string | null; tags?: string[]
   orderCount: number; totalSpentCents?: number | null; lastOrderAt: string | null
 }
 interface Pagination { page: number; limit: number; total: number; pages: number }
@@ -35,6 +35,8 @@ export default function CustomersPage() {
   const mayOpenContact = !known || can('contacts:read')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [page, setPage] = useState(1)
+  // Tags are what a campaign is aimed at (Marketing › Campaigns › some customers › tag); a tag here narrows the list to them.
+  const [tag, setTag] = useState('')
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
   // A failed load used to fall through to 'No customers yet' — a shop told it has no customers because a request failed. (Store QA T1)
@@ -44,7 +46,7 @@ export default function CustomersPage() {
     let live = true
     setLoading(true)
     setError('')
-    api.get('/api/admin/orders/customers', { page, limit: LIMIT })
+    api.get('/api/admin/orders/customers', { page, limit: LIMIT, ...(tag ? { tag } : {}) })
       .then((reply) => {
         if (!live) return
         setCustomers(listOf<Customer>(reply))
@@ -54,7 +56,7 @@ export default function CustomersPage() {
       .catch((e) => { if (live) setError(errorText(e, "Couldn't load the customers")) })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [page])
+  }, [page, tag])
 
   const pages = Math.max(1, pagination?.pages ?? 1)
 
@@ -67,6 +69,12 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {tag && (
+        <p className="text-sm text-gray-600 dark:text-slate-300">
+          Customers tagged <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium dark:bg-slate-800">{tag}</span>{' '}
+          <button type="button" className="underline" onClick={() => { setTag(''); setPage(1) }}>Show everyone</button>
+        </p>
+      )}
       {loading ? <PageSpinner /> : error ? (
         <PageError message={`${error} — refresh to try again.`} />
       ) : customers.length === 0 ? (
@@ -89,6 +97,11 @@ export default function CustomersPage() {
                         ? <Link to={`/crm/contacts/${c.id}`} className="font-medium text-orange-900 hover:underline dark:text-orange-200">{c.name || c.email || 'Customer'}</Link>
                         : <div className="font-medium text-gray-900 dark:text-slate-100">{c.name || c.email || 'Customer'}</div>}
                       <div className="text-xs text-gray-500 dark:text-slate-400">{[c.email, c.phone].filter(Boolean).join(' · ')}</div>
+                      {!!c.tags?.length && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {c.tags.map((t) => <button key={t} type="button" onClick={() => { setTag(t); setPage(1) }} title={`Show customers tagged ${t}`} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">{t}</button>)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{c.orderCount}</td>
                     <td className="px-4 py-3 font-medium whitespace-nowrap text-gray-900 dark:text-slate-100">{typeof c.totalSpentCents === 'number' ? cents(c.totalSpentCents) : '—'}</td>

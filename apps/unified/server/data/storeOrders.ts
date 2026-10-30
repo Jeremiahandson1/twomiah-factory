@@ -39,10 +39,12 @@ export async function orderStats(db: any, companyId: string): Promise<{ paidCoun
  * have ordered — orders other than pending ones counted, spend counted from paid ones (not pending or cancelled), as the
  * template's derived list counted them — most recent buyer first. A page of them and how many there are.
  */
-export async function storeCustomers(db: any, companyId: string, customerType: string, page: number, limit: number, q = ''): Promise<{ rows: { id: string; name: string; email: string | null; phone: string | null; orderCount: number; totalSpentCents: number; lastOrderAt: Date | null }[]; total: number }> {
+export async function storeCustomers(db: any, companyId: string, customerType: string, page: number, limit: number, q = '', tag = ''): Promise<{ rows: { id: string; name: string; email: string | null; phone: string | null; tags: string[]; orderCount: number; totalSpentCents: number; lastOrderAt: Date | null }[]; total: number }> {
   // ?q= finds a customer by name or email (a shop of thousands cannot pick one from a list) — 2026-10-24.
   const needle = q.trim() ? `%${q.trim().replace(/[\\%_]/g, (ch) => '\\' + ch)}%` : ''
-  const mine = and(eq(contact.companyId, companyId), eq(contact.type, customerType), ...(needle ? [or(ilike(contact.name, needle), ilike(contact.email, needle))] : []))
+  // ?tag= keeps the customers carrying that tag (the tags a campaign can be aimed at).
+  const tagged = tag.trim() ? [sql`${contact.tags}::jsonb @> ${JSON.stringify([tag.trim()])}::jsonb`] : []
+  const mine = and(eq(contact.companyId, companyId), eq(contact.type, customerType), ...(needle ? [or(ilike(contact.name, needle), ilike(contact.email, needle))] : []), ...tagged)
   const orders = db.select({
     contactId: storeOrder.contactId,
     orderCount: sql<number>`count(*) filter (where ${storeOrder.status} <> 'pending')`.as('order_count'),
@@ -52,14 +54,14 @@ export async function storeCustomers(db: any, companyId: string, customerType: s
     lastOrderAt: sql<Date | null>`max(${storeOrder.createdAt}) filter (where ${storeOrder.status} <> 'pending')`.as('last_order_at'),
   }).from(storeOrder).where(eq(storeOrder.companyId, companyId)).groupBy(storeOrder.contactId).as('o')
   const rows = await db.select({
-    id: contact.id, name: contact.name, email: contact.email, phone: contact.phone,
+    id: contact.id, name: contact.name, email: contact.email, phone: contact.phone, tags: contact.tags,
     orderCount: orders.orderCount, totalSpentCents: orders.totalSpentCents, lastOrderAt: orders.lastOrderAt,
   }).from(contact).leftJoin(orders, eq(orders.contactId, contact.id)).where(mine)
     .orderBy(sql`${orders.lastOrderAt} desc nulls last`, desc(contact.createdAt), desc(contact.id))
     .limit(limit).offset((page - 1) * limit)
   const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(contact).where(mine)
   return {
-    rows: rows.map((r: any) => ({ ...r, orderCount: Number(r.orderCount ?? 0), totalSpentCents: Number(r.totalSpentCents ?? 0), lastOrderAt: r.lastOrderAt ? new Date(r.lastOrderAt) : null })),
+    rows: rows.map((r: any) => ({ ...r, tags: Array.isArray(r.tags) ? r.tags.filter((x: unknown) => typeof x === 'string') : [], orderCount: Number(r.orderCount ?? 0), totalSpentCents: Number(r.totalSpentCents ?? 0), lastOrderAt: r.lastOrderAt ? new Date(r.lastOrderAt) : null })),
     total: Number(n),
   }
 }

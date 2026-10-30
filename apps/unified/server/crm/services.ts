@@ -15,8 +15,9 @@ import {
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder,
   purchaseOrderItem, qbIntegration, vehicle, vehicleMaintenance, fuelLog, warrantyTemplate, projectWarranty, warrantyClaim,
   activity, jobAssignment, equipment, equipmentCategory, equipmentMaintenance, pricebookCategory, pricebookItem,
-  pricebookGoodBetterBest, commission, commissionPlan, vehicleTrip, locationLog,
+  pricebookGoodBetterBest, commission, commissionPlan, vehicleTrip, locationLog, marketingAutomation, marketingAutomationSend,
 } from '../db/schema/index.ts'
+import { lastActivityFor, inCustomerGroup, customerGroupOptions } from '../data/marketingActivity.ts'
 import { calculateDistance } from './field/geofencingService.ts'
 import type { EmailService } from '../core/email.ts'
 import type { CrmSettings } from '../core/vertical.ts'
@@ -50,6 +51,8 @@ export interface CrmServiceDeps {
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** The vertical's feature set ('crm-store'…): what "a customer coming back" means for marketing (data/marketingActivity.ts). */
+  featureSet?: string
   /** What the business calls the people it serves (VerticalSettings.vocabulary): a marketing email's footer says it. */
   vocabulary?: Vocabulary
   /** Tests only: a fake Stripe client (TestSeams.stripe); otherwise one is made from STRIPE_SECRET_KEY. */
@@ -125,7 +128,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // The drips keep sending with either Email Marketing or the dealership's Follow-Up switch; a scheduled campaign needs
   // Email Marketing itself (templates/crm-rv services/marketing.ts, RV T19 M6; only crm-rv is offered follow_up_sequences).
   const marketing = createMarketingService({
-    db, tables: { campaign, contact, emailLog }, sendRaw: email.sendRaw, isFeatureEnabled,
+    db, tables: { campaign, contact, emailLog, automation: marketingAutomation, automationSend: marketingAutomationSend }, sendRaw: email.sendRaw, isFeatureEnabled,
+    // Win-back and "not back in N days" read the trade's own idea of a visit (data/marketingActivity.ts); the store adds its
+    // customer groups as an audience and a welcome on a first order.
+    lastActivity: lastActivityFor(deps.featureSet),
+    ...(deps.featureSet === 'crm-store' ? { welcome: true, audienceFilters: { customerGroupId: inCustomerGroup }, audienceOptions: async (companyId: string) => ({ groups: await customerGroupOptions(db, companyId) }) } : {}),
     sequencesEnabled: (companyId: string) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']),
     // "You are receiving this because you are a guest of ours" on a bar's email, not "a customer or contact" (salon
     // live test, 2026-10-25: the page's words come from the vocabulary; the email it sends says the same).

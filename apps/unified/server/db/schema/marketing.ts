@@ -571,3 +571,38 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * A company's automatic emails (2026-10-30, store gap 3): the win-back that goes to a customer who has not come back in
+ * `winBackDays` (null = off, which is how every company starts) and the welcome a store sends on a first order.
+ * Subject and body null = the built-in wording for the business (marketing/automations.ts). One row per company.
+ */
+export const marketingAutomation = pgTable('marketing_automation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  winBackDays: integer('win_back_days'),
+  winBackSubject: text('win_back_subject'),
+  winBackBody: text('win_back_body'),
+  welcomeOn: boolean('welcome_on').default(false).notNull(),
+  welcomeSubject: text('welcome_subject'),
+  welcomeBody: text('welcome_body'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [uniqueIndex('marketing_automation_company_unique').on(t.companyId)])
+
+/**
+ * One automatic email, claimed BEFORE it is sent so two sweeps (or a sweep and a retry) never send it twice. `marker` is
+ * 'welcome' for a welcome, and the moment of the customer's last visit/order/job for a win-back — so a customer is won
+ * back once per lapse, and again only after they have come and gone again.
+ */
+export const marketingAutomationSend = pgTable('marketing_automation_send', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // welcome | win_back
+  marker: text('marker').notNull(),
+  status: text('status').default('claimed').notNull(), // claimed | sent | failed
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('marketing_automation_send_unique').on(t.contactId, t.kind, t.marker),
+  index('marketing_automation_send_company_idx').on(t.companyId, t.kind),
+])

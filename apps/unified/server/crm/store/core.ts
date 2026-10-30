@@ -20,7 +20,7 @@ import { company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } fr
 import {
   storeSettings, paymentConfig, shippingConfig, supplierConfig, storeOrder, storeOrderItem, variantSupplierMap,
 } from '../../db/schema/store.ts'
-import { lockLoyaltyMember, contactByEmail, countRewardUse } from '../../data/storeCore.ts'
+import { lockLoyaltyMember, contactByEmail, countRewardUse, countedOrdersOf } from '../../data/storeCore.ts'
 import type { CrmDeps } from '../deps.ts'
 import { decrypt as decryptString, decryptJSON } from '../../core/crypto.ts'
 import type { PaymentProvider, ProviderCredentials } from './payments/types.ts'
@@ -433,8 +433,19 @@ export function createStoreCore(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>) 
       .orderBy(desc(loyaltyTransaction.createdAt), desc(loyaltyTransaction.id)).limit(50)
   }
 
+  /**
+   * The welcome email, if this order is the customer's first and the owner has switched the welcome on. Never throws.
+   * (The count includes this order: it is already paid when this runs.)
+   */
+  async function welcomeFirstOrder(companyId: string, contactId: string): Promise<void> {
+    try {
+      if (await countedOrdersOf(d.db, companyId, contactId) !== 1) return
+      await d.services.marketing.sendWelcome(companyId, contactId)
+    } catch (e: any) { d.logger.warn('[store] welcome email not sent', { error: e?.message }) }
+  }
+
   return {
-    shop, isClosed, settings,
+    shop, isClosed, settings, welcomeFirstOrder,
     getActiveProvider, connectedStripe, getActiveShipping, getActiveSupplier,
     mail, notifyShipped, forwardOrderToSupplier, sweepSupplierOrders,
     findShopper, shopperFor,

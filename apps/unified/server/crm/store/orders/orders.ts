@@ -175,7 +175,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const page = Math.max(1, Number(c.req.query('page')) || 1)
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 50))
     const q = String(c.req.query('q') || '').slice(0, 80)
-    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q)
+    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q, String(c.req.query('tag') || '').slice(0, 60))
     return list(c, rows, { page, limit, total })
   })
 
@@ -185,6 +185,14 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     if (!order) return fail(c, 404, 'Not found')
     return one(c, orderForSeat(await seatOf(d.permissions, c), order))
   })
+
+  /** Never throws and never delays the status change: a review request is a courtesy. */
+  const askForReview = async (companyId: string, contactId: string) => {
+    try {
+      if (!(await d.features.isFeatureEnabled(companyId, 'google_reviews'))) return
+      await d.services.reviews.scheduleReviewRequestForVisit({ companyId, contactId })
+    } catch (e: any) { d.logger.warn('[store] review request not scheduled', { error: e?.message }) }
+  }
 
   app.patch('/:id/status', requirePermission('orders:update'), async (c) => {
     const companyId = own(c)
@@ -246,6 +254,9 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     await refunds.logStatusChange(c, prev, final, restocked, money)
     if (next === 'shipped' && prev.status !== 'shipped') void core.notifyShipped(updated)
     if (next === 'ready_for_pickup' && prev.status !== 'ready_for_pickup') void notifyReady(updated)
+    // An order that has reached the customer (delivered, or picked up) asks for a Google review — when the shop has Review Requests
+    // on and has switched requests on in Reviews › Settings (the service checks that). One request per customer per 30 days.
+    if ((next === 'delivered' || next === 'picked_up') && updated.contactId) void askForReview(companyId, updated.contactId)
     return one(c, { order: orderForSeat(seat, final), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
   })
 
