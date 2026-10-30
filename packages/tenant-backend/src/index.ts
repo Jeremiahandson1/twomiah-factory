@@ -9,7 +9,8 @@
 export { asInstant, withInstants } from './instants'
 export { partialOf } from './partialOf'
 
-export { createEmailAliasesRoutes, createEmailAliasesInternalRoute, resyncAliasesAfterTeamChange, deliversTo } from './emailAliases'
+export { createEmailAliasesRoutes, createEmailAliasesInternalRoute } from './emailAliases'
+export { resyncAliasesAfterTeamChange, deliversTo } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createInboundMessagesRoutes } from './inboundMessages'
 export { createGbpAdminRoutes, createGbpInternalRoutes } from './gbp'

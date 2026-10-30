@@ -25,10 +25,10 @@ test('template tenants: as before', () => {
 test('a unified tenant has no premium site — even when website_url is its own domain', () => {
   expect(ourPremiumSiteOrigin(unified)).toBeNull()
   expect(ourPremiumSiteOrigin({ ...unified, website_url: 'https://acme.com' })).toBeNull()
-  // A row read without its engine column is refused: Higgs's row without it (website_url = its own domain) read as a
-  // premium site's, and the three booking crons asked its app for routes it does not have (10/30).
+  // Without its engine column, Higgs's row (website_url = its own domain) reads as a premium site's — which is why every
+  // caller must select engine (the booking crons did not, 10/30; the next test holds them to it).
   const { engine: _e, ...noEngine } = { ...unified, website_url: 'https://acme.com' }
-  expect(() => ourPremiumSiteOrigin(noEngine)).toThrow(/without its engine column/)
+  expect(ourPremiumSiteOrigin(noEngine)).toBe('https://acme.com')
 })
 
 test('the three booking crons read engine with the row they pass on', () => {
