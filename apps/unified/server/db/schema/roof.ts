@@ -196,6 +196,8 @@ export const stormEvent = pgTable('storm_event', {
   leadCount: integer('lead_count').default(0).notNull(),
   status: text('status').default('detected').notNull(),
   source: text('source').default('manual').notNull(),
+  /** Where the storm fell, drawn on the map (field/geo.ts StormPath: a polygon or a circle). Null: by zip only. */
+  path: json('path'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('storm_event_company_id_idx').on(t.companyId),
@@ -287,6 +289,40 @@ export const canvassingStop = pgTable('canvassing_stop', {
 }, (t) => [
   index('canvassing_stop_company_id_idx').on(t.companyId),
   index('canvassing_stop_session_id_idx').on(t.sessionId),
+])
+
+/**
+ * A canvass territory: an area of the map a rep is sent to knock. Drawn (`boundary`: a polygon or a circle, field/geo.ts)
+ * and/or a list of five-digit zips; it may be drawn around a storm (`stormEventId`). Reps are on it through
+ * canvass_territory_rep.
+ */
+export const canvassTerritory = pgTable('canvass_territory', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  color: text('color').default('#2563eb').notNull(),
+  boundary: json('boundary'),
+  zips: json('zips').default([]).notNull(),
+  stormEventId: text('storm_event_id').references(() => stormEvent.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvass_territory_company_id_idx').on(t.companyId),
+])
+
+/** A rep on a territory (one row each). */
+export const canvassTerritoryRep = pgTable('canvass_territory_rep', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  territoryId: text('territory_id').notNull().references(() => canvassTerritory.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvass_territory_rep_company_id_idx').on(t.companyId),
+  uniqueIndex('canvass_territory_rep_territory_user_uniq').on(t.territoryId, t.userId),
+  index('canvass_territory_rep_user_id_idx').on(t.userId),
 ])
 
 export const canvassingScript = pgTable('canvassing_script', {

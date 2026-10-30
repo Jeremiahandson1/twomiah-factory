@@ -21,6 +21,7 @@ import { done, fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createStormData, serviceAreaZips, type StormData } from './stormData.ts'
 import { homeownerName, insertHomeowner, insertRoofJob } from './roofJob.ts'
+import { pathOf } from './geo.ts'
 
 const body = async (c: any): Promise<any> => (await c.req.json().catch(() => null)) ?? {}
 
@@ -90,7 +91,7 @@ export function createStormRoutes(d: CrmDeps, storms: StormData = createStormDat
     if (!event) return fail(c, 404, 'Event not found')
     const zipCodes = (event.affectedZipCodes as string[]) || []
     if (zipCodes.length === 0) return fail(c, 400, 'No zip codes specified')
-    const leadCount = await storms.generateStormLeads(companyId, id, zipCodes)
+    const leadCount = await storms.generateStormLeads(companyId, id, zipCodes, { path: pathOf((event as any).path) })
     const existingCustomers = await storms.checkExistingCustomers(companyId, id)
     return one(c, { leadCount, existingCustomersFound: existingCustomers.length })
   })

@@ -13,7 +13,7 @@ import { api } from '../../../../api'
 type L = typeof Leaflet
 
 let leafletLoad: Promise<L> | null = null
-const ensureLeaflet = (): Promise<L> => {
+export const ensureLeaflet = (): Promise<L> => {
   if (!leafletLoad) {
     leafletLoad = Promise.all([import('leaflet'), import('leaflet/dist/leaflet.css')])
       .then(([mod]) => ((mod as unknown as { default?: L }).default || (mod as unknown as L)))

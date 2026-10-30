@@ -237,6 +237,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_customer_map', name: 'Storm Map', description: 'Past customers inside a storm’s path — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'canvass_territories', name: 'Canvass Territories', description: 'Draw territories and assign them to reps — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
 
   // Dispensary — POS & Sales
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
