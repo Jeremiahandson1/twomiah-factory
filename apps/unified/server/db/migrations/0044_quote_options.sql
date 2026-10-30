@@ -1,0 +1,1 @@
+ALTER TABLE "quote_line_item" ADD COLUMN "option_group" text;

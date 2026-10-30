@@ -46,7 +46,13 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
     setBusy(true)
     try { const next = await api.post(`/api/quotes/${id}/options`, { lineItemId, selected }); setQuote((s: any) => ({ ...s, ...next })) } catch (e) { toast.error(errMsg(e, 'Could not change that line')) } finally { setBusy(false) }
   }
-  const hasOptional = cfg.quoteOptions && (quote.lineItems || []).some((li: any) => li.optional)
+  const hasOptional = cfg.quoteOptions && (quote.lineItems || []).some((li: any) => li.optional && !li.optionGroup)
+  // Good / better / best: the customer picks on their link; the office can pick for a customer who says it by phone.
+  const options = quote.options as { names: string[]; picked: string | null; totals: Array<{ name: string; total: number }> } | undefined
+  const pickOption = async (group: string) => {
+    setBusy(true)
+    try { const next = await api.post(`/api/quotes/${id}/choose-option`, { group }); setQuote((s: any) => ({ ...s, ...next })); await load() } catch (e) { toast.error(errMsg(e, 'Could not pick that option')) } finally { setBusy(false) }
+  }
   const depositAsked = cfg.quoteDeposit && quote.depositType ? (quote.depositType === 'percent' ? Math.min(Number(quote.total), Number(quote.total) * Math.min(100, Number(quote.depositValue)) / 100) : Math.min(Number(quote.depositValue), Number(quote.total))) : 0
   const expired = !!quote.expiryDate && isPastDay(quote.expiryDate) && editable
   const secondary = 'px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'
@@ -99,6 +105,22 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0 space-y-6">
+          {options && options.names.length > 1 && (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4" data-testid="quote-options">
+              <h2 className="font-semibold text-gray-900 dark:text-white">Options for the customer</h2>
+              <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">{options.picked ? `Picked: ${options.picked}.` : 'The customer picks one on their link and signs for it. Nothing is picked yet.'}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {options.totals.map((o) => (
+                  <div key={o.name} className={`rounded-lg border p-3 ${options.picked === o.name ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-gray-200 dark:border-slate-700'}`}>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{o.name}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{money(o.total)}</p>
+                    {editable && mayUpdate && options.picked !== o.name && <button type="button" disabled={busy} onClick={() => pickOption(o.name)} className="mt-2 text-sm text-orange-600 hover:underline dark:text-orange-200">Pick this one for the customer</button>}
+                    {options.picked === o.name && <p className="mt-2 text-sm text-green-700 dark:text-green-300">Picked</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-x-auto">
             <div className="p-4 border-b border-gray-200 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Line Items</h2></div>
             <table className="w-full text-sm">
@@ -106,7 +128,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-gray-900 dark:text-slate-100">
-                {(quote.lineItems || []).map((li: any, i: number) => <tr key={i} className={li.optional && !li.selected ? 'text-gray-500 dark:text-slate-400' : ''}><td className="px-4 py-3">{li.description}{li.optional && (
+                {(quote.lineItems || []).map((li: any, i: number) => <tr key={i} className={li.optional && !li.selected ? 'text-gray-500 dark:text-slate-400' : ''}><td className="px-4 py-3">{li.description}{li.optionGroup && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-slate-800 dark:text-slate-200">Option: {li.optionGroup}{li.selected ? ' (picked)' : ''}</span>}{li.optional && !li.optionGroup && (
                   <span className="ml-2 inline-flex items-center gap-1.5 text-xs">
                     {editable && mayUpdate
                       ? <label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!li.selected} disabled={busy} onChange={(e) => choose(li.id, e.target.checked)} aria-label={`Include ${li.description}`} /> Optional — {li.selected ? 'included' : 'not included'}</label>

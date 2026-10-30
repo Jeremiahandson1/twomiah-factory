@@ -111,7 +111,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       ...(li.type ? { type: li.type } : {}),
       ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
       ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
-      ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
+      ...(li.optionGroup ? { optionGroup: li.optionGroup, selected: !!li.selected } : li.optional ? { optional: true, selected: !!li.selected } : {}),
     })) : [blankLine()], depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
@@ -266,6 +266,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost } : undefined}
               optional={!!cfg.quoteOptions}
+              optionGroups={!!cfg.optionGroups}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (

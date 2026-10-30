@@ -82,6 +82,8 @@ export interface InvoicingConfig {
    */
   quoteOptions?: boolean
   quoteDeposit?: boolean
+  /** Good / better / best on a quote (feature `quote_options`, not ready): a line gets an option name and the customer picks one. */
+  optionGroups?: boolean
 }
 
 export interface InvoicingPageProps {
@@ -130,10 +132,15 @@ export interface LineItemInput {
   /** An optional line, and whether it is ticked (InvoicingConfig.quoteOptions). An optional line counts once ticked. */
   optional?: boolean
   selected?: boolean
+  /** The option (Good / Better / Best) this line belongs to. Lines sharing a name are one option; the customer picks one. */
+  optionGroup?: string
 }
 
 /** The lines a quote's price counts: every line not optional, and the optional ones ticked. */
-export const countedLines = <T extends { optional?: boolean; selected?: boolean }>(items: T[]): T[] => items.filter((li) => !li.optional || !!li.selected)
+export const countedLines = <T extends { optional?: boolean; selected?: boolean; optionGroup?: string }>(items: T[]): T[] => items.filter((li) => (!li.optional && !li.optionGroup) || !!li.selected)
+
+/** The names of a quote's options, in the order first written (two or more make an offer to choose from). */
+export const optionNamesOf = (items: Array<{ optionGroup?: string | null }>): string[] => [...new Set(items.map((li) => (li.optionGroup || '').trim()).filter(Boolean))]
 
 /** A pricebook entry as the quote editor needs it. `cost` is absent when the caller may not see it. */
 export interface PricebookPick {

@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MoreVertical, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { optionNamesOf } from './types'
 import type { LineItemInput, PricebookPick } from './types'
 import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
@@ -562,12 +563,14 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
  * The line is then filled with everything else and left uncosted, which job costing counts and
  * reports rather than guessing — the right outcome for someone who is not shown the figure.
  */
-export function LineItemsEditor({ items, onChange, pricebook, optional }: {
+export function LineItemsEditor({ items, onChange, pricebook, optional, optionGroups }: {
   items: LineItemInput[]
   onChange: (items: LineItemInput[]) => void
   pricebook?: { items: PricebookPick[]; canSeeCost?: boolean }
   /** Offer "Optional" on each line, and "Included" on an optional one (a quote's optional lines). */
   optional?: boolean
+  /** Offer an "Option" name on each line: lines sharing a name are one option (Good / Better / Best) the customer picks between. */
+  optionGroups?: boolean
 }) {
   const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
   const lineError = moneyInputError(items, 0, 0)
@@ -599,6 +602,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-32">Our cost</th>}
           <th className="px-3 py-2 text-left text-xs font-medium w-36">Unit Price</th>
           <th className="px-3 py-2 text-right text-xs font-medium w-32">Total</th>
+          {optionGroups && <th className="px-3 py-2 text-left text-xs font-medium w-32">Option</th>}
           {optional && <th className="px-3 py-2 text-left text-xs font-medium w-32">Optional</th>}
           <th className="w-10" />
         </tr></thead>
@@ -636,7 +640,14 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
               )}
               <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
               <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
-              {optional && (
+              {optionGroups && (
+                <td className="px-3 py-2">
+                  <input list="quote-option-names" aria-label="Option name" maxLength={40} value={li.optionGroup || ''} placeholder="All options"
+                    onChange={e => { const g = e.target.value; update(i, g.trim() ? { optionGroup: g, optional: undefined, selected: li.optionGroup ? li.selected : false } : { optionGroup: undefined, selected: true }) }} className={inputCls} />
+                </td>
+              )}
+              {optional && li.optionGroup && <td className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">Part of “{li.optionGroup}”</td>}
+              {optional && !li.optionGroup && (
                 <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">
                   <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!li.optional} onChange={(e) => update(i, { optional: e.target.checked, selected: e.target.checked ? false : true })} aria-label="Optional line" /> Optional</label>
                   {li.optional && <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={!!li.selected} onChange={(e) => update(i, { selected: e.target.checked })} aria-label="Included in the total" /> Included</label>}
@@ -647,6 +658,8 @@ export function LineItemsEditor({ items, onChange, pricebook, optional }: {
           ))}
         </tbody>
       </table>
+      {optionGroups && <datalist id="quote-option-names"><option value="Good" /><option value="Better" /><option value="Best" /></datalist>}
+      {optionGroups && optionNamesOf(items).length === 1 && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">Give the lines of at least two options a name, or clear the option name.</p>}
       {lineError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{lineError}</p>}
       <div className="p-2 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
