@@ -7,7 +7,9 @@
 //
 // There is NO index.html: the page is the function's, so an edit (saved to Blobs) shows with no deploy. The first version of the
 // page rides inside the function bundle, and is what Blobs serves until the owner's first save.
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { randomBytes } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { zip } from './zip.ts'
@@ -69,9 +71,25 @@ export async function bundleFunction(payload: { index: string; privacy: string; 
   const key = String(Bun.hash(payloadSrc)) + ':' + String(Bun.hash(['handler', 'entry', 'lambda', 'clean', 'shapes', 'session'].map((f) => readFileSync(join(SITE_DIR, f + '.mjs'), 'utf8')).join('\n')))
   const hit = bundleCache.get(key)
   if (hit) return hit
-  // The generated payload is a virtual file beside the real sources, so nothing is written to disk and the bundler resolves
-  // @netlify/blobs from the workspace's node_modules.
-  const out = await Bun.build({ entrypoints: [join(SITE_DIR, 'entry.mjs')], files: { [join(SITE_DIR, 'payload.mjs')]: payloadSrc }, plugins: [{ name: 'blobs-from-unified', setup(b) { b.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: Bun.resolveSync('@netlify/blobs', BLOBS_FROM) })) } }], target: 'node', format: 'esm', minify: false, external: [] })
+  // The generated payload is written to a temp file and `./payload.mjs` is resolved to it. It was a virtual file
+  // (Bun.build `files`), which the Bun the Factory runs on (1.3.4, Render's default) does not have: every live set-up failed
+  // "Bundle failed — Could not resolve: ./payload.mjs" (10/30), while 1.4 on a laptop bundled it. A file works on any Bun.
+  const payloadFile = join(tmpdir(), `wp-payload-${randomBytes(8).toString('hex')}.mjs`)
+  writeFileSync(payloadFile, payloadSrc)
+  let out: Awaited<ReturnType<typeof Bun.build>>
+  try {
+    out = await Bun.build({
+      entrypoints: [join(SITE_DIR, 'entry.mjs')],
+      plugins: [{ name: 'site-payload', setup(b) {
+        b.onResolve({ filter: /^\.\/payload\.mjs$/ }, () => ({ path: payloadFile }))
+        b.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: Bun.resolveSync('@netlify/blobs', BLOBS_FROM) }))
+      } }],
+      target: 'node', format: 'esm', minify: false, external: [],
+    })
+  } catch (e: any) {
+    // Bun throws "Bundle failed" with the reasons in `errors`: say them (the alert said only "Bundle failed").
+    throw new Error('The site function could not be bundled: ' + [e?.message, ...(e?.errors || []).map((x: any) => x?.message || String(x))].filter(Boolean).join('; '))
+  } finally { try { unlinkSync(payloadFile) } catch { /* already gone */ } }
   if (!out.success || !out.outputs.length) throw new Error('The site function could not be bundled: ' + out.logs.map(String).join('; '))
   const code = await out.outputs[0].text()
   bundleCache.set(key, code)

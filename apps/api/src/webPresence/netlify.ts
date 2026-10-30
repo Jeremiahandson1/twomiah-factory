@@ -53,8 +53,18 @@ export class Netlify {
    * only by the team's own login and never written into the site's files.
    */
   async setEnv(siteId: string, vars: Record<string, { value: string }>): Promise<void> {
-    const body = Object.entries(vars).map(([key, v]) => ({ key, values: [{ context: 'all', value: v.value }] }))
-    await this.call('POST', `/accounts/${encodeURIComponent(this.cfg.team)}/env?site_id=${encodeURIComponent(siteId)}`, { json: body })
+    // Set again on every retry: a setting that is already there is UPDATED (PUT) — creating it a second time is refused,
+    // "422 … already exists on this site" (measured 10/30: the first setup set them, then failed later, and every retry
+    // after it would have failed here).
+    const base = `/accounts/${encodeURIComponent(this.cfg.team)}/env`
+    const site = `site_id=${encodeURIComponent(siteId)}`
+    const listed = await this.call('GET', `${base}?${site}`)
+    const have = new Set((Array.isArray(listed) ? listed : []).map((e: any) => e.key))
+    const fresh = Object.entries(vars).filter(([key]) => !have.has(key))
+    if (fresh.length) await this.call('POST', `${base}?${site}`, { json: fresh.map(([key, v]) => ({ key, values: [{ context: 'all', value: v.value }] })) })
+    for (const [key, v] of Object.entries(vars).filter(([key]) => have.has(key))) {
+      await this.call('PUT', `${base}/${encodeURIComponent(key)}?${site}`, { json: { key, values: [{ context: 'all', value: v.value }] } })
+    }
   }
 
   /**

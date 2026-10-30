@@ -43,7 +43,19 @@ function fakeNetlify() {
     // Netlify's answers on the team's plan (measured 10/30): chosen scopes are refused, and so is a secret without them.
     if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/) && body.some((b: any) => b.scopes)) return respond({ code: 403, message: 'Upgrade your Netlify account to set specific scopes' }, 403)
     if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/) && body.some((b: any) => b.is_secret)) return respond({ code: 422, message: "Secrets are not allowed to run in 'post_processing' scopes." }, 422)
-    if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/)) { const id = u.searchParams.get('site_id')!; env.set(id, body); log.push({ op: 'setEnv', siteId: id, keys: body.map((b: any) => b.key), body }); return respond(null, 201) }
+    // …and as Netlify answers a setting already on the site: creating it again is refused (422), updating it (PUT) is not.
+    if (m === 'GET' && p.match(/^\/accounts\/[^/]+\/env$/)) return respond(env.get(u.searchParams.get('site_id')!) || [])
+    if (m === 'POST' && p.match(/^\/accounts\/[^/]+\/env$/)) {
+      const id = u.searchParams.get('site_id')!; const had = env.get(id) || []
+      const dup = body.find((b: any) => had.some((x: any) => x.key === b.key))
+      if (dup) return respond({ code: 422, message: `Environment variable ${dup.key} already exists on this site.` }, 422)
+      env.set(id, [...had, ...body]); log.push({ op: 'setEnv', siteId: id, keys: body.map((b: any) => b.key), body }); return respond(null, 201)
+    }
+    if (m === 'PUT' && (mm = p.match(/^\/accounts\/[^/]+\/env\/([^/]+)$/))) {
+      const id = u.searchParams.get('site_id')!; const had = env.get(id) || []
+      if (!had.some((x: any) => x.key === mm![1])) return respond({ code: 404, message: 'Not found' }, 404)
+      env.set(id, had.map((x: any) => (x.key === mm![1] ? body : x))); log.push({ op: 'updateEnv', siteId: id, keys: [mm[1]], body: [body] }); return respond(body)
+    }
     if (m === 'POST' && (mm = p.match(/^\/sites\/([^/]+)\/deploys$/))) { log.push({ op: 'deploy', siteId: mm[1], files: Object.keys(body.files), functions: Object.keys(body.functions), envAtDeploy: (env.get(mm[1]) || []).map((e: any) => e.key) }); return respond({ id: 'dep-' + ++n, required: Object.values(body.files), required_functions: Object.values(body.functions) }) }
     if (m === 'PUT' && p.match(/^\/deploys\/[^/]+\/(files|functions)/)) { log.push({ op: 'upload', path: p }); return respond({}) }
     if (m === 'GET' && p.match(/^\/deploys\/[^/]+$/)) return respond({ state: 'ready', ssl_url: 'https://x.netlify.app' })
@@ -243,6 +255,8 @@ describe('set-up: one Netlify site per customer', () => {
     const out = await provisionSite(w.d, 't-1')
     expect(out.row.status).toBe('live')
     expect(w.nl.log.filter((x) => x.op === 'createSite')).toHaveLength(1)
+    // The settings the first try set are UPDATED on the retry — creating them again is refused by Netlify (10/30).
+    expect(w.nl.log.filter((x) => x.op === 'updateEnv').map((x) => x.keys[0]).sort()).toEqual(['WP_FACTORY_KEY', 'WP_FACTORY_URL', 'WP_SECRET', 'WP_SITE_ID', 'WP_TENANT_ID'])
   })
 })
 
