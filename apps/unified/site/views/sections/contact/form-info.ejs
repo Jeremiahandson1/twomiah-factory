@@ -16,6 +16,9 @@
   // prints them (server/site/context.ts businessHoursLines).
   const ownHours = Array.isArray(data.hours) ? data.hours.filter(Boolean) : []
   const hours = ownHours.length ? ownHours : ((typeof settings !== 'undefined' && settings && Array.isArray(settings.businessHoursLines)) ? settings.businessHoursLines : [])
+  // The places the owner works (the one-page site's "Where you work" box). A full site lists them on its own service-area
+  // pages instead, so only the one-page site passes them here (server/site/onePage.ts).
+  const areas = Array.isArray(data.areas) ? data.areas.filter((a) => typeof a === 'string' && a.trim()) : []
   const responsePromise = data.responsePromise || ''
   // Always the enquiry endpoint (saved where the business works its leads, and emailed to the owner).
   const formAction = '/api/leads'
@@ -55,6 +58,12 @@
           <div class="contact-section__row">
             <div class="contact-section__label"><%= words.contactAddressLabel %></div>
             <div class="contact-section__value"><%= address %></div>
+          </div>
+        <% } %>
+        <% if (areas.length) { %>
+          <div class="contact-section__row">
+            <div class="contact-section__label">Areas we serve</div>
+            <div class="contact-section__value"><%= areas.join(', ') %></div>
           </div>
         <% } %>
         <% if (hours.length) { %>

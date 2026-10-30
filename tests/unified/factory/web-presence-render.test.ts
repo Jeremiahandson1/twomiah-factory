@@ -123,6 +123,16 @@ describe('the published page', () => {
   })
 })
 
+describe('what the owner types shows on the page', () => {
+  test('"Where you work" is listed in the contact details, not only in the data Google reads', async () => {
+    // 10/30 live: the owner typed Eau Claire in the box, saved, and saw no change — it reached only the JSON-LD.
+    const { model } = first('landscaping')
+    const html = String((await draw('landscaping', { ...model, business: { ...model.business, serviceAreas: ['Eau Claire', 'Altoona'] } })).files['index.html'])
+    expect(html).toMatch(/Areas we serve<\/div>\s*<div class="contact-section__value">Eau Claire, Altoona<\/div>/)
+    expect(String((await draw('landscaping', { ...model, business: { ...model.business, serviceAreas: [] } })).files['index.html'])).not.toContain('Areas we serve')
+  })
+})
+
 describe('the files that are published', () => {
   test('redirects: every route is listed by name; there is no catch-all that could expose a path', () => {
     const r = redirectsFile()

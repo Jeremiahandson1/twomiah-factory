@@ -80,7 +80,7 @@ export function rendererSections(i: OnePageInput): { sections: any[]; anchors: S
     }
     if (s.type === 'cta') { data.primaryCta = liveCta(data.primaryCta, anchors) || undefined }
     if (s.type === 'contact') {
-      data = { ...data, phone: business.phone || '', email: business.email || '', address: fullAddress(business), id: 'contact', webPresence: true, noForm: !forms.lead, extraFields: m.forms.lead.extraFields || [] }
+      data = { ...data, phone: business.phone || '', email: business.email || '', address: fullAddress(business), id: 'contact', webPresence: true, noForm: !forms.lead, extraFields: m.forms.lead.extraFields || [], areas: business.serviceAreas || [] }
     }
     if (s.type === 'hiring') data = { ...data, resumeLimitMb: i.resumeLimitMb ?? 3 }
     const anchor = i.caps[s.id]?.anchor
