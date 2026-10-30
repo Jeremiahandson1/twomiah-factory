@@ -7,20 +7,23 @@
 // found by (company, contact, id) and an order that is not theirs is simply not there. Nothing here reads or writes a
 // staff session, and no staff route reads this cookie.
 //
+//   · ANY shopper can have an account (owner's decision, 2026-10-30): signing in with an email the shop has never seen makes
+//     the account — the contact — when the sign-in is first CONFIRMED (the link pressed or the code typed), never when it is
+//     asked for, so the form cannot be used to fill the shop's customer list.
 //   · Asking to sign in answers the same words whether or not the email is known (no list of customers to read off the
-//     form), is limited per email and per address, and sends only to a customer who has bought or been added.
+//     form), is limited per email and per address, and sends the same email to anyone.
 //   · The emailed link opens a page that asks the shopper to press Sign in; only that press (a POST) uses it up. A mail
 //     scanner that opens every link in a message can therefore never spend it.
 //   · The code is kept as a keyed hash, tried five times at most (each try is claimed before it is compared, so
 //     simultaneous guesses are still five), and good for 15 minutes; a newer sign-in cancels older ones.
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { createId } from '@paralleldrive/cuid2'
-import { and, asc, desc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or } from 'drizzle-orm'
 import { contact, shopperAddress, shopperLogin, shopperSession, storeOrder, storeOrderItem, storeProduct, storeProductVariant, storeProductImage } from '../../../db/schema/index.ts'
 import type { StoreAddress } from '../../../db/schema/store.ts'
 import { contactByEmail } from '../../../data/storeCore.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { normalizeEmail, SHOPPER_TYPE, type StoreCore } from '../core.ts'
+import { normalizeEmail, type StoreCore } from '../core.ts'
 import { wasPaid } from '../lib/paid.ts'
 import { groupPrice, pricingForContact } from '../catalog/groupPricing.ts'
 
@@ -59,39 +62,43 @@ export function createShopperAccounts(d: Pick<CrmDeps, 'db'>, core: StoreCore) {
   const { db } = d
 
   // ── Signing in ─────────────────────────────────────────────────────────────────────────────────────────────────────
-  /** May this email have an account: a customer of the shop (bought, or added by the owner as one). */
-  async function eligible(companyId: string, email: string): Promise<typeof contact.$inferSelect | null> {
-    const who = await contactByEmail(db, companyId, email)
-    if (!who) return null
-    if (who.type === SHOPPER_TYPE) return who
-    const [bought] = await db.select({ id: storeOrder.id }).from(storeOrder).where(and(eq(storeOrder.companyId, companyId), eq(storeOrder.contactId, who.id), wasPaid())).limit(1)
-    return bought ? who : null
-  }
+  /** The sign-ins asked for by this address (and, when it is already a customer, by that customer). */
+  const forPerson = (companyId: string, email: string, contactId?: string) =>
+    and(eq(shopperLogin.companyId, companyId), contactId ? or(eq(shopperLogin.email, email), eq(shopperLogin.contactId, contactId)) : eq(shopperLogin.email, email))
 
   /**
-   * Send the sign-in email to a customer. Answers nothing about whether it did: the caller's reply is the same either way.
+   * Send the sign-in email to whoever asked — a customer, or a shopper the shop has never seen (their account is made when
+   * they confirm). Answers nothing about which: the caller's reply is the same either way, and the work is the same.
    * `origin` is the shop's own address, from the request (never the body).
    */
   async function requestSignIn(companyId: string, rawEmail: string, origin: string): Promise<void> {
     const email = normalizeEmail(rawEmail)
-    if (!email.includes('@')) return
-    const who = await eligible(companyId, email)
-    if (!who?.email) return
-    const recent = await db.select({ id: shopperLogin.id }).from(shopperLogin)
-      .where(and(eq(shopperLogin.contactId, who.id), gt(shopperLogin.createdAt, new Date(Date.now() - HOUR))))
+    if (!email.includes('@') || email === 'pending@checkout') return
+    const who = await contactByEmail(db, companyId, email)
+    const mine = forPerson(companyId, email, who?.id)
+    const recent = await db.select({ id: shopperLogin.id }).from(shopperLogin).where(and(mine, gt(shopperLogin.createdAt, new Date(Date.now() - HOUR))))
     if (recent.length >= MAX_SIGNINS_PER_HOUR) return
     const id = createId()
     const token = randomBytes(32).toString('base64url')
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
     // Only the newest sign-in works: an older link or code is cancelled.
-    await db.update(shopperLogin).set({ consumedAt: new Date() }).where(and(eq(shopperLogin.contactId, who.id), isNull(shopperLogin.consumedAt)))
+    await db.update(shopperLogin).set({ consumedAt: new Date() }).where(and(mine, isNull(shopperLogin.consumedAt)))
     await db.insert(shopperLogin).values({
-      id, companyId, contactId: who.id, tokenHash: keyed('token', token), codeHash: keyed('code', `${id}:${code}`), expiresAt: new Date(Date.now() + LOGIN_MINUTES * 60_000),
+      id, companyId, contactId: who?.id ?? null, email, tokenHash: keyed('token', token), codeHash: keyed('code', `${id}:${code}`), expiresAt: new Date(Date.now() + LOGIN_MINUTES * 60_000),
     })
     const co = await core.shop()
-    await core.mail(who.email, 'storeSignIn', {
-      name: who.name, code, link: `${origin.replace(/\/+$/, '')}/account/confirm?token=${encodeURIComponent(token)}`, minutes: LOGIN_MINUTES, supportEmail: co?.email,
+    await core.mail(email, 'storeSignIn', {
+      name: who?.name ?? null, code, link: `${origin.replace(/\/+$/, '')}/account/confirm?token=${encodeURIComponent(token)}`, minutes: LOGIN_MINUTES, supportEmail: co?.email,
     }, co?.email)
+  }
+
+  /**
+   * The customer a confirmed sign-in is for: the contact it was sent to, or — for a brand-new shopper — the contact made now
+   * (a customer from the online store, as checkout makes one). Null when there is no usable address.
+   */
+  async function contactOf(companyId: string, login: { contactId: string | null; email: string | null }): Promise<string | null> {
+    if (login.contactId) return login.contactId
+    return login.email ? core.shopperFor(companyId, { email: login.email }) : null
   }
 
   async function startSession(companyId: string, contactId: string): Promise<string> {
@@ -108,17 +115,18 @@ export function createShopperAccounts(d: Pick<CrmDeps, 'db'>, core: StoreCore) {
     if (!token || token.length > 200) return null
     const [row] = await db.update(shopperLogin).set({ consumedAt: new Date() })
       .where(and(eq(shopperLogin.tokenHash, keyed('token', token)), eq(shopperLogin.companyId, companyId), isNull(shopperLogin.consumedAt), gt(shopperLogin.expiresAt, new Date()))).returning()
-    return row ? startSession(companyId, row.contactId) : null
+    const contactId = row ? await contactOf(companyId, row) : null
+    return contactId ? startSession(companyId, contactId) : null
   }
 
   /** The six-digit code, typed with the email it was sent to. */
   async function signInWithCode(companyId: string, rawEmail: string, code: string): Promise<string | null> {
     const email = normalizeEmail(rawEmail)
     if (!/^\d{6}$/.test(code) || !email.includes('@')) return null
+    // The sign-in is found by the address it was sent to (a brand-new shopper has no contact yet) or by the customer's own id.
     const who = await contactByEmail(db, companyId, email)
-    if (!who) return null
     const [login] = await db.select().from(shopperLogin)
-      .where(and(eq(shopperLogin.contactId, who.id), eq(shopperLogin.companyId, companyId), isNull(shopperLogin.consumedAt), gt(shopperLogin.expiresAt, new Date())))
+      .where(and(forPerson(companyId, email, who?.id), isNull(shopperLogin.consumedAt), gt(shopperLogin.expiresAt, new Date())))
       .orderBy(desc(shopperLogin.createdAt)).limit(1)
     if (!login || login.attempts >= MAX_CODE_TRIES) return null
     // Claim this try BEFORE comparing: simultaneous guesses race for the same count and only one of them is looked at.
@@ -127,7 +135,8 @@ export function createShopperAccounts(d: Pick<CrmDeps, 'db'>, core: StoreCore) {
     if (!claimed.length) return null
     if (!same(keyed('code', `${login.id}:${code}`), login.codeHash)) return null
     const spent = await db.update(shopperLogin).set({ consumedAt: new Date() }).where(and(eq(shopperLogin.id, login.id), isNull(shopperLogin.consumedAt))).returning({ id: shopperLogin.id })
-    return spent.length ? startSession(companyId, login.contactId) : null
+    const contactId = spent.length ? await contactOf(companyId, login) : null
+    return contactId ? startSession(companyId, contactId) : null
   }
 
   /** Who the cookie's token is, or null (unknown, expired, or a contact that is gone). */

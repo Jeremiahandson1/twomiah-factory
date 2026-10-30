@@ -499,7 +499,10 @@ export const storeDispute = pgTable('store_disputes', {
 export const shopperLogin = pgTable('shopper_logins', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** The customer it was sent to — null for a brand-new shopper, whose contact is made when the sign-in is first confirmed. */
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'cascade' }),
+  /** The address it was sent to, lower-case: how a sign-in with no contact yet is found, counted and capped. */
+  email: text('email'),
   tokenHash: text('token_hash').notNull(),
   codeHash: text('code_hash').notNull(),
   attempts: integer('attempts').notNull().default(0),
@@ -509,6 +512,7 @@ export const shopperLogin = pgTable('shopper_logins', {
 }, (t) => [
   uniqueIndex('shopper_logins_token_unique').on(t.tokenHash),
   index('shopper_logins_contact_idx').on(t.contactId, t.createdAt),
+  index('shopper_logins_email_idx').on(t.companyId, t.email, t.createdAt),
 ])
 
 /** A signed-in shopper's browser: the cookie holds a random token, this holds its hash. Ending it signs the browser out. */

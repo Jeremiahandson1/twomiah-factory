@@ -26,7 +26,7 @@ import { createShopperAccounts, SESSION_DAYS, SHOPPER_COOKIE, type ShopperAccoun
 
 const isProd = process.env.NODE_ENV === 'production'
 /** The same answer whoever asks, known email or not. */
-export const SIGN_IN_SENT = 'If that email belongs to a customer of this shop, we have sent a sign-in link and a code. They work for 15 minutes.'
+export const SIGN_IN_SENT = 'We have sent a sign-in link and a code to that address. They work for 15 minutes. New here? Signing in the first time makes your account.'
 
 /** The signed-in shopper of a request, or null: the cookie, looked up for this shop. */
 export async function shopperOf(accounts: ShopperAccounts, c: Context, companyId: string): Promise<ShopperSession | null> {

@@ -337,6 +337,13 @@
       "when": 1793400397088,
       "tag": "0047_ai_draft_uses",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793400687028,
+      "tag": "0048_shopper_signin_by_email",
+      "breakpoints": true
     }
   ]
 }

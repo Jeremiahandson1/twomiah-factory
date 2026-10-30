@@ -48,7 +48,7 @@
     root.innerHTML =
       '<div class="account-card">' +
       '<h2>Sign in</h2>' +
-      '<p>Enter the email you ordered with. We will send you a link and a six-digit code. There is no password to remember.</p>' +
+      '<p>Enter your email. We will send you a link and a six-digit code. There is no password to remember. New here? Your account is made the first time you sign in.</p>' +
       '<form id="account-ask" novalidate>' +
       '<label for="account-email">Email</label>' +
       '<input id="account-email" type="email" autocomplete="email" required>' +
@@ -72,7 +72,7 @@
       say(note, 'Sending…');
       api('POST', '/sign-in', { email: email.value.trim() }).then(function (r) {
         if (!r.ok) return say(note, errText(r.json, 'Enter a valid email address.'), true);
-        say(note, r.json.message || 'If that email belongs to a customer of this shop, we have sent a sign-in link and a code.');
+        say(note, r.json.message || 'We have sent a sign-in link and a code to that address.');
         codeForm.hidden = false;
         document.getElementById('account-code-input').focus();
       });

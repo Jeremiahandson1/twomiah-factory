@@ -97,7 +97,7 @@ describe('offered, never switched on', () => {
 })
 
 describe('signing in', () => {
-  test('the answer is the same for a customer and for anyone else; only a customer is sent anything', async () => {
+  test('the answer is the same for a customer, a lead and a stranger — and the same work is done for each', async () => {
     const known = await k.pub('POST', `${A}/sign-in`, { email: ' ANN@example.com ' })
     const unknown = await k.pub('POST', `${A}/sign-in`, { email: 'nobody@example.com' })
     const lead = await k.pub('POST', `${A}/sign-in`, { email: 'lee@example.com' })
@@ -106,12 +106,86 @@ describe('signing in', () => {
     expect({ status: unknown.status, json: unknown.json }).toEqual({ status: known.status, json: known.json })
     expect({ status: lead.status, json: lead.json }).toEqual({ status: known.status, json: known.json })
     expect(known.json.message).toBe(SIGN_IN_SENT)
-    expect(mailsTo('ann@example.com').length).toBe(1)
-    expect(mailsTo('nobody@example.com').length).toBe(0)
-    expect(mailsTo('lee@example.com').length).toBe(0)
-    expect((await db().select().from(k.S.shopperLogin)).length).toBe(1)
+    // Anyone can have an account, so all three are sent the sign-in; nothing tells a customer from a stranger.
+    for (const e of ['ann@example.com', 'nobody@example.com', 'lee@example.com']) expect(mailsTo(e).length).toBe(1)
+    expect((await db().select().from(k.S.shopperLogin)).length).toBe(3)
+    // Asking made NO contact: the stranger is still nobody until a sign-in is confirmed.
+    expect((await db().select().from(k.S.contact).where(eq(k.S.contact.email, 'nobody@example.com'))).length).toBe(0)
     // A wrong-shaped email is the shopper's mistake to fix, and tells nothing about anyone.
     expect((await k.pub('POST', `${A}/sign-in`, { email: 'not-an-email' })).status).toBe(400)
+  })
+
+  test('a brand-new shopper, end to end: asked for, confirmed by code, an account made then — and a link works the same', async () => {
+    const email = 'New.Shopper@Example.com'
+    const people = async () => (await db().select().from(k.S.contact).where(eq(k.S.contact.companyId, k.companyId))).filter((c: any) => (c.email || '').toLowerCase() === email.toLowerCase())
+    expect(await people()).toEqual([])
+    const before = mailsTo(email).length
+    const asked = await k.pub('POST', `${A}/sign-in`, { email })
+    await k.settle()
+    expect(asked.json.message).toBe(SIGN_IN_SENT)
+    expect(mailsTo(email).length).toBe(before + 1)
+    expect(await people()).toEqual([]) // asking made nobody
+    const mail = mailsTo(email)[before]
+    // A wrong code makes nobody either, and a code for another address is no use.
+    expect((await k.pub('POST', `${A}/verify`, { email, code: mail.data.code === '000000' ? '111111' : '000000' })).status).toBe(400)
+    expect((await k.pub('POST', `${A}/verify`, { email: 'someone.else@example.com', code: mail.data.code })).status).toBe(400)
+    expect(await people()).toEqual([])
+    // The right code signs in, and THAT makes the account: a customer of the online store, lower-case email.
+    const res = await k.pub('POST', `${A}/verify`, { email, code: mail.data.code })
+    expect(res.status).toBe(200)
+    const made = await people()
+    expect(made.length).toBe(1)
+    expect(made[0]).toMatchObject({ type: 'customer', source: 'online_store', email: 'new.shopper@example.com', name: 'new.shopper' })
+    const me = await k.pub('GET', `${A}/me`, undefined, { cookie: cookieOf(res) })
+    expect(me.status).toBe(200)
+    expect(me.json).toMatchObject({ email: 'new.shopper@example.com' })
+    // A new account has no orders yet — and sees nobody else's.
+    const orders = await k.pub('GET', `${A}/orders`, undefined, { cookie: cookieOf(res) })
+    expect(orders.json.data).toEqual([])
+    // It can keep an address.
+    const saved = await k.pub('POST', `${A}/addresses`, { name: 'New Shopper', address: { line1: '1 Main', city: 'Eau Claire', postalCode: '54701', country: 'US' } }, { cookie: cookieOf(res), origin: 'https://shop.test', 'content-type': 'application/json' })
+    expect(saved.status).toBe(201)
+    // Signing in again is the same person, not a second contact — by the emailed link this time.
+    await k.pub('POST', `${A}/sign-in`, { email }); await k.settle()
+    const again = mailsTo(email).at(-1)!
+    const token = new URL(again.data.link).searchParams.get('token')!
+    const viaLink = await k.pub('POST', `${A}/verify`, { token })
+    expect(viaLink.status).toBe(200)
+    expect((await people()).length).toBe(1)
+    expect((await k.pub('GET', `${A}/addresses`, undefined, { cookie: cookieOf(viaLink) })).json.data.length).toBe(1)
+    // The link is spent: pressing it again signs in nobody and makes nobody.
+    expect((await k.pub('POST', `${A}/verify`, { token })).status).toBe(400)
+  })
+
+  test("a stranger's link makes the account too, and a link opened twice makes only one", async () => {
+    const email = 'link.only@example.com'
+    await k.pub('POST', `${A}/sign-in`, { email }); await k.settle()
+    const token = new URL(mailsTo(email).at(-1)!.data.link).searchParams.get('token')!
+    const [one, two] = await Promise.all([k.pub('POST', `${A}/verify`, { token }), k.pub('POST', `${A}/verify`, { token })])
+    expect([one.status, two.status].sort()).toEqual([200, 400])
+    expect((await db().select().from(k.S.contact).where(eq(k.S.contact.email, email))).length).toBe(1)
+  })
+
+  test("a lead or a vendor already in the book signs in as themselves — no second contact", async () => {
+    const lead = (await db().select().from(k.S.contact).where(eq(k.S.contact.email, 'lee@example.com')))[0]
+    await k.pub('POST', `${A}/sign-in`, { email: 'lee@example.com' }); await k.settle()
+    const code = mailsTo('lee@example.com').at(-1)!.data.code
+    const res = await k.pub('POST', `${A}/verify`, { email: 'lee@example.com', code })
+    expect(res.status).toBe(200)
+    expect((await db().select().from(k.S.contact).where(eq(k.S.contact.email, 'lee@example.com'))).length).toBe(1)
+    expect((await k.pub('GET', `${A}/me`, undefined, { cookie: cookieOf(res) })).json).toMatchObject({ email: 'lee@example.com' })
+    void lead
+  })
+
+  test("the same limits hold for a stranger: five tries at the code, and only so many emails an hour to one address", async () => {
+    const email = 'cap.test@example.com'
+    for (let i = 0; i < MAX_SIGNINS_PER_HOUR + 3; i++) { await k.pub('POST', `${A}/sign-in`, { email }); await k.settle(20) }
+    expect(mailsTo(email).length).toBe(MAX_SIGNINS_PER_HOUR)
+    const real = mailsTo(email).at(-1)!.data.code
+    const wrong = real === '123456' ? '654321' : '123456'
+    for (let i = 0; i < 5; i++) expect((await k.pub('POST', `${A}/verify`, { email, code: wrong })).status).toBe(400)
+    expect((await k.pub('POST', `${A}/verify`, { email, code: real })).status).toBe(400) // spent after five wrong tries
+    expect((await db().select().from(k.S.contact).where(eq(k.S.contact.email, email))).length).toBe(0)
   })
 
   test('the stored link and code are hashes: the table opens nothing', async () => {
