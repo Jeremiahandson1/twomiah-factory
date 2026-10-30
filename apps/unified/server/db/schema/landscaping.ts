@@ -71,13 +71,15 @@ export const snowContract = pgTable('snow_contract', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
-  billingMode: text('billing_mode').notNull().default('per_push'), // per_push, per_event, per_inch, seasonal
+  billingMode: text('billing_mode').notNull().default('per_push'), // per_push, per_event, per_inch, seasonal, hourly
   perPushRate: decimal('per_push_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   perEventRate: decimal('per_event_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   perInchRate: decimal('per_inch_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   seasonalRate: decimal('seasonal_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   triggerDepthInches: decimal('trigger_depth_inches', { precision: 5, scale: 2 }).default('2').notNull(),
   saltRate: decimal('salt_rate', { precision: 12, scale: 2 }).default('0').notNull(),
+  // The rate an 'hourly' contract is billed by: the crew's hours on site, times this (storm mode's clock, data/snowStorm.ts).
+  hourlyRate: decimal('hourly_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   status: text('status').default('active').notNull(), // active, paused, ended
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -86,6 +88,22 @@ export const snowContract = pgTable('snow_contract', {
   index('snow_contract_company_id_idx').on(t.companyId),
   index('snow_contract_site_id_idx').on(t.siteId),
   index('snow_contract_status_idx').on(t.status),
+])
+
+// One storm: a named run of snow work the office starts, dispatches to every contract on a route or tag, and bills at the
+// end (data/snowStorm.ts). The contracts' own rules price every visit; the storm only gathers them.
+export const snowStorm = pgTable('snow_storm', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  status: text('status').default('active').notNull(), // active, ended
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  endedAt: timestamp('ended_at'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('snow_storm_company_id_idx').on(t.companyId),
 ])
 
 // One logged plow/salt visit. billableAmount is computed from the contract's billing mode at log time.
@@ -106,6 +124,10 @@ export const snowEvent = pgTable('snow_event', {
    * for it. Default false: nobody made that decision on a row that predates the flag.
    */
   billBelowTrigger: boolean('bill_below_trigger').default(false).notNull(),
+  // The crew's hours on site, for an 'hourly' contract (from the stop's Start to the crew logging it, or typed).
+  hours: decimal('hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  // The storm this visit was logged in, if it was logged through storm mode.
+  stormId: text('storm_id').references(() => snowStorm.id, { onDelete: 'set null' }),
   billableAmount: decimal('billable_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   billingMode: text('billing_mode').notNull(), // snapshot of mode used
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
@@ -116,6 +138,29 @@ export const snowEvent = pgTable('snow_event', {
   index('snow_event_company_id_idx').on(t.companyId),
   index('snow_event_contract_id_idx').on(t.snowContractId),
   index('snow_event_serviced_at_idx').on(t.servicedAt),
+])
+
+// A contract's place in a storm: one row per contract per storm (unique), carrying the crew's job for it ("Today's route" on
+// the phone), the visit they logged, and where it stands. Dispatching a storm twice adds nothing the second time.
+export const snowStormStop = pgTable('snow_storm_stop', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stormId: text('storm_id').notNull().references(() => snowStorm.id, { onDelete: 'cascade' }),
+  snowContractId: text('snow_contract_id').notNull().references(() => snowContract.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  eventId: text('event_id').references(() => snowEvent.id, { onDelete: 'set null' }),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  status: text('status').default('open').notNull(), // open, working, done, skipped
+  startedAt: timestamp('started_at'),
+  doneAt: timestamp('done_at'),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('snow_storm_stop_contract_idx').on(t.stormId, t.snowContractId),
+  index('snow_storm_stop_company_id_idx').on(t.companyId),
+  index('snow_storm_stop_job_id_idx').on(t.jobId),
 ])
 
 // One run of "bill the completed visits" (monthly batch): kept so the whole batch can be undone while its invoices are drafts.
