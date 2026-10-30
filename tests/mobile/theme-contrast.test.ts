@@ -8,7 +8,7 @@
 // A button, chip or icon background keeps the EXACT business colour, with the ink from inkOn().
 import fs from 'node:fs'
 import path from 'node:path'
-import { readableAccent, contrastRatio, inkOn } from '../../apps/mobile/src/theme/contrast.ts'
+import { readableAccent, contrastRatio, inkOn, hsl } from '../../apps/mobile/src/theme/contrast.ts'
 
 let passed = 0, failed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -33,7 +33,12 @@ for (const c of COLOURS) {
 }
 check('the crimson really was a problem (so this test would have caught it)', worst('#b91c1c', DARK) < 4.5, worst('#b91c1c', DARK))
 check('a colour that already reads is left exactly as the business chose it', readableAccent('#facc15', DARK) === '#facc15' && readableAccent('#1e40af', LIGHT) === '#1e40af')
-check('the hue is kept: the lightened crimson is still red-dominant', (() => { const h = readableAccent('#b91c1c', DARK); const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16); return r > g })())
+check('a lightened red stays red, not pink (Higgs #B22234 read as dusty pink on every icon, 10/30): hue kept, saturation full', (() => {
+  const c = readableAccent('#B22234', DARK); const [h0] = hsl('#B22234'), [h, s] = hsl(c)
+  return Math.abs(h - h0) < 6 && s > 0.9 && DARK.every((b) => contrastRatio(c, b) >= 4.5)
+})(), readableAccent('#B22234', DARK))
+check('a grey lightened stays grey', hsl(readableAccent('#64748b', DARK))[1] < 0.25)
+check('the hue is kept: the lightened crimson is still red-dominant',(() => { const h = readableAccent('#b91c1c', DARK); const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16); return r > g })())
 
 // Wiring: the theme exposes it, the tab labels use it, and the filled controls keep the real colour with inkOn() ink.
 check('ThemeContext exposes primaryText from readableAccent over the scheme\'s grounds', /primaryText:\s*readableAccent\(\s*primary\s*,/.test(theme))
