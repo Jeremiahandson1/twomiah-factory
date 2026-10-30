@@ -52,11 +52,13 @@ export function normalizeCode(raw: string, prefix: string): string {
 }
 
 export interface IssueInput {
-  cents: number; soldVia: 'register' | 'online'; soldByName?: string | null; checkId?: string | null; code?: string | null
+  cents: number; soldVia: 'register' | 'online' | 'store_credit'; soldByName?: string | null; checkId?: string | null; code?: string | null
   purchaserName?: string | null; purchaserEmail?: string | null; recipientName?: string | null; recipientEmail?: string | null; message?: string | null
   providerPaymentId?: string | null; idempotencyKey?: string | null
   /** The store's order that paid for it (a gift-card product sold online). */
   orderId?: string | null
+  /** Store credit given back on a return (soldVia 'store_credit'): any positive amount, not only what a card is sold at. */
+  credit?: boolean
 }
 
 export function createBarGiftCards(db: BarDb) {
@@ -74,7 +76,7 @@ export function createBarGiftCards(db: BarDb) {
 
   /** Create a card with its opening ledger row, inside `tx`. `code` may be a pre-printed number. */
   async function issueCard(tx: Tx, companyId: string, input: IssueInput): Promise<GiftCard> {
-    if (!validAmount(input.cents)) throw new GiftCardError(`A gift card is $${MIN_CARD_CENTS / 100} to $${MAX_CARD_CENTS / 100}.`)
+    if (input.credit ? !(Number.isInteger(input.cents) && input.cents > 0) : !validAmount(input.cents)) throw new GiftCardError(`A gift card is $${MIN_CARD_CENTS / 100} to $${MAX_CARD_CENTS / 100}.`)
     const prefix = await cardPrefix(companyId, tx)
     let code = input.code ? normalizeCode(input.code, prefix) : generateCode(prefix)
     if (input.code && code.length < 6) throw new GiftCardError('That card number is too short.')

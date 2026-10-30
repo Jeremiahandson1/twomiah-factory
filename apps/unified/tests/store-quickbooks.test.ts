@@ -269,11 +269,39 @@ describe('a record QuickBooks refuses is kept in its words and sent once the cau
   })
 })
 
+describe('returns and exchanges (store_returns)', () => {
+  test('a refund paid partly as store credit books the credit as the shop\'s gift-card balance, so the cash lines add to what went to the card; a zero-charge exchange order is not a sale', async () => {
+    const sold = await order('S-12', { lines: [[mug, 2, 2000]], total: 4000, pi: 'pi_S12' })
+    expect(await run()).toMatchObject({ status: 'ok', orders: 1, failed: 0 })
+    const items = await db().select().from(k.S.storeOrderItem).where(eq(k.S.storeOrderItem.orderId, sold.id))
+    // What a return refunded as 12.00 to the card and 8.00 as store credit (orders/refunds.ts writes this row).
+    await db().insert(k.S.storeOrderRefund).values({
+      orderId: sold.id, amountCents: 2000, creditCents: 800, items: [{ orderItemId: items[0].id, quantity: 1 }], restock: false, reason: 'Return RET-TEST',
+      status: 'refunded', moneyBack: 'refunded', providerRefundId: 're_credit', settledAt: new Date(),
+    })
+    await db().update(k.S.storeOrder).set({ refundedCents: 2000 }).where(eq(k.S.storeOrder.id, sold.id))
+    // The exchange it was swapped for: nothing was paid, so there is nothing to book.
+    const [swap] = await db().insert(k.S.storeOrder).values({
+      companyId: k.companyId, contactId: ann.id, orderNumber: 'EX-1', provider: 'exchange', providerSessionId: 'exchange-ret-test', status: 'paid', source: 'exchange',
+      customerEmail: ann.email, customerName: ann.name, subtotalCents: 2000, discountCents: 2000, totalCents: 0,
+    }).returning()
+    const done = await run()
+    expect(done).toMatchObject({ status: 'ok', orders: 0, refunds: 1, failed: 0 })
+    const receipt = [...qbo.refundReceipts.values()].find((r) => r.DocNumber === 'S-12-R1')!
+    expect(receipt.TotalAmt).toBe(12)
+    expect(receipt.Line.find((l: any) => l.Description === 'Issued as store credit')).toMatchObject({ Amount: -8 })
+    expect(receipt.Line.filter((l: any) => l.Description !== 'Issued as store credit').reduce((n: number, l: any) => n + l.Amount, 0)).toBe(20)
+    expect([...qbo.salesReceipts.values()].some((r) => r.DocNumber === 'EX-1')).toBe(false)
+    expect((await receiptOf('EX-1')).qbSalesReceiptId).toBeNull()
+    expect(swap.source).toBe('exchange')
+  })
+})
+
 describe("the card's sync log", () => {
   test('counts the store\'s orders, refunds and payouts', async () => {
     const runs = (await db().select().from(k.S.qbSyncRun).where(eq(k.S.qbSyncRun.companyId, k.companyId))) as any[]
     const total = runs.reduce((n, r) => ({ orders: n.orders + r.orders, refunds: n.refunds + r.refunds, payouts: n.payouts + r.payouts }), { orders: 0, refunds: 0, payouts: 0 })
-    expect(total).toEqual({ orders: 5, refunds: 2, payouts: 3 })
+    expect(total).toEqual({ orders: 6, refunds: 3, payouts: 3 })
     // And the card reads them: the newest run says what went across.
     const shown = (await k.O('GET', '/api/qb-sync/log')).json
     expect(shown.runs[0]).toHaveProperty('orders')

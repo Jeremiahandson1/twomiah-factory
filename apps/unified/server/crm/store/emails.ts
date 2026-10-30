@@ -159,6 +159,22 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
     )
   },
   /** A shopper's sign-in: the link (which asks them to press Sign in) and the code to type instead. */
+  /** Store credit given back on a return: its number and amount. */
+  storeCreditIssued: (p: { order: Pick<EmailOrder, 'orderNumber' | 'customerName' | 'currency'>; code: string; amountCents: number; supportEmail?: string | null }, b) => done(
+    `Your ${b.companyName} store credit — ${formatCents(p.amountCents, p.order.currency)}`,
+    wrap(b.companyName, 'Your store credit', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.order.customerName)} — your return on order${num(p.order)} came to <strong>${formatCents(p.amountCents, p.order.currency)}</strong> in store credit. Enter this number in the gift card box at checkout:</p>
+      <p style="margin:16px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;color:#111;"><strong style="font-family:Consolas,Menlo,monospace;letter-spacing:1px;">${esc(p.code)}</strong><span style="float:right;">${formatCents(p.amountCents, p.order.currency)}</span></p>
+      <p style="color:#666;font-size:13px;margin-top:24px;">Keep this email: the number is the credit.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  /** Where a return stands (approved with a label, declined, received, exchange on its way): one plain message. */
+  storeReturnUpdate: (p: { order: Pick<EmailOrder, 'orderNumber' | 'customerName' | 'currency'>; returnNumber: string; headline: string; message: string; labelUrl?: string | null; supportEmail?: string | null }, b) => done(
+    `${p.headline} — return ${p.returnNumber}`,
+    wrap(b.companyName, p.headline, `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.order.customerName)} — ${esc(p.message)}</p>
+      ${p.labelUrl ? button(p.labelUrl, 'Print your return label') : ''}
+      <p style="color:#666;font-size:13px;margin-top:24px;">Return ${esc(p.returnNumber)} · order${num(p.order)}.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
   storeSignIn: (p: { name?: string | null; code: string; link: string; minutes: number; supportEmail?: string | null }, b) => done(
     `Sign in to ${b.companyName}`,
     wrap(b.companyName, 'Sign in', `

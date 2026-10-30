@@ -19,6 +19,9 @@ import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { requestOrigin } from '../checkout/checkoutService.ts'
 import { groupPrice, pricingForContact } from '../catalog/groupPricing.ts'
+import { createOrderRefunds } from '../orders/refunds.ts'
+import { createStoreReturns, REASONS } from '../returns/returns.ts'
+import { createStoreGiftCards } from '../giftCards.ts'
 import { createShopperAccounts, SESSION_DAYS, SHOPPER_COOKIE, type ShopperAccounts, type ShopperSession } from './shopperAccounts.ts'
 
 const isProd = process.env.NODE_ENV === 'production'
@@ -57,6 +60,11 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
   app.use('/verify', createRateLimiter(15 * 60 * 1000, isProd ? 30 : 1000))
 
   const shop = async (c: Context) => (await core.shop()) ?? null
+  // Returns and store credit (store_returns, a feature of its own on top of accounts): the shopper starts a return from their order.
+  const refunds = createOrderRefunds(d, core)
+  const returns = createStoreReturns(d, core, refunds)
+  const giftCards = createStoreGiftCards(d, core)
+  const returnsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, 'store_returns').catch(() => false)
   /** The signed-in shopper, or the 401 to give instead. */
   const signedIn = async (c: Context): Promise<{ s: ShopperSession } | { reply: Response }> => {
     const co = await shop(c)
@@ -96,17 +104,28 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
   // ── Their account ────────────────────────────────────────────────────────────────────────────────────────────────
   app.get('/me', async (c) => {
     const r = await signedIn(c); if ('reply' in r) return r.reply
-    return one(c, await accounts.profile(r.s))
+    // Store credit from returns: shown to its owner (the card number is what spends it).
+    const credit = await returnsOn(r.s.companyId) ? await giftCards.creditOf(r.s.companyId, r.s.email) : []
+    return one(c, { ...(await accounts.profile(r.s)), returns: await returnsOn(r.s.companyId), credit })
   })
 
+  /** An order with, when returns are on, what of it can be sent back (the window, the units left). */
+  const withReturnable = async (companyId: string, o: { id: string }) => {
+    const row = await refunds.orderOf(o.id, companyId)
+    if (!row) return o
+    const can = await returns.returnable(row, await refunds.itemsOf(row.id), await returns.policy(companyId))
+    return { ...o, returnable: { open: can.open && can.windowOpen, why: can.why ?? (can.windowOpen ? null : 'The return window for this order has closed.'), endsAt: can.windowEndsAt, lines: can.lines.map((l) => ({ orderItemId: l.orderItemId, left: l.left, note: l.note })) } }
+  }
   app.get('/orders', async (c) => {
     const r = await signedIn(c); if ('reply' in r) return r.reply
-    return one(c, { data: await accounts.ordersOf(r.s) })
+    const orders = await accounts.ordersOf(r.s)
+    return one(c, { data: (await returnsOn(r.s.companyId)) ? await Promise.all(orders.map((o) => withReturnable(r.s.companyId, o))) : orders })
   })
   app.get('/orders/:id', async (c) => {
     const r = await signedIn(c); if ('reply' in r) return r.reply
     const order = await accounts.orderOf(r.s, c.req.param('id'))
-    return order ? one(c, order) : fail(c, 404, 'That order was not found.')
+    if (!order) return fail(c, 404, 'That order was not found.')
+    return one(c, (await returnsOn(r.s.companyId)) ? await withReturnable(r.s.companyId, order) : order)
   })
   app.post('/orders/:id/reorder', async (c) => {
     const r = await signedIn(c); if ('reply' in r) return r.reply
@@ -135,6 +154,42 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
   app.delete('/addresses/:id', async (c) => {
     const r = await signedIn(c); if ('reply' in r) return r.reply
     return (await accounts.removeAddress(r.s, c.req.param('id'))) ? done(c) : fail(c, 404, 'That address was not found.')
+  })
+
+  // ── Returns (store_returns) ─────────────────────────────────────────────────────────────────────────────────────
+  const returnBody = z.object({
+    orderId: z.string().min(1), items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.number().int().min(1) })).min(1).max(200),
+    reason: z.enum(REASONS).default('other'), note: z.string().max(1000).nullish(), wanted: z.string().max(500).nullish(),
+    resolution: z.enum(['refund', 'exchange']).default('refund'), preferCredit: z.boolean().default(false),
+  })
+  /** Signed in, with returns switched on: else the 401, or a 404 as if there were no such page. */
+  const forReturns = async (c: Context): Promise<{ s: ShopperSession } | { reply: Response }> => {
+    const r = await signedIn(c); if ('reply' in r) return r
+    return (await returnsOn(r.s.companyId)) ? r : { reply: fail(c, 404, 'Not found') }
+  }
+  app.get('/returns', async (c) => {
+    const r = await forReturns(c); if ('reply' in r) return r.reply
+    const rows = await returns.list(r.s.companyId, { contactId: r.s.contactId })
+    return one(c, { data: await Promise.all(rows.map((x) => returns.forShopper(r.s.companyId, x))) })
+  })
+  app.post('/returns', async (c) => {
+    const r = await forReturns(c); if ('reply' in r) return r.reply
+    const body = returnBody.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return fail(c, 400, 'Choose the items, how many and why.', 'validation_failed')
+    // Their own order only: the order is found by the session's contact, then read whole.
+    const mine = await accounts.orderOf(r.s, body.data.orderId)
+    const order = mine ? await refunds.orderOf(mine.id, r.s.companyId) : null
+    if (!order) return fail(c, 404, 'That order was not found.')
+    const made = await returns.start({
+      companyId: r.s.companyId, order, lines: body.data.items, reason: body.data.reason, note: body.data.note, wanted: body.data.wanted, resolution: body.data.resolution,
+      preferCredit: body.data.preferCredit, startedBy: 'shopper', byName: r.s.name,
+    })
+    return made.ok ? one(c, await returns.forShopper(r.s.companyId, made.ret), 201) : fail(c, made.status, made.error, made.code)
+  })
+  app.post('/returns/:id/cancel', async (c) => {
+    const r = await forReturns(c); if ('reply' in r) return r.reply
+    const done2 = await returns.cancel(r.s.companyId, c.req.param('id'), { shopperContactId: r.s.contactId, name: r.s.name })
+    return done2.ok ? one(c, await returns.forShopper(r.s.companyId, done2.ret)) : fail(c, done2.status, done2.error, done2.code)
   })
 
   /**

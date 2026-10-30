@@ -13,7 +13,7 @@
 // Behind the quickbooks feature (offered to a store as opt-in) and settings:update for its settings routes, the QuickBooks
 // routes' own line. The money is the merchant's own Stripe account's (Connect): nothing here holds a card number.
 import { Hono } from 'hono'
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne } from 'drizzle-orm'
 import { contact, storeBooks, storeOrder, storeOrderItem, storeOrderRefund, storePayout, storeProduct } from '../../db/schema/index.ts'
 import type { SweepHelpers } from '../office/quickbooksAutoSync.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -160,7 +160,7 @@ export function createStoreBooks(d: CrmDeps, core: StoreCore) {
     let gift = 0
     for (const x of all) {
       if (!['refunded', 'recorded'].includes(x.status)) continue
-      const share = Math.max(0, Math.min(cardShareOfRefund(o, x.amountCents), o.giftCardRefundedCents - assigned))
+      const share = Math.max(0, Math.min(cardShareOfRefund(o, x.amountCents - x.creditCents), o.giftCardRefundedCents - assigned))
       assigned += share
       if (x.id === r.id) { gift = share; break }
     }
@@ -189,6 +189,8 @@ export function createStoreBooks(d: CrmDeps, core: StoreCore) {
       }
     }
     if (gift > 0) lines.push(line(giftCards, 'Returned to the gift card', -gift))
+    // Store credit given for a return (store_returns): not cash out but the shop's gift-card balance going up.
+    if (r.creditCents > 0) lines.push(line(giftCards, 'Issued as store credit', -r.creditCents))
     if (!lines.length) throw new Error('This refund has nothing to book.')
     const made = await qb.apiRequest(companyId, 'POST', '/refundreceipt', { RefundReceipt: {
       CustomerRef: { value: await customerFor(companyId, o.contactId) }, DocNumber: docNo(`${o.orderNumber ?? o.id}-R${nth}`), TxnDate: day(r.settledAt ?? r.createdAt),
@@ -289,7 +291,7 @@ export function createStoreBooks(d: CrmDeps, core: StoreCore) {
   async function pass(companyId: string, h: SweepHelpers) {
     const out = { orders: 0, refunds: 0, payouts: 0, failed: 0 }
     const skipO = await h.heldBack('order')
-    const orders: Order[] = await db.select().from(storeOrder).where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.orderNumber), wasPaid(), isNull(storeOrder.qbSalesReceiptId))).orderBy(asc(storeOrder.createdAt)).limit(200)
+    const orders: Order[] = await db.select().from(storeOrder).where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.orderNumber), wasPaid(), ne(storeOrder.source, 'exchange'), isNull(storeOrder.qbSalesReceiptId))).orderBy(asc(storeOrder.createdAt)).limit(200)
     for (const o of orders) {
       if (skipO.has(o.id)) continue
       try {
@@ -305,7 +307,7 @@ export function createStoreBooks(d: CrmDeps, core: StoreCore) {
 
     const skipR = await h.heldBack('refund')
     const due: Array<{ r: Refund; o: Order }> = await db.select({ r: storeOrderRefund, o: storeOrder }).from(storeOrderRefund).innerJoin(storeOrder, eq(storeOrder.id, storeOrderRefund.orderId))
-      .where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.qbSalesReceiptId), isNull(storeOrderRefund.qbRefundReceiptId), inArray(storeOrderRefund.status, ['refunded', 'recorded'])))
+      .where(and(eq(storeOrder.companyId, companyId), isNotNull(storeOrder.qbSalesReceiptId), isNull(storeOrderRefund.qbRefundReceiptId), gt(storeOrderRefund.amountCents, 0), inArray(storeOrderRefund.status, ['refunded', 'recorded'])))
       .orderBy(asc(storeOrderRefund.createdAt)).limit(200)
     for (const { r, o } of due) {
       if (skipR.has(r.id)) continue

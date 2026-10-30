@@ -112,6 +112,33 @@ export function createStoreGiftCards(d: Pick<CrmDeps, 'db' | 'logger'>, core: St
   }
 
   /**
+   * STORE CREDIT: money owed back to a shopper that stays with the shop, as a gift card in their name (any amount; the
+   * same code, balance and ledger as any card, spent at checkout the same way). Once per key: a retry hands back the card
+   * it made. `created` says whether THIS call made it (only that one tells the shopper).
+   */
+  async function issueCredit(order: Pick<Order, 'id' | 'companyId' | 'customerEmail' | 'customerName'>, cents: number, key: string, byName: string): Promise<{ id: string; code: string; cents: number; created: boolean }> {
+    return db.transaction(async (tx: any) => {
+      const [had] = await tx.select().from(barGiftCard).where(and(eq(barGiftCard.companyId, order.companyId), eq(barGiftCard.idempotencyKey, key))).limit(1)
+      if (had) return { id: had.id, code: had.code, cents: had.initialCents, created: false }
+      const card = await cards.issueCard(tx, order.companyId, {
+        cents, soldVia: 'store_credit', soldByName: byName, orderId: order.id, idempotencyKey: key, credit: true,
+        purchaserName: order.customerName, purchaserEmail: order.customerEmail, message: 'Store credit from a return',
+      })
+      return { id: card.id, code: card.code, cents: card.initialCents, created: true }
+    })
+  }
+
+  /** The store credit a shopper holds (cards issued to their email for a return that still have a balance). */
+  async function creditOf(companyId: string, email: string): Promise<Array<{ code: string; balanceCents: number; initialCents: number }>> {
+    const rows: Array<typeof barGiftCard.$inferSelect> = await db.select().from(barGiftCard)
+      .where(and(eq(barGiftCard.companyId, companyId), eq(barGiftCard.soldVia, 'store_credit'), eq(barGiftCard.status, 'active')))
+      .orderBy(desc(barGiftCard.createdAt))
+    const mine = email.trim().toLowerCase()
+    return rows.filter((r) => (r.purchaserEmail || '').trim().toLowerCase() === mine && r.balanceCents > 0)
+      .map((r) => ({ code: r.code, balanceCents: r.balanceCents, initialCents: r.initialCents }))
+  }
+
+  /**
    * The cards a paid order bought: one per unit of each gift-card line, at the line's price, emailed to the buyer with
    * their codes. Each is keyed to its order line and unit, so a second finalize issues nothing twice.
    */
@@ -163,6 +190,6 @@ export function createStoreGiftCards(d: Pick<CrmDeps, 'db' | 'logger'>, core: St
       .orderBy(desc(barGiftCardLedger.at), desc(barGiftCardLedger.id)).limit(100)
   }
 
-  return { cards, balanceOf, hold, release, refundToCard, issueForOrder, cardsOfOrder, history }
+  return { cards, balanceOf, hold, release, refundToCard, issueCredit, creditOf, issueForOrder, cardsOfOrder, history }
 }
 export type StoreGiftCards = ReturnType<typeof createStoreGiftCards>

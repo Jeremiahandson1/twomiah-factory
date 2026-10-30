@@ -210,7 +210,70 @@ export const storeOrderRefund = pgTable('order_refunds', {
   settledAt: timestamp('settled_at'),
   /** The QuickBooks refund receipt this refund became (store/books.ts). */
   qbRefundReceiptId: text('qb_refund_receipt_id'),
+  /** How much of amount_cents went back as store credit (a gift card) rather than to the card it was paid with. */
+  creditCents: integer('credit_cents').notNull().default(0),
 }, (t) => [index('order_refunds_order_idx').on(t.orderId)])
+
+export type ReturnLine = { orderItemId: string; quantity: number }
+
+/**
+ * A return (store_returns): a shopper or staff member asks to send some of an order back. requested → approved | declined
+ * → received → refunded | exchanged (or cancelled by the shopper before it is decided). The money is NOT here: a refund
+ * goes through the order's refund machinery (order_refunds, refund_row_id) and an exchange makes a new order
+ * (exchange_order_id) that costs nothing.
+ */
+export const storeReturn = pgTable('store_returns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  orderId: text('order_id').notNull().references(() => storeOrder.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  returnNumber: text('return_number').notNull(),
+  status: text('status').notNull().default('requested'),
+  /** shopper | staff */
+  startedBy: text('started_by').notNull().default('shopper'),
+  startedByName: text('started_by_name'),
+  /** refund | exchange */
+  resolution: text('resolution').notNull().default('refund'),
+  /** defective | wrong_item | not_as_described | changed_mind | other */
+  reason: text('reason').notNull().default('other'),
+  note: text('note'),
+  /** An exchange: what the shopper would like instead, in their words. */
+  wanted: text('wanted'),
+  /** The shopper would rather have store credit than the card refunded. */
+  preferCredit: boolean('prefer_credit').notNull().default(false),
+  staffNote: text('staff_note'),
+  declineReason: text('decline_reason'),
+  items: json('items').$type<ReturnLine[]>().notNull().default([]),
+  /** Started after the return window closed, by a staff member who allowed it. */
+  late: boolean('late').notNull().default(false),
+  /** Worked out at approval and kept: what the goods were worth, what the shop keeps, what goes back and how. */
+  lineValueCents: integer('line_value_cents').notNull().default(0),
+  restockingFeeCents: integer('restocking_fee_cents').notNull().default(0),
+  returnShippingFeeCents: integer('return_shipping_fee_cents').notNull().default(0),
+  refundCents: integer('refund_cents').notNull().default(0),
+  creditCents: integer('credit_cents').notNull().default(0),
+  labelUrl: text('label_url'),
+  labelTracking: text('label_tracking'),
+  labelCarrier: text('label_carrier'),
+  labelCostCents: integer('label_cost_cents'),
+  labelClaimedAt: timestamp('label_claimed_at'),
+  /** The order_refunds row that sent the money back, and the order an exchange made. */
+  refundRowId: text('refund_row_id'),
+  exchangeOrderId: text('exchange_order_id'),
+  decidedAt: timestamp('decided_at'),
+  decidedByName: text('decided_by_name'),
+  receivedAt: timestamp('received_at'),
+  receivedByName: text('received_by_name'),
+  /** The units went back on the shelf when the parcel was received (not when the money went back). */
+  restockedAt: timestamp('restocked_at'),
+  closedAt: timestamp('closed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_returns_company_number_unique').on(t.companyId, t.returnNumber),
+  index('store_returns_order_idx').on(t.orderId),
+  index('store_returns_company_status_idx').on(t.companyId, t.status),
+])
 
 /**
  * What the store's books need QuickBooks to know that QuickBooks does not hold itself (store/books.ts): the bank account
@@ -309,6 +372,16 @@ export const storeSettings = pgTable('store_settings', {
   feedToken: text('feed_token'),
   /** The shop-local day (YYYY-MM-DD) the owner's low-stock email last went out: the claim that keeps it to one a day. */
   lowStockDigestOn: text('low_stock_digest_on'),
+  /** The return rule (store_returns): days after the order shipped (else was placed) that a return may be started. */
+  returnWindowDays: integer('return_window_days').notNull().default(30),
+  /** Kept from the goods' value on a return, in basis points (1000 = 10%); not kept when the return is the shop's fault. */
+  restockingFeeBps: integer('restocking_fee_bps').notNull().default(0),
+  /** Kept for the return postage; not kept when the return is the shop's fault. */
+  returnShippingFeeCents: integer('return_shipping_fee_cents').notNull().default(0),
+  /** Buy the shopper a prepaid return label (EasyPost) when a return is approved. */
+  returnLabels: boolean('return_labels').notNull().default(false),
+  /** May a signed-in shopper start a return themselves? Off: only staff start them. */
+  shopperReturns: boolean('shopper_returns').notNull().default(true),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_settings_company_unique').on(t.companyId)])
 

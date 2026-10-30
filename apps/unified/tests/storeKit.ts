@@ -22,7 +22,7 @@ export function stripeMock() {
   const calls: StripeCall[] = []
   /** What a retrieved session says when the success page asks: by session id. */
   const sessions = new Map<string, any>()
-  const state = { taxStatus: 'active' as 'active' | 'pending', n: 0 }
+  const state = { taxStatus: 'active' as 'active' | 'pending', n: 0, /** 'refuse': Stripe answers a refund with a 4xx (nothing is sent). */ refund: 'ok' as 'ok' | 'refuse' }
   /** Payouts to the bank, and the balance transactions each is made of (by payout id): what the books read. */
   const payouts: any[] = []
   const balance = new Map<string, any[]>()
@@ -50,6 +50,7 @@ export function stripeMock() {
       return json({ object: 'list', url: '/v1/payouts', has_more: false, data: payouts.filter((p) => p.status === (u.searchParams.get('status') || p.status) && p.arrival_date >= since) })
     }
     if (u.pathname === '/v1/balance_transactions' && method === 'GET') return json({ object: 'list', url: '/v1/balance_transactions', has_more: false, data: balance.get(u.searchParams.get('payout') || '') || [] })
+    if (u.pathname === '/v1/refunds' && method === 'POST' && state.refund === 'refuse') return json({ error: { type: 'invalid_request_error', code: 'charge_disputed', message: 'This charge cannot be refunded.' } }, 400)
     if (u.pathname === '/v1/refunds' && method === 'POST') return json({ id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(params.get('amount') || 0) || null, payment_intent: params.get('payment_intent') })
     return json({ error: { type: 'invalid_request_error', message: `Unrouted ${method} ${u.pathname}` } }, 404)
   }

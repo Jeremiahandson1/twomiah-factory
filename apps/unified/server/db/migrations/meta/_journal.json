@@ -323,6 +323,13 @@
       "when": 1793385339912,
       "tag": "0045_shopper_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793387269073,
+      "tag": "0046_store_returns",
+      "breakpoints": true
     }
   ]
 }

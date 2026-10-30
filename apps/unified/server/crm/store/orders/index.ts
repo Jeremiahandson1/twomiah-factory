@@ -26,6 +26,8 @@ import { createDraftOrderRoutes } from './draftOrders.ts'
 import { createDisputeRoutes } from './disputes.ts'
 import { createSalesReportRoutes } from './reports.ts'
 import { createStoreBooks } from '../books.ts'
+import { createStoreReturns } from '../returns/returns.ts'
+import { createReturnRoutes } from '../returns/routes.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -73,5 +75,7 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/sales-reports', access: 'user', feature: 'store_sales_reports', router: createSalesReportRoutes(d) },
     // The bank account Stripe's payouts are deposited to in QuickBooks: settings:update, behind quickbooks (opt-in).
     { path: '/api/admin/store-books', access: 'user', feature: 'quickbooks', router: books.routes() },
+    // Returns and exchanges (gap 8): orders:read to look, orders:refund to decide, receive and send money, settings:update for the rule.
+    { path: '/api/admin/store-returns', access: 'user', feature: 'store_returns', router: createReturnRoutes(d, createStoreReturns(d, core, refunds), refunds) },
   ]
 }
