@@ -22,6 +22,7 @@ import { company, job, jobNote, jobPhoto, workOrder } from '../../db/schema/inde
 import { EVENTS } from '../../core/realtime.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { createGuessLimiter, TOKEN_GUESS_MAX, TOKEN_GUESS_WINDOW_MS } from '../../http/guards.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { noteAuthor } from './workOrders.ts'
@@ -40,15 +41,18 @@ const completeSchema = z.object({ note: z.string().trim().max(2000).optional(), 
 export function createCrewLinkRoutes(d: CrmDeps) {
   const { db } = d
   const app = new Hono<AppEnv & { Variables: { wo: any } }>()
+  // Guessing: an address that keeps missing is shut out and gets the same "not valid" a wrong token gets (never a 429).
+  const guesses = createGuessLimiter(TOKEN_GUESS_WINDOW_MS, TOKEN_GUESS_MAX)
 
   // Every door below: the token names the work order (c.get('wo')), or the door is shut.
   app.use('/:token', tokenGate)
   app.use('/:token/*', tokenGate)
   async function tokenGate(c: any, next: any) {
     const token = c.req.param('token')
-    if (!isDocumentToken(token)) return fail(c, 404, 'This link is not valid.')
+    if (guesses.shut(c)) return fail(c, 404, 'This link is not valid.')
+    if (!isDocumentToken(token)) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
     const [row] = await db.select().from(workOrder).where(eq(workOrder.publicToken, token)).limit(1)
-    if (!row) return fail(c, 404, 'This link is not valid.')
+    if (!row) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
     if (row.tokenExpiresAt && new Date(row.tokenExpiresAt) < new Date()) return fail(c, 410, 'This link has run out. Ask the office to send you a new one.', 'link_expired')
     c.set('wo', row)
     await next()

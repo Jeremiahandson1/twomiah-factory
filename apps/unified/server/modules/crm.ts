@@ -255,7 +255,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: async ({ companyId, quote: q }: any) => { await afterQuoteApproved(companyId, q.id); return quoteBilling.raiseDeposit(companyId, q.id) },
-      // Good / Better / Best: only a business with the feature on builds options (a quote that has them is answered either way).
+      // Good / Better / Best: a business sees, builds and answers options only with the feature on (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       billedBefore: (tx: any, q: any) => quoteBilling.billedBefore(tx, q),
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
@@ -528,6 +528,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: async (companyId: string, q: any) => { await afterQuoteApproved(companyId, q.id); return quoteBilling.raiseDeposit(companyId, q.id) }, depositFor: quoteBilling.depositFor },
+      // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
+      proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

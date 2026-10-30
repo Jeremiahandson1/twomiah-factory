@@ -3,10 +3,11 @@
 //   · a storm drawn on the map (a polygon or a circle) finds the PAST CUSTOMERS inside it by where their pin is — the job's
 //     pin first, then the contact's — and a customer with no pin only by zip, marked as such; a customer in the storm's
 //     zip but outside the drawn path is NOT hit; the storm board's generate-leads reads the same path;
-//   · "check NOAA now" is the owner's / admin's action (integrations:update): a manager, a crew seat and the read-only
-//     seat are refused on the server; it reads a hand-written sample (tests/fixtures/roof-noaa-sample.csv) through a
-//     stubbed fetch — no test reaches NOAA — and NOTHING schedules it: no request is made until the action is asked for,
-//     and no scheduled job, timer or caller exists in the server's code;
+//   · "check NOAA now" is the owner's, an admin's or a manager's action (storms:update, owner decision 10/30): a crew seat
+//     and the read-only seat are refused on the server; it reads a hand-written sample (tests/fixtures/roof-noaa-sample.csv)
+//     through a stubbed fetch — no test reaches NOAA — and no request is made until the action is asked for or the DAILY
+//     check runs: that is one hourly timer (started only at boot) that does anything only for a company with the hidden
+//     storm_customer_map switch on, at 5 am on its own clock, and never twice for the same report;
 //   · drawn canvass territories assigned to reps: made, changed and deleted by canvassing:manage, seen by the team and by
 //     the read-only seat, a rep sees only their own; the territory's doors and leads come from the stops logged inside it;
 //     /locate says whether a rep is inside their territory; nothing fences them in;
@@ -19,6 +20,7 @@ import { and, eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { getAdvertisableFeaturesForTemplate, getFeaturesForTemplate } from '@twomiah/tenant-backend'
 import { matchArea, parsePath, pointInPath, zipSet } from '../server/crm/roof/field/geo.ts'
+import { createStormData } from '../server/crm/roof/field/stormData.ts'
 
 type T = Awaited<ReturnType<typeof bootTenant>>
 let t: T
@@ -219,14 +221,14 @@ describe('past customers in a storm\'s path', () => {
   })
 })
 
-describe('check NOAA now: on demand, owner and admin only, never scheduled', () => {
+describe('check NOAA now: on demand for the owner, an admin and a manager; the daily check is behind the hidden switch', () => {
   test('nothing has asked NOAA yet: starting the server and every call above made no request', () => {
     expect(noaaCalls()).toBe(0)
     expect(outside).toEqual([])
   })
 
-  test('a manager, a crew seat and the read-only seat are refused on the server — and the feed is not touched', async () => {
-    for (const who of ['mgr', 'rep', 'view']) expect((await call(who, 'POST', '/api/storm-map/noaa-check', {})).status).toBe(403)
+  test('a crew seat and the read-only seat are refused on the server — and the feed is not touched', async () => {
+    for (const who of ['rep', 'view']) expect((await call(who, 'POST', '/api/storm-map/noaa-check', {})).status).toBe(403)
     expect(noaaCalls()).toBe(0)
   })
 
@@ -258,6 +260,16 @@ describe('check NOAA now: on demand, owner and admin only, never scheduled', () 
     expect(noaaCalls()).toBe(2)
   })
 
+  test('a manager may ask too: one request, and a report the board already has is not added a second time', async () => {
+    const rowsNow = async () => (await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, companyId))).length
+    const before = await rowsNow(), asked = noaaCalls()
+    const r = await call('mgr', 'POST', '/api/storm-map/noaa-check', {})
+    expect(r.status).toBe(200)
+    expect(noaaCalls()).toBe(asked + 1)
+    // The admin's and the owner's checks above already put these three reports on the board.
+    expect([r.body.fetched, await rowsNow()]).toEqual([0, before])
+  })
+
   test('when the feed does not answer, nothing is added and the owner is told', async () => {
     noaaStatus = 503
     const count = async () => (await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, companyId))).length
@@ -276,22 +288,98 @@ describe('check NOAA now: on demand, owner and admin only, never scheduled', () 
     expect(outside.every((u) => u.includes('ncdc.noaa.gov'))).toBe(true) // and nothing else went out (Google included)
   })
 
-  test('no code schedules the feed: it is named only by the storm data and the on-demand route, and neither starts a timer', () => {
+  test('the only timer is the scheduled check: one hourly job, registered through the CRM\'s job list in the roofing field group, and the template\'s own sweep stays unstarted', () => {
     const SERVER = join(import.meta.dir, '../server')
     const files: string[] = []
     const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); statSync(p).isDirectory() ? walk(p) : p.endsWith('.ts') && files.push(p) } }
     walk(SERVER)
     const code = (p: string) => readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
-    const naming = files.filter((p) => /runDailyStormCheck|runStormCheck|fetchStormEvents/.test(code(p))).map((p) => p.slice(SERVER.length + 1)).sort()
-    expect(naming).toEqual(['crm/roof/field/stormData.ts', 'crm/roof/field/stormMap.ts'])
-    // The storm data starts no timer and registers no job; the route calls the one-company run, never the sweep.
-    expect(code(join(SERVER, 'crm/roof/field/stormData.ts'))).not.toMatch(/setInterval|setTimeout|addJob|cron/i)
-    expect(code(join(SERVER, 'crm/roof/field/stormMap.ts'))).not.toMatch(/setInterval|setTimeout|addJob|cron|runDailyStormCheck/i)
-    // The boot-time job list (startJobs) never mentions a storm.
+    const naming = files.filter((p) => /runDailyStormCheck|runStormCheck|fetchStormEvents|runScheduledNoaaCheck|startNoaaSchedule/.test(code(p))).map((p) => p.slice(SERVER.length + 1)).sort()
+    expect(naming).toEqual(['crm/roof/field/index.ts', 'crm/roof/field/stormData.ts', 'crm/roof/field/stormMap.ts'])
+    const data = code(join(SERVER, 'crm/roof/field/stormData.ts'))
+    expect(data.match(/setInterval/g)?.length).toBe(1)
+    expect(data).toMatch(/setInterval\(\(\) => \{ void runScheduledNoaaCheck\(\) \}, 60 \* 60_000\)/)
+    expect(data).not.toMatch(/setTimeout|cron/i)
+    // The template's sweep (with auto-leads) is defined and never called by anything.
+    expect(files.filter((p) => /runDailyStormCheck\(/.test(code(p)) && !p.endsWith('stormData.ts'))).toEqual([])
+    // The route calls the one-company run, never the sweep or the timer; the job is registered once, in the field group.
+    expect(code(join(SERVER, 'crm/roof/field/stormMap.ts'))).not.toMatch(/setInterval|setTimeout|addJob|cron|runDailyStormCheck|runScheduledNoaaCheck/i)
+    expect(code(join(SERVER, 'crm/roof/field/index.ts'))).toMatch(/addJob\(\(\) => createStormData\(d\)\.startNoaaSchedule\(\)\)/)
+    expect(files.filter((p) => p.includes('crm/roof/') && /addJob/.test(code(p))).map((p) => p.slice(SERVER.length + 1))).toEqual(['crm/roof/field/index.ts'])
+    // The boot-time job list (startJobs) never mentions a storm itself.
     const services = code(join(SERVER, 'crm/services.ts'))
     expect(services.slice(services.indexOf('startJobs()'))).not.toMatch(/storm/i)
-    // And no `addJob` anywhere in the roofing add-on.
-    expect(files.filter((p) => p.includes('crm/roof/') && /addJob/.test(code(p)))).toEqual([])
+  })
+})
+
+describe('the daily NOAA check: only behind the hidden switch, at 5 am on the company\'s clock, never twice for a report', () => {
+  // 5 am in Chicago on 2026-11-04 (CST, UTC-6) is 11:00 UTC; 2 pm is 20:00 UTC.
+  const FIVE_AM = new Date('2026-11-04T11:00:00Z')
+  const TWO_PM = new Date('2026-11-04T20:00:00Z')
+  let storms: ReturnType<typeof createStormData>
+  const board = async (co: string) => (await t.db.select().from(t.schema.stormEvent).where(and(eq(t.schema.stormEvent.companyId, co), eq(t.schema.stormEvent.source, 'noaa')))).length
+  const leads = async (co: string) => (await t.db.select().from(t.schema.stormLead).where(eq(t.schema.stormLead.companyId, co))).length
+  const setUp = async (companyFeatures: string[], zone = 'America/Chicago') => {
+    await t.db.update(t.schema.company).set({ enabledFeatures: companyFeatures, timezone: zone } as any).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
+  }
+  const clearBoard = async () => { await t.db.delete(t.schema.stormEvent).where(and(eq(t.schema.stormEvent.companyId, companyId), eq(t.schema.stormEvent.source, 'noaa'))) }
+
+  beforeAll(() => {
+    // The same code the boot job runs, over the test database, with the same stubbed feed (globalThis.fetch above).
+    storms = createStormData({ db: t.db, logger: { info() {}, warn() {}, error() {} }, features: t.services.features } as any)
+  })
+  afterAll(async () => { await setUp(FEATURES) })
+
+  test('the switch is hidden (not ready), so no plan, owner or Factory save can give it to a business', () => {
+    expect(getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'storm_customer_map')?.hidden).toBe(true)
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).not.toContain('storm_customer_map')
+  })
+
+  test('without the switch the 5 am pass asks NOAA for nothing and adds nothing', async () => {
+    await setUp(FEATURES.filter((f) => f !== 'storm_customer_map'))
+    await clearBoard()
+    const asked = noaaCalls()
+    expect(await storms.runScheduledNoaaCheck(FIVE_AM)).toEqual([])
+    expect([noaaCalls(), await board(companyId)]).toEqual([asked, 0])
+  })
+
+  test('with the switch, outside 5 am on the company\'s own clock the pass does nothing — in Chicago and in Denver', async () => {
+    await setUp(FEATURES, 'America/Chicago')
+    const asked = noaaCalls()
+    expect(await storms.runScheduledNoaaCheck(TWO_PM)).toEqual([])
+    // 11:00 UTC is 4 am in Denver (MST, UTC-7): not yet.
+    await setUp(FEATURES, 'America/Denver')
+    expect(await storms.runScheduledNoaaCheck(FIVE_AM)).toEqual([])
+    expect([noaaCalls(), await board(companyId)]).toEqual([asked, 0])
+  })
+
+  test('with the switch, at 5 am on the company\'s clock it checks that company once: the sample\'s storms land on the board, no leads are made', async () => {
+    await setUp(FEATURES, 'America/Chicago')
+    const asked = noaaCalls(), leadsBefore = await leads(companyId)
+    const ran = await storms.runScheduledNoaaCheck(FIVE_AM)
+    expect(ran).toEqual([{ companyId, fetched: 3, reached: true }])
+    expect(noaaCalls()).toBe(asked + 1)
+    expect(await board(companyId)).toBe(3)
+    expect(await leads(companyId)).toBe(leadsBefore)
+    // The other company (no switch) was not asked about; the pass made exactly one request for the one company.
+    expect(await board(otherId)).toBe(0)
+  })
+
+  test('the next day\'s pass sees the same reports in its window and adds none of them again', async () => {
+    const asked = noaaCalls()
+    const ran = await storms.runScheduledNoaaCheck(new Date(FIVE_AM.getTime() + 86_400_000))
+    expect(ran).toEqual([{ companyId, fetched: 0, reached: true }])
+    expect([noaaCalls(), await board(companyId)]).toEqual([asked + 1, 3])
+  })
+
+  test('a feed that does not answer adds nothing and is not an error', async () => {
+    await clearBoard()
+    noaaStatus = 503
+    const ran = await storms.runScheduledNoaaCheck(FIVE_AM)
+    noaaStatus = 200
+    expect(ran).toEqual([{ companyId, fetched: 0, reached: false }])
+    expect(await board(companyId)).toBe(0)
   })
 })
 

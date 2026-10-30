@@ -38,7 +38,7 @@ Sources
 - Looked up by exact match on a 64-hex random token (the shared document-link token: 32 random bytes, `newDocumentToken`), so it cannot be guessed; a wrong, malformed or unknown token gets the same "not valid".
 - Expires: 30 days from the send, never before a week after the start; then it answers "run out" (410), and sending again makes a new link and kills the old one.
 - It names one row. No request id picks a work order, and a photo is served only when it is on that order's own lists. It opens none of the company's other doors.
-- Not built: rate limiting of wrong guesses on the link (the token's size is the protection).
+- Guessing is limited (owner, 10/30): per caller address, 30 lookups that find no link in 15 minutes shut that address out; it is then answered exactly as a wrong token is ("not valid", 404 — never a 429, even for a right token), while lookups that find the link never count (`createGuessLimiter`, `tests/roof-token-guess-limit.test.ts`). The count is in the server's memory: it resets when the app restarts, and each app instance counts on its own.
 
 ## What this change builds
 - `work_order` table (migration `0041_roof_work_order`), `server/crm/roof/workOrders.ts` (office: `/api/work-orders`, `jobs:read` to read, `jobs:dispatch` to make, change, send and cancel, `jobs:delete` to remove), `server/crm/roof/crewLink.ts` (crew: `/api/crew-link/:token`, public).

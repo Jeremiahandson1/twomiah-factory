@@ -18,7 +18,7 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
-import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './quoteOptions'
+import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './quoteOptions'
 import { partialOf } from '../partialOf'
 
 
@@ -283,7 +283,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const hasDeposit = !!t.quote?.depositType
   // Good/Better/Best options the customer chooses from (quoteOptions.ts). Needs the optional-lines columns it rides on.
   const hasProposal = hasOptional && hasProposalTables(t)
-  const proposalAllowed = async (cid: string) => hasProposal && (o.proposalsEnabled ? !!(await o.proposalsEnabled(cid)) : true)
+  const proposalAllowed = async (cid: string) => hasProposal && (await proposalsLive(t as any, o.proposalsEnabled, cid))
   /** The quote as the office reads it with its options: `lineItems` are the lines every option shares, `proposal` the options. */
   const withProposal = async (out: any) => {
     if (!hasProposal || !out) return out
@@ -674,7 +674,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         let lines = await customerLines(db, cid, billable(await lineRows(found.id)))
         let emailTotal = found.total, emailSubtotal = found.subtotal, emailTax = found.taxAmount
         // A quote whose customer has yet to choose is offered by its options: each at its whole price, the total "from" the lowest.
-        const offered = hasProposal ? await proposalView(db, t as any, found) : null
+        const offered = (await proposalAllowed(cid)) ? await proposalView(db, t as any, found) : null
         if (offered?.needsChoice) {
           lines = offered.options.map((op) => ({ description: `${op.name}${op.brand ? ` — ${op.brand}` : ''}${op.warranty ? ` (${op.warranty})` : ''}`, quantity: '1', unitPrice: op.price, total: op.price })) as any
           const lowest = [...offered.options].sort((a, b) => Number(a.price) - Number(b.price))[0]
@@ -725,7 +725,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (hasProposal) {
       const cid = (c.get('user') as any).companyId
       const q = await findOwn(cid, c.req.param('id'))
-      if (q && q.status !== 'approved' && (await proposalNeedsChoice(db, t, q.id))) return c.json({ error: CHOOSE_FIRST }, 400)
+      if (q && q.status !== 'approved' && (await proposalAllowed(cid)) && (await proposalNeedsChoice(db, t, q.id))) return c.json({ error: CHOOSE_FIRST }, 400)
     }
     const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
     if (!r.updated) return r
@@ -818,6 +818,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     app.post('/:id/proposal/choose', requirePermission('quotes:update'), async (c: any) => {
       const got = await openQuote(c)
       if ('fail' in got) return got.fail
+      if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
       const body = await c.req.json().catch(() => ({}))
       const r: any = await chooseProposalOption(db, t as any, got.cid, got.existing.id, body?.optionId)
       if ('error' in r) return c.json({ error: r.error }, r.status)

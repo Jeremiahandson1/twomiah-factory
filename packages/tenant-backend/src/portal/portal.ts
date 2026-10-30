@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, CHOOSE_FIRST } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -124,6 +124,13 @@ export interface PortalDeps {
     depositFor: (companyId: string, quoteId: string) => Promise<unknown>
   }
   options?: PortalOptions
+  /**
+   * May this business's customers see and answer proposal options (Good / Better / Best)? The app's feature question for
+   * `quote_proposals`; the same rule the office's quote routes ask (quoteOptions.ts proposalsLive). With it off the page
+   * shows no options and the pick is refused, and the quote is signed as it stood before options existed. Not given: a
+   * template, whose quotes have none.
+   */
+  proposalsEnabled?: (companyId: string) => Promise<boolean> | boolean
 }
 
 /**
@@ -713,7 +720,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const asks = 'depositType' in found ? depositAmount(found) : 0
     const deposit = asks > 0 && found.status === 'approved' && deps.quoteDeposit ? await deps.quoteDeposit.depositFor(companyId, found.id).catch(() => null) : null
     // A quote with options: the lines every option shares are the quote's lines, and the options come apart with their own.
-    const view = await proposalView(db, t, found)
+    const view = (await proposalsLive(t, deps.proposalsEnabled, companyId)) ? await proposalView(db, t, found) : null
     const proposal = view ? {
       chosenOptionId: view.chosenOptionId, needsChoice: view.needsChoice,
       options: await Promise.all(view.options.map(async (op) => ({
@@ -723,7 +730,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     } : null
     return {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
-      lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId)
+        // Options off: an option nobody chose is not on the page; the lines of one that was chosen are in the total, so they stay.
+        : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
       ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
       company: { name: company.name, email: company.email, phone: company.phone },
@@ -750,6 +759,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
+    // Options switched off: there is nothing to choose, and the answer is the one a path that does not exist gives.
+    if (!(await proposalsLive(t, deps.proposalsEnabled, contact.companyId))) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     const body = await c.req.json().catch(() => ({}))
@@ -802,8 +813,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     // A quote with options is signed for ONE of them: the customer chooses before they sign.
-    if (await proposalNeedsChoice(db, t, quoteId)) return c.json({ error: CHOOSE_FIRST }, 400)
-    const view = await proposalView(db, t, found)
+    const optionsLive = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
+    if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST }, 400)
+    const view = optionsLive ? await proposalView(db, t, found) : null
     const chosenOption = view?.options.find((op) => op.chosen) || null
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
     const lineItems = includedLines(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))

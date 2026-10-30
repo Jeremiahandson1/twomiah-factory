@@ -43,3 +43,6 @@ Sources
 
 ## Still needed for full parity (not in this change)
 Rows 11, 12, 13 and 14.
+
+## Guessing the link (owner follow-up 10/30)
+The report's link (page, PDF and photos) limits guessing per caller address: 30 lookups that find no link in 15 minutes shut that address out, and it is then answered exactly as a wrong token is answered ("not valid", 404 — never a 429, even for a right token). Lookups that find the link never count. The count is in the server's memory (resets on restart; each app instance counts on its own). Proven in `apps/unified/tests/roof-token-guess-limit.test.ts`, which also covers the crew's work-order link.

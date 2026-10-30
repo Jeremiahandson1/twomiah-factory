@@ -57,3 +57,6 @@ option with no change of their own.
 Rows 13 (upgrades inside an option), 14 (a discount per option), 15, 16 (brochures and cover page), the photo markup in row 4.
 Row 17 is the owner's. Also not done: a photo upload from the options editor itself (photos come from the job's photos or an
 address), and the quote's PDF, which shows only the chosen option once one is chosen and the shared lines before.
+
+## One switch, both sides (owner follow-up 10/30)
+With `quote_proposals` off, a quote behaves exactly as it did before options existed: the homeowner's page and `/d/<token>` link show no options, the pick is refused (404, like a path that is not there), the quote email lists the quote's own lines, signing asks for no pick, and the office cannot pick for the customer. A quote whose option was already chosen keeps that option's lines on the page (they are in its total). Building options still needs the switch. The office and the customer sides ask one rule (`proposalsLive` in `quoteOptions.ts`). Tested off and on in `tests/roof-gbb-proposals.test.ts` (last section).

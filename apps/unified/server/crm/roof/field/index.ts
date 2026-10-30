@@ -6,9 +6,11 @@
 // Crews item carries no feature). The dashboard is not mounted here: /api/dashboard is the CRM's mount, which answers
 // with createRoofDashboardRoutes (./dashboard.ts) where the vertical's CrmSettings.dashboard says so.
 //
-// Timers: none. The template defined a daily NOAA storm check (stormData.ts runDailyStormCheck) and never started it,
-// and its storm-radar sync is a stub per provider; neither is scheduled here (stormData.ts, stormRadarService.ts). The
-// owner can run the NOAA check on demand (POST /api/storm-map/noaa-check, integrations:update); it is still not on a timer.
+// Timers: ONE — the scheduled NOAA check (stormData.ts runScheduledNoaaCheck), hourly, which does anything only for a company
+// that has the hidden storm_customer_map switch on at 5 am on its own clock (owner, 2026-10-30; today no company has it). The
+// template's own daily check (runDailyStormCheck, with auto-leads) was never started and still is not, and the storm-radar sync
+// is a stub per provider (stormRadarService.ts). A manager, admin or the owner can run the check on demand
+// (POST /api/storm-map/noaa-check, storms:update).
 import type { Mount } from '../../../http/registry.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createStormRoutes } from './storms.ts'
@@ -19,8 +21,11 @@ import { createMaterialRoutes } from './materials.ts'
 import { createMaterialListRoutes } from './materialListRoutes.ts'
 import { createStormMapRoutes } from './stormMap.ts'
 import { createTerritoryRoutes } from './territories.ts'
+import { createStormData } from './stormData.ts'
 
 export function fieldMounts(d: CrmDeps): Mount[] {
+  // The scheduled NOAA check: the CRM's boot-time job list starts it (never in tests); the switch it needs is not ready.
+  d.services.addJob(() => createStormData(d).startNoaaSchedule())
   return [
     { path: '/api/storms', access: 'user', feature: 'storm_lead_gen', router: createStormRoutes(d) },
     { path: '/api/storm-radar', access: 'user', feature: 'storm_radar_overlay', router: createStormRadarRoutes(d) },

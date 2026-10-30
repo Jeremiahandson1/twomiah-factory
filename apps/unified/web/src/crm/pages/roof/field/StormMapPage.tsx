@@ -32,7 +32,7 @@ const label = (e: StormEvent) => `${new Date(e.eventDate).toLocaleDateString()} 
 export default function StormMapPage() {
   const mayDraw = useMayWrite('storms:update')
   const mayMakeLeads = useMayWrite('storms:create')
-  const mayCheckNoaa = useMayWrite('integrations:update')
+  const mayCheckNoaa = useMayWrite('storms:update')
   const mayAssign = useMayWrite('canvassing:manage')
   const toast = useToast()
   const toastRef = useRef(toast)

@@ -28,6 +28,7 @@ import { cleanLines, cleanText } from '../../../core/sanitize.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, listAll, one } from '../../../http/reply.ts'
+import { createGuessLimiter, TOKEN_GUESS_MAX, TOKEN_GUESS_WINDOW_MS } from '../../../http/guards.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createSeatJob } from '../seatJob.ts'
 import { renderReportHtml } from './render.ts'
@@ -204,16 +205,19 @@ export function createInspectionViewRoutes(d: CrmDeps, shared: { pdfResponse: (v
   const NOT_VALID = 'This link is not valid. Please contact the business that sent it.'
 
   /** The report this link names — a wrong, switched-off or run-out link are all null. */
-  async function byToken(token: string) {
-    if (!isDocumentToken(token)) return null
+  const guesses = createGuessLimiter(TOKEN_GUESS_WINDOW_MS, TOKEN_GUESS_MAX)
+  async function byToken(c: any, token: string) {
+    // An address that keeps missing is answered like a wrong token (never a 429), valid link or not.
+    if (guesses.shut(c)) return null
+    if (!isDocumentToken(token)) { guesses.miss(c); return null }
     const [r] = await db.select().from(inspectionReport).where(eq(inspectionReport.publicToken, token)).limit(1)
-    if (!r) return null
+    if (!r) { guesses.miss(c); return null }
     if (r.linkExpiresAt && new Date(r.linkExpiresAt).getTime() <= Date.now()) return null
     return r
   }
 
   app.get('/:token', async (c) => {
-    const r = await byToken(c.req.param('token'))
+    const r = await byToken(c, c.req.param('token'))
     if (!r) return c.html(`<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Link not valid</title><body style="font:16px system-ui;padding:2rem"><p>${NOT_VALID}</p>`, 404, securityHeaders)
     const view = await buildReportView(db, r)
     const base = `${VIEW_PATH}/${r.publicToken}`
@@ -221,14 +225,14 @@ export function createInspectionViewRoutes(d: CrmDeps, shared: { pdfResponse: (v
   })
 
   app.get('/:token/pdf', async (c) => {
-    const r = await byToken(c.req.param('token'))
+    const r = await byToken(c, c.req.param('token'))
     if (!r) return fail(c, 404, NOT_VALID)
     return shared.pdfResponse(await buildReportView(db, r), r.companyId)
   })
 
   // One photo of THIS report: its id has to be one the report names, on the report's own job.
   app.get('/:token/photos/:photoId', async (c) => {
-    const r = await byToken(c.req.param('token'))
+    const r = await byToken(c, c.req.param('token'))
     if (!r) return fail(c, 404, NOT_VALID)
     const photoId = c.req.param('photoId')
     if (!sectionsOf(r.sections).some((s) => s.photoIds.includes(photoId))) return fail(c, 404, 'Photo not found')

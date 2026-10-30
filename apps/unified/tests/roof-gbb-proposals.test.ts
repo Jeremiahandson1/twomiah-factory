@@ -302,3 +302,76 @@ describe('the choice is the accepted price', () => {
     expect(Number(job.estimatedValue)).toBe(12000)
   })
 })
+
+// Owner follow-up 10/30 (PR #170): the switch is one rule on both sides. With `quote_proposals` off, the homeowner's page and
+// link show no options and the pick is refused, and the quote is answered exactly as it was before options existed.
+describe('with the proposal options switched off the quote behaves as if they did not exist', () => {
+  const offFeatures = FEATURES.filter((f) => f !== 'quote_proposals')
+  const optionIds = async (qid: string) => Object.fromEntries(((await json(await as('owner')(`/api/quotes/${qid}`))).body.proposal.options as any[]).map((o) => [o.name, o.id]))
+  const seenBy = async (token: string, qid: string) => json(await t.call(`/api/portal/d/${token}/quotes/${qid}`))
+
+  test('on: the homeowner is offered the options and can pick one; off: no options on the page, the link, the email or the pick', async () => {
+    const q = await jobAndQuote()
+    expect((await putOptions(q.quoteId, OPTIONS)).status).toBe(200)
+    const token = await sendIt(q.quoteId)
+    const names = await optionIds(q.quoteId)
+    // ON
+    const on = await seenBy(token, q.quoteId)
+    expect(on.body.proposal.options.map((o: any) => o.name)).toEqual(['Good', 'Better', 'Best'])
+    expect((await json(await t.call(`/api/portal/d/${token}/quotes/${q.quoteId}/choose-option`, { method: 'POST', json: { optionId: names.Good } }))).status).toBe(200)
+    // Back to the undecided quote, then OFF.
+    await as('owner')(`/api/quotes/${q.quoteId}/proposal`, { method: 'PUT', json: { options: OPTIONS } })
+    const fresh = await optionIds(q.quoteId)
+    await setFeatures(offFeatures)
+    try {
+      const off = await seenBy(token, q.quoteId)
+      expect(off.status).toBe(200)
+      expect(off.body.proposal).toBeUndefined()
+      expect(JSON.stringify(off.body)).not.toMatch(/Good|Better|Best|Timberline|warranty/i)
+      expect(off.body.lineItems.map((l: any) => l.description)).toEqual(['Tear-off, disposal and permit'])
+      expect(Number(off.body.total)).toBe(2000)
+      // The pick is refused as a path that is not there, whichever option it names — and nothing was chosen.
+      for (const optionId of [fresh.Good, fresh.Best]) {
+        expect((await t.call(`/api/portal/d/${token}/quotes/${q.quoteId}/choose-option`, { method: 'POST', json: { optionId } })).status).toBe(404)
+      }
+      expect((await t.db.select().from(t.schema.quoteProposalOption).where(eq(t.schema.quoteProposalOption.quoteId, q.quoteId))).some((o: any) => o.chosen)).toBe(false)
+      // The office cannot pick for the customer either (the screen is not there, and the server says so).
+      expect((await as('owner')(`/api/quotes/${q.quoteId}/proposal/choose`, { method: 'POST', json: { optionId: fresh.Good } })).status).toBe(403)
+      // A re-sent quote's email lists the quote's own lines, not the options.
+      await as('owner')(`/api/quotes/${q.quoteId}/send`, { method: 'POST' })
+      const mail = sent.filter((m) => m.template === 'quoteSent').at(-1)!.data
+      expect(mail.lineItems.map((l: any) => l.description)).toEqual(['Tear-off, disposal and permit'])
+      // And it is signed as it stood before options existed: no pick is asked for, the signature names no option.
+      const signed = await json(await t.call(`/api/portal/d/${token}/quotes/${q.quoteId}/approve`, { method: 'POST', json: SIGN }))
+      expect([signed.status, signed.body.quote?.status, signed.body.quote?.total]).toEqual([200, 'approved', '2000.00'])
+      const audit = (await t.db.select().from(t.schema.auditLog).where(eq(t.schema.auditLog.entityId, q.quoteId))).find((a: any) => a.action === 'quote.signed') as any
+      expect(audit.metadata.option ?? null).toBeNull()
+    } finally { await setFeatures(FEATURES) }
+  })
+
+  test('on again: a second quote is offered its options once more', async () => {
+    const q = await jobAndQuote()
+    await putOptions(q.quoteId, OPTIONS)
+    const token = await sendIt(q.quoteId)
+    expect((await seenBy(token, q.quoteId)).body.proposal.options.length).toBe(3)
+    const unsigned = await json(await t.call(`/api/portal/d/${token}/quotes/${q.quoteId}/approve`, { method: 'POST', json: SIGN }))
+    expect([unsigned.status, unsigned.body.error]).toEqual([400, expect.stringContaining('Choose one of the options')])
+  })
+
+  test('an option already chosen stays readable when the switch goes off: its lines are in the total, so they are on the page', async () => {
+    const q = await jobAndQuote()
+    await putOptions(q.quoteId, OPTIONS)
+    const token = await sendIt(q.quoteId)
+    const names = await optionIds(q.quoteId)
+    expect((await json(await t.call(`/api/portal/d/${token}/quotes/${q.quoteId}/choose-option`, { method: 'POST', json: { optionId: names.Better } }))).status).toBe(200)
+    await setFeatures(offFeatures)
+    try {
+      const off = await seenBy(token, q.quoteId)
+      expect(off.body.proposal).toBeUndefined()
+      expect(Number(off.body.total)).toBe(PRICE.better)
+      const sum = off.body.lineItems.reduce((s: number, l: any) => s + Number(l.total), 0)
+      expect(sum).toBe(PRICE.better)
+      expect(JSON.stringify(off.body.lineItems)).not.toMatch(/Good|Best/)
+    } finally { await setFeatures(FEATURES) }
+  })
+})

@@ -107,6 +107,9 @@ export const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATC
  * "client, hop, hop" and Render's edge appends a varying hop, so keying on the whole header gave every request its
  * own counter. Tells the browser its limit, what remains and when to retry.
  */
+/** The caller's address, the way every limiter here keys it (see createRateLimiter). */
+export const clientKey = (c: Context): string => c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+
 export function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean): MiddlewareHandler {
   const hits = new Map<string, { count: number; resetAt: number }>()
   const sweep = setInterval(() => {
@@ -118,7 +121,7 @@ export function createRateLimiter(windowMs: number, max: number, countMethod?: (
 
   return async (c: Context, next: Next) => {
     if (countMethod && !countMethod(c.req.method)) return next()
-    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+    const key = clientKey(c)
     const now = Date.now()
     let entry = hits.get(key)
     if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; hits.set(key, entry) }
@@ -132,3 +135,37 @@ export function createRateLimiter(windowMs: number, max: number, countMethod?: (
     await next()
   }
 }
+
+/**
+ * A limit on GUESSING a private link's token, per address. A public token route counts the lookups that found nothing; an
+ * address that has missed `max` times in the window is shut out, and the route then answers it exactly as it answers a
+ * wrong token (the same "not found", never a 429), so the answer says neither that a limit exists nor whether a guess was
+ * right. Lookups that find a link do not count, so a crew sending twenty photos is never held up. Keyed like
+ * createRateLimiter (by the caller's address).
+ */
+export function createGuessLimiter(windowMs: number, max: number) {
+  const misses = new Map<string, { count: number; resetAt: number }>()
+  const sweep = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of misses) if (now > entry.resetAt) misses.delete(key)
+  }, windowMs)
+  ;(sweep as any).unref?.()
+  return {
+    /** Has this address used up its guesses? */
+    shut(c: Context): boolean {
+      const entry = misses.get(clientKey(c))
+      return !!entry && Date.now() <= entry.resetAt && entry.count >= max
+    },
+    /** A lookup from this address found no link. */
+    miss(c: Context): void {
+      const key = clientKey(c), now = Date.now()
+      let entry = misses.get(key)
+      if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; misses.set(key, entry) }
+      entry.count++
+    },
+  }
+}
+
+/** Guesses allowed per address per window on a private-link token route (the link itself is 256 bits, so this is for noise and probing). */
+export const TOKEN_GUESS_WINDOW_MS = 15 * 60 * 1000
+export const TOKEN_GUESS_MAX = 30

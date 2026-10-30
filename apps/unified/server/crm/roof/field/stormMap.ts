@@ -4,10 +4,9 @@
 //   · GET  /events/:id/customers  storms:read    past customers inside the storm's drawn path (or its zips), each marked
 //                                                  placed by their pin or by zip only, with the counts and what is missing;
 //   · PUT  /events/:id/path       storms:update  draw (or clear) the storm's path: a polygon or a circle;
-//   · POST /noaa-check            integrations:update  the owner's / admin's "check NOAA now" — fetches the feed once, for
-//                                                  this company, on this request. NOTHING schedules it (stormData.ts); the
-//                                                  permission is the one that connects outside services, which a manager
-//                                                  does not hold.
+//   · POST /noaa-check            storms:update  "check NOAA now" — the owner, an admin or a manager (owner, 2026-10-30) fetches
+//                                                  the feed once, for this company, on this request. (The daily check is a
+//                                                  separate timer in stormData.ts, behind this same hidden switch.)
 //
 // The leads themselves are made by the storm board's own POST /api/storms/events/:id/generate-leads, which now reads the
 // event's path (stormData.ts): this module only draws the path and shows who is in it.
@@ -82,7 +81,7 @@ export function createStormMapRoutes(d: CrmDeps, storms: StormData = createStorm
     return one(c, eventView(updated))
   })
 
-  app.post('/noaa-check', requirePermission('integrations:update'), async (c) => {
+  app.post('/noaa-check', requirePermission('storms:update'), async (c) => {
     const { companyId } = c.get('user')
     const b = ((await c.req.json().catch(() => null)) ?? {}) as any
     const days = b.days === undefined ? 2 : Number(b.days)

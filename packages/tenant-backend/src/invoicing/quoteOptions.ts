@@ -93,6 +93,16 @@ export const isPhotoAddress = (v: unknown): v is string => typeof v === 'string'
 /** Does this template have the proposal tables? (Its quote tables carry them only in the unified app.) */
 export const hasProposalTables = (t: { quoteProposalOption?: any; quoteLineItem?: any }): boolean => !!t?.quoteProposalOption && !!t?.quoteLineItem?.proposalOptionId
 
+/**
+ * THE rule for whether a business has proposal options at all: the tables are there AND its `quote_proposals` switch is on
+ * (`enabled` is the app's feature question; none given = a template, which has no switch). The office's routes (quotes.ts),
+ * the customer's pages and the customer's pick (portal.ts) all ask this and nothing else, so with the switch off a quote
+ * behaves exactly as it did before options existed.
+ */
+export async function proposalsLive(t: { quoteProposalOption?: any; quoteLineItem?: any }, enabled: ((companyId: string) => Promise<boolean> | boolean) | undefined, companyId: string): Promise<boolean> {
+  return hasProposalTables(t) && (enabled ? !!(await enabled(companyId)) : true)
+}
+
 export type ProposalOptionView = {
   id: string; name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null
   photos: string[]; recommended: boolean; chosen: boolean; sortOrder: number
