@@ -154,6 +154,21 @@ export const OPEN_JOB_STATUSES = ['scheduled', 'pending', 'confirmed']
 // otherwise reached the dashboard as a real bucket and was dropped from Reports, 168 vs 169) without
 // breaking a real status. If a vertical ever needs its own set, thread it through JobOptions.
 export const JOB_STATUSES = ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const
+
+/** What each button (dispatch / start / complete) may move a job FROM — forward only. Anything else: see jobMoveRefusal. */
+export const JOB_MOVES_FROM = {
+  dispatched: ['scheduled', 'pending', 'confirmed', 'on_hold'],
+  in_progress: ['scheduled', 'pending', 'confirmed', 'dispatched', 'on_hold'],
+  completed: ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold'],
+} as const
+
+/** The sentence for a button that would move a job backwards (or out of cancelled). */
+export function jobMoveRefusal(to: string, from: string): string {
+  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : 'completed'
+  if (from === 'cancelled') return `This job was cancelled, so it can't be ${doing}. Reopen it first.`
+  if (from === 'completed') return `This job is already completed, so it can't be ${doing} again. Reopen it first if there is more to do.`
+  return `This job is already ${from === 'in_progress' ? 'in progress' : from.replace(/_/g, ' ')}, so it can't be ${doing} now.`
+}
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 
@@ -1154,7 +1169,14 @@ export function createJobRoutes(deps: JobDeps) {
   }
 
   // ---------------------------------------------------------------- lifecycle
-  const transition = (path: string, status: string, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
+  /**
+   * The buttons only move a job FORWARD (JOB_MOVES_FROM): a repeat is nothing (no write, no hook — the customer is not
+   * texted "on my way" twice, an agreement's next visit is not made twice) and a move backwards is refused in words.
+   * Reopening a finished job is a deliberate edit (PUT /:id, the status field). The move is one conditional UPDATE, so
+   * two taps at once — or a phone's queued "start" arriving after the office completed the job — cannot both win.
+   * Before 10/30 every tap wrote and re-ran the hook, and a late tap reverted a completed job (field service PR #169).
+   */
+  const transition = (path: string, status: keyof typeof JOB_MOVES_FROM, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
     app.post(`/:id/${path}`, requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
@@ -1167,7 +1189,13 @@ export function createJobRoutes(deps: JobDeps) {
         ...(status === 'completed' ? {} : { completedAt: null }),
         ...extra(),
         updatedAt: new Date(),
-      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
+      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), inArray(t.job.status, [...JOB_MOVES_FROM[status]]))).returning()
+      if (!updated) {
+        const now = await findOwned(id, currentUser.companyId)
+        if (!now) return c.json({ error: 'Job not found' }, 404)
+        if (now.status === status) return c.json({ ...(await shapeJobMoney(c, now)), unchanged: true })
+        return c.json({ error: jobMoveRefusal(status, String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
+      }
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
       const more = await runHook(hook(), updated, currentUser)
       // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
