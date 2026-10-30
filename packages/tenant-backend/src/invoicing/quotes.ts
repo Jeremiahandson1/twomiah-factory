@@ -778,7 +778,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         await tx.delete(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, id))
         let sawRecommended = false
         for (const [i, op] of options.entries()) {
-          const recommended = !!op.recommended && !sawRecommended
+          const recommended: boolean = !!op.recommended && !sawRecommended
           sawRecommended = sawRecommended || recommended
           const [row] = await tx.insert(t.quoteProposalOption).values({ quoteId: id, name: op.name, tier: op.tier ?? null, brand: op.brand || null, warranty: op.warranty || null, description: op.description || null, photos: op.photos, recommended, sortOrder: i }).returning()
           // An option's lines are optional lines, ticked together when the option is chosen: unticked until then.

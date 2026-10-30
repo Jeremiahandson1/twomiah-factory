@@ -102,7 +102,7 @@ export type ProposalOptionView = {
 }
 
 /** A quote's options with their lines and the price of each — null when it has none. `quote` supplies the tax rate and discount. */
-export async function proposalView(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption: any }, quote: { id: string; taxRate?: unknown; discount?: unknown }): Promise<{ options: ProposalOptionView[]; chosenOptionId: string | null; needsChoice: boolean } | null> {
+export async function proposalView(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption?: any }, quote: { id: string; taxRate?: unknown; discount?: unknown }): Promise<{ options: ProposalOptionView[]; chosenOptionId: string | null; needsChoice: boolean } | null> {
   if (!hasProposalTables(t)) return null
   const options = await db.select().from(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, quote.id)).orderBy(asc(t.quoteProposalOption.sortOrder), asc(t.quoteProposalOption.id))
   if (!options.length) return null
@@ -135,7 +135,7 @@ export const CHOOSE_FIRST = 'Choose one of the options before you approve this q
  * Make one option the choice: its lines are ticked, every other option's lines are not, and the quote's totals are worked
  * out again. The caller has already decided the quote is open. Choosing again changes the choice.
  */
-export async function chooseProposalOption(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption: any }, companyId: string, quoteId: string, optionId: unknown):
+export async function chooseProposalOption(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption?: any }, companyId: string, quoteId: string, optionId: unknown):
   Promise<{ error: string; status: 400 | 404 } | { quote: any; lineItems: any[] }> {
   if (!hasProposalTables(t)) return { error: 'This quote has no options.', status: 400 }
   if (typeof optionId !== 'string' || !optionId) return { error: 'Say which option.', status: 400 }
