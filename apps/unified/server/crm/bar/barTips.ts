@@ -10,7 +10,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte } from 'drizzle-or
 import { barCheck, barScheduleShift, barTipPayout, company, timeEntry, user } from '../../db/schema/index.ts'
 import type { BarDb } from './db.ts'
 import { businessDayWindow, type BarLive } from './barLive.ts'
-import { rulesRefusal, settleTips, type TipPerson, type TipRules } from './barTipMath.ts'
+import { roleForPositions, rulesRefusal, settleTips, type TipPerson, type TipRules } from './barTipMath.ts'
 
 export class TipError extends Error { constructor(message: string, public status = 400) { super(message) } }
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -31,6 +31,10 @@ export function cleanRules(b: any): TipRules {
     })),
     tipOuts: tipOuts.map((t: any) => ({ from: String(t?.from ?? '').trim(), to: String(t?.to ?? '').trim(), pct: Number(t?.pct), basis: t?.basis === 'sales' ? 'sales' : 'tips' })),
     defaultRole: String(b?.defaultRole ?? '').trim(),
+    // Present only when the owner has set it (even as nothing: then no position counts as any role).
+    ...(b?.positionRoles && typeof b.positionRoles === 'object' && !Array.isArray(b.positionRoles)
+      ? { positionRoles: Object.fromEntries(Object.entries(b.positionRoles as Record<string, unknown>).map(([k, v]) => [k.replace(/\s+/g, ' ').trim(), String(v ?? '').trim()]).filter(([k]) => k)) }
+      : {}),
   }
 }
 
@@ -82,14 +86,7 @@ export function createBarTips(db: BarDb, live: BarLive) {
     const names = await db.select({ id: user.id, first: user.firstName, last: user.lastName, email: user.email }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, ids)))
     const nameOf = new Map(names.map((u) => [u.id, [u.first, u.last].filter(Boolean).join(' ').trim() || u.email]))
     const fallback = rules.defaultRole || rules.roles[0]?.name || ''
-    const roleFor = (id: string) => {
-      for (const s of shifts) {
-        if (s.userId !== id || !s.position) continue
-        const hit = rules.roles.find((r) => r.positions.some((p) => same(p, s.position!)) || same(r.name, s.position!))
-        if (hit) return hit.name
-      }
-      return fallback
-    }
+    const roleFor = (id: string) => roleForPositions(rules, shifts.filter((s) => s.userId === id && s.position).map((s) => s.position as string), fallback)
     const people = ids.filter((id) => nameOf.has(id)).map((id): TipPerson => ({
       userId: id, name: nameOf.get(id)!, role: roleFor(id),
       hours: Math.round((hours.get(id) || 0) * 100) / 100, tipsCents: tips.get(id)?.tip || 0, salesCents: tips.get(id)?.sales || 0,

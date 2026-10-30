@@ -258,6 +258,22 @@ describe('#7 where enquiries come from', () => {
     expect((await k.O('GET', '/api/event-reports/years?year=1800')).status).toBe(400)
   })
 
+  test('one rule on both sides: with event_reports on, a source is picked from the list when created AND when edited, and the report is open; off, neither the list nor the report applies', async () => {
+    await k.features([...BASE, ...DEPTH])
+    const made = await k.O('POST', '/api/events', { name: 'Edit source', eventDate: later(175), source: 'phone', contactId: clientId })
+    expect(made.status).toBe(201)
+    expect((await k.O('PUT', `/api/events/${made.json.id}`, { source: 'a billboard' })).status).toBe(400)
+    const edited = await k.O('PUT', `/api/events/${made.json.id}`, { source: 'referral' })
+    expect(edited.status).toBe(200)
+    const again = (await k.O('GET', `/api/events/${made.json.id}`)).json
+    expect(again.source ?? again.event?.source).toBe('referral')
+    expect((await k.O('GET', `/api/event-reports/sources?from=${today}&to=${today}`)).status).toBe(200)
+    await k.features([...BASE, ...DEPTH.filter((f) => f !== 'event_reports')])
+    expect((await k.O('PUT', `/api/events/${made.json.id}`, { source: 'a billboard' })).status).toBe(200)
+    expect([403, 404]).toContain((await k.O('GET', `/api/event-reports/sources?from=${today}&to=${today}`)).status)
+    await k.features([...BASE, ...DEPTH])
+  })
+
   test('with the feature off the source stays the free text it always was', async () => {
     await k.features([...BASE, ...DEPTH.filter((f) => f !== 'event_reports')])
     expect((await k.O('POST', '/api/events', { name: 'Free text', eventDate: later(170), source: 'a billboard' })).status).toBe(201)
@@ -533,4 +549,44 @@ describe('#2 reminders, a pay link per instalment, a card on file — on the ven
     expect(mine.every((c) => c.account === 'acct_biz')).toBe(true)
     expect(k.stripe.calls.filter((c) => c.path.startsWith('/v1/payment_methods') && c.method === 'POST').every((c) => c.account === 'acct_biz')).toBe(true)
   })
+})
+
+describe('guessing a guest link is limited, and a limited link reads exactly like a wrong one', () => {
+  const raw = (path: string, ip: string, method = 'GET', body?: unknown) => k.t.app.request(path, { method, headers: { host: 'bar.test', 'x-forwarded-for': ip, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+  const hex = (n: number, i: number) => (i.toString(16).padStart(2, '0') + 'ab'.repeat(n)).slice(0, n)
+  let proposalToken = '', payToken = ''
+  beforeAll(async () => {
+    await k.features([...BASE, ...DEPTH, 'online_payments'])
+    const ev = await k.O('POST', '/api/events', { name: 'Guess Gala', eventDate: later(90), status: 'tentative', guestCount: 10, contactId: clientId })
+    await k.O('POST', `/api/events/${ev.json.id}/menu`, { name: 'Dinner', unitPrice: 500, quantity: 1 })
+    await k.O('POST', `/api/events/${ev.json.id}/payments`, { label: 'Deposit', amount: 200, dueDate: later(10) })
+    payToken = (await k.O('GET', `/api/event-payments/${ev.json.id}`)).json.instalments[0].payPath.split('/').pop()
+    const made = await k.O('POST', '/api/event-proposals', { eventId: ev.json.id, options: [] })
+    const sent = await k.O('POST', `/api/event-proposals/${made.json.id}/send`)
+    proposalToken = sent.json.publicToken ?? sent.json.path.split('/').pop()
+  })
+
+  for (const [name, base, token, wrongLen, words] of [
+    ['proposal', '/api/proposal-links', () => proposalToken, 64, 'This proposal link is not valid.'],
+    ['pay', '/api/event-pay', () => payToken, 48, 'This payment link is not valid.'],
+  ] as const) {
+    test(`${name} link: 20 wrong guesses from one address and every link from it answers "not found"; another address is unaffected`, async () => {
+      const ip = name === 'proposal' ? '203.0.113.50' : '203.0.113.51', other = '203.0.113.99'
+      expect((await raw(`${base}/${token()}`, ip)).status).toBe(200)
+      const wrong = await raw(`${base}/${hex(wrongLen, 1)}`, ip)
+      const wrongBody = await wrong.text()
+      expect(wrong.status).toBe(404); expect(wrongBody).toContain(words)
+      // 19 more wrong guesses (some malformed, some well-formed): the 20th miss is the last one counted.
+      for (let i = 2; i <= 20; i++) expect((await raw(`${base}/${i % 2 ? hex(wrongLen, i) : 'zz' + i}`, ip)).status).toBe(404)
+      // Now even the RIGHT link, on every route under it, is the same "not found" as a wrong one: same status, same body, no 429.
+      for (const [method, path, body] of [['GET', `${base}/${token()}`], ['POST', `${base}/${token()}/intent`, {}], ['PUT', `${base}/${token()}/choices`, { selections: {} }], ['GET', `${base}/${hex(wrongLen, 99)}`]] as const) {
+        const r = await raw(path, ip, method, body)
+        expect(r.status).toBe(404)
+        expect(await r.text()).toBe(wrongBody)
+        expect(r.headers.get('retry-after')).toBeNull()   // no 429 and no "try later": a limited link is a wrong one
+      }
+      // A different address still gets in with the right link.
+      expect((await raw(`${base}/${token()}`, other)).status).toBe(200)
+    })
+  }
 })

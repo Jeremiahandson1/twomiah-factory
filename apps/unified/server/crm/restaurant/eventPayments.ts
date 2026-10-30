@@ -22,6 +22,7 @@ import { event, eventPayment, eventAutopay, invoice, payment, contact, company }
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { createTokenGuessGuard } from '../../http/guards.ts'
 import { platformStripe } from '../platformStripe.ts'
 import { cardPaymentsFor } from '../cardPayments.ts'
 import { loadEventLedger, syncEventInvoiceDueDate } from './eventLedger.ts'
@@ -272,6 +273,8 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
   const { db } = d
   const app = new Hono<AppEnv>()
   const stripeOf = () => platformStripe(d.services.testStripeClient)
+  // Guessing links: 20 wrong ones in 15 minutes from one address and every link from it reads "not valid" for the rest of the window.
+  app.use('/:token/*', createTokenGuessGuard(15 * 60_000, 20, 'This payment link is not valid.'))
 
   app.get('/:token', async (c) => {
     const m = await instalmentByToken(d, c.req.param('token'))

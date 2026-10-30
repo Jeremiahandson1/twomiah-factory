@@ -25,6 +25,7 @@ import { event, eventSpace, eventMenuItem, eventProposal, eventPayment, contact,
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
+import { createTokenGuessGuard } from '../../http/guards.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { loadEventLedger, eventInvoiceLines, ensureEventInvoice, syncEventInvoice, LedgerError } from './eventLedger.ts'
 import { HELD, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords } from './eventBooking.ts'
@@ -300,6 +301,8 @@ export function createProposalLinkRoutes(d: CrmDeps) {
   const { emitToCompany } = d.realtime
   const REFRESH = d.realtime.EVENTS.REFRESH
   const app = new Hono<AppEnv>()
+  // Guessing links: 20 wrong ones in 15 minutes from one address and every link from it reads "not valid" for the rest of the window.
+  app.use('/:token/*', createTokenGuessGuard(15 * 60_000, 20, 'This proposal link is not valid.'))
 
   async function open(c: any) {
     const token = c.req.param('token')

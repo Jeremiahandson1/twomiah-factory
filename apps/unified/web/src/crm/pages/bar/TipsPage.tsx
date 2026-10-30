@@ -15,7 +15,7 @@ import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money } from './regist
  */
 interface Role { name: string; positions: string[]; mode: 'keeps' | 'pools'; poolPct: number }
 interface TipOut { from: string; to: string; pct: number; basis: 'tips' | 'sales' }
-interface Rules { roles: Role[]; tipOuts: TipOut[]; defaultRole: string }
+interface Rules { roles: Role[]; tipOuts: TipOut[]; defaultRole: string; positionRoles?: Record<string, string> }
 export interface Payout { userId: string; name: string; role: string; hours: number; tipsCents: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number }
 interface Night { day: string; configured: boolean; payouts: Payout[]; poolCents: number; notes: string[]; totalTipsCents: number }
 interface Report { people: Array<{ userId: string; name: string; hours: number; tipsCents: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number; nights: number }>; totalCents: number }
@@ -137,15 +137,24 @@ function RulesView({ may }: { may: boolean }) {
     try { const r = await api.put('/api/tips/rules', rules); setRules(r.rules); setSaved(true); } catch (e) { setErr(errorText(e, 'The rules did not save.')); } finally { setBusy(false); }
   };
   const roleNames = rules.roles.map((r) => r.name).filter(Boolean);
+  // The map the owner sets; until they save one, the older per-role position lists show what each position already counts as.
+  const roleOfPosition = (pos: string) => {
+    if (rules.positionRoles) { const k = Object.keys(rules.positionRoles).find((x) => x.toLowerCase() === pos.toLowerCase()); return k ? rules.positionRoles[k] : ''; }
+    return rules.roles.find((r) => r.positions.some((p) => p.toLowerCase() === pos.toLowerCase()) || r.name.toLowerCase() === pos.toLowerCase())?.name || '';
+  };
+  const positionList = [...new Set([...positions, ...Object.keys(rules.positionRoles || {}), ...rules.roles.flatMap((r) => r.positions)])].sort((a, b) => a.localeCompare(b));
+  const setPosition = (pos: string, role: string) => {
+    const current = Object.fromEntries(positionList.map((p) => [p, roleOfPosition(p)]));
+    setRules({ ...rules, positionRoles: { ...current, [pos]: role } });
+  };
   return (
     <div className="space-y-4">
       <div className={`${CARD} space-y-3`}>
         <p className={LABEL}>Roles</p>
-        <p className={`text-sm ${MUTED}`}>A role&rsquo;s positions are what you call the shift on the Schedule ({positions.length ? positions.join(', ') : 'Bar, Floor…'}); someone scheduled for one counts as that role. Anyone with no scheduled position counts as the role below.</p>
+        <p className={`text-sm ${MUTED}`}>Which role each position on the Schedule counts as is set in the next box. Anyone with no scheduled position counts as the role below.</p>
         {rules.roles.map((r, i) => (
-          <div key={i} className="grid grid-cols-1 md:grid-cols-[1.2fr_1.4fr_1fr_6rem_auto] gap-2 items-end">
+          <div key={i} className="grid grid-cols-1 md:grid-cols-[1.6fr_1fr_6rem_auto] gap-2 items-end">
             <div><label className={LABEL} htmlFor={`rn${i}`}>Role</label><input id={`rn${i}`} className={INPUT} value={r.name} onChange={(e) => setRole(i, { name: e.target.value })} /></div>
-            <div><label className={LABEL} htmlFor={`rp${i}`}>Schedule positions (comma between)</label><input id={`rp${i}`} className={INPUT} value={r.positions.join(', ')} onChange={(e) => setRole(i, { positions: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} /></div>
             <div><label className={LABEL} htmlFor={`rm${i}`}>Their tips</label><select id={`rm${i}`} className={INPUT} value={r.mode} onChange={(e) => setRole(i, { mode: e.target.value as Role['mode'] })}><option value="keeps">Keep their own</option><option value="pools">Go in the pool</option></select></div>
             <div><label className={LABEL} htmlFor={`rs${i}`}>Pool %</label><input id={`rs${i}`} inputMode="decimal" className={INPUT} value={r.poolPct} onChange={(e) => setRole(i, { poolPct: Number(e.target.value) || 0 })} /></div>
             <button type="button" className={`${BTN} ${DANGER} px-3`} aria-label={`Remove ${r.name || 'role'}`} onClick={() => setRules({ ...rules, roles: rules.roles.filter((_, j) => j !== i) })}><Trash2 className="w-4 h-4" /></button>
@@ -154,6 +163,17 @@ function RulesView({ may }: { may: boolean }) {
         <button type="button" className={`${BTN} ${OFF} inline-flex items-center gap-2`} onClick={() => setRules({ ...rules, roles: [...rules.roles, { name: '', positions: [], mode: 'keeps', poolPct: 0 }] })}><Plus className="w-4 h-4" />Add a role</button>
         <p className={`text-sm ${shares === 0 || Math.round(shares * 100) === 10000 ? MUTED : 'text-red-700 dark:text-red-300'}`}>Shares of the pool add up to {Math.round(shares * 100) / 100}% {shares > 0 ? '(they need to be 100)' : ''}</p>
         <div><label className={LABEL} htmlFor="defrole">Role for anyone with no scheduled position</label><select id="defrole" className={`${INPUT} max-w-xs`} value={rules.defaultRole} onChange={(e) => setRules({ ...rules, defaultRole: e.target.value })}><option value="">The first role</option>{roleNames.map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+      </div>
+      <div className={`${CARD} space-y-3`}>
+        <p className={LABEL}>What each position counts as</p>
+        <p className={`text-sm ${MUTED}`}>These are the positions you give shifts on the Schedule. Pick the role each one counts as for tips. A position set to &ldquo;No role&rdquo; takes no tip-out, gives none and has no share of the pool: that person keeps what they made.</p>
+        {positionList.length === 0 && <p className={`text-sm ${MUTED}`}>No positions on the Schedule yet.</p>}
+        {positionList.map((pos, i) => (
+          <div key={pos} className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[8rem]"><p className={LABEL}>Position</p><p className="py-2 text-sm text-gray-900 dark:text-slate-100">{pos}</p></div>
+            <div><label className={LABEL} htmlFor={`pr${i}`}>Counts as</label><select id={`pr${i}`} className={INPUT} disabled={!may} value={roleOfPosition(pos)} onChange={(e) => setPosition(pos, e.target.value)}><option value="">No role</option>{roleNames.map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+          </div>
+        ))}
       </div>
       <div className={`${CARD} space-y-3`}>
         <p className={LABEL}>Tip-outs</p>

@@ -19,7 +19,34 @@ export interface TipRole {
   poolPct: number
 }
 export interface TipOut { from: string; to: string; pct: number; basis: 'tips' | 'sales' }
-export interface TipRules { roles: TipRole[]; tipOuts: TipOut[]; defaultRole: string }
+export interface TipRules {
+  roles: TipRole[]; tipOuts: TipOut[]; defaultRole: string
+  /**
+   * The owner's setting: for each schedule position ("Bar", "Floor"), the role it counts as. When this is set it is the
+   * whole truth: a position that maps to no role (or is not listed) takes no tip-out and no pool share — the person
+   * keeps what they made. When it is absent the roles' own `positions` lists decide, as they did before.
+   */
+  positionRoles?: Record<string, string>
+}
+
+/** The role a person's scheduled positions count as; '' = none (they keep their own tips, no tip-out either way). */
+export function roleForPositions(rules: TipRules, positions: string[], fallback: string): string {
+  if (!positions.length) return fallback
+  if (rules.positionRoles) {
+    for (const pos of positions) {
+      const key = Object.keys(rules.positionRoles).find((k) => k.toLowerCase() === pos.toLowerCase())
+      const role = key ? rules.positionRoles[key] : ''
+      const hit = role ? rules.roles.find((r) => r.name.toLowerCase() === role.toLowerCase()) : undefined
+      if (hit) return hit.name
+    }
+    return ''
+  }
+  for (const pos of positions) {
+    const hit = rules.roles.find((r) => r.positions.some((p) => p.toLowerCase() === pos.toLowerCase()) || r.name.toLowerCase() === pos.toLowerCase())
+    if (hit) return hit.name
+  }
+  return fallback
+}
 
 export interface TipPerson { userId: string; name: string; role: string; hours: number; tipsCents: number; salesCents: number }
 export interface TipPayout extends TipPerson {
@@ -68,6 +95,14 @@ export function rulesRefusal(r: TipRules): string | null {
     if (t.basis !== 'tips' && t.basis !== 'sales') return 'A tip-out is a share of tips or of sales.'
   }
   if (r.defaultRole && !names.has(String(r.defaultRole).toLowerCase())) return 'The role for people with no scheduled position is not in the list.'
+  if (r.positionRoles) {
+    const entries = Object.entries(r.positionRoles)
+    if (entries.length > 50) return 'Up to 50 positions.'
+    for (const [pos, role] of entries) {
+      if (!pos.trim() || pos.length > 40) return 'Every position needs a name (up to 40 letters).'
+      if (role && !names.has(String(role).toLowerCase())) return `${pos}: "${role}" is not one of the roles.`
+    }
+  }
   return null
 }
 

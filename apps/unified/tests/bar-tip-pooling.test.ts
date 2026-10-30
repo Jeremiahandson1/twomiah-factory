@@ -143,6 +143,45 @@ describe('on the real server', () => {
     expect((await k.B('GET', `/api/tips/report?from=${day}&to=${day}`)).status).toBe(403)
   })
 
+  test('the owner says which role each schedule position counts as; changing that changes the split; a position with no role takes no tip-out', async () => {
+    const withMap = (positionRoles: Record<string, string>) => ({ ...RULES, roles: RULES.roles.map((r) => ({ ...r, positions: [] })), positionRoles })
+    const night = async () => {
+      const r = await k.M('GET', `/api/tips/night?day=${day}`)
+      expect(r.status).toBe(200)
+      expect(r.json.payouts.reduce((s: number, p: any) => s + p.totalCents, 0)).toBe(2500)   // every cent is always somewhere
+      return Object.fromEntries(r.json.payouts.map((p: any) => [p.userId, p]))
+    }
+    // The mapping set on the page gives the split the position lists gave: the server (Floor) tips out 200 to the barback.
+    expect((await k.M('PUT', '/api/tips/rules', withMap({ Bar: 'Bartender', 'Bar back': 'Barback', Floor: 'Server' }))).status).toBe(200)
+    let by = await night()
+    expect(by[k.ids.owner]).toMatchObject({ role: 'Server', tipOutPaidCents: 200, keptCents: 1800 })
+    expect(by[k.ids.manager]).toMatchObject({ role: 'Barback', tipOutReceivedCents: 200, totalCents: 350 })
+    // Floor counts as no role: the owner keeps all 20.00, nobody is tipped out to, the barback has only the pool.
+    expect((await k.M('PUT', '/api/tips/rules', withMap({ Bar: 'Bartender', 'Bar back': 'Barback', Floor: '' }))).status).toBe(200)
+    by = await night()
+    expect(by[k.ids.owner]).toMatchObject({ role: '', tipOutPaidCents: 0, keptCents: 2000, totalCents: 2000 })
+    expect(by[k.ids.manager]).toMatchObject({ tipOutReceivedCents: 0, totalCents: 150 })
+    // A position the map leaves out is the same as no role (here the barback shift).
+    expect((await k.M('PUT', '/api/tips/rules', withMap({ Bar: 'Bartender', Floor: 'Server' }))).status).toBe(200)
+    by = await night()
+    expect(by[k.ids.manager]).toMatchObject({ role: '', tipOutReceivedCents: 0, poolShareCents: 0, totalCents: 0 })
+    expect(by[k.ids.owner]).toMatchObject({ tipOutPaidCents: 0, keptCents: 2000 })   // nobody to tip out to
+    // Floor counts as Barback instead: their 20.00 goes in the barback's pool, no tip-out is paid.
+    expect((await k.M('PUT', '/api/tips/rules', withMap({ Bar: 'Bartender', 'Bar back': 'Barback', Floor: 'Barback' }))).status).toBe(200)
+    by = await night()
+    expect(by[k.ids.owner]).toMatchObject({ role: 'Barback', tipOutPaidCents: 0, keptCents: 0 })
+    expect(by[k.ids.bartender].totalCents).toBe(1750)
+    // A mapping to a role that does not exist is refused in words, a bartender cannot set it, and the saved one is unchanged.
+    const bad = await k.M('PUT', '/api/tips/rules', withMap({ Bar: 'Bouncer' }))
+    expect(bad.status).toBe(400); expect(bad.json.error).toContain('not one of the roles')
+    expect((await k.B('PUT', '/api/tips/rules', withMap({ Bar: 'Bartender' }))).status).toBe(403)
+    expect((await k.M('GET', '/api/tips/rules')).json.rules.positionRoles).toMatchObject({ Floor: 'Barback' })
+    expect((await k.M('GET', '/api/tips/rules')).json.positions).toEqual(expect.arrayContaining(['Bar', 'Bar back', 'Floor']))
+    // Back to the lists the other tests use.
+    expect((await k.M('PUT', '/api/tips/rules', RULES)).status).toBe(200)
+    expect((await night())[k.ids.owner]).toMatchObject({ role: 'Server', tipOutPaidCents: 200 })
+  })
+
   test('with the feature off the close-out is exactly what it was', async () => {
     await k.features(ON)
     const r = await k.M('POST', '/api/register/closeout', { day, floatCents: 0, countedCents: 0, force: true })
