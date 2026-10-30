@@ -198,8 +198,8 @@ describe('two saves of the same dose at the same moment (follow-up 10/30)', () =
   test('exactly one is kept; the other gets the same plain refusal', async () => {
     const due = '2026-11-20T14:00:00Z'
     const [a, b] = await Promise.all([
-      dose('ann', { administeredAt: ago(60_000), scheduledTime: due }, 'race-ann-0001').then(json),
-      dose('bea', { administeredAt: ago(60_000), scheduledTime: due }, 'race-bea-0001').then(json),
+      Promise.resolve(dose('ann', { administeredAt: ago(60_000), scheduledTime: due }, 'race-ann-0001')).then(json),
+      Promise.resolve(dose('bea', { administeredAt: ago(60_000), scheduledTime: due }, 'race-bea-0001')).then(json),
     ])
     expect([a.status, b.status].sort()).toEqual([201, 409])
     const refused = a.status === 409 ? a : b
