@@ -54,6 +54,11 @@ export interface JobsConfig {
    * series (packages/tenant-backend jobs.ts tables.jobSeries — the unified app). Default false. (live test 2026-10-22)
    */
   repeat?: boolean
+  /**
+   * A weekly repeat can pick its days of the week (Monday and Thursday). Needs the server's jobs.repeatWeekdays (tenant-backend
+   * jobs.ts options). Default false: the repeat box is as it was. Landscaping only.
+   */
+  repeatWeekdays?: boolean
   /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
   aside?: (job: Record<string, any>) => import('react').ReactNode
 }
@@ -82,6 +87,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     timeZone: cfg.timeZone,
     billing: !!cfg.billing,
     repeat: !!cfg.repeat,
+    repeatWeekdays: !!cfg.repeat && !!cfg.repeatWeekdays,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

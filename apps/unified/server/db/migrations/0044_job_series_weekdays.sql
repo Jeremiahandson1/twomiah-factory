@@ -1,0 +1,1 @@
+ALTER TABLE "job_series" ADD COLUMN "weekdays" text;

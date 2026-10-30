@@ -196,3 +196,23 @@ describe('route visits', () => {
     expect(crewRows[0].estimatedValue).toBeUndefined()
   })
 })
+
+describe('a route moves to another crew', () => {
+  test('visits still to do go with it; a finished visit keeps the crew that did it', async () => {
+    const r = await mondayRoute('Crew move')
+    const crewLead = await ins(t.schema.user, { companyId, email: 'lead2@test.example', firstName: 'Lead', lastName: 'Two', role: 'field', passwordHash: await Bun.password.hash('Correct-horse-1', 'bcrypt') })
+    const from = addDays(new Date().toISOString().slice(0, 10), -7)
+    await as(owner, `/api/recurring-routes/${r.route.id}/visits`, { method: 'POST', json: { from, weeks: 3 } })
+    const all = await visitsOf([r.stopA.id, r.stopB.id])
+    const finished = all.find((v: any) => v.recurringRouteStopId === r.stopA.id)!
+    await t.db.update(t.schema.job).set({ status: 'completed' }).where(eq(t.schema.job.id, finished.id))
+    const res = await as(owner, `/api/recurring-routes/${r.route.id}`, { method: 'PUT', json: { assignedToId: crewLead.id } })
+    expect(res.status).toBe(200)
+    const after = await visitsOf([r.stopA.id, r.stopB.id])
+    const today = new Date().toISOString().slice(0, 10)
+    const open = after.filter((v: any) => v.status === 'scheduled' && ymd(v.scheduledDate)! >= today)
+    expect(open.length).toBeGreaterThan(0)
+    expect(open.every((v: any) => v.assignedToId === crewLead.id)).toBe(true)
+    expect(after.find((v: any) => v.id === finished.id)!.assignedToId).toBe(ownerId)
+  })
+})

@@ -179,6 +179,8 @@ export const jobSeries = pgTable('job_series', {
   /** Stops at whichever comes first. */
   occurrencesCount: integer('occurrences_count'),
   untilDate: text('until_date'),
+  /** A weekly series on chosen days of the week: '1,4' = Monday and Thursday (0 = Sunday). NULL: the first visit's own weekday. */
+  weekdays: text('weekdays'),
   /** 'active' | 'stopped' */
   status: text('status').default('active').notNull(),
   stoppedAt: timestamp('stopped_at'),

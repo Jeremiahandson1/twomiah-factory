@@ -9,7 +9,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling.ts'
-import { makeRouteVisits, retimeRouteVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
+import { makeRouteVisits, retimeRouteVisits, reassignOpenVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
 import { createRoutingService } from '../field/routingService.ts'
 import { createGeocodingService } from '../field/geocodingService.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
@@ -231,6 +231,8 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     })
     // A new start time moves every still-to-do visit of this route with it.
     if (patch.startTime && before && before.startTime !== route.startTime) await retimeRouteVisits(db, u.companyId, route.id)
+    // A new crew takes the visits still to do; the ones already done stay with whoever did them.
+    if ('assignedToId' in patch && before && before.assignedToId !== route.assignedToId) await reassignOpenVisits(db, u.companyId, route.id, route.assignedToId)
     return one(c, route)
   })
 

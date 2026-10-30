@@ -30,10 +30,13 @@ const REPEAT_CHOICES: Array<{ value: RepeatChoice; label: string }> = [
   { value: 'none', label: 'Does not repeat' }, { value: 'w1', label: 'Every week' }, { value: 'w2', label: 'Every 2 weeks' },
   { value: 'w3', label: 'Every 3 weeks' }, { value: 'w4', label: 'Every 4 weeks' }, { value: 'm1', label: 'Every month' },
 ]
-interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string }
-const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '' }
-const repeatBody = (r: RepeatForm) => r.choice === 'none' ? undefined : {
+interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string; weekdays: number[] }
+const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '', weekdays: [] }
+/** Sunday-first, as the server counts them; shown Monday-first below. */
+const WEEKDAY_BUTTONS: Array<{ n: number; label: string }> = [{ n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' }, { n: 4, label: 'Thu' }, { n: 5, label: 'Fri' }, { n: 6, label: 'Sat' }, { n: 0, label: 'Sun' }]
+const repeatBody = (r: RepeatForm, withDays = false) => r.choice === 'none' ? undefined : {
   frequency: r.choice === 'm1' ? 'monthly' : 'weekly', interval: r.choice === 'm1' ? 1 : Number(r.choice.slice(1)),
+  ...(withDays && r.choice !== 'm1' && r.weekdays.length ? { weekdays: r.weekdays } : {}),
   ...(r.ends === 'count' ? { count: r.count === '' ? undefined : Number(r.count) } : { until: r.until || undefined }),
 }
 
@@ -254,7 +257,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (editing) { await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`) }
       else if (repeating) {
         // Every visit is made now and is on the calendar; a day the person is already booked is listed back.
-        const r: any = await api.post('/api/jobs', { ...payload, repeat: repeatBody(repeat) })
+        const r: any = await api.post('/api/jobs', { ...payload, repeat: repeatBody(repeat, cfg.repeatWeekdays) })
         const s = r?.series
         toast.success(s ? `${s.made} visits scheduled — ${s.summary.toLowerCase()}` : `${cfg.labels.singular} created`)
         if (s?.skipped?.length) toast.error(`${s.skipped.length} not booked: ${s.skipped.slice(0, 3).map((k: any) => `${dateOnly(k.date)} (${k.reason})`).join('; ')}`)
@@ -415,6 +418,20 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
                   </>
                 )}
               </div>
+              {cfg.repeatWeekdays && repeat.choice !== 'none' && repeat.choice !== 'm1' && (
+                <fieldset className="mt-3" data-testid="job-repeat-days">
+                  <legend className="text-xs font-medium text-gray-700 dark:text-slate-300">On these days (leave empty to repeat on the first visit's day)</legend>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {WEEKDAY_BUTTONS.map((d) => {
+                      const on = repeat.weekdays.includes(d.n)
+                      return (
+                        <button key={d.n} type="button" aria-pressed={on} onClick={() => setRepeat((r) => ({ ...r, weekdays: on ? r.weekdays.filter((x) => x !== d.n) : [...r.weekdays, d.n] }))}
+                          className={`rounded-md border px-3 py-1 text-sm ${on ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-slate-700 dark:text-orange-200' : 'border-gray-300 dark:border-slate-600'}`}>{d.label}</button>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              )}
               {repeat.choice !== 'none' && (
                 <p className="mt-2 text-xs text-gray-600 dark:text-slate-300">
                   {form.scheduledDate

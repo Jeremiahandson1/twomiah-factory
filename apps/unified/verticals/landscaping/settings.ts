@@ -50,7 +50,7 @@ const landscaping: VerticalSettings = {
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
     // owner objected that "a landscaping job is labelled REPAIR" (T58); the template only hid the label on the
     // dispatch card and kept storing it. It billed no job on its own (no POST /api/jobs/:id/invoice).
-    jobs: { photos: true, textArrival: true },
+    jobs: { photos: true, textArrival: true, repeatWeekdays: true },
     quotes: { textOnSend: true },
     // No drawings to mark up: plan markup is construction's (field service's fix, T28 L10 — the landscaping copy still
     // passed the table).
@@ -68,6 +68,8 @@ const landscaping: VerticalSettings = {
     warranties: { namePlaceholder: 'e.g., Plantings — one-year replacement', categoryPlaceholder: 'e.g., plantings', claimTitlePlaceholder: 'e.g., Shrub died after planting', claimLocationPlaceholder: 'e.g., Front bed, left of the driveway' },
     // The menu in this trade's words, by page address (shellConfig.ts). Field service's own items sit under
     // "Operations" here (T58: each named after what it is, so no pair reads as the same thing).
+    // A repeating job can run on chosen days of the week (Monday and Thursday); the server's jobs.repeatWeekdays is the same switch.
+    jobs: { repeatWeekdays: true },
     nav: { '/crm/tech': 'Crew View', '/crm/parts': 'Parts & Materials', '/crm/pricebook-rates': 'Flat-Rate Pricing' },
     navSections: { 'Field Service': 'Operations' },
     searchPlaceholder: 'Search contacts, jobs, invoices...',

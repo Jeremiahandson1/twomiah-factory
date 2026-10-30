@@ -104,6 +104,8 @@ export interface CrmSettings {
     billing?: { prefix: string; pad: number; termsDays: number }
     /** Text the customer when a tech is on the way and when they arrive. */
     textArrival?: boolean
+    /** A repeating job can run on chosen days of the week (Monday and Thursday), not just one weekday. */
+    repeatWeekdays?: boolean
   }
   quotes?: {
     /** Text the customer a link when a quote is sent. */

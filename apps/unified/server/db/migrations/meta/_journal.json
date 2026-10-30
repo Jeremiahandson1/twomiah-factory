@@ -309,6 +309,13 @@
       "when": 1793381272540,
       "tag": "0043_route_visit_timing",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793381652974,
+      "tag": "0044_job_series_weekdays",
+      "breakpoints": true
     }
   ]
 }

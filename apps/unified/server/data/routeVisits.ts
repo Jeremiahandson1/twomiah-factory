@@ -261,3 +261,19 @@ export async function routeStopPoints(db: any, companyId: string, routeId: strin
     }
   })
 }
+
+/**
+ * A route moves to another crew: the visits still just scheduled, today or later, go with it. Done, started and past visits
+ * keep the crew that did them. (Yardbook's route-based assignment.)
+ */
+export async function reassignOpenVisits(db: any, companyId: string, routeId: string, assignedToId: string | null): Promise<number> {
+  const stopIds: string[] = (await db.select({ id: recurringRouteStop.id }).from(recurringRouteStop)
+    .where(and(eq(recurringRouteStop.recurringRouteId, routeId), eq(recurringRouteStop.companyId, companyId)))).map((s: any) => s.id)
+  if (!stopIds.length) return 0
+  const moved = await db.update(job).set({ assignedToId, updatedAt: new Date() })
+    .where(and(
+      eq(job.companyId, companyId), eq(job.status, 'scheduled'), inArray(job.recurringRouteStopId, stopIds),
+      gte(job.scheduledDate, dayDate(todayUtc())),
+    )).returning({ id: job.id })
+  return moved.length
+}
