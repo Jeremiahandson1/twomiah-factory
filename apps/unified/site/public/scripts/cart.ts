@@ -37,9 +37,17 @@
     return (cart || readCart()).reduce(function (n, i) { return n + (Number(i.qty) || 0); }, 0);
   }
 
+  // A signed-in wholesale shopper's prices (from /api/public/account/prices): shown here only. What is charged is the
+  // server's own price for the signed-in shopper, whatever this page displays.
+  var groupPrices = {};
+  function unitOf(i) {
+    var g = groupPrices[i.sku];
+    return typeof g === 'number' ? g : (Number(i.unitPriceCents) || 0);
+  }
+
   function cartSubtotalCents(cart) {
     return (cart || readCart()).reduce(function (n, i) {
-      return n + (Number(i.unitPriceCents) || 0) * (Number(i.qty) || 0);
+      return n + unitOf(i) * (Number(i.qty) || 0);
     }, 0);
   }
 
@@ -311,7 +319,7 @@
           '<div class="cart-line__info">' +
             '<span class="cart-line__name">' + esc(i.name) + '</span>' +
             (i.variantName ? '<span class="cart-line__variant">' + esc(i.variantName) + '</span>' : '') +
-            '<span class="cart-line__unit">' + formatMoney(i.unitPriceCents) + ' each</span>' +
+            '<span class="cart-line__unit">' + formatMoney(unitOf(i)) + ' each</span>' +
             '<button type="button" class="cart-line__remove" data-remove aria-label="Remove ' + esc(i.name) + '">Remove</button>' +
           '</div>' +
           '<div class="cart-line__qty">' +
@@ -321,7 +329,7 @@
               '<button type="button" class="qty-stepper__btn" data-line-inc' + (atMax ? ' disabled' : '') + ' aria-label="Increase quantity">+</button>' +
             '</div>' +
           '</div>' +
-          '<div class="cart-line__total">' + formatMoney(i.unitPriceCents * i.qty) + '</div>' +
+          '<div class="cart-line__total">' + formatMoney(unitOf(i) * i.qty) + '</div>' +
         '</div>'
       );
     }).join('');
@@ -627,8 +635,23 @@
   }
 
   // ── init ─────────────────────────────────────────────────────────────────
+  // Shopper accounts (when the owner has them on): the header's Account link, and a signed-in wholesale shopper's prices.
+  function loadAccount() {
+    fetch('/api/public/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+      if (!s || !s.accounts) return;
+      document.querySelectorAll('[data-account-link]').forEach(function (el) { el.hidden = false; });
+      var cart = readCart();
+      if (!document.getElementById('cart-root') || !cart.length) return;
+      var skus = cart.map(function (i) { return encodeURIComponent(i.sku); }).join(',');
+      return fetch('/api/public/account/prices?skus=' + skus, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (p) {
+        if (p && p.prices && Object.keys(p.prices).length) { groupPrices = p.prices; renderCartPage(); }
+      });
+    }).catch(function () {});
+  }
+
   function init() {
     clearIfOrdered();
+    loadAccount();
     updateCartCount();
     wireAddToCart();
     wireQtyStepper();

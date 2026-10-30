@@ -1,12 +1,12 @@
 // Wholesale prices (2026-10-24, the store upgrade): a customer group (e.g. "Wholesale") takes a percent off the
 // catalogue, and may set its own price for any variant, which wins. A customer is in at most one group.
 //
-// WHERE THE PRICES APPLY. This storefront has no shopper sign-in — a shopper checks out as a guest, known only by the
-// email they type (checkout/publicRoutes.ts), and a typed email proves nothing. A group price shown or charged on the
-// email alone would hand wholesale prices to anyone who knew a wholesale customer's address. So, as Shopify does for a
-// store without customer accounts, a group's prices apply to the orders the owner makes for that customer (a draft
-// order: orders/draftOrders.ts), which the customer pays from the emailed link. The day the storefront gains sign-in,
-// a signed-in member's cart is priced by the same rule here.
+// WHERE THE PRICES APPLY. A group price is a promise to a person, so it needs proof of who is asking, and an email typed
+// at checkout proves nothing: a group price charged on it alone would hand wholesale prices to anyone who knew a wholesale
+// customer's address. So a group's prices apply (1) to the orders the owner makes for that customer (a draft order:
+// orders/draftOrders.ts), which the customer pays from the emailed link, and (2) to a shopper SIGNED IN to their account
+// (accounts/shopperAccounts.ts, when store_accounts is on): checkout reads the group from the account's own session
+// cookie, never from the typed email. A guest who types a member's email pays the shop's prices.
 import { and, eq, inArray } from 'drizzle-orm'
 import { storeCustomerGroup, storeCustomerGroupMember, storeGroupPrice } from '../../../db/schema/store.ts'
 

@@ -324,3 +324,32 @@ describe("a wholesale customer's prices, online", () => {
     await features(ON)
   })
 })
+
+describe("the shopper's pages on the shop's website", () => {
+  test('with accounts on: /account and the emailed link\'s page are the shop\'s, private and out of search; the script and the header link are served', async () => {
+    const page = await k.pub('GET', '/account')
+    expect(page.status).toBe(200)
+    expect(page.text).toContain('id="account-root"')
+    expect(page.text).not.toContain('data-confirm')
+    expect(page.headers.get('cache-control')).toContain('no-store')
+    expect(page.headers.get('x-robots-tag')).toContain('noindex')
+    const confirm = await k.pub('GET', '/account/confirm?token=abc')
+    expect(confirm.status).toBe(200)
+    expect(confirm.text).toContain('data-confirm="1"')
+    // The token in the address is never written into the page.
+    expect(confirm.text).not.toContain('abc')
+    const js = await k.pub('GET', '/scripts/account.js')
+    expect(js.status).toBe(200)
+    expect(js.headers.get('content-type')).toContain('javascript')
+    expect(js.text).toContain('/api/public/account')
+    const shop = await k.pub('GET', '/shop')
+    expect(shop.text).toContain('data-account-link')
+  })
+
+  test('with accounts off, the shop has no /account page', async () => {
+    await features(['dashboard', 'orders', 'products', 'contacts'])
+    expect((await k.pub('GET', '/account')).status).toBe(404)
+    expect((await k.pub('GET', '/account/confirm?token=abc')).status).toBe(404)
+    await features(ON)
+  })
+})

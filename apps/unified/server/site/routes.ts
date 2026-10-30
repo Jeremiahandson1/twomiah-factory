@@ -35,6 +35,8 @@ const ESTIMATOR_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).tra
 // A store's own (CrmSettings.store): the shop pages' stylesheet, added to the site's, and the cart (sections/shop/*).
 const STORE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'store.css'), 'utf8')
 const CART_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'cart.ts'), 'utf8'))
+// The shopper's account page (/account) of a store that has shopper accounts on.
+const ACCOUNT_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'account.ts'), 'utf8'))
 // Pickup ordering's menu, cart and checkout (views/sections/order; crm/bar/barOrders.ts).
 const ORDER_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'order.ts'), 'utf8'))
 const DESIGN_CSS = new Map<string, string>()
@@ -430,6 +432,18 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!ctx) return c.notFound()
       return page200(c, ctx, '/cart', [{ type: 'shop', variant: 'cart', data: {} }], { title: 'Your Cart', metaDescription: 'Review the items in your cart.' })
     })
+    // The shopper's account (store_accounts): signed-out it is the sign-in; the emailed link opens /account/confirm. With the
+    // feature off these are not the shop's pages — the owner's own page of that name, if any, is served instead.
+    for (const [route, confirm] of [['/account', false], ['/account/confirm', true]] as const) {
+      app.get(route, async (c, next) => {
+        const ctx = await ctxOf()
+        if (!ctx || !(await shop.accountsOn(ctx.companyId))) return next()
+        c.header('Cache-Control', 'private, no-store')
+        c.header('Referrer-Policy', 'no-referrer')
+        c.header('X-Robots-Tag', 'noindex')
+        return page200(c, ctx, route, [{ type: 'shop', variant: 'account', data: { confirm } }], { title: 'Your Account', metaDescription: 'Your orders and saved addresses.' })
+      })
+    }
     // Stripe returns ?session_id=; Square and PayPal ?ref=<order id>. An order whose payment notice is late is finished here.
     app.get('/checkout/success', async (c) => {
       const ctx = await ctxOf()
@@ -651,6 +665,13 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return c.body(CART_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=31536000, immutable' })
   })
 
+  // The shopper's account page script: only a store's site has one (the page itself answers only when accounts are on).
+  app.get('/scripts/account.js', async (c) => {
+    const ctx = await ctxOf()
+    if (!ctx?.options.shop) return c.notFound()
+    return c.body(ACCOUNT_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
+  })
+
   app.get('/robots.txt', (c) => {
     // The admin, the API, and customers' own booking pages stay out of search engines.
     const body = `User-agent: *\nAllow: /\nDisallow: /crm\nDisallow: /portal/\nDisallow: /vendor/\nDisallow: /d/\nDisallow: /api/\nDisallow: /booking/\nDisallow: /book/done\n\nSitemap: ${siteOrigin(c)}/sitemap.xml\n`
@@ -732,7 +753,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   // A page the vertical's facts make (templates/website-premium-bar server-static.ts): /story/<era>, an era of the
   // story timeline, and /<menu-section>/<item>, a signature item's own page (its photo, story, price and MenuItem
   // JSON-LD) — built from the menu itself, so there is nothing to keep in sync. Anything else falls through to 404.
-  const NESTED_TAKEN = new Set([...RESERVED_SLUGS, 'projects', 'inventory', 'product', 'checkout', 'shop', 'cart', 'order'])
+  const NESTED_TAKEN = new Set([...RESERVED_SLUGS, 'projects', 'inventory', 'product', 'checkout', 'shop', 'cart', 'account', 'order'])
   if (facts) app.get('/:a/:b', async (c, next) => {
     const { a, b } = c.req.param()
     if (NESTED_TAKEN.has(a)) return next()

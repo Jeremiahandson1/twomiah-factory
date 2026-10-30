@@ -127,7 +127,7 @@ export interface MenuFacts {
 }
 
 /** Pages the site answers itself, whatever the owner's pages are (routes.ts, booking/pages.ts). */
-const SITE_ROUTES = new Set(['shop', 'cart', 'inventory', 'visualize', 'book', 'privacy', 'terms', 'estimator.js'])
+const SITE_ROUTES = new Set(['shop', 'cart', 'account', 'inventory', 'visualize', 'book', 'privacy', 'terms', 'estimator.js'])
 
 /** The site's own collections, each with its label, and whether it has anything to show. */
 const COLLECTIONS: Array<{ slug: string; label: string; has: (f: MenuFacts) => boolean }> = [
