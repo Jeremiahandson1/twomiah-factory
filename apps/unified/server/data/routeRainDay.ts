@@ -3,7 +3,7 @@
 // moves send no notice (docs/parity/landscaping-rain-day.md). Nothing is re-ordered: each job keeps its time, so a route's
 // stop order is the same on the new day. Raw SQL stays here (RULEBOOK §2).
 import { and, eq, gte, inArray, lt, sql, notInArray } from 'drizzle-orm'
-import { job, contact, company, site, recurringRouteStop, scheduledText } from '../db/schema/index.ts'
+import { job, contact, company, site, recurringRouteStop, scheduledText, landscapingSetting } from '../db/schema/index.ts'
 import { tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 
 export const RAIN_SHIFT_MAX = 14
@@ -20,10 +20,29 @@ const dayStart = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
 const ymdOf = (d: Date) => d.toISOString().slice(0, 10)
 const words = (ymd: string) => dayStart(ymd).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
 
-export interface RainDayOptions { date: string; shiftDays: number; routeId?: string | null; excludeJobIds?: string[] }
+export interface RainDayOptions { date: string; shiftDays: number; routeId?: string | null; excludeJobIds?: string[]; /** Land on Monday instead of a Sunday (the business setting; default on). */ skipSundays?: boolean }
+
+/** The business's rain day switches. No saved row means the defaults: skip Sundays ON. */
+export async function getRainDaySettings(db: any, companyId: string): Promise<{ skipSundays: boolean }> {
+  const [row] = await db.select().from(landscapingSetting).where(eq(landscapingSetting.companyId, companyId)).limit(1)
+  return { skipSundays: row ? row.rainDaySkipSundays : true }
+}
+
+export async function setRainDaySkipSundays(db: any, companyId: string, skipSundays: boolean): Promise<{ skipSundays: boolean }> {
+  await db.insert(landscapingSetting).values({ companyId, rainDaySkipSundays: skipSundays })
+    .onConflictDoUpdate({ target: landscapingSetting.companyId, set: { rainDaySkipSundays: skipSundays, updatedAt: new Date() } })
+  return { skipSundays }
+}
+
+/** The days to push: what was asked for, plus one more when that would land on a Sunday and the business skips them. */
+export function effectiveShift(date: string, shiftDays: number, skipSundays: boolean): { shiftDays: number; skippedSunday: boolean } {
+  const lands = new Date(dayStart(date).getTime() + shiftDays * DAY_MS)
+  return skipSundays && lands.getUTCDay() === 0 ? { shiftDays: shiftDays + 1, skippedSunday: true } : { shiftDays, skippedSunday: false }
+}
 
 /** Work out what a rain day would do — and, when `apply` is set, do it, in one transaction under the job lock. */
 export async function rainDay(db: any, companyId: string, opts: RainDayOptions, apply: boolean) {
+  const { shiftDays, skippedSunday } = effectiveShift(opts.date, opts.shiftDays, opts.skipSundays === true)
   return db.transaction(async (tx: any) => {
     if (apply) await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
     const from = dayStart(opts.date)
@@ -31,7 +50,7 @@ export async function rainDay(db: any, companyId: string, opts: RainDayOptions, 
     if (opts.routeId) {
       const stops: string[] = (await tx.select({ id: recurringRouteStop.id }).from(recurringRouteStop)
         .where(and(eq(recurringRouteStop.recurringRouteId, opts.routeId), eq(recurringRouteStop.companyId, companyId)))).map((s: any) => s.id)
-      if (!stops.length) return { moves: [], blocked: [], overlaps: [], moved: 0, toDate: ymdOf(new Date(from.getTime() + opts.shiftDays * DAY_MS)) }
+      if (!stops.length) return { moves: [], blocked: [], overlaps: [], moved: 0, toDate: ymdOf(new Date(from.getTime() + shiftDays * DAY_MS)), skippedSunday }
       where.push(inArray(job.recurringRouteStopId, stops))
     }
     if (opts.excludeJobIds?.length) where.push(notInArray(job.id, opts.excludeJobIds))
@@ -41,7 +60,7 @@ export async function rainDay(db: any, companyId: string, opts: RainDayOptions, 
     }).from(job).leftJoin(site, eq(job.siteId, site.id)).where(and(...where))
       .orderBy(job.scheduledTime, job.number)
 
-    const shiftMs = opts.shiftDays * DAY_MS
+    const shiftMs = shiftDays * DAY_MS
     const toDate = ymdOf(new Date(from.getTime() + shiftMs))
     // A route visit cannot land on a day its stop already has a visit (one visit per stop per day): the next week's mow is
     // already there, so a week's push of Monday's would double it. Those stay, and are listed.
@@ -80,7 +99,7 @@ export async function rainDay(db: any, companyId: string, opts: RainDayOptions, 
         moved++
       }
     }
-    return { moves, blocked, overlaps, moved, toDate }
+    return { moves, blocked, overlaps, moved, toDate, skippedSunday }
   })
 }
 

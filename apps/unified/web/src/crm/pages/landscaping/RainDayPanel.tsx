@@ -7,7 +7,7 @@ import { api } from '../../../api'
 import { useToast, useMayWrite } from '../../../shared'
 
 interface Plan {
-  dryRun: boolean; toDate: string; moved: number; wouldMove: number
+  dryRun: boolean; toDate: string; moved: number; wouldMove: number; skippedSunday?: boolean
   jobs: Array<{ id: string; number: string; title: string; scheduledTime: string | null }>
   blocked: Array<{ id: string; number: string; title: string; reason: string }>
   overlaps: Array<{ id: string; number: string; title: string; other: string; time: string }>
@@ -31,6 +31,19 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
   const [message, setMessage] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [busy, setBusy] = useState(false)
+  // The business's switch, kept on the server (GET/PUT /api/recurring-routes/rain-day/settings). Null until it has loaded.
+  const [skipSundays, setSkipSundays] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!open || skipSundays !== null) return
+    api.get('/api/recurring-routes/rain-day/settings').then((r: any) => setSkipSundays(((r?.data ?? r) as any)?.skipSundays !== false)).catch(() => setSkipSundays(true))
+  }, [open, skipSundays])
+  const changeSkipSundays = async (next: boolean) => {
+    const was = skipSundays
+    setSkipSundays(next); setPlan(null)
+    try { await api.put('/api/recurring-routes/rain-day/settings', { skipSundays: next }) }
+    catch (e) { setSkipSundays(was); toast.error(errorText(e, 'Could not save that')) }
+  }
 
   useEffect(() => {
     if (!open || routes.length) return
@@ -73,6 +86,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
                 <option value="day">One day</option><option value="2">Two days</option><option value="3">Three days</option><option value="week">One week</option>
               </select></div>
           </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={skipSundays !== false} disabled={skipSundays === null} onChange={(e) => changeSkipSundays(e.target.checked)} /> Skip Sundays when moving visits <span className="text-xs text-gray-500 dark:text-slate-400">(a push that would land on a Sunday goes to Monday)</span></label>
           {mayText && (
             <div>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={notify} onChange={(e) => { setNotify(e.target.checked); setPlan(null) }} /> Text the customers</label>
@@ -90,6 +104,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
           </div>
           {plan && (
             <div className="text-sm space-y-2">
+              {plan.skippedSunday && <p className="text-xs text-gray-600 dark:text-slate-300">That would have been a Sunday, so the jobs go to {dayWords(plan.toDate)}.</p>}
               {plan.dryRun && plan.wouldMove === 0 && <p>No open jobs on that day{plan.blocked.length ? ', other than the ones below' : ''}.</p>}
               {plan.jobs.length > 0 && <ul className="divide-y dark:divide-slate-700">{plan.jobs.map((j) => <li key={j.id} className="py-1">{j.scheduledTime ? `${j.scheduledTime} · ` : ''}{j.title} <span className="text-xs text-gray-500">{j.number}</span></li>)}</ul>}
               {plan.blocked.length > 0 && <div className="text-amber-700 dark:text-amber-400"><p className="font-medium">Left where they are:</p>{plan.blocked.map((b) => <p key={b.id} className="text-xs">{b.title} — {b.reason}</p>)}</div>}

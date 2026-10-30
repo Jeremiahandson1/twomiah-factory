@@ -337,6 +337,13 @@
       "when": 1793383255732,
       "tag": "0047_visit_report",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793400523556,
+      "tag": "0048_rain_day_setting",
+      "breakpoints": true
     }
   ]
 }

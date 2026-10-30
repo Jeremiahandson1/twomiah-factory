@@ -75,6 +75,65 @@ async function routeWithVisits(name: string, weeks = 1) {
 const rain = (json: any) => as(owner, '/api/recurring-routes/rain-day', { method: 'POST', json })
 const phoneOf = async (contactId: string, mobile: string | null) => t.db.update(t.schema.contact).set({ mobile }).where(eq(t.schema.contact.id, contactId))
 
+// Follow-up 10/30: "Skip Sundays when moving visits" (default on). A push of 6 days from a Monday lands on a Sunday — the one
+// case that tells the two settings apart on every day of the week.
+describe('rain day: skip Sundays', () => {
+  const setSkip = (token: string, skipSundays: unknown) => as(token, '/api/recurring-routes/rain-day/settings', { method: 'PUT', json: { skipSundays } })
+  const getSkip = async (token = owner) => (await (await as(token, '/api/recurring-routes/rain-day/settings')).json()).skipSundays
+
+  test('the setting is ON until someone changes it; it is saved, and only a seat that may run a rain day can change it', async () => {
+    await t.db.delete(t.schema.landscapingSetting).where(eq(t.schema.landscapingSetting.companyId, companyId))
+    expect(await getSkip()).toBe(true)
+    expect(await getSkip(field)).toBe(true) // anyone who sees jobs can read it
+    expect((await setSkip(viewer, false)).status).toBe(403)
+    expect((await setSkip(field, false)).status).toBe(403)
+    expect(await getSkip()).toBe(true) // refused: nothing changed
+    expect((await setSkip(owner, 'no')).status).toBe(400)
+    expect((await setSkip(owner, false)).status).toBe(200)
+    expect(await getSkip()).toBe(false)
+    expect((await setSkip(owner, true)).status).toBe(200)
+    expect(await getSkip()).toBe(true)
+  })
+
+  test('ON: a push that would land on a Sunday lands on Monday instead — times, order and the preview agree', async () => {
+    expect((await setSkip(owner, true)).status).toBe(200)
+    const r = await routeWithVisits('Sun on')
+    const day = r.days[0] // a Monday
+    const before = new Map(r.visits.map((v: any) => [v.id, v.scheduledTime]))
+    const preview = await (await rain({ date: day, shift: 6, routeId: r.route.id })).json()
+    expect(new Date(`${preview.toDate}T00:00:00Z`).getUTCDay()).toBe(1)
+    expect(preview.toDate).toBe(addDays(day, 7))
+    expect(preview.skippedSunday).toBe(true)
+    const res = await (await rain({ date: day, shift: 6, routeId: r.route.id, dryRun: false })).json()
+    expect(res.moved).toBeGreaterThanOrEqual(2)
+    const after = await visitsOf([r.stopA.id, r.stopB.id])
+    expect(after.every((v: any) => ymd(v.scheduledDate) === addDays(day, 7))).toBe(true)
+    expect(after.some((v: any) => v.scheduledDate.getUTCDay() === 0)).toBe(false)
+    expect(after.every((v: any) => v.scheduledTime === before.get(v.id))).toBe(true)
+  })
+
+  test('OFF: the same push lands on the Sunday', async () => {
+    expect((await setSkip(owner, false)).status).toBe(200)
+    try {
+      const r = await routeWithVisits('Sun off')
+      const day = r.days[0]
+      const res = await (await rain({ date: day, shift: 6, routeId: r.route.id, dryRun: false })).json()
+      expect(res.toDate).toBe(addDays(day, 6))
+      expect(res.skippedSunday).toBe(false)
+      const after = await visitsOf([r.stopA.id, r.stopB.id])
+      expect(after.every((v: any) => ymd(v.scheduledDate) === addDays(day, 6) && v.scheduledDate.getUTCDay() === 0)).toBe(true)
+    } finally { await setSkip(owner, true) }
+  })
+
+  test('a push that does not land on a Sunday is not touched by the setting', async () => {
+    expect((await setSkip(owner, true)).status).toBe(200)
+    const r = await routeWithVisits('Sun na')
+    const res = await (await rain({ date: r.days[0], shift: 'day', routeId: r.route.id, dryRun: false })).json()
+    expect(res.toDate).toBe(addDays(r.days[0], 1))
+    expect(res.skippedSunday).toBe(false)
+  })
+})
+
 describe('rain day', () => {
   test('a preview changes nothing; pushing a day moves its open jobs one day, same times, same order', async () => {
     const r = await routeWithVisits('Rain A')

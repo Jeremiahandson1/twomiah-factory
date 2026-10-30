@@ -12,7 +12,7 @@ import { recurringRoute } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
-import { rainDay, rainDayTexts, queueRainDayTexts, RAIN_SHIFT_MAX } from '../../data/routeRainDay.ts'
+import { rainDay, rainDayTexts, queueRainDayTexts, RAIN_SHIFT_MAX, getRainDaySettings, setRainDaySkipSundays } from '../../data/routeRainDay.ts'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const MAX_TEXT = 1600
@@ -26,6 +26,18 @@ export function createRainDayRoutes(d: CrmDeps) {
     const u = c.get('user')
     try { return hasPermission(u?.role, perm, await getExtraPermissions(u?.userId)) } catch { return false }
   }
+
+  // The business's rain day switch: "Skip Sundays when moving visits" (default on). Read by anyone who sees jobs; changed by the
+  // seats that may run a rain day (the same two asks).
+  app.get('/settings', requirePermission('jobs:read'), async (c) => one(c, await getRainDaySettings(db, c.get('user').companyId)))
+  app.put('/settings', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    const u = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (typeof b?.skipSundays !== 'boolean') return fail(c, 400, 'Say whether to skip Sundays (on or off).', undefined, { skipSundays: 'Required' })
+    const saved = await setRainDaySkipSundays(db, u.companyId, b.skipSundays)
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'landscaping_setting', entityId: u.companyId, entityName: `Rain day: skip Sundays ${saved.skipSundays ? 'on' : 'off'}`, userId: u.userId, companyId: u.companyId })
+    return one(c, saved)
+  })
 
   app.post('/', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const u = c.get('user')
@@ -48,7 +60,7 @@ export function createRainDayRoutes(d: CrmDeps) {
     }
     const excludeJobIds: string[] = Array.isArray(b?.excludeJobIds) ? b.excludeJobIds.map(String) : []
     const dryRun = b?.dryRun !== false
-    const opts = { date, shiftDays: shift, routeId, excludeJobIds }
+    const opts = { date, shiftDays: shift, routeId, excludeJobIds, skipSundays: (await getRainDaySettings(db, u.companyId)).skipSundays }
 
     const plan = await rainDay(db, u.companyId, opts, !dryRun)
     const text = notify ? await rainDayTexts(db, u.companyId, plan.moves.map((m: any) => ({ contactId: m.contactId, title: m.title, from: m.from, to: m.to })), message, new Date(), tz) : null
@@ -62,7 +74,7 @@ export function createRainDayRoutes(d: CrmDeps) {
       })
     }
     return one(c, {
-      dryRun, date, toDate: plan.toDate, shiftDays: shift,
+      dryRun, date, toDate: plan.toDate, shiftDays: shift, skippedSunday: !!plan.skippedSunday,
       moved: dryRun ? 0 : plan.moved,
       wouldMove: plan.moves.length,
       jobs: plan.moves.map((m: any) => ({ id: m.id, number: m.number, title: m.title, scheduledTime: m.scheduledTime, from: m.from, to: m.to })),

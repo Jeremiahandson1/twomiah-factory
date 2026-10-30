@@ -240,3 +240,14 @@ export const siteShape = pgTable('site_shape', {
   index('site_shape_site_id_idx').on(t.siteId),
   index('site_shape_company_id_idx').on(t.companyId),
 ])
+
+// A landscaping business's own switches. One row per company, made the first time one is saved; no row means every switch is at its
+// default. `rainDaySkipSundays` (default on): a rain day never lands visits on a Sunday — they go to Monday instead.
+export const landscapingSetting = pgTable('landscaping_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  rainDaySkipSundays: boolean('rain_day_skip_sundays').default(true).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),
+])
