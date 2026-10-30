@@ -8,7 +8,9 @@
 // The noun is the VERTICAL'S, never "Job" hardcoded — a field-service tenant runs Service Calls. The
 // page title is an explicit `costingLabel` rather than `${jobsLabel} Costing`, because jobsLabel is
 // plural and that construction produces "Service Calls Costing".
-import React, { useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
+import { AuthContext } from '../auth/AuthContext'
+import { ProjectBudgets } from './ProjectBudgets'
 import { AlertCircle, ArrowLeft, Loader2, TrendingDown, TrendingUp } from 'lucide-react'
 import { StatusBadge, inputCls, money, selectCls } from '../invoicing/ui'
 import type { JobCostingPageProps } from './types'
@@ -77,6 +79,10 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 
 export function JobCostingPage({ api, config }: JobCostingPageProps) {
   const cfg = resolveJobCostingConfig(config)
+  // Project budgets (ProjectBudgets.tsx): only where the business has the feature and the seat reads reports. Read from the
+  // context without requiring it, so a page with no auth provider (an older template) is exactly as it was.
+  const auth: any = useContext(AuthContext as any)
+  const showBudgets = !!auth && typeof auth.hasFeature === 'function' && auth.hasFeature('job_budgets') && (typeof auth.can === 'function' ? auth.can('reports:read') : true)
   const noun = cfg.jobsLabel
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -422,6 +428,8 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
           </div>
         )}
       </div>
+
+      {showBudgets && <ProjectBudgets api={api} />}
     </div>
   )
 }

@@ -54,6 +54,8 @@ export function createJobCostingRoutes(d: CrmDeps) {
   app.get('/budget/:projectId', requirePermission('reports:read'), async (c) => {
     const user = c.get('user')
     const projectId = c.req.param('projectId')
+    // Its own feature (job_budgets, not ready): off, the route is not there — as the other gated routes answer.
+    if (!(await d.features.isFeatureEnabled(user.companyId, 'job_budgets'))) return fail(c, 404, 'Not found')
     const [pr] = await d.db.select({ id: project.id, name: project.name }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, user.companyId))).limit(1)
     if (!pr) return fail(c, 404, 'Project not found')
     const budget = await quoteBudget.budgetFor(user.companyId, projectId)

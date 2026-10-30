@@ -9,7 +9,8 @@ import { generateQuotePDF } from '../server/crm/pdf.ts'
 import fs from 'node:fs'
 
 const json = async (r: Response) => (await r.json()) as any
-const BASE = ['contacts', 'quotes', 'invoices', 'jobs', 'projects', 'job_costing', 'pricebook']
+// job_budgets: the project-budget route is behind its own (not ready) feature, switched on here as a platform admin would.
+const BASE = ['contacts', 'quotes', 'invoices', 'jobs', 'projects', 'job_costing', 'job_budgets', 'pricebook']
 
 async function boot(vertical = 'contractor', features = [...BASE, 'selections']) {
   const t = await bootTenant({ vertical })
