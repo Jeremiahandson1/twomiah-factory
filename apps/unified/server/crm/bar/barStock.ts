@@ -37,6 +37,17 @@ export interface StockRow {
   onHand: number | null; onHandPacks: number | null; low: boolean; suggestPacks: number
 }
 
+/** Open bottles by how full each is, as fractions of a full one: 0 to 1, at most 24 of them; the sum is the loose quantity they add. */
+export function cleanFills(raw: unknown): number[] {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw) || raw.length > 24) throw new StockError('Count at most 24 open bottles of one thing.')
+  return raw.map((v) => {
+    const n = Number(v)
+    if (!Number.isFinite(n) || n < 0 || n > 1) throw new StockError('A bottle is between empty and full.')
+    return Math.round(n * 100) / 100
+  })
+}
+
 export function orderEmailHtml(o: { number: number; note: string | null; lines: Array<{ name: string; packs: number; packName: string }> }, companyName: string, address: string): string {
   const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] || ch))
   return `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;padding:20px;">
@@ -263,11 +274,11 @@ async function currentCount(companyId: string, byName: string, create = true) {
   if (!c && create) [c] = await db.insert(barStockCount).values({ startedByName: byName, companyId }).returning()
   if (!c) return null
   const lines = await db.select().from(barStockCountLine).where(and(eq(barStockCountLine.companyId, companyId), eq(barStockCountLine.countId, c.id)))
-  return { ...c, lines: lines.map(l => ({ stockItemId: l.stockItemId, qty: num(l.qty), countedByName: l.countedByName, countedAt: l.countedAt })) }
+  return { ...c, lines: lines.map(l => ({ stockItemId: l.stockItemId, qty: num(l.qty), fills: Array.isArray(l.fills) ? l.fills : [], countedByName: l.countedByName, countedAt: l.countedAt })) }
 }
 
 /** Record one item: packs + loose units → units. `clear` takes it back off the count. */
-async function countItem(companyId: string, countId: string, stockItemId: string, input: { packs?: unknown; units?: unknown; clear?: boolean }, byName: string) {
+async function countItem(companyId: string, countId: string, stockItemId: string, input: { packs?: unknown; units?: unknown; clear?: boolean; fills?: unknown }, byName: string) {
   const [c] = await db.select().from(barStockCount).where(and(eq(barStockCount.id, countId), eq(barStockCount.companyId, companyId))).limit(1)
   if (!c || c.status !== 'open') throw new StockError('That count is finished. Start a new one.', 409)
   const [it] = await db.select().from(barStockItem).where(and(eq(barStockItem.id, stockItemId), eq(barStockItem.companyId, companyId))).limit(1)
@@ -275,9 +286,10 @@ async function countItem(companyId: string, countId: string, stockItemId: string
   if (input.clear) { await db.delete(barStockCountLine).where(and(eq(barStockCountLine.countId, countId), eq(barStockCountLine.stockItemId, stockItemId))); return null }
   const packs = input.packs === undefined || String(input.packs) === '' ? 0 : qtyOf(input.packs, 'count')
   const units = input.units === undefined || String(input.units) === '' ? 0 : qtyOf(input.units, 'count')
-  const qty = Math.round((packs * num(it.packSize) + units) * 1000) / 1000
-  await db.insert(barStockCountLine).values({ countId, stockItemId, qty: String(qty), countedByName: byName, companyId })
-    .onConflictDoUpdate({ target: [barStockCountLine.countId, barStockCountLine.stockItemId], set: { qty: String(qty), countedByName: byName, countedAt: new Date() } })
+  const fills = cleanFills(input.fills)
+  const qty = Math.round((packs * num(it.packSize) + units + fills.reduce((a, b) => a + b, 0)) * 1000) / 1000
+  await db.insert(barStockCountLine).values({ countId, stockItemId, qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, companyId })
+    .onConflictDoUpdate({ target: [barStockCountLine.countId, barStockCountLine.stockItemId], set: { qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, countedAt: new Date() } })
   return qty
 }
 

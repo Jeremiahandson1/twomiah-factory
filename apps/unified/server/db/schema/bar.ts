@@ -255,6 +255,10 @@ export const barMenuItem = pgTable('bar_menu_item', {
   story: text('story'),
   isSignature: boolean('is_signature').default(false).notNull(),
   is86ed: boolean('is_86ed').default(false).notNull(),
+  /** 86'd "until we open": it comes back by itself at the next opening (menu_dayparts). */
+  eightySixUntilOpen: boolean('eighty_six_until_open').default(false).notNull(),
+  /** When it was last put out, so the next opening after that time puts it back. */
+  eightySixedAt: timestamp('eighty_sixed_at'),
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),
@@ -283,6 +287,10 @@ export const barMenuSection = pgTable('bar_menu_section', {
   kind: text('kind').default('food').notNull(), // food | drink
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  /** Served only in this window (menu_dayparts): "11:00" to "15:00" on these days (0 = Sunday); null = all day, every day. */
+  availableFrom: text('available_from'),
+  availableTo: text('available_to'),
+  availableDays: json('available_days').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -525,6 +533,8 @@ export const barStockCountLine = pgTable('bar_stock_count_line', {
   countId: text('count_id').notNull().references(() => barStockCount.id, { onDelete: 'cascade' }),
   stockItemId: text('stock_item_id').notNull().references(() => barStockItem.id, { onDelete: 'cascade' }),
   qty: decimal('qty', { precision: 12, scale: 3 }).notNull(),     // units on hand
+  /** Open bottles counted by how full each is (0 to 1), when the venue counts by fill level (stock_fill_levels); they are part of qty. */
+  fills: json('fills'),
   countedByName: text('counted_by_name'),
   countedAt: timestamp('counted_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

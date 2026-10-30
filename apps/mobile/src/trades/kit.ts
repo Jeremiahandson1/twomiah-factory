@@ -19,8 +19,9 @@ export interface Row { open?: { spec: string; id: string }; key: string; title: 
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
 export interface Link { label: string; url: string; icon?: string }
 export interface Section { /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+/** kind 'level' is a fill level: a number of percent from 0 to 100 moved in steps of 5 (empty = not used) — the phone's slider. */
 export interface Input {
-  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice'; choices?: string[]; required?: boolean; initial?: (d: any) => string
+  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level'; choices?: string[]; required?: boolean; initial?: (d: any) => string
   /** Choices the SERVER offers for this row (the carrier's rates): fetched when the sheet opens; the person picks a label, the call gets its value. */
   options?: { path: (d: any) => string; label: (r: any) => string; value: (r: any) => string; none: string }
 }

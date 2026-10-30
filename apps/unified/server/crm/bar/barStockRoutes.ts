@@ -67,9 +67,11 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
   app.post('/count/item', ...counter, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     if (!b.stockItemId) return fail(c, 400, 'Which item?')
+    // Counting open bottles by how full they are is the venue's choice (stock_fill_levels, not ready): off, only packs and units.
+    if (b.fills !== undefined && !(await d.features.isFeatureEnabled(actor.companyId, 'stock_fill_levels'))) return fail(c, 400, 'Counting open bottles by how full they are is not switched on for this business.')
     return run(c, async () => {
       const count = await currentCount(actor.companyId, actor.name)
-      const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear }, actor.name)
+      const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear, fills: b.fills }, actor.name)
       return { ok: true, qty, countId: count!.id }
     })
   })
