@@ -151,7 +151,8 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/email'], how: 'screen', what: 'Email (More): the inbox + a message as text + reply as the address written to', files: ['app/(details)/email/index.tsx', 'app/(details)/email/[id].tsx'] },
   // Tier 2 (src/trades/office.ts)
   { paths: ['/crm/reports'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], how: 'screen', what: 'Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page', files: ['app/(details)/reports-summary.tsx'] },
-  { paths: ['/crm/time'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], how: 'screen', what: 'Hours (More): waiting approval / all + approve', files: ['app/(details)/office-time.tsx'] },
+  { paths: ['/crm/time'], trades: ['contractor', 'landscaping', 'salon', 'bar'], how: 'screen', what: 'Hours (More): waiting approval / all + approve', files: ['app/(details)/office-time.tsx'] },
+  { paths: ['/crm/time'], trades: ['basic', 'fieldservice'], how: 'screen', what: 'Clock (More): clock in/out with the offline queue (waiting to send), the job-site switch, and Approve hours for managers', files: ['app/(details)/clock.tsx', 'app/(details)/office-time.tsx'] },
   { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], how: 'screen', what: 'Expenses (More): list + approve + add one with a receipt photo', files: ['app/(details)/expenses/index.tsx', 'app/(details)/expenses/new.tsx'] },
   { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], how: 'screen', what: 'Review requests (More): sent / clicked + send a reminder', files: ['app/(details)/office-review-requests.tsx'] },
   { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], how: 'screen', what: 'Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop)', files: ['app/(details)/office-google-reviews.tsx'] },
@@ -467,7 +468,8 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   // Tier 2 (owner 10/30): the office pages owners open away from the desk, in every trade whose desktop page reads the same
   // routes (apps/mobile/src/trades/office.ts). Home care's own Reports and Expenses (other routes) stay on the desktop page.
   { paths: ['/crm/reports'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/reports-summary' },
-  { paths: ['/crm/time'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/office-time' },
+  { paths: ['/crm/time'], trades: ['contractor', 'landscaping', 'salon', 'bar'], route: '/(details)/office-time' },
+  { paths: ['/crm/time'], trades: ['basic', 'fieldservice'], route: '/(details)/clock' },
   { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/expenses' },
   { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/office-review-requests' },
   { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/office-google-reviews' },

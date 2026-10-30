@@ -76,10 +76,11 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
     return row || null
   }
-  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null } = {}): Promise<ClockResult> {
+  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null; at?: Date } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
     if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
-    const now = new Date()
+    // `at`: the moment the person tapped, when the phone sent it later (no signal). Without it, now.
+    const now = data.at ?? new Date()
     // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
     // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
     // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
@@ -91,10 +92,11 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     }).returning()
     return { ok: true, entry: row }
   }
-  async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null } = {}): Promise<ClockResult> {
+  async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null; at?: Date } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
     if (!open) return { ok: false, status: 400, error: 'No open clock-in to clock out of' }
-    const end = new Date()
+    const end = data.at ?? new Date()
+    if (end.getTime() < new Date(open.clockIn).getTime()) return { ok: false, status: 400, error: 'That time is before you clocked in.' }
     // Clocking straight back out is a mis-click, not a shift: it used to save a 0.00-hour row on the timesheet for
     // someone to wonder about later. Under a minute, the clock-in is discarded instead. (Landscaping T21 L7)
     const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
@@ -209,6 +211,16 @@ export function createTimeRoutes(deps: TimeDeps) {
     || (updates.hourlyRate !== undefined && !sameNumber(updates.hourlyRate, existing?.hourlyRate))
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
+  /**
+   * `at`: when the person tapped Clock in / Clock out, for a phone that had no signal and sent it later (the offline queue).
+   * An instant (ISO, with its zone); not in the future (two minutes of clock drift allowed) and not more than 48 hours ago —
+   * a phone clock can be wrong, so the office still approves the hours. Without it the entry is stamped when it arrives.
+   */
+  const tappedAt = z.string().datetime({ offset: true, message: 'Send the time as an ISO date and time' })
+    .transform((v) => new Date(v))
+    .refine((d) => d.getTime() <= Date.now() + 2 * 60_000, { message: 'That time has not happened yet' })
+    .refine((d) => d.getTime() >= Date.now() - 48 * 3_600_000, { message: 'That time is more than 48 hours ago \u2014 ask the office to enter it' })
+    .optional()
   const entrySchema = z.object({
     date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }).refine(notFuture, { message: 'Time can only be logged for a date that has happened' }),
     // RR4 L2's rule, applied here too: the type check fires before .positive(), so without its own
@@ -459,21 +471,21 @@ export function createTimeRoutes(deps: TimeDeps) {
 
   app.post('/clock-in', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = entrySchema.pick({ jobId: true, projectId: true, description: true, notes: true }).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.pick({ jobId: true, projectId: true, description: true, notes: true }).extend({ at: tappedAt }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
-    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null })
+    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null, at: data.at })
     if (!r.ok) return c.json({ error: r.error, ...(r.entry ? { entry: r.entry } : {}) }, r.status)
     return c.json((r as any).entry, 201)
   })
 
   app.post('/clock-out', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = entrySchema.pick({ breakMinutes: true, description: true, notes: true }).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.pick({ breakMinutes: true, description: true, notes: true }).extend({ at: tappedAt }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
-    const r = await clock.clockOut(currentUser, { breakMinutes: parsed.data.breakMinutes, description: parsed.data.description || parsed.data.notes || null })
+    const r = await clock.clockOut(currentUser, { breakMinutes: parsed.data.breakMinutes, description: parsed.data.description || parsed.data.notes || null, at: parsed.data.at })
     if (!r.ok) return c.json({ error: r.error }, r.status)
     if (r.discarded) return c.json({ discarded: true, message: r.message })
     return c.json(r.entry)

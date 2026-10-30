@@ -10,6 +10,7 @@
 //   bun run tests/mobile/job-flow.test.ts
 import { buildFlow, effectiveStatus, jobKey, type FlowInput } from '../../apps/mobile/src/jobflow/flow.ts'
 import { describeItem, openFor, orderForList } from '../../apps/mobile/src/offline/describe.ts'
+import { clockView, clockKey, tapBody } from '../../apps/mobile/src/jobflow/clock.ts'
 
 let passed = 0, failed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -95,6 +96,27 @@ const item = (over: any) => ({ id: 'i1', method: 'POST', path: '/api/x', body: {
   check('a label wins over the guess', describeItem(item({ label: 'J-12 · arrived' })).title === 'J-12 · arrived')
   check('the list puts refused saves first', orderForList([item({ id: 'a' }), item({ id: 'b', state: 'failed' }), item({ id: 'c' })]).map((x) => x.id).join() === 'b,a,c')
   check('only a job\'s saves lead to a job', openFor({ recordKey: 'job:abc', path: '/x' }) === '/(details)/job/abc' && openFor({ recordKey: 'quote:abc', path: '/x' }) === null)
+}
+
+// The trades' Clock screen.
+{
+  const U = 'u1'
+  const tap = (path: string, at: string, state: any = 'waiting', extra: any = {}) => ({ id: path + at, method: 'POST', path, state, recordKey: clockKey(U), body: { at }, ...extra }) as any
+  const open = { clockIn: '2026-11-02T13:00:00.000Z' }
+  check('no clock open, nothing waiting: clock in is offered', (() => { const v = clockView(null, [], U); return v.state === 'out' && v.canClockIn && !v.canClockOut && !v.waiting })())
+  check('the server\'s open clock: clock out is offered, since is the server\'s time', (() => { const v = clockView(open, [], U); return v.state === 'in' && v.canClockOut && v.since === open.clockIn && !v.waiting })())
+  const offline = clockView(null, [tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z')], U)
+  check('a clock-in tapped with no signal shows as clocked in, WAITING, from the moment tapped', offline.state === 'in_waiting' && offline.waiting && offline.since === '2026-11-02T13:02:00.000Z' && offline.canClockOut)
+  const both = clockView(null, [tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z'), tap('/api/time/clock-out', '2026-11-02T17:30:00.000Z')], U)
+  check('clocked in and out while offline: closed, both waiting', both.state === 'out_waiting' && both.canClockIn && !both.canClockOut)
+  const outOnly = clockView(open, [tap('/api/time/clock-out', '2026-11-02T17:30:00.000Z')], U)
+  check('an open clock with a clock-out waiting is closed for now', outOnly.state === 'out_waiting' && outOnly.waiting)
+  const again = clockView(null, [tap('/api/time/clock-in', '2026-11-02T13:00:00.000Z'), tap('/api/time/clock-out', '2026-11-02T14:00:00.000Z'), tap('/api/time/clock-in', '2026-11-02T15:00:00.000Z')], U)
+  check('in, out, in again while offline: clocked in from the last tap', again.state === 'in_waiting' && again.since === '2026-11-02T15:00:00.000Z')
+  const refused = clockView(null, [tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z', 'failed', { refusal: { status: 400, message: 'That time is more than 48 hours ago \u2014 ask the office to enter it' } })], U)
+  check('a refused clock tap says why and does not count as a clock', refused.state === 'out' && refused.refused?.message.includes('48 hours') && refused.canClockIn)
+  check('another person\'s waiting taps are not mine', clockView(null, [{ ...tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z'), recordKey: clockKey('u2') }], U).state === 'out')
+  check('a tap carries the moment it was made', tapBody(new Date('2026-11-02T13:02:00.000Z'), { jobId: 'j1' }).at === '2026-11-02T13:02:00.000Z' && (tapBody(new Date(0), { jobId: 'j1' }) as any).jobId === 'j1')
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
