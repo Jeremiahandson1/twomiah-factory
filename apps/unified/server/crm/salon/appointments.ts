@@ -27,7 +27,7 @@ import type { SalonServices } from './services.ts'
 import { calendarDayWords } from '../../core/dayWords.ts'
 import { OWN_BOOK_SETTING, inOwnChair, isOwnChair, ownBookOnlyFrom } from './bookScope.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from './visitPhotos.ts'
-import { PATCH_TEST_RULE, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
+import { PATCH_TEST_RULE, PATCH_TEST_SERVICE, offeredServiceId, settingsOf, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -97,18 +97,34 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    */
   app.get('/patch-test-rule', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
-    return one(c, { [PATCH_TEST_RULE]: await ruleOnFor(db, u.companyId) })
+    return one(c, { [PATCH_TEST_RULE]: await ruleOnFor(db, u.companyId), [PATCH_TEST_SERVICE]: offeredServiceId(await settingsOf(db, u.companyId)) })
   })
+  // PUT { patchTestRule?: boolean, patchTestServiceId?: string | null } — the switch, and (optional) the menu service a held client is
+  // offered online to book first. Either may be sent alone.
   app.put('/patch-test-rule', requirePermission('company:update'), async (c) => {
     const u = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-    if (typeof body[PATCH_TEST_RULE] !== 'boolean') return fail(c, 400, 'Say whether patch-test services are held back: on or off.', 'BAD_SETTING', { [PATCH_TEST_RULE]: 'On or off.' })
+    const hasRule = PATCH_TEST_RULE in body, hasService = PATCH_TEST_SERVICE in body
+    if (!hasRule && !hasService) return fail(c, 400, 'Say whether patch-test services are held back: on or off.', 'BAD_SETTING', { [PATCH_TEST_RULE]: 'On or off.' })
+    if (hasRule && typeof body[PATCH_TEST_RULE] !== 'boolean') return fail(c, 400, 'Say whether patch-test services are held back: on or off.', 'BAD_SETTING', { [PATCH_TEST_RULE]: 'On or off.' })
+    let serviceId: string | null | undefined
+    if (hasService) {
+      serviceId = body[PATCH_TEST_SERVICE] ? String(body[PATCH_TEST_SERVICE]) : null
+      if (serviceId) {
+        const [svc] = await db.select({ id: serviceMenu.id, online: serviceMenu.bookableOnline, requires: serviceMenu.requiresPatchTest }).from(serviceMenu)
+          .where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, u.companyId))).limit(1)
+        if (!svc) return fail(c, 400, 'That service is not on your menu.', 'BAD_SETTING', { [PATCH_TEST_SERVICE]: 'Pick a service from your menu.' })
+        if (!svc.online) return fail(c, 400, 'The patch-test appointment has to be bookable online, or the client could not book it.', 'BAD_SETTING', { [PATCH_TEST_SERVICE]: 'Pick a service that is bookable online.' })
+        if (svc.requires) return fail(c, 400, 'The patch-test appointment cannot itself need a patch test.', 'BAD_SETTING', { [PATCH_TEST_SERVICE]: 'Pick a service that does not need a patch test.' })
+      }
+    }
     const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, u.companyId)).limit(1)
     const settings: any = (typeof co?.settings === 'string' ? JSON.parse(co.settings || '{}') : co?.settings) || {}
-    const before = ruleOn(settings)
-    await db.update(company).set({ settings: { ...settings, [PATCH_TEST_RULE]: body[PATCH_TEST_RULE] }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
-    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [PATCH_TEST_RULE]: { before, after: body[PATCH_TEST_RULE] } }, req: { user: u } })
-    return one(c, { [PATCH_TEST_RULE]: body[PATCH_TEST_RULE] })
+    const before = { [PATCH_TEST_RULE]: ruleOn(settings), [PATCH_TEST_SERVICE]: offeredServiceId(settings) }
+    const after = { ...before, ...(hasRule ? { [PATCH_TEST_RULE]: body[PATCH_TEST_RULE] } : {}), ...(hasService ? { [PATCH_TEST_SERVICE]: serviceId } : {}) }
+    await db.update(company).set({ settings: { ...settings, ...after }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { patchTest: { before, after } }, req: { user: u } })
+    return one(c, after)
   })
 
   /** The service, if it is on THIS salon's menu — an unknown id is named, not a foreign-key 409. (Salon T27 N17) */

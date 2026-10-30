@@ -24,7 +24,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { appointment, booking, bookingService, contact, serviceMenu } from '../../db/schema/index.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
-import { patchTestHold, ruleOnFor, stateFor } from './patchTest.ts'
+import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
@@ -78,7 +78,17 @@ export function createChairBooking(): BookingAddOn {
         const [menu] = await tx.select({ requiresPatchTest: serviceMenu.requiresPatchTest, name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, service.serviceMenuId)).limit(1)
         if (menu?.requiresPatchTest && (await ruleOnFor(tx, companyId))) {
           const hold = patchTestHold((await stateFor(tx, contactId, new Date().toISOString().slice(0, 10))).state, menu.name || service.name || '')
-          if (hold) throw new BookingError(`${hold} Please call us to arrange a patch test, then book.`, 409, 'patch_test')
+          if (hold) {
+            // Owner's decision 2026-10-30: when the salon has named its patch-test appointment, the client is offered THAT to book
+            // first (and the colour after it has passed) instead of being turned away; without one they are asked to call.
+            const offerId = offeredServiceId(await settingsOf(tx, companyId))
+            const [offer] = offerId && offerId !== service.serviceMenuId
+              ? await tx.select({ slug: bookingService.slug, name: bookingService.name }).from(bookingService)
+                .where(and(eq(bookingService.companyId, companyId), eq(bookingService.serviceMenuId, offerId), eq(bookingService.active, true))).limit(1)
+              : []
+            if (offer) throw new BookingError(`${hold} Book a patch test first — you can book this once it has passed.`, 409, 'patch_test', { offerSlug: offer.slug, offerName: offer.name })
+            throw new BookingError(`${hold} Please call us to arrange a patch test, then book.`, 409, 'patch_test')
+          }
         }
       }
       // The Book's own lock, so a desk appointment being saved this moment and this booking can't both take the chair

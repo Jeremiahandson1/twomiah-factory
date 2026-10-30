@@ -26,7 +26,7 @@ const FEATURE = 'online_booking'
 /** A BookingError becomes its own status and sentence; anything else is the error handler's. */
 async function guard<T>(c: Context, fn: () => Promise<T>) {
   try { return await fn() } catch (e) {
-    if (e instanceof BookingError) return fail(c, e.status as any, e.message, e.code)
+    if (e instanceof BookingError) return fail(c, e.status as any, e.message, e.code, e.fields)
     throw e
   }
 }

@@ -81,7 +81,7 @@
   }
   function postJson(url, data) {
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(data) }).then(function (r) {
-      return r.json().catch(function () { return {} }).then(function (body) { if (!r.ok) { var e = new Error(body.error || 'Something went wrong.'); e.code = body.code; throw e } return body })
+      return r.json().catch(function () { return {} }).then(function (body) { if (!r.ok) { var e = new Error(body.error || 'Something went wrong.'); e.code = body.code; e.fields = body.fields; throw e } return body })
     })
   }
   function showError(el, msg) { if (!el) return; el.textContent = msg; el.hidden = !msg }
@@ -167,6 +167,14 @@
     }
     request.catch(function (err) {
       showError(errorEl, err.message)
+      // A service that needs a patch test first: the salon's own patch-test appointment is offered to book instead.
+      if (errorEl && err.code === 'patch_test' && err.fields && err.fields.offerSlug) {
+        var a = document.createElement('a')
+        a.href = '/book/' + encodeURIComponent(err.fields.offerSlug) + (embed ? '?embed=1' : '')
+        a.textContent = 'Book ' + (err.fields.offerName || 'a patch test') + ' first'
+        a.className = 'book-error__offer'
+        errorEl.appendChild(document.createTextNode(' ')); errorEl.appendChild(a)
+      }
       submit.disabled = false; submit.textContent = label
       // The time went while they were typing: show the day as it is now.
       if (err.code === 'taken' || err.code === 'notice') loadTimes()

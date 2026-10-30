@@ -7,6 +7,8 @@ import { eq } from 'drizzle-orm'
 import { clientProfile, company } from '../../db/schema/index.ts'
 
 export const PATCH_TEST_RULE = 'patchTestRule'
+/** The menu service a held client is offered online instead (their patch-test appointment); optional, the salon's pick. */
+export const PATCH_TEST_SERVICE = 'patchTestServiceId'
 /** A patch test is good for this long (it was the Book's warning window already). */
 export const PATCH_TEST_VALID_DAYS = 180
 
@@ -35,6 +37,19 @@ export function patchTestHold(state: PatchTestState, serviceName: string): strin
   if (state === 'failed') return `${what} needs a passed patch test, and the last one did not pass.`
   if (state === 'expired') return `${what} needs a patch test within the last ${Math.round(PATCH_TEST_VALID_DAYS / 30)} months, and yours has run out.`
   return `${what} needs a patch test first, and none is on record.`
+}
+
+/** The patch-test service the salon picked, if it is set. */
+export function offeredServiceId(settings: unknown): string | null {
+  let s: any = settings
+  if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = {} } }
+  const id = s && typeof s === 'object' ? s[PATCH_TEST_SERVICE] : null
+  return typeof id === 'string' && id ? id : null
+}
+
+export async function settingsOf(exec: any, companyId: string) {
+  const [co] = await exec.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  return co?.settings
 }
 
 export async function ruleOnFor(exec: any, companyId: string): Promise<boolean> {

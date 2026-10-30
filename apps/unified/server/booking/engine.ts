@@ -21,7 +21,7 @@ import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
 import { recordConsent } from '../site/smsConsent.ts'
 
 export class BookingError extends Error {
-  constructor(message: string, public status = 400, public code?: string) { super(message); this.name = 'BookingError' }
+  constructor(message: string, public status = 400, public code?: string, public fields?: Record<string, string>) { super(message); this.name = 'BookingError' }
 }
 
 export type BookingRow = typeof booking.$inferSelect

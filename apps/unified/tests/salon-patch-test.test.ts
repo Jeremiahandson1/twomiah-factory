@@ -35,7 +35,8 @@ describe('salon: patch-test status', () => {
   let slot = 9
   const online = (c: { email: string; id: string }, service = 'colour', date = next(3)) => {
     slot += 1
-    return t.call(`/api/book/services/${service}`, { method: 'POST', json: { date, time: `${String(slot).padStart(2, '0')}:00`, name: 'Online Client', email: c.email, phone: '608-555-0160' } })
+    // each client from their own address: the public booking door limits writes per address
+    return t.call(`/api/book/services/${service}`, { method: 'POST', headers: { 'x-forwarded-for': `10.0.${slot}.${slot}` }, json: { date, time: `${String(slot).padStart(2, '0')}:00`, name: 'Online Client', email: c.email, phone: '608-555-0160' } })
   }
   const bookings = async () => (await t.db.select().from(t.schema.booking)).length
   const desk = (who: string, c: { id: string }, extra: Record<string, unknown> = {}, hour = 15) =>
@@ -59,7 +60,7 @@ describe('salon: patch-test status', () => {
   }, 120_000)
 
   test('the rule is off by default: a patch-test service books online and at the desk exactly as before', async () => {
-    expect((await as('desk', '/api/appointments/patch-test-rule')).body).toEqual({ patchTestRule: false })
+    expect((await as('desk', '/api/appointments/patch-test-rule')).body).toEqual({ patchTestRule: false, patchTestServiceId: null })
     const c = await client('Untested Una')
     expect((await online(c)).status).toBe(201)
     const d = await desk('owner', c, {}, 14)
@@ -70,7 +71,7 @@ describe('salon: patch-test status', () => {
     for (const who of ['ana', 'desk']) expect((await as(who, '/api/appointments/patch-test-rule', 'PUT', { patchTestRule: true })).status).toBe(403)
     expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestRule: 'yes' })).status).toBe(400)
     const r = await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestRule: true })
-    expect([r.status, r.body]).toEqual([200, { patchTestRule: true }])
+    expect([r.status, r.body]).toEqual([200, { patchTestRule: true, patchTestServiceId: null }])
     expect((await as('ana', '/api/appointments/patch-test-rule')).body.patchTestRule).toBe(true)
   })
 
@@ -149,5 +150,39 @@ describe('salon: patch-test status', () => {
     const c = await client('Free Fern')
     slot = 9
     expect((await online(c, 'colour', next(2))).status).toBe(201)
+  })
+
+  test('on, with a patch-test appointment named: online booking OFFERS it instead of turning the client away; the colour books once it has passed', async () => {
+    slot = 9; const day = next(5)    // its own day and hours: the earlier tests used up the first day's
+    const patch = (await as('owner', '/api/service-menu', 'POST', { name: 'Patch Test', category: 'colour', durationMin: 15, price: 0, bookableOnline: true })).body
+    const notOnline = (await as('owner', '/api/service-menu', 'POST', { name: 'Desk Only Test', category: 'colour', durationMin: 15, price: 0, bookableOnline: false })).body
+    // who may name it, and what it may be — on the server
+    for (const who of ['ana', 'desk']) expect((await as(who, '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: patch.id })).status).toBe(403)
+    expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: 'not-a-service' })).status).toBe(400)
+    expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: notOnline.id })).status).toBe(400)
+    expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: colour.id })).status).toBe(400)   // itself needs a patch test
+    expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestRule: true })).status).toBe(200)
+    const set = await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: patch.id })
+    expect([set.status, set.body.patchTestServiceId, set.body.patchTestRule]).toEqual([200, patch.id, true])   // the rule stays as it was
+    // a held client is offered the patch-test appointment, with its page, and nothing is booked
+    const stranger = await client('Offered Ola')
+    const before = await bookings()
+    const held: any = await (await online(stranger, 'colour', day)).json()
+    expect(held.code).toBe('patch_test')
+    expect(held.fields).toEqual({ offerSlug: 'patch-test', offerName: 'Patch Test' })
+    expect(held.error).toContain('Book a patch test first')
+    expect(await bookings()).toBe(before)
+    // she books the patch test itself (it needs none), is tested at the salon, and the colour is then open to her
+    expect((await online(stranger, 'patch-test', day)).status).toBe(201)
+    await ins(t.schema.clientProfile, { companyId: co, contactId: stranger.id, patchTestAt: daysAgo(0), patchTestResult: 'passed' })
+    expect((await online(stranger, 'colour', day)).status).toBe(201)
+    // a failed test is offered it too; the offer is not made when no appointment is named
+    const failed = await client('Offered Fay', { at: daysAgo(3), result: 'failed' })
+    const failedBody: any = await (await online(failed, 'colour', day)).json()
+    expect([failedBody.code, failedBody.fields?.offerSlug, failedBody.error]).toEqual(['patch_test', 'patch-test', failedBody.error])
+    expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestServiceId: null })).body.patchTestServiceId).toBeNull()
+    const again: any = await (await online(failed, 'colour', day)).json()
+    expect(again.fields).toBeUndefined()
+    expect(again.error).toContain('call us')
   })
 })

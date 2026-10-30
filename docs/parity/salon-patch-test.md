@@ -14,10 +14,11 @@
 | Several tests kept in a client's history | Only the latest | **Not built** |
 | Bookings are not blocked — reminders only; manual bookings show an alert | Online booking of a patch-test service is **refused** (the client is asked to call) when none is on record, it has run out, or it failed; the desk can still book it, but types a reason, kept on the appointment | **Beats** — only when the salon switches the rule on |
 | Online bookers asked to confirm they hold a valid test | Not asked; the server checks the record instead | **Different, stricter** |
+| (Owner's decision 2026-10-30) A client who needs a test is not simply turned away | The salon can name its patch-test appointment (Settings › The Book). A held client is then offered it, with a link to its booking page, books that, and books the colour once the test is on record as passed. With none named they are asked to call | **Beats** — only when named |
 | Alert on a manual booking for a service that needs a test | The desk is stopped and asked for a reason; the Book's existing warning at check-in is unchanged | **Matches** |
 | The appointment message tells the client they need a test | Not built | **Not built** |
 
 ## Notes for the owner
 
 - The rule is a switch in Settings › The Book, **off by default**, so no live salon's online booking changes until its owner turns it on.
-- A new client has no test on record, so with the rule on they cannot book a patch-test service online; they are told to call. That is the brief's rule; it is the owner's call whether that is what they want for first-time colour clients.
+- A new client has no test on record, so with the rule on they cannot book a patch-test service online. If the salon has named its patch-test appointment they are offered that first; otherwise they are told to call. Whoever runs the test still records its date and result on the client's chart — it is not recorded automatically when the patch-test appointment is completed.

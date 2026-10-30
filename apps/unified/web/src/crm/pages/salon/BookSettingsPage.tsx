@@ -20,6 +20,8 @@ export default function BookSettingsPage() {
   const mayEdit = known && can('company:update')
   const [on, setOn] = useState<boolean | null>(null)
   const [patchRule, setPatchRule] = useState<boolean | null>(null)
+  const [offerId, setOfferId] = useState<string>('')
+  const [menu, setMenu] = useState<Array<{ id: string; name: string; bookableOnline?: boolean; requiresPatchTest?: boolean }>>([])
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
   // The rungs in this salon's own words (Stylist, Front Desk), as the Users list says them.
@@ -30,7 +32,8 @@ export default function BookSettingsPage() {
     api.get('/api/appointments/book-settings')
       .then((r: BookScope) => setOn(!!r?.stylistsSeeOwnBookOnly))
       .catch((e: Error) => setLoadError(e.message || 'The book settings could not be loaded.'))
-    api.get('/api/appointments/patch-test-rule').then((r: { patchTestRule?: boolean }) => setPatchRule(!!r?.patchTestRule)).catch(() => setPatchRule(null))
+    api.get('/api/appointments/patch-test-rule').then((r: { patchTestRule?: boolean; patchTestServiceId?: string | null }) => { setPatchRule(!!r?.patchTestRule); setOfferId(r?.patchTestServiceId || '') }).catch(() => setPatchRule(null))
+    api.get('/api/service-menu').then((r: any) => setMenu(((r?.data ?? r) || []) as any[])).catch(() => setMenu([]))
   }, [])
 
   if (loadError) return <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">{loadError}</div>
@@ -53,6 +56,17 @@ export default function BookSettingsPage() {
       const r: { patchTestRule?: boolean } = await api.put('/api/appointments/patch-test-rule', { patchTestRule: next })
       setPatchRule(!!r?.patchTestRule)
       toast.success(next ? 'Patch-test services are now held back until a passing test is on record' : 'Patch-test services book as before')
+    } catch (e: any) {
+      toast.error(e?.message || 'The setting could not be saved.')
+    } finally { setSaving(false) }
+  }
+
+  const flipOffer = async (next: string) => {
+    setSaving(true)
+    try {
+      const r: { patchTestServiceId?: string | null } = await api.put('/api/appointments/patch-test-rule', { patchTestServiceId: next || null })
+      setOfferId(r?.patchTestServiceId || '')
+      toast.success(next ? 'Clients who need a patch test are now offered that appointment online' : 'Clients who need a patch test are asked to call')
     } catch (e: any) {
       toast.error(e?.message || 'The setting could not be saved.')
     } finally { setSaving(false) }
@@ -98,6 +112,20 @@ export default function BookSettingsPage() {
             more than 6 months old, or one that failed — they are asked to call. At the desk it can still be booked, but the person booking types
             why, and that is kept on the appointment. Record the date and result on the client&rsquo;s chart (Edit Profile).
           </p>
+          {patchRule && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-900 dark:text-slate-100" htmlFor="patch-offer">Offer this appointment online instead</label>
+              <select id="patch-offer" value={offerId} disabled={!mayEdit || saving} onChange={(e) => flipOffer(e.target.value)}
+                className="mt-1 w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+                <option value="">None — ask them to call</option>
+                {menu.filter((m) => m.bookableOnline && !m.requiresPatchTest).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              <p className={hint}>
+                Pick your patch-test appointment (it has to be bookable online). A client who would be held back is offered it to book first, and can
+                book the colour once the test has passed.
+              </p>
+            </div>
+          )}
         </section>
       )}
     </div>
