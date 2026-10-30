@@ -2963,3 +2963,71 @@ export const importBatchRecord = pgTable('import_batch_record', {
 }, (t) => [
   index('import_batch_record_batch_idx').on(t.batchId),
 ])
+
+// Item 3 (care_autopay): a client's saved card for automatic payment of their invoices — on the AGENCY's own Stripe
+// account, never ours (core/autopay.ts). The card itself is only ever typed on Stripe's page; we keep Stripe's ids and
+// the card's brand and last four. `stripe_account` is the account the customer lives on, so a card saved on one account
+// is never charged through another. One row per client.
+export const clientAutopay = pgTable('client_autopay', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  status: text('status').default('pending').notNull(), // 'pending' (link sent, no card yet) | 'active' | 'paused' (a card that cannot be charged) | 'removed'
+  pausedReason: text('paused_reason'),
+  stripeAccount: text('stripe_account'),
+  stripeCustomerId: text('stripe_customer_id'),
+  paymentMethodId: text('payment_method_id'),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  setupSessionId: text('setup_session_id'),
+  consentText: text('consent_text'),
+  consentAt: timestamp('consent_at'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_autopay_client_key').on(t.clientId),
+  index('client_autopay_company_idx').on(t.companyId, t.status),
+])
+
+// One row per try at charging an invoice. The unique (invoice, attempt number) is the guard against charging twice: a
+// try is claimed here BEFORE Stripe is asked, two scans or two instances cannot both claim the same number, and Stripe
+// is given the same key for the same try.
+export const autopayAttempt = pgTable('autopay_attempt', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  attemptNo: integer('attempt_no').notNull(),
+  status: text('status').default('pending').notNull(), // 'pending' | 'succeeded' | 'failed' | 'needs_action' | 'skipped'
+  amountCents: integer('amount_cents').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureCode: text('failure_code'),
+  failureMessage: text('failure_message'),
+  hardDecline: boolean('hard_decline').default(false).notNull(),
+  nextAttemptAt: timestamp('next_attempt_at'),
+  notifiedAt: timestamp('notified_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('autopay_attempt_key').on(t.invoiceId, t.attemptNo),
+  index('autopay_attempt_company_idx').on(t.companyId, t.status),
+])
+
+// Item 3 (care_ltc_billing): a client's long-term-care insurance policy, for the claim packet the payer asks for.
+export const clientLtcPolicy = pgTable('client_ltc_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  insuredName: text('insured_name'),
+  policyNumber: text('policy_number'),
+  claimNumber: text('claim_number'),
+  dailyMax: decimal('daily_max', { precision: 10, scale: 2 }),
+  notes: text('notes'),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_ltc_policy_client_key').on(t.clientId),
+])

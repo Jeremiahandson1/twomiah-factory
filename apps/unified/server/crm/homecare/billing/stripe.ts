@@ -33,26 +33,11 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import { cardPaymentsFor } from '../../cardPayments.ts'
 import { body, who, num } from './shared.ts'
+import { stripeClientFor } from '../core/stripeClient.ts'
 
 /** The CRM's own sentences for the same two answers (packages/tenant-backend portal.ts, payments/stripe.ts). */
 const LINK_GONE = 'This link is not valid. Please contact the business that sent it.'
 const NOT_ONLINE = 'This business does not take card payments online. Please contact them to pay another way.'
-
-let client: any = undefined
-/** The Stripe client for STRIPE_SECRET_KEY, made once; null when the key (or the SDK) is missing. */
-async function sdkClient(logger: CrmDeps['logger']): Promise<any | null> {
-  if (client !== undefined) return client
-  client = null
-  if (process.env.STRIPE_SECRET_KEY) {
-    try {
-      const Stripe = (await import('stripe')).default
-      client = new Stripe(process.env.STRIPE_SECRET_KEY)
-    } catch {
-      logger.warn('Stripe SDK not installed — payment endpoints disabled')
-    }
-  }
-  return client
-}
 
 /** What is still owed on a visit invoice: total less payments and write-downs (the invoice email's figure). */
 export const visitInvoiceOwed = (inv: { total: unknown; amountPaid?: unknown; amountAdjusted?: unknown }) =>
@@ -65,7 +50,7 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const canTakeCards = cardPaymentsFor(d)
   /** The tests' fake client when one was handed to the app (TestSeams.stripe), else the one made from the key. */
-  const stripeClient = (logger: CrmDeps['logger']) => (d.services.testStripeClient !== undefined ? Promise.resolve(d.services.testStripeClient) : sdkClient(logger))
+  const stripeClient = (_logger: CrmDeps['logger']) => stripeClientFor(d)
   /** The agency's own Stripe account; every call about its money carries it (payments/stripe.ts requestOpts). */
   const accountOpts = async (companyId: string) => {
     const acct = await d.services.stripeService.connectedAccountFor(companyId)
@@ -123,6 +108,8 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
 
   /** A paid checkout goes on the ledger (invoice_payments) like every other payment — once, by its payment intent. */
   async function onEvent(event: any): Promise<boolean> {
+    // Autopay's own events first (a card saved on Stripe's page, or one of its charges finishing).
+    if (await core.autopay.onEvent(event)) return true
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
       const invoiceId = session.metadata?.invoice_id

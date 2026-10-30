@@ -18,6 +18,7 @@ import { createPayerRoutes } from './payers.ts'
 import { createAuthorizationRoutes } from './authorizations.ts'
 import { createPricingRoutes } from './pricing.ts'
 import { createVisitInvoiceStripeRoutes } from './stripe.ts'
+import { createAutopayRoutes } from './autopayRoutes.ts'
 
 export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   // /api/billing: the visit invoicing, and at the same root the Factory subscription's three doors — as the template's
@@ -34,6 +35,8 @@ export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/payers', access: 'user', router: createPayerRoutes(core, d) },
     { path: '/api/payments', access: 'user', router: createPayerPaymentRoutes(core, d) },
     { path: '/api/pricing', access: 'user', router: createPricingRoutes(core, d) },
+    // Item 3 (care_autopay, not ready): a family's saved card pays each invoice as it is issued, on the agency's own Stripe.
+    { path: '/api/care-autopay', access: 'user', feature: 'care_autopay', router: createAutopayRoutes(core, d) },
     // Public: the family's pay page and Stripe's webhook answer without a session; the router signs people in itself
     // for the rest (modules/crm.ts leaves /api/stripe to this mount for home care).
     { path: '/api/stripe', access: 'public', router: createVisitInvoiceStripeRoutes(core, d) },

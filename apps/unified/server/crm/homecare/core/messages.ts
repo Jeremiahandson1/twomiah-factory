@@ -235,6 +235,32 @@ If you would rather sign on paper, or have questions about anything in it, conta
     }
   },
 
+  // Autopay (care_autopay): the card on file was not charged. Plain words, what happens next, and how to pay another way.
+  homecareAutopayFailed: (data, b, appUrl) => {
+    const n = nameOf(data, b)
+    const link = invoiceLink(data, appUrl)
+    const next = data.retryOn ? `We will try the card again on ${data.retryOn}.` : 'We will not try this card again.'
+    return {
+      subject: `We could not take your card payment — Invoice #${data.invoiceNumber}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(n)}</h1></div>
+        <div class="content">
+          <p>Hello ${escHtml(data.contactName)},</p>
+          <div class="highlight"><p style="margin:0;"><strong>Your automatic payment of $${escHtml(data.amountDue)} for invoice #${escHtml(data.invoiceNumber)} did not go through.</strong></p></div>
+          <p>The reason: ${escHtml(data.reason)}.</p>
+          <p>${escHtml(next)} You can also pay now, with this or another card.</p>
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">Pay $${escHtml(data.amountDue)} now</a></p>` : ''}
+          <p><small>If you have already paid, thank you — please disregard this notice. Questions? Contact our office.</small></p>
+        </div>
+        <div class="footer">${escHtml(n)}</div>
+      </div></body></html>
+    `,
+      text: `Hello ${data.contactName}, your automatic payment of $${data.amountDue} for invoice #${data.invoiceNumber} did not go through. The reason: ${data.reason}. ${next} ${link ? `Pay now: ${link}` : 'Please contact our office to pay another way.'}`,
+    }
+  },
+
   homecareFamilyPortalWelcome: (data, b) => {
     const n = nameOf(data, b)
     return {
@@ -318,6 +344,7 @@ export const HOMECARE_TEMPLATE_NAMES: Record<string, string> = {
   familyPasswordSetByAdmin: 'homecareFamilyPasswordSetByAdmin',
   invoiceEmail: 'homecareInvoiceEmail',
   invoiceReminder: 'homecareInvoiceReminder',
+  autopayFailed: 'homecareAutopayFailed',
   familyPortalWelcome: 'homecareFamilyPortalWelcome',
   familyPasswordReset: 'homecareFamilyPasswordReset',
   passwordReset: 'homecarePasswordReset',
@@ -341,6 +368,7 @@ export function homecareEmail(email: Pick<EmailService, 'send' | 'sendRaw' | 'pr
     sendPortalSetupInvite: named('portalSetupInvite'),
     sendInvoiceEmail: named('invoiceEmail'),
     sendInvoiceReminder: named('invoiceReminder'),
+    sendAutopayFailed: named('autopayFailed'),
     sendFamilyPortalWelcome: named('familyPortalWelcome'),
     sendFamilyPasswordReset: named('familyPasswordReset'),
     sendFamilyPasswordSetByAdmin: named('familyPasswordSetByAdmin'),

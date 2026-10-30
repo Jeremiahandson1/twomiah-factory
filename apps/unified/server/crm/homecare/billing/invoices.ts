@@ -564,6 +564,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const { companyId } = who(c)
     const r = await releaseVisitInvoice(db, companyId, c.req.param('id'))
     if (!r) return fail(c, 404, 'Invoice not found')
+    // Item 3: a client with a card on file for autopay is charged as the invoice is issued (care_autopay; never throws).
+    await core.autopay.onIssued(companyId, c.req.param('id'))
     return one(c, { success: true, sentAt: r.sentAt })
   })
 
@@ -614,6 +616,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     }
     const tz = await core.time.timezone(companyId)
     await appendInvoiceNote(db, companyId, id, `\nEmailed to ${to} on ${ymdIn(new Date(), tz)}`, 'stamp')
+    await core.autopay.onIssued(companyId, id)
     return one(c, { success: true, sentTo: to })
   })
 
