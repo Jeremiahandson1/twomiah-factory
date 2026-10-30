@@ -29,5 +29,5 @@ one-visit-per-stop-per-day rule).
 ## Not checked
 
 - The screen (Rain day panel under the Route Board) has not been opened in a browser.
-- A Saturday rain pushed one day lands on Sunday; there is no "skip Sundays" yet.
+- Skip Sundays (follow-up 10/30): a business setting, ON by default ("Skip Sundays when moving visits", on the Rain day panel). A push that would land on a Sunday goes to Monday. Turned off, it lands on the Sunday as before. Not browser-clicked beyond the toggle itself.
 - Texts were proven to be queued correctly (who, what, when). Delivery through a live number was not tested (rule 8: no live API from a test).
