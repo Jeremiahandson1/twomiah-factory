@@ -453,6 +453,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings, today), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
     Object.assign(values, deposit)
+    // Who wrote it, for the per-person conversion report — only where the table has the column (additive for the templates).
+    if (currentUser.userId && 'createdById' in t.quote) values.createdById = currentUser.userId
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)

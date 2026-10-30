@@ -195,6 +195,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Job Reminders — NOT ready (2026-10-30). The reminder text and email the day before a job the office booked
   // (apps/unified server/crm/field/jobReminders.ts), per business, off until the owner switches it on, inside the
   // business's sending hours. Hidden until the owner has tested it; no plan, signup or Features page switches it on.
+  { id: 'team_revenue_reports', name: 'Team Revenue Reports', description: 'Revenue per tech, and how many quotes each rep and tech turns into work', category: 'Advanced', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['team revenue'] },
+  { id: 'plan_reports', name: 'Plan Reports', description: 'Service plans sold by rep, renewals coming due and plans that ended', category: 'Advanced', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['plan reports'] },
   { id: 'job_reminders', name: 'Job Reminders', description: 'Automatic reminder texts and emails before the jobs you book', category: 'Communication', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job reminders'] },
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 

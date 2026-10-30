@@ -275,6 +275,12 @@ export const serviceAgreement = pgTable('service_agreement', {
   autoSchedule: boolean('auto_schedule').default(false).notNull(),
   reminderDaysBefore: integer('reminder_days_before').default(7).notNull(),
   lastGeneratedJobId: text('last_generated_job_id'),
+  // Service-plan reports (0041): who sold the plan, and how and when it ended. All null on a plan made or ended before
+  // these were recorded; a report says so rather than guessing (an older ended plan is dated by its last change).
+  soldById: text('sold_by_id').references(() => user.id, { onDelete: 'set null' }),
+  endedAt: timestamp('ended_at'),
+  endedHow: text('ended_how'), // 'cancelled' (someone ended it) or 'expired' (its term ran out without a renewal)
+  cancelReason: text('cancel_reason'),
 }, (t) => [
   index('service_agreement_company_id_idx').on(t.companyId),
 ])

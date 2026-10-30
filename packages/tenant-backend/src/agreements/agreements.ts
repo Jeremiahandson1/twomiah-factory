@@ -229,7 +229,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
         continue
       }
-      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now }).where(stillEnded(agr)).returning()
+      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now, ...endStamp('expired', now) }).where(stillEnded(agr)).returning()
       if (expired) audit?.log({ action: 'expire', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
         metadata: { automatic: true, endDate: agr.endDate, renewalType: agr.renewalType,
           reason: agr.renewalType === 'auto' ? `ended ${Math.floor(lapsedDays)} days ago — past the ${RENEWAL_GRACE_DAYS}-day automatic renewal window` : 'manual renewal' } })
@@ -395,13 +395,23 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return out
   }
 
-  async function createAgreement(companyId: string, data: any) {
+  /**
+   * When and how a plan ended, for the plan reports — only on a database that has the columns (the standalone templates'
+   * tables do not), so this stays additive for them.
+   */
+  function endStamp(how: 'cancelled' | 'expired', at: Date, reason?: string) {
+    if (!('endedAt' in serviceAgreement)) return {}
+    const why = typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : undefined
+    return { endedAt: at, endedHow: how, ...(why && 'cancelReason' in serviceAgreement ? { cancelReason: why } : {}) }
+  }
+
+  async function createAgreement(companyId: string, data: any, soldById?: string | null) {
     const fields = await agreementFields(companyId, data ?? {}, null)
     const firstVisit = data?.firstVisitDate === undefined || data?.firstVisitDate === null || data?.firstVisitDate === '' ? undefined : String(data.firstVisitDate)
     if (firstVisit !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(firstVisit) || isNaN(Date.parse(firstVisit)))) throw new AgreementError('First visit must be a valid date.', 400)
     const agreement = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, serviceAgreement, serviceAgreement.number, serviceAgreement.companyId, companyId, { prefix: 'AGR', pad: 5 })
-      const [row] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active' }).returning()
+      const [row] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active', ...(soldById && 'soldById' in serviceAgreement ? { soldById } : {}) }).returning()
       return row
     })
     const visits = await scheduleTermVisits(agreement.id, companyId, { firstVisitDate: firstVisit })
@@ -560,7 +570,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
   }
 
-  async function cancelAgreement(agreementId: string, companyId: string, _reason?: string) {
+  async function cancelAgreement(agreementId: string, companyId: string, reason?: string) {
     const [agreement] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
@@ -579,7 +589,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         console.error('Failed to cancel Stripe subscription:', (err as Error).message)
       }
     }
-    const cancelled = await db.update(serviceAgreement).set({ status: 'cancelled', updatedAt: new Date() })
+    const cancelled = await db.update(serviceAgreement).set({ status: 'cancelled', updatedAt: new Date(), ...endStamp('cancelled', new Date(), reason) })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
     // "No more visits are planned from it" (the page's confirm): the visits still to come are cancelled, not left on the
     // calendar for a customer who has left. Work already under way or done stays.
@@ -1226,7 +1236,7 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   })
   app.post('/', requirePermission('agreements:create'), async (c: any) => {
     try {
-      return c.json(await service.createAgreement((c.get('user')).companyId, await c.req.json().catch(() => ({}))), 201)
+      return c.json(await service.createAgreement((c.get('user')).companyId, await c.req.json().catch(() => ({})), (c.get('user')).userId), 201)
     } catch (err) {
       if (err instanceof AgreementError) return c.json({ error: err.message }, err.status)
       throw err

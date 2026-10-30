@@ -71,6 +71,9 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
+  // Revenue per tech and quote conversion per person; service plans sold, due and ended. Both are reports:read on the server.
+  { to: '/crm/team-revenue', icon: Users, label: 'Team Revenue', features: ['team_revenue_reports'], permission: 'reports:read' },
+  { to: '/crm/plan-reports', icon: BarChart3, label: 'Plan Reports', features: ['plan_reports'], permission: 'reports:read' },
   // GET /api/leads/sources asks leads:read (the inbox's own permission — admin and manager; a technician, a stylist and a
   // viewer held contacts:read and were offered the business's leads; live role check, 2026-10-23): the item asks the same.
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], permission: 'leads:read' },

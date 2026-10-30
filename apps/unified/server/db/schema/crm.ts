@@ -365,6 +365,9 @@ export const quote = pgTable('quote', {
   // bill_kind 'deposit'), credited on the final invoice.
   depositType: text('deposit_type'),
   depositValue: decimal('deposit_value', { precision: 12, scale: 2 }),
+  // Who made the quote (the rep or tech who wrote it): quote conversion by person (field-service reports, 0041). Null on a
+  // quote made before this was recorded, and where a quote was made by the system.
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),

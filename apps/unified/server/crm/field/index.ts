@@ -19,6 +19,7 @@ import { createGeofencingRoutes } from './geofencing.ts'
 import { createWeatherRoutes } from './weather.ts'
 import { createPayrollRoutes } from './payroll.ts'
 import { createJobReminderRoutes } from './jobReminderRoutes.ts'
+import { createPlanReportRoutes, createTeamRevenueRoutes } from './teamReportRoutes.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
@@ -39,6 +40,9 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/weather', access: 'user', feature: ['jobs', 'projects', 'daily_logs'], router: createWeatherRoutes(d) },
     // The reminder before a job the office booked: its settings (crm/field/jobReminders.ts runs the timed pass). Not ready.
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
+    // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
+    { path: '/api/team-revenue', access: 'user', feature: 'team_revenue_reports', router: createTeamRevenueRoutes(d) },
+    { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: createPlanReportRoutes(d) },
     // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.
     ...(d.settings?.homecare ? [] : [{ path: '/api/payroll', access: 'user' as const, feature: 'time_tracking', router: createPayrollRoutes(d) }]),
   ]
