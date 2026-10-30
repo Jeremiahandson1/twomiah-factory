@@ -54,6 +54,14 @@ export interface JobsConfig {
    * series (packages/tenant-backend jobs.ts tables.jobSeries — the unified app). Default false. (live test 2026-10-22)
    */
   repeat?: boolean
+  /**
+   * A new job must be for a customer: the form marks the field required and asks for one before it posts, and a job saved
+   * without one shows a prompt to pick one when it is edited. The server refuses it too (tenant-backend jobs.ts
+   * options.requireCustomer) — this is only the polite half. Default false: a template's form is unchanged.
+   */
+  requireCustomer?: boolean
+  /** What this trade calls its customer, lower case ("customer", "client", "homeowner"). Used with requireCustomer. */
+  customerWord?: string
   /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
   aside?: (job: Record<string, any>) => import('react').ReactNode
 }
@@ -82,6 +90,8 @@ export function resolveJobsConfig(c?: JobsConfig) {
     timeZone: cfg.timeZone,
     billing: !!cfg.billing,
     repeat: !!cfg.repeat,
+    requireCustomer: !!cfg.requireCustomer,
+    customerWord: cfg.customerWord || 'customer',
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

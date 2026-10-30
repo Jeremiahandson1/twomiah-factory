@@ -241,6 +241,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
   const save = async (bookAnyway = false) => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
+    // a new job, or an edit that would empty a customer the job has — a job saved without one is edited freely
+    if (cfg.requireCustomer && !form.contactId && (!editing || (editing as any).contactId)) { toast.error(`Pick the ${cfg.customerWord} this ${cfg.labels.singular.toLowerCase()} is for.`); return }
     const repeating = !editing && cfg.repeat && repeat.choice !== 'none'
     if (repeating && !form.scheduledDate) { toast.error('Pick the scheduled date — the first visit — to make it repeat'); return }
     setSaving(true)
@@ -368,10 +370,13 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
               <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Everyone ticked is booked, checked for clashes and told — "Assigned To" leads.</p>
             </fieldset>
           )}
-          <Field label="Contact">
-            <select value={form.contactId} onChange={(e) => { setForm(applyContact(form, e.target.value)); loadForContact(e.target.value) }} className={inputCls}>
-              <option value="">Select...</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <Field label={cfg.requireCustomer ? `${cfg.customerWord[0].toUpperCase()}${cfg.customerWord.slice(1)} *` : 'Contact'}>
+            <select value={form.contactId} onChange={(e) => { setForm(applyContact(form, e.target.value)); loadForContact(e.target.value) }} className={inputCls} required={cfg.requireCustomer}>
+              <option value="">{cfg.requireCustomer ? `Pick a ${cfg.customerWord}...` : 'Select...'}</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {cfg.requireCustomer && !form.contactId && editing && (
+              <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-400">This {cfg.labels.singular.toLowerCase()} has no {cfg.customerWord} yet — pick one so it can be scheduled, billed and texted. You can still save other changes without one.</p>
+            )}
           </Field>
           {cfg.equipment && equipment.length > 0 && (
             <Field label={<span><Wrench className="w-3.5 h-3.5 inline mr-1" />Equipment</span>}>

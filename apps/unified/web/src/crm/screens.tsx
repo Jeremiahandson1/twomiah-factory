@@ -11,6 +11,7 @@ import {
   useAuth, useToast, MoneyStrip,
 } from '../shared'
 import { api } from '../api'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 import { verticalScreens } from './vertical'
 import OnboardingWizard, { wizardOpens } from './pages/OnboardingWizard'
 import type { ComponentType } from 'react'
@@ -85,7 +86,7 @@ export function ContactDetail() {
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
 // repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />

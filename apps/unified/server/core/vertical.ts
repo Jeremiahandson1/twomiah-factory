@@ -104,6 +104,8 @@ export interface CrmSettings {
     billing?: { prefix: string; pad: number; termsDays: number }
     /** Text the customer when a tech is on the way and when they arrive. */
     textArrival?: boolean
+    /** A new job must be for a customer (packages/tenant-backend jobs.ts options.requireCustomer); the vertical's own word comes from its vocabulary. */
+    requireCustomer?: boolean
   }
   quotes?: {
     /** Text the customer a link when a quote is sent. */

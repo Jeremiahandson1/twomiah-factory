@@ -101,6 +101,8 @@ export interface CrmModuleDeps {
   adsConnector: ReturnType<typeof createAdsConnector>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** What the vertical calls its customer (its vocabulary), for the words a refusal uses. Absent → "customer". */
+  customerWord?: string
   /** The website's photo store (served at /media): a menu item's photo goes into the site's library. */
   store?: PhotoStore
 }
@@ -109,7 +111,7 @@ export interface CrmModuleDeps {
 const gbpSecrets = { seal: encrypt, open: decrypt }
 
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
-  const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v } = deps
+  const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, customerWord } = deps
   const gbpDeps = { db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets, googleStillUsedBy: (email: string | null) => googleLinkSharing(db, email, { reviews: true }) }
   // A customer's service sites and the equipment at them (field service, landscaping, basic, bar).
   const sites = !!v.serviceSites
@@ -238,6 +240,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // a job billed on its own: POST /api/jobs/:id/invoice
       ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
+      ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
     },
   } as any)

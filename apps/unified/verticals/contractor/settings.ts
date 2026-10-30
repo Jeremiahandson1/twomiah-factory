@@ -1,5 +1,5 @@
 // General contractor (templates/crm, the base CRM). Its role names and permissions are the shared defaults.
-import { CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
+import { BASE_CRM, CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
 
 const contractor: VerticalSettings = {
   id: 'contractor',
@@ -11,6 +11,8 @@ const contractor: VerticalSettings = {
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
+  // A new job is for a customer (packages/tenant-backend jobs.ts options.requireCustomer).
+  crm: { ...BASE_CRM, jobs: { ...BASE_CRM.jobs, requireCustomer: true } },
   // templates/crm/frontend/src/*Config.ts
   screens: {
     // The menu's groups (web/src/navGroups.ts): a builder reads Sales, Projects, Field, Finance, then the website and bookings.
@@ -95,7 +97,8 @@ const contractor: VerticalSettings = {
     // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
     warranties: { namePlaceholder: 'e.g., Workmanship — one year', categoryPlaceholder: 'e.g., workmanship', claimTitlePlaceholder: 'e.g., Leak in master bathroom', claimLocationPlaceholder: 'e.g., Master bathroom, near shower' },
     contacts: { vendorPortalInvite: true, sections: { projects: true, quotes: true, portal: true } },
-    jobs: {},
+    // The form asks for the customer (server/core/vertical.ts crm.jobs.requireCustomer is the half that refuses).
+    jobs: { requireCustomer: true },
     invoicing: { clientLabel: 'Client', projects: true, jobs: true, quoteNamePlaceholder: 'e.g. Kitchen remodel — phase 1', pricebook: true },
     documents: { projects: true, markup: true, types: ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
     equipment: {

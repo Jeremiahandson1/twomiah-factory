@@ -50,7 +50,7 @@ const basic: VerticalSettings = {
   crm: {
     serviceSites: true,
     // No billing a job on its own: the basic copy's job table had no invoice link mounted (routes/jobs.ts).
-    jobs: { photos: true, textArrival: true },
+    jobs: { photos: true, textArrival: true, requireCustomer: true },
     quotes: { textOnSend: true },
     documents: { markup: false, types: DOC_TYPES },
     agreements: { recurrence: true },
@@ -75,7 +75,7 @@ const basic: VerticalSettings = {
       // No projects here (featureRegistry: the contractor's): no Projects list or count on a contact.
       sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true },
     },
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true },
     // The template's quote-name example was field service's ('AC Compressor Replacement'); a neutral one here.
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Standard package', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
