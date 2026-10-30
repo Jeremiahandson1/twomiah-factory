@@ -38,7 +38,7 @@ const link = async (token: string, path = '', method = 'GET', body?: unknown) =>
   json(await t.call(`/api/crew-link/${token}${path}`, { method, ...(body === undefined ? {} : { json: body }) }))
 const upload = (token: string, bytes: Buffer, type = 'image/png', photoType?: string) => {
   const form = new FormData()
-  form.set('photo', new File([bytes], 'p.png', { type }))
+  form.set('photo', new File([new Uint8Array(bytes)], 'p.png', { type }))
   if (photoType) form.set('photoType', photoType)
   return t.call(`/api/crew-link/${token}/photos`, { method: 'POST', body: form })
 }

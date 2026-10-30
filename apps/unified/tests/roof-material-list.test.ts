@@ -73,7 +73,7 @@ describe('the arithmetic', () => {
     expect(qty(buildMaterialList(30, {}, { wastePercent: 15 }).lines, 'shingles')).toBe(104)
     expect(qty(buildMaterialList(30, {}, { wastePercent: 0 }).lines, 'shingles')).toBe(90)
     expect(qty(buildMaterialList(30, {}, { bundlesPerSquare: 4 }).lines, 'shingles')).toBe(132)
-    expect(buildMaterialList(30, {}, { wastePercent: 'lots', bundlesPerSquare: -3, nope: 5 }).assumptions).toEqual(DEFAULT_ASSUMPTIONS)
+    expect(buildMaterialList(30, {}, { wastePercent: 'lots', bundlesPerSquare: -3, nope: 5 } as any).assumptions).toEqual(DEFAULT_ASSUMPTIONS)
     expect(buildMaterialList(30, {}, { ventType: 'none' }).lines.some((x) => x.code === 'vents')).toBe(false)
     expect(buildMaterialList(30, { ridgeFt: 60 }, { ventType: 'ridge' }).warnings.join(' ')).toContain('ridge vent')
   })
