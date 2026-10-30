@@ -6,7 +6,7 @@
 // caregiver's menu stays their own app, as in the template (AdminDashboard was the office's).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { Users, ClipboardList, FileSignature, Building2, HeartHandshake, Stethoscope, Pill, FilePen, FolderOpen } from 'lucide-react'
+import { Users, ClipboardList, FileSignature, Building2, HeartHandshake, Stethoscope, Pill, FilePen, FolderOpen, ClipboardCheck } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 import { OfficeOr, ClientDirectory } from '../office/OfficeReadOnly'
@@ -20,6 +20,7 @@ const ADLTracking = page(() => import('./ADLTracking'))
 const MedicationsManagement = page(() => import('./MedicationsManagement'))
 const FormBuilder = page(() => import('./FormBuilder'))
 const DocumentsManagement = page(() => import('./DocumentsManagement'))
+const SupervisoryVisits = page(() => import('./SupervisoryVisits'))
 
 const OFFICE = 'care-clients:update'
 // …and the read-only office seat's (care-office:read), which opens a read-only screen at the same address
@@ -37,6 +38,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-medications" path="medications" element={<MedicationsManagement />} />,
   <Route key="hc-form-builder" path="form-builder" element={<FormBuilder />} />,
   <Route key="hc-documents" path="documents" element={<DocumentsManagement />} />,
+  <Route key="hc-supervisory-visits" path="supervisory-visits" element={<SupervisoryVisits />} />,
 ]
 
 /** The template's labels (AdminDashboard.tsx NAV_SECTIONS); MENU orders them and sets the headings. */
@@ -50,6 +52,7 @@ export const nav: NavItem[] = [
   { to: '/crm/medications', icon: Pill, label: 'Medication reminders', permission: OFFICE },
   { to: '/crm/form-builder', icon: FilePen, label: 'Form Builder', permission: OFFICE },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', permission: OFFICE, features: ['documents'] },
+  { to: '/crm/supervisory-visits', icon: ClipboardCheck, label: 'Supervisory visits', permission: OFFICE, features: ['care_supervisory_visits'] },
 ]
 
 export const routePermissions: Record<string, string | string[]> = Object.fromEntries(nav.map((item) => [item.to, item.permission ?? OFFICE]))

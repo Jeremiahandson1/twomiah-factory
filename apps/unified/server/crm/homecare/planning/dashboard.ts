@@ -151,6 +151,7 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
     const { companyId } = c.get('user')
     const today = await core.time.today(companyId)
     const n = await actionItemCounts(d.db, companyId, today)
+    const sup = await core.supervisory.counts(companyId)
     const items = [
       { key: 'shift_approvals', label: 'Time entries awaiting approval', count: int(n.pendingApprovals), page: 'shift-approvals', severity: 'high' },
       { key: 'stuck_punches', label: 'Open clock-ins more than 24h old', count: int(n.stuckPunches), page: 'live-board', severity: 'high' },
@@ -160,6 +161,9 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
       { key: 'expiring_certs', label: 'Caregiver certifications expiring within 30 days', count: int(n.expiringCerts), page: 'compliance', severity: 'med' },
       { key: 'payroll_reviews', label: 'Payroll shift reviews still pending', count: int(n.pendingPayrollReviews), page: 'payroll', severity: 'med' },
       { key: 'incident_responses_due', label: 'Incident responses due within 3 days or overdue', count: int(n.incidentResponsesDue), page: 'incidents', severity: 'high' },
+      // Item 11 (care_supervisory_visits): zero — and so left out — for an agency without it.
+      { key: 'supervisory_overdue', label: 'Supervisory visits overdue', count: sup.overdue, page: 'supervisory-visits', severity: 'high' },
+      { key: 'supervisory_due_soon', label: 'Supervisory visits due within 14 days', count: sup.dueSoon, page: 'supervisory-visits', severity: 'med' },
     ].filter((item) => item.count > 0)
     return one(c, { items, totalCount: items.reduce((s, i) => s + i.count, 0) })
   })

@@ -186,6 +186,8 @@ export const clients = pgTable('clients', {
   requiredSkills: text('required_skills'),
   preferredCaregiverGender: text('preferred_caregiver_gender'),
   preferredLanguage: text('preferred_language'),
+  // Item 11 (care_supervisory_visits): this client's own days between supervisory visits; NULL = the agency's rule, 0 = none needed.
+  supervisoryIntervalDays: integer('supervisory_interval_days'),
   address: text('address'),
   city: text('city'),
   state: text('state'),
@@ -2903,4 +2905,25 @@ export const clientServices = pgTable('client_services', {
 }, (t) => [
   index('client_services_company_id_idx').on(t.companyId),
   index('idx_client_services_client').on(t.clientId),
+])
+
+// Item 11 (care_supervisory_visits): a supervisor's check-in on a client's care — in the home or by phone. The next one is
+// due the agency's rule (60 or 90 days) after the last (data/homecareSupervisory.ts). Plain-English form, no medical terms.
+export const supervisoryVisit = pgTable('supervisory_visit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  visitDate: date('visit_date').notNull(),
+  supervisorId: text('supervisor_id').references(() => user.id),
+  // the caregiver this visit looked at, when it was about one person's work
+  caregiverId: text('caregiver_id').references(() => user.id),
+  visitType: text('visit_type').default('home').notNull(),
+  clientFeedback: text('client_feedback'),
+  carePlanFollowed: boolean('care_plan_followed'),
+  caregiverFeedback: text('caregiver_feedback'),
+  concerns: text('concerns'),
+  followUpNotes: text('follow_up_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('supervisory_visit_company_client_idx').on(t.companyId, t.clientId, t.visitDate),
 ])

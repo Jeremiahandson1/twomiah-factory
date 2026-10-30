@@ -41,6 +41,7 @@ export const MENU: Array<[path: string, section: string]> = [
   ['/crm/clients', 'Operations'],
   ['/crm/client-onboarding', 'Operations'],
   ['/crm/client-documents', 'Operations'],
+  ['/crm/supervisory-visits', 'Operations'],
   ['/crm/referral-sources', 'Operations'],
   ['/crm/contacts', 'Operations'],
   ['/crm/care-plans', 'Operations'],
