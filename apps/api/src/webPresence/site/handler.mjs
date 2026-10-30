@@ -223,8 +223,9 @@ export function createHandler(deps) {
       const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
       const chk = checkResume({ name: file.name, size: file.size, head }, limitMb)
       if (!chk.ok) return json({ error: chk.error }, 415)
-      // The stored name never comes from the visitor.
-      file = new File([file], 'resume.' + chk.ext, { type: RESUME_TYPES[chk.ext] })
+      // The stored name never comes from the visitor. Built from the BYTES: a File made from another File kept the visitor's name
+      // on some runtimes (Bun 1.3 on CI sent "../../evil name.pdf"); bytes carry no name, on any runtime.
+      file = new File([await file.arrayBuffer()], 'resume.' + chk.ext, { type: RESUME_TYPES[chk.ext] })
     } else file = null
     await count('apply')
     const ok = await toNetlifyForms(req, 'apply', c.fields, file)

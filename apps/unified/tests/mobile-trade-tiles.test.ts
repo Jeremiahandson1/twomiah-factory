@@ -4,8 +4,14 @@
 // apps/unified/scripts/mutation-tiles.ts takes each condition out in turn and requires this file to fail.
 //
 //   cd apps/unified && bun test --timeout 240000 tests/mobile-trade-tiles.test.ts      (ONLY=salon,restaurant … to run some)
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll, setSystemTime } from 'bun:test'
 import { serve, homeAs, holdTilesToTheirLists, want, get, tilesFor, type Site } from './mobile-tiles-harness.ts'
+
+// The seeds place "today's" appointments at fixed UTC hours (09:00–15:00). Run before 09:00 UTC, Ann's 09:00 appointment was still
+// ahead — a live future booking — so she was rightly NOT due to rebook and the test failed every night (CI 10/30 00:18Z). The tile
+// rules read the clock from the code (new Date()), so the file runs at one fixed afternoon: the same answer whenever CI runs.
+setSystemTime(new Date('2026-06-17T18:00:00Z'))
+afterAll(() => { setSystemTime() })
 
 const ins = async (t: any, table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
 
