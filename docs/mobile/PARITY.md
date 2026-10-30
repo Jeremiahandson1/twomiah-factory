@@ -409,7 +409,7 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Scheduling | Route Optimizer | `/crm/route-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
 | Scheduling | Company Optimizer | `/crm/company-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
 | Daily care | ADL Tracking | `/crm/adl` | care-clients:update | — (core) | owner, admin, manager | none | C |
-| Daily care | Medication reminders | `/crm/medications` | care-clients:update | — (core) | owner, admin, manager | none | C |
+| Daily care | Medicine list & dose log | `/crm/medications` | care-clients:update | — (core) | owner, admin, manager | none | C |
 | Daily care | Visit Documentation | `/crm/visit-docs` | evv:delete | — (core) | owner, admin, manager | none | A — home care visits and shifts |
 | Daily care | Incidents | `/crm/incidents` | care-compliance:read | — (core) | owner, admin, manager | Report an incident (More) | C |
 | Daily care | Form Builder | `/crm/form-builder` | care-clients:update | — (core) | owner, admin, manager | none | D — account and set-up administration |
