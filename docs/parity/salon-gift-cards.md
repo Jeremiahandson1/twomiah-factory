@@ -26,7 +26,7 @@ What the two pages that were read say:
 | Spend at checkout | A payment by "gift card" on any open sale, part or all of the balance, alongside other payments. The card is debited in the same transaction as the payment, under locks: two tills cannot spend the same dollar | Built |
 | Refund | A refund by gift card goes back onto the card, no more than was paid that way; a voided card cannot take money back (refused) | Built |
 | Sell to clients online / from the website | **Not built.** Needs a public purchase page and a charge on the salon's own Stripe account (the rest of the money machinery for this is in #1/#2). Left out rather than half-built | **Not built** |
-| Card reader / terminal for the sale | Arrives with checkout at the chair (#7). Until then "card" means taken on a separate machine and recorded here | Waits on #7 |
+| Card reader / terminal for the sale | Built with checkout at the chair (#7, salon-chair-checkout.md): a card reader on the salon's own Stripe account, and a split with a gift card. "Card" when selling a gift card still means taken on a separate machine and recorded here | **Matches** (via #7) |
 
 ## Decisions and limits to know
 

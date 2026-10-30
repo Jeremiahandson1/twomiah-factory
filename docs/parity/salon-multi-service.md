@@ -17,8 +17,8 @@ Vagaro, Boulevard, GlossGenius and Mindbody: no help-centre page on multi-servic
 | One appointment, one date and time (Square) | Services run one after another from the visit's start; a service can be given its own start (minutes into the visit) through the API, so two stylists can work at once | **Matches, and goes further** (the screen offers the sequential case) |
 | Service gaps carry over (Fresha: processing per service) | Each service keeps its menu gap (#4) and holds its stylist only outside it | **Matches** |
 | One checkout for the visit (Square) | Completing the visit raises ONE bill with a line per service and the sum as the total; a total typed over the parts becomes a single line | **Matches** |
-| Tips split by each staff member's share (Square) | Tips arrive with checkout at the chair (#7) | **Waits on #7** |
-| A client's request for a team member marked on the service (Fresha's heart) | Needs #6 (client picks a stylist online) | **Waits on #6** |
+| Tips split by each staff member's share (Square) | Tips arrive with checkout at the chair (#7): the **whole** tip goes to the visit's stylist; a split between the stylists of a multi-stylist visit is not built | **Not built** |
+| A client's request for a team member marked on the service (Fresha's heart) | A client's stylist choice is part of online booking (#6); marking it per service on a multi-service visit is not built | **Not built** |
 | Edit one service of a booked visit | Move, check in, complete and cancel work on the whole visit; adding, removing, re-timing or re-assigning a service is refused in words (409 VISIT_HAS_SERVICES) — cancel and rebook | **Not built** |
 | Online booking of several services at once | Online booking still takes one service | **Not built** |
 | One visit record per service (each stylist's own formula) | One visit record per visit, under the first service | **Not built** |

@@ -22,9 +22,9 @@ Vagaro's and GlossGenius's commission help pages were searched for and not reach
 | Earned automatically, with a statement per person (Square: reports) | Earned when the visit's bill is paid in full, from the date the plan was switched on (never old sales); one line per bill per plan per stylist, however often the bill is looked at; approve, mark paid, dispute, void and a per-person statement are the shared ones | **Matches** |
 | Discounts (Square: not stated generally) | A discount on the bill lowers each line in proportion; tax is never commission | **Beats** (stated, tested) |
 | Refunds reverse commission (Prospyr: in proportion to the refund) | A bill refunded in full cancels an unpaid commission and takes back a paid-out one with a new negative line; a partial refund leaves it standing | **Matches in part**: no proportional reversal |
-| Tips go to the attributed team member (Square) | Tips are not commission; they come with checkout at the chair (#7) | **Waits on #7** |
+| Tips go to the attributed team member (Square) | Tips are not commission. Checkout at the chair (#7) records the tip for the visit's stylist and the Client reports › Tips by stylist report lists them; no tip is added to a commission | **Differs** |
 | Import into payroll (Square Payroll) | — | **Not doing** (the salon exports a statement; no payroll product here) |
-| A commission report across the salon | Per-person statement and totals by person exist; the salon-wide report comes with #11 | **Waits on #11** |
+| A commission report across the salon | Per-person statements and totals by person exist (Commissions). Client reports (#11) does not add a salon-wide commission report; it links here | **Not built** |
 
 ## Decisions and limits to know
 

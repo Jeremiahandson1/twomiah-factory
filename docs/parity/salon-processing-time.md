@@ -18,7 +18,7 @@ Vagaro, Boulevard and GlossGenius: no help-centre page on processing time was re
 | Adjust or remove the gap on one appointment (Fresha, Square) | The desk can set or clear the gap on one appointment (create or edit) | **Matches** |
 | Another client can be booked into the gap (Fresha) | At the desk and online. A cut at 13:00 fits inside a colour that processes 13:00–14:00 for the same stylist; a cut that would touch the hands-on stretches is refused (409 APPOINTMENT_CONFLICT) | **Matches** |
 | Online booking respects the gap | Online times offered for a stylist account for other clients' gaps | **Matches** |
-| Shown on the calendar as a faded/partial segment (Fresha, Square) | Not yet — the Book's time grid (#3) draws it | **Waits on #3** |
+| Shown on the calendar as a faded/partial segment (Fresha, Square) | Drawn on the Book's time grid (#3) as a hatched stretch inside the card (see salon-book-grid.md) | **Matches** |
 | Several gap kinds per service: processing, blocked, extra servicing; reorderable (Fresha) | One gap per service | **Not built** |
 | A service can carry more than one gap in a sequence | No | **Not built** |
 
