@@ -12,6 +12,8 @@ import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling
 import { makeRouteVisits, retimeRouteVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
 import { createRoutingService } from '../field/routingService.ts'
 import { createGeocodingService } from '../field/geocodingService.ts'
+import { createJobCostingService } from '../field/jobCostingService.ts'
+import { routeProfit } from '../../data/routeProfit.ts'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -366,6 +368,29 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     if (!money) return listAll(c, rows.map((r: any) => (({ estimatedValue: _v, ...rest }) => rest)(r)))
     const { billed } = await billedVisits(db, u.companyId, rows.map((r: any) => r.id))
     return listAll(c, rows.map((r: any) => ({ ...r, invoice: billed.get(r.id) ?? null })))
+  })
+
+  // GET /api/recurring-routes/:id/profit?from=&to= — what the route earned against what it cost (default: the last 30 days, as
+  // Jobber's rolling bar). Labour cost and margin are not technician data: reports:read, as job costing, and the billed
+  // figures only for a seat that reads invoices.
+  app.get('/:id/profit', requirePermission('reports:read'), async (c) => {
+    const u = c.get('user')
+    const [route] = await db.select({ id: recurringRoute.id, name: recurringRoute.name }).from(recurringRoute)
+      .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
+    if (!route) return fail(c, 404, 'Route not found')
+    const to = c.req.query('to') || todayUtc()
+    const from = c.req.query('from') || new Date(Date.parse(to) - 29 * 86_400_000).toISOString().slice(0, 10)
+    const DAYS = /^\d{4}-\d{2}-\d{2}$/
+    if (!DAYS.test(from) || !DAYS.test(to) || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return fail(c, 400, 'Give the days as YYYY-MM-DD.')
+    if (to < from) return fail(c, 400, 'The last day comes before the first. Swap them.')
+    if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) return fail(c, 400, 'Pick a span of a year or less.')
+    const costing = createJobCostingService(d)
+    const out = await routeProfit(db, u.companyId, route.id, { from, to }, costing.costsByJob)
+    if (!(await maySeeMoney(c))) {
+      const hide = ({ billed: _b, unbilled: _u, ...rest }: any) => rest
+      return one(c, { route: route.name, from, to, totals: hide(out.totals), properties: out.properties.map(hide) })
+    }
+    return one(c, { route: route.name, from, to, ...out })
   })
 
   // ---- Best order: shown, then applied by the reorder above (nothing here changes the board) ----
