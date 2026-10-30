@@ -249,6 +249,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Store low-stock alerts — NOT ready (2026-10-30). A threshold per option, a Low stock filter and tile on Products, and ONE email
   // to the owner when a sale takes an option down to it. Hidden until the owner has run it on the live shop.
   { id: 'store_low_stock', name: 'Store Stock Alerts', description: 'Set a level per product option; get one email when a sale takes it down to that level, and see what is running low', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store product writer — NOT ready (2026-10-30). Drafts a product's description, search description and photo descriptions in a chosen
+  // tone for the owner to read and change; nothing is saved until the owner saves. Hidden until the owner has run it on the live shop.
+  { id: 'store_ai_writer', name: 'Store Product Writer', description: 'Draft a product description, search-result text and photo descriptions in a tone you pick, for you to edit before saving', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance
