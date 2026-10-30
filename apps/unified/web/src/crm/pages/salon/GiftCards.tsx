@@ -20,7 +20,8 @@ const METHODS = [{ value: 'cash', label: 'Cash' }, { value: 'card', label: 'Card
 
 export default function GiftCardsPage() {
   const { can, known } = usePermissions()
-  const maySell = known && can('invoices:create') && can('invoices:update')
+  // The front desk sells and takes cards with its own right (giftcards:sell); the server asks the same.
+  const maySell = known && (can('giftcards:sell') || (can('invoices:create') && can('invoices:update')))
   const [cards, setCards] = useState<Card[] | null>(null)
   const [owed, setOwed] = useState(0)
   const [q, setQ] = useState('')
@@ -232,7 +233,7 @@ export function GiftCardPayPanel({ invoiceId, status, balance, reload }: { invoi
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
   const owing = balance == null ? status !== 'paid' : Number(balance) > 0.005
-  if (!hasFeature('salon_gift_cards') || !(known && can('invoices:update')) || status === 'void' || status === 'draft' || !owing) return null
+  if (!hasFeature('salon_gift_cards') || !(known && (can('invoices:update') || can('giftcards:sell'))) || status === 'void' || status === 'draft' || !owing) return null
 
   const look = async () => {
     setProblem(''); setCard(null); setBusy(true)

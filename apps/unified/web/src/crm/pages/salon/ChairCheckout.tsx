@@ -40,7 +40,7 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const on = hasFeature('chair_checkout') && known && can('invoices:update')
+  const on = hasFeature('chair_checkout') && known && (can('invoices:update') || can('cardreader:use'))
   const owing = balance == null ? status !== 'paid' : Number(balance) > 0.005
   const dueCents = balance == null ? 0 : Math.round(Number(balance) * 100)
   const pending = charge?.status === 'pending'
@@ -185,7 +185,7 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
   const [qty, setQty] = useState('1')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
-  const on = hasFeature('salon_retail') && known && can('invoices:update') && !CLOSED.has(status)
+  const on = hasFeature('salon_retail') && known && (can('invoices:update') || can('retail:sell')) && !CLOSED.has(status)
   const load = useCallback(() => { api.get('/api/salon-retail').then((r: { products: Product[] }) => setProducts(r.products)).catch(() => setProducts([])) }, [])
   useEffect(() => { if (on) load() }, [on, load])
   if (!on) return null

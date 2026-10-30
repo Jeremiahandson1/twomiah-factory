@@ -392,6 +392,9 @@ export type ChairCheckout = ReturnType<typeof createChairCheckout>
 /** /api/chair-checkout (behind `chair_checkout`). Taking a card asks the right a payment asks; pairing a reader is configuration. */
 export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
   const { requirePermission } = d.permissions
+  // The front desk takes a card with its own narrow right (`cardreader:use`) — not pairing readers, not refunds, not general invoice editing.
+  // Everyone who held invoices:update before (manager, admin, owner) passes exactly as they did.
+  const mayCharge = d.permissions.requireAnyPermission(['invoices:update', 'cardreader:use'])
   const app = new Hono<AppEnv>()
 
   async function act(c: any, status: 200 | 201, fn: () => Promise<object>) {
@@ -404,7 +407,7 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
   }
   const body = async (c: any) => (await c.req.json().catch(() => ({}))) as Record<string, unknown>
 
-  app.get('/readers', requirePermission('invoices:update'), async (c) => {
+  app.get('/readers', mayCharge, async (c) => {
     c.header('Cache-Control', 'no-store')
     return act(c, 200, async () => ({ readers: await t.listReaders((c.get('user') as any).companyId, c.req.query('live') === '1') }))
   })
@@ -426,16 +429,16 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
     })
   })
 
-  app.post('/charges', requirePermission('invoices:update'), async (c) => {
+  app.post('/charges', mayCharge, async (c) => {
     const u = c.get('user') as any
     const b = await body(c)
     return act(c, 201, async () => ({ charge: await t.startCharge(u, b) }))
   })
-  app.get('/charges/:id', requirePermission('invoices:update'), async (c) => {
+  app.get('/charges/:id', mayCharge, async (c) => {
     c.header('Cache-Control', 'no-store')
     return act(c, 200, async () => ({ charge: await t.pollCharge((c.get('user') as any).companyId, c.req.param('id')) }))
   })
-  app.get('/sales/:invoiceId/charge', requirePermission('invoices:update'), async (c) => {
+  app.get('/sales/:invoiceId/charge', mayCharge, async (c) => {
     c.header('Cache-Control', 'no-store')
     return act(c, 200, async () => ({ charge: await t.latestFor((c.get('user') as any).companyId, c.req.param('invoiceId')) }))
   })
@@ -443,7 +446,7 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
     c.header('Cache-Control', 'no-store')
     return act(c, 200, async () => ({ payments: await t.paymentsFor((c.get('user') as any).companyId, c.req.param('invoiceId')) }))
   })
-  app.post('/charges/:id/cancel', requirePermission('invoices:update'), async (c) => {
+  app.post('/charges/:id/cancel', mayCharge, async (c) => {
     const u = c.get('user') as any
     return act(c, 200, async () => ({ charge: await t.cancelCharge(u, c.req.param('id')) }))
   })

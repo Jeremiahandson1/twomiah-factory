@@ -19,7 +19,7 @@ export default function RetailPage() {
   const navigate = useNavigate()
   const mayAdd = known && can('inventory:create')
   const mayEdit = known && can('inventory:update')
-  const maySell = known && can('invoices:create') && can('invoices:update')
+  const maySell = known && ((can('invoices:create') || can('retail:sell')) && (can('invoices:update') || can('retail:sell')))
   const [products, setProducts] = useState<Product[] | null>(null)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Product | 'new' | null>(null)

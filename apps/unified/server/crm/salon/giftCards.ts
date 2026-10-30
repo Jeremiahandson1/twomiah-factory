@@ -275,6 +275,11 @@ export type SalonGiftCards = ReturnType<typeof createSalonGiftCards>
 export function createSalonGiftCardRoutes(d: CrmDeps, g: SalonGiftCards) {
   const { db, logger, audit } = d
   const { requirePermission } = d.permissions
+  // The front desk sells and takes cards with its own narrow right (`giftcards:sell`, verticals/salon/settings.ts) — not general invoice
+  // editing. Everyone who held invoices:create + invoices:update before (manager, admin, owner) passes exactly as they did.
+  const { requireAnyPermission } = d.permissions
+  const maySellCard = requireAnyPermission(['invoices:create', 'giftcards:sell'])
+  const mayTake = requireAnyPermission(['invoices:update', 'giftcards:sell'])
   const app = new Hono<AppEnv>()
 
   async function act(c: any, status: 200 | 201, fn: () => Promise<object>) {
@@ -292,7 +297,7 @@ export function createSalonGiftCardRoutes(d: CrmDeps, g: SalonGiftCards) {
     message: r.message, soldByName: r.soldByName, createdAt: r.createdAt, voidReason: r.voidReason,
   })
 
-  app.get('/lookup', requirePermission('invoices:update'), async (c) => {
+  app.get('/lookup', mayTake, async (c) => {
     const u = c.get('user') as any
     c.header('Cache-Control', 'no-store')
     const card = await g.findCard(u.companyId, c.req.query('code') || '')
@@ -317,7 +322,7 @@ export function createSalonGiftCardRoutes(d: CrmDeps, g: SalonGiftCards) {
   })
 
   // Selling takes a new sale AND a payment on it, so both rights.
-  app.post('/sell', requirePermission('invoices:create'), requirePermission('invoices:update'), async (c) => {
+  app.post('/sell', maySellCard, mayTake, async (c) => {
     const u = c.get('user') as any
     const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
     return act(c, 201, async () => {
@@ -326,7 +331,7 @@ export function createSalonGiftCardRoutes(d: CrmDeps, g: SalonGiftCards) {
     })
   })
 
-  app.post('/redeem', requirePermission('invoices:update'), async (c) => {
+  app.post('/redeem', mayTake, async (c) => {
     const u = c.get('user') as any
     const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
     return act(c, 200, () => g.redeem(u.companyId, b as any, u))

@@ -251,6 +251,11 @@ export type SalonRetail = ReturnType<typeof createSalonRetail>
 /** /api/salon-retail (behind `salon_retail`). Selling asks the rights a sale does; the catalogue and the count ask the inventory rights a manager holds. */
 export function createSalonRetailRoutes(d: CrmDeps, r: SalonRetail) {
   const { requirePermission } = d.permissions
+  // The front desk sells retail with its own narrow right (`retail:sell`) — not the catalogue (inventory) and not general invoice editing.
+  // Everyone who held invoices:create / invoices:update before (manager, admin, owner) passes exactly as they did.
+  const { requireAnyPermission } = d.permissions
+  const maySell = requireAnyPermission(['invoices:update', 'retail:sell'])
+  const mayStartSale = requireAnyPermission(['invoices:create', 'retail:sell'])
   const app = new Hono<AppEnv>()
 
   async function act(c: any, status: 200 | 201, fn: () => Promise<object>) {
@@ -305,19 +310,19 @@ export function createSalonRetailRoutes(d: CrmDeps, r: SalonRetail) {
     })
   })
   // On a sale that is already open.
-  app.post('/sell', requirePermission('invoices:update'), async (c) => {
+  app.post('/sell', maySell, async (c) => {
     const u = c.get('user') as any
     const b = await body(c)
     if (!b.invoiceId) return fail(c, 400, 'Which sale?', 'NO_SALE', { invoiceId: 'Which sale?' })
     return act(c, 200, () => r.sell(u.companyId, b as any, u))
   })
   // On a new sale (a walk-in buying a bottle): a sale is made, so both rights.
-  app.post('/sell/new', requirePermission('invoices:create'), requirePermission('invoices:update'), async (c) => {
+  app.post('/sell/new', mayStartSale, maySell, async (c) => {
     const u = c.get('user') as any
     const b = await body(c)
     return act(c, 201, () => r.sell(u.companyId, { contactId: b.contactId, items: b.items }, u))
   })
-  app.delete('/lines/:lineId', requirePermission('invoices:update'), async (c) => {
+  app.delete('/lines/:lineId', maySell, async (c) => {
     const u = c.get('user') as any
     return act(c, 200, () => r.removeLine(u.companyId, c.req.param('lineId'), u))
   })
