@@ -16,6 +16,9 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   caregiverId: text('caregiver_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
   notes: text('notes'),
   capabilities: text('capabilities'),
+  // Item 5 (care_match_prefs): what the matcher compares to a client's gender and language preferences.
+  gender: text('gender'),
+  languages: text('languages'),
   limitations: text('limitations'),
   preferredHours: text('preferred_hours'),
   availableMon: boolean('available_mon').default(true).notNull(),
@@ -179,6 +182,10 @@ export const clients = pgTable('clients', {
   dateOfBirth: date('date_of_birth'),
   ssnEncrypted: text('ssn_encrypted'),
   gender: text('gender'),
+  // Item 5 (care_match_prefs): what this client needs from a caregiver — skills (a comma list), a gender, a language.
+  requiredSkills: text('required_skills'),
+  preferredCaregiverGender: text('preferred_caregiver_gender'),
+  preferredLanguage: text('preferred_language'),
   address: text('address'),
   city: text('city'),
   state: text('state'),

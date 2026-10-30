@@ -359,6 +359,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'care_family_texts', name: 'Family arrival texts', description: 'A text to relatives who asked for it when the caregiver arrives and when they leave, from the agency\'s own number', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
   { id: 'care_required_tasks', name: 'Required tasks before clock-out', description: 'Mark a client\'s task required: the caregiver cannot clock out until it is done, or skipped with a reason', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
   { id: 'care_shift_repeats', name: 'Monthly and every-few-weeks shifts', description: 'Repeat a shift monthly (every 2nd Tuesday) or every 3 to 12 weeks', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
+  { id: 'care_match_prefs', name: 'Match on skills, gender and language', description: 'Suggested caregivers weigh the skills a client needs, a gender preference and a language, and say why for each', category: 'Home Care', core: false, templates: ['crm-homecare'], hidden: true },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))

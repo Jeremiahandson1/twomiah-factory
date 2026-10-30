@@ -17,6 +17,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
+import { MATCH_PREFS_FEATURE, matchTraits, splitList } from '../core/matchTraits.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { hms, schedTs, shiftHours, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -218,6 +219,8 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
     const sMin = toMin(startTime), eMin = toMin(endTime)
     // A caregiver whose credential has expired by that day is flagged (never hidden): the office decides.
     const expired = await core.certReminders.expiredFor(companyId, cgs.map((cg) => String(cg.id)), validDate || await core.time.today(companyId))
+    // What the client needs (skills, a gender, a language) against what each caregiver has — only for an agency with care_match_prefs.
+    const matchPrefs = await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE)
 
     const ranked = cgs.map((cg) => {
       const weeklyHours = weekly[cg.id] || 0
@@ -243,6 +246,8 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       if (approachingOvertime) score -= 10
       const expiredCertifications = expired[String(cg.id)] || []
       if (expiredCertifications.length) score -= 150
+      const traits = matchPrefs ? matchTraits(client, cg) : null
+      if (traits) score += traits.scoreDelta
       if (distance !== null) { if (distance <= 5) score += 20; else if (distance <= 10) score += 10; else if (distance <= 20) score += 5; else if (distance > 30) score -= 15 }
       if (dayCol) { if (cg.dayAvailable === false) score -= 50; else if (timeFits === true) score += 15; else if (timeFits === false) score -= 20 }
       const reasons: string[] = []
@@ -253,6 +258,7 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       else if (visitCount > 0) reasons.push(`${visitCount} prior visits`)
       if (hasConflict) reasons.push('⚠️ Conflicting shift')
       for (const e of expiredCertifications) reasons.push(`⚠️ Expired credential: ${e}`)
+      if (traits) reasons.push(...traits.reasons)
       if (!isAvailable) reasons.push('⚠️ Marked unavailable')
       if (wouldExceedHours) reasons.push('⚠️ Exceeds max hours')
       else if (approachingOvertime) reasons.push(`⚠️ ${weeklyHours.toFixed(0)}h this week`)
@@ -268,10 +274,12 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const tier = score >= 130 ? 'excellent' : score >= 100 ? 'good' : score >= 60 ? 'maybe' : 'avoid'
       return { ...cg, weeklyHours: weeklyHours.toFixed(2), maxHours, visitCount, hasConflict, isAvailable, isPreferred, isDnu, isBlackedOut,
         wouldExceedHours, approachingOvertime, distance: distance !== null ? distance.toFixed(1) : null, estimatedDriveTime: distance !== null ? Math.round(distance * 2) : null,
-        hasRequiredSkills: true, missingCertifications: [], expiredCertifications, score: Math.round(score), tier, reasons }
+        hasRequiredSkills: traits ? traits.hasRequiredSkills : true, missingSkills: traits ? traits.missingSkills : [],
+        genderOk: traits ? traits.genderOk : null, languageOk: traits ? traits.languageOk : null,
+        missingCertifications: [], expiredCertifications, score: Math.round(score), tier, reasons }
     })
     const out = (c.req.query('includeBlocked') === 'true' ? ranked : ranked.filter((x) => !x.isDnu && !x.isBlackedOut)).sort((a, b) => b.score - a.score)
-    return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [] })
+    return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [], requiredSkills: matchPrefs ? splitList(client.requiredSkills) : [] })
   })
 
   // POST /bulk-create { caregiverId, clientId, template: [{dayOfWeek,startTime,endTime}], weeks, startDate, notes }

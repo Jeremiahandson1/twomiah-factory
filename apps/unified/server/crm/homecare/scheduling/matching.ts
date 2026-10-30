@@ -23,6 +23,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { MATCH_PREFS_FEATURE, normGender, splitList } from '../core/matchTraits.ts'
 import { who } from './shared.ts'
 
 const asList = (c: any, rows: any[]) => listAll(c, rows)
@@ -145,6 +146,70 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
     const [row] = await db.delete(clientAssignments)
       .where(and(eq(clientAssignments.id, c.req.param('id')), eq(clientAssignments.companyId, companyId))).returning()
     if (!row) return fail(c, 404, 'Restriction not found')
+    return done(c)
+  })
+
+  // ── Match preferences (item 5, care_match_prefs, not ready): what the matcher compares ──────────────────────────────
+  // A caregiver's gender and languages (caregiver_profiles; the skills are the capabilities above), and a client's needed
+  // skills, preferred caregiver gender and preferred language (on the client). Office writes only; saving is refused for
+  // an agency without the feature, so no preference can exist that the screens do not show.
+  const notOn = (c: any) => fail(c, 400, 'Matching on skills, gender and language is not switched on for this agency yet.', 'match_prefs_not_available')
+
+  // GET /api/matching/caregiver/:id/traits
+  app.get('/caregiver/:id/traits', perm('care-schedule:read'), async (c) => {
+    const { companyId } = who(c)
+    const [row] = await db.select({ gender: caregiverProfiles.gender, languages: caregiverProfiles.languages, capabilities: caregiverProfiles.capabilities })
+      .from(caregiverProfiles).where(and(eq(caregiverProfiles.caregiverId, c.req.param('id')!), eq(caregiverProfiles.companyId, companyId))).limit(1)
+    return one(c, { caregiverId: c.req.param('id'), gender: row?.gender ?? null, languages: splitList(row?.languages), skills: splitList(row?.capabilities) })
+  })
+
+  // PUT /api/matching/caregiver/:id/traits { gender?: 'female'|'male'|'', languages?: string[]|string }
+  app.put('/caregiver/:id/traits', perm('care-schedule:update'), async (c) => {
+    const { companyId } = who(c)
+    if (!(await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE))) return notOn(c)
+    const caregiverId = c.req.param('id')!
+    const b = await c.req.json().catch(() => ({})) as any
+    const [person] = await db.select({ id: user.id }).from(user).where(and(eq(user.id, caregiverId), eq(user.companyId, companyId))).limit(1)
+    if (!person) return fail(c, 404, 'Caregiver not found')
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (b.gender !== undefined) {
+      const g = normGender(b.gender)
+      if (b.gender && !g) return fail(c, 400, 'Gender must be female or male (or left blank).', 'bad_gender')
+      set.gender = g
+    }
+    if (b.languages !== undefined) set.languages = splitList(b.languages).join(', ') || null
+    const [existing] = await db.select({ id: caregiverProfiles.id }).from(caregiverProfiles)
+      .where(and(eq(caregiverProfiles.caregiverId, caregiverId), eq(caregiverProfiles.companyId, companyId))).limit(1)
+    if (existing) await db.update(caregiverProfiles).set(set).where(eq(caregiverProfiles.id, existing.id))
+    else await db.insert(caregiverProfiles).values({ companyId, caregiverId, ...set } as any)
+    return done(c)
+  })
+
+  // GET /api/matching/client/:id/match-prefs
+  app.get('/client/:id/match-prefs', ...clientRead, async (c) => {
+    const { companyId } = who(c)
+    const [row] = await db.select({ id: clients.id, requiredSkills: clients.requiredSkills, preferredCaregiverGender: clients.preferredCaregiverGender, preferredLanguage: clients.preferredLanguage })
+      .from(clients).where(and(eq(clients.id, c.req.param('id')!), eq(clients.companyId, companyId))).limit(1)
+    if (!row) return fail(c, 404, 'Client not found')
+    return one(c, { clientId: row.id, requiredSkills: splitList(row.requiredSkills), caregiverGender: row.preferredCaregiverGender ?? null, language: row.preferredLanguage ?? null })
+  })
+
+  // PUT /api/matching/client/:id/match-prefs { requiredSkills?: string[]|string, caregiverGender?: 'female'|'male'|'', language?: string }
+  app.put('/client/:id/match-prefs', perm('care-clients:update'), async (c) => {
+    const { companyId } = who(c)
+    if (!(await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE))) return notOn(c)
+    const b = await c.req.json().catch(() => ({})) as any
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (b.requiredSkills !== undefined) set.requiredSkills = splitList(b.requiredSkills).join(', ') || null
+    if (b.caregiverGender !== undefined) {
+      const g = normGender(b.caregiverGender)
+      if (b.caregiverGender && !g) return fail(c, 400, 'Preferred caregiver gender must be female or male (or left blank).', 'bad_gender')
+      set.preferredCaregiverGender = g
+    }
+    if (b.language !== undefined) set.preferredLanguage = String(b.language ?? '').trim().slice(0, 60) || null
+    const [row] = await db.update(clients).set(set as any)
+      .where(and(eq(clients.id, c.req.param('id')!), eq(clients.companyId, companyId))).returning({ id: clients.id })
+    if (!row) return fail(c, 404, 'Client not found')
     return done(c)
   })
 

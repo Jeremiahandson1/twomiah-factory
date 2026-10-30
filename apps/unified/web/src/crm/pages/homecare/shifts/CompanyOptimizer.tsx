@@ -27,6 +27,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { CHIP, EDGE, INK, SOLID, type Tone } from './ui'
 import { useMay } from '../lib/useMay'
+import { useAuth } from '../../../../shared'
 
 interface Person { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null; weeklyAuthorizedUnits?: number | null }
 interface Restriction { id: string; caregiverId: string; notes: string | null }
@@ -44,6 +45,8 @@ type MsgType = 'success' | 'error' | 'warning' | ''
 const CompanyOptimizer = () => {
   // Skills, restrictions and the optimizer are all care-schedule:update (scheduling/matching.ts) — lib/useMay.ts.
   const may = useMay('care-schedule')
+  // Item 5: gender, languages and what a client needs — shown only when the agency has care_match_prefs.
+  const matchPrefs = useAuth().hasFeature('care_match_prefs')
   const [activeTab, setActiveTab] = useState<Tab>('skills')
   const [capabilities, setCapabilities] = useState<string[]>([])
   const [caregivers, setCaregivers] = useState<Person[]>([])
@@ -55,6 +58,8 @@ const CompanyOptimizer = () => {
   const [cgCaps, setCgCaps] = useState<string[]>([])
   const [cgCapsLoading, setCgCapsLoading] = useState(false)
 
+  const [cgTraits, setCgTraits] = useState({ gender: '', languages: '' })
+  const [clientPrefs, setClientPrefs] = useState({ requiredSkills: [] as string[], caregiverGender: '', language: '' })
   const [restrictionsClient, setRestrictionsClient] = useState('')
   const [restrictions, setRestrictions] = useState<Restriction[]>([])
   const [newRestriction, setNewRestriction] = useState({ caregiverId: '', reason: '' })
@@ -86,6 +91,33 @@ const CompanyOptimizer = () => {
       .then((r) => setCgCaps(rows<string>(r).map(String)))
       .catch(console.error).finally(() => setCgCapsLoading(false))
   }, [selectedCg])
+
+  useEffect(() => {
+    if (!matchPrefs || !selectedCg) { setCgTraits({ gender: '', languages: '' }); return }
+    api.get(`/api/matching/caregiver/${encodeURIComponent(selectedCg)}/traits`)
+      .then((r) => { const t = r as { gender?: string | null; languages?: string[] }; setCgTraits({ gender: t.gender || '', languages: (t.languages || []).join(', ') }) })
+      .catch(console.error)
+  }, [selectedCg, matchPrefs])
+
+  useEffect(() => {
+    if (!matchPrefs || !restrictionsClient) { setClientPrefs({ requiredSkills: [], caregiverGender: '', language: '' }); return }
+    api.get(`/api/matching/client/${encodeURIComponent(restrictionsClient)}/match-prefs`)
+      .then((r) => { const p = r as { requiredSkills?: string[]; caregiverGender?: string | null; language?: string | null }; setClientPrefs({ requiredSkills: p.requiredSkills || [], caregiverGender: p.caregiverGender || '', language: p.language || '' }) })
+      .catch(console.error)
+  }, [restrictionsClient, matchPrefs])
+
+  const saveCgTraits = async () => {
+    try {
+      await api.put(`/api/matching/caregiver/${encodeURIComponent(selectedCg)}/traits`, { gender: cgTraits.gender, languages: cgTraits.languages })
+      showMsg('Saved')
+    } catch (e) { showMsg(errorMessage(e), 'error') }
+  }
+  const saveClientPrefs = async () => {
+    try {
+      await api.put(`/api/matching/client/${encodeURIComponent(restrictionsClient)}/match-prefs`, clientPrefs)
+      showMsg('Saved')
+    } catch (e) { showMsg(errorMessage(e), 'error') }
+  }
 
   const loadRestrictions = (clientId: string) =>
     api.get(`/api/matching/client/${encodeURIComponent(clientId)}/restrictions`).then((r) => setRestrictions(rows<Restriction>(r)))
@@ -233,6 +265,25 @@ const CompanyOptimizer = () => {
           )}
         </div>
       )}
+      {matchPrefs && selectedCg && (
+        <div style={s.card}>
+          <div style={s.cardTitle}>Gender and languages</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
+            Used when suggesting caregivers for a client who prefers a gender or a language. Leave blank if you would rather not record it.
+          </div>
+          <div style={s.row}>
+            <div style={s.col(1)}><label style={s.label} htmlFor="cg-gender">Gender</label>
+              <select id="cg-gender" style={s.select} value={cgTraits.gender} disabled={!may.update} onChange={(e) => setCgTraits((p) => ({ ...p, gender: e.target.value }))}>
+                <option value="">Not recorded</option><option value="female">Female</option><option value="male">Male</option>
+              </select>
+            </div>
+            <div style={s.col(2)}><label style={s.label} htmlFor="cg-langs">Languages spoken (comma separated)</label>
+              <input id="cg-langs" style={s.input} value={cgTraits.languages} disabled={!may.update} onChange={(e) => setCgTraits((p) => ({ ...p, languages: e.target.value }))} placeholder="English, Spanish" />
+            </div>
+          </div>
+          {may.update && <button style={s.btn(SOLID.green)} onClick={saveCgTraits}>💾 Save</button>}
+        </div>
+      )}
       {may.update && <div style={s.card}>
         {!showNewCap ? <button className={ghostBlue} style={s.btnGhost} onClick={() => setShowNewCap(true)}>+ Add Custom Capability</button> : (
           <div>
@@ -265,6 +316,42 @@ const CompanyOptimizer = () => {
         </div>
       </div>
       {restrictionsClient && (<>
+        {matchPrefs && (
+          <div style={s.card}>
+            <div style={s.cardTitle}>What this client needs</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
+              Suggested caregivers are marked down when they lack a needed skill or do not match a preference — they are never hidden.
+            </div>
+            <div style={{ marginBottom: '0.65rem' }}>
+              <div style={s.label}>Skills needed</div>
+              {capabilities.length === 0 ? <div style={{ fontSize: '0.8rem', color: 'var(--hc-ink-soft)' }}>No skills yet — add one on the Skills tab first.</div> : (
+                <div style={s.capGrid}>
+                  {capabilities.map((cap) => {
+                    const a = clientPrefs.requiredSkills.includes(cap)
+                    return (
+                      <div key={cap} className={capCls(a)} style={s.capItem}
+                        onClick={may.update ? () => setClientPrefs((p) => ({ ...p, requiredSkills: a ? p.requiredSkills.filter((x) => x !== cap) : [...p.requiredSkills, cap] })) : undefined}>
+                        <input type="checkbox" checked={a} readOnly style={{ width: '16px', height: '16px' }} aria-label={cap} />
+                        <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{cap}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={s.row}>
+              <div style={s.col(1)}><label style={s.label} htmlFor="cl-gender">Prefers a caregiver who is</label>
+                <select id="cl-gender" style={s.select} value={clientPrefs.caregiverGender} disabled={!may.update} onChange={(e) => setClientPrefs((p) => ({ ...p, caregiverGender: e.target.value }))}>
+                  <option value="">No preference</option><option value="female">Female</option><option value="male">Male</option>
+                </select>
+              </div>
+              <div style={s.col(1)}><label style={s.label} htmlFor="cl-lang">Preferred language</label>
+                <input id="cl-lang" style={s.input} value={clientPrefs.language} disabled={!may.update} onChange={(e) => setClientPrefs((p) => ({ ...p, language: e.target.value }))} placeholder="English" />
+              </div>
+            </div>
+            {may.update && <button style={s.btn(SOLID.green)} onClick={saveClientPrefs}>💾 Save</button>}
+          </div>
+        )}
         {may.update && <div style={s.card}>
           <div style={s.cardTitle}>➕ Add Restriction</div>
           <div style={s.row}>
