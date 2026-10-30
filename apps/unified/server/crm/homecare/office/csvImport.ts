@@ -30,6 +30,12 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const kindOf = (v: unknown): ImportKind | null => (IMPORT_KINDS as readonly string[]).includes(String(v)) ? (String(v) as ImportKind) : null
 
+  /** Whether the person may import (or undo) at least one kind — asked before anything in the request is looked at. */
+  async function mayAny(c: Context, verb: 'create' | 'delete'): Promise<boolean> {
+    for (const k of IMPORT_KINDS) if (await holds(d, c, IMPORT_PERMISSION[k][verb])) return true
+    return false
+  }
+
   /** The kind in the request, if the person may import it; otherwise the refusal. */
   async function allowed(c: Context, v: unknown, verb: 'create' | 'delete'): Promise<ImportKind | Response> {
     const kind = kindOf(v)
@@ -39,6 +45,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
   }
 
   app.get('/template/:kind', async (c) => {
+    if (!(await mayAny(c, 'create'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const kind = await allowed(c, c.req.param('kind'), 'create')
     if (kind instanceof Response) return kind
     const defs = FIELDS[kind].filter((f) => f.key !== 'fullName')
@@ -49,6 +56,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
   const bodyOf = async (c: Context) => (await c.req.json().catch(() => ({}))) as any
 
   app.post('/preview', async (c) => {
+    if (!(await mayAny(c, 'create'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const b = await bodyOf(c)
     const kind = await allowed(c, b.kind, 'create')
     if (kind instanceof Response) return kind
@@ -59,6 +67,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   app.post('/commit', async (c) => {
+    if (!(await mayAny(c, 'create'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const b = await bodyOf(c)
     const kind = await allowed(c, b.kind, 'create')
     if (kind instanceof Response) return kind
@@ -87,6 +96,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   app.post('/batches/:id/undo', async (c) => {
+    if (!(await mayAny(c, 'delete'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const user = c.get('user' as never) as any
     const kind = await core.csvImport.batchKind(user.companyId, c.req.param('id'))
     if (!kind) return fail(c, 404, 'That import was not found.', 'not_found')

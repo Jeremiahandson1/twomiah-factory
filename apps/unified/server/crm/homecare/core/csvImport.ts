@@ -176,12 +176,12 @@ export function createCsvImport(d: CrmDeps, deps: { time: AgencyTime }) {
 
   // ---- creating one row ----
   async function createClient(companyId: string, v: Record<string, any>): Promise<string> {
-    const values: Record<string, any> = { companyId }
+    const values: any = { companyId }
     for (const k of ['firstName', 'lastName', 'dateOfBirth', 'gender', 'phone', 'email', 'address', 'city', 'state', 'zip', 'startDate', 'serviceType', 'medicaidId', 'notes']) if (v[k] !== undefined) values[k] = v[k]
     if (v.isPrivatePay !== undefined) values.isPrivatePay = v.isPrivatePay
     if (v.privatePayRate !== undefined) { values.privatePayRate = v.privatePayRate; values.privatePayRateType = 'hourly'; if (v.isPrivatePay === undefined) values.isPrivatePay = true }
     return d.db.transaction(async (tx: any) => {
-      const [client] = await tx.insert(clients).values(values as any).returning()
+      const [client] = await tx.insert(clients).values(values).returning()
       await tx.insert(clientOnboarding).values({ companyId, clientId: client.id })
       return client.id as string
     })
