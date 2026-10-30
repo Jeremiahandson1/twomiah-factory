@@ -55,6 +55,31 @@ describe('changes and reset', () => {
     await context.close()
   })
 
+  test('a job added through the real form appears in the list and is gone after Reset', async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const page = await context.newPage()
+    const TITLE = 'Gutter cleaning added in the demo'
+    const here = () => page.evaluate(() => document.body.innerText)
+    await page.goto(`${host.base}/crm/jobs?trade=contractor`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('#demo-banner')
+    await page.getByRole('button', { name: /Add Job/ }).click()
+    const titleLabel = page.getByText('Title *', { exact: true })
+    await titleLabel.locator('xpath=following::input[1]').fill(TITLE)
+    // Whoever the job is for: the first real choice in the contact list.
+    const pick = titleLabel.locator('xpath=following::select[1]')
+    const options = await pick.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean))
+    if (options.length) await pick.selectOption(options[0])
+    await page.getByRole('button', { name: /^Create$/ }).click()
+    await page.waitForFunction((t) => document.body.innerText.includes(t), TITLE, { timeout: 10_000 })
+    expect(await here()).toContain(TITLE)
+    await page.getByRole('button', { name: 'Reset demo' }).click()
+    await page.waitForLoadState('networkidle')
+    await page.waitForSelector('#demo-banner')
+    await page.waitForTimeout(500)
+    expect(await here()).not.toContain(TITLE)
+    await context.close()
+  })
+
   test('nothing the visitor does is written to a place that outlives the tab but the trade and the theme', async () => {
     const context = await browser.newContext()
     const page = await context.newPage()

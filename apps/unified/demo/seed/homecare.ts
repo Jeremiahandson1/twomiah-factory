@@ -94,13 +94,17 @@ export default async function seed(k: Kit) {
 
   // Billing: a manual invoice for two finished weeks, so the billing screens have something to show.
   const period = { billingPeriodStart: day(-28), billingPeriodEnd: day(-15) }
-  await post('/api/billing/invoices/manual', {
+  const first = await post('/api/billing/invoices/manual', {
     clientId: clients.avery.id, ...period, notes: 'Companionship, two visits a week.',
     lineItems: [{ caregiverId: team.robin.id, caregiverName: 'Robin Ashford', description: 'Companionship', hours: 8, rate: 31 }],
   })
-  await post('/api/billing/invoices/manual', {
+  const second = await post('/api/billing/invoices/manual', {
     clientId: clients.blake.id, ...period,
     lineItems: [{ caregiverId: team.devon.id, caregiverName: 'Devon Marsh', description: 'Household help', hours: 8, rate: 32 }],
   })
-  void put
+  // Sent (nothing leaves the server in this build), one of them paid: the dashboard shows money owed and money in.
+  const invoiceId = (r: any) => String(r?.id ?? r?.invoice?.id)
+  await post(`/api/billing/invoices/${invoiceId(first)}/send-email`).catch(() => {})
+  await post(`/api/billing/invoices/${invoiceId(second)}/send-email`).catch(() => {})
+  await put(`/api/billing/invoices/${invoiceId(first)}/payment-status`, { status: 'paid', paymentMethod: 'check' })
 }

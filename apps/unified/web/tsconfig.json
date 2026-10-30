@@ -23,5 +23,5 @@
       "react-dom/*": ["../node_modules/@types/react-dom/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "tailwind.config.ts"]
+  "include": ["src", "demo", "vite.config.ts", "vite.demo.config.ts", "tailwind.config.ts"]
 }

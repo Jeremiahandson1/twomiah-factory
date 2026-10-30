@@ -6,7 +6,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { chromium, type Browser } from 'playwright-core'
 import { builtFiles, startHost } from './helpers.ts'
-import { OUTSIDE_URL } from '../../web/vite.demo.config.ts'
+import { OUTSIDE_URL } from '../../web/demo/outside.ts'
 
 const HOSTS = ['https://api.twomiah.com', 'https://twomiah.com', 'https://js.stripe.com', 'https://api.stripe.com', 'https://api.twilio.com', 'https://api.cloudflare.com', 'https://twomiah-factory.onrender.com', 'wss://live.twomiah.com']
 const ADDRESS = /(https?|wss?):\/\/[^\s"'`)<>\\]*(twomiah|stripe|twilio|cloudflare|onrender|netlify|factory|googleapis|gstatic|openstreetmap|mapbox|cartocdn)[^\s"'`)<>\\]*/gi
