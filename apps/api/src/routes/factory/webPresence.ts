@@ -62,7 +62,9 @@ export function registerWebPresenceRoutes(factory: FactoryApp, injected: WebPres
   // ─── the scheduler ──────────────────────────────────────────────────────────
   factory.post('/internal/web-presence/sweep', (c) => guarded(c, async () => {
     if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
-    requireWebPresence()
+    // Off is not a failure: the scheduler alerts on any non-2xx, and a 404 here would email the owner daily about a feature that
+    // is deliberately switched off. The public and staff routes keep their 404.
+    try { requireWebPresence() } catch (e) { if (e instanceof WebPresenceOffError) return c.json({ ok: true, off: true }); throw e }
     const d = D()
     const swept = await sweep(d)
     const credits = await creditWatch(d)

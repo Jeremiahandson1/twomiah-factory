@@ -438,9 +438,16 @@ describe('the signup', () => {
 
 describe('watching Netlify', () => {
   test('credit use that cannot be read is said plainly — never guessed', async () => {
+    // No endpoint named: unreadable, shown to staff, and NO alert (it would repeat daily forever; Netlify's own emails cover it).
     const w = world()
     expect((await creditWatch(w.d)).state).toBe('unreadable')
-    expect(w.alerts[0].key).toBe('web-presence:credits-unreadable'); expect(w.alerts[0].detail).toMatch(/no way for us to read/i)
+    expect(w.alerts).toEqual([])
+    // An endpoint the owner named that stops answering IS news.
+    const w2 = world({ env: { WEB_PRESENCE_CREDITS_PATH: '/credits' } })
+    const real = w2.d.netlify
+    w2.d.netlify = () => { const n = real(); n.creditsFromEndpoint = async () => null; return n }
+    expect((await creditWatch(w2.d)).state).toBe('unreadable')
+    expect(w2.alerts[0].key).toBe('web-presence:credits-unreadable')
   })
   test('with a reading: quiet below 75%, a warning at 75%, urgent at 90%', async () => {
     const levels: Array<[number, string]> = [[500, 'ok'], [760, 'warn'], [950, 'urgent']]

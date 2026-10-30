@@ -15,8 +15,13 @@ export async function creditWatch(d: Deps): Promise<CreditReading> {
   let reading: { used: number; total: number } | null = null
   try { reading = await d.netlify().creditsFromEndpoint(d.env.WEB_PRESENCE_CREDITS_PATH) } catch { reading = null }
   if (!reading) {
-    await d.alert('web-presence:credits-unreadable', 'Web presence: Netlify credit use cannot be read automatically',
-      "Netlify has no way for us to read the team's credit use. Watch it in Netlify (Team › Billing) and keep its 50% / 75% / 100% emails turned on. Sites keep working until credits run out.")
+    // No endpoint named: a known limit, not a failure — Netlify's own 50% / 75% / 100% emails cover it, and an alert here would
+    // repeat every day forever (owner's alert rule: alert on something broken). Staff see "unreadable". Only an endpoint the owner
+    // DID name that stops answering is news.
+    if (d.env.WEB_PRESENCE_CREDITS_PATH) {
+      await d.alert('web-presence:credits-unreadable', 'Web presence: the Netlify credit reading stopped working',
+        "The credit endpoint set in WEB_PRESENCE_CREDITS_PATH did not answer. Watch credits in Netlify (Team › Billing) until it does; Netlify's own 50% / 75% / 100% emails still arrive.")
+    }
     return { state: 'unreadable' }
   }
   const ratio = reading.used / reading.total

@@ -70,7 +70,11 @@ describe('switch off: every route is a 404', () => {
     const body = JSON.stringify({ siteId: 'site-1', model: {} })
     expect((await app.request('/internal/web-presence/render', { method: 'POST', headers: await signed('site-1', body), body })).status).toBe(404)
     expect((await app.request('/internal/web-presence/link-request', { method: 'POST', headers: await signed('site-1', '{}'), body: '{}' })).status).toBe(404)
-    expect((await app.request('/internal/web-presence/sweep', { method: 'POST', headers: { 'x-cron-secret': 'cron-secret' } })).status).toBe(404)
+    // The scheduler's sweep is NOT a 404 when off: the scheduler alerts on any non-2xx, so off answers 200 { off: true } and does
+    // nothing — an alert every day about a feature that is deliberately switched off would be noise.
+    const sw = await app.request('/internal/web-presence/sweep', { method: 'POST', headers: { 'x-cron-secret': 'cron-secret' } })
+    expect(sw.status).toBe(200)
+    expect(await sw.json()).toEqual({ ok: true, off: true })
   })
 })
 

@@ -21,3 +21,7 @@ create table if not exists web_presence_sites (
   updated_at       timestamptz not null default now()
 );
 create index if not exists web_presence_sites_status_idx on web_presence_sites(status);
+
+-- Row-level security ON with no policy: only the service role (the Factory's server) reads or writes this table. The staff
+-- dashboard runs Supabase's PUBLIC key in the browser; a table without RLS would be open to anyone holding it.
+alter table web_presence_sites enable row level security;

@@ -2,6 +2,7 @@
 // no network, no Netlify. Covers sign-in (expired / reused / wrong site), sessions (site A cannot edit site B, sign-out ends one),
 // rate limits, the editor's save (stored in the site's own store, survives a "redeploy"), uploads, and both forms ("sent" only when
 // Netlify accepted, a form that is off refuses, the resume's type and size).
+import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
 import { createHandler } from '../../../apps/api/src/webPresence/site/handler.mjs'
 import { siteSecret, mintSignin, mintSession, signRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
@@ -355,6 +356,6 @@ describe('the function that is deployed', () => {
     expect(code).toContain('unique-model-marker')                       // the first page and model ride in the bundle
     expect(code).not.toMatch(/^\s*import\s[^\n]*['"]@netlify\//m)         // not an unresolved import the Netlify runtime would have to find
     expect(code).not.toMatch(/\bADMIN_KEY\b/)                            // no shared admin key anywhere in the site
-    expect(readdirSync(new URL('../../../apps/api', import.meta.url).pathname).filter((n) => n.startsWith('.wp-fn-'))).toEqual([])
+    expect(readdirSync(fileURLToPath(new URL('../../../apps/api', import.meta.url))).filter((n) => n.startsWith('.wp-fn-'))).toEqual([])
   })
 })

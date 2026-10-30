@@ -515,6 +515,7 @@ create table if not exists tenant_licenses (
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );
+alter table tenant_licenses enable row level security;
 create index if not exists tenant_licenses_tenant_idx on tenant_licenses(tenant_id);
 
 -- The $19 Web presence plan's Netlify sites (migrations/2026-10-29_web_presence_sites.sql): where each site is and its state. No content.
@@ -535,4 +536,5 @@ create table if not exists web_presence_sites (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
+alter table web_presence_sites enable row level security;
 create index if not exists web_presence_sites_status_idx on web_presence_sites(status);
