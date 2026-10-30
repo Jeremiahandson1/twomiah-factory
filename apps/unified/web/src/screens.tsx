@@ -18,7 +18,8 @@ import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
-const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read' }
+// Behind Two-Way Texting, as the server's texting routes are: a vertical that is not offered it (the store) has no card.
+const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read', feature: 'two_way_texting' }
 /**
  * Settings › Invoice Reminders (crm/pages/InvoiceRemindersPage.tsx; server crm/billing): the owner and admins, where the
  * business invoices — the Invoices feature, or home care's own Billing.
@@ -71,7 +72,10 @@ export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
   // userActions: "View as <person>" on each row (crm/viewAs.tsx), every vertical.
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  // workWeek: on for every vertical unless its settings say `workWeek: false` (the store runs no pay week). It used to be
+  // passed as `true` after the vertical's own settings were spread, so no vertical could turn it off.
+  const own = verticalScreens().settings as { workWeek?: boolean }
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

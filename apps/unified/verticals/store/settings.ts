@@ -94,11 +94,18 @@ const store: VerticalSettings = {
     // the shared list; a shop hands out only these two (crm.team.roles).
     settings: {
       licenseNumber: false,
+      // A shop runs no pay week: no "Work week starts on … overtime is hours over 40", and its clock's sentence names what
+      // a shop keeps on it (store, 2026-10-30; screens.tsx used to turn the work week on for every vertical).
+      workWeek: false,
+      timeZoneHint: 'The one clock for your shop: your opening hours, order times and reports all keep time on it.',
       roles: [
         { value: 'field', label: 'Staff', description: 'packs and ships orders, adds and edits products and stock, answers reviews; not refunds, discount codes, shipping rates, payments or settings' },
         { value: 'manager', label: 'Manager', description: 'runs the shop: refunds and cancellations, discount codes, shipping rates, removing products, loyalty; not payments, the carrier account, company settings or logins' },
       ],
     },
+    // The Team page in a shop's words: who works in the shop — not "the people you schedule and pay", and no department or
+    // hourly rate (store, 2026-10-30).
+    team: { roleLabel: 'Role', rolePlaceholder: 'e.g. Packer, Customer service', subtitle: 'The people who work in your shop.', department: false, hourlyRate: false },
     // Its customers are shoppers (decision 2). A shopper's page lists their store orders (the server's `orders` relation,
     // server/modules/crm.ts); a store has no projects or quotes, so those lists and their counts are off.
     contacts: {
@@ -109,7 +116,9 @@ const store: VerticalSettings = {
     // and a product. Its own Domain page, not the CRM's CNAME guide; no Jobber, Angi, Thumbtack or Google LSA.
     onboarding: {
       // No QuickBooks: the store is not offered it (featureRegistry quickbooks has no crm-store; store live test 2026-10-26).
-      integrations: ['store_domain', 'store_payments', 'store_first_product', 'twilio'],
+      // No texting step either: Two-Way Texting is not offered to a store (2026-10-30), so its wizard does not send the
+      // owner to a Texting settings page the store does not have.
+      integrations: ['store_domain', 'store_payments', 'store_first_product'],
       emailProduct: 'crm-store',
       extra: [
         {

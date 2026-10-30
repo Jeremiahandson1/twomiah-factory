@@ -23,6 +23,9 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const canManageRoster = meetsRole((signedIn as any)?.role, 'admin')
   const roleLabel = config?.roleLabel || 'Job Title / Trade'
   const rolePlaceholder = config?.rolePlaceholder || 'e.g. Lead Technician'
+  // What the roster holds, in this vertical's words (TeamConfig): a department and an hourly rate unless it says it has none.
+  const showDepartment = config?.department !== false
+  const showRate = config?.hourlyRate !== false
   const [data, setData] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -67,10 +70,11 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
 
   const handleSave = async () => {
     if (!form.name.trim()) { setFormError('Name is required'); return }
-    if (form.hourlyRate !== '' && Number(form.hourlyRate) < 0) { setFormError('Hourly rate cannot be negative'); return }
+    if (showRate && form.hourlyRate !== '' && Number(form.hourlyRate) < 0) { setFormError('Hourly rate cannot be negative'); return }
     setSaving(true); setFormError('')
     try {
-      const payload = { name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role.trim() || null, department: form.department.trim() || null, hourlyRate: form.hourlyRate === '' ? null : Number(form.hourlyRate), ...(hasBranches ? { locationId: form.locationId || null } : {}) }
+      // A box this vertical does not show is not sent, so saving never blanks what another screen or an earlier save put there.
+      const payload = { name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role.trim() || null, ...(showDepartment ? { department: form.department.trim() || null } : {}), ...(showRate ? { hourlyRate: form.hourlyRate === '' ? null : Number(form.hourlyRate) } : {}), ...(hasBranches ? { locationId: form.locationId || null } : {}) }
       // A login account is shown here on loan from the user table, under ITS id — so PUT /api/team/:id has
       // nothing to update and answered 404, which left the row menu doing nothing and six of seven people on
       // this tenant with no way to hold a pay rate. Saving one creates their roster card instead: the roster
@@ -114,13 +118,13 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)
     { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source === 'user' ? ROLE_LABELS[String(v)] || v || '-' : v || '-') },
-    { key: 'department', label: 'Department', render: (v: any) => v || '-' },
+    ...(showDepartment ? [{ key: 'department', label: 'Department', render: (v: any) => v || '-' }] : []),
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
     // Who signs in as this crew: its jobs are on their phones (crew scope).
     ...(crewLogins ? [{ key: 'crewLogins', label: 'Crew logins', render: (_v: any, row: Member) => (row._source === 'user' ? '-' : (linked[row.id] || []).map((l) => l.name).join(', ') || '-') }] : []),
     // a rate is money: 28.5 is $28.50 an hour (T14 L2)
-    { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `${money(Number(v))}/hr` : '-') },
+    ...(showRate ? [{ key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `${money(Number(v))}/hr` : '-') }] : []),
     // "Invite sent" until their login is taken up — the server's word (team.ts), the same as Settings › Users.
     { key: 'active', label: 'Status', render: (v: any, row: Member) => (!v ? <span className="text-gray-500 dark:text-slate-400">Inactive</span> : (row as any).invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-400">Active</span>) },
   ]
@@ -144,14 +148,19 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const mayOpenUsers = !known || ['owner', 'admin'].includes(String((signedIn as any)?.role)) || can('users:read')
   const loginsWhere = mayOpenUsers ? 'Login access is set under Settings → Users.' : 'An owner or admin manages who can sign in.'
   const mayRemoveFromRoster = useMayWrite('team:delete')
+  // The sentences that name what a roster card holds follow what this vertical shows of it (TeamConfig). Both shown — the
+  // trades' — is the original wording, word for word.
+  const both = showDepartment && showRate
+  const bannerHolds = both ? 'roles, departments and rates' : showRate ? 'roles and rates' : showDepartment ? 'roles and departments' : 'roles'
+  const cardHolds = both ? 'is where a trade, department and pay rate live' : `holds their ${[roleLabel.toLowerCase(), showDepartment && 'department', showRate && 'pay rate'].filter(Boolean).join(' and ')}`
 
   return (
     <div data-testid="team-page-shared">
-      <PageHeader title="Team" subtitle={`The people you schedule and pay. ${loginsWhere}`} action={canManageRoster ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Member</Button> : undefined} />
+      <PageHeader title="Team" subtitle={`${config?.subtitle ?? 'The people you schedule and pay.'} ${loginsWhere}`} action={canManageRoster ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Member</Button> : undefined} />
       {fromLogins && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
           <Users className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>No roster yet — these are your login users (read-only here{mayOpenUsers ? ', managed under Settings → Users' : ', managed by an owner or admin'}).{canManageRoster ? ' Add a member to start your own roster with roles, departments and rates.' : ''}</span>
+          <span>No roster yet — these are your login users (read-only here{mayOpenUsers ? ', managed under Settings → Users' : ', managed by an owner or admin'}).{canManageRoster ? ` Add a member to start your own roster with ${bannerHolds}.` : ''}</span>
         </div>
       )}
       <DataTable<Member> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No team members yet."
@@ -167,18 +176,18 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
           {editing?._source === 'user' && (
             <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-              This person can sign in but has no roster card, which is where a trade, department and pay rate live. Saving creates one. Their login is unchanged, under Settings › Users.
+              This person can sign in but has no roster card, which {cardHolds}. Saving creates one. Their login is unchanged, under Settings › Users.
             </p>
           )}
           <Field label="Name *"><input value={form.name} onChange={set('name')} className={inputCls} /></Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className={showDepartment ? 'grid grid-cols-2 gap-4' : ''}>
             <Field label={roleLabel}><input placeholder={rolePlaceholder} value={form.role} onChange={set('role')} className={inputCls} /></Field>
-            <Field label="Department"><input value={form.department} onChange={set('department')} className={inputCls} /></Field>
+            {showDepartment && <Field label="Department"><input value={form.department} onChange={set('department')} className={inputCls} /></Field>}
           </div>
           <Field label="Email"><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></Field>
           <Field label="Phone"><input value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>}
-          <Field label="Hourly Rate"><input type="number" min="0" step="0.01" value={form.hourlyRate} onChange={set('hourlyRate')} className={inputCls} /></Field>
+          {showRate && <Field label="Hourly Rate"><input type="number" min="0" step="0.01" value={form.hourlyRate} onChange={set('hourlyRate')} className={inputCls} /></Field>}
           {crewLogins && mayEditRoster && editing?._source !== 'user' && (
             <Field label="Logins on this crew">
               <p className="mb-2 text-xs text-gray-500 dark:text-slate-400">Each login ticked here sees this crew's jobs on its own list and phone.</p>
