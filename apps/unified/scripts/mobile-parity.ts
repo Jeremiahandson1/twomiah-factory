@@ -148,6 +148,7 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/time'], trades: ['homecare'], how: 'tab', what: 'Clock tab (clock in/out, open visit)', files: ['app/(tabs)/time-clock.tsx'] },
   { paths: ['/crm/messages'], trades: ['homecare'], how: 'tab', what: 'Messages tab + thread + compose', files: ['app/(tabs)/messages.tsx', 'app/(care)/thread/[id].tsx', 'app/(care)/compose.tsx'] },
   { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], how: 'screen', what: 'Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text', files: ['app/(details)/texts/index.tsx', 'app/(details)/texts/[id].tsx', 'app/(details)/texts/new.tsx'] },
+  { paths: ['/crm/email'], how: 'screen', what: 'Email (More): the inbox + a message as text + reply as the address written to', files: ['app/(details)/email/index.tsx', 'app/(details)/email/[id].tsx'] },
   { paths: ['/crm/units'], trades: ['rv'], how: 'tab', what: 'Inventory tab + unit detail', files: ['app/(tabs)/units.tsx', 'app/(details)/unit/[id].tsx'] },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], how: 'tab', what: 'Parts tab (sample catalogue)', files: ['app/(tabs)/parts.tsx'] },
   { paths: ['/crm/ai-trade'], trades: ['rv'], how: 'tab', what: 'Trade tab (appraisal)', files: ['app/(tabs)/ai-trade.tsx'] },
@@ -445,6 +446,8 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/messages'], trades: ['homecare'], route: '/(tabs)/messages' },
   // Everywhere else Messages is the customer texting inbox (/api/sms — not home care's staff board above).
   { paths: ['/crm/messages'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/texts' },
+  // The Email inbox (mail to an address routed into the CRM): every trade has it.
+  { paths: ['/crm/email'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/email' },
   { paths: ['/crm/units'], trades: ['rv'], route: '/(tabs)/units' },
   { paths: ['/crm/parts-catalog', '/crm/parts'], trades: ['rv'], route: '/(tabs)/parts' },
   { paths: ['/crm/ai-trade'], trades: ['rv'], route: '/(tabs)/ai-trade' },
@@ -466,6 +469,7 @@ export const PHASE_RULES: PhaseRule[] = [
   // A — daily field and office work
   { paths: ['/crm/dashboard', '/crm/pipeline'], phase: 'A', why: 'the home screen' },
   { paths: ['/crm/leads', '/crm/new-leads'], phase: 'A', why: 'leads are answered from the phone' },
+  { paths: ['/crm/email'], phase: 'A', why: "answering customers' email" },
   { paths: ['/crm/jobs', '/crm/dispatch', '/crm/schedule', '/crm/recurring-routes'], phase: 'A', why: 'the day\'s work' },
   { paths: ['/crm/contacts', '/crm/clients'], phase: 'A', why: 'who the work is for' },
   { paths: ['/crm/quotes', '/crm/invoices'], phase: 'A', why: 'quote on site, take payment on site' },
@@ -478,7 +482,7 @@ export const PHASE_RULES: PhaseRule[] = [
   // D — desktop only
   { paths: ['/crm/tech'], phase: 'D', why: 'this IS the phone-sized field view; the app replaces it' },
   { paths: ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain'], phase: 'D', why: 'building the public website is a desk job' },
-  { paths: ['/crm/audit', '/crm/geofences', '/crm/locations', '/crm/email', '/crm/google-reviews', '/crm/ai-receptionist', '/crm/call-tracking', '/crm/ads', '/crm/marketing'], phase: 'D', why: 'set-up and review screens for the owner at a desk' },
+  { paths: ['/crm/audit', '/crm/geofences', '/crm/locations', '/crm/google-reviews', '/crm/ai-receptionist', '/crm/call-tracking', '/crm/ads', '/crm/marketing'], phase: 'D', why: 'set-up and review screens for the owner at a desk' },
   { paths: ['/crm/gantt', '/crm/takeoffs', '/crm/aia-forms', '/crm/visualizer', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports', '/crm/measurements'], phase: 'D', why: 'needs a large canvas (chart, plan or map) or is an add-on' },
   { paths: ['/crm/help', '/crm/contact-support'], phase: 'D', why: 'a link out is enough' },
   { paths: ['/crm/lead-sources'], phase: 'D', why: 'connecting lead sources is a set-up task' },
@@ -492,10 +496,13 @@ export const PHASE_RULES: PhaseRule[] = [
  * rule names is C. The phone is never a register: nothing that takes a card or rings a sale is anything but D.
  */
 const SITE = ['/crm/website', '/crm/website/pages', '/crm/website/photos', '/crm/website/blog', '/crm/website/portfolio', '/crm/website/settings', '/crm/domain']
-const SETUP = ['/crm/audit', '/crm/marketing', '/crm/email', '/crm/google-reviews', '/crm/lead-sources']
+const SETUP = ['/crm/audit', '/crm/marketing', '/crm/google-reviews', '/crm/lead-sources']
+/** Answering a customer's email is phone work (owner 10/30, Tier 1): the Email inbox has its own screen. */
+const EMAIL: PhaseRule = { paths: ['/crm/email'], phase: 'A', why: "answering customers' email" }
 const LINKS = ['/crm/help', '/crm/contact-support']
 export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
   salon: [
+    EMAIL,
     { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: who is due to rebook, today\'s book' },
     { paths: ['/crm/appointments'], phase: 'A', why: 'the book: check in, move, complete, no-show' },
     { paths: ['/crm/reminders'], phase: 'A', why: 'rebooking: text the clients who are due' },
@@ -506,6 +513,7 @@ export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
     { paths: LINKS, phase: 'D', why: 'a link out is enough' },
   ],
   restaurant: [
+    EMAIL,
     { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: the events book and what is owed on it' },
     { paths: ['/crm/events'], phase: 'A', why: 'the whole trade: inquiry, booking, the banquet event order' },
     { paths: ['/crm/invoices'], phase: 'A', why: 'deposits and balances: status and chasing (nothing is charged on the phone)' },
@@ -517,6 +525,7 @@ export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
     { paths: LINKS, phase: 'D', why: 'a link out is enough' },
   ],
   bar: [
+    EMAIL,
     { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: tonight and the private-party book' },
     { paths: ['/crm/tonight', '/crm/menu', '/crm/taps'], phase: 'A', why: 'the bar\'s live board: open/closed, 86, what is on tap' },
     { paths: ['/crm/stock'], phase: 'A', why: 'blind count and receiving a delivery in the back room' },
@@ -528,6 +537,7 @@ export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
     { paths: LINKS, phase: 'D', why: 'a link out is enough' },
   ],
   store: [
+    EMAIL,
     { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: what is waiting to be packed' },
     { paths: ['/crm/orders'], phase: 'A', why: 'pick, pack and ship' },
     { paths: ['/crm/products'], phase: 'A', why: 'stock look-up and count from the shelf' },
@@ -538,6 +548,7 @@ export const DESIGN_PHASE_RULES: Record<string, PhaseRule[]> = {
     { paths: LINKS, phase: 'D', why: 'a link out is enough' },
   ],
   vet: [
+    EMAIL,
     { paths: ['/crm/dashboard'], phase: 'A', why: 'the home screen: the book and the vaccines due' },
     { paths: ['/crm/appointments'], phase: 'A', why: 'the day sheet: check in, start, done' },
     { paths: ['/crm/patients'], phase: 'A', why: 'look up a pet: alerts, allergies, vaccines' },
