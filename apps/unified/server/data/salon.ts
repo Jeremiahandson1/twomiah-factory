@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -283,4 +283,65 @@ export async function takeFromSalonCard(tx: any, cardId: string, cents: number):
 /** Put cents back on a salon gift card (the row is locked by the caller). */
 export async function putBackOnSalonCard(tx: any, cardId: string, cents: number): Promise<void> {
   await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} + ${cents}` }).where(eq(salonGiftCard.id, cardId))
+}
+
+// ─── Reports (salon #11; crm/salon/reports.ts) ───────────────────────────────────────────────────────────────────────
+
+/** The most visits one report reads. A bigger window answers with `truncated`, never a quiet partial count. */
+export const REPORT_VISIT_CAP = 50_000
+
+/**
+ * Every completed visit (service record) in [from, to), with whether the client LEFT WITH A NEXT APPOINTMENT: another appointment
+ * after this visit, not cancelled or a no-show, that was booked no later than 24 hours after the visit (or long before it).
+ */
+export async function visitsForReport(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    id: serviceRecord.id, contactId: serviceRecord.contactId, stylistId: serviceRecord.stylistId, stylistMemberId: serviceRecord.stylistMemberId,
+    firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name, performedAt: serviceRecord.performedAt,
+    rebooked: sql<boolean>`exists (select 1 from ${appointment} rb where rb.company_id = ${serviceRecord.companyId} and rb.contact_id = ${serviceRecord.contactId}
+      and rb.status not in ('cancelled', 'no_show') and rb.start_time > ${serviceRecord.performedAt}
+      and rb.created_at <= ${serviceRecord.performedAt} + interval '24 hours' and (${serviceRecord.appointmentId} is null or rb.id <> ${serviceRecord.appointmentId}))`,
+  }).from(serviceRecord)
+    .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+    .orderBy(serviceRecord.performedAt).limit(REPORT_VISIT_CAP + 1)
+  return rows as Array<{ id: string; contactId: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; rebooked: boolean }>
+}
+
+/** The clients who had a visit in [from, to). */
+export async function visitorsBetween(db: any, companyId: string, from: Date, to: Date): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ contactId: serviceRecord.contactId }).from(serviceRecord)
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+  return new Set(rows.map((r: any) => r.contactId))
+}
+
+/** Each client's first visit, last visit and how many visits they have had, ever. */
+export async function visitSpans(db: any, companyId: string): Promise<Array<{ contactId: string; first: Date; last: Date; n: number }>> {
+  const rows = await db.select({
+    contactId: serviceRecord.contactId, first: sql<Date>`min(${serviceRecord.performedAt})`, last: sql<Date>`max(${serviceRecord.performedAt})`, n: sql<number>`count(*)`,
+  }).from(serviceRecord).where(eq(serviceRecord.companyId, companyId)).groupBy(serviceRecord.contactId)
+  return rows.map((r: any) => ({ contactId: r.contactId as string, first: new Date(r.first), last: new Date(r.last), n: Number(r.n) }))
+}
+
+/** Clients who hold an appointment from `now` on that is not cancelled or a no-show. */
+export async function clientsWithFutureBooking(db: any, companyId: string, now: Date): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ contactId: appointment.contactId }).from(appointment)
+    .where(and(eq(appointment.companyId, companyId), isNotNull(appointment.contactId), gte(appointment.startTime, now), sql`${appointment.status} not in ('cancelled', 'no_show')`))
+  return new Set(rows.map((r: any) => r.contactId).filter(Boolean))
+}
+
+/** Retail lines on paid sales whose payment completed in [from, to), with the stylist of the visit the sale closed. */
+export async function retailSold(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    description: invoiceLineItem.description, qty: sql<string>`sum(${invoiceLineItem.quantity}::numeric)`, total: sql<string>`sum(${invoiceLineItem.total}::numeric)`,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(invoiceLineItem)
+    .innerJoin(invoice, eq(invoiceLineItem.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), eq(invoice.status, 'paid'), eq(invoiceLineItem.type, 'retail'), gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+    .groupBy(invoiceLineItem.description, appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
+  return rows as Array<{ description: string; qty: string; total: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
 }

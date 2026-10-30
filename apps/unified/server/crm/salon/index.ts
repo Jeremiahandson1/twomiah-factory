@@ -21,6 +21,7 @@ import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
 import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
+import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -101,6 +102,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
       { path: '/api/intake-forms', access: 'user', feature: 'intake_forms', router: createIntakeFormRoutes(d) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
+    // Client retention, rebook-rate and retail reports (not ready: owner tests it first).
+    { path: '/api/salon-reports', access: 'user', feature: 'salon_reports', router: createSalonReportRoutes(d, createSalonReports(d)) } as Mount,
     // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
     { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
