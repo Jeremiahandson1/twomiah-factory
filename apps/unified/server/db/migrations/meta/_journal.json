@@ -302,6 +302,13 @@
       "when": 1793384281141,
       "tag": "0042_project_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793385565898,
+      "tag": "0043_inspection_checklists",
+      "breakpoints": true
     }
   ]
 }

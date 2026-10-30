@@ -72,6 +72,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'project_templates', name: 'Project Templates', description: 'Save a project as a template — its schedule and starter punch list — and start the next one from it', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'inspections', name: 'Inspections', description: 'Quality inspections', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'inspection_checklists', name: 'Inspection Checklists', description: 'Checklists for each inspection — pass, fail or not applicable with a note and photos; a failed line adds a punch-list item', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'bid_management', name: 'Bid Management', description: 'Bid tracking and submission', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'takeoff_tools', name: 'Takeoff Tools', description: 'Material takeoff calculations', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'selections', name: 'Selections', description: 'Client material selections portal', category: 'Construction', core: false, templates: ['crm'] },
