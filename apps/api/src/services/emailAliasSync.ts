@@ -47,10 +47,12 @@ export interface TenantForAliases {
   products?: string[] | null
   slug?: string | null
   website_url?: string | null
+  /** Read with them: ourPremiumSiteOrigin refuses a row without it. */
+  engine?: string | null
 }
 
 /** What every caller selects so aliasSource can decide — scripts/check-email-alias-readback.ts holds each select to it. */
-export const ALIAS_TENANT_COLUMNS = 'id, slug, domain, products, website_url, factory_sync_key, cloudflare_zone_id, render_backend_url'
+export const ALIAS_TENANT_COLUMNS = 'id, slug, domain, engine, products, website_url, factory_sync_key, cloudflare_zone_id, render_backend_url'
 
 type Cf = Pick<typeof cloudflareService,
   'isCloudflareConfigured' | 'getCloudflareZoneStatus' | 'getEmailRoutingSettings' | 'enableEmailRouting' |

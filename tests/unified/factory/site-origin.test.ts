@@ -8,7 +8,7 @@
 import { test, expect } from 'bun:test'
 import { ourPremiumSiteOrigin, ourUnifiedOrigin, ourSiteOrigin, mayReturnTo } from '../../../apps/api/src/services/premiumSiteUrl'
 
-const premium = { slug: 'acme', website_url: 'https://acme-site.onrender.com/', domain: 'acme.com', render_backend_url: 'https://acme-api.onrender.com' }
+const premium = { slug: 'acme', engine: null, website_url: 'https://acme-site.onrender.com/', domain: 'acme.com', render_backend_url: 'https://acme-api.onrender.com' }
 const unified = { slug: 'acme', engine: 'unified', website_url: 'https://acme-app.onrender.com', domain: 'acme.com', render_backend_url: 'https://acme-app.onrender.com' }
 
 test('template tenants: as before', () => {
@@ -25,9 +25,19 @@ test('template tenants: as before', () => {
 test('a unified tenant has no premium site — even when website_url is its own domain', () => {
   expect(ourPremiumSiteOrigin(unified)).toBeNull()
   expect(ourPremiumSiteOrigin({ ...unified, website_url: 'https://acme.com' })).toBeNull()
-  // Without the engine column selected, the unified address still is not a premium site's.
-  const { engine: _e, ...noEngine } = unified
-  expect(ourPremiumSiteOrigin(noEngine)).toBeNull()
+  // A row read without its engine column is refused: Higgs's row without it (website_url = its own domain) read as a
+  // premium site's, and the three booking crons asked its app for routes it does not have (10/30).
+  const { engine: _e, ...noEngine } = { ...unified, website_url: 'https://acme.com' }
+  expect(() => ourPremiumSiteOrigin(noEngine)).toThrow(/without its engine column/)
+})
+
+test('the three booking crons read engine with the row they pass on', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(import.meta.dir, '../../../apps/api/src/routes/factory/lifecycle.ts'), 'utf8').replace(/\r\n/g, '\n')
+  for (const route of ['booking-review-requests', 'booking-rebook-reminders', 'booking-reminders']) {
+    const at = src.indexOf(`factory.post('/internal/${route}'`)
+    const head = src.slice(at, src.indexOf('ourPremiumSiteOrigin(t)', at))
+    expect(head, route).toMatch(/\.select\('[^']*\bengine\b[^']*'\)/)
+  }
 })
 
 test('a unified tenant\'s own service: the recorded https address only', () => {

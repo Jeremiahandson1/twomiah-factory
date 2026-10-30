@@ -1005,7 +1005,7 @@ factory.get('/calendar/outlook/callback', async (c) => {
 factory.post('/internal/booking-review-requests', async (c) => {
   if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
   const { data: tenants, error } = await supabase
-    .from('tenants').select('id, slug, website_url, domain, factory_sync_key, status')
+    .from('tenants').select('id, slug, website_url, domain, engine, factory_sync_key, status')
     .eq('status', 'active').contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
   const results: any[] = []
@@ -1032,7 +1032,7 @@ factory.post('/internal/booking-rebook-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, website_url, domain, factory_sync_key, status')
+    .select('id, slug, website_url, domain, engine, factory_sync_key, status')
     .eq('status', 'active')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
@@ -1066,7 +1066,7 @@ factory.post('/internal/booking-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, website_url, domain, factory_sync_key, products, status')
+    .select('id, slug, website_url, domain, engine, factory_sync_key, products, status')
     .eq('status', 'active')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)

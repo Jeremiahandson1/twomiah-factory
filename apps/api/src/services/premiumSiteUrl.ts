@@ -14,6 +14,9 @@ export function ourPremiumSiteOrigin(t: { slug?: string | null; website_url?: st
   // A unified tenant has no premium site: its one service is site and app (ourUnifiedOrigin), and it answers none of
   // the premium site's endpoints the callers of this one use (the booking crons — it runs its own). For an endpoint both
   // answer (seed photos, calendar tokens) use ourSiteOrigin.
+  // A row read without `engine` cannot tell: the three booking crons selected no engine, so Higgs's and Amber's domains
+  // read as premium sites and their apps were asked for routes they do not have, every hour (10/30). Refused, loudly.
+  if (t.engine === undefined) throw new Error('ourPremiumSiteOrigin: the tenant row was read without its engine column')
   if (t.engine === 'unified') return null
   const slug = String(t.slug || '').toLowerCase()
   if (!slug) return null
