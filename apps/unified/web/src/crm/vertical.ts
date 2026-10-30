@@ -117,6 +117,11 @@ export interface VerticalScreens {
    */
   codeLabels?: Record<string, string>
   /**
+   * The company's own names for its roofing pipeline stages, where Pipeline Stages & Boards is on (server/crm/roof/pipeline.ts
+   * pipelineForPage). Absent or empty: the standard names. Read through pages/roof/jobs/model.ts pipelineNames(), not here.
+   */
+  pipeline?: Record<string, unknown> | null
+  /**
    * Bookings, for a vertical whose online bookings land in its own book (server VerticalSettings.booking.calendar):
    * `calendarPath` is that book — where the desk's appointments and the online ones are seen together, so Bookings'
    * own calendar hands over to it — and `calendarLabel` what one entry there is called. `serviceMenuPath` is the list

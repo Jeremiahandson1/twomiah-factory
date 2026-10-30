@@ -41,6 +41,7 @@ import { ownJobsWhere } from '../ownWork.ts'
 import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
+import { loadPipelineConfig, stageLabelFor } from './pipeline.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -184,7 +185,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
   // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
   // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
-  const { companyFeatures, askForReview, textHomeowner } = createStageEffects(d)
+  const { companyFeatures, stageReached, textHomeowner } = createStageEffects(d)
 
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
   /**
@@ -431,7 +432,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     // Moved to the last stage from the job's own form: the same ask as Advance (askForReview).
-    if (data.status) await askForReview(me.companyId, id, data.status)
+    if (data.status) await stageReached(me.companyId, id, data.status)
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
@@ -553,7 +554,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: statusChangeBody(existing.status, next) } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
-    await askForReview(me.companyId, id, next)
+    await stageReached(me.companyId, id, next)
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
@@ -634,8 +635,11 @@ export function createRoofJobRoutes(d: CrmDeps) {
         .from(smsMessage).innerJoin(smsConversation, eq(smsMessage.conversationId, smsConversation.id))
         .where(and(eq(smsConversation.companyId, me.companyId), eq(smsConversation.contactId, found.contactId), gt(smsMessage.createdAt, found.createdAt)))
       : []
+    // The company's own stage names, where Pipeline Stages & Boards is on; the standard names otherwise.
+    const names = (await companyFeatures(me.companyId)).includes('pipeline_boards') ? await loadPipelineConfig(db, me.companyId) : null
+    const stageName = (stage: string) => stageLabelFor(names, stage, found.jobType)
     const timeline: any[] = [
-      ...notes.flatMap((n: any) => { const e = jobEvent(n.body); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
+      ...notes.flatMap((n: any) => { const e = jobEvent(n.body, stageName); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
       // An event on a timeline says what happened (N2): a photo carries a body like a note does.
       ...photos.map((p: any) => ({ type: 'photo', id: p.id, url: p.url, caption: p.caption, photoType: p.photoType, createdAt: p.createdAt,
         body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}` })),

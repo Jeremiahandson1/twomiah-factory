@@ -34,7 +34,7 @@ import { api } from '../../../../api'
 import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton, TextButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
-import { formatStatus, rowsOf } from './model'
+import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobMaterials from '../field/JobMaterials'
@@ -361,7 +361,7 @@ export default function JobDetailPage() {
               {job.number || '—'}
             </h1>
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor}`}>
-              {formatStatus(job.status)}
+              {stageLabel(job.status, job.jobType)}
             </span>
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${typeColor}`}>
               {(job.jobType || 'retail').replace('_', ' ')}

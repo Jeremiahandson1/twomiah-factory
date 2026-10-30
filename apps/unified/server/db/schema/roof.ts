@@ -115,6 +115,13 @@ export const insuranceClaim = pgTable('insurance_claim', {
   adjusterInspectionDate: timestamp('adjuster_inspection_date'),
   approvalDate: timestamp('approval_date'),
 
+  // Insurance extras (roofing depth, gap 7): the held depreciation is released when the carrier gets the certificate of
+  // completion. When the reminder was made (once), when the certificate went to the carrier, what came back and when.
+  depreciationRemindedAt: timestamp('depreciation_reminded_at'),
+  completionCertificateSentAt: timestamp('completion_certificate_sent_at'),
+  depreciationRecoveredAmount: decimal('depreciation_recovered_amount', { precision: 10, scale: 2 }),
+  depreciationRecoveredAt: timestamp('depreciation_recovered_at'),
+
   // Xactimate
   xactimateScopeUrl: text('xactimate_scope_url'),
   xactimateExportUrl: text('xactimate_export_url'),
@@ -128,6 +135,35 @@ export const insuranceClaim = pgTable('insurance_claim', {
 }, (t) => [
   index('insurance_claim_company_id_idx').on(t.companyId),
   index('insurance_claim_job_id_idx').on(t.jobId),
+])
+
+/**
+ * A check from the carrier made out to the homeowner AND their mortgage company: the lender has to endorse it before it can be
+ * deposited. Tracked from the day it arrives to the day it is deposited (roofing depth, gap 7). `status` is
+ * received → sent_to_mortgage → endorsed → deposited, each with the day it happened.
+ */
+export const mortgageCheck = pgTable('mortgage_check', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id),
+  claimId: text('claim_id').notNull().references(() => insuranceClaim.id, { onDelete: 'cascade' }),
+  mortgageCompany: text('mortgage_company').notNull(),
+  loanNumber: text('loan_number'),
+  checkNumber: text('check_number'),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').default('received').notNull(),
+  receivedAt: timestamp('received_at'),
+  sentAt: timestamp('sent_at'),
+  trackingNumber: text('tracking_number'),
+  endorsedAt: timestamp('endorsed_at'),
+  depositedAt: timestamp('deposited_at'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('mortgage_check_company_id_idx').on(t.companyId),
+  index('mortgage_check_claim_id_idx').on(t.claimId),
 ])
 
 export const supplement = pgTable('supplement', {
@@ -420,4 +456,19 @@ export const workOrder = pgTable('work_order', {
   index('work_order_company_id_idx').on(t.companyId),
   index('work_order_job_id_idx').on(t.jobId),
   uniqueIndex('work_order_public_token_uniq').on(t.publicToken),
+])
+
+/**
+ * How a roofing company names its pipeline (roofing depth, gap 8): one row per company. `config` holds DISPLAY NAMES only —
+ * `{ stageLabels: { invoiced: 'Billed' }, boards: { retail: { name, stageLabels }, insurance: { name, stageLabels } } }` — over
+ * the same stage keys every job is stored with, so the stage texts, the review request and "paid → Collected" never read it
+ * (server/crm/roof/pipeline.ts). No row, or an empty config, is today's names.
+ */
+export const roofPipelineConfig = pgTable('roof_pipeline_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  config: json('config').default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
 ])

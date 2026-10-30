@@ -96,10 +96,10 @@ export const ROOF_STAGES = [
 export const stageLabel = (s: string) => s.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 export interface Stage { id: string; label: string; count: number; list: Req }
 /** One row per stage this business walks (measurement_ordered only with Measurement Reports on), each opening that stage's jobs. */
-export function roofStages(stats: any, hasFeature: (f: string) => boolean): Stage[] {
+export function roofStages(stats: any, hasFeature: (f: string) => boolean, nameOf?: (stage: string) => string | undefined): Stage[] {
   const by = stats?.jobs?.byStatus || {}
   return ROOF_STAGES.filter((s) => s !== 'measurement_ordered' || hasFeature('measurement_reports'))
-    .map((s) => ({ id: s, label: stageLabel(s), count: Number(by[s] || 0), list: { path: '/api/jobs', query: { status: s } } }))
+    .map((s) => ({ id: s, label: nameOf?.(s) ?? stageLabel(s), count: Number(by[s] || 0), list: { path: '/api/jobs', query: { status: s } } }))
 }
 
 // ── RV / powersports dealership ─────────────────────────────────────────────────────────────────────────────

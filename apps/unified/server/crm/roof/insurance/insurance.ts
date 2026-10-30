@@ -52,7 +52,7 @@ import { partialOf } from '@twomiah/tenant-backend'
  * and loses the figures: the claim's six money fields, a supplement's totals and its line prices, dollar amounts in the
  * activity text, and the priced export. Absent, not zero, with moneyWithheld so the page draws no $0.
  */
-const CLAIM_MONEY = ['deductible', 'rcv', 'acv', 'depreciationHeld', 'supplementAmount', 'finalApprovedAmount'] as const
+const CLAIM_MONEY = ['deductible', 'rcv', 'acv', 'depreciationHeld', 'supplementAmount', 'finalApprovedAmount', 'depreciationRecoveredAmount'] as const
 const LINE_MONEY = ['unitPrice', 'unitCost', 'price', 'total', 'amount'] as const
 const drop = (row: any, keys: readonly string[]) => { const out = { ...(row || {}) }; for (const k of keys) delete out[k]; return out }
 const claimWithoutMoney = (claim: any) => ({ ...drop(claim, CLAIM_MONEY), moneyWithheld: true })

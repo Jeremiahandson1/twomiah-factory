@@ -43,6 +43,7 @@ import { createPhoneRules } from './crm/notify/phoneRules.ts'
 import { withHomecareSessions, viewAsCareTrail } from './crm/homecare/office/signIn.ts'
 import { createViewAs } from './core/viewAs.ts'
 import { hasConsent } from './site/smsConsent.ts'
+import { pipelineForPage } from './crm/roof/pipeline.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
   '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
@@ -200,7 +201,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // roleLabels: what this vertical calls each rung — the one vocabulary the server's refusals and Users rows answer in
         // (VerticalSettings.roleLabels through permissions.roleLabel), handed to the screens so the Users list, the role
         // picker and the View As banner say the same word (roofing live re-test 3: "Staff" in Users, "Field" in the brief).
-        screens: () => ({ ...vertical.screens, vocabulary: vertical.vocabulary, roleLabels: Object.fromEntries((permissions.ROLE_HIERARCHY as string[]).map((r) => [r, permissions.roleLabel(r)])), mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
+        screens: async () => ({ ...vertical.screens, ...(vertical.crm?.roof ? { pipeline: await pipelineForPage(db, features) } : {}), vocabulary: vertical.vocabulary, roleLabels: Object.fromEntries((permissions.ROLE_HIERARCHY as string[]).map((r) => [r, permissions.roleLabel(r)])), mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
         extraPages: vertical.crm?.homecare ? HOMECARE_PAGES : [],
         brand: async () => (await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1))[0] ?? null,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,

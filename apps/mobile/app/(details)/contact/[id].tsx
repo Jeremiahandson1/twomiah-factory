@@ -17,6 +17,7 @@ import { useTheme } from '../../../src/theme/ThemeContext'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { get, del, post } from '../../../src/api/client'
 import { StatusBadge } from '../../../src/components/StatusBadge'
+import { useStageName } from '../../../src/pipeline/useStageName'
 import { AvatarCircle } from '../../../src/components/AvatarCircle'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../../src/components/AnimatedCard'
@@ -26,6 +27,7 @@ import { useHaptics } from '../../../src/hooks/useHaptics'
 import { useRealTimeEvent, EVENTS } from '../../../src/socket/SocketContext'
 
 export default function ContactDetailScreen() {
+  const { stageName } = useStageName()
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
@@ -193,7 +195,7 @@ export default function ContactDetailScreen() {
                     <Text style={[styles.relatedTitle, { color: t.text }]}>{job.title}</Text>
                     <Text style={[styles.relatedSub, { color: t.textMuted }]}>{job.number}</Text>
                   </View>
-                  <StatusBadge status={job.status} />
+                  <StatusBadge status={job.status} label={stageName(job.status, job.jobType)} />
                 </TouchableOpacity>
               ))}
             </View>

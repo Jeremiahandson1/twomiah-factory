@@ -19,7 +19,7 @@ const NOT_BILLED = ['draft', 'void']
 
 export function createRoofCollector(d: CrmDeps) {
   const { db } = d
-  const { askForReview, textHomeowner } = createStageEffects(d)
+  const { stageReached, textHomeowner } = createStageEffects(d)
 
   /** Whose name an automatic note goes under (job_note needs a person): the job's sales rep, else the company's owner. */
   async function noteAuthor(companyId: string, row: any): Promise<string | null> {
@@ -55,7 +55,7 @@ export function createRoofCollector(d: CrmDeps) {
       ] as any)
     }
     if (AUTO_SMS[PAID]) { try { await textHomeowner(inv.companyId, row, PAID) } catch { /* a text that can't go never holds up the job */ } }
-    await askForReview(inv.companyId, row.id, PAID)
+    await stageReached(inv.companyId, row.id, PAID)
     return true
   }
 

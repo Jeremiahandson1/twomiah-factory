@@ -19,7 +19,8 @@ import {
   AlertTriangle, DollarSign, Save, ChevronRight, Loader2,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
+import { DepreciationCard, MortgageChecksCard } from './InsuranceExtras'
 import { formatDate } from '../../../date'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -214,6 +215,8 @@ const EMPTY_CLAIM = { claimNumber: '', insuranceCompany: '', policyNumber: '', d
 
 export default function InsuranceClaimPage() {
   const confirm = useConfirm()
+  // Insurance Follow-ups (not ready): the held-depreciation and mortgage-check cards, only where the feature is on.
+  const { hasFeature } = useAuth()
   // Offer a write only where we know it is allowed. Each permission is the one its own route asks for.
   const mayWriteClaim = useMayWrite('insurance:create')
   // The claim's own fields are a PUT, and that route asks for the update verb rather than create.
@@ -1121,6 +1124,11 @@ export default function InsuranceClaimPage() {
               )}
             </div>
             )}
+
+            {hasFeature('insurance_extras') && (<>
+              <DepreciationCard claimId={claim.id} />
+              <MortgageChecksCard claimId={claim.id} />
+            </>)}
 
             {/* Supplements */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">

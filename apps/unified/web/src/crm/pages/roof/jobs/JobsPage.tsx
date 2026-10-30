@@ -21,7 +21,7 @@ import { api } from '../../../../api'
 import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
-import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf } from './model'
+import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
@@ -232,7 +232,7 @@ export default function JobsPage() {
           </button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
-            {[...pipelineFor(hasFeature, jobs), ...TERMINAL_STATUSES].map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+            {[...pipelineFor(hasFeature, jobs), ...TERMINAL_STATUSES].map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
           </select>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Types</option>
@@ -290,7 +290,7 @@ export default function JobsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
-                          {formatStatus(job.status)}
+                          {stageLabel(job.status, job.jobType)}
                         </span>
                       </td>
                       {hasFeature('crews') && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{(job.assignedCrewId && crewMap[job.assignedCrewId]) || '—'}</td>}
