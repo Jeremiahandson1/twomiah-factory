@@ -28,6 +28,11 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
   const browser = own ? await chromium.launch() : null
   const context = own ? await browser!.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 }, colorScheme: opts.colorScheme ?? 'light' }) : null
   const page = opts.page ?? (await context!.newPage())
+  // Every browser step has a limit, so a screen that stalls is reported by name instead of running out the test's 15 minutes
+  // with nothing said (CI 10/30: the phone walks did, in every trade, and walked in 93 s on a desktop machine).
+  page.setDefaultTimeout(15_000)
+  page.setDefaultNavigationTimeout(30_000)
+  const started = Date.now()
   const report: WalkReport = { trade: opts.trade, pages: [], unavailable: [], errorPages: [], pageErrors: [], outside: [], unavailableText: [] }
   let here = ''
   page.on('pageerror', (e) => report.pageErrors.push(`${here}: ${e.message.slice(0, 160)}`))
@@ -70,7 +75,10 @@ export async function walkDemo(opts: { base: string; trade: string; viewport?: {
     const href = queue.shift()!
     if (visited.has(href)) continue
     visited.add(href)
+    const t = Date.now()
     await visit(href)
+    const took = (Date.now() - t) / 1000
+    if (process.env.DEMO_WALK_LOG || took > 20) console.log(`  [walk ${opts.trade} ${opts.viewport?.width ?? 1440}px] ${href} ${took.toFixed(1)}s (${visited.size} screens, ${((Date.now() - started) / 1000).toFixed(0)}s in)`)
     for (const found of await links()) {
       if (visited.has(found) || queue.includes(found) || SKIP.some((re) => re.test(found))) continue
       const section = found.split('/').slice(0, 3).join('/')

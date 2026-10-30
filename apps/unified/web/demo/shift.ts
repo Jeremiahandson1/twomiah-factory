@@ -28,6 +28,19 @@ export function localToday(now = new Date()): string {
   return `${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
+/** Today on a zone's calendar, YYYY-MM-DD: the sample business's today, which its screens count by (companyClock), not the
+ *  visitor's. A zone the browser does not know falls back to the visitor's clock. */
+export function todayIn(zone: string | undefined, now = new Date()): string {
+  if (!zone) return localToday(now)
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).map((x) => [x.type, x.value]))
+    return `${p.year}-${p.month}-${p.day}`
+  } catch { return localToday(now) }
+}
+
+/** Is this string a date or a moment (YYYY-MM-DD…)? */
+export const isDateString = (s: string): boolean => DATE.test(s)
+
 /** A string moved by `days` if it is a date or a moment; any other string comes back unchanged. */
 export function shiftString(s: string, days: number): string {
   if (!days) return s

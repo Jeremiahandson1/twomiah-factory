@@ -5,7 +5,7 @@
 // from the rows (so a new job appears, a deleted one is gone) in the shape the recorded answer had. A change lives only in
 // this object: reset() drops it, a new tab never had it, nothing here ever leaves the page.
 import { canonicalKey, looksLikeId } from './keys'
-import { daysBetween, localToday, shiftString, shiftValue } from './shift'
+import { daysBetween, isDateString, shiftString, shiftValue, todayIn } from './shift'
 
 export type Row = Record<string, any>
 export interface RecordedResponse { status: number; body: unknown }
@@ -70,6 +70,13 @@ function skeleton(v: any): any {
 
 const singular = (word: string) => (word.endsWith('ies') ? word.slice(0, -3) + 'y' : word.endsWith('s') ? word.slice(0, -1) : word)
 
+/** The sample business's zone, as its screens learn it: the sign-in answer's company.timeZone (tenant-ui AuthContext →
+ *  setCompanyTimeZone). */
+function zoneOf(data: DemoData): string | undefined {
+  const tz = (data.responses?.['GET /api/auth/me']?.body as { company?: { timeZone?: unknown } } | undefined)?.company?.timeZone
+  return typeof tz === 'string' && tz ? tz : undefined
+}
+
 export class DemoStore {
   readonly data: DemoData
   /** Whole days the recorded dates move by (the day it was recorded to today). */
@@ -84,7 +91,9 @@ export class DemoStore {
 
   constructor(data: DemoData, now = new Date()) {
     this.data = data
-    this.delta = daysBetween(data.recordedOn, localToday(now))
+    // Counted on the sample business's calendar, as the recorder (seed/kit.ts) and the screens (companyClock) count it: on the
+    // visitor's own, an evening in the Americas or a day in Europe moved every date one day off what the screens asked for (CI 10/30).
+    this.delta = daysBetween(data.recordedOn, todayIn(zoneOf(data), now))
     this.load()
   }
 
@@ -141,7 +150,27 @@ export class DemoStore {
     if (parent && looksLikeId(id)) return this.detail(parent, id)
     if (exact) return { status: exact.status, body: clone(exact.body) }
     const extra = this.extra.get(canonicalKey('GET', path, unshifted))
-    return extra ? { status: extra.status, body: clone(extra.body) } : null
+    if (extra) return { status: extra.status, body: clone(extra.body) }
+    // A dated read (a report's "this week", "this month") asked for days other than the recording's: a week starts on a Monday,
+    // which a whole-day shift lands on only every seventh day. The same read for other dates is its sample answer.
+    const other = this.otherDates(path, params)
+    return other ? { status: other.status, body: clone(other.body) } : null
+  }
+
+  private otherDates(path: string, params: URLSearchParams): RecordedResponse | null {
+    let dated = false
+    const undated = (p: URLSearchParams) => {
+      const o = new URLSearchParams()
+      p.forEach((v, k) => { if (isDateString(v)) dated = true; else o.append(k, v) })
+      return canonicalKey('GET', path, o)
+    }
+    const want = undated(params)
+    if (!dated) return null
+    for (const [key, r] of this.recorded) {
+      const [kp, q = ''] = key.slice(4).split('?')
+      if (kp === path && q && undated(new URLSearchParams(q)) === want) return r
+    }
+    return null
   }
 
   /** Any recorded answer of this path, for the shape the rebuilt list should have. */
