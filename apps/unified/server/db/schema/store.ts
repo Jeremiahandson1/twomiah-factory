@@ -152,6 +152,9 @@ export const storeOrder = pgTable('orders', {
   disputeStatus: text('dispute_status'),
   readyForPickupAt: timestamp('ready_for_pickup_at'),
   pickedUpAt: timestamp('picked_up_at'),
+  /** The QuickBooks sales receipt this paid order became (store/books.ts): set once it is sent, so it is never sent twice. */
+  qbSalesReceiptId: text('qb_sales_receipt_id'),
+  qbSyncedAt: timestamp('qb_synced_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -205,7 +208,40 @@ export const storeOrderRefund = pgTable('order_refunds', {
   createdByName: text('created_by_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   settledAt: timestamp('settled_at'),
+  /** The QuickBooks refund receipt this refund became (store/books.ts). */
+  qbRefundReceiptId: text('qb_refund_receipt_id'),
 }, (t) => [index('order_refunds_order_idx').on(t.orderId)])
+
+/**
+ * What the store's books need QuickBooks to know that QuickBooks does not hold itself (store/books.ts): the bank account
+ * the payouts land in (the owner's choice) and the accounts and items the store made or found in QuickBooks, by name,
+ * so each is looked up once. One row per company.
+ */
+export const storeBooks = pgTable('store_books', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  bankAccountId: text('bank_account_id'),
+  bankAccountName: text('bank_account_name'),
+  refs: json('refs').$type<Record<string, string>>().notNull().default({}),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_books_company_unique').on(t.companyId)])
+
+/**
+ * One Stripe payout as the books saw it: what Stripe paid into the bank, the fees taken out of it, and the QuickBooks
+ * deposit made for it (so it matches the bank's line). `lines` is what was in it, for the owner to read.
+ */
+export const storePayout = pgTable('store_payouts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  providerPayoutId: text('provider_payout_id').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  feeCents: integer('fee_cents').notNull().default(0),
+  arrivedAt: timestamp('arrived_at').notNull(),
+  lines: json('lines').$type<unknown[]>().notNull().default([]),
+  qbDepositId: text('qb_deposit_id'),
+  qbSyncedAt: timestamp('qb_synced_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_payouts_company_payout_unique').on(t.companyId, t.providerPayoutId)])
 
 // ── Marketing ────────────────────────────────────────────────────────────────
 export const discountCode = pgTable('discount_codes', {

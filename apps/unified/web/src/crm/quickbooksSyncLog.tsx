@@ -7,15 +7,54 @@ import { api } from '../api'
 import { useMayWrite, useToast } from '../shared'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
-interface Run { id: string; trigger: 'auto' | 'manual'; status: 'running' | 'ok' | 'partial' | 'failed'; customers: number; invoices: number; payments: number; failed: number; error: string | null; startedAt: string }
-interface Failure { id: string; entity: 'customer' | 'invoice' | 'payment'; label: string | null; attempts: number; lastError: string | null; nextAttemptAt: string | null; gaveUp: boolean }
+interface Run { id: string; trigger: 'auto' | 'manual'; status: 'running' | 'ok' | 'partial' | 'failed'; customers: number; invoices: number; payments: number; orders?: number; refunds?: number; payouts?: number; failed: number; error: string | null; startedAt: string }
+interface Failure { id: string; entity: 'customer' | 'invoice' | 'payment' | 'order' | 'refund' | 'payout'; label: string | null; attempts: number; lastError: string | null; nextAttemptAt: string | null; gaveUp: boolean }
 interface Log { connected: boolean; autoSync: boolean; everyMinutes: number; runs: Run[]; failures: Failure[] }
 
 const when = (v: string) => whenDateTime(v, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-const ENTITY: Record<Failure['entity'], string> = { customer: 'Customer', invoice: 'Invoice', payment: 'Payment' }
+const ENTITY: Record<Failure['entity'], string> = { customer: 'Customer', invoice: 'Invoice', payment: 'Payment', order: 'Order', refund: 'Refund', payout: 'Payout' }
 const sentWords = (r: Run) => {
-  const parts = [[r.customers, 'customer'], [r.invoices, 'invoice'], [r.payments, 'payment']].filter(([n]) => (n as number) > 0).map(([n, w]) => `${n} ${w}${n === 1 ? '' : 's'}`)
+  const parts = [[r.customers, 'customer'], [r.invoices, 'invoice'], [r.payments, 'payment'], [r.orders ?? 0, 'order'], [r.refunds ?? 0, 'refund'], [r.payouts ?? 0, 'payout']].filter(([n]) => (n as number) > 0).map(([n, w]) => `${n} ${w}${n === 1 ? '' : 's'}`)
   return parts.length ? `sent ${parts.join(', ')}` : 'nothing new to send'
+}
+
+interface Books { bankAccount: { id: string; name: string | null } | null; payouts: Array<{ id: string; amountCents: number; feeCents: number; arrivedAt: string; booked: boolean }> }
+const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+
+/** A store's: which bank account Stripe's payouts are deposited to in QuickBooks, and the last payouts it booked. */
+function StorePayouts() {
+  const toast = useToast()
+  const mayChoose = useMayWrite('settings:update')
+  const [books, setBooks] = useState<Books | null>(null)
+  const [banks, setBanks] = useState<Array<{ id: string; name: string }> | null>(null)
+  useEffect(() => { api.get('/api/admin/store-books').then(setBooks).catch(() => setBooks(null)) }, [])
+  if (!books) return null
+  const loadBanks = () => api.get('/api/admin/store-books/bank-accounts').then((r: { accounts: Array<{ id: string; name: string }> }) => setBanks(r.accounts)).catch((e: Error) => toast.error(e.message || 'Could not read your QuickBooks accounts'))
+  const choose = async (id: string) => {
+    try { const r = await api.put('/api/admin/store-books', { bankAccountId: id }); setBooks((b) => (b ? { ...b, bankAccount: r.bankAccount } : b)); toast.success('Saved') } catch (e) { toast.error((e as Error).message || 'Not saved') }
+  }
+  return (
+    <div data-testid="qb-store-payouts">
+      <p className="font-medium text-gray-800 dark:text-slate-200">Stripe payouts</p>
+      <p className="text-gray-600 dark:text-slate-300">Each payout from Stripe goes into QuickBooks as one deposit — your sales, less Stripe’s fees — so it matches the line on your bank statement.</p>
+      <p className="mt-1 text-gray-700 dark:text-slate-200">Deposited to: {books.bankAccount?.name || (books.bankAccount ? 'your chosen account' : 'your only bank account in QuickBooks, unless you choose one')}</p>
+      {mayChoose && (
+        <div className="mt-1">
+          {banks ? (
+            <select aria-label="Bank account for Stripe payouts" className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800" value={books.bankAccount?.id ?? ''} onChange={(e) => e.target.value && choose(e.target.value)}>
+              <option value="">Choose a bank account…</option>
+              {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          ) : <button type="button" onClick={loadBanks} className="text-xs font-medium underline">Choose the bank account</button>}
+        </div>
+      )}
+      {books.payouts.length > 0 && (
+        <ul className="mt-2 space-y-0.5 text-gray-700 dark:text-slate-200">
+          {books.payouts.slice(0, 5).map((p) => <li key={p.id}>{whenDateTime(p.arrivedAt, { month: 'short', day: 'numeric' })} · {money(p.amountCents)} paid out · {money(p.feeCents)} in fees · {p.booked ? 'in QuickBooks' : 'waiting'}</li>)}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export function QuickBooksSyncLog() {
@@ -64,6 +103,7 @@ export function QuickBooksSyncLog() {
           </ul>
         </div>
       )}
+      <StorePayouts />
       <div>
         <p className="font-medium text-gray-800 dark:text-slate-200">Recent syncs</p>
         {log.runs.length === 0 ? <p className="text-gray-600 dark:text-slate-300">None yet.</p> : (

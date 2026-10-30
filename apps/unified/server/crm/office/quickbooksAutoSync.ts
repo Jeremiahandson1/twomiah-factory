@@ -11,6 +11,8 @@
 //     minutes, 1 hour, 4, 12, then 24 — up to 5 tries; then it waits for a person (Retry on the card);
 //   · every run, automatic or pressed, is a qb_sync_run row: when, what went across, what failed — the card's sync log.
 //   · a lost connection (signed out of Intuit, a refused token) stops the run and says so; it is not five hundred failures.
+//   · a vertical with books of its own adds a pass after payments (addPass): the online store's paid orders, refunds and
+//     Stripe payouts (crm/store/books.ts). It uses the same failure record, backoff and run row.
 import { and, eq, isNull, isNotNull, notInArray, or, gt, desc, asc, notLike } from 'drizzle-orm'
 import { contact, invoice, invoiceLineItem, payment, qbIntegration, qbSyncRun, qbSyncFailure } from '../../db/schema/index.ts'
 import type { QuickBooksService } from '@twomiah/tenant-backend'
@@ -55,11 +57,25 @@ export interface AutoSyncDeps {
   customerType: string
 }
 
-type Entity = 'customer' | 'invoice' | 'payment'
+type Entity = 'customer' | 'invoice' | 'payment' | 'order' | 'refund' | 'payout'
+
+/** What a vertical's own pass is handed: the sweep's failure record and clock, so it retries and logs like the rest. */
+export interface SweepHelpers {
+  now: Date
+  heldBack(entity: Entity): Promise<Set<string>>
+  failed(entity: Entity, entityId: string, label: string, err: unknown): Promise<void>
+  cleared(entity: Entity, entityId: string): Promise<void>
+  /** The connection is gone (not one record's refusal): a pass lets this one go on to stop the run. */
+  connectionLost(err: unknown): boolean
+}
+export type SweepPass = (companyId: string, h: SweepHelpers) => Promise<{ orders?: number; refunds?: number; payouts?: number; failed?: number }>
 
 export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
   const { db, quickbooks: qb, logger } = deps
   const running = new Set<string>()
+  const passes = new Map<string, SweepPass>()
+  /** A vertical's own pass, run after payments in every sync; one per name (adding it again replaces it). */
+  const addPass = (name: string, pass: SweepPass) => { passes.set(name, pass) }
 
   /** Failures that are not due for another try yet (waiting, or out of tries). */
   async function heldBack(companyId: string, entity: Entity, now: Date): Promise<Set<string>> {
@@ -84,7 +100,7 @@ export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
     if (running.has(companyId)) return null
     running.add(companyId)
     const [run] = await db.insert(qbSyncRun).values({ companyId, trigger, status: 'running', startedAt: now }).returning()
-    const counts = { customers: 0, invoices: 0, payments: 0, failed: 0 }
+    const counts = { customers: 0, invoices: 0, payments: 0, orders: 0, refunds: 0, payouts: 0, failed: 0 }
     let stopped: string | null = null
     try {
       // ── Customers
@@ -145,6 +161,17 @@ export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
           await failed(companyId, 'payment', p.id, `${Number(p.amount).toFixed(2)} on ${inv.number}`, e, now); counts.failed++
         }
       }
+
+      // ── A vertical's own records (the store's orders, refunds and payouts)
+      for (const pass of passes.values()) {
+        const done = await pass(companyId, {
+          now, connectionLost,
+          heldBack: (entity) => heldBack(companyId, entity, now),
+          failed: (entity, id, label, err) => failed(companyId, entity, id, label, err, now),
+          cleared: (entity, id) => cleared(companyId, entity, id),
+        })
+        counts.orders += done.orders ?? 0; counts.refunds += done.refunds ?? 0; counts.payouts += done.payouts ?? 0; counts.failed += done.failed ?? 0
+      }
     } catch (e) {
       stopped = connectionLost(e) ? 'QuickBooks is not connected any more. Connect it again on this card.' : quickBooksReason(e)
       logger.warn('[quickbooks] sync stopped', { companyId, error: (e as any)?.message })
@@ -183,7 +210,7 @@ export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
     const failures = await db.select().from(qbSyncFailure).where(eq(qbSyncFailure.companyId, companyId)).orderBy(desc(qbSyncFailure.updatedAt))
     return {
       connected: !!conn?.accessToken, autoSync: !!conn?.syncEnabled, everyMinutes: AUTO_SYNC_EVERY_MS / 60_000, lastSyncedAt: conn?.lastSyncedAt ?? null,
-      runs: runs.map((r: any) => ({ id: r.id, trigger: r.trigger, status: r.status, customers: r.customers, invoices: r.invoices, payments: r.payments, failed: r.failed, error: r.error, startedAt: r.startedAt, finishedAt: r.finishedAt })),
+      runs: runs.map((r: any) => ({ id: r.id, trigger: r.trigger, status: r.status, customers: r.customers, invoices: r.invoices, payments: r.payments, orders: r.orders, refunds: r.refunds, payouts: r.payouts, failed: r.failed, error: r.error, startedAt: r.startedAt, finishedAt: r.finishedAt })),
       failures: failures.map((f: any) => ({ id: f.id, entity: f.entity, entityId: f.entityId, label: f.label, attempts: f.attempts, lastError: f.lastError, nextAttemptAt: f.nextAttemptAt, gaveUp: f.attempts >= MAX_ATTEMPTS, updatedAt: f.updatedAt })),
     }
   }
@@ -195,7 +222,7 @@ export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
     return rows[0] ?? null
   }
 
-  return { syncCompany, runAuto, start, log, retry }
+  return { syncCompany, runAuto, start, log, retry, addPass }
 }
 
 export type QuickBooksAutoSync = ReturnType<typeof createQuickBooksAutoSync>

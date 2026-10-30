@@ -192,7 +192,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
   // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
   { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
-  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-store'], optIn: ['crm-store'] },
 
   // Communication
   { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Unified SMS inbox — every customer conversation logged', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },

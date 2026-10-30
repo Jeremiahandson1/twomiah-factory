@@ -309,6 +309,13 @@
       "when": 1793382501201,
       "tag": "0043_marketing_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793383484564,
+      "tag": "0044_store_books",
+      "breakpoints": true
     }
   ]
 }

@@ -25,6 +25,7 @@ import { mayMove } from './rules.ts'
 import { createDraftOrderRoutes } from './draftOrders.ts'
 import { createDisputeRoutes } from './disputes.ts'
 import { createSalesReportRoutes } from './reports.ts'
+import { createStoreBooks } from '../books.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -43,6 +44,10 @@ export function createOrderHooks(d: CrmDeps, core: StoreCore): OrderHooks {
 
 export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
   const refunds = createOrderRefunds(d, core)
+  // 2026-10-30, gap 6: paid orders, refunds and Stripe payouts go to QuickBooks in the same sweep as the shared sync (the
+  // sweep only runs for a company that has the quickbooks feature on and auto-sync, or a Sync Now).
+  const books = createStoreBooks(d, core)
+  d.services.quickbooksSync.addPass('store', books.pass)
   d.services.addJob(() => {
     const resume = () => refunds.resumePendingRefunds().catch((err: any) => d.logger.error('[orders] refund resume failed', { error: err?.message }))
     setTimeout(resume, 90_000)
@@ -66,5 +71,7 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/disputes', access: 'user', router: createDisputeRoutes(d) },
     // 2026-10-30, the store's gaps: sales reports (revenue:read), behind store_sales_reports (not ready).
     { path: '/api/admin/sales-reports', access: 'user', feature: 'store_sales_reports', router: createSalesReportRoutes(d) },
+    // The bank account Stripe's payouts are deposited to in QuickBooks: settings:update, behind quickbooks (opt-in).
+    { path: '/api/admin/store-books', access: 'user', feature: 'quickbooks', router: books.routes() },
   ]
 }

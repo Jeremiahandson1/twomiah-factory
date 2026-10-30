@@ -159,4 +159,20 @@ export interface PaymentProvider {
   // Whether the account can work out sales tax itself (Stripe Tax's settings status): 'active' once the business has set
   // its origin address and registrations in Stripe. Only Stripe has it.
   taxStatus?(): Promise<'active' | 'pending'>
+  // The money the provider has paid into the merchant's bank since a moment, and what was in each payout (the books:
+  // store/books.ts). Only Stripe reports it.
+  payouts?(sinceUnix: number): Promise<PayoutSummary[]>
+  payoutLines?(payoutId: string): Promise<PayoutLine[]>
+}
+
+/** A payout that has reached the bank: its id, the amount deposited and the day it arrived. */
+export type PayoutSummary = { id: string; amountCents: number; currency: string; arrivedAt: Date }
+/**
+ * One thing in a payout, as the provider's balance reports it: a charge (gross, the fee taken, what was left), a refund
+ * (negative), or something else (a dispute, an adjustment). `paymentId` is the payment it belongs to (Stripe's
+ * payment_intent), `refundId` the refund's own id.
+ */
+export type PayoutLine = {
+  id: string; type: string; grossCents: number; feeCents: number; netCents: number
+  paymentId: string | null; refundId: string | null; description: string | null
 }
