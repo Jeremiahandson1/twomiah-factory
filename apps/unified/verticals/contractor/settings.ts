@@ -126,7 +126,8 @@ const contractor: VerticalSettings = {
       ],
     },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: true, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Jobs', projects: true },
+    // todayBoard: a builder's crew is out on jobs every day; the board (scheduled, dispatched, in progress, done today) was off for them.
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: true, overdueTile: true },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: {},
     expenses: {},

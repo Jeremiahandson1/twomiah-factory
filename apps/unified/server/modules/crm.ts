@@ -81,6 +81,7 @@ import { roofMounts } from '../crm/roof/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
+import { createMoneyStripRoutes } from '../crm/dashboard/moneyStrip.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
 import { cardPaymentsFor } from '../crm/cardPayments.ts'
@@ -405,6 +406,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The roofer's (templates/crm-roof routes/dashboard.ts).
       : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
       : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
+    // Cash in, what is owed and who is waiting, under every trade's own dashboard (crm/dashboard/moneyStrip.ts). Each half
+    // asks its own permission and is sent only where the trade has it.
+    { path: '/api/dashboard-strip', access: 'user', feature: 'dashboard', router: createMoneyStripRoutes(own) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
     { path: '/api/time', access: 'user', feature: 'time_tracking', router: createTimeRoutes({ db, tables: { timeEntry, user, job, project, teamMember }, authenticate, requirePermission, audit } as any) },

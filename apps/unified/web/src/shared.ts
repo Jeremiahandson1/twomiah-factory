@@ -46,6 +46,7 @@ export { QuoteDetailPage } from '@twomiah/tenant-ui/src/invoicing/QuoteDetailPag
 export { InvoicesPage } from '@twomiah/tenant-ui/src/invoicing/InvoicesPage'
 export { InvoiceDetailPage } from '@twomiah/tenant-ui/src/invoicing/InvoiceDetailPage'
 export { JobsDashboardPage } from '@twomiah/tenant-ui/src/reporting/JobsDashboardPage'
+export { MoneyStrip } from '@twomiah/tenant-ui/src/reporting/MoneyStrip'
 export { ReportsPage } from '@twomiah/tenant-ui/src/reporting/ReportsPage'
 export { JobCostingPage } from '@twomiah/tenant-ui/src/reporting/JobCostingPage'
 export { SchedulePage } from '@twomiah/tenant-ui/src/schedule/SchedulePage'

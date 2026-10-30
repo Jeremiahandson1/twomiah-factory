@@ -1,7 +1,7 @@
 // Home dashboard for the jobs-family CRMs (contractor, field service, landscaping): stat cards, today's
 // board and three recent lists. Salon, vet, events and RV keep their own home screens.
 import React, { useEffect, useState } from 'react'
-import { Briefcase, DollarSign, FileText, FolderKanban, Inbox, Receipt } from 'lucide-react'
+import { AlertTriangle, Briefcase, DollarSign, FileText, FolderKanban, Inbox, Receipt } from 'lucide-react'
 import { NavLink, StatusBadge, money } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { JobsDashboardPageProps } from './types'
@@ -98,6 +98,9 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
     ...(maySeeInvoices ? [
       { label: 'Open invoices', value: stats?.invoices?.outstanding || 0, icon: Receipt, color: 'red', link: '/crm/invoices' },
       { label: 'Outstanding', value: money(stats?.invoices?.outstandingValue || 0), icon: DollarSign, color: 'emerald', link: '/crm/invoices' },
+      // The server has always sent what is past due (invoices.overdue, overdueValue); the screen never showed it. Only where
+      // the trade turns it on (overdueTile) and the server sent the key: a template's dashboard is unchanged.
+      ...(cfg.overdueTile && typeof stats?.invoices?.overdueValue === 'number' ? [{ label: `Overdue${stats.invoices.overdue ? ` (${stats.invoices.overdue})` : ''}`, value: money(stats.invoices.overdueValue), icon: AlertTriangle, color: (stats.invoices.overdueValue || 0) > 0 ? 'red' : 'emerald', link: '/crm/invoices' }] : []),
     ] : []),
   ]
 

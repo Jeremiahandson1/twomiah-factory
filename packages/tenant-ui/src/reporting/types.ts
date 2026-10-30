@@ -57,6 +57,8 @@ export interface JobsDashboardConfig {
   todayBoard?: boolean
   /** Show the Active Projects card. Default true. */
   projects?: boolean
+  /** Show the Overdue tile (what the server already sends as invoices.overdue / overdueValue). Default false: a template's dashboard is unchanged. */
+  overdueTile?: boolean
 }
 
 export interface JobsDashboardPageProps {
@@ -66,5 +68,5 @@ export interface JobsDashboardPageProps {
   config?: JobsDashboardConfig
 }
 
-export const defaultJobsDashboardConfig: Required<JobsDashboardConfig> = { jobsLabel: 'Jobs', jobsPath: '/crm/jobs', todayBoard: false, projects: true }
+export const defaultJobsDashboardConfig: Required<JobsDashboardConfig> = { jobsLabel: 'Jobs', jobsPath: '/crm/jobs', todayBoard: false, projects: true, overdueTile: false }
 export const resolveJobsDashboardConfig = (c?: JobsDashboardConfig) => ({ ...defaultJobsDashboardConfig, ...(c || {}) })

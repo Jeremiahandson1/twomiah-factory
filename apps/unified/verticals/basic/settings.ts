@@ -100,7 +100,7 @@ const basic: VerticalSettings = {
     // Neutral words for a general service business (it fell back to the shared default, which suits no one in particular).
     pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Standard visit' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: {},
     expenses: {},

@@ -15,7 +15,7 @@
 //     'import' / '<system>_migration' (importService, migrationService);
 //   · unanswered messages and calls: they are conversations, not leads.
 // No time window: a lead nobody has answered is still waiting, however long ago it came.
-import { and, count, desc, eq, notExists, sql } from 'drizzle-orm'
+import { and, count, desc, eq, lt, notExists, sql } from 'drizzle-orm'
 
 export interface NewLeadTables { lead?: any; contact: any; quote: any; job: any; invoice: any }
 export interface NewLeads { total: number; inbox: number; contacts: number }
@@ -29,9 +29,15 @@ export interface NewLeadRow {
   receivedAt: string
 }
 
-const enquiryWhere = (t: NewLeadTables, companyId: string) => and(eq(t.lead.companyId, companyId), eq(t.lead.status, 'new'))
-const contactWhere = (db: any, t: NewLeadTables, companyId: string) => and(
+// `olderThan` narrows the same rows to those that came in before that instant — the ones that have waited too long
+// (the dashboard's "unanswered" figure). Absent, every new lead, as before.
+const enquiryWhere = (t: NewLeadTables, companyId: string, olderThan?: Date) => and(
+  eq(t.lead.companyId, companyId), eq(t.lead.status, 'new'),
+  olderThan ? lt(t.lead.receivedAt, olderThan) : undefined,
+)
+const contactWhere = (db: any, t: NewLeadTables, companyId: string, olderThan?: Date) => and(
   eq(t.contact.companyId, companyId),
+  olderThan ? lt(t.contact.createdAt, olderThan) : undefined,
   eq(t.contact.type, 'lead'),
   sql`(${t.contact.customFields}::jsonb ->> 'importedAt') IS NULL`,
   sql`coalesce(${t.contact.source}, '') !~ '^(import|[a-z]+_migration)$'`,
@@ -40,10 +46,10 @@ const contactWhere = (db: any, t: NewLeadTables, companyId: string) => and(
   notExists(db.select({ id: t.invoice.id }).from(t.invoice).where(eq(t.invoice.contactId, t.contact.id))),
 )
 
-export async function countNewLeads(db: any, t: NewLeadTables, companyId: string, o: { inbox: boolean }): Promise<NewLeads> {
+export async function countNewLeads(db: any, t: NewLeadTables, companyId: string, o: { inbox: boolean; olderThan?: Date }): Promise<NewLeads> {
   const [inboxRows, contactRows] = await Promise.all([
-    o.inbox && t.lead ? db.select({ value: count() }).from(t.lead).where(enquiryWhere(t, companyId)) : Promise.resolve([{ value: 0 }]),
-    db.select({ value: count() }).from(t.contact).where(contactWhere(db, t, companyId)),
+    o.inbox && t.lead ? db.select({ value: count() }).from(t.lead).where(enquiryWhere(t, companyId, o.olderThan)) : Promise.resolve([{ value: 0 }]),
+    db.select({ value: count() }).from(t.contact).where(contactWhere(db, t, companyId, o.olderThan)),
   ])
   const inbox = Number(inboxRows[0]?.value ?? 0)
   const contacts = Number(contactRows[0]?.value ?? 0)

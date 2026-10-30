@@ -92,7 +92,7 @@ const fieldservice: VerticalSettings = {
     // The van's stock, named as a tech would (crm/pages/fieldservice/PartsInventory).
     parts: { namePlaceholder: 'e.g., 16x25x1 Pleated Filter' },
     reporting: { jobsLabel: 'Service Calls', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },
     time: {},
     expenses: {},

@@ -8,7 +8,7 @@ import {
   CommissionsPage, TechView, FleetPage, InventoryPage, EquipmentPage, AgreementsPage, WarrantiesPage, RecurringForm,
   RecurringList, TasksPage, ReviewsPage, MarketingPage, MessagesPage, AdsPage, PricebookPage, LeadSourcesPage,
   leadSourceGuides, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, IntegrationsPage, ImportPage, MigrationPage,
-  useAuth, useToast,
+  useAuth, useToast, MoneyStrip,
 } from '../shared'
 import { api } from '../api'
 import { verticalScreens } from './vertical'
@@ -53,7 +53,14 @@ function JobsDashboard() {
 export function Dashboard() {
   const home = v().home
   const Own = typeof home === 'string' ? HOMES[home] : undefined
-  return Own ? <Own /> : <JobsDashboard />
+  // Cash in, what is owed and who is waiting, above every trade's own home screen (reporting/MoneyStrip.tsx). The jobs
+  // dashboard shows the past-due figure as a tile of its own, so the strip leaves that one out there.
+  return (
+    <div className="space-y-6">
+      <MoneyStrip api={client} hide={Own ? [] : ['overdue']} />
+      {Own ? <Own /> : <JobsDashboard />}
+    </div>
+  )
 }
 /**
  * A contact's page in the trade's words: its job ("Schedule Service Call", the "Service Calls" list) and its service sites

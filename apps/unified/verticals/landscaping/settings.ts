@@ -107,7 +107,7 @@ const landscaping: VerticalSettings = {
     // the flat-rate form said "AC Diagnostic - Residential" and "DIAG-001").
     pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Spring cleanup', codePlaceholder: 'e.g., MOW-01', partsPlaceholder: 'Comma-separated, e.g., 2 yd mulch, 1x edging roll' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: {},
     expenses: {},
