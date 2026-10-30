@@ -227,6 +227,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Roofing
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'quote_proposals', name: 'Proposal Options', description: 'One quote with two to six priced options, each with photos, a brand and a warranty, that the customer picks between and signs', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
   // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is
   // no state of the product where it is off, and the Settings toggle could never do anything. `core` is a
