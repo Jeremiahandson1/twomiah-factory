@@ -71,6 +71,14 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
   lastBilledFor: date('last_billed_for'),
   lastInvoiceId: text('last_invoice_id'),
   cancelledAt: timestamp('cancelled_at'),
+  /**
+   * Charge the client's card on file when a period's invoice is raised (Card on File on). Off by default, so every
+   * existing enrolment keeps raising an open invoice exactly as before. Turned on only with the client's agreement,
+   * recorded below; turned off by the salon at any time, and by the app itself after the last failed try.
+   */
+  autoCharge: boolean('auto_charge').default(false).notNull(),
+  autoChargeConsentAt: timestamp('auto_charge_consent_at'),
+  autoChargeConsentUserId: text('auto_charge_consent_user_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -234,4 +242,32 @@ export const cardFeeCharge = pgTable('card_fee_charge', {
   index('card_fee_charge_company_idx').on(t.companyId, t.createdAt),
   index('card_fee_charge_appointment_idx').on(t.appointmentId),
   index('card_fee_charge_contact_idx').on(t.contactId),
+])
+
+/**
+ * Every try at charging a membership period's invoice to the client's card: one row per try, claimed BEFORE Stripe is
+ * asked (unique per invoice and try number), so two runs cannot both charge, and a try that died half-way is resumed
+ * under the same number — and so the same Stripe idempotency key — instead of charging twice.
+ */
+export const membershipCharge = pgTable('membership_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  enrollmentId: text('enrollment_id').notNull().references(() => membershipEnrollment.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').references(() => clientCard.id, { onDelete: 'set null' }),
+  /** The period (renewal day) the invoice is for. */
+  period: date('period').notNull(),
+  attempt: integer('attempt').notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  /** 'pending' (claimed, Stripe not answered) | 'succeeded' | 'declined' | 'needs_action' */
+  status: text('status').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureMessage: text('failure_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('membership_charge_invoice_attempt_idx').on(t.invoiceId, t.attempt),
+  index('membership_charge_company_id_idx').on(t.companyId),
+  index('membership_charge_enrollment_id_idx').on(t.enrollmentId),
 ])

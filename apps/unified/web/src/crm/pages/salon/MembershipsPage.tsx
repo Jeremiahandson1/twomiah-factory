@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Loader2, X, CreditCard, Edit2, Trash2, Check, Users, UserPlus } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useMayWrite, useAuth, usePermissions } from '../../../shared'
 import ClientPicker from './ClientPicker';
 import { todayKey as todayStr } from '../../../shared'
 import { money as fmtMoney } from '../../../shared'
@@ -42,6 +42,8 @@ interface Enrollment {
   creditsRemaining?: number | null;
   startDate?: string;
   renewsAt?: string;
+  autoCharge?: boolean;
+  lastCharge?: { status: string; attempt: number; failureMessage?: string | null } | null;
 }
 interface ServiceOption { id: string; name?: string }
 
@@ -73,6 +75,10 @@ export default function MembershipsPage() {
   const mayEditPlan = useMayWrite('pricebook:update');
   const mayEnroll = useMayWrite('contacts:create');
   const mayWorkEnrollment = useMayWrite('contacts:update');
+  // Charging a member's card on file each period: Card on File on, and a seat that takes payments (the server asks the same).
+  const { hasFeature } = useAuth();
+  const { known, can } = usePermissions();
+  const mayAutoCharge = hasFeature('card_on_file') && known && can('invoices:update');
   const confirm = useConfirm();
   const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -121,6 +127,16 @@ export default function MembershipsPage() {
       load();
     } catch (err) {
       toast.error((err as Error).message || 'Failed to cancel the membership');
+    }
+  };
+
+  const setAutoCharge = async (e: Enrollment, on: boolean) => {
+    if (on && !(await confirm(`Has ${e.clientName || 'the client'} agreed to be charged for ${e.planName || 'this plan'} on their card on file each period? Each charge is made on your own Stripe account and they are emailed a receipt.`, { title: 'Charge their card automatically', confirmText: 'They agreed', danger: false }))) return;
+    try {
+      await api.put(`/api/memberships/enrollments/${e.id}/auto-charge`, on ? { on, clientAgreed: true } : { on });
+      load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not change automatic card payments');
     }
   };
 
@@ -243,11 +259,25 @@ export default function MembershipsPage() {
                           {e.creditsRemaining === null || e.creditsRemaining === undefined ? 'Unlimited' : e.creditsRemaining}
                         </td>
                         <td className="px-4 py-3">
+                          {e.status === 'active' && hasFeature('card_on_file') && (e.autoCharge || e.lastCharge) && (
+                            <span className="mb-1 block text-xs text-gray-600 dark:text-slate-300" data-testid="auto-charge-status">
+                              {e.autoCharge ? 'Card charged automatically' : 'Card not charged automatically'}
+                              {e.lastCharge && e.lastCharge.status !== 'succeeded' && e.lastCharge.status !== 'pending' && (
+                                <span className="block text-amber-800 dark:text-amber-200">Last card charge {e.lastCharge.status === 'needs_action' ? 'needs the client to approve it' : 'was declined'}{e.autoCharge ? ' — will try again' : ''}; the invoice is still open.</span>
+                              )}
+                            </span>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           {mayWorkEnrollment && e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
                             <button onClick={() => redeem(e)} className="text-xs text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Use a credit</button>
+                          )}
+                          {mayWorkEnrollment && e.status === 'active' && hasFeature('card_on_file') && e.autoCharge && (
+                            <button onClick={() => setAutoCharge(e, false)} className="ml-3 text-xs text-gray-700 hover:underline dark:text-slate-300">Stop charging card</button>
+                          )}
+                          {mayAutoCharge && e.status === 'active' && !e.autoCharge && (
+                            <button onClick={() => setAutoCharge(e, true)} className="ml-3 text-xs text-teal-700 hover:underline dark:text-teal-300">Charge card automatically</button>
                           )}
                           {mayWorkEnrollment && e.status === 'active' && (
                             <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
@@ -392,6 +422,15 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
               <label htmlFor="planActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active</label>
             </div>
 
+            {mayAutoCharge && (
+              <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200">
+                <input type="checkbox" checked={autoCharge} onChange={(e) => setAutoCharge(e.target.checked)} className="mt-0.5 h-4 w-4" />
+                <span>
+                  The client agrees to be charged this plan&rsquo;s price to their card on file each period.
+                  <span className="block text-xs text-gray-600 dark:text-slate-300">They need a card on their chart first. It is charged on your own Stripe account, and they are emailed a receipt. If a charge is declined it is tried again, then the invoice is left open for you.</span>
+                </span>
+              </label>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
@@ -409,6 +448,10 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
 
 function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
+  const { hasFeature } = useAuth();
+  const { known, can } = usePermissions();
+  const mayAutoCharge = hasFeature('card_on_file') && known && can('invoices:update');
+  const [autoCharge, setAutoCharge] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contactId, setContactId] = useState<string>('');
   const [planId, setPlanId] = useState<string>(plans[0]?.id || '');
@@ -421,7 +464,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
     setSaving(true);
     try {
       // Credits are seeded from the plan by the backend, so they are not sent here.
-      await api.post('/api/memberships/enrollments', { contactId, planId, startDate });
+      await api.post('/api/memberships/enrollments', { contactId, planId, startDate, ...(autoCharge ? { autoCharge: true, clientAgreed: true } : {}) });
       onSave();
     } catch (err) {
       toast.error((err as Error).message || 'Failed to enroll client');

@@ -112,6 +112,9 @@ export function parsePolicy(body: any): { values: CardPolicy } | { fields: Recor
 type CardRow = typeof clientCard.$inferSelect
 type ChargeRow = typeof cardFeeCharge.$inferSelect
 
+/** "Visa ending 4242" — a card as a client reads it in an email. */
+export const cardWords = (c: { brand: string | null; last4: string | null }) => `${c.brand ? c.brand[0].toUpperCase() + c.brand.slice(1) : 'Card'} ending ${c.last4 || '····'}`
+
 /** A card as a screen shows it: the brand and last four, never an id Stripe would accept. */
 export const cardView = (r: CardRow) => ({
   id: r.id, contactId: r.contactId, brand: r.brand, last4: r.last4, expMonth: r.expMonth, expYear: r.expYear,
