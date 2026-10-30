@@ -20,7 +20,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Salon / barber / spa | 36 | 13 | 7 | 5 | 10 | 14 |
 | Restaurant / caterer / event venue | 36 | 10 | 9 | 5 | 6 | 16 |
 | Bar / tavern | 44 | 13 | 10 | 8 | 7 | 19 |
-| Online store | 28 | 5 | 6 | 2 | 3 | 17 |
+| Online store | 30 | 5 | 6 | 2 | 4 | 18 |
 | Veterinary practice | 34 | 0 | 8 | 4 | 9 | 13 |
 
 ## Contractor (`contractor`, feature set `crm`)
@@ -717,6 +717,8 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | — | Discounts | `/crm/discounts` | discounts:read | — (core) | owner, admin, manager | none | C |
 | — | Gift cards | `/crm/gift-cards` | orders:refund | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | — | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| — | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| — | Reviews | `/crm/reviews` | — | google_reviews (off by default (add-on or opt-in)) | all | none | C |
 | — | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | — | Shipping | `/crm/shipping` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | — | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |

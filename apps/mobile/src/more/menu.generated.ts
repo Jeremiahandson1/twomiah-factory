@@ -517,6 +517,8 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Discounts","path":"/crm/discounts","group":"Sell","icon":"ellipse","permission":"discounts:read","routePermission":"discounts:read"},
     {"label":"Gift cards","path":"/crm/gift-cards","group":"Sell","icon":"ellipse","permission":"orders:refund","routePermission":"orders:refund"},
     {"label":"Loyalty","path":"/crm/store-loyalty","group":"Customers","icon":"ellipse","permission":"loyalty:read","routePermission":"loyalty:read"},
+    {"label":"Marketing","path":"/crm/marketing","group":"Customers","icon":"megaphone","permission":"marketing:read","features":["email_marketing"]},
+    {"label":"Reviews","path":"/crm/reviews","group":"Customers","icon":"star","features":["google_reviews"]},
     {"label":"Suppliers","path":"/crm/suppliers","group":"Equipment & records","icon":"ellipse","permission":"integrations:update","routePermission":"integrations:update"},
     {"label":"Shipping","path":"/crm/shipping","group":"Sell","icon":"ellipse","permission":"shipping:configure","routePermission":"shipping:configure"},
     {"label":"Reviews","path":"/crm/product-reviews","group":"Customers","icon":"ellipse","permission":"reviews:read","routePermission":"reviews:read","native":[{"route":"/(tabs)/store-reviews"}]},
