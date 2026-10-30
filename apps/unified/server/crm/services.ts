@@ -29,6 +29,7 @@ import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
 import { createInvoiceReminders } from './billing/invoiceReminders.ts'
+import { createJobReminders } from './field/jobReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
@@ -203,6 +204,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
   // vertical's invoices, and home care's Billing invoices where this is home care.
   const invoiceReminders = createInvoiceReminders({ db, email: emailService, audit, logger, isFeatureEnabled, homecare: !!settings.homecare })
+  // The reminder before a job the office booked, on each business's own switch, hours and clock (field/jobReminders.ts).
+  const jobReminders = createJobReminders({ db, sms, email: emailService, logger, isFeatureEnabled })
 
   /** A module's own timed work (home care's reminders and polls), registered when it mounts, started with the rest. */
   const moduleJobs: Array<() => void> = []
@@ -211,7 +214,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quickbooksSync, scheduledTexts,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -243,6 +246,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
       if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
       // Due-soon and overdue invoice reminders, and the late fee, every hour (each company's own switch decides).
       invoiceReminders.start()
+      // Reminders before the jobs the office booked, every 10 minutes (each business's own switch and hours decide).
+      jobReminders.start()
       // QuickBooks auto-sync, every 15 minutes, for the companies whose switch is on.
       quickbooksSync.start()
       // Scheduled texts that are due, every minute.

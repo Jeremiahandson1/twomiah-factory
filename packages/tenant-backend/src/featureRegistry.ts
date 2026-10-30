@@ -192,6 +192,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
   // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
   { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
+  // Job Reminders — NOT ready (2026-10-30). The reminder text and email the day before a job the office booked
+  // (apps/unified server/crm/field/jobReminders.ts), per business, off until the owner switches it on, inside the
+  // business's sending hours. Hidden until the owner has tested it; no plan, signup or Features page switches it on.
+  { id: 'job_reminders', name: 'Job Reminders', description: 'Automatic reminder texts and emails before the jobs you book', category: 'Communication', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job reminders'] },
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
   // Communication

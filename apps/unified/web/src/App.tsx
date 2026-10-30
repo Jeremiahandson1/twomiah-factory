@@ -73,6 +73,7 @@ const MaintenanceContracts = page(() => import('./crm/pages/fieldservice/Mainten
 const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventory'))
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
+const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
 const ExportEverythingPage = page(() => import('./crm/pages/ExportEverythingPage'))
 
 function NotFound() {
@@ -237,6 +238,7 @@ export default function App() {
                       <Route path="settings/billing" element={<Billing />} />
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
+                      <Route path="settings/job-reminders" element={<JobRemindersPage />} />
                       <Route path="settings/export" element={<ExportEverythingPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />
