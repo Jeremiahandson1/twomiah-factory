@@ -771,20 +771,19 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, ...(deps.options?.revenueOnly ? { isRevenue: sql<boolean>`${deps.options.revenueOnly}` } : {}) }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
     const tz = await zoneOf(currentUser.companyId)
-    for (const inv of invoices) {
-      const s = derive(inv, tz)
-      stats[s] = (stats[s] || 0) + 1
-      // An invoice that is not revenue (InvoiceOptions.revenueOnly: a gift card's sale) is counted in the invoice tallies above and left out of the money.
-      const revenue = (inv as any).isRevenue !== false
-      if (revenue && inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
+    // The invoice tallies count every invoice, a gift card's sale included; the money below counts only invoices that are revenue
+    // (InvoiceOptions.revenueOnly — a card's sale is a liability, its money is revenue when it is spent).
+    for (const inv of invoices) { const s = derive(inv, tz); stats[s] = (stats[s] || 0) + 1 }
+    for (const inv of invoices.filter((i: any) => i.isRevenue !== false)) {
+      if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
-      if (revenue && inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
+      if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
       // Money that went back went back, whatever became of the invoice afterwards — and voiding REQUIRES the
       // refund first ("Refund them first, then void"), so a void invoice is precisely where refunds end up. That
       // is why skipping them here disagreed with Reports, which counts the refund ledger and cannot see a status.
       // paidAmount still skips void, and does not need to: a void invoice's paid − refunded is 0 by that rule.
       // (Contractor T29 L3)
-      if (revenue) stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
+      stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
     }
     return c.json(stats)
   })

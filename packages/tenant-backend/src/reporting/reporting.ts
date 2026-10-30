@@ -169,7 +169,7 @@ export function createReportingService(deps: ReportingDeps) {
     const monthOf = (at: Date) => storeDateString(at, tz).slice(0, 7)
     const [invoices, payments] = await Promise.all([
       db.select({ total: t.invoice.total, createdAt: t.invoice.createdAt }).from(t.invoice)
-        .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), billed, ...onlyRevenue)),
+        .where(and(eq(t.invoice.companyId, companyId), ...onlyRevenue, gte(t.invoice.createdAt, start), billed)),
       db.select({ amount: t.payment.amount, paidAt: t.payment.paidAt }).from(t.payment)
         .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
         .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start), ...onlyRevenue)),
@@ -291,7 +291,7 @@ export function createReportingService(deps: ReportingDeps) {
     if (!ids.length) return []
     const [invoiceTotals, jobCounts] = await Promise.all([
       db.select({ projectId: t.invoice.projectId, invoiced: sum(t.invoice.total), collected: sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)` })
-        .from(t.invoice).where(and(inArray(t.invoice.projectId, ids), billed, ...onlyRevenue)).groupBy(t.invoice.projectId),
+        .from(t.invoice).where(and(...onlyRevenue, inArray(t.invoice.projectId, ids), billed)).groupBy(t.invoice.projectId),
       db.select({ projectId: t.job.projectId, count: count() }).from(t.job).where(inArray(t.job.projectId, ids)).groupBy(t.job.projectId),
     ])
     const inv = new Map(invoiceTotals.map((i: any) => [i.projectId, i]))
