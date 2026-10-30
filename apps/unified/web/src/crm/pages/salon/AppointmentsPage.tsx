@@ -9,7 +9,7 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
-import { useConfirm, useMayWrite } from '../../../shared'
+import { useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
@@ -64,6 +64,8 @@ interface Appointment {
   stylistFirstName?: string;
   stylistMemberName?: string;
   stylistLastName?: string;
+  /** A visit with several services (salon #5): each with its own stylist and place in the visit. */
+  items?: Array<{ id: string; serviceName?: string; stylistFirstName?: string; stylistLastName?: string; startOffsetMin: number; durationMin: number }>;
 }
 interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number; requiresPatchTest?: boolean }
 interface ClientProfileLite { allergies?: string | null; patchTestAt?: string | null }
@@ -354,7 +356,9 @@ export default function AppointmentsPage() {
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">{clientLink(a)}</p>
                 <p className="text-sm text-gray-500 flex items-center gap-2 flex-wrap dark:text-slate-400">
-                  {a.serviceName && <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.serviceName}</span>}
+                  {a.items && a.items.length > 1
+                    ? <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.items.map((i) => `${i.serviceName || 'Service'}${i.stylistFirstName ? ` (${i.stylistFirstName})` : ''}`).join(' + ')}</span>
+                    : a.serviceName && <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.serviceName}</span>}
                   {(a.clientMobile || a.clientPhone) && (
                     <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {a.clientMobile || a.clientPhone}</span>
                   )}
@@ -523,6 +527,10 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDay: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
   // A stylist is not shown prices (the server leaves them out too); the booking takes the menu price.
   const maySeePrices = useMayWrite('invoices:read');
+  const { hasFeature } = useAuth();
+  const several = hasFeature('multi_service_visits');
+  // More services in this visit, after the first one above: each with its own stylist ('' = the visit's).
+  const [more, setMore] = useState<Array<{ serviceId: string; stylistId: string }>>([]);
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -604,10 +612,15 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
       };
       if (form.serviceId) payload.serviceId = form.serviceId;
       if (form.stylistId) payload.stylistId = form.stylistId;
+      const extra = more.filter((m) => m.serviceId);
+      if (several && form.serviceId && extra.length > 0) {
+        // One visit, one service after another; the server works out the end and the price from the services.
+        payload.items = [{ serviceId: form.serviceId, ...(form.stylistId ? { stylistId: form.stylistId } : {}) }, ...extra.map((m) => ({ serviceId: m.serviceId, ...(m.stylistId ? { stylistId: m.stylistId } : {}) }))];
+      }
       // Left blank, the backend derives the end from the service duration.
-      if (form.endTime) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
+      if (form.endTime && !payload.items) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
       if (form.station) payload.station = form.station;
-      if (form.quotedPrice !== '') payload.quotedPrice = Number(form.quotedPrice);
+      if (form.quotedPrice !== '' && !payload.items) payload.quotedPrice = Number(form.quotedPrice);
       if (form.notes) payload.notes = form.notes;
       // The salon's patch-test rule: a service that needs a passing test is booked only with a reason, kept on the appointment.
       if (overrideReason.trim()) payload.patchTestOverrideReason = overrideReason.trim();
@@ -659,6 +672,27 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
                 </select>
               </div>
             </div>
+            {several && form.serviceId && (
+              <div className="space-y-2">
+                {more.map((m, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                    <select aria-label={`Service ${i + 2}`} value={m.serviceId} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, serviceId: e.target.value } : x))} className="w-full px-3 py-2 border rounded-lg">
+                      <option value="">Then this service...</option>
+                      {services.map((sv) => <option key={sv.id} value={sv.id}>{sv.name || 'Untitled'}</option>)}
+                    </select>
+                    <select aria-label={`Stylist for service ${i + 2}`} value={m.stylistId} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, stylistId: e.target.value } : x))} className="w-full px-3 py-2 border rounded-lg" disabled={scope.ownOnly}>
+                      <option value="">Same stylist</option>
+                      {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+                    </select>
+                    <button type="button" aria-label={`Remove service ${i + 2}`} onClick={() => setMore((l) => l.filter((_, j) => j !== i))} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {more.length < 7 && (
+                  <button type="button" onClick={() => setMore((l) => [...l, { serviceId: '', stylistId: '' }])} className="text-sm text-teal-700 hover:underline dark:text-teal-300">+ Add another service to this visit</button>
+                )}
+                {more.some((m) => m.serviceId) && <p className="text-xs text-gray-500 dark:text-slate-400">The services run one after another; the end time and price come from them.</p>}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>

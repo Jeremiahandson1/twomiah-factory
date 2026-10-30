@@ -8,11 +8,11 @@
 // Not moved: the template mirrored each status onto its own online-booking row (online_booking, SALON-N10). That module
 // is replaced by the one booking engine (server/booking), which keeps its own bookings' status.
 import { Hono } from 'hono'
-import { and, count, eq, gte, lte, ne, or } from 'drizzle-orm'
+import { and, asc, count, eq, gte, inArray, lte, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
-import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
-import { processingProblem, type Processing } from './segments.ts'
+import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
+import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -181,6 +181,85 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     return { proc: svc?.m && svc.m > 0 ? { afterMin: svc.a ?? 0, min: svc.m } : null }
   }
 
+  /**
+   * A visit with several services (salon #5; feature `multi_service_visits`): the services in order, each with its own stylist,
+   * start, length, gap and price. Returns the resolved list or a refusal in words. A service with no start follows the one
+   * before it; no stylist means the visit's.
+   */
+  type ItemInput = { serviceId: string; stylist: StylistRef; offset: number; duration: number; proc: Processing | null; price: number | null; name: string; requiresPatchTest: boolean }
+  async function resolveItems(currentUser: any, raw: any, visitStylist: StylistRef, canMoney: boolean): Promise<{ items: ItemInput[] } | { problem: string; status: number; code: string; field?: string }> {
+    const bad = (problem: string, code = 'BAD_ITEMS', status = 400) => ({ problem, status, code, field: 'items' })
+    if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'multi_service_visits'))) return bad('Visits with several services are not switched on for this salon.', 'FEATURE_OFF', 409)
+    if (!Array.isArray(raw) || raw.length < 2) return bad('A visit with several services needs at least two services.')
+    if (raw.length > 8) return bad('A visit can have at most 8 services.')
+    const out: ItemInput[] = []
+    let cursor = 0
+    for (const [i, it] of raw.entries()) {
+      const n = i + 1
+      if (!it?.serviceId) return bad(`Service ${n}: choose a service.`)
+      const [svc] = await db.select().from(serviceMenu).where(and(eq(serviceMenu.id, String(it.serviceId)), eq(serviceMenu.companyId, currentUser.companyId))).limit(1)
+      if (!svc) return bad(`Service ${n} is not on your Service Menu.`, 'BAD_ITEMS', 404)
+      let stylist = visitStylist
+      if (it.stylistId || it.stylistMemberId) {
+        const got = await resolveStylist(db, currentUser.companyId, it.stylistId ?? it.stylistMemberId)
+        if (!got) return bad(`Service ${n}: that stylist is not on your team.`)
+        stylist = got
+      }
+      const duration = it.durationMin != null && it.durationMin !== '' ? Number(it.durationMin) : Number(svc.durationMin || 60)
+      if (!Number.isInteger(duration) || duration < 1 || duration > 720) return bad(`Service ${n}: the length must be a whole number of minutes, 1 to 720.`)
+      const offset = it.startOffsetMin != null && it.startOffsetMin !== '' ? Number(it.startOffsetMin) : cursor
+      if (!Number.isInteger(offset) || offset < 0) return bad(`Service ${n}: the start must be a whole number of minutes from the visit's start.`)
+      const proc: Processing | null = svc.processingMin && svc.processingMin > 0 && svc.processingAfterMin != null && svc.processingAfterMin + svc.processingMin <= duration
+        ? { afterMin: svc.processingAfterMin, min: svc.processingMin } : null
+      let price: number | null = svc.price != null ? Number(svc.price) : null
+      if (canMoney && it.price != null && it.price !== '') {
+        if (isNaN(Number(it.price)) || Number(it.price) < 0) return bad(`Service ${n}: the price cannot be negative.`)
+        price = Number(it.price)
+      }
+      out.push({ serviceId: svc.id, stylist, offset, duration, proc, price, name: svc.name || 'Service', requiresPatchTest: !!svc.requiresPatchTest })
+      cursor = Math.max(cursor, offset + duration)
+    }
+    // Two services of the same stylist cannot overlap inside the visit itself.
+    for (let a = 0; a < out.length; a++) for (let b = a + 1; b < out.length; b++) {
+      const x = out[a], y = out[b]
+      const same = (x.stylist.stylistId && x.stylist.stylistId === y.stylist.stylistId) || (x.stylist.stylistMemberId && x.stylist.stylistMemberId === y.stylist.stylistMemberId)
+      if (same && touch(piecesOf(x.offset, x.offset + x.duration, x.proc), piecesOf(y.offset, y.offset + y.duration, y.proc))) return bad(`Services ${a + 1} and ${b + 1} are the same stylist at the same time.`, 'APPOINTMENT_CONFLICT', 409)
+    }
+    return { items: out }
+  }
+
+  /** The first clash any of a visit's services has with the book, as a sentence — or null. `exec` is the surrounding transaction. */
+  async function itemsConflict(companyId: string, items: Array<{ stylist: StylistRef; offset: number; duration: number; proc: Processing | null }>, start: Date, ignoreId: string | undefined, exec: any): Promise<string | null> {
+    for (const it of items) {
+      if (!it.stylist.stylistId && !it.stylist.stylistMemberId) continue
+      const s = new Date(start.getTime() + it.offset * 60_000), e = new Date(s.getTime() + it.duration * 60_000)
+      if (await findStylistConflict(exec, companyId, it.stylist, s, e, ignoreId, it.proc)) return 'That stylist is already booked at this time'
+    }
+    return null
+  }
+
+  /** The services of the visits asked about, by visit id (empty for plain appointments). */
+  async function itemsOf(companyId: string, ids: string[]) {
+    if (!ids.length) return new Map<string, any[]>()
+    const rows: any[] = await db.select({
+      item: appointmentItem, serviceName: serviceMenu.name, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+    }).from(appointmentItem)
+      .leftJoin(serviceMenu, eq(serviceMenu.id, appointmentItem.serviceId))
+      .leftJoin(user, eq(user.id, appointmentItem.stylistId))
+      .leftJoin(teamMember, eq(teamMember.id, appointmentItem.stylistMemberId))
+      .where(and(eq(appointmentItem.companyId, companyId), inArray(appointmentItem.appointmentId, ids))).orderBy(asc(appointmentItem.position))
+    const by = new Map<string, any[]>()
+    for (const r of rows) {
+      const member = String(r.memberName || '').trim()
+      const entry = {
+        ...r.item, stylistId: r.item.stylistId ?? r.item.stylistMemberId, serviceName: r.serviceName,
+        stylistFirstName: r.firstName ?? (member.split(/\s+/)[0] || null), stylistLastName: r.lastName ?? (member.split(/\s+/).slice(1).join(' ') || null),
+      }
+      by.set(r.item.appointmentId, [...(by.get(r.item.appointmentId) || []), entry])
+    }
+    return by
+  }
+
   /** Closing a visit — the sale, the visit record, loyalty, the review request — one way, wherever it closes (visit.ts). */
   const onVisitCompleted = (row: AppointmentRow, actor?: any) => salon.visits.closeVisit(row, actor)
 
@@ -282,6 +361,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         stylistLastName: r.stylistLastName ?? memberLast,
       }
     })
+    // A visit with several services carries them (the Book draws each in its stylist's column); plain ones have none.
+    const withItems = await itemsOf(currentUser.companyId, rows.map((r) => r.id))
+    if (withItems.size) for (const r of rows) { const it = withItems.get(r.id); if (it) (r as any).items = it }
     // A window is the whole of it: one page holding every row.
     if (windowed) return listAll(c, rows)
     const [{ total }] = await db.select({ total: count() }).from(appointment).where(and(...conditions))
@@ -308,25 +390,31 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, body.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
       if (!ct) return fail(c, 404, 'That client does not exist.')
     }
-    const serviceId = body.serviceId || null
+    let serviceId = body.serviceId || null
+    // Several services in one visit (salon #5): the visit's service is the first one's, checked below with the rest.
+    const wantsItems = body.items !== undefined && body.items !== null
+    if (wantsItems && Array.isArray(body.items) && body.items[0]?.serviceId) serviceId = body.items[0].serviceId
     if (serviceId && !(await ownService(currentUser.companyId, serviceId))) return fail(c, 404, 'That service is not on your Service Menu.')
     // A seat that may not see prices books at the menu's price, chosen here, and cannot set another (./prices.ts).
     if (!(await canSeeMoney(currentUser))) body.quotedPrice = await menuPrice(db, currentUser.companyId, serviceId)
     // A service that needs a patch test, for a client without a passing one on record (when the salon switched the rule on):
     // booked only with a reason, kept on the appointment. (patchTest.ts)
     let patchNote = ''
-    if (serviceId && body.status !== 'cancelled') {
-      const [menu] = await db.select({ name: serviceMenu.name, requiresPatchTest: serviceMenu.requiresPatchTest }).from(serviceMenu).where(eq(serviceMenu.id, serviceId)).limit(1)
-      if (menu?.requiresPatchTest && (await ruleOnFor(db, currentUser.companyId))) {
-        const hold = patchTestHold((await stateFor(db, body.contactId, await clock.salonToday(currentUser.companyId))).state, menu.name || '')
-        if (hold) {
-          const why = String(body.patchTestOverrideReason || '').trim()
-          if (why.length < 3) return fail(c, 409, `${hold} To book it anyway, say why.`, 'PATCH_TEST_NEEDED', { patchTestOverrideReason: 'Say why you are booking it anyway.' })
-          patchNote = `Booked without a passing patch test — ${why.slice(0, 300)}`
+    const patchIds: string[] = wantsItems && Array.isArray(body.items) ? body.items.map((i: any) => i?.serviceId).filter(Boolean) : serviceId ? [serviceId] : []
+    if (patchIds.length && body.status !== 'cancelled') {
+      for (const sid of patchIds) {
+        const [menu] = await db.select({ name: serviceMenu.name, requiresPatchTest: serviceMenu.requiresPatchTest }).from(serviceMenu).where(and(eq(serviceMenu.id, sid), eq(serviceMenu.companyId, currentUser.companyId))).limit(1)
+        if (menu?.requiresPatchTest && (await ruleOnFor(db, currentUser.companyId))) {
+          const hold = patchTestHold((await stateFor(db, body.contactId, await clock.salonToday(currentUser.companyId))).state, menu.name || '')
+          if (hold) {
+            const why = String(body.patchTestOverrideReason || '').trim()
+            if (why.length < 3) return fail(c, 409, `${hold} To book it anyway, say why.`, 'PATCH_TEST_NEEDED', { patchTestOverrideReason: 'Say why you are booking it anyway.' })
+            patchNote = `Booked without a passing patch test — ${why.slice(0, 300)}`
+          }
         }
       }
     }
-    const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
+    let endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
     if (endTime.getTime() <= startTime.getTime()) return fail(c, 400, 'The end time must be after the start time.')
     if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
 
@@ -339,7 +427,22 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (!stylist) return unknownStylist(c, body.stylistId)
     if (own && !isOwnChair(own, stylist)) return notYourChair(c)
 
-    const made = await processingFor(currentUser.companyId, serviceId, body, Math.round((endTime.getTime() - startTime.getTime()) / 60000))
+    // Several services: each its own stylist, start, length and gap; the visit runs from the first start to the last end, and is priced
+    // as the sum. (A plain appointment is the same code as before.)
+    let itemList: ItemInput[] | null = null
+    let visitStylist = stylist
+    if (wantsItems) {
+      const got = await resolveItems(currentUser, body.items, stylist, await canSeeMoney(currentUser))
+      if ('problem' in got) return fail(c, got.status as any, got.problem, got.code, got.field ? { [got.field]: got.problem } : undefined)
+      itemList = got.items
+      if (own && itemList.some((i) => !isOwnChair(own, i.stylist))) return notYourChair(c)
+      endTime = new Date(startTime.getTime() + Math.max(...itemList.map((i) => i.offset + i.duration)) * 60_000)
+      if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
+      visitStylist = itemList[0].stylist
+      body.quotedPrice = Math.round(itemList.reduce((t, i) => t + (i.price ?? 0), 0) * 100) / 100   // the sum (a seat that sets no prices gets the menu's)
+    }
+
+    const made = itemList ? { proc: null } : await processingFor(currentUser.companyId, serviceId, body, Math.round((endTime.getTime() - startTime.getTime()) / 60000))
     if ('problem' in made) return fail(c, 400, made.problem, 'BAD_PROCESSING', { processingMin: made.problem })
     const proc = made.proc
 
@@ -347,17 +450,21 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     try {
       created = await db.transaction(async (tx: any) => {
         await lockAppointmentBook(tx, currentUser.companyId)
-        if (stylist.stylistId || stylist.stylistMemberId) {
+        if (itemList) {
+          const clash = await itemsConflict(currentUser.companyId, itemList, startTime, undefined, tx)
+          if (clash) throw new ApptConflict(clash)
+        } else if (stylist.stylistId || stylist.stylistMemberId) {
           if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) throw new ApptConflict('That stylist is already booked at this time')
         }
         if (body.station) {
           if (await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime, undefined, tx)) throw new ApptConflict(`${String(body.station).trim()} is already booked at this time`)
         }
+        const apptId = createId()
         const [row] = await tx.insert(appointment).values({
-          id: createId(),
+          id: apptId,
           contactId: body.contactId || null,
-          stylistId: stylist.stylistId,
-          stylistMemberId: stylist.stylistMemberId,
+          stylistId: visitStylist.stylistId,
+          stylistMemberId: visitStylist.stylistMemberId,
           serviceId,
           status: body.status || 'scheduled',
           station: body.station || null,
@@ -368,6 +475,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           notes: [patchNote, body.notes].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
         }).returning()
+        if (itemList) {
+          await tx.insert(appointmentItem).values(itemList.map((i, position) => ({
+            companyId: currentUser.companyId, appointmentId: apptId, position, serviceId: i.serviceId,
+            stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
+            startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, price: i.price != null ? String(i.price) : null,
+          })) as any)
+        }
         return row
       })
     } catch (e) {
@@ -376,9 +490,10 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       throw e
     }
 
-    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: created, req: { user: currentUser } })
+    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: itemList ? { ...created, services: itemList.map((i) => i.name) } : created, req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
-    return one(c, named(created), 201)
+    const made201 = itemList ? (await itemsOf(currentUser.companyId, [created.id])).get(created.id) : undefined
+    return one(c, { ...named(created), ...(made201 ? { items: made201 } : {}) }, 201)
   })
 
   app.put('/:id', requirePermission('schedule:update'), async (c) => {
@@ -392,6 +507,17 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const own = await book.ownChairOf(currentUser)
     if (own && !isOwnChair(own, existing)) return notInBook(c)
 
+    // A visit with several services (salon #5) moves as a whole; its services are not edited here.
+    const existingItems: Array<typeof appointmentItem.$inferSelect> = await db.select().from(appointmentItem)
+      .where(and(eq(appointmentItem.appointmentId, id), eq(appointmentItem.companyId, currentUser.companyId))).orderBy(asc(appointmentItem.position))
+    const itemised = existingItems.length > 0
+    if (itemised) {
+      const changesServices = 'items' in body || 'processingMin' in body || 'processingAfterMin' in body
+        || ('serviceId' in body && String(body.serviceId ?? '') !== String(existing.serviceId ?? ''))
+        || ('stylistId' in body && String(body.stylistId ?? '') !== String(stylistIdOf(existing) ?? ''))
+        || (body.endTime && !('startTime' in body) && new Date(body.endTime).getTime() !== new Date(existing.endTime ?? 0).getTime())
+      if (changesServices) return fail(c, 409, 'This visit has several services. You can move it, check it in, complete or cancel it; to change its services or their lengths, cancel it and book it again.', 'VISIT_HAS_SERVICES')
+    }
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, any> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
@@ -418,7 +544,11 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const nextStart: Date = updates.startTime ?? new Date(existing.startTime)
     const nextService = 'serviceId' in updates ? updates.serviceId : existing.serviceId
     if ('serviceId' in updates && updates.serviceId && !(await ownService(currentUser.companyId, updates.serviceId))) return fail(c, 404, 'That service is not on your Service Menu.')
-    if (('startTime' in updates || 'serviceId' in updates) && !('endTime' in updates)) {
+    if (itemised) {
+      // Moving it keeps its length: the end follows the start whatever the screen sent.
+      const span = new Date(existing.endTime ?? new Date(existing.startTime).getTime() + 3600000).getTime() - new Date(existing.startTime).getTime()
+      updates.endTime = new Date(nextStart.getTime() + span)
+    } else if (('startTime' in updates || 'serviceId' in updates) && !('endTime' in updates)) {
       updates.endTime = await resolveEnd(currentUser.companyId, nextStart, nextService, null)
     }
     const nextEnd: Date = updates.endTime ?? (existing.endTime ? new Date(existing.endTime) : new Date(nextStart.getTime() + 3600000))
@@ -448,7 +578,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
 
     // The processing gap: as booked, unless the service changed (the new service's) or the desk set one for this visit.
     let nextProc: Processing | null = existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
-    if ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body) {
+    if (!itemised && ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body)) {
       const got = await processingFor(currentUser.companyId, nextService ?? null, body, Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000))
       if ('problem' in got) return fail(c, 400, got.problem, 'BAD_PROCESSING', { processingMin: got.problem })
       nextProc = got.proc
@@ -460,7 +590,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     try {
       updated = await db.transaction(async (tx: any) => {
         await lockAppointmentBook(tx, currentUser.companyId)
-        if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
+        if (itemised && !CANCELLED.includes(nextStatus)) {
+          const clash = await itemsConflict(currentUser.companyId, existingItems.map((i) => ({
+            stylist: { stylistId: i.stylistId, stylistMemberId: i.stylistMemberId ?? null }, offset: i.startOffsetMin, duration: i.durationMin,
+            proc: i.processingMin && i.processingMin > 0 ? { afterMin: i.processingAfterMin ?? 0, min: i.processingMin } : null,
+          })), nextStart, id, tx)
+          if (clash) throw new ApptConflict(clash)
+        } else if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
           if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) throw new ApptConflict('That stylist is already booked at this time')
         }
         if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
