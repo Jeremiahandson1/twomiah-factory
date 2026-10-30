@@ -23,6 +23,7 @@ import { createIncidentRoutes } from './incidents.ts'
 import { createComplianceRoutes } from './compliance.ts'
 import { createAuditLogRoutes } from './auditLogs.ts'
 import { createStaffPickerRoutes } from './signIn.ts'
+import { createCsvImportRoutes } from './csvImport.ts'
 
 export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   return [
@@ -30,5 +31,7 @@ export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/compliance', access: 'user', router: createComplianceRoutes(d) },
     { path: '/api/audit-logs', access: 'user', router: createAuditLogRoutes(d) },
     { path: '/api/auth/users', access: 'user', router: createStaffPickerRoutes(d) },
+    // item 1: CSV import of clients, caregivers and recurring shifts (not ready)
+    { path: '/api/care-import', access: 'user', feature: 'care_import', router: createCsvImportRoutes(core, d) },
   ]
 }

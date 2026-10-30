@@ -2927,3 +2927,35 @@ export const supervisoryVisit = pgTable('supervisory_visit', {
 }, (t) => [
   index('supervisory_visit_company_client_idx').on(t.companyId, t.clientId, t.visitDate),
 ])
+
+// Item 1 (care_import): one CSV import of clients, caregivers or recurring shifts, and the records it created, so the
+// whole batch can be undone (core/csvImport.ts, data/homecareImport.ts). Only what the import CREATED is listed; a
+// record that matched an existing one is skipped, never changed.
+export const importBatch = pgTable('import_batch', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'clients' | 'caregivers' | 'schedules'
+  fileName: text('file_name'),
+  status: text('status').default('done').notNull(), // 'done' | 'undone'
+  rowsInFile: integer('rows_in_file').default(0).notNull(),
+  created: integer('created').default(0).notNull(),
+  skippedDuplicates: integer('skipped_duplicates').default(0).notNull(),
+  failed: integer('failed').default(0).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  undoneAt: timestamp('undone_at'),
+  undoneBy: text('undone_by'),
+}, (t) => [
+  index('import_batch_company_idx').on(t.companyId, t.createdAt),
+])
+
+export const importBatchRecord = pgTable('import_batch_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  batchId: text('batch_id').notNull().references(() => importBatch.id, { onDelete: 'cascade' }),
+  recordId: text('record_id').notNull(),
+  line: integer('line'),
+  undone: boolean('undone').default(false).notNull(),
+}, (t) => [
+  index('import_batch_record_batch_idx').on(t.batchId),
+])

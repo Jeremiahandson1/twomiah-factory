@@ -31,6 +31,7 @@ import { createFamilyTexts } from './familyTexts.ts'
 import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
 import { createMargin } from './margin.ts'
+import { createCsvImport } from './csvImport.ts'
 import { createVisitJobs } from './visitJobs.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
@@ -95,6 +96,7 @@ function buildHomecareCore(d: CrmDeps) {
   const claims = createClaimsEngine(d)
   const payroll = createPayrollPay(d)
   const margin = createMargin(d, { invoices })
+  const csvImport = createCsvImport(d, { time })
 
   // Hiring and onboarding.
   const staffEmails = createStaffEmails(d, { profile })
@@ -118,7 +120,7 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, margin,
+    invoices, claims, payroll, margin, csvImport,
     staffEmails, eligibility, onboarding, applications,
     reminders, overtime, certReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
