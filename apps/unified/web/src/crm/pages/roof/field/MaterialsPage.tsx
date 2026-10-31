@@ -12,14 +12,16 @@
 //   · the columns are Roofr's order dashboard (status, PO number, job, address, supplier, order date, delivery, amount) and each
 //     header sorts the whole list on the server (?sort=&dir=), a click ascending, a second descending, a third back to newest.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Filter, Mail, Plus, Tag } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useMayWrite, usePermissions, useToast } from '../../../../shared'
+import { errorText, useAuth, useMayWrite, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { ORDER_STATUS_LABELS, orderStatusLabel, supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
 import MaterialOrderDetail from './MaterialOrderDetail'
+import MaterialSendForm from './MaterialSendForm'
+import SupplierPriceLists from './SupplierPriceLists'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
@@ -69,6 +71,11 @@ export default function MaterialsPage() {
   // A new order (POST /api/materials asks inventory:create): the page had no add control (live test 2026-10-22).
   const mayAdd = useMayWrite('inventory:create')
   const [adding, setAdding] = useState(false)
+  // Sending orders to the supplier (material_supply, inventory:update): pick rows, send them together; and the supplier price lists (they hold costs: margin:read).
+  const maySend = useAuth().hasFeature('material_supply') && usePermissions().can('inventory:update')
+  const [picked, setPicked] = useState<string[]>([])
+  const [sendingMany, setSendingMany] = useState(false)
+  const [priceLists, setPriceLists] = useState(false)
   // The order opened for reading (and printing).
   const [openOrder, setOpenOrder] = useState<MaterialOrder | null>(null)
 
@@ -114,7 +121,10 @@ export default function MaterialsPage() {
   useEffect(() => { setPage(1) }, [supplierFilter, statusFilter, dateFrom, dateTo, sort])
 
   const shown = COLUMNS.filter((c) => !c.cost || showCost)
-  const columns = shown.length
+  const columns = shown.length + (maySend ? 1 : 0)
+  const togglePick = (id: string) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
+  const pickedOrders = orders.filter((o) => picked.includes(o.id))
+  const oneSupplier = new Set(pickedOrders.map((o) => (o.supplier || '').toLowerCase().replace(/[^a-z0-9]+/g, ''))).size <= 1
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -124,6 +134,16 @@ export default function MaterialsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Material Orders</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'order' : 'orders'}</p>
           </div>
+          {maySend && pickedOrders.length > 0 && (
+            <button type="button" onClick={() => setSendingMany(true)} disabled={!oneSupplier} title={oneSupplier ? undefined : 'Pick orders of one supplier'} className="flex items-center gap-1.5 px-4 py-2 mr-2 bg-gray-100 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-100">
+              <Mail className="w-4 h-4" /> Send {pickedOrders.length} to supplier
+            </button>
+          )}
+          {maySend && showCost && (
+            <button type="button" onClick={() => setPriceLists(true)} className="flex items-center gap-1.5 px-4 py-2 mr-2 bg-gray-100 text-sm font-medium rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100">
+              <Tag className="w-4 h-4" /> Price lists
+            </button>
+          )}
           {mayAdd && (
             <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
               <Plus className="w-4 h-4" /> New order
@@ -131,7 +151,9 @@ export default function MaterialsPage() {
           )}
         </div>
         {adding && <MaterialOrderForm onClose={() => setAdding(false)} onSaved={load} />}
-        {openOrder && <MaterialOrderDetail orderId={openOrder.id} jobNumber={openOrder.jobNumber} onClose={() => setOpenOrder(null)} />}
+        {openOrder && <MaterialOrderDetail orderId={openOrder.id} jobNumber={openOrder.jobNumber} onClose={() => setOpenOrder(null)} onChanged={load} />}
+        {sendingMany && <MaterialSendForm orderIds={pickedOrders.map((o) => o.id)} onClose={() => setSendingMany(false)} onSent={() => { setPicked([]); load() }} />}
+        {priceLists && <SupplierPriceLists onClose={() => setPriceLists(false)} />}
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Filter className="w-4 h-4 text-gray-400" />
@@ -160,6 +182,7 @@ export default function MaterialsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  {maySend && <th scope="col" className="px-4 py-3 w-8"><span className="sr-only">Pick to send</span></th>}
                   {shown.map((col) => (
                     <th key={col.key} scope="col" aria-sort={sort?.key === col.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       className={`${col.right ? 'text-right' : 'text-left'} px-4 py-3 font-medium text-gray-500 dark:text-slate-400`}>
@@ -181,10 +204,15 @@ export default function MaterialsPage() {
                     <tr
                       key={order.id}
                       onClick={() => setOpenOrder(order)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setOpenOrder(order) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setOpenOrder(order) }}
                       tabIndex={0}
                       className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
                     >
+                      {maySend && (
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" aria-label={`Pick ${order.poNumber || order.jobNumber || 'order'} to send`} checked={picked.includes(order.id)} onChange={() => togglePick(order.id)} />
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status || ''] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {formatStatus(order.status) || 'Ordered'}

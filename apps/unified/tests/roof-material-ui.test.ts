@@ -321,3 +321,129 @@ describe('statuses in the roofer\'s words', () => {
     } finally { s.undo() }
   })
 })
+
+describe('sending orders to the supplier, and the supplier price lists', () => {
+  const ROW = { id: 'm1', jobId: 'j1', jobNumber: 'ROOF-0005', supplier: 'ABC Supply', status: 'ready_to_send', orderStatus: 'ready_to_send', poNumber: 'PO-1001', deliveryAddress: '12 Gable Ln', orderDate: null, deliveryDate: null, totalCost: '400.00', lineItems: [{ description: 'Shingles', qty: 10, unit: 'bundle', unitPrice: 40, total: 400 }] }
+  const START = { to: ['orders@abc.example'], cc: [], subject: 'Material order PO-1001 — 12 Gable Ln — Test Builders', message: 'Please find our material order below.', attachment: 'material-order-PO-1001.pdf', sendable: true, status: 'ready_to_send', statusLabel: 'Ready to send', supplierApi: { key: 'abc', label: 'ABC Supply', connected: false } }
+  const FEATURES = ['materials', 'roof_material_list', 'material_supply']
+  function wire(over: Record<string, any> = {}) {
+    const posts: { url: string; body: any }[] = []
+    const deletes: string[] = []
+    const real = { get: api.get, post: api.post, delete: api.delete }
+    api.get = async (url: string) => {
+      if (url === '/api/materials/m1') return over.order ?? ROW
+      if (url === '/api/material-supply/orders/m1/send') return START
+      if (url === '/api/material-supply/orders/m2/send') return { ...START, to: [] }
+      if (url === '/api/material-supply/price-lists') return { data: over.lists ?? [{ id: 'pl1', supplier: 'abc_supply', name: '2026 pricing', active: true, itemCount: 12, updatedAt: '2026-10-01T00:00:00Z' }], pagination: { page: 1, limit: 1, total: 1, pages: 1 } }
+      return { data: [ROW, { ...ROW, id: 'm2', poNumber: 'PO-1002' }, { ...ROW, id: 'm3', poNumber: 'PO-1003', supplier: 'SRS' }], pagination: { page: 1, limit: 25, total: 3, pages: 1 } }
+    }
+    api.post = async (url: string, body?: any) => {
+      posts.push({ url, body })
+      if (over.fail) throw Object.assign(new Error('Not an email address: nobody.'), { data: { fields: { to: 'Not an email address: nobody.' } } })
+      if (url.endsWith('/price')) return { order: ROW, priceList: { name: '2026 pricing' }, unmatched: ['Ridge vent'], pricedLines: 1 }
+      if (url === '/api/material-supply/orders/send') return { sent: 2, failed: 0, results: [{ id: 'm1', sent: true }, { id: 'm2', sent: true }] }
+      return {}
+    }
+    api.delete = async (url: string) => { deletes.push(url); return {} }
+    return { posts, deletes, undo: () => Object.assign(api, real) }
+  }
+  const field = (id: string) => document.getElementById(id) as any
+
+  test('Send to supplier opens the box with the usual recipients, subject and message; Send posts them; it says the supplier’s API is not connected', async () => {
+    const w = wire()
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update', 'margin:read'] })
+      await click(document.querySelector('tbody tr td:nth-child(2)'))
+      await click(button('Send to supplier'))
+      const box = document.querySelector('[data-testid="send-to-supplier"]')!
+      expect(field('send-to').value).toBe('orders@abc.example')
+      expect(field('send-subject').value).toContain('PO-1001')
+      expect(box.textContent).toContain('ABC Supply takes orders through its own ordering system')
+      expect(box.textContent).toContain('material-order-PO-1001.pdf')
+      await setInput(field('send-to'), 'orders@abc.example, desk@abc.example')
+      await setInput(field('send-cc'), 'me@test.example')
+      await click(button('Send'))
+      expect(w.posts).toEqual([{ url: '/api/material-supply/orders/m1/send', body: { to: 'orders@abc.example, desk@abc.example', cc: 'me@test.example', subject: START.subject, message: START.message } }])
+      expect(document.querySelector('[data-testid="send-to-supplier"]')).toBeNull()
+    } finally { w.undo() }
+  })
+
+  test('the server’s complaint about an address shows under the box, and the box stays open', async () => {
+    const w = wire({ fail: true })
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update'] })
+      await click(document.querySelector('tbody tr td:nth-child(2)'))
+      await click(button('Send to supplier'))
+      await click(button('Send'))
+      expect(document.querySelector('[data-testid="send-to-supplier"]')!.textContent).toContain('Not an email address: nobody.')
+    } finally { w.undo() }
+  })
+
+  test('there is no send without the feature, without inventory:update, or for an order that is past sending', async () => {
+    const w = wire()
+    try {
+      await mount(h(MaterialsPage), { features: ['materials', 'roof_material_list'], permissions: ['inventory:read', 'inventory:update'] })
+      await click(document.querySelector('tbody tr td:nth-child(1)'))
+      expect(button('Send to supplier')).toBeUndefined()
+      expect(document.querySelector('tbody input[type="checkbox"]')).toBeNull()
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read'] })
+      await click(document.querySelector('tbody tr'))
+      expect(button('Send to supplier')).toBeUndefined()
+      expect(document.querySelector('tbody input[type="checkbox"]')).toBeNull()
+    } finally { w.undo() }
+    const w2 = wire({ order: { ...ROW, orderStatus: 'delivered' } })
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update'] })
+      await click(document.querySelector('tbody tr td:nth-child(2)'))
+      expect(document.querySelector('[data-testid="material-order"]')).not.toBeNull()
+      expect(button('Send to supplier')).toBeUndefined()
+    } finally { w2.undo() }
+  })
+
+  test('several picked orders go in one call; orders of different suppliers cannot be sent together', async () => {
+    const w = wire()
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update'] })
+      const boxes = () => [...document.querySelectorAll('tbody input[type="checkbox"]')] as any[]
+      await click(boxes()[0]); await click(boxes()[1])
+      await click(button('Send 2 to supplier'))
+      await setInput(field('send-to'), 'orders@abc.example')
+      await click(button('Send'))
+      expect(w.posts[0].url).toBe('/api/material-supply/orders/send')
+      expect(w.posts[0].body).toMatchObject({ orderIds: ['m1', 'm2'], to: 'orders@abc.example' })
+      expect(document.querySelector('[data-testid="send-outcome"]')!.textContent).toContain('2 sent')
+      await click(button('Close'))
+      await click(boxes()[0]); await click(boxes()[2])
+      expect(button('Send 2 to supplier').disabled).toBe(true)
+    } finally { w.undo() }
+  })
+
+  test('pricing: the order is priced from the supplier’s list (naming what the list lacked), and the lock can be taken off', async () => {
+    const w = wire({ order: { ...ROW, priceListId: 'pl1' } })
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update', 'margin:read'] })
+      await click(document.querySelector('tbody tr td:nth-child(2)'))
+      expect(document.querySelector('[data-testid="price-locked"]')!.textContent).toContain('Changing the supplier clears them')
+      await click(button('Price from the supplier’s list'))
+      expect(w.posts.some((p) => p.url === '/api/material-supply/orders/m1/price')).toBe(true)
+      expect(document.querySelector('[data-testid="material-order"]')!.textContent).toContain('Not on the list, so not priced: Ridge vent')
+      await click(button('Remove supplier pricing'))
+      expect(w.deletes).toEqual(['/api/material-supply/orders/m1/price'])
+    } finally { w.undo() }
+  })
+
+  test('price lists: listed with their supplier’s name; a pasted spreadsheet is saved; only for a seat that may see costs', async () => {
+    const w = wire()
+    try {
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update', 'inventory:create', 'margin:read'] })
+      await click(button('Price lists'))
+      expect(document.querySelector('[data-testid="price-list-rows"]')!.textContent).toContain('2026 pricing · ABC Supply · 12 items')
+      await setInput(field('pl-supplier'), 'ABC Supply'); await setInput(field('pl-name'), 'Fall pricing')
+      await act(async () => { const ta = field('pl-csv'); Object.getOwnPropertyDescriptor(win.HTMLTextAreaElement.prototype, 'value')!.set!.call(ta, 'description,price\nShingles,41.50'); ta.dispatchEvent(new win.Event('input', { bubbles: true })) })
+      await click(button('Save price list'))
+      expect(w.posts).toEqual([{ url: '/api/material-supply/price-lists', body: { supplier: 'ABC Supply', name: 'Fall pricing', csv: 'description,price\nShingles,41.50' } }])
+      await mount(h(MaterialsPage), { features: FEATURES, permissions: ['inventory:read', 'inventory:update'] })
+      expect(button('Price lists')).toBeUndefined()
+    } finally { w.undo() }
+  })
+})
