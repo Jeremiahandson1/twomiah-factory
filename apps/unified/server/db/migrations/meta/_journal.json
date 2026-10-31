@@ -407,6 +407,13 @@
       "when": 1793475474527,
       "tag": "0057_team_revenue_split",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793475913538,
+      "tag": "0058_tech_availability_finished",
+      "breakpoints": true
     }
   ]
 }

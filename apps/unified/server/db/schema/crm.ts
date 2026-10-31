@@ -653,6 +653,13 @@ export const timeEntry = pgTable('time_entry', {
   clockOutLat: real('clock_out_lat'),
   clockOutLng: real('clock_out_lng'),
   clockSource: text('clock_source'),
+  /**
+   * The time off this entry was made for (tech_time_off.id, 0055: ServiceTitan's "time off creates a timesheet"). The
+   * Time page shows it as "Time off"; removing the time off removes the entry unless it was already approved. Not a
+   * foreign key: tech_time_off lives in field.ts, which imports this file (server/data/techAvailability.ts keeps the two
+   * in step).
+   */
+  timeOffId: text('time_off_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -665,6 +672,7 @@ export const timeEntry = pgTable('time_entry', {
   index('time_entry_user_id_idx').on(t.userId),
   index('time_entry_job_id_idx').on(t.jobId),
   index('time_entry_date_idx').on(t.date),
+  index('time_entry_time_off_idx').on(t.timeOffId),
 ])
 
 export const expense = pgTable('expense', {

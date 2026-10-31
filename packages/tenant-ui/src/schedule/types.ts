@@ -32,7 +32,16 @@ export interface ScheduleConfig {
   routes?: boolean
   /** The signed-in person's id: a seat that reads only its own jobs routes only its own lane. */
   meId?: string | null
+  /**
+   * The business's opening hours (company.settings.businessHours, Settings › Company), muted on the calendar the way
+   * Jobber greys the hours outside them: a closed day's column, and the hours before opening and after closing in the
+   * Day view, are drawn greyed — still droppable, just not where the business normally works. Absent: nothing is muted.
+   */
+  businessHours?: ScheduleBusinessHours | null
 }
+/** One day of opening hours, as Settings › Company stores them (tenant-backend company/businessHours.ts). */
+export interface ScheduleDayHours { open?: string; close?: string; closed?: boolean }
+export type ScheduleBusinessHours = Partial<Record<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday', ScheduleDayHours>>
 
 export const DEFAULT_EVENT_TYPES = [
   { value: 'appointment', label: 'Appointment' },
@@ -55,6 +64,7 @@ export function resolveScheduleConfig(c?: ScheduleConfig) {
     lanes: !!cfg.lanes,
     routes: !!cfg.routes,
     meId: cfg.meId || null,
+    businessHours: cfg.businessHours || null,
   }
 }
 

@@ -85,6 +85,7 @@ interface DispatchJob {
   serviceAgreementId?: string | null;
   address?: string | null;
   scheduledTime?: string | null;
+  estimatedHours?: string | number | null;
   lat?: number | null;
   lng?: number | null;
   assignedToId?: string | null;
@@ -126,7 +127,8 @@ export default function DispatchBoard() {
   const { user, hasFeature } = useAuth();
   // Tech Availability (not ready): who is off or away today, painted on their lane. Closed on the server unless it is on.
   const showAvailability = hasFeature('tech_availability');
-  const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string }>>({});
+  // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
+  const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
   const meId = (user as any)?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayKey());
@@ -160,8 +162,8 @@ export default function DispatchBoard() {
       const techsRes = (techsOut.status === 'fulfilled' ? techsOut.value : { data: [] }) as { data?: Tech[] };
       setJobs(Array.isArray(jobsRes?.data) ? jobsRes.data : []);
       setTechs(Array.isArray(techsRes?.data) ? techsRes.data : []);
-      const awayRes = (awayOut.status === 'fulfilled' ? awayOut.value : { people: [] }) as { people?: Array<{ personId: string; state: 'off' | 'part' | 'hours'; label: string }> };
-      setAway(Object.fromEntries((awayRes.people || []).map(p => [p.personId, { state: p.state, label: p.label }])));
+      const awayRes = (awayOut.status === 'fulfilled' ? awayOut.value : { people: [] }) as { people?: Array<{ personId: string; state: 'off' | 'part' | 'hours'; label: string; bars?: ShiftBar[] }> };
+      setAway(Object.fromEntries((awayRes.people || []).map(p => [p.personId, { state: p.state, label: p.label, bars: Array.isArray(p.bars) ? p.bars : [] }])));
     } catch (error) {
       console.error('Failed to load dispatch data:', error);
       if (!quiet) toast.error('Failed to load dispatch board');
@@ -277,6 +279,14 @@ export default function DispatchBoard() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dispatch Board</h1>
           <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
           {mayDispatch && <p className="text-sm text-gray-600 dark:text-slate-400">Drag a {JOB_WORD.toLowerCase()} to a person's lane — or tap Move, then a lane — to change who is on it.</p>}
+          {showAvailability && (
+            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-slate-400" data-testid="shift-legend">
+              <span className="inline-flex items-center gap-1"><span className={`h-2.5 w-4 rounded-sm ${AXIS.regular}`} />Shift</span>
+              <span className="inline-flex items-center gap-1"><span className={`h-2.5 w-4 rounded-sm ${AXIS.on_call}`} />On call</span>
+              <span className="inline-flex items-center gap-1"><span className={`h-2.5 w-4 rounded-sm ${AXIS.off}`} />Time off</span>
+              <span className="inline-flex items-center gap-1"><span className="h-1.5 w-4 rounded-sm bg-gray-700 dark:bg-slate-300" />{JOB_WORD}</span>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button aria-label="Previous day"
@@ -355,6 +365,10 @@ export default function DispatchBoard() {
                         {away[lane.id].state === 'hours' ? `Works ${away[lane.id].label}` : away[lane.id].label}
                       </p>
                     )}
+                    {/* The day on a time axis: shift bars (on call apart), time off grey, and the lane's jobs as ticks under them. */}
+                    {showAvailability && lane.id !== UNASSIGNED && (
+                      <ShiftAxis bars={away[lane.id]?.bars || []} jobs={here} colour={colourOf(lane.id)} />
+                    )}
                     {mayRoute(lane.id) && here.filter(j => j.status !== 'completed').length > 1 && (
                       <button type="button" data-route-lane={lane.id} onClick={(e) => { e.stopPropagation(); setRouteFor(lane); }}
                         className="mb-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -413,6 +427,52 @@ export default function DispatchBoard() {
         title={BOOK_ANYWAY_TITLE} message={override?.message || ''} confirmText="Book anyway" />
       {routeFor && <RouteOptimiser api={api as any} toast={toast as any} date={selectedDate} person={routeFor} mayRetime={mayDispatch} mayLocate={mayUpdate}
         onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); void loadData(true); }} />}
+    </div>
+  );
+}
+
+/** A bar of GET /api/availability/day: minutes from midnight, clipped to the day (server/data/techAvailability.ts DayBar). */
+interface ShiftBar { startMin: number; endMin: number; kind: 'regular' | 'on_call' | 'off' }
+/** The bars' looks — the legend and the lanes read the same three, so they cannot drift apart. */
+const AXIS: Record<ShiftBar['kind'], string> = {
+  regular: 'bg-blue-200 dark:bg-blue-500/40',
+  on_call: 'bg-amber-200 bg-[repeating-linear-gradient(135deg,transparent,transparent_3px,rgba(0,0,0,0.12)_3px,rgba(0,0,0,0.12)_6px)] dark:bg-amber-500/40',
+  off: 'bg-gray-300 dark:bg-slate-600',
+};
+/** The axis always shows at least 6 am to 8 pm; a bar or a job outside that widens it, on whole hours. */
+const AXIS_FROM = 6 * 60, AXIS_TO = 20 * 60;
+
+/**
+ * A lane's day on a time axis (ServiceTitan's Dispatch Board draws shifts as bars): the shift bars, on call striped,
+ * time off grey, and the lane's jobs as ticks under them — so a job outside the shift, or over the time off, is seen
+ * at a glance. Hours are marked every three; the ends are labelled.
+ */
+function ShiftAxis({ bars, jobs, colour }: { bars: ShiftBar[]; jobs: DispatchJob[]; colour: string }) {
+  // A job with no length holds an hour, as every schedule check counts it.
+  const ticks = jobs.flatMap(j => { const s = minutesOf(j.scheduledTime); const len = Number(j.estimatedHours) > 0 ? Math.round(Number(j.estimatedHours) * 60) : 60; return s === Number.MAX_SAFE_INTEGER ? [] : [{ id: j.id, s, e: s + len, title: j.contact?.name || j.title || JOB_WORD }]; });
+  const lo = Math.min(AXIS_FROM, ...bars.map(b => b.startMin), ...ticks.map(t => t.s));
+  const hi = Math.max(AXIS_TO, ...bars.map(b => b.endMin), ...ticks.map(t => t.e));
+  const from = Math.floor(lo / 60) * 60, to = Math.min(1440, Math.ceil(hi / 60) * 60), span = Math.max(60, to - from);
+  const left = (m: number) => `${((Math.max(from, m) - from) / span) * 100}%`;
+  const width = (s: number, e: number) => `${((Math.min(to, e) - Math.max(from, s)) / span) * 100}%`;
+  const label = (m: number) => { const h = Math.floor(m / 60) % 24; return `${h % 12 || 12}${h < 12 ? 'a' : 'p'}`; };
+  const hours: number[] = [];
+  for (let m = from; m <= to; m += 180) hours.push(m);
+  return (
+    <div className="mb-3" data-testid="shift-axis" data-from={from} data-to={to}>
+      <div className="relative h-5 rounded bg-gray-100 dark:bg-slate-800">
+        {hours.map(m => <span key={m} className="absolute top-0 h-full border-l border-gray-300/70 dark:border-slate-600/70" style={{ left: left(m) }} aria-hidden />)}
+        {bars.filter(b => b.endMin > b.startMin).map((b, i) => (
+          <span key={i} data-bar={b.kind} title={`${b.kind === 'off' ? 'Time off' : b.kind === 'on_call' ? 'On call' : 'Shift'} ${label(b.startMin)}–${label(b.endMin)}`}
+            className={`absolute top-0 h-full rounded-sm ${AXIS[b.kind]} ${b.kind === 'off' ? 'z-[2]' : 'z-[1]'}`} style={{ left: left(b.startMin), width: width(b.startMin, b.endMin) }} />
+        ))}
+        {ticks.map(t => (
+          <span key={t.id} data-tick={t.id} title={t.title} className="absolute bottom-0 z-[3] h-1.5 rounded-sm" style={{ left: left(t.s), width: width(t.s, t.e), background: colour }} />
+        ))}
+      </div>
+      <div className="relative h-3 text-[9px] leading-3 text-gray-500 dark:text-slate-400" aria-hidden>
+        {hours.map(m => <span key={m} className="absolute -translate-x-1/2" style={{ left: left(m) }}>{label(m)}</span>)}
+      </div>
     </div>
   );
 }
