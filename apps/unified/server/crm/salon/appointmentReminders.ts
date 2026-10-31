@@ -23,7 +23,7 @@ function fmtWhen(d: Date, timeZone: string): string {
   }
 }
 
-export function createAppointmentReminders(deps: { db: any; sms: { sendSMS: (companyId: string, msg: any) => Promise<any> }; logger: Logger }) {
+export function createAppointmentReminders(deps: { db: any; sms: { sendSMS: (companyId: string, msg: any) => Promise<any> }; logger: Logger; /** A sentence added when the service needs a patch test the client does not hold (patchTests.needNote). */ note?: (companyId: string, contactId: string | null, serviceMenuId: string | null) => Promise<string | null> }) {
   const { db, sms, logger } = deps
 
   async function processAppointmentReminders(): Promise<{ sent: number; failed: number }> {
@@ -62,7 +62,8 @@ export function createAppointmentReminders(deps: { db: any; sms: { sendSMS: (com
       }
       const when = fmtWhen(new Date(r.appt.startTime), tzByCompany.get(r.appt.companyId)!)
       const first = (r.clientName || '').split(' ')[0] || 'there'
-      const body = `Hi ${first}, a reminder from ${r.companyName || 'your salon'}: ${r.serviceName ? r.serviceName + ' ' : 'your appointment '}on ${when}. Reply to this text if you need to reschedule.`
+      const note = await deps.note?.(r.appt.companyId, r.appt.contactId, r.appt.serviceId).catch(() => null)
+      const body = `Hi ${first}, a reminder from ${r.companyName || 'your salon'}: ${r.serviceName ? r.serviceName + ' ' : 'your appointment '}on ${when}. Reply to this text if you need to reschedule.${note ? ' ' + note : ''}`
       try {
         const msg = await sms.sendSMS(r.appt.companyId, { contactId: r.appt.contactId, toPhone: to, message: body })
         const ok = msg?.status !== 'failed'

@@ -26,6 +26,8 @@ import type { Logger } from '../core/logger.ts'
 import { crmEmail, crmTemplates } from './messages.ts'
 import { createVisitSubject } from './salon/reviewSubject.ts'
 import { createAppointmentReminders } from './salon/appointmentReminders.ts'
+import { createPatchTests } from './salon/patchTests.ts'
+import { createSalonClock } from './salon/days.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
@@ -317,7 +319,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       // (templates/crm-restaurant routes/events.ts ran it when the router loaded). Idempotent; never delays startup.
       if (settings.events) void backfillEventInvoices(db, logger).catch((err: any) => logger.error('[events] invoice backfill failed', { error: err?.message }))
       // Tomorrow's appointments get a reminder text, every 10 minutes (templates/crm-salon index.ts startAppointmentReminders).
-      if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
+      if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger, note: (co, ct, sm) => createPatchTests(db, createSalonClock(db)).needNote(co, ct, sm) }).startAppointmentReminders()
       // Due-soon and overdue invoice reminders, and the late fee, every hour (each company's own switch decides).
       invoiceReminders.start()
       // Reminders before the jobs the office booked, every 10 minutes (each business's own switch and hours decide).

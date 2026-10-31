@@ -49,7 +49,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   email.register(bookingTemplates)
   const webhooks = createBookingWebhooks({ db, logger })
   // The engine's own rule for what is offered (read when a message goes, after the engine below is made).
-  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts, offered: (svc) => engine.offered(svc) })
+  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts, offered: (svc) => engine.offered(svc), note: (b, svc) => engine.noteFor(b, svc) })
   const engine = createBookingEngine({
     // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
@@ -61,7 +61,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
     jobs: deps.vertical.crm ? { numbering: deps.vertical.crm.roof ? { prefix: 'ROOF', pad: 4 } : { prefix: 'JOB', pad: 5 }, defaultType: deps.vertical.crm.jobs?.defaultType } : undefined,
   })
-  const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts })
+  const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts, note: (b, svc) => engine.noteFor(b, svc) })
 
   // ── The owner's API ───────────────────────────────────────────────────────
   const admin = new Hono<AppEnv>()

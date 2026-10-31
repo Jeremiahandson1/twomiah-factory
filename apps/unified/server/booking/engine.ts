@@ -65,6 +65,8 @@ export type BookingLinks = Partial<Pick<BookingRow, 'appointmentId'>>
 
 export interface BookingAddOn {
   questions: BookingQuestion[]
+  /** A sentence the vertical adds to a customer's confirmation and reminder (the salon: this service needs a patch test you do not hold). Null = nothing to add. */
+  note?(b: BookingRow, svc: ServiceRow | null): Promise<string | null>
   /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
   booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string>; /** Who made it: a customer on the public page, or staff (a desk booking, which may carry its own override). */ by?: 'customer' | 'staff' }): Promise<BookingLinks | void>
   /** After the booking was moved ('moved') or its status changed ('status'), in the same transaction: keep the add-on's record in step. */
@@ -185,6 +187,7 @@ export function createBookingEngine(deps: EngineDeps) {
   const now = deps.now ?? (() => Date.now())
   /** The vertical's own questions on the booking form (none for most). */
   const questions: BookingQuestion[] = deps.addOn?.questions ?? []
+  const noteFor = async (b: BookingRow, svc: ServiceRow | null): Promise<string | null> => (deps.addOn?.note ? deps.addOn.note(b, svc).catch(() => null) : null)
 
   /** The add-on's record follows the booking (a practice's appointment): moved with it, its status with it. */
   async function mirror(exec: any, b: BookingRow, change: 'moved' | 'status') {
@@ -1274,6 +1277,7 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   return {
+    noteFor,
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,

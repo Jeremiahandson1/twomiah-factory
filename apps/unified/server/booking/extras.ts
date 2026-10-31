@@ -7,7 +7,7 @@ import { tzParts, isRealDate, normaliseZip, zonedWallTimeToUtc, companyRowTimeZo
 import { booking, bookingService, bookingSeries, bookingWaitlist, bookingBan, bookingWebhook, bookingSettings, company } from '../db/schema/index.ts'
 import type { EmailService } from '../core/email.ts'
 import type { Logger } from '../core/logger.ts'
-import { BookingError, type BookingEngine, type BookInput } from './engine.ts'
+import { BookingError, type BookingEngine, type BookInput, type BookingRow, type ServiceRow } from './engine.ts'
 import { expandSeries, describeSeries, type Frequency } from './recurrence.ts'
 import { messageFor, icsOf, siteOrigin } from './happenings.ts'
 import { WEBHOOK_EVENTS, type BookingWebhooks } from './webhooks.ts'
@@ -17,7 +17,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
 const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0 }
 
-export function createBookingExtras(deps: { db: any; engine: BookingEngine; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; now?: () => number }) {
+export function createBookingExtras(deps: { db: any; engine: BookingEngine; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; now?: () => number; note?: (b: BookingRow, svc: ServiceRow | null) => Promise<string | null> }) {
   const { db, engine, email, logger, webhooks } = deps
   const now = deps.now ?? (() => Date.now())
 
@@ -257,7 +257,8 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
     for (const b of due) {
       const s = settingsOf.get(b.companyId); if (!s) continue
       try {
-        await email.send(b.customerEmail, 'bookingReminder', messageFor(b, await svcOf(b.serviceId), s))
+        const svc = await svcOf(b.serviceId)
+        await email.send(b.customerEmail, 'bookingReminder', { ...messageFor(b, svc, s), note: await (deps.note?.(b, svc) ?? Promise.resolve(null)).catch(() => null) })
         await db.update(booking).set({ reminderEmailSentAt: new Date(t) }).where(eq(booking.id, b.id))
         sent.reminders++
       } catch (e: any) { logger.warn('Booking reminder failed', { id: b.id, error: e?.message }) }

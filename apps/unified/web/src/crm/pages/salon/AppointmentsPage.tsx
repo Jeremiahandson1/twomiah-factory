@@ -169,6 +169,17 @@ export default function AppointmentsPage() {
   useEffect(() => { fetchBookScope().then(setScope); }, []);
 
   // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
+  // After completing the patch-test appointment: how did the test go? (the test is already on the chart as pending)
+  const [patchAsk, setPatchAsk] = useState<{ contactId: string; testId: string; name: string; invoiceId?: string } | null>(null);
+  const answerPatch = async (result: 'passed' | 'failed' | null) => {
+    const ask = patchAsk; if (!ask) return;
+    setPatchAsk(null);
+    if (result) {
+      try { await api.put(`/api/clients/${ask.contactId}/patch-tests/${ask.testId}`, { status: result }); toast.success(`Patch test recorded: ${result}`); }
+      catch (err) { toast.error((err as Error).message || 'The patch test result was not saved'); }
+    }
+    offerCheckout(ask.invoiceId);
+  };
   const offerCheckout = async (invoiceId?: string | null) => {
     if (invoiceId && await confirm('Sale created for this visit. Take payment now?', { title: 'Take payment?', confirmText: 'Open the sale', danger: false })) navigate(`/crm/invoices/${invoiceId}`);
   };
@@ -220,7 +231,9 @@ export default function AppointmentsPage() {
     try {
       const res = await api.put(`/api/appointments/${a.id}`, { status });
       load();
-      if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
+      // The salon's patch-test appointment: a test was recorded for it; ask how it went before anything else.
+      if (status === 'completed' && res?.patchTest?.status === 'pending' && a.contactId) setPatchAsk({ contactId: a.contactId, testId: res.patchTest.id as string, name: a.clientName || 'the client', invoiceId: res?.invoiceId as string | undefined });
+      else if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
       // The salon's automatic no-show fee (Settings › Card on file): say what happened to the card.
       const fee = res?.autoFee as { charged: boolean; status: string; amount?: number; message: string | null } | undefined;
       if (fee) {
@@ -515,6 +528,20 @@ export default function AppointmentsPage() {
           onSave={() => { setShowForm(false); setNewAt(null); load(); }}
           onClose={() => { setShowForm(false); setNewAt(null); }}
         />
+      )}
+      {patchAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <div className="fixed inset-0 bg-black/50" />
+          <div role="dialog" aria-modal="true" aria-label="Patch test result" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+            <h2 className="text-lg font-bold">How did the patch test go?</h2>
+            <p className="text-sm text-gray-700 dark:text-slate-200">{patchAsk.name}&rsquo;s patch test is on their chart as pending. Record the result now, or leave it pending and set it from their chart later.</p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button type="button" onClick={() => answerPatch('passed')} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Passed</button>
+              <button type="button" onClick={() => answerPatch('failed')} className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40">Failed</button>
+              <button type="button" onClick={() => answerPatch(null)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Decide later</button>
+            </div>
+          </div>
+        </div>
       )}
       {clashAsk && <ClashReasonModal message={clashAsk.message} onConfirm={bookOverClash} onClose={() => setClashAsk(null)} />}
       {blockFor && (

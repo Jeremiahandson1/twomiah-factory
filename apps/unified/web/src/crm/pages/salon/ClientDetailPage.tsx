@@ -15,6 +15,7 @@ import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClo
 import { ClientLoyaltyCard } from './loyaltyTiers'
 import { ClientCardOnFile } from './CardOnFile'
 import { ClientIntakeResponses } from './IntakeResponses'
+import { ClientPatchTests } from './PatchTests'
 import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
 import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
@@ -283,6 +284,7 @@ export default function ClientDetailPage() {
             Patch test: {detail.patchTest.state === 'passed' ? 'passed' : detail.patchTest.state === 'failed' ? 'failed' : 'run out'} ({detail.patchTest.ageDays} days ago)
           </p>
         )}
+        {id && <ClientPatchTests contactId={id} reload={load} />}
         {profile.allergies && (
           <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />

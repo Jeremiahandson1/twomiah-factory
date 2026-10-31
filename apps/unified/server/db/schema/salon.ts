@@ -352,6 +352,32 @@ export const saleTipSplit = pgTable('sale_tip_split', {
 ])
 
 /**
+ * One patch test of a client (salon parity row 22; Fresha "record client patch tests"): the history, newest first on the chart. A test has a date,
+ * a status — pending (booked or taken, no result yet), passed or failed — who ran it, a title and a description. The latest passed-or-failed test
+ * is mirrored onto client_profile.patch_test_at / patch_test_result (patchTest.ts), which is what the booking rule has always read.
+ */
+export const patchTest = pgTable('patch_test', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  testedAt: date('tested_at').notNull(),
+  /** 'pending' | 'passed' | 'failed' */
+  status: text('status').notNull().default('pending'),
+  title: text('title'),
+  description: text('description'),
+  ranByUserId: text('ran_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  /** The name as it was when the test was recorded (a chair-only stylist has no login). */
+  ranByName: text('ran_by_name'),
+  /** The patch-test appointment that prompted it, when completing one did. At most one test per appointment. */
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('patch_test_contact_idx').on(t.companyId, t.contactId, t.testedAt),
+  uniqueIndex('patch_test_appointment_unique').on(t.appointmentId),
+])
+
+/**
  * The receipt a paid sale emailed to the client (salon parity row 11): one row per sale, so the automatic receipt goes once however many ways
  * the sale's money arrives. A person pressing "Send receipt" again updates `sentAt`.
  */

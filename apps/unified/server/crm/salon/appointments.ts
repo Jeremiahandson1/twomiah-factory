@@ -701,7 +701,12 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (existing.status === 'completed' && CANCELLED.includes(nextStatus)) await onVisitUncompleted(updated)
     // Marked a no-show, and the salon opted in (Settings › Card on file): the fee goes to the card on file now. The answer rides back so the desk can say what happened.
     const autoFee = nextStatus === 'no_show' && existing.status !== 'no_show' ? await salon.cards.autoNoShow(currentUser.companyId, updated, currentUser) : null
-    return one(c, { ...named(updated), invoiceId, ...(autoFee ? { autoFee } : {}) })
+    // The salon's named patch-test appointment just completed: a test is recorded for it (the result if the desk gave one, else pending) and the
+    // answer carries it, so the screen can ask "passed or failed?".
+    const patchTestRecorded = nextStatus === 'completed' && existing.status !== 'completed'
+      ? await salon.patchTests.forCompletedVisit(currentUser.companyId, updated, body.patchTestResult).catch((e: any) => { d.logger.warn('[patch-test] not recorded', { error: e?.message }); return null })
+      : null
+    return one(c, { ...named(updated), invoiceId, ...(autoFee ? { autoFee } : {}), ...(patchTestRecorded ? { patchTest: patchTestRecorded } : {}) })
   })
 
   // Checking a client in is the front desk's job as well as the stylist's: `schedule:check-in` opens this and nothing else in the

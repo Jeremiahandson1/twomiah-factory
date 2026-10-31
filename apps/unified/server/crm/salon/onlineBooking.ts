@@ -19,6 +19,8 @@
 // (BookingAddOn.serviceList), and a booking of one writes the appointment with that menu item. Linking a row rather than
 // teaching the engine a second kind of service keeps every booking, deposit, buffer and reminder on the one table they
 // already hang off; the menu stays the only place a service's name, length and price are changed.
+import { createSalonClock } from './days.ts'
+import { createPatchTests } from './patchTests.ts'
 import { and, eq, gt, gte, inArray, isNull, lt, ne, notExists, notInArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { findOff, offSpans } from './timeOff.ts'
@@ -78,6 +80,11 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
   return {
     questions: [],
     serviceList: { name: SERVICE_LIST },
+    // The confirmation and the reminder tell a client whose service needs a patch test that they need one (patchTests.needNote).
+    async note(b, svc) {
+      if (!opts.db || !b.contactId) return null
+      return createPatchTests(opts.db, createSalonClock(opts.db)).needNote(b.companyId, b.contactId, (svc as any)?.serviceMenuId ?? null)
+    },
 
     // Clients choose their stylist (Settings › The Book; the feature `client_stylist_pick`): off unless the salon switched it on.
     // The salon's intake and consent forms, offered on the booking's page (feature `intake_forms`); none until the salon builds one.
