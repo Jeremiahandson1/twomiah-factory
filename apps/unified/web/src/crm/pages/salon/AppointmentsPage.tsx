@@ -362,7 +362,7 @@ export default function AppointmentsPage() {
           onPick={(a) => setPicked(a as Appointment)}
           onMove={moveOnGrid} onResize={resizeOnGrid}
           onEmptySlot={(col, startMin) => setNewAt({ stylistId: col.stylistId, date: weekish ? col.day : day, time: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` })}
-          onBlock={(b) => setBlockFor({ block: b })}
+          onBlock={(b) => { if (b.kind && b.kind !== 'block') navigate('/crm/time-off'); else setBlockFor({ block: b }); }}
         />
       ) : view === 'week' ? (
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">

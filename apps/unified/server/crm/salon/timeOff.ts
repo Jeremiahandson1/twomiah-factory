@@ -186,6 +186,9 @@ export function createTimeOffRoutes(d: CrmDeps, salon: SalonServices) {
     return one(c, { ...offOut({ o: updated }), affected })
   })
 
+  // GET /access — whether this seat decides time off and sets closed days (the screen shows or hides the buttons; the server asks again on each).
+  app.get('/time-off/access', requirePermission('contacts:read'), async (c) => one(c, { mayDecide: await mayDecide(c.get('user') as any) }))
+
   // GET /:id — one, with the appointments already booked inside it.
   app.get('/time-off/:id', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any

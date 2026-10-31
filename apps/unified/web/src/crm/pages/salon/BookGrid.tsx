@@ -12,7 +12,7 @@ export interface GridAppt {
   id: string; status?: string; startTime?: string; endTime?: string; stylistId?: string | null
   clientName?: string; serviceName?: string; processingAfterMin?: number | null; processingMin?: number | null; items?: GridItem[]
 }
-export interface GridBlock { id: string; stylistId?: string | null; startTime: string; endTime: string; reason?: string | null; typeId?: string | null; typeName?: string | null; typeColor?: string | null; paid?: boolean | null; seriesId?: string | null }
+export interface GridBlock { id: string; stylistId?: string | null; startTime: string; endTime: string; reason?: string | null; typeId?: string | null; typeName?: string | null; typeColor?: string | null; paid?: boolean | null; seriesId?: string | null; /** 'block' (default), or 'time_off' / 'closed' — drawn from timeOff.ts and kept on the Time off screen. */ kind?: 'block' | 'time_off' | 'closed'; readOnly?: boolean }
 /** What a block says on the Book: its type, then its own reason. */
 export const blockLabel = (b: Pick<GridBlock, 'typeName' | 'reason'>) => (b.typeName && b.reason ? `${b.typeName} · ${b.reason}` : b.typeName || b.reason || 'Blocked')
 export interface GridColumn { key: string; label: string; sub?: string; /** day mode: the stylist ('' = unassigned) */ stylistId?: string; /** week mode: the day */ day?: string }

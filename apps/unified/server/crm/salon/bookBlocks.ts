@@ -47,7 +47,7 @@ export function createBookBlockRoutes(d: CrmDeps, salon: SalonServices) {
   const refresh = (companyId: string) => live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
   const holder = (r: { stylistId: string | null; stylistMemberId: string | null }): { stylistId: string | null; stylistMemberId: string | null } => ({ stylistId: r.stylistId, stylistMemberId: r.stylistMemberId })
   /** A narrowed seat sees its own blocks and the salon's; it changes only its own. */
-  const visibleTo = (own: OwnChair | null, r: BlockRow) => !own || (!r.stylistId && !r.stylistMemberId) || isOwnChair(own, r)
+  const visibleTo = (own: OwnChair | null, r: Pick<BlockRow, 'stylistId' | 'stylistMemberId'>) => !own || (!r.stylistId && !r.stylistMemberId) || isOwnChair(own, r)
   const mayChange = (own: OwnChair | null, r: Pick<BlockRow, 'stylistId' | 'stylistMemberId'>) => !own || isOwnChair(own, r)
 
   /** Appointments already booked inside a block's time for its stylist (or anyone, for a salon-wide one) — said, never refused. */
