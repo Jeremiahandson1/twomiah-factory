@@ -428,6 +428,13 @@
       "when": 1793473472294,
       "tag": "0060_patch_test",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793474568966,
+      "tag": "0061_gift_card_depth",
+      "breakpoints": true
     }
   ]
 }

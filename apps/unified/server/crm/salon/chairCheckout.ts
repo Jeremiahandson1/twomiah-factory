@@ -56,7 +56,7 @@ export interface ChargeView {
   invoiceId: string; readerId: string; readerLabel: string | null; paymentId: string | null; createdAt: string
 }
 
-export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | null; now?: () => number; receipts?: SaleReceipts } = {}) {
+export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | null; now?: () => number; receipts?: SaleReceipts; /** Runs when a sale is paid in full here (a gift card sold on the reader goes live). */ afterPaid?: (invoiceId: string) => Promise<unknown> } = {}) {
   const { db, logger } = d
   const live = d.realtime
   const stripeOf = deps.stripe ?? (() => platformStripe(d.services.testStripeClient))
@@ -247,6 +247,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     void d.services.earnCommission(charge.invoiceId).catch(() => {})
     // A paid sale is emailed its receipt (with the link to add a tip afterwards), once.
     if (outcome.newStatus === 'paid') void deps.receipts?.onPaid(charge.invoiceId)
+    if (outcome.newStatus === 'paid') void deps.afterPaid?.(charge.invoiceId)?.catch?.(() => {})
   }
 
   /** Where the payment stands, asked of Stripe while it is pending. */

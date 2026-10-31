@@ -21,6 +21,7 @@ import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
 import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
+import { createGiftShop } from './giftShop.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
 import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
@@ -86,6 +87,18 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   // Gift cards sold at the desk and spent at checkout (not ready); a refund by gift card goes back onto the card, inside the refund's own transaction.
   const giftCards = createSalonGiftCards(d, s)
   d.services.useTenderRefund('gift_card', giftCards.creditBack)
+  // The public page that sells a card online and the page that checks a balance; a card bought online or on the reader goes live when its sale is paid.
+  const giftShop = createGiftShop(d, giftCards)
+  d.services.useConnectedEvents?.(giftShop.claim)
+  d.services.onInvoicePaid?.((invoiceId: string) => giftCards.activateRecorded(invoiceId))
+  // Timed: cards due to be emailed, free bonuses whose last day has passed, and online sales nobody paid. Boot only, never in tests.
+  // Reachable by tests (the same passes, one at a time).
+  ;(d.services as any).giftCardJobs = { deliverDue: giftCards.deliverDue, expireDue: giftCards.expireDue, expirePending: giftCards.expirePending }
+  d.services.addJob(() => {
+    const tick = async () => { try { await giftCards.deliverDue(); await giftCards.expireDue(); await giftCards.expirePending() } catch (e: any) { d.logger.warn('[gift-cards] timed pass failed', { error: e?.message }) } }
+    setTimeout(() => { void tick() }, 4 * 60_000)
+    setInterval(() => { void tick() }, 15 * 60_000)
+  })
   d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
@@ -117,11 +130,15 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     // Retail products with stock, sold onto a sale (not ready: owner tests it first).
     { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
     // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
-    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts })) } as Mount,
+    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts, afterPaid: giftCards.activateRecorded })) } as Mount,
     // The receipt's private tip page (404 while Checkout at the chair is off).
     { path: '/api/late-tip', access: 'public', feature: 'chair_checkout', router: lateTips.routes() } as Mount,
     // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
     { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
+    // Buy a gift card online, on the salon's own Stripe account (off until the owner switches online sales on).
+    { path: '/api/gift-shop', access: 'public', feature: 'salon_gift_cards', router: giftShop.shopRoutes() } as Mount,
+    // Check a gift card's balance by its number.
+    { path: '/api/gift-balance', access: 'public', feature: 'salon_gift_cards', router: giftShop.balanceRoutes() } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).

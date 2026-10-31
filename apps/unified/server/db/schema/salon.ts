@@ -561,7 +561,7 @@ export const salonGiftCard = pgTable('salon_gift_card', {
   code: text('code').notNull(),
   initialCents: integer('initial_cents').notNull(),
   balanceCents: integer('balance_cents').notNull(),
-  /** 'active' | 'void' */
+  /** 'active' | 'void' | 'pending' (an online or reader sale not yet paid: it holds nothing and cannot be spent) */
   status: text('status').notNull().default('active'),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   purchaserContactId: text('purchaser_contact_id').references(() => contact.id, { onDelete: 'set null' }),
@@ -574,6 +574,18 @@ export const salonGiftCard = pgTable('salon_gift_card', {
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  /** Free promotional value ("buy $100, get $20") granted with the card, and what is left of it. It is part of balance_cents; the PAID part never expires. */
+  bonusGrantedCents: integer('bonus_granted_cents').notNull().default(0),
+  bonusCents: integer('bonus_cents').notNull().default(0),
+  /** The last day (the salon's calendar, YYYY-MM-DD) the bonus can be spent; null = it does not expire. */
+  bonusExpiresOn: text('bonus_expires_on'),
+  /** When the recipient is emailed the number (the salon's calendar day); null = at once. delivered_at is when it went. */
+  deliverOn: text('deliver_on'),
+  deliveredAt: timestamp('delivered_at'),
+  /** 'desk' | 'online' (the salon's gift card page) | 'reader' (taken on the card reader). An online or reader sale is 'pending' until it is paid. */
+  source: text('source').notNull().default('desk'),
+  /** The Stripe Checkout session of an online sale. */
+  sessionId: text('session_id'),
 }, (t) => [
   uniqueIndex('salon_gift_card_company_code_key').on(t.companyId, t.code),
   uniqueIndex('salon_gift_card_company_invoice_key').on(t.companyId, t.invoiceId),
@@ -585,7 +597,7 @@ export const salonGiftCardLedger = pgTable('salon_gift_card_ledger', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   cardId: text('card_id').notNull().references(() => salonGiftCard.id, { onDelete: 'cascade' }),
   amountCents: integer('amount_cents').notNull(),
-  /** 'issue' | 'redeem' | 'refund' | 'adjust' | 'void' */
+  /** 'issue' | 'redeem' | 'refund' | 'adjust' | 'void' | 'reload' | 'bonus' | 'bonus_expired' | 'extend' */
   kind: text('kind').notNull(),
   /** The sale it was spent on / put back from (redeem, refund) — or that sold the card (issue). */
   invoiceId: text('invoice_id'),

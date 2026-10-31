@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, saleTipSplit } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, saleTipSplit } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -34,7 +34,7 @@ export async function serviceNamedOnMenu(db: any, companyId: string, name: strin
  * the salon vertical (CrmSettings.invoices.giftCardSalesAreLiability), and the client's lifetime spend below uses it directly. It reads
  * the card's own row (salon_gift_card.invoice_id), not the invoice's lines, so editing a sale's lines cannot turn it back into revenue.
  */
-export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id})`
+export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id}) AND NOT EXISTS (SELECT 1 FROM ${salonGiftCardLedger} gl WHERE gl.invoice_id = ${invoice.id} AND gl.kind = 'reload')`
 
 /** Money the client actually paid, net of refunds, across every live invoice that is revenue (Salon T27 N9; gift-card sales are not, follow-up 10/30). */
 export async function clientLifetimePaid(db: any, companyId: string, contactId: string): Promise<number> {
@@ -283,10 +283,13 @@ export async function activeSequencesForTrigger(db: any, companyId: string, trig
 
 // ─── Gift cards (salon #10) ──────────────────────────────────────────────────────────────────────────
 
-/** Take cents off a salon gift card. The row is locked by the caller; the `balance >= cents` guard is the second belt. False = it was not there to take. */
-export async function takeFromSalonCard(tx: any, cardId: string, cents: number): Promise<boolean> {
-  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}` })
-    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents))).returning({ id: salonGiftCard.id })
+/**
+ * Take cents off a salon gift card, `fromBonus` of them from its free bonus. The row is locked by the caller; the guards are the second belt.
+ * False = it was not there to take.
+ */
+export async function takeFromSalonCard(tx: any, cardId: string, cents: number, fromBonus = 0): Promise<boolean> {
+  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}`, bonusCents: sql`${salonGiftCard.bonusCents} - ${fromBonus}` })
+    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents), gte(salonGiftCard.bonusCents, fromBonus))).returning({ id: salonGiftCard.id })
   return out.length > 0
 }
 
