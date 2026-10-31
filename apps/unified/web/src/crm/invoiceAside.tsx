@@ -11,6 +11,7 @@ import { FinancingPanel } from './financing'
 import { ClientLoyaltyCard } from './pages/salon/loyaltyTiers'
 import { GiftCardPayPanel } from './pages/salon/GiftCards'
 import { ChairCheckoutPanel, RetailSellPanel, ReturnToShelfPanel, SaleReceiptButton, TipSplitPanel } from './pages/salon/ChairCheckout'
+import { OfferCodePanel } from './pages/salon/OfferCodePanel'
 import { verticalScreens } from './vertical'
 
 interface Entry { kind: string; step: string; status: string; sentTo: string | null; detail: string | null; at: string }
@@ -69,6 +70,7 @@ export function DocumentAside({ kind, record, reload }: { kind: 'quote' | 'invoi
       {kind === 'invoice' && record?.id && <InvoiceRemindersPanel invoiceId={String(record.id)} status={String(record.status || '')} />}
       {kind === 'invoice' && isSalon() && record?.id && <RetailSellPanel invoiceId={String(record.id)} status={String(record.status || '')} lines={record.lineItems} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <ReturnToShelfPanel invoiceId={String(record.id)} refunded={Number(record.amountRefunded || 0) > 0.005} reload={reload} />}
+      {kind === 'invoice' && isSalon() && record?.id && <OfferCodePanel invoiceId={String(record.id)} status={String(record.status || '')} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <ChairCheckoutPanel invoiceId={String(record.id)} status={String(record.status || '')} balance={record.balance} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <TipSplitPanel invoiceId={String(record.id)} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <SaleReceiptButton invoiceId={String(record.id)} status={String(record.status || '')} />}

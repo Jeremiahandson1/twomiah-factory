@@ -4,15 +4,19 @@
 //   · birthday    on the day, once a year
 //   · win-back    when a client's last visit becomes N days old (the owner sets N), if they hold no future appointment
 //   · next visit  a "book your next visit" prompt shortly after a visit is completed, if they hold no future appointment
+//   · milestone   after the visit that makes a client's Nth (the owner lists which: 5, 10, 25…), once per N
+//   · anniversary on the day each year a client first came in (their first completed visit), from the first year on
+//   · tier up     when a client moves up a loyalty tier (reads loyalty_members.tier_min/tier_at, set when points cross a tier)
+//   · offers      birthday, win-back, milestone, anniversary and tier messages can each carry a single-use code (./offers.ts)
 //   · drips       completed visits and lapses start the salon's own follow-up sequences (marketing triggers visit_completed / lapsed)
 // The rules every send follows: a TEXT goes only to a number that agreed to be texted (site/smsConsent.ts) and never to one that
 // replied STOP; otherwise an EMAIL, never to an unsubscribed address, always with the unsubscribe link; nothing goes in the owner's
 // quiet hours (it waits for the next pass); one message of these per client per week; and the ledger (retention_send) is
 // unique per client and event, so a pass can run any number of times and send each thing once.
 import { Hono } from 'hono'
-import { and, eq, gt, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
-import { categoryKey, publicApiBase, tzParts } from '@twomiah/tenant-backend'
-import { appointment, clientProfile, company, contact, retentionSend, serviceMenu } from '../../db/schema/index.ts'
+import { and, eq, gt, gte, inArray, isNotNull, lte, min, ne } from 'drizzle-orm'
+import { categoryKey, loyaltyConfig, publicApiBase, tzParts } from '@twomiah/tenant-backend'
+import { appointment, clientProfile, company, contact, loyaltyMember, offerCode, retentionSend, serviceMenu } from '../../db/schema/index.ts'
 import { activeSequencesForTrigger, clientsLastSeenBetween } from '../../data/salon.ts'
 import { hasConsent, phoneE164 } from '../../site/smsConsent.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
@@ -21,19 +25,29 @@ import { fail, listAll, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn, shiftDays, salonDayStart } from './days.ts'
 import type { SalonServices } from './services.ts'
+import { OFFER_KINDS, makeCode, offerSentence, parseTerms, type OfferKind, type OfferTerms } from './offers.ts'
 
-export const KINDS = ['rebook', 'birthday', 'win_back', 'next_visit'] as const
+export const KINDS = ['rebook', 'birthday', 'win_back', 'next_visit', 'milestone', 'anniversary', 'tier_up'] as const
 type Kind = (typeof KINDS)[number]
-const MESSAGE_TOKENS = ['firstName', 'salon', 'service', 'link']
+const MESSAGE_TOKENS = ['firstName', 'salon', 'service', 'link', 'offer', 'code', 'count', 'years', 'tier']
 const DAY = 86400_000
 /** Grace between a visit being completed and the "book your next visit" prompt: the client is still at the desk. */
 const NEXT_VISIT_GRACE_MS = 30 * 60_000
 /** A rebooking that is more than this many days past its due date is not chased by this (it is the owner's win-back list). */
 const REBOOK_LATE_DAYS = 3
 const COOLDOWN_DAYS = 7
+/** Messages that count toward the one-a-week cap (the next-visit prompt, sent as the client leaves, does not). */
+const CAPPED = ['rebook', 'birthday', 'win_back', 'milestone', 'anniversary', 'tier_up']
+const DEFAULT_MILESTONES = [5, 10, 25]
+export const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`
 
 export interface RetentionSettings {
   rebook: boolean; birthday: boolean; winBack: boolean; nextVisit: boolean; drips: boolean
+  milestone: boolean; anniversary: boolean; tierUp: boolean
+  /** Which visit numbers get a milestone message. */
+  milestoneVisits: number[]
+  /** A code each kind of message carries, if any. */
+  offers: Partial<Record<OfferKind, OfferTerms>>
   winBackDays: number
   quietStart: string; quietEnd: string
   /** When the first part was switched on: nothing earlier than this is ever sent (no old history). */
@@ -42,14 +56,17 @@ export interface RetentionSettings {
 }
 export const RETENTION_DEFAULTS: RetentionSettings = {
   rebook: false, birthday: false, winBack: false, nextVisit: false, drips: false,
+  milestone: false, anniversary: false, tierUp: false, milestoneVisits: DEFAULT_MILESTONES, offers: {},
   winBackDays: 90, quietStart: '21:00', quietEnd: '09:00', since: null, templates: {},
 }
-const anyOn = (s: RetentionSettings) => s.rebook || s.birthday || s.winBack || s.nextVisit || s.drips
+const anyOn = (s: RetentionSettings) => s.rebook || s.birthday || s.winBack || s.nextVisit || s.drips || s.milestone || s.anniversary || s.tierUp
 export const retentionOf = (settings: any): RetentionSettings => {
   const r = (settings && typeof settings === 'object' ? settings.retention : null) || {}
   return {
     ...RETENTION_DEFAULTS, ...r,
     templates: r.templates && typeof r.templates === 'object' ? r.templates : {},
+    offers: r.offers && typeof r.offers === 'object' ? r.offers : {},
+    milestoneVisits: Array.isArray(r.milestoneVisits) ? r.milestoneVisits : DEFAULT_MILESTONES,
   }
 }
 
@@ -67,15 +84,19 @@ const DEFAULT_WORDS: Record<Kind, string> = {
   birthday: '{salon}: Happy birthday, {firstName}! Treat yourself — book your next visit: {link}',
   win_back: '{salon}: Hi {firstName}, we miss you! Book your next visit: {link}',
   next_visit: '{salon}: Thanks for coming in, {firstName}! Book your next visit now: {link}',
+  milestone: '{salon}: {firstName}, that was your {count} visit — thank you! Book your next one: {link}',
+  anniversary: '{salon}: Happy anniversary, {firstName} — {years} with us! Thank you. Book your next visit: {link}',
+  tier_up: "{salon}: Congratulations {firstName}, you've reached {tier}! Book your next visit: {link}",
 }
 const SUBJECTS: Record<Kind, string> = {
   rebook: 'Time for your next visit to {salon}', birthday: 'Happy birthday from {salon}',
   win_back: 'We miss you at {salon}', next_visit: 'Book your next visit at {salon}',
+  milestone: 'Thank you from {salon}', anniversary: 'Happy anniversary from {salon}', tier_up: 'You moved up at {salon}',
 }
 const fill = (text: string, v: Record<string, string>) => text.replace(/\{\s*(\w+)\s*\}/g, (_m, k) => v[k] ?? '')
 const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 
-export interface Candidate { contactId: string; kind: Kind | 'drip_visit_completed' | 'drip_lapsed'; eventKey: string; service?: string }
+export interface Candidate { contactId: string; kind: Kind | 'drip_visit_completed' | 'drip_lapsed'; eventKey: string; service?: string; vars?: Record<string, string> }
 export interface PassResult { quiet: boolean; sent: number; skipped: number; failed: number; wouldSend: Array<{ client: string | null; kind: string; via: string }> }
 
 export function createRetention(d: CrmDeps, salon: SalonServices) {
@@ -88,7 +109,7 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
   }
 
   /** Everything this pass might send, from the rules above. */
-  async function candidates(companyId: string, r: RetentionSettings, now: Date, tz: string): Promise<Candidate[]> {
+  async function candidates(companyId: string, r: RetentionSettings, now: Date, tz: string, settings: any): Promise<Candidate[]> {
     const out: Candidate[] = []
     const today = calendarDateIn(now, tz)
     const sinceDay = r.since ? calendarDateIn(new Date(r.since), tz) : today
@@ -125,7 +146,7 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
         if (r.drips) out.push({ contactId: row.contactId, kind: 'drip_lapsed', eventKey: calendarDateIn(last, tz) })
       }
     }
-    if (r.nextVisit || r.drips) {
+    if (r.nextVisit || r.drips || r.milestone) {
       const done = await db.select({ id: appointment.id, contactId: appointment.contactId, updatedAt: appointment.updatedAt }).from(appointment).where(and(
         eq(appointment.companyId, companyId), eq(appointment.status, 'completed'), isNotNull(appointment.contactId),
         gte(appointment.startTime, new Date(now.getTime() - 2 * DAY)), lte(appointment.updatedAt, new Date(now.getTime() - NEXT_VISIT_GRACE_MS)),
@@ -134,6 +155,43 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
       for (const a of done as any[]) {
         if (r.nextVisit) out.push({ contactId: a.contactId, kind: 'next_visit', eventKey: a.id })
         if (r.drips) out.push({ contactId: a.contactId, kind: 'drip_visit_completed', eventKey: a.id })
+      }
+      // Milestone: the visit just completed is the client's Nth completed visit, N one of the owner's numbers.
+      if (r.milestone && r.milestoneVisits.length && done.length) {
+        const ids = [...new Set((done as any[]).map((a) => a.contactId as string))]
+        const all = await db.select({ id: appointment.id, contactId: appointment.contactId, startTime: appointment.startTime }).from(appointment)
+          .where(and(eq(appointment.companyId, companyId), eq(appointment.status, 'completed'), inArray(appointment.contactId, ids)))
+        for (const a of done as any[]) {
+          const mine = (all as any[]).filter((x) => x.contactId === a.contactId).sort((x, y) => +new Date(x.startTime) - +new Date(y.startTime) || (x.id < y.id ? -1 : 1))
+          const n = mine.findIndex((x) => x.id === a.id) + 1
+          if (n > 0 && r.milestoneVisits.includes(n)) out.push({ contactId: a.contactId, kind: 'milestone', eventKey: String(n), vars: { count: ordinal(n) } })
+        }
+      }
+    }
+    if (r.anniversary) {
+      // The day a client first came in (their first completed visit), each year from the first on.
+      const [y, m, dd] = today.split('-').map(Number)
+      const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+      const firsts = await db.select({ contactId: appointment.contactId, first: min(appointment.startTime) }).from(appointment)
+        .where(and(eq(appointment.companyId, companyId), eq(appointment.status, 'completed'), isNotNull(appointment.contactId))).groupBy(appointment.contactId)
+      for (const row of firsts as any[]) {
+        if (!row.first) continue
+        const [fy, fm, fd] = calendarDateIn(new Date(row.first), tz).split('-').map(Number)
+        const same = (fm === m && fd === dd) || (!leap && fm === 2 && fd === 29 && m === 2 && dd === 28)
+        const years = y - fy
+        if (same && years >= 1) out.push({ contactId: row.contactId, kind: 'anniversary', eventKey: String(y), vars: { years: years === 1 ? '1 year' : `${years} years` } })
+      }
+    }
+    if (r.tierUp) {
+      const cfg = loyaltyConfig(settings)
+      if (cfg.enabled && cfg.tiers.length) {
+        const from = new Date(Math.max(since.getTime(), now.getTime() - 3 * DAY))
+        const moved = await db.select({ contactId: loyaltyMember.contactId, tierMin: loyaltyMember.tierMin }).from(loyaltyMember)
+          .where(and(eq(loyaltyMember.companyId, companyId), isNotNull(loyaltyMember.tierMin), isNotNull(loyaltyMember.tierAt), gte(loyaltyMember.tierAt, from)))
+        for (const row of moved as any[]) {
+          const tier = cfg.tiers.find((t: any) => t.minPoints === row.tierMin)
+          if (tier) out.push({ contactId: row.contactId, kind: 'tier_up', eventKey: String(tier.minPoints), vars: { tier: tier.name } })
+        }
       }
     }
     return out
@@ -161,14 +219,14 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
   async function pass(companyId: string, opts: { now?: Date; dryRun?: boolean } = {}): Promise<PassResult> {
     const now = opts.now ?? new Date()
     const result: PassResult = { quiet: false, sent: 0, skipped: 0, failed: 0, wouldSend: [] }
-    const { r } = await settingsFor(companyId)
+    const { settings, r } = await settingsFor(companyId)
     if (!anyOn(r)) return result
     const tz = await salon.clock.salonTimezone(companyId)
     const parts = tzParts(now, tz)
     result.quiet = inQuietHours(parts.minutes, r.quietStart, r.quietEnd)
     if (result.quiet && !opts.dryRun) return result                     // wait for the next pass
 
-    const wanted = await candidates(companyId, r, now, tz)
+    const wanted = await candidates(companyId, r, now, tz, settings)
     if (!wanted.length) return result
     const ids = [...new Set(wanted.map((w) => w.contactId))]
     const people: Array<typeof contact.$inferSelect> = await db.select().from(contact).where(and(eq(contact.companyId, companyId), inArray(contact.id, ids)))
@@ -177,10 +235,11 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
       .from(retentionSend).where(and(eq(retentionSend.companyId, companyId), inArray(retentionSend.contactId, ids)))
     const done = new Set((before as any[]).map((x) => `${x.contactId}|${x.kind}|${x.eventKey}`))
     const coolFrom = now.getTime() - COOLDOWN_DAYS * DAY
-    const cooling = new Set((before as any[]).filter((x) => x.status === 'sent' && ['rebook', 'birthday', 'win_back'].includes(x.kind) && new Date(x.createdAt).getTime() >= coolFrom).map((x) => x.contactId))
+    const cooling = new Set((before as any[]).filter((x) => x.status === 'sent' && CAPPED.includes(x.kind) && new Date(x.createdAt).getTime() >= coolFrom).map((x) => x.contactId))
     const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
     const salonName = co?.name || 'Your salon'
     const link = `${siteOrigin()}/book`
+    const today = calendarDateIn(now, tz)
     const sequencesOn = await d.features.isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences'])
 
     const record = async (c: Candidate, status: string, extra: { channel?: string | null; reason?: string | null; message?: string | null } = {}) => {
@@ -190,7 +249,7 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
     }
 
     // The most urgent first, so a client with two things due gets the one that matters this week.
-    const order: Record<string, number> = { birthday: 0, next_visit: 1, rebook: 2, win_back: 3, drip_visit_completed: 4, drip_lapsed: 5 }
+    const order: Record<string, number> = { birthday: 0, tier_up: 1, milestone: 2, anniversary: 3, next_visit: 4, rebook: 5, win_back: 6, drip_visit_completed: 7, drip_lapsed: 8 }
     for (const c of wanted.sort((a, b) => order[a.kind] - order[b.kind])) {
       const key = `${c.contactId}|${c.kind}|${c.eventKey}`
       const ct = byId.get(c.contactId)
@@ -222,11 +281,35 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
         if (!opts.dryRun) { await record(c, 'skipped', { reason: way.why }); done.add(key); result.skipped++ }
         continue
       }
-      const words = fill((r.templates as Record<string, string>)[c.kind] || DEFAULT_WORDS[c.kind as Kind], { firstName: (ct.name || '').split(' ')[0] || 'there', salon: salonName, service: c.service || 'visit', link })
+      // A code for this message, if the owner attached one to this kind: made now, saved only once the send is claimed.
+      const terms = (OFFER_KINDS as readonly string[]).includes(c.kind) ? r.offers[c.kind as OfferKind] : undefined
+      let offer: { code: string; sentence: string; expiresOn: string } | null = null
+      if (terms && !opts.dryRun) {
+        let code = makeCode(c.kind as OfferKind)
+        for (let i = 0; i < 5 && (await db.select({ id: offerCode.id }).from(offerCode).where(and(eq(offerCode.companyId, companyId), eq(offerCode.code, code))).limit(1)).length; i++) code = makeCode(c.kind as OfferKind)
+        const expiresOn = shiftDays(today, terms.validDays)
+        offer = { code, expiresOn, sentence: offerSentence(code, { type: terms.type, value: terms.value }, expiresOn) }
+      }
+      // Where the code goes: where the owner put {offer} or {code}; else just ahead of the booking link; else on the end.
+      let template = (r.templates as Record<string, string>)[c.kind] || DEFAULT_WORDS[c.kind as Kind]
+      if (terms && !/\{\s*(offer|code)\s*\}/.test(template)) template = /\{\s*link\s*\}/.test(template) ? template.replace(/\{\s*link\s*\}/, '{offer} {link}') : `${template} {offer}`
+      const words = fill(template, {
+        firstName: (ct.name || '').split(' ')[0] || 'there', salon: salonName, service: c.service || 'visit', link,
+        offer: offer?.sentence ?? (terms ? offerSentence('CODE', { type: terms.type, value: terms.value }, shiftDays(today, terms.validDays)) : ''),
+        code: offer?.code ?? '', count: '', years: '', tier: '', ...(c.vars || {}),
+      }).replace(/\s{2,}/g, ' ').trim()
       if (opts.dryRun) { result.wouldSend.push({ client: ct.name, kind: c.kind, via: way.via }); continue }
       const claimed = await record(c, 'pending', { channel: way.via, message: words })
       if (!claimed) continue
       done.add(key)
+      if (offer && terms) {
+        try {
+          await db.insert(offerCode).values({ companyId, contactId: ct.id, code: offer.code, source: c.kind, sendId: claimed, discountType: terms.type, value: terms.value, expiresOn: offer.expiresOn })
+        } catch (e: any) {
+          await db.update(retentionSend).set({ status: 'failed', reason: 'The offer code could not be made, so nothing was sent.' }).where(eq(retentionSend.id, claimed))
+          result.failed++; continue
+        }
+      }
       let status = 'sent', reason: string | null = null, channel: string = way.via
       try {
         if (way.via === 'sms') {
@@ -243,6 +326,8 @@ export function createRetention(d: CrmDeps, salon: SalonServices) {
         }
       } catch (e: any) { status = 'failed'; reason = e?.message || 'Could not send.' }
       await db.update(retentionSend).set({ status, reason, channel }).where(eq(retentionSend.id, claimed))
+      // A message that did not go out has no code in anyone's hands.
+      if (offer && status !== 'sent') await db.update(offerCode).set({ status: 'void' }).where(and(eq(offerCode.companyId, companyId), eq(offerCode.code, offer.code)))
       if (status === 'sent') { result.sent++; cooling.add(c.contactId) } else if (status === 'failed') result.failed++; else result.skipped++
     }
     if (result.sent || result.failed) logger.info('[retention] pass', { companyId, ...result, wouldSend: undefined })
@@ -278,7 +363,7 @@ export function createRetentionRoutes(d: CrmDeps, retention: Retention) {
     const { settings, r: before } = await retention.settingsFor(u.companyId)
     const next: RetentionSettings = { ...before, templates: { ...before.templates } }
     const bad = (field: string, message: string) => fail(c, 400, message, 'BAD_SETTING', { [field]: message })
-    for (const k of ['rebook', 'birthday', 'winBack', 'nextVisit', 'drips'] as const) {
+    for (const k of ['rebook', 'birthday', 'winBack', 'nextVisit', 'drips', 'milestone', 'anniversary', 'tierUp'] as const) {
       if (body[k] === undefined) continue
       if (typeof body[k] !== 'boolean') return bad(k, 'On or off.')
       next[k] = body[k]
@@ -287,6 +372,21 @@ export function createRetentionRoutes(d: CrmDeps, retention: Retention) {
       const n = Number(body.winBackDays)
       if (!Number.isInteger(n) || n < 30 || n > 730) return bad('winBackDays', 'Use a whole number of days from 30 to 730.')
       next.winBackDays = n
+    }
+    if (body.milestoneVisits !== undefined) {
+      const v = body.milestoneVisits
+      if (!Array.isArray(v) || v.length > 12 || v.some((n: unknown) => !Number.isInteger(n) || (n as number) < 2 || (n as number) > 1000)) return bad('milestoneVisits', 'List up to 12 visit numbers, each a whole number from 2 to 1000, like 5, 10, 25.')
+      next.milestoneVisits = [...new Set(v as number[])].sort((a, b) => a - b)
+    }
+    if (body.offers !== undefined) {
+      if (!body.offers || typeof body.offers !== 'object' || Array.isArray(body.offers)) return bad('offers', 'Send the offers as { birthday: { type, value, validDays } }.')
+      next.offers = { ...before.offers }
+      for (const [k, v] of Object.entries(body.offers)) {
+        if (!(OFFER_KINDS as readonly string[]).includes(k)) return bad('offers', `A ${k} message cannot carry an offer.`)
+        const parsed = parseTerms(v)
+        if ('problem' in parsed) return bad('offers', parsed.problem)
+        if (parsed.terms) next.offers[k as OfferKind] = parsed.terms; else delete next.offers[k as OfferKind]
+      }
     }
     for (const k of ['quietStart', 'quietEnd'] as const) {
       if (body[k] === undefined) continue

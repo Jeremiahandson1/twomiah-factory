@@ -9,6 +9,7 @@ import { and, eq } from 'drizzle-orm'
 import { loyaltyConfig, pointsForSale, pointsForSaleAtTier, tierFor, visitQualifies, inBirthdayMonth } from '@twomiah/tenant-backend'
 import { loyaltyMember, loyaltyTransaction, company, serviceMenu, clientProfile } from '../../db/schema/index.ts'
 import { birthdayBonusThisYear, creditMember, debitMember } from '../../data/salonLoyalty.ts'
+import { tierReached } from './offers.ts'
 
 export interface VisitAward {
   companyId: string
@@ -119,6 +120,11 @@ export function createLoyaltyAward(db: any) {
 
     // One balance write for everything this visit granted.
     await creditMember(db, member.id, points + bonusPoints, counts)
+    // Moving up a tier is remembered (and when), for the "you reached Gold" message. Never fatal.
+    try {
+      const reached = tierReached(cfg.tiers, member.lifetimePoints, member.lifetimePoints + points + bonusPoints)
+      if (reached) await db.update(loyaltyMember).set({ tierMin: reached.minPoints, tierAt: new Date() } as any).where(eq(loyaltyMember.id, member.id))
+    } catch { /* the visit and its points stand regardless */ }
     return { awarded: true, points, countedAsVisit: counts, bonusPoints }
   }
 

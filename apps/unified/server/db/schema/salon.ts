@@ -592,6 +592,36 @@ export const retentionSend = pgTable('retention_send', {
 ])
 
 /**
+ * A single-use offer code a client was sent in an automatic message (salon row 20; part of `retention_sends`). Made in the
+ * pass that sends the message, tied to that send, redeemed once at checkout against the client's own sale. The discount is
+ * 'amount' (value = cents) or 'percent' (value = whole percent). `expiresOn` is the last day it works, on the company's
+ * calendar. 'active' | 'used' | 'void' (the message did not go out). One code per sale: used_invoice_id is unique.
+ */
+export const offerCode = pgTable('offer_code', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  /** The message it rode on: 'birthday' | 'win_back' | 'milestone' | 'anniversary' | 'tier_up'. */
+  source: text('source').notNull(),
+  sendId: text('send_id'),
+  discountType: text('discount_type').notNull(),
+  value: integer('value').notNull(),
+  expiresOn: text('expires_on').notNull(),
+  status: text('status').default('active').notNull(),
+  usedAt: timestamp('used_at'),
+  usedInvoiceId: text('used_invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  /** What it took off the sale, in cents. */
+  discountCents: integer('discount_cents'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('offer_code_company_code').on(t.companyId, t.code),
+  uniqueIndex('offer_code_used_invoice').on(t.usedInvoiceId),
+  index('offer_code_company_created_idx').on(t.companyId, t.createdAt),
+  index('offer_code_contact_idx').on(t.contactId),
+])
+
+/**
  * A gift card the salon sold at the desk (salon gap #10; hidden feature `salon_gift_cards`). Not the bar's card (bar_gift_card):
  * the money in and out is the salon's own sale and payments — the card is only a balance the salon owes back. `invoiceId` is
  * the sale that paid for it (one card per sale). Every change to `balanceCents` has a ledger row; a voided card holds nothing.

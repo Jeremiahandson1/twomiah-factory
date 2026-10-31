@@ -20,6 +20,7 @@ import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
+import { createOfferRoutes } from './offers.ts'
 import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
 import { createGiftShop } from './giftShop.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
@@ -161,6 +162,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     { path: '/api/gift-balance', access: 'public', feature: 'salon_gift_cards', router: giftShop.balanceRoutes() } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
+    // The single-use offer codes those messages carry: the list, the report, and taking one off a sale.
+    ...(salonBook ? [{ path: '/api/retention-offers', access: 'user', feature: 'retention_sends', router: createOfferRoutes(d, s.clock) } as Mount] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
     // The paused member's private card page, linked from the email (404 while Card on file is off).
