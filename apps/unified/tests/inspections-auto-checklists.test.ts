@@ -20,7 +20,8 @@ describe('switched off', () => {
     const [row] = await x.t.db.select().from(x.t.schema.inspectionTemplate)
     expect(row.autoAttach).toBe(false)
     // even a checklist that is marked in the database (a switch turned off afterwards) is left alone
-    await x.ins(x.t.schema.inspectionTemplate, { companyId: x.companyId, name: 'Marked earlier', type: 'Slab', autoAttach: true })
+    const earlier = await x.ins(x.t.schema.inspectionTemplate, { companyId: x.companyId, name: 'Marked earlier', type: 'Slab', autoAttach: true })
+    await x.ins(x.t.schema.inspectionTemplateItem, { companyId: x.companyId, templateId: earlier.id, label: 'Rebar chairs', sortOrder: 0 })
     const marked = await x.visit({ type: 'Slab' })
     expect(marked.checklistAttached).toBeUndefined()
     expect((await x.lines(marked.id)).length).toBe(0)
