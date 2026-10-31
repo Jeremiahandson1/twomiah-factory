@@ -374,3 +374,37 @@ export const eventFormCampaign = pgTable('event_form_campaign', {
   uniqueIndex('event_form_campaign_token_idx').on(t.token),
   index('event_form_campaign_company_id_idx').on(t.companyId),
 ])
+
+// What the venue spent advertising to one lead source in one month (restaurant-bar parity #6): the source report divides it by the
+// enquiries and the bookings that source brought, and sets the value booked against it. In integer cents, one row per source and month.
+export const eventMarketingSpend = pgTable('event_marketing_spend', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  source: text('source').notNull(),                        // an id from EVENT_SOURCES
+  month: text('month').notNull(),                          // "2026-10": the month on the venue's clock
+  amountCents: integer('amount_cents').notNull(),
+  note: text('note'),
+  updatedBy: text('updated_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_marketing_spend_once_idx').on(t.companyId, t.source, t.month),
+])
+
+// A report emailed on a schedule to chosen seats (restaurant-bar parity #6). Weekly goes on a weekday and covers the seven days before;
+// monthly goes on a day of the month (1-28) and covers the month before. What was sent for which day is kept in reminder_log.
+export const eventReportSchedule = pgTable('event_report_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  report: text('report').notNull(),                        // sources / years
+  frequency: text('frequency').notNull(),                  // weekly / monthly
+  weekday: integer('weekday'),                             // 0 Sunday .. 6 Saturday, for weekly
+  monthDay: integer('month_day'),                          // 1 .. 28, for monthly
+  recipients: json('recipients').$type<string[]>().default([]).notNull(), // user ids
+  active: boolean('active').default(true).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_report_schedule_company_id_idx').on(t.companyId),
+])

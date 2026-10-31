@@ -47,3 +47,24 @@ export async function campaignByToken(exec: any, companyId: string, token: unkno
     .where(and(eq(eventFormCampaign.companyId, companyId), eq(eventFormCampaign.token, t), eq(eventFormCampaign.active, true))).limit(1)
   return row ?? null
 }
+
+// ── Marketing spend per source and month (restaurant-bar parity #6) ─────────────────────────────────────────────────────────
+export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+const daysInMonth = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()
+/**
+ * What a source's spend comes to over the days from..to (YYYY-MM-DD, both counted): each month's amount is spread evenly over that
+ * month's days and the report takes the share of the days it covers — a whole month gives the whole amount, a week gives its days'.
+ * Whole cents: the sum is rounded once.
+ */
+export function spendShare(rows: Array<{ month: string; amountCents: number }>, from: string, to: string): number {
+  let total = 0
+  for (const r of rows) {
+    const n = daysInMonth(r.month)
+    const lo = from > `${r.month}-01` ? from : `${r.month}-01`
+    const monthEnd = `${r.month}-${String(n).padStart(2, '0')}`
+    const hi = to < monthEnd ? to : monthEnd
+    if (hi < lo) continue
+    total += (r.amountCents * ((Date.parse(hi) - Date.parse(lo)) / 86400000 + 1)) / n
+  }
+  return Math.round(total)
+}

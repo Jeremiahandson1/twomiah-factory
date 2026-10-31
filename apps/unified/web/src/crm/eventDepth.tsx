@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText, Landmark, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast, useConfirm, usePrompt, errorText } from '../shared'
-import { money } from '@twomiah/tenant-ui/src/money'
+import { money, moneyCents } from '@twomiah/tenant-ui/src/money'
 import { companyTodayKey, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const client = api as any
@@ -766,8 +766,140 @@ export function CampaignFormsPanel() {
   )
 }
 
+
+// ── Marketing spend and reports by email (restaurant-bar parity #6) ───────────────────────────────────────────────────────
+/** What was spent advertising to each lead source in a month: typed in dollars here, kept as whole cents. */
+export function MarketingSpendPanel({ onSaved }: { onSaved: () => void }) {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const show = hasFeature('event_marketing_spend') && can('invoices:read')
+  const may = can('invoices:update')
+  const [month, setMonth] = useState(() => companyTodayKey().slice(0, 7))
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(false)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const rows = ((await client.get('/api/event-spend', { from: month, to: month })) as { data: Array<{ source: string; amountCents: number }> }).data
+      setSaved(Object.fromEntries(rows.map((r) => [r.source, r.amountCents])))
+      setDraft(Object.fromEntries(rows.map((r) => [r.source, (r.amountCents / 100).toFixed(2)])))
+    } catch (e) { toast.error(errorText(e, 'Could not load the spend')) } finally { setLoading(false) }
+  }, [month, toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async (source: string) => {
+    const text = (draft[source] ?? '').trim()
+    const dollars = text === '' ? 0 : Number(text.replace(/[$,]/g, ''))
+    if (!Number.isFinite(dollars) || dollars < 0) { toast.error('Type the amount as dollars, like 250 or 250.50'); return }
+    try { await client.put('/api/event-spend', { source, month, amountCents: Math.round(dollars * 100) }); toast.success('Spend saved'); await load(); onSaved() } catch (e) { toast.error(errorText(e, 'Could not save the spend')) }
+  }
+  return (
+    <section className={card} data-testid="marketing-spend">
+      <div className="flex flex-wrap items-end justify-between gap-2 mb-2">
+        <h2 className="font-semibold">What you spend to get enquiries</h2>
+        <div><label className={label} htmlFor="spend-month">Month</label><input id="spend-month" type="month" className={`${input} w-44`} value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>
+      </div>
+      <p className={`${muted} mb-3`}>Type what you paid for ads or listings on each source this month. The report above then shows what each enquiry and each booked event cost, and the value booked for every dollar spent. A month’s spend is spread evenly over its days, so a week’s report takes its share.</p>
+      {loading ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : (
+        <ul className="space-y-2">
+          {EVENT_SOURCES.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor={`spend-${s.id}`} className="min-w-[12rem]">{s.label}</label>
+              <span className="flex items-center gap-2">
+                <span aria-hidden="true">$</span>
+                <input id={`spend-${s.id}`} inputMode="decimal" className={`${input} w-32`} placeholder="0.00" disabled={!may} value={draft[s.id] ?? ''} onChange={(e) => setDraft({ ...draft, [s.id]: e.target.value })} />
+                {may && <button type="button" className={btn} disabled={(draft[s.id] ?? '') === (saved[s.id] != null ? (saved[s.id] / 100).toFixed(2) : '')} onClick={() => save(s.id)}>Save</button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!may && <p className={`mt-3 ${muted}`}>Only a manager or the owner enters spend.</p>}
+    </section>
+  )
+}
+
+interface ReportSchedule { id: string; report: string; reportLabel: string; frequency: 'weekly' | 'monthly'; weekday: number | null; monthDay: number | null; when: string; active: boolean; recipients: Array<{ id: string; name: string; email: string | null; current: boolean }>; lastSentFor: string | null }
+interface ScheduleOptions { reports: Array<{ id: string; label: string }>; weekdays: Array<{ id: number; label: string }>; seats: Array<{ id: string; name: string; email: string; roleLabel: string }> }
+
+/** A report emailed every week or month to the people chosen. */
+export function ReportSchedulesPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_report_schedules') && hasFeature('event_reports') && can('reports:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<ReportSchedule[] | null>(null)
+  const [opts, setOpts] = useState<ScheduleOptions | null>(null)
+  const [edit, setEdit] = useState<{ id?: string; report: string; frequency: 'weekly' | 'monthly'; weekday: number; monthDay: number; recipients: string[]; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-report-schedules')) as { data: ReportSchedule[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the schedules')) }
+    if (may) { try { setOpts(await client.get('/api/event-report-schedules/options')) } catch { /* the form is not offered */ } }
+  }, [toast, may])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    const body = { report: edit.report, frequency: edit.frequency, ...(edit.frequency === 'weekly' ? { weekday: edit.weekday } : { monthDay: edit.monthDay }), recipients: edit.recipients, active: edit.active }
+    try {
+      if (edit.id) await client.put(`/api/event-report-schedules/${edit.id}`, body); else await client.post('/api/event-report-schedules', body)
+      setEdit(null); await load(); toast.success('Schedule saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the schedule')) }
+  }
+  const remove = async (r: ReportSchedule) => {
+    if (!(await ask('It stops being emailed.', { title: `Stop emailing “${r.reportLabel}”?`, confirmText: 'Stop emailing' }))) return
+    try { await client.delete('/api/event-report-schedules', r.id); await load() } catch (e) { toast.error(errorText(e, 'Could not remove it')) }
+  }
+  const sendNow = async (r: ReportSchedule) => {
+    try { const res = await client.post(`/api/event-report-schedules/${r.id}/send-now`); toast.success(res?.message || 'Sent') } catch (e) { toast.error(errorText(e, 'Could not send it')) }
+  }
+  const toggle = (id: string) => edit && setEdit({ ...edit, recipients: edit.recipients.includes(id) ? edit.recipients.filter((x) => x !== id) : [...edit.recipients, id] })
+  return (
+    <section className={card} data-testid="report-schedules">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><Send className="w-4 h-4" />Reports by email</h2>
+        {may && opts && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ report: opts.reports[0]?.id || 'sources', frequency: 'weekly', weekday: 1, monthDay: 1, recipients: [], active: true }) }}><Plus className="w-4 h-4" />New schedule</button>}
+      </div>
+      <p className={`${muted} mb-3`}>Have a report sent to the people you choose, every week or every month, at 8 in the morning on your clock. A weekly report covers the seven days before; a monthly one the month before. Each person sees only the figures they are allowed to see.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>Nothing is emailed yet.</p>}
+      <ul className="space-y-2">
+        {rows?.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+            <span><strong>{r.reportLabel}</strong> · {r.when} · to {r.recipients.map((x) => x.name).join(', ') || 'no one'}{!r.active ? <span className={`ml-2 ${muted}`}>paused</span> : null}{r.lastSentFor ? <span className={`ml-2 ${muted}`}>last sent for {shortDay(r.lastSentFor)}</span> : null}</span>
+            {may && <span className="flex gap-2"><button type="button" className={btn} onClick={() => sendNow(r)}>Send now</button><button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: r.id, report: r.report, frequency: r.frequency, weekday: r.weekday ?? 1, monthDay: r.monthDay ?? 1, recipients: r.recipients.filter((x) => x.current).map((x) => x.id), active: r.active }) }}>Edit</button><button type="button" className={btn} aria-label={`Stop emailing ${r.reportLabel}`} onClick={() => remove(r)}><Trash2 className="w-4 h-4" /></button></span>}
+          </li>
+        ))}
+      </ul>
+      {edit && opts && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label={edit.id ? 'Edit schedule' : 'New schedule'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+            <h3 className="font-semibold">{edit.id ? 'Edit schedule' : 'New schedule'}</h3>
+            <div><label className={label} htmlFor="rs-report">Report</label><select id="rs-report" className={input} value={edit.report} onChange={(e) => setEdit({ ...edit, report: e.target.value })}>{opts.reports.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={label} htmlFor="rs-freq">How often</label><select id="rs-freq" className={input} value={edit.frequency} onChange={(e) => setEdit({ ...edit, frequency: e.target.value as 'weekly' | 'monthly' })}><option value="weekly">Every week</option><option value="monthly">Every month</option></select></div>
+              {edit.frequency === 'weekly'
+                ? <div><label className={label} htmlFor="rs-day">On</label><select id="rs-day" className={input} value={edit.weekday} onChange={(e) => setEdit({ ...edit, weekday: Number(e.target.value) })}>{opts.weekdays.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}</select></div>
+                : <div><label className={label} htmlFor="rs-dom">On day</label><select id="rs-dom" className={input} value={edit.monthDay} onChange={(e) => setEdit({ ...edit, monthDay: Number(e.target.value) })}>{Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></div>}
+            </div>
+            <fieldset><legend className={label}>Send it to</legend>
+              <ul className="space-y-1">{opts.seats.map((s) => <li key={s.id}><label className="flex items-center gap-2"><input type="checkbox" checked={edit.recipients.includes(s.id)} onChange={() => toggle(s.id)} />{s.name} <span className={muted}>· {s.roleLabel} · {s.email}</span></label></li>)}</ul>
+            </fieldset>
+            {edit.id && <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />Keep sending it</label>}
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save} disabled={edit.recipients.length === 0}>Save</button></div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Reports and the venue's event settings ───────────────────────────────────────────────────────────────────────────
-interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number }
+interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number; spendCents?: number; costPerEnquiryCents?: number | null; costPerBookingCents?: number | null; returnOnSpend?: number | null }
 interface YearMonth { month: number; booked: number; lastYearBooked: number; value?: number; lastYearValue?: number }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string; payAtSigning: boolean; holdDays: number; holdReminderDays: number; holdRemindClient: boolean }
@@ -783,7 +915,9 @@ export function EventInsightsPage() {
   const [yrs, setYrs] = useState<{ months: YearMonth[]; totals: { booked: number; lastYearBooked: number; value?: number; lastYearValue?: number } } | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const reports = hasFeature('event_reports') && can('reports:read')
-  useEffect(() => { if (reports) client.get('/api/event-reports/sources', { from, to }).then(setSrc).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, from, to, toast])
+  const [rev, setRev] = useState(0)
+  useEffect(() => { if (reports) client.get('/api/event-reports/sources', { from, to }).then(setSrc).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, from, to, toast, rev])
+  const withSpend = src?.totals.spendCents !== undefined
   useEffect(() => { if (reports) client.get('/api/event-reports/years', { year }).then(setYrs).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, year, toast])
   const showSettings = hasFeature('event_bookings') && can('contacts:read')
   useEffect(() => { if (showSettings) client.get('/api/event-settings').then(setSettings).catch(() => setSettings(null)) }, [showSettings])
@@ -802,9 +936,9 @@ export function EventInsightsPage() {
           <h2 className="font-semibold mb-2">Where enquiries come from</h2>
           <div className="flex flex-wrap gap-3 mb-3"><div><label className={label}>From</label><input type="date" className={input} value={from} onChange={(e) => setFrom(e.target.value)} /></div><div><label className={label}>To</label><input type="date" className={input} value={to} onChange={(e) => setTo(e.target.value)} /></div></div>
           {!src ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : src.sources.length === 0 ? <p className={muted}>No enquiries in those dates.</p> : (
-            <div className="overflow-x-auto"><table className="min-w-full text-left"><thead><tr className="border-b"><th className="py-1 pr-4">Source</th><th className="pr-4">Enquiries</th><th className="pr-4">Booked</th><th className="pr-4">Lost</th><th className="pr-4">Still open</th><th className="pr-4">Booked %</th>{src.totals.bookedValue !== undefined && <th>Booked value</th>}</tr></thead>
-              <tbody>{src.sources.map((r) => <tr key={r.source} className="border-b border-gray-100 dark:border-slate-800"><td className="py-1 pr-4">{r.label}</td><td>{r.enquiries}</td><td>{r.booked}</td><td>{r.lost}</td><td>{r.open}</td><td>{r.conversion}%</td>{r.bookedValue !== undefined && <td>{money(r.bookedValue)}</td>}</tr>)}
-                <tr className="font-semibold"><td className="py-1 pr-4">All</td><td>{src.totals.enquiries}</td><td>{src.totals.booked}</td><td>{src.totals.lost}</td><td /><td>{src.totals.conversion}%</td>{src.totals.bookedValue !== undefined && <td>{money(src.totals.bookedValue)}</td>}</tr></tbody></table></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-left"><thead><tr className="border-b"><th className="py-1 pr-4">Source</th><th className="pr-4">Enquiries</th><th className="pr-4">Booked</th><th className="pr-4">Lost</th><th className="pr-4">Still open</th><th className="pr-4">Booked %</th>{src.totals.bookedValue !== undefined && <th className="pr-4">Booked value</th>}{withSpend && <><th className="pr-4">Spent</th><th className="pr-4">Per enquiry</th><th className="pr-4">Per booked event</th><th>Return</th></>}</tr></thead>
+              <tbody>{src.sources.map((r) => <tr key={r.source} className="border-b border-gray-100 dark:border-slate-800"><td className="py-1 pr-4">{r.label}</td><td>{r.enquiries}</td><td>{r.booked}</td><td>{r.lost}</td><td>{r.open}</td><td>{r.conversion}%</td>{r.bookedValue !== undefined && <td>{money(r.bookedValue)}</td>}{withSpend && <><td>{moneyCents(r.spendCents)}</td><td>{r.costPerEnquiryCents == null ? '—' : moneyCents(r.costPerEnquiryCents)}</td><td>{r.costPerBookingCents == null ? '—' : moneyCents(r.costPerBookingCents)}</td><td>{r.returnOnSpend == null ? '—' : `${money(r.returnOnSpend)} per $1`}</td></>}</tr>)}
+                <tr className="font-semibold"><td className="py-1 pr-4">All</td><td>{src.totals.enquiries}</td><td>{src.totals.booked}</td><td>{src.totals.lost}</td><td /><td>{src.totals.conversion}%</td>{src.totals.bookedValue !== undefined && <td>{money(src.totals.bookedValue)}</td>}{withSpend && <><td>{moneyCents(src.totals.spendCents)}</td><td>{src.totals.costPerEnquiryCents == null ? '—' : moneyCents(src.totals.costPerEnquiryCents)}</td><td>{src.totals.costPerBookingCents == null ? '—' : moneyCents(src.totals.costPerBookingCents)}</td><td>{src.totals.returnOnSpend == null ? '—' : `${money(src.totals.returnOnSpend)} per $1`}</td></>}</tr></tbody></table></div>
           )}
         </section>
       )}
@@ -821,6 +955,8 @@ export function EventInsightsPage() {
           )}
         </section>
       )}
+      {reports && <MarketingSpendPanel onSaved={() => setRev((n) => n + 1)} />}
+      <ReportSchedulesPanel />
       <CampaignFormsPanel />
       <ContractTemplatesPanel />
       {showSettings && settings && (

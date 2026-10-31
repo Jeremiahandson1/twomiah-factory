@@ -431,6 +431,34 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, ${data.headline}\n\n${data.body}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
   }),
+  // A report the events module emails to a seat on its schedule (server/crm/restaurant/eventReports.ts): a headline, a line of
+  // words and one table. data: { companyName, contactName, subject, headline, intro, head: string[], rows: string[][], path, button }.
+  eventReport: (data, b, appUrl) => {
+    const head: string[] = Array.isArray(data.head) ? data.head.map(String) : []
+    const rows: string[][] = Array.isArray(data.rows) ? data.rows.map((r: unknown[]) => r.map(String)) : []
+    const cell = 'padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-size:14px;'
+    return {
+      subject: String(data.subject ?? data.headline ?? ''),
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p><strong>${escHtml(data.headline)}</strong></p>
+          <p>${escHtml(data.intro)}</p>
+          <table style="border-collapse:collapse;width:100%;">
+            <thead><tr>${head.map((h, i) => `<th style="${cell}font-weight:600;${i === 0 ? 'text-align:left;' : ''}">${escHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map((r, n) => `<tr>${r.map((v, i) => `<td style="${cell}${i === 0 ? 'text-align:left;' : ''}${n === rows.length - 1 ? 'font-weight:600;' : ''}">${escHtml(v)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+          ${data.path ? `<p style="text-align:center;"><a href="${appUrl}${escHtml(data.path)}" class="button">${escHtml(data.button || 'Open')}</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `Hi ${data.contactName}, ${data.headline}\n\n${data.intro}\n\n${[head, ...rows].map((r) => r.join(' | ')).join('\n')}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
+    }
+  },
   // The reminder before a job the office booked (crm/field/jobReminders.ts). Every value is typed by staff, so each is escaped.
   jobReminder: (data, b) => ({
     subject: `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,

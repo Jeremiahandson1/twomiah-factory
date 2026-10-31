@@ -41,6 +41,6 @@ export const nav: NavItem[] = [
   { to: '/crm/events', icon: CalendarCheck, label: 'Events', section: 'Events', features: ['event_bookings'], permission: 'contacts:read' },
   { to: '/crm/spaces', icon: DoorOpen, label: 'Spaces', features: ['event_spaces'], permission: 'contacts:read' },
   { to: '/crm/event-calendar', icon: CalendarDays, label: 'Room Calendar', features: ['event_calendar'], permission: 'contacts:read' },
-  { to: '/crm/event-insights', icon: BarChart3, label: 'Event Sources', features: ['event_reports', 'event_form_campaigns'], permission: 'reports:read' },
+  { to: '/crm/event-insights', icon: BarChart3, label: 'Event Sources', features: ['event_reports', 'event_form_campaigns', 'event_marketing_spend', 'event_report_schedules'], permission: 'reports:read' },
   { to: '/crm/menus', icon: UtensilsCrossed, label: 'Catering Menus', features: ['catering_menus'], permission: 'contacts:read' },
 ]

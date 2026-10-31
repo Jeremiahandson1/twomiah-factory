@@ -393,6 +393,13 @@
       "when": 1793470651669,
       "tag": "0055_event_hold_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793470900529,
+      "tag": "0056_event_spend_and_report_schedules",
+      "breakpoints": true
     }
   ]
 }

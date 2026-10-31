@@ -21,7 +21,7 @@ import { createVenueImportRoutes } from './eventImport.ts'
 import { createEventSettingsRoutes } from './eventSettings.ts'
 import { createEventMinimumRoutes } from './eventMinimums.ts'
 import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes, runHoldReminders, runHoldReleases } from './eventCalendar.ts'
-import { createEventReportRoutes } from './eventReports.ts'
+import { createEventReportRoutes, createEventSpendRoutes, createEventReportScheduleRoutes, runScheduledReports } from './eventReports.ts'
 import { createEventCampaignRoutes, createEventFormPublicRoutes } from './eventForm.ts'
 import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
 import { createEventContractRoutes } from './eventContracts.ts'
@@ -37,6 +37,7 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     runBankSettlement: (now?: Date) => runBankSettlement(d, now),
     runHoldReminders: (now?: Date) => runHoldReminders(d, now),
     runHoldReleases: (now?: Date) => runHoldReleases(d, now),
+    runScheduledReports: (now?: Date) => runScheduledReports(d, now),
   })
   // Stripe's events for a bank debit this module started (processing, settled, returned) come first to it, not to the shared card handler.
   d.services.useConnectedEvents?.(bankEventClaim(d))
@@ -50,6 +51,10 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     const holds = async () => { try { await runHoldReminders(d); await runHoldReleases(d) } catch (err: any) { d.logger.error('[events] hold pass failed', { error: err?.message }) } }
     setTimeout(holds, 150_000)
     setInterval(holds, 60 * 60 * 1000)
+    // Reports emailed on a schedule (restaurant-bar parity #6): hourly, each goes from 8am on the venue's clock on its day.
+    const reports = () => runScheduledReports(d).catch((err: any) => d.logger.error('[events] scheduled reports failed', { error: err?.message }))
+    setTimeout(reports, 180_000)
+    setInterval(reports, 60 * 60 * 1000)
   })
   return [
     { path: '/api/events', access: 'user', feature: 'event_bookings', router: createEventRoutes(d) },
@@ -65,6 +70,8 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/event-waitlist', access: 'user', feature: 'event_calendar', router: createEventWaitlistRoutes(d) },
     { path: '/api/event-feed', access: 'public', feature: 'event_calendar', router: createEventFeedRoutes(d) },
     { path: '/api/event-reports', access: 'user', feature: 'event_reports', router: createEventReportRoutes(d) },
+    { path: '/api/event-spend', access: 'user', feature: 'event_marketing_spend', router: createEventSpendRoutes(d) },
+    { path: '/api/event-report-schedules', access: 'user', feature: 'event_report_schedules', router: createEventReportScheduleRoutes(d) },
     // The enquiry form's rooms and one form (link and embed) per campaign (restaurant-bar parity #4); the public side takes nothing and holds nothing.
     { path: '/api/event-campaigns', access: 'user', feature: 'event_form_campaigns', router: createEventCampaignRoutes(d) },
     { path: '/api/event-form', access: 'public', feature: 'event_form_campaigns', router: createEventFormPublicRoutes(d) },
