@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, Circle, Type, Undo2, Trash2 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useToast, errorText } from '../../../../shared'
+import { useMayWrite, useToast, errorText } from '../../../../shared'
 import { Modal } from '../../../ui/Modal'
 import {
   COLOR_LABELS, MARKUP_COLORS, MAX_SHAPES, MAX_TEXT, SIZE_LABELS, primitive, shapeFromDrag,
@@ -36,6 +36,7 @@ export default function PhotoMarkupEditor({ original, shapes: initial, onClose, 
   onSaved: (r: MarkedResult) => void
 }) {
   const toast = useToast()
+  const mayMark = useMayWrite('jobs:update')
   const [shapes, setShapes] = useState<MarkupShape[]>(initial)
   const [tool, setTool] = useState<Tool>('arrow')
   const [color, setColor] = useState<MarkupColor>('red')
@@ -132,7 +133,9 @@ export default function PhotoMarkupEditor({ original, shapes: initial, onClose, 
         <p className="text-xs text-gray-500 dark:text-slate-400">Saving keeps a marked copy beside the original photo. The original is not changed.</p>
         <div className="flex gap-2">
           <button type="button" className={btn} onClick={onClose}>Cancel</button>
-          <button type="button" disabled={busy} onClick={save} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">{busy ? 'Saving…' : shapes.length === 0 ? 'Remove marks' : 'Save marked copy'}</button>
+          {mayMark && (
+            <button type="button" disabled={busy} onClick={save} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">{busy ? 'Saving…' : shapes.length === 0 ? 'Remove marks' : 'Save marked copy'}</button>
+          )}
         </div>
       </div>
     </Modal>
