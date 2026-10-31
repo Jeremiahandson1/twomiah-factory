@@ -16,8 +16,11 @@
 //     two fields every other schedule check reads (tenant-backend jobs.ts). A shift that crosses midnight is counted on
 //     the day it starts and spills into the next day's early hours.
 import { and, eq, inArray, or, gte, lte, lt, asc, notInArray, isNotNull } from 'drizzle-orm'
-import { businessHoursOf, businessHoursWindows, travelMinutes, NOT_GIVEN_WORK_ROLES, type Place } from '@twomiah/tenant-backend'
+import { businessHoursOf, businessHoursWindows, travelMinutes, NOT_GIVEN_WORK_ROLES } from '@twomiah/tenant-backend'
 import { techHours, techTimeOff, user, teamMember, timeEntry, job, jobAssignee, company } from '../db/schema/index.ts'
+
+/** Where a job is, as tenant-backend jobs/travel.ts reads it: on the map, or an address alone. */
+export interface Place { lat?: number | null; lng?: number | null; address?: string | null }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 export const WEEKDAY_NAMES = DAYS

@@ -51,6 +51,12 @@ function spanOf(view: View, d: Date): { start: Date; end: Date } {
   const end = new Date(last); end.setDate(end.getDate() + (6 - end.getDay()))
   return { start: dayStart(start), end: dayEnd(end) }
 }
+/**
+ * BUSINESS HOURS, MUTED (cfg.businessHours — Jobber greys the calendar outside the company's hours). A closed day, and
+ * the hours before opening and after closing on an open day, are drawn greyed; work can still be dropped there.
+ */
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+const minutesOfHHMM = (t?: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
 const VIEW_KEY = 'twomiah.schedule.view'
 const savedView = (): View => { try { const v = localStorage.getItem(VIEW_KEY); return v === 'day' || v === 'month' ? v : 'week' } catch { return 'week' } }
 const BY_PERSON_KEY = 'twomiah.schedule.byPerson'
@@ -189,6 +195,17 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const eventsFor = (d: Date) => events.filter((e) => e.start && companyDayKey(e.start) === localKey(d))
     .slice().sort(byTime((e: any) => clockOf(e.start)))
   const isToday = (d: Date) => localKey(d) === companyTodayKey()
+  // The business's hours on a day (cfg.businessHours): a day not said, or said closed, is closed; an hour row is muted
+  // when the whole hour sits before opening or after closing.
+  const hoursOn = (d: Date) => (cfg.businessHours ? cfg.businessHours[DAY_KEYS[d.getDay()]] : undefined)
+  const closedDay = (d: Date) => { if (!cfg.businessHours) return false; const h = hoursOn(d); return !h || !!h.closed || minutesOfHHMM(h.open) === null || minutesOfHHMM(h.close) === null }
+  const closedHour = (d: Date, h: number) => {
+    if (!cfg.businessHours) return false
+    if (closedDay(d)) return true
+    const bh = hoursOn(d)!, open = minutesOfHHMM(bh.open) as number, close = minutesOfHHMM(bh.close) as number
+    return (h + 1) * 60 <= open || h * 60 >= close
+  }
+  const MUTED = 'bg-gray-100/80 dark:bg-slate-800/60'
   /** Back or forward one of whatever is showing: a day, a week, a month. */
   const step = (dir: 1 | -1) => {
     const d = new Date(currentDate)
@@ -388,9 +405,10 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         {hours.map((h) => {
           const key = hourKey(h)
           const here = inHour(h), bk = bookingsIn(h), ev = eventsIn(h)
+          const muted = closedHour(currentDate, h)
           return (
-            <div key={key} data-hour={key} {...dropProps(key, () => dropOnHour(key))} className={`flex gap-3 border-b last:border-b-0 dark:border-slate-800 p-2 transition ${dragOverKey === key ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400' : ''}`}>
-              <div className="w-16 shrink-0 text-xs font-medium text-gray-500 dark:text-slate-400 pt-1">{hourLabel(h)}</div>
+            <div key={key} data-hour={key} {...(muted ? { 'data-closed': '' } : {})} {...dropProps(key, () => dropOnHour(key))} className={`flex gap-3 border-b last:border-b-0 dark:border-slate-800 p-2 transition ${muted ? MUTED : ''} ${dragOverKey === key ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400' : ''}`}>
+              <div className={`w-16 shrink-0 text-xs font-medium pt-1 ${muted ? 'text-gray-400 dark:text-slate-500' : 'text-gray-500 dark:text-slate-400'}`}>{hourLabel(h)}</div>
               <div className="flex-1 min-w-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 min-h-[36px]">
                 {here.map((j) => jobCard(j))}
                 {bk.map((b) => bookingCard(b))}
@@ -409,15 +427,17 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4" data-view="week">
       {days.map((day) => {
         const key = localKey(day)
+        const muted = closedDay(day)
         return (
           <div
             key={key}
             data-day={key}
+            {...(muted ? { 'data-closed': '' } : {})}
             {...dropProps(key, () => dropOnDay(day))}
-            className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
+            className={`${muted ? MUTED : 'bg-white dark:bg-slate-900'} rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
           >
-            <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
-              <p className="text-xs font-medium">{WEEKDAYS[day.getDay()]}</p>
+            <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : muted ? 'bg-gray-100 dark:bg-slate-800/80 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-800' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+              <p className="text-xs font-medium">{WEEKDAYS[day.getDay()]}{muted ? ' · Closed' : ''}</p>
               <p className="text-lg font-bold">{day.getDate()}</p>
             </button>
             <div className="p-2 space-y-2 min-h-[200px]">
@@ -474,20 +494,23 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                 </div>
               )
             })}
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const muted = row.key ? closedHour(currentDate, Number(row.key.slice(0, 2))) : false
+              return (
               <Fragment key={row.key || 'untimed'}>
-                <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-2 text-xs font-medium text-gray-600 dark:text-slate-400">{row.label}</div>
+                <div {...(muted ? { 'data-closed': '' } : {})} className={`sticky left-0 z-10 border-b dark:border-slate-800 p-2 text-xs font-medium ${muted ? `${MUTED} text-gray-400 dark:text-slate-500` : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-400'}`}>{row.label}</div>
                 {lanes.map((l) => {
                   const k = cellKey(l.id, row.key)
                   return (
                     <div key={k} data-cell={k} {...dropProps(k, () => dropOnLaneHour(l.id, row.key))}
-                      className={`border-b border-l dark:border-slate-800 p-1 space-y-1 min-h-[44px] transition ${dragOverKey === k ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400 dark:bg-orange-950/30' : ''}`}>
+                      className={`border-b border-l dark:border-slate-800 p-1 space-y-1 min-h-[44px] transition ${muted ? MUTED : ''} ${dragOverKey === k ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400 dark:bg-orange-950/30' : ''}`}>
                       {jobsIn(row.list, l.id).map((j) => jobCard(j, false, l.id))}
                     </div>
                   )
                 })}
               </Fragment>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
@@ -500,9 +523,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       <div className="grid min-w-max" style={{ gridTemplateColumns: `7.5rem repeat(${days.length}, minmax(8.5rem, 1fr))` }}>
         <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800" />
         {days.map((day) => (
-          <button key={localKey(day)} type="button" onClick={dayButton(day)} title={moving ? 'Pick a person’s day below' : 'Open this day'}
-            className={`border-b border-l dark:border-slate-800 px-2 py-1.5 text-center text-xs font-medium ${isToday(day) ? 'bg-orange-600 text-white' : 'text-gray-900 hover:bg-gray-50 dark:text-slate-100 dark:hover:bg-slate-800'}`}>
-            {WEEKDAYS[day.getDay()]} {day.getDate()}
+          <button key={localKey(day)} type="button" onClick={dayButton(day)} title={moving ? 'Pick a person’s day below' : 'Open this day'} {...(closedDay(day) ? { 'data-closed': '' } : {})}
+            className={`border-b border-l dark:border-slate-800 px-2 py-1.5 text-center text-xs font-medium ${isToday(day) ? 'bg-orange-600 text-white' : closedDay(day) ? `${MUTED} text-gray-500 dark:text-slate-400` : 'text-gray-900 hover:bg-gray-50 dark:text-slate-100 dark:hover:bg-slate-800'}`}>
+            {WEEKDAYS[day.getDay()]} {day.getDate()}{closedDay(day) && !isToday(day) ? ' · Closed' : ''}
           </button>
         ))}
         {lanes.map((l) => (
@@ -541,7 +564,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
               key={key}
               data-day={key}
               {...dropProps(key, () => dropOnDay(day))}
-              className={`min-h-[96px] rounded-md p-1 transition ${inMonth ? 'bg-white dark:bg-slate-900' : 'bg-gray-50 dark:bg-slate-900/40'} shadow-sm ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
+              {...(closedDay(day) ? { 'data-closed': '' } : {})}
+              className={`min-h-[96px] rounded-md p-1 transition ${closedDay(day) ? MUTED : inMonth ? 'bg-white dark:bg-slate-900' : 'bg-gray-50 dark:bg-slate-900/40'} shadow-sm ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
             >
               <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold ${isToday(day) ? 'bg-orange-500 text-white' : inMonth ? 'text-gray-900 hover:bg-gray-100 dark:text-slate-100 dark:hover:bg-slate-800' : 'text-gray-500 dark:text-slate-400'}`}>{day.getDate()}</button>
               {/* Below md a cell is too narrow for titles: it says how many, and opens the day. */}
@@ -588,6 +612,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300 dark:bg-slate-700 dark:text-slate-100" />{cfg.jobLabel}</span>
         {bookings.length > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-500" />Booking</span>}
         {cfg.events && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-300" />Appointment</span>}
+        {cfg.businessHours && <span className="inline-flex items-center gap-1.5" data-testid="closed-legend"><span className={`w-3 h-3 rounded border border-gray-300 dark:border-slate-600 ${MUTED}`} />Outside business hours</span>}
       </div>
 
       {moving && (

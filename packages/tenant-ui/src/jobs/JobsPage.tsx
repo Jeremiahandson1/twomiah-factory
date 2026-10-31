@@ -3,7 +3,8 @@
 // address on file), start / complete / delete row actions.
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned, CalendarSearch } from 'lucide-react'
+import { FindTime } from './FindTime'
 import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, dateOnly, errMsg, selectCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
@@ -89,6 +90,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   /** A save the server warned about (no time to drive between two jobs): asked about, then sent again with bookAnyway. */
   const [travelAsk, setTravelAsk] = useState<string | null>(null)
   const [repeat, setRepeat] = useState<RepeatForm>(NO_REPEAT)
+  /** Find a time (JobsConfig.findTime): the open slots for this job's length, picked straight into the form. */
+  const [findOpen, setFindOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [toDelete, setToDelete] = useState<JobRow | null>(null)
 
@@ -409,6 +412,15 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Field label="Scheduled Date"><input type="date" value={form.scheduledDate} onChange={set('scheduledDate')} disabled={lockSlot} className={inputCls} /></Field>
           <Field label="Scheduled Time"><input type="time" value={form.scheduledTime} onChange={set('scheduledTime')} disabled={lockSlot} className={inputCls} /></Field>
           <Field label="Estimated Hours"><input type="number" min="0" step="0.25" value={form.estimatedHours} onChange={set('estimatedHours')} className={inputCls} /></Field>
+          {/* Find a time: open slots inside people's shifts, around their booked jobs and the drive — picked into the day, time and person above. */}
+          {cfg.findTime && cfg.assignee && !lockSlot && (
+            <div className="md:col-span-2">
+              <button type="button" data-testid="find-time" onClick={() => setFindOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+                <CalendarSearch className="h-4 w-4" />Find a time
+              </button>
+              <span className="ml-2 text-xs text-gray-600 dark:text-slate-400">Open slots for {form.assignedToId ? (pickable.find((u) => u.id === form.assignedToId)?.name || 'that person') : 'anyone'}, around their booked work.</span>
+            </div>
+          )}
           {/* Repeat — a new job only; an existing visit's series is shown and stopped on its own page. */}
           {!editing && cfg.repeat && (
             <div className="md:col-span-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700" data-testid="job-repeat">
@@ -477,6 +489,14 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
       <ConfirmModal isOpen={!!travelAsk} onClose={() => setTravelAsk(null)} onConfirm={() => { setTravelAsk(null); return save(true) }} danger={false}
         title={BOOK_ANYWAY_TITLE} message={travelAsk || ''} confirmText="Book anyway" />
+      {findOpen && (
+        <FindTime api={api} toast={toast}
+          durationMinutes={form.estimatedHours && Number(form.estimatedHours) > 0 ? Math.round(Number(form.estimatedHours) * 60) : 60}
+          personId={form.assignedToId} people={pickable.map((u) => ({ id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed' }))}
+          address={[form.address, form.city, form.state, form.zip].filter(Boolean).join(', ') || null} from={form.scheduledDate || null}
+          onPick={(p) => { setForm((f) => ({ ...f, scheduledDate: p.date, scheduledTime: p.time, assignedToId: p.personId })); setOtherIds((ids) => ids.filter((id) => id !== p.personId)); setFindOpen(false) }}
+          onClose={() => setFindOpen(false)} />
+      )}
       <ConfirmModal isOpen={deleteOpen} onClose={() => { setDeleteOpen(false); setToDelete(null) }} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${toDelete?.title || ''}"?`} confirmText="Delete" />
     </div>
   )
