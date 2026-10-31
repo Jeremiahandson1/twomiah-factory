@@ -64,7 +64,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
-export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook }
+export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook }
 /**
  * The hook a status runs when a job moves INTO it — one table for every door a status is reached by: the buttons, the
  * edit form, the Dispatch Board (PUT /:id) and bulk updates (bulk.ts). Staying in a status runs nothing. (2026-10-22)
@@ -101,6 +101,8 @@ export interface JobOptions {
   mediaUrlPrefix?: string
   onStart?: JobHook
   onDispatch?: JobHook
+  /** Runs once for every job a POST / made (each visit of a repeat), after it is saved; a failure never undoes the job. */
+  onCreate?: JobHook
   /** may return extra fields merged into the complete response (e.g. nextServiceDate) */
   onComplete?: JobHook
   maxLimit?: number
@@ -907,6 +909,7 @@ export function createJobRoutes(deps: JobDeps) {
     const skipped: Array<{ date: string; reason: string }> = []
     let seriesRow: any = null
     let made = 0
+    const madeRows: any[] = []
     const insertOne = async (tx: any, scheduledDate: string | undefined, extra: Record<string, unknown> = {}) => {
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
@@ -922,6 +925,7 @@ export function createJobRoutes(deps: JobDeps) {
         createdById: currentUser.userId,
         ...extra,
       }).returning()
+      madeRows.push(row)
       return row
     }
     const created = await db.transaction(async (tx: any) => {
@@ -971,6 +975,7 @@ export function createJobRoutes(deps: JobDeps) {
     if (!created && travel && !bookAnyway) return travelRefusal(c, travel)
     if (created && travel) recordOverride(c, created, travel)
     if (!created && repeat && 'spec' in repeat) return c.json({ error: `None of the visits could be booked: that person is ${skipped[0]?.reason || 'already booked'}. Pick another time or assignee.` }, 409)
+    if (created && o.onCreate) for (const row of madeRows) await runHook(o.onCreate, row, currentUser)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
     // The saved row comes back whole; a write's reply is a read like any other (./jobMoney.ts).

@@ -19,7 +19,7 @@
 import crypto from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { ownJobScope, sniffType, withoutSigningEvidence } from '@twomiah/tenant-backend'
 import { formSubmission, formTemplate, job, jobAssignee, crewLogin, jobPhoto } from '../../db/schema/index.ts'
@@ -28,6 +28,7 @@ import { done, fail, listAll, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { uploadedForm } from '../office/upload.ts'
+import { PROMPT_STATUSES, createChecklistLifeRoutes, ensureAttached, jobMomentStep, promptOnOf } from './checklistLife.ts'
 
 export const CHECKLIST_CATEGORY = 'job_checklist'
 const MAX_SIGNATURE = 400_000
@@ -66,6 +67,8 @@ const templateSchema = z.object({
   fields: z.array(fieldSchema).min(1, 'Add at least one question').max(60, 'At most 60 questions')
     .refine((fs) => fs.some((f) => f.type !== 'section'), 'Add at least one question'),
   jobTypes: z.array(z.string().trim().min(1).max(40)).max(20, 'At most 20 job types').default([]),
+  /** The job moves (on the way, started, completed) that ask the people on the job to fill this in (ServiceTitan triggers). */
+  promptOn: z.array(z.enum(PROMPT_STATUSES)).max(3).default([]),
   requireSignature: z.boolean().default(false),
   requirePhoto: z.boolean().default(false),
   active: z.boolean().default(true),
@@ -164,6 +167,7 @@ const shapeTemplate = (r: any) => ({
   id: r.id, name: r.name, description: r.description ?? null, active: !!r.active,
   fields: (Array.isArray(r.fields) ? r.fields : []) as Field[],
   jobTypes: Array.isArray(r.autoAttachTo?.jobTypes) ? (r.autoAttachTo.jobTypes as string[]) : [],
+  promptOn: promptOnOf(r),
   requireSignature: !!r.requireSignature, requirePhoto: !!r.requirePhoto,
   updatedAt: r.updatedAt,
 })
@@ -304,7 +308,7 @@ export function createChecklistRoutes(d: CrmDeps) {
       ...(CHOICE_TYPES.includes(f.type) ? { options: (f.options ?? []).map((x) => x.trim()) } : {}),
     })),
     requireSignature: v.requireSignature, requirePhoto: v.requirePhoto, active: v.active,
-    autoAttachTo: { jobTypes: [...new Set(v.jobTypes)] },
+    autoAttachTo: { jobTypes: [...new Set(v.jobTypes)], promptOn: [...new Set(v.promptOn)] },
   })
 
   app.post('/templates', requirePermission('settings:update'), async (c) => {
@@ -331,7 +335,8 @@ export function createChecklistRoutes(d: CrmDeps) {
     const [found] = await db.select().from(formTemplate)
       .where(and(eq(formTemplate.id, id), eq(formTemplate.companyId, companyId), eq(formTemplate.category, CHECKLIST_CATEGORY))).limit(1)
     if (!found) return fail(c, 404, 'That checklist is not there.')
-    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(formSubmission).where(and(eq(formSubmission.templateId, id), eq(formSubmission.companyId, companyId)))
+    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(formSubmission).where(and(eq(formSubmission.templateId, id), eq(formSubmission.companyId, companyId), ne(formSubmission.status, 'assigned')))
+    if (n === 0) await db.delete(formSubmission).where(and(eq(formSubmission.templateId, id), eq(formSubmission.companyId, companyId), eq(formSubmission.status, 'assigned')))
     if (n > 0) {
       await db.update(formTemplate).set({ active: false, updatedAt: new Date() } as any).where(eq(formTemplate.id, id))
       audit.log({ action: audit.ACTIONS.UPDATE, entity: 'checklist', entityId: id, entityName: found.name, metadata: { switchedOff: true }, req: c })
@@ -346,12 +351,14 @@ export function createChecklistRoutes(d: CrmDeps) {
   /** What is filled in on the job and what is still owed: the checklists for this job's type with no finished copy. */
   const jobView = async (c: any, j: any) => {
     const { templates, subs, outstanding } = await owedOnJob(db, c.get('user').companyId, j)
-    return { jobId: j.id, jobType: j.jobType ?? null, templates, submissions: await Promise.all(subs.map((s: any) => shapeSubmission(c, s))), outstanding }
+    return { jobId: j.id, jobType: j.jobType ?? null, templates, submissions: await Promise.all(subs.filter((s: any) => s.status !== 'assigned').map((s: any) => shapeSubmission(c, s))), outstanding }
   }
 
   app.get('/job/:jobId', requirePermission('jobs:read'), async (c) => {
     const j = await reachable(c, c.req.param('jobId'))
     if (!j) return fail(c, 404, 'Job not found')
+    // A job made another way (an agreement's next visit, an online booking) gets its checklist rows the first time they are opened.
+    await ensureAttached(db, c.get('user').companyId, j).catch(() => 0)
     return one(c, await jobView(c, j))
   })
 
@@ -467,6 +474,8 @@ export function createChecklistRoutes(d: CrmDeps) {
       id, companyId: u.companyId, templateId: tpl.id, jobId: j.id, contactId: j.contactId ?? null, submittedById: u.userId,
       values, status, ...(signed || {}),
     } as any).returning()
+    // The row this job was given for the checklist is now this filled-in copy.
+    await db.delete(formSubmission).where(and(eq(formSubmission.companyId, u.companyId), eq(formSubmission.jobId, j.id), eq(formSubmission.templateId, tpl.id), eq(formSubmission.status, 'assigned')))
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'checklist_submission', entityId: id, entityName: tpl.name, metadata: { jobId: j.id, status, ...(signed ? { signatureHash: signed.signatureHash } : {}) }, req: c })
     return one(c, await shapeSubmission(c, saved), 201)
   })
@@ -488,6 +497,11 @@ export function createChecklistRoutes(d: CrmDeps) {
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'checklist_submission', entityId: found.id, entityName: tpl.name, metadata: { jobId: found.jobId, signed: true, signatureHash: signed.signatureHash }, req: c })
     return one(c, await shapeSubmission(c, saved))
   })
+
+  // The checklist through the job's life: its PDF, the email, the invoice, the report (./checklistLife.ts).
+  app.route('/', createChecklistLifeRoutes(d, { reachable }))
+  // …and the job's moments it acts on (rows on creation, prompts on a status change, the not-done alert).
+  d.services.onJobMoment(jobMomentStep(d))
 
   return app
 }

@@ -189,7 +189,7 @@ export function createEmailService(deps: { db: any; logger: Logger }) {
   }
 
   /** Send a composed message (campaigns, drip steps) through the same provider. Not recorded: its caller records it. */
-  async function sendRaw({ to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }) {
+  async function sendRaw({ to, subject, html, fromName, fromEmail, attachments }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string; attachments?: Array<{ filename: string; content: Buffer; contentType?: string }> }) {
     if (!transporter && process.env.NODE_ENV === 'production') throw new Error('No email provider is configured')
     if (!transporter) {
       logger.info('Email (dev mode, not sent)', { to, subject })
@@ -198,6 +198,7 @@ export function createEmailService(deps: { db: any; logger: Logger }) {
     const b = await brand()
     const result = await transporter.sendMail({
       from: await from(b, fromName, fromEmail), to, subject, html,
+      ...(attachments?.length ? { attachments } : {}),
       ...(process.env.REPLY_TO_EMAIL ? { replyTo: process.env.REPLY_TO_EMAIL } : {}),
     })
     logger.info('Email sent', { to, subject, provider })

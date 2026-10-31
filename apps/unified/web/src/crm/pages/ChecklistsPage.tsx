@@ -5,12 +5,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { ClipboardCheck, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
+import { ChecklistReport } from '../checklistLife'
 
 type FieldType = 'pass_fail' | 'yes_no' | 'text' | 'dropdown' | 'multi_select' | 'number' | 'date' | 'photo' | 'signature' | 'section'
 /** `optionsText` is only the box the owner types the choices into (one per line); the server's `options` is what is kept. */
 interface Q { id?: string; label: string; type: FieldType; required: boolean; options?: string[]; optionsText?: string }
-interface Checklist { id: string; name: string; description: string | null; active: boolean; fields: Q[]; jobTypes: string[]; requireSignature: boolean; requirePhoto: boolean }
-interface Draft { id?: string; name: string; description: string; fields: Q[]; jobTypes: string; requireSignature: boolean; requirePhoto: boolean; active: boolean }
+interface Checklist { id: string; name: string; description: string | null; active: boolean; fields: Q[]; jobTypes: string[]; promptOn: PromptOn[]; requireSignature: boolean; requirePhoto: boolean }
+interface Draft { id?: string; name: string; description: string; fields: Q[]; jobTypes: string; promptOn: PromptOn[]; requireSignature: boolean; requirePhoto: boolean; active: boolean }
+type PromptOn = 'dispatched' | 'in_progress' | 'completed'
+const PROMPT_WORDS: Array<{ v: PromptOn; label: string }> = [{ v: 'dispatched', label: 'on the way' }, { v: 'in_progress', label: 'started' }, { v: 'completed', label: 'completed' }]
 
 const TYPE_WORDS: Record<FieldType, string> = {
   pass_fail: 'Pass / Fail / Needs attention', yes_no: 'Yes / No', text: 'Write-in', dropdown: 'Pick one from a list', multi_select: 'Pick several from a list',
@@ -22,8 +25,8 @@ const box = 'rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-70
 const input = 'rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
 const btn = 'rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50'
 const ghost = 'rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800'
-const blank = (): Draft => ({ name: '', description: '', fields: [{ label: '', type: 'pass_fail', required: true }], jobTypes: '', requireSignature: false, requirePhoto: false, active: true })
-const toDraft = (c: Checklist): Draft => ({ id: c.id, name: c.name, description: c.description || '', fields: c.fields.map((f) => ({ ...f, optionsText: (f.options ?? []).join('\n') })), jobTypes: c.jobTypes.join(', '), requireSignature: c.requireSignature, requirePhoto: c.requirePhoto, active: c.active })
+const blank = (): Draft => ({ name: '', description: '', fields: [{ label: '', type: 'pass_fail', required: true }], jobTypes: '', promptOn: [], requireSignature: false, requirePhoto: false, active: true })
+const toDraft = (c: Checklist): Draft => ({ id: c.id, name: c.name, description: c.description || '', fields: c.fields.map((f) => ({ ...f, optionsText: (f.options ?? []).join('\n') })), jobTypes: c.jobTypes.join(', '), promptOn: c.promptOn ?? [], requireSignature: c.requireSignature, requirePhoto: c.requirePhoto, active: c.active })
 
 function Editor({ draft, onChange, onSave, onCancel, busy }: { draft: Draft; onChange: (d: Draft) => void; onSave: () => void; onCancel: () => void; busy: boolean }) {
   const setQ = (i: number, patch: Partial<Q>) => onChange({ ...draft, fields: draft.fields.map((f, k) => (k === i ? { ...f, ...patch } : f)) })
@@ -69,6 +72,14 @@ function Editor({ draft, onChange, onSave, onCancel, busy }: { draft: Draft; onC
       <button type="button" className={`${ghost} mt-2`} onClick={() => onChange({ ...draft, fields: [...draft.fields, { label: '', type: 'pass_fail', required: true }] })}><Plus className="mr-1 inline h-4 w-4" />Add a question</button>
       <button type="button" className={`${ghost} ml-2 mt-2`} onClick={() => onChange({ ...draft, fields: [...draft.fields, { label: '', type: 'section', required: false }] })}><Plus className="mr-1 inline h-4 w-4" />Add a heading</button>
 
+      <fieldset className="mt-4 text-sm text-gray-800 dark:text-slate-200">
+        <legend className="font-semibold text-gray-900 dark:text-slate-100">Ask the crew to fill it in when the job is</legend>
+        <div className="mt-1 flex flex-wrap gap-4">
+          {PROMPT_WORDS.map((p) => (
+            <label key={p.v} className="flex items-center gap-2"><input type="checkbox" checked={draft.promptOn.includes(p.v)} onChange={(e) => onChange({ ...draft, promptOn: e.target.checked ? [...draft.promptOn, p.v] : draft.promptOn.filter((x) => x !== p.v) })} />{p.label[0].toUpperCase() + p.label.slice(1)}</label>
+          ))}
+        </div>
+      </fieldset>
       <div className="mt-4 grid gap-1 text-sm text-gray-800 dark:text-slate-200">
         <label className="flex items-center gap-2"><input type="checkbox" checked={draft.requireSignature} onChange={(e) => onChange({ ...draft, requireSignature: e.target.checked })} />The customer signs it on site</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={draft.requirePhoto} onChange={(e) => onChange({ ...draft, requirePhoto: e.target.checked })} />The job needs a photo before it can be sent</label>
@@ -102,7 +113,7 @@ export default function ChecklistsPage() {
     setBusy(true)
     const body = {
       name: draft.name, description: draft.description || null, fields: draft.fields.map((f) => ({ ...(f.id ? { id: f.id } : {}), label: f.label, type: f.type, required: f.type === 'section' ? false : f.required, ...(hasChoices(f.type) ? { options: optionsOf(f) } : {}) })),
-      jobTypes: draft.jobTypes.split(',').map((x) => x.trim()).filter(Boolean), requireSignature: draft.requireSignature, requirePhoto: draft.requirePhoto, active: draft.active,
+      jobTypes: draft.jobTypes.split(',').map((x) => x.trim()).filter(Boolean), promptOn: draft.promptOn, requireSignature: draft.requireSignature, requirePhoto: draft.requirePhoto, active: draft.active,
     }
     try {
       if (draft.id) await api.put(`/api/checklists/templates/${draft.id}`, body); else await api.post('/api/checklists/templates', body)
@@ -138,10 +149,11 @@ export default function ChecklistsPage() {
           </div>
           <p className="text-sm text-gray-600 dark:text-slate-300">
             {c.jobTypes.length ? `For: ${c.jobTypes.join(', ')}` : 'For every job'} · {c.fields.filter((f) => f.type !== 'section').length} question{c.fields.filter((f) => f.type !== 'section').length === 1 ? '' : 's'}{c.fields.some((f) => f.type === 'section') ? ` in ${c.fields.filter((f) => f.type === 'section').length} group${c.fields.filter((f) => f.type === 'section').length === 1 ? '' : 's'}` : ''}
-            {c.requireSignature ? ' · customer signs' : ''}{c.requirePhoto ? ' · needs a photo' : ''}
+            {c.requireSignature ? ' · customer signs' : ''}{c.requirePhoto ? ' · needs a photo' : ''}{c.promptOn?.length ? ` · asked for when the job is ${c.promptOn.map((x) => PROMPT_WORDS.find((p) => p.v === x)?.label).join(' or ')}` : ''}
           </p>
         </section>
       ))}
+      <ChecklistReport />
     </div>
   )
 }

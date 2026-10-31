@@ -31,6 +31,7 @@ import { ContactBookings } from '../booking/ContactBookings'
 import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
+import { JobChecklistsPanel } from './checklistLife'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
@@ -115,7 +116,7 @@ export function JobDetail() {
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
-    aside: (job: Record<string, any>) => <JobBillingPanel job={job} />,
+    aside: (job: Record<string, any>) => <><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**

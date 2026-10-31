@@ -58,6 +58,7 @@ import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
+import { attachedChecklistFiles } from '../crm/field/checklistLife.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
@@ -263,7 +264,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
-      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
+      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.
       availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
@@ -332,7 +333,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         if (invoiceId) void syncEventInvoiceDueDate(db, invoiceId).catch((err: any) => logger.error('[events] invoice due-date sync failed', { error: err?.message }))
       },
     } : {}),
-    sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
+    // An invoice goes out with the checklist PDFs attached to it (crm/field/checklistLife.ts); one that cannot be read is left off.
+    sendInvoiceEmail: async (to: string, data: Record<string, unknown>) => {
+      const attachments = await attachedChecklistFiles(db, s.storage, String(data.invoiceId || ''))
+      return attachments.length ? s.emailService.send(to, 'invoiceSent', data, { attachments }) : s.emailService.sendInvoice(to, data)
+    },
     loadPdf: loadInvoicePdf, audit,
     options: {
       timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.earnCommission(invoiceId); await s.afterInvoicePaid(invoiceId) },

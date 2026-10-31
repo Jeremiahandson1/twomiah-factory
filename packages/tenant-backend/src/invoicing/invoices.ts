@@ -970,7 +970,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const token = await documentLinkToken(db, t.invoice, found.id)
     try {
       await sendInvoiceEmail(recipientEmail, {
-        invoiceNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '', contactName,
+        invoiceId: found.id, invoiceNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '', contactName,
         total: found.total, balance, dueDate: found.dueDate ? new Date(found.dueDate as any).toLocaleDateString() : 'Upon receipt',
         documentPath: token ? documentLinkPath(token) : null,
       })

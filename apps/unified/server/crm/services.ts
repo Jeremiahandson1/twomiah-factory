@@ -65,6 +65,10 @@ export interface CrmServiceDeps {
   stripe?: any
 }
 
+/** The moments of a job a module can act on. */
+export type JobMomentKind = 'created' | 'dispatched' | 'started' | 'completed'
+export type JobMoment = (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => Promise<unknown> | unknown
+
 export function createCrmServices(deps: CrmServiceDeps) {
   const { db, email, audit, logger, isFeatureEnabled, settings } = deps
   const sites = !!settings.serviceSites
@@ -216,16 +220,31 @@ export function createCrmServices(deps: CrmServiceDeps) {
    * recurring service agreement.
    */
   const textArrival = !!settings.jobs?.textArrival
-  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook } = {
-    ...(textArrival ? {
-      onDispatch: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_my_way').catch(() => {}) },
-    } : {}),
+  // What a module does at a job's moments (made, on the way, started, done), registered when the module mounts — the way
+  // invoicePaidSteps are. Run by every door a status is reached by (the job routes and bulk updates). One failing step never
+  // stops the others, or the job.
+  const jobMomentSteps: JobMoment[] = []
+  const afterJobMoment = async (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => {
+    for (const step of jobMomentSteps) {
+      try { await step(kind, ctx) } catch (err) { logger.warn?.('[jobs] a job-moment step failed', { kind, error: (err as Error)?.message }) }
+    }
+  }
+  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook } = {
+    onCreate: async (ctx) => { await afterJobMoment('created', ctx) },
+    onDispatch: async (ctx) => {
+      if (textArrival) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
+      await afterJobMoment('dispatched', ctx)
+    },
     // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
-    onStart: async ({ job: j, companyId }) => {
+    onStart: async (ctx) => {
+      const { job: j, companyId } = ctx
+      await afterJobMoment('started', ctx)
       if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
       if (textArrival) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
     },
-    onComplete: async ({ job: done, companyId }) => {
+    onComplete: async (ctx) => {
+      const { job: done, companyId } = ctx
+      await afterJobMoment('completed', ctx)
       if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
       // A route billed per visit gets its draft invoice as the crew finishes the visit (data/routeBilling.ts); a failure here
       // never holds up completing the job.
@@ -270,7 +289,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, onJobMoment: (step: JobMoment) => { jobMomentSteps.push(step) }, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
     eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
