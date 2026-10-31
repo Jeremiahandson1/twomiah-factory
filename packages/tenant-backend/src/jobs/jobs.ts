@@ -778,7 +778,9 @@ export function createJobRoutes(deps: JobDeps) {
       }
       const out: any[] = []
       for (const x of times) {
-        const [u] = await tx.update(t.job).set({ scheduledTime: x.scheduledTime, updatedAt: new Date() }).where(and(eq(t.job.id, x.id), eq(t.job.companyId, currentUser.companyId))).returning()
+        const row = rows.find((r) => r.id === x.id)
+        const retimed = String(row.scheduledTime ?? '') !== x.scheduledTime
+        const [u] = await tx.update(t.job).set({ scheduledTime: x.scheduledTime, ...(retimed && t.job.confirmedAt ? { confirmedAt: null, confirmedVia: null } : {}), updatedAt: new Date() }).where(and(eq(t.job.id, x.id), eq(t.job.companyId, currentUser.companyId))).returning()
         out.push(u)
       }
       return out
@@ -786,7 +788,8 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash || !saved) return c.json({ error: await clashSentence(currentUser.companyId, clash, true), conflictId: clash?.id }, 409)
     const result = await withRelations(saved, currentUser.companyId)
     for (const r of result) emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, r)
-    return c.json({ data: await shapeJobMoney(c, result) })
+    // `moved`: the stops whose time really changed, for the screen's "Notify client?".
+    return c.json({ data: await shapeJobMoney(c, result), moved: times.filter((x) => String(rows.find((r) => r.id === x.id)?.scheduledTime ?? '') !== x.scheduledTime).map((x) => x.id) })
   })
 
   // ---------------------------------------------------------------- photos (before /:id so /:id/photos routes resolve first)
@@ -1150,6 +1153,9 @@ export function createJobRoutes(deps: JobDeps) {
     const placeChanged = ['address', 'city', 'state', 'zip'].some((k) => differs(k, data[k]))
     const movesSlot = crewChanged || placeChanged || differs('scheduledTime', data.scheduledTime) || differs('estimatedHours', data.estimatedHours)
       || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
+    // The visit's day or time moved: the customer's confirmation was for the old one, and the screen asks "Notify client?".
+    const whenChanged = differs('scheduledTime', data.scheduledTime)
+      || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
     // A moved address is somewhere else: its old map point would put pins and routes in the wrong place.
     if (placeChanged && t.job.lat) { data.lat = null; data.lng = null }
     const here: Place = placeChanged ? { address: data.address ?? existing.address ?? null } : { lat: existing.lat ?? null, lng: existing.lng ?? null, address: existing.address ?? null }
@@ -1177,6 +1183,7 @@ export function createJobRoutes(deps: JobDeps) {
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
         ...(t.job.estimatedValue ? { estimatedValue: data.estimatedValue !== undefined ? String(data.estimatedValue) : undefined } : { estimatedValue: undefined }),
         ...(completedAt !== undefined ? { completedAt } : {}),
+        ...(whenChanged && t.job.confirmedAt ? { confirmedAt: null, confirmedVia: null } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       return row
@@ -1198,7 +1205,7 @@ export function createJobRoutes(deps: JobDeps) {
      */
     const more = data.status !== undefined && data.status !== existing.status ? await runHook(hookFor(data.status), updated, currentUser) : {}
     // A field seat holds jobs:update: the saved row's money is withheld as the read's is (./jobMoney.ts).
-    return c.json({ ...(await shapeJobMoney(c, result)), ...more })
+    return c.json({ ...(await shapeJobMoney(c, result)), ...more, ...(whenChanged ? { scheduleMoved: true } : {}) })
   })
 
   app.delete('/:id', requirePermission('jobs:delete'), async (c) => {

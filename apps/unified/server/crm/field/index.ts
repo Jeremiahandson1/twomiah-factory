@@ -24,6 +24,7 @@ import { createPlanReportRoutes, createTeamRevenueRoutes } from './teamReportRou
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
+import { createJobConfirm } from './jobConfirm.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
@@ -33,6 +34,9 @@ export function fieldMounts(d: CrmDeps): Mount[] {
   d.services.onJobMoment(clockExtras.automaticStep)
   d.services.eventJobs.overtimePass = async (now?: Date) => (await clockExtras.overtimePass(now)).alerts
   d.services.addJob(() => { setTimeout(() => { void clockExtras.overtimePass() }, 90_000); setInterval(() => { void clockExtras.overtimePass() }, 5 * 60_000) })
+  // A customer confirms a visit: by the link in a reminder, in the portal, or by texting Y / C back (jobConfirm.ts).
+  const jobConfirm = createJobConfirm(d)
+  d.services.useSmsReply((m) => jobConfirm.onReply(m))
   return [
     { path: '/api/takeoffs', access: 'user', feature: 'takeoff_tools', router: createTakeoffsRoutes(d) },
     { path: '/api/selections', access: 'user', feature: 'selections', router: createSelectionsRoutes(d) },
@@ -53,6 +57,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     // The forecast for a job or a project, and the weather filled into a daily log.
     { path: '/api/weather', access: 'user', feature: ['jobs', 'projects', 'daily_logs'], router: createWeatherRoutes(d) },
     // The reminder before a job the office booked: its settings (crm/field/jobReminders.ts runs the timed pass). Not ready.
+    // The link in a reminder: public, the token is the key and opens one visit. It checks the Job Reminders feature itself.
+    { path: '/api/visit-confirm', access: 'public', router: jobConfirm.routes },
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue', access: 'user', feature: 'team_revenue_reports', router: createTeamRevenueRoutes(d) },

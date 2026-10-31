@@ -67,7 +67,7 @@ interface DayRoute {
  * Maps directions link, and — only after the office says yes — the new start times (POST /api/jobs/retime).
  */
 export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate, onClose, onApplied }: {
-  api: ScheduleApi; toast: ScheduleToast; date: string; person: Lane; mayRetime: boolean; mayLocate: boolean; onClose: () => void; onApplied: () => void
+  api: ScheduleApi; toast: ScheduleToast; date: string; person: Lane; mayRetime: boolean; mayLocate: boolean; onClose: () => void; onApplied: (moved?: string[]) => void
 }) {
   // Both writes here — re-timing (POST /api/jobs/retime) and putting jobs on the map (POST /api/day-route/locate) — ask
   // jobs:update on the server; the screen asks it too, beside what the page that opened this decided.
@@ -90,10 +90,10 @@ export function RouteOptimiser({ api, toast, date, person, mayRetime, mayLocate,
   const changes = (route?.proposed || []).filter((p) => timeOf(p.id) !== p.scheduledTime)
   const retime = async () => {
     try {
-      await api.post('/api/jobs/retime', { times: (route?.proposed || []).map(({ id, scheduledTime }) => ({ id, scheduledTime })) })
+      const r: any = await api.post('/api/jobs/retime', { times: (route?.proposed || []).map(({ id, scheduledTime }) => ({ id, scheduledTime })) })
       toast.success(`${changes.length} start time${changes.length === 1 ? '' : 's'} changed`)
       setAsking(false)
-      onApplied()
+      onApplied(Array.isArray(r?.moved) ? r.moved : [])
     } catch (err) { toast.error(errMsg(err, 'Could not re-time the day')) }
   }
   const locate = async () => {

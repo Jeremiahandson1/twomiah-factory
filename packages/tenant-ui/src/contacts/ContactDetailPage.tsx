@@ -297,6 +297,16 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'Failed to update opt-out')) }
   }
 
+  /** Job Reminders: automatic reminders for this customer on or off (the contact's own switch; sends by hand are not stopped). */
+  const toggleReminders = async () => {
+    if (!contact) return
+    try {
+      await api.put(`/api/contacts/${id}`, { jobRemindersOff: !contact.jobRemindersOff })
+      toast.success(contact.jobRemindersOff ? 'Automatic job reminders are on for this customer' : 'No automatic job reminders for this customer')
+      loadContact()
+    } catch (err) { toast.error(errMsg(err, 'Could not change the reminder setting')) }
+  }
+
   // Loading, or on the way to the contact's own page: the skeleton, not a flash of the record.
   if (loading || (ownPage && !recordView)) {
     return (
@@ -403,6 +413,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           )}
           {/* Ask this customer for a Google review now (Review Requests; reviews/ReviewRequestButton.tsx). */}
           <ReviewRequestButton api={api} toast={toast} contactId={id} hasFeature={config?.hasFeature} />
+          {mayEdit && hasFeature('job_reminders') && (
+            <Button variant="secondary" onClick={toggleReminders} aria-pressed={!!contact.jobRemindersOff}>{contact.jobRemindersOff ? 'No automatic job reminders — turn on' : 'Stop automatic job reminders'}</Button>
+          )}
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>

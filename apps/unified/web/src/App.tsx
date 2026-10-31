@@ -67,6 +67,7 @@ const ContactSupportPage = page(() => import('./crm/pages/ContactSupportPage'))
 const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
+const VisitConfirmPage = page(() => import('./crm/pages/VisitConfirmPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -83,6 +84,7 @@ const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
 const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
 const PlanReportsPage = page(() => import('./crm/pages/PlanReportsPage'))
+const ClientCommunicationsPage = page(() => import('./crm/pages/ClientCommunicationsPage'))
 const ExportEverythingPage = page(() => import('./crm/pages/ExportEverythingPage'))
 
 function NotFound() {
@@ -168,6 +170,7 @@ export default function App() {
                         <Route path="checklists" element={<ChecklistsPage />} />
                         <Route path="team-revenue" element={<TeamRevenuePage />} />
                         <Route path="plan-reports" element={<PlanReportsPage />} />
+                        <Route path="client-communications" element={<ClientCommunicationsPage />} />
                         <Route path="lead-sources" element={<Crm.LeadSources />} />
                         <Route path="email" element={<Crm.EmailInbox />} />
                         <Route path="google-reviews" element={<Crm.GoogleReviews />} />
@@ -277,6 +280,9 @@ export default function App() {
 
                     {/* A crew's or sub's work order, by the private link in the text (no sign-in, no shell). */}
                     <Route path="/w/:token" element={<CrewLinkPage />} />
+
+                    {/* The link in a visit reminder: one visit and a Confirm button (no sign-in, no shell). */}
+                    <Route path="/visit/:token" element={<VisitConfirmPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

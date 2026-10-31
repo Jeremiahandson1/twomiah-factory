@@ -10,6 +10,7 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { JobPartsPanel } from '../inventory/JobPartsPanel'
 import { JobNotesPanel } from './JobNotesPanel'
 import { JobPhotosPanel } from './JobPhotosPanel'
+import { JobRemindersPanel } from './JobRemindersPanel'
 import { PhotoViewer } from '../files/PhotoViewer'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
@@ -212,6 +213,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
 
         <div className="space-y-6 min-w-0">
           {config?.aside?.(job)}
+          {/* Confirmed or not, Text / Email reminder, and what the customer was sent (Job Reminders). Absent while the feature is off. */}
+          {job.contactId && config?.hasFeature?.('job_reminders') && <JobRemindersPanel api={api as any} toast={toast} jobId={id} mayUpdate={mayUpdate} open={open} />}
           <div className={card}>
             <h2 className="font-semibold mb-4 text-gray-900 dark:text-slate-100">Related</h2>
             <div className="space-y-3">

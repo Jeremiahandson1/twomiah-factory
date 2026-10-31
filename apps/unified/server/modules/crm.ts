@@ -20,7 +20,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -69,6 +69,7 @@ import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoute
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
+import { createJobConfirm } from '../crm/field/jobConfirm.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
@@ -217,7 +218,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ownContacts: (userId: string) => ownContactsWhere(db, userId),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
-      extraFields: { optedOutSms: z.boolean().optional() },
+      extraFields: { optedOutSms: z.boolean().optional(), jobRemindersOff: z.boolean().optional() },
       // The one contact-delete rule, with its guards and its photo-file clean-up (contactDeleter above).
       deleter: contactDeleter,
       // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
@@ -561,6 +562,19 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
       fileService: s.storage,
+      // Field service, basic: the visits still to come, each one confirmed with a button (crm/field/jobConfirm.ts; the Job Reminders feature).
+      // (Only field service and basic list it in their portal menu — verticals' clientNav — and it answers only with Job Reminders on.)
+      upcomingVisits: (() => {
+        const confirm = createJobConfirm(own)
+        return {
+          list: (companyId: string, contactId: string) => confirm.upcomingFor(companyId, contactId),
+          confirm: async (companyId: string, contactId: string, jobId: string) => {
+            const [mine] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId), eq(job.contactId, contactId))).limit(1)
+            if (!mine) return { ok: false as const, error: 'That visit was not found.', status: 404 }
+            return confirm.confirm(companyId, jobId, 'portal')
+          },
+        }
+      })(),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       ...live, logger,

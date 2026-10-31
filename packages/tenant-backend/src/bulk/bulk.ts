@@ -133,7 +133,8 @@ export function createBulkService(deps: BulkServiceDeps) {
 
   async function bulkRescheduleJobs(companyId: string, jobIds: string[], scheduledDate: string): Promise<number> {
     const result = await db.update(job)
-      .set({ scheduledDate: new Date(scheduledDate), updatedAt: new Date() })
+      // A moved visit is not the one the customer confirmed.
+      .set({ scheduledDate: new Date(scheduledDate), ...((job as any).confirmedAt ? { confirmedAt: null, confirmedVia: null } : {}), updatedAt: new Date() })
       .where(and(inArray(job.id, jobIds), eq(job.companyId, companyId)))
       .returning();
     return result.length;

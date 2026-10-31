@@ -142,12 +142,18 @@ export function createCrmServices(deps: CrmServiceDeps) {
       },
     },
   } as any)
+  const smsReplies: Array<(m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>> = []
   const sms = createSmsService({
     db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage,
     // A customer's own text: texting the business first is consent to be texted back; STOP withdraws it (site/smsConsent.ts).
     onConsent: (companyId: string, phone: string, change: 'given' | 'withdrawn') => change === 'given'
       ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
       : withdrawConsent(db, companyId, phone),
+    // A text back that the business answers itself — a visit confirmed by "Y" (field/jobConfirm.ts registers through useSmsReply).
+    onReply: async (m: { companyId: string; contactId: string | null; body: string }) => {
+      for (const h of smsReplies) { const answer = await h(m); if (answer) return answer }
+      return null
+    },
     // Picture messages: files in the private store, handed to the carrier by short-lived signed links (comms/smsMedia.ts).
     media: smsMediaLinks,
   } as any)
@@ -296,6 +302,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, onJobMoment: (step: JobMoment) => { jobMomentSteps.push(step) }, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
     eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
+    /** A module that answers a customer's text itself (a visit confirmed by "Y"): returns the reply, or null to leave it to the inbox. */
+    useSmsReply(h: (m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>) { smsReplies.push(h) },
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */

@@ -40,6 +40,8 @@ export const contact = pgTable('contact', {
   /** Withdrawn SMS consent: the shared sender refuses to text a contact carrying this. */
   optedOutSms: boolean('opted_out_sms').default(false).notNull(),
   emailOptOut: boolean('email_opt_out').default(false).notNull(),
+  // "Don't send this customer automatic job reminders" — their own switch, apart from STOP and unsubscribe (crm/field/jobReminders.ts).
+  jobRemindersOff: boolean('job_reminders_off').default(false).notNull(),
   emailOptOutAt: timestamp('email_opt_out_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -277,8 +279,15 @@ export const job = pgTable('job', {
    * stop lives in the landscaping schema, which imports this file. A deleted stop leaves its visits as they were.
    */
   recurringRouteStopId: text('recurring_route_stop_id'),
+  // The customer said they will be there: by the confirm link in a reminder, the portal, or by texting Y / C back (crm/field/jobConfirm.ts).
+  // A moved visit clears it — they confirmed the old time.
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedVia: text('confirmed_via'),
+  // The private link a reminder carries to confirm this one visit (/visit/<token>); minted the first time one goes out.
+  confirmToken: text('confirm_token'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
+  uniqueIndex('job_confirm_token_idx').on(t.confirmToken),
   // One visit per stop per day: making a route's visits twice adds nothing the second time.
   uniqueIndex('job_route_stop_day_idx').on(t.recurringRouteStopId, t.scheduledDate).where(jobOnRouteStop),
   index('job_status_idx').on(t.status),

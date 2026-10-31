@@ -11,6 +11,7 @@ import type { JobsPageProps, JobRow } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { isTravelWarning, BOOK_ANYWAY_TITLE } from '../schedule/crew'
+import { NotifyMovedDialog } from './NotifyMovedDialog'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
@@ -73,6 +74,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
+  // A visit just moved by an edit: "Notify client?" (NotifyMovedDialog).
+  const [movedIds, setMovedIds] = useState<string[]>([])
   const [editing, setEditing] = useState<JobRow | null>(null)
   // The statuses the filter and the form offer: a vertical's own list if it set one, else the server's (one list —
   // JOB_STATUSES, sent with every page of jobs), else the same list built in until the first page arrives.
@@ -257,7 +260,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (!cfg.sites) delete payload.siteId
       if (!cfg.jobTypes || !payload.jobType) delete payload.jobType
       if (!tenantHasBranches) delete payload.locationId
-      if (editing) { await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`) }
+      if (editing) { const r: any = await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`); if (r?.scheduleMoved) setMovedIds([editing.id]) }
       else if (repeating) {
         // Every visit is made now and is on the calendar; a day the person is already booked is listed back.
         const r: any = await api.post('/api/jobs', { ...payload, repeat: repeatBody(repeat, cfg.repeatWeekdays) })
@@ -475,6 +478,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         </div>
       </Modal>
 
+      {movedIds.length > 0 && <NotifyMovedDialog api={api as any} toast={toast} jobIds={movedIds} onDone={() => setMovedIds([])} />}
       <ConfirmModal isOpen={!!travelAsk} onClose={() => setTravelAsk(null)} onConfirm={() => { setTravelAsk(null); return save(true) }} danger={false}
         title={BOOK_ANYWAY_TITLE} message={travelAsk || ''} confirmText="Book anyway" />
       <ConfirmModal isOpen={deleteOpen} onClose={() => { setDeleteOpen(false); setToDelete(null) }} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${toDelete?.title || ''}"?`} confirmText="Delete" />

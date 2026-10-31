@@ -431,14 +431,21 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, ${data.headline}\n\n${data.body}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
   }),
-  // The reminder before a job the office booked (crm/field/jobReminders.ts). Every value is typed by staff, so each is escaped.
-  jobReminder: (data, b) => ({
-    subject: `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,
-    html: `
+  // The reminder before a job the office booked, and the notice that a visit moved (crm/field/jobReminders.ts). The wording is the
+  // business's own (data.subject / data.body, merged from its fields); every value is typed by staff, so each is escaped. With no
+  // wording the original fixed layout is used. A confirm button when the customer is asked to confirm (data.confirmPath).
+  jobReminder: (data, b, appUrl) => {
+    const confirm = data.confirmPath ? `${appUrl}${data.confirmPath}` : ''
+    return {
+      subject: data.subject || `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,
+      html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
         <div class="content">
+          ${data.body ? `
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p style="white-space:pre-wrap;">${escHtml(data.body)}</p>` : `
           <h2>Your upcoming visit</h2>
           <p>Hi ${escHtml(data.contactName)},</p>
           <p>This is a reminder of your visit with ${escHtml(data.companyName)}.</p>
@@ -448,13 +455,17 @@ ${data.disclosure}`,
             ${data.address ? `<p><strong>Where:</strong> ${escHtml(data.address)}</p>` : ''}
             ${data.techName ? `<p><strong>Who:</strong> ${escHtml(data.techName)}</p>` : ''}
           </div>
-          <p>If you need to change the time, reply to this email or call us.</p>
+          <p>If you need to change the time, reply to this email or call us.</p>`}
+          ${confirm ? `<p style="text-align:center;"><a href="${escHtml(confirm)}" class="button">Confirm my visit</a></p>` : ''}
         </div>
         <div class="footer">${escHtml(data.companyName)}</div>
       </div></body></html>
     `,
-    text: `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.`,
-  }),
+      text: data.body
+        ? `Hi ${data.contactName},\n\n${data.body}${confirm ? `\n\nConfirm my visit: ${confirm}` : ''}`
+        : `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.${confirm ? ` Confirm my visit: ${confirm}` : ''}`,
+    }
+  },
   // The receipt for a no-show or late-cancellation fee charged to the card a client keeps on file (salon/cardOnFile.ts).
   cardFeeReceipt: (data, b) => ({
     subject: `Receipt: ${data.label} — ${b.companyName}`,

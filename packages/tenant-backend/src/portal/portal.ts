@@ -62,7 +62,7 @@ export interface PortalOptions {
    * Offered only where the business has the `portal_appointments` feature on — never on a silent default.
    */
   appointments?: { appointment: any; service?: any; stylist?: any; booking?: any; manageUrl?: (bookingToken: string) => string }
-  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits' | 'jobFiles'>
+  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits' | 'jobFiles' | 'upcomingVisits'>
 }
 /**
  * The photos and documents a business has chosen to show this customer, for a vertical that keeps them on the job (roofing:
@@ -82,6 +82,8 @@ export interface PortalDeps {
   tables: PortalTables
   /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
   jobFiles?: PortalJobFiles
+  /** The customer's coming visits and a way to confirm one (the unified app's crm/field/jobConfirm.ts). Optional: no such section without it. */
+  upcomingVisits?: { list: (companyId: string, contactId: string) => Promise<unknown[]>; confirm: (companyId: string, contactId: string, jobId: string) => Promise<{ ok: true; visit: unknown } | { ok: false; error: string; status: number }> }
   authenticate: any
   requirePermission: (permission: string) => any
   /** emailService.send — templates: portalInvite, collaboratorAction. */
@@ -173,6 +175,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   // shown a Payment Method tab. Same shape as equipment/agreements in T26 M7. (Field Service T29 M1)
   paymentMethods: ['online_payments'],
   visits: ['visit_reports'],
+  // The customer's coming visits, each with a Confirm button (the Job Reminders feature: a hidden one until the owner has tried it).
+  upcomingVisits: ['job_reminders'],
   // The client's own appointments: only where the business switched this on (a hidden feature until the owner has tried it).
   appointments: ['portal_appointments'],
 }
@@ -243,6 +247,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     pets: !!t.patient && !off('pets'),
     // landscaping: the visits that are done (deps.visits supplies them)
     visits: !!deps.visits && !off('visits'),
+    // fieldservice / basic: the coming visits a customer can confirm (deps.upcomingVisits supplies and confirms them)
+    upcomingVisits: !!deps.upcomingVisits && !off('upcomingVisits'),
     // salon: the client's upcoming appointments. NEVER on from what is mounted: it is offered only where the business has the
     // `portal_appointments` feature switched on (sectionsFor adds it), so a missing lookup or an empty list is not a yes.
     appointments: false,
@@ -642,6 +648,18 @@ export function createPortalRoutes(deps: PortalDeps) {
       const rows = await deps.visits!({ companyId: contact.companyId, contactId: contact.id })
       if (rows === null) return c.json({ error: 'This section is not available on your account.', code: 'FEATURE_NOT_ENABLED' }, 404)
       return c.json(rows)
+    })
+  }
+  // ---- upcoming visits (field service, basic): the visits still to come, and a Confirm on each
+  if (has.upcomingVisits) {
+    app.get('/p/:token/upcoming-visits', portalAuth, gate('upcomingVisits'), async (c) => {
+      const { contact } = P(c)
+      return c.json(await deps.upcomingVisits!.list(contact.companyId, contact.id))
+    })
+    app.post('/p/:token/upcoming-visits/:jobId/confirm', portalAuth, gate('upcomingVisits'), async (c) => {
+      const { contact } = P(c)
+      const r = await deps.upcomingVisits!.confirm(contact.companyId, contact.id, c.req.param('jobId'))
+      return r.ok ? c.json(r.visit) : c.json({ error: r.error }, r.status as 404 | 409)
     })
   }
   // ---- appointments (salon)

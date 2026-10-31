@@ -166,7 +166,7 @@ const blank = (v: unknown) => v === null || v === undefined || (typeof v === 'st
  * is added, not the day someone remembers this file. Opt-IN names deliberately do not match — ORing
  * a consent would manufacture permission that was never given.
  */
-const REFUSAL_NAME = /(opt_?out|opted_?out|unsub|do_?not|suppress)/i
+const REFUSAL_NAME = /(opt_?out|opted_?out|unsub|do_?not|suppress|reminders_?off)/i
 const isRefusalFlag = (key: string, a: unknown, b: unknown) =>
   REFUSAL_NAME.test(key) && (typeof a === 'boolean' || typeof b === 'boolean')
 

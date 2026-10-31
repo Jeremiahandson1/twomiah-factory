@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Calendar, Plus, Move, X, Route, Users } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
+import { NotifyMovedDialog } from '../jobs/NotifyMovedDialog'
 import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext'
 import { UNASSIGNED, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, RouteOptimiser, type Lane } from './crew'
 import { localDayKey } from '../time/day'
@@ -111,6 +112,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   /** The lane a job was picked up from (drag or Move); null outside the lanes. */
   const [dragFrom, setDragFrom] = useState<string | null>(null)
   /** A move the server warned about (no time to drive between two jobs): asked about, then sent again with bookAnyway. */
+  // Visits just moved, to be asked about one by one: "Notify client?" (jobs/NotifyMovedDialog.tsx).
+  const [movedIds, setMovedIds] = useState<string[]>([])
   const [override, setOverride] = useState<{ job: ScheduleJob; change: Record<string, unknown>; said: string; message: string } | null>(null)
   const [routeFor, setRouteFor] = useState<Lane | null>(null)
   useEffect(() => {
@@ -204,7 +207,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
    */
   const move = async (job: ScheduleJob, change: Record<string, unknown>, said: string) => {
     setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, ...change } : j)))
-    try { await api.put(`/api/jobs/${job.id}`, change); toast.success(said) }
+    try { const r: any = await api.put(`/api/jobs/${job.id}`, change); toast.success(said); if (r?.scheduleMoved) setMovedIds([job.id]) }
     catch (err) {
       if (isTravelWarning(err)) setOverride({ job, change, said, message: errMsg(err, 'There is not enough time to get there.') })
       else toast.error(errMsg(err, 'Could not reschedule'))
@@ -214,7 +217,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const bookAnyway = async () => {
     const o = override; setOverride(null)
     if (!o) return
-    try { await api.put(`/api/jobs/${o.job.id}`, { ...o.change, bookAnyway: true }); toast.success(o.said) }
+    try { const r: any = await api.put(`/api/jobs/${o.job.id}`, { ...o.change, bookAnyway: true }); toast.success(o.said); if (r?.scheduleMoved) setMovedIds([o.job.id]) }
     catch (err) { toast.error(errMsg(err, 'Could not reschedule')) }
     load()
   }
@@ -604,7 +607,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         title={BOOK_ANYWAY_TITLE}
         message={override?.message || ''}
         confirmText="Book anyway" />
-      {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayLocateJobs} onClose={() => setRouteFor(null)} onApplied={() => { setRouteFor(null); load() }} />}
+      {routeFor && <RouteOptimiser api={api} toast={toast} date={localKey(currentDate)} person={routeFor} mayRetime={mayMoveJobs} mayLocate={mayLocateJobs} onClose={() => setRouteFor(null)} onApplied={(moved) => { setRouteFor(null); if (moved?.length) setMovedIds(moved); load() }} />}
+      {movedIds.length > 0 && <NotifyMovedDialog api={api as any} toast={toast} jobIds={movedIds} onDone={() => setMovedIds([])} />}
       {cfg.events && newFor && <AppointmentModal api={api} toast={toast} date={newFor} types={cfg.eventTypes} onClose={() => setNewFor(null)} onSaved={() => { setNewFor(null); load() }} />}
       {cfg.events && editEvent && <AppointmentModal api={api} toast={toast} date={new Date(editEvent.start)} event={editEvent} types={cfg.eventTypes} onClose={() => setEditEvent(null)} onSaved={() => { setEditEvent(null); load() }} />}
     </div>
