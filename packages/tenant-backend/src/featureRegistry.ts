@@ -320,6 +320,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'store_ai_writer', name: 'Store Product Writer', description: 'Draft a product description, search-result text and photo descriptions in a tone you pick, for you to edit before saving', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'store_accounts', name: 'Store Customer Accounts', description: 'Shoppers sign in with an emailed link or code to see their own orders, keep addresses, order again and pay their group’s prices', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'store_returns', name: 'Store Returns and Exchanges', description: 'Shoppers and staff start returns; you approve, receive the goods back, then refund to the card or store credit or send an exchange', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store customer segments — NOT ready (2026-10-31). Save a question about what customers spent, how often they ordered and what they bought
+  // (or did not buy) over a period, and send a campaign or a follow-up email to it. Hidden until the owner has run it on the live shop.
+  { id: 'store_segments', name: 'Store Customer Segments', description: 'Save groups of customers by what they spent, how many orders they made and what they bought, and send campaigns and follow-up emails to them', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance

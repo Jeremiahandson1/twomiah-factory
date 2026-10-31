@@ -16,6 +16,7 @@ import { ordersMounts, createOrderHooks } from './orders/index.ts'
 import { ratingSummaries } from '../../data/storeCheckout.ts'
 import { catalogMounts } from './catalog/index.ts'
 import { createShopperAccountRoutes } from './accounts/routes.ts'
+import { createSegmentRoutes } from './segments/routes.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
 const cores = new WeakMap<object, StoreCore>()
@@ -34,6 +35,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
     ...checkoutMounts(d, core, createOrderHooks(d, core)),
     ...ordersMounts(d, core),
     ...catalogMounts(d, core),
+    // 2026-10-31, parity row 2: saved customer segments (marketing:read), behind store_segments (not ready).
+    { path: '/api/admin/segments', access: 'user', feature: 'store_segments', router: createSegmentRoutes(d, async () => null) },
     // 2026-10-30, gap 7: shoppers sign in (their own cookie, not the staff's); behind store_accounts (not ready), 404 when off.
     { path: '/api/public/account', access: 'public', feature: 'store_accounts', router: createShopperAccountRoutes(d, core) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'store' }))

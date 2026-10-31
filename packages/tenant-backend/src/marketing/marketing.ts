@@ -54,9 +54,9 @@ export interface MarketingServiceDeps {
    */
   lastActivity?: { sql: SQL; word: string }
   /** More segment filters for a business's own kinds of customer (the store's customer groups): filter key → a condition on contact. */
-  audienceFilters?: Record<string, (value: unknown, companyId: string) => SQL | undefined>
-  /** What the audience picker can offer beyond contact types (the store's customer groups). */
-  audienceOptions?: (companyId: string) => Promise<{ groups?: Array<{ id: string; name: string }> }>
+  audienceFilters?: Record<string, (value: unknown, companyId: string) => SQL | undefined | Promise<SQL | undefined>>
+  /** What the audience picker can offer beyond contact types (the store's customer groups and saved segments). */
+  audienceOptions?: (companyId: string) => Promise<{ groups?: Array<{ id: string; name: string }>; segments?: Array<{ id: string; name: string }> }>
   /** This business sends a welcome email on a customer's first order (the store). */
   welcome?: boolean
 }
@@ -237,7 +237,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       }
       // The business's own filters (store: customerGroupId). Asked for and not understood: nobody.
       for (const [key, build] of Object.entries(deps.audienceFilters || {})) {
-        if (key in parsed) conditions.push(build(parsed[key], companyId) ?? sql`false`)
+        if (key in parsed) conditions.push((await build(parsed[key], companyId)) ?? sql`false`)
       }
     }
     if (audienceType === 'contacts') {
@@ -579,7 +579,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
   async function audienceOptions(companyId: string) {
     const tagRows = rows(await db.execute(sql`SELECT DISTINCT jsonb_array_elements_text(tags::jsonb) AS tag FROM contact WHERE company_id = ${companyId} AND jsonb_typeof(tags::jsonb) = 'array' ORDER BY 1 LIMIT 300`))
     const extra = deps.audienceOptions ? await deps.audienceOptions(companyId) : {}
-    return { tags: tagRows.map((r) => String(r.tag)), groups: extra.groups || [], inactive: !!deps.lastActivity, activityWord }
+    return { tags: tagRows.map((r) => String(r.tag)), groups: extra.groups || [], segments: extra.segments || [], inactive: !!deps.lastActivity, activityWord }
   }
 
   // ─── tracking + unsubscribe ────────────────────────────────────────────────

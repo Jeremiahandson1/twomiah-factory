@@ -551,3 +551,27 @@ export const aiDraftUse = pgTable('ai_draft_uses', {
   feature: text('feature').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('ai_draft_uses_company_idx').on(t.companyId, t.feature, t.createdAt)])
+
+// ── Customer segments (store_segments, 2026-10-31) ───────────────────────────────────────────────────────────────────
+/**
+ * What a saved segment asks of a customer. Every part is optional but one must be set; they all have to hold (AND).
+ *   spend / orders: what they paid (less refunds) / how many orders, over the period; `period` also bounds what "bought" means.
+ *   bought / notBought: bought at least one of these products or anything in these categories (notBought: none of them).
+ * A `period` is the last N days, or a stretch of the shop's own days; none = all time.
+ */
+export type SegmentDefinition = {
+  spend?: { minCents?: number; maxCents?: number }
+  orders?: { min?: number; max?: number }
+  period?: { days: number } | { from: string; to?: string }
+  bought?: { productIds?: string[]; categories?: string[] }
+  notBought?: { productIds?: string[]; categories?: string[] }
+}
+/** A named segment the owner saved, for campaigns, the follow-up emails and the audience export. */
+export const storeSegment = pgTable('store_segments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  definition: json('definition').$type<SegmentDefinition>().notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_segments_company_name_unique').on(t.companyId, t.name)])

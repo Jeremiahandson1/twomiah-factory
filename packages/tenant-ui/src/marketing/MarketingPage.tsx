@@ -202,11 +202,11 @@ function useMergeFields(api: MarketingApi) {
 }
 
 function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; look: EditorLook; onSaved: () => void; onClose: () => void }) {
-  const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string; tag?: string; customerGroupId?: string; inactiveDays?: number } | null) || null
-  const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10), segmentTag: existing?.tag || '', segmentGroup: existing?.customerGroupId || '', segmentInactive: existing?.inactiveDays ? String(existing.inactiveDays) : '' })
+  const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string; tag?: string; customerGroupId?: string; segmentId?: string; inactiveDays?: number } | null) || null
+  const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10), segmentTag: existing?.tag || '', segmentGroup: existing?.customerGroupId || '', segmentSaved: existing?.segmentId || '', segmentInactive: existing?.inactiveDays ? String(existing.inactiveDays) : '' })
   // What else the audience can be narrowed by here: the tags in use, the business's own groups, and "not back in N days".
-  const [options, setOptions] = useState<{ tags: string[]; groups: Array<{ id: string; name: string }>; inactive: boolean; activityWord: string } | null>(null)
-  useEffect(() => { api.get('/api/marketing/audience/options').then((o: any) => setOptions({ tags: o?.tags || [], groups: o?.groups || [], inactive: !!o?.inactive, activityWord: o?.activityWord || 'visit' })).catch(() => setOptions(null)) }, [api])
+  const [options, setOptions] = useState<{ tags: string[]; groups: Array<{ id: string; name: string }>; segments: Array<{ id: string; name: string }>; inactive: boolean; activityWord: string } | null>(null)
+  useEffect(() => { api.get('/api/marketing/audience/options').then((o: any) => setOptions({ tags: o?.tags || [], groups: o?.groups || [], segments: o?.segments || [], inactive: !!o?.inactive, activityWord: o?.activityWord || 'visit' })).catch(() => setOptions(null)) }, [api])
   const unsaved = useUnsaved(form, onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -216,14 +216,14 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
   const inactiveDays = Number(form.segmentInactive)
   const audienceFilter = form.audienceType === 'segment' ? {
     ...(form.segmentType ? { type: form.segmentType } : {}), ...(form.segmentCreatedAfter ? { createdAfter: form.segmentCreatedAfter } : {}),
-    ...(form.segmentTag ? { tag: form.segmentTag } : {}), ...(form.segmentGroup ? { customerGroupId: form.segmentGroup } : {}),
+    ...(form.segmentTag ? { tag: form.segmentTag } : {}), ...(form.segmentGroup ? { customerGroupId: form.segmentGroup } : {}), ...(form.segmentSaved ? { segmentId: form.segmentSaved } : {}),
     ...(form.segmentInactive.trim() ? { inactiveDays } : {}),
   } : null
   useEffect(() => {
     let cancelled = false; setAudience(null)
     const t = setTimeout(async () => { try { const p = await api.post('/api/marketing/audience/preview', { audienceType: form.audienceType, audienceFilter }); if (!cancelled) setAudience(Number(p?.count ?? 0)) } catch { if (!cancelled) setAudience(0) } }, 300)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [form.audienceType, form.segmentType, form.segmentCreatedAfter, form.segmentTag, form.segmentGroup, form.segmentInactive])
+  }, [form.audienceType, form.segmentType, form.segmentCreatedAfter, form.segmentTag, form.segmentGroup, form.segmentSaved, form.segmentInactive])
   const save = async () => {
     if (!form.name.trim()) { setError('Campaign name is required'); return }
     if (form.audienceType === 'segment' && form.segmentInactive.trim() && !(Number.isInteger(inactiveDays) && inactiveDays >= 1)) { setError('Enter a whole number of days'); return }
@@ -248,6 +248,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
               <Field label={copy.segmentType}><select value={form.segmentType} onChange={(e) => setForm((f) => ({ ...f, segmentType: e.target.value }))} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
               <Field label="Added on or after"><input type="date" value={form.segmentCreatedAfter} onChange={(e) => setForm((f) => ({ ...f, segmentCreatedAfter: e.target.value }))} className={inputCls} /></Field>
               {!!options?.tags.length && <Field label="Tagged"><select value={form.segmentTag} onChange={(e) => setForm((f) => ({ ...f, segmentTag: e.target.value }))} className={inputCls}><option value="">Any tag</option>{options.tags.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>}
+              {!!options?.segments.length && <Field label="Saved segment"><select value={form.segmentSaved} onChange={(e) => setForm((f) => ({ ...f, segmentSaved: e.target.value }))} className={inputCls}><option value="">Not a saved segment</option>{options.segments.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>}
               {!!options?.groups.length && <Field label={copy.segmentGroup}><select value={form.segmentGroup} onChange={(e) => setForm((f) => ({ ...f, segmentGroup: e.target.value }))} className={inputCls}><option value="">Any group</option>{options.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>}
               {options?.inactive && <Field label={`No ${options.activityWord} in the last (days)`}><input type="number" min={1} inputMode="numeric" placeholder="Leave blank for everyone" value={form.segmentInactive} onChange={(e) => setForm((f) => ({ ...f, segmentInactive: e.target.value }))} className={inputCls} /></Field>}
             </div>
