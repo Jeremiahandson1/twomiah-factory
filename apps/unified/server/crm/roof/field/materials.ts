@@ -14,7 +14,7 @@
 //     edit's '' date clears it (the template handed '' to the timestamp column, a 500).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, count, desc, eq, gte, lt } from 'drizzle-orm'
+import { and, count, eq, gte, lt } from 'drizzle-orm'
 import { companyTimeZone, isIsoDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 import { job, material } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -24,6 +24,7 @@ import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { lineItemInput, materialOrderStatus, normaliseLineItems, optional } from '../validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { MATERIAL_SORTS, materialOrderBy, type MaterialSort } from '../../../data/materialOrders.ts'
 
 const MATERIAL_MONEY = ['totalCost'] as const
 /** The money inside a line item. The canonical line is {code?, description, qty, unit, unitPrice, total}. */
@@ -56,7 +57,20 @@ const materialSchema = z.object({
   supplierOrderNumber: z.string().optional(),
   deliveryAddress: z.string().optional(),
   notes: z.string().optional(),
+  // The roofer's PO number and who the supplier calls about the delivery; '' clears one.
+  poNumber: z.string().trim().max(60).optional(),
+  contactName: z.string().trim().max(120).optional(),
+  contactPhone: z.string().trim().max(40).optional(),
+  contactEmail: z.union([z.literal(''), z.string().trim().email('contactEmail: Enter a valid email address.')]).optional(),
 })
+
+const CONTACT_FIELDS = ['poNumber', 'contactName', 'contactPhone', 'contactEmail'] as const
+/** The PO number and the delivery contact as stored: blank is none. */
+export const orderReference = (data: Partial<Record<(typeof CONTACT_FIELDS)[number], string | undefined>>) => {
+  const out: Record<string, string | null> = {}
+  for (const f of CONTACT_FIELDS) if (data[f] !== undefined) out[f] = data[f]!.trim() || null
+  return out
+}
 
 /** A date from the form: absent leaves it, '' clears it, one that does not parse is an error naming the field. */
 const dateOf = (field: string, v: string | undefined): { value?: Date | null; error?: string } => {
@@ -104,15 +118,23 @@ export function createMaterialRoutes(d: CrmDeps) {
       }
     }
     const where = and(...conditions)
+    // ?sort= a column of the dashboard, ?dir= asc|desc. Sorting by amount orders the rows by what the business paid, so it is
+    // answered only to a seat that may see the amounts (a sorted list would otherwise give the ranking away).
+    const sortParam = c.req.query('sort')
+    if (sortParam && !(MATERIAL_SORTS as readonly string[]).includes(sortParam)) return fail(c, 400, `sort must be one of ${MATERIAL_SORTS.join(', ')}`)
+    const dirParam = c.req.query('dir')
+    if (dirParam && dirParam !== 'asc' && dirParam !== 'desc') return fail(c, 400, 'dir must be asc or desc')
+    const seesCost = await maySeeCost(c)
+    if (sortParam === 'amount' && !seesCost) return fail(c, 403, 'You do not have access to order amounts.', 'forbidden')
     const [rows, [{ value: total }]] = await Promise.all([
       db.select({ material, jobNumber: job.number }).from(material)
         .leftJoin(job, and(eq(material.jobId, job.id), eq(job.companyId, companyId)))
-        .where(where).orderBy(desc(material.createdAt), desc(material.id)).offset((page - 1) * limit).limit(limit),
+        .where(where).orderBy(...materialOrderBy(sortParam as MaterialSort | undefined, dirParam === 'desc' ? 'desc' : 'asc')).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(material).where(where),
     ])
     // The job's number (not its id), and orderStatus as `status` too, which is what the list reads.
     const data = rows.map((r: any) => ({ ...r.material, jobNumber: r.jobNumber, status: r.material.orderStatus }))
-    return list(c, (await maySeeCost(c)) ? data : data.map(withoutMaterialMoney), { page, limit, total: Number(total) })
+    return list(c, seesCost ? data : data.map(withoutMaterialMoney), { page, limit, total: Number(total) })
   })
 
   app.post('/', requirePermission('inventory:create'), async (c) => {
@@ -131,6 +153,7 @@ export function createMaterialRoutes(d: CrmDeps) {
       orderDate: orderDate.value ?? null, deliveryDate: deliveryDate.value ?? null,
       lineItems, totalCost: total.toFixed(2),
       supplierOrderNumber: data.supplierOrderNumber, deliveryAddress: data.deliveryAddress, notes: data.notes,
+      ...orderReference(data),
     } as any).returning()
     return one(c, created, 201)
   })
@@ -153,7 +176,7 @@ export function createMaterialRoutes(d: CrmDeps) {
     const deliveryDate = dateOf('deliveryDate', data.deliveryDate)
     if (orderDate.error || deliveryDate.error) return fail(c, 400, (orderDate.error || deliveryDate.error)!)
     const { orderDate: _o, deliveryDate: _d, ...fields } = data
-    const updateData: Record<string, any> = { ...fields, updatedAt: new Date() }
+    const updateData: Record<string, any> = { ...fields, ...orderReference(data), updatedAt: new Date() }
     if (orderDate.value !== undefined) updateData.orderDate = orderDate.value
     if (deliveryDate.value !== undefined) updateData.deliveryDate = deliveryDate.value
     // Same rule as create: an edit that changes the lines recomputes the total; the client's totalCost is never stored.

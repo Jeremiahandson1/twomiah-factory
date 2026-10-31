@@ -21,6 +21,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { normaliseLineItems } from '../validation.ts'
+import { orderReference } from './materials.ts'
 import { PROVIDERS, PROVIDER_LABELS, listLengths, reportChoicesFor, type ReportChoice } from '../reportLengths.ts'
 import { ASSUMPTION_LABELS, DEFAULT_ASSUMPTIONS, buildMaterialList, type Lengths } from '../materialList.ts'
 import { createSeatJob } from './seatJob.ts'
@@ -60,6 +61,10 @@ const orderSchema = z.object({
   deliveryAddress: z.string().trim().optional(),
   deliveryDate: z.string().optional(),
   notes: z.string().trim().max(2000).optional(),
+  poNumber: z.string().trim().max(60).optional(),
+  contactName: z.string().trim().max(120).optional(),
+  contactPhone: z.string().trim().max(40).optional(),
+  contactEmail: z.union([z.literal(''), z.string().trim().email('contactEmail: Enter a valid email address.')]).optional(),
 })
 
 export function createMaterialListRoutes(d: CrmDeps) {
@@ -177,6 +182,7 @@ export function createMaterialListRoutes(d: CrmDeps) {
       deliveryDate, lineItems, totalCost: total.toFixed(2),
       deliveryAddress: data.deliveryAddress || [row.address, row.city, row.state, row.zip].filter(Boolean).join(', ') || null,
       notes: [from, data.notes].filter(Boolean).join(' '),
+      ...orderReference(data),
     } as any).returning()
     return one(c, created, 201)
   })

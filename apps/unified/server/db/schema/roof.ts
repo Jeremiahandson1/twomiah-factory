@@ -68,6 +68,12 @@ export const material = pgTable('material', {
   supplierOrderNumber: text('supplier_order_number'),
   deliveryAddress: text('delivery_address'),
   notes: text('notes'),
+  // The roofer's own purchase order number, and who the supplier calls about the delivery (0067). `supplier_order_number`
+  // stays the supplier's confirmation number.
+  poNumber: text('po_number'),
+  contactName: text('contact_name'),
+  contactPhone: text('contact_phone'),
+  contactEmail: text('contact_email'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

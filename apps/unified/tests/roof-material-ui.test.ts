@@ -21,6 +21,8 @@ const { ConfirmProvider } = await import(P + 'ui/ConfirmProvider.tsx') as any
 const W = '../web/src/'
 const { api } = await import(W + 'api.ts') as any
 const MaterialListBuilder = (await import(W + 'crm/pages/roof/field/MaterialListBuilder.tsx') as any).default
+const MaterialsPage = (await import(W + 'crm/pages/roof/field/MaterialsPage.tsx') as any).default
+const MaterialOrderForm = (await import(W + 'crm/pages/roof/field/MaterialOrderForm.tsx') as any).default
 const h = React.createElement as any
 const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)) }) }
 const text = () => document.body.textContent || ''
@@ -106,6 +108,82 @@ describe('the material list builder: measured lengths', () => {
       expect(posted.body).toEqual({ provider: 'hover', reportNumber: '88', squares: 31.5, eaveFt: 160, rakeFt: 0, ridgeFt: 0, hipFt: 30, valleyFt: 0 })
       await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }), { permissions: ['inventory:create', 'jobs:read'] })
       expect(button('I have an EagleView, HOVER or GAF report')).toBeUndefined()
+    } finally { s.undo() }
+  })
+})
+
+describe('the order carries its delivery', () => {
+  test('the list builder posts the delivery date, PO number, address and point of contact with the order', async () => {
+    const s = stub(() => BUILT())
+    try {
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      await setInput(document.getElementById('ml-supplier'), 'ABC Supply')
+      await setInput(document.getElementById('ml-delivery'), '2026-11-05')
+      await setInput(document.getElementById('ml-po'), 'PO-9')
+      await setInput(document.getElementById('ml-contact'), 'Sam')
+      await setInput(document.getElementById('ml-contact-phone'), '715-555-0188')
+      await setInput(document.getElementById('ml-contact-email'), 'sam@crew.example')
+      expect((document.getElementById('ml-address') as any).placeholder).toBe('12 Gable Ln')
+      await click(button('Create material order'))
+      const posted = s.calls.find((c) => c.m === 'POST' && c.url.endsWith('/order'))!
+      expect(posted.body).toMatchObject({ supplier: 'ABC Supply', deliveryDate: '2026-11-05', poNumber: 'PO-9', contactName: 'Sam', contactPhone: '715-555-0188', contactEmail: 'sam@crew.example' })
+      expect(posted.body.deliveryAddress).toBeUndefined() // left blank: the server uses the job's address
+    } finally { s.undo() }
+  })
+
+  test('the plain order form posts them too', async () => {
+    const s = stub(() => ({ data: [] }))
+    try {
+      await mount(h(MaterialOrderForm, { jobId: 'j1', jobAddress: '12 Gable Ln', onClose: () => {}, onSaved: () => {} }))
+      await setInput(document.getElementById('mo-supplier'), 'ABC Supply')
+      await setInput(document.getElementById('mo-po'), 'PO-3')
+      await setInput(document.getElementById('mo-contact'), 'Sam')
+      await setInput(document.getElementById('mo-contact-email'), 'sam@crew.example')
+      await setInput(document.getElementById('mo-desc-0'), 'Shingles')
+      await setInput(document.getElementById('mo-qty-0'), '5')
+      await click(button('Save order'))
+      const posted = s.calls.find((c) => c.m === 'POST')!
+      expect(posted.url).toBe('/api/materials')
+      expect(posted.body).toMatchObject({ poNumber: 'PO-3', contactName: 'Sam', contactEmail: 'sam@crew.example', deliveryAddress: '12 Gable Ln' })
+    } finally { s.undo() }
+  })
+})
+
+describe('the Materials dashboard', () => {
+  const ORDER = { id: 'm1', jobId: 'j1', jobNumber: 'ROOF-0005', supplier: 'abc_supply', status: 'sent', poNumber: 'PO-1001', deliveryAddress: '12 Gable Ln', orderDate: '2026-11-01T00:00:00Z', deliveryDate: '2026-11-05T00:00:00Z', totalCost: '400.00' }
+  const page = () => ({ data: [ORDER], pagination: { page: 1, limit: 25, total: 1, pages: 1 } })
+
+  test('Roofr\'s columns are there — status, PO number, job, address, supplier, order date, delivery, amount — and each header sorts on the server', async () => {
+    const s = stub(() => page())
+    s.calls.length = 0
+    try {
+      await mount(h(MaterialsPage), { permissions: ['margin:read', 'inventory:read'] })
+      const heads = [...document.querySelectorAll('th')].map((th: any) => th.textContent.trim().replace(/[▲▼]/g, '').trim())
+      expect(heads).toEqual(['Status', 'PO #', 'Job #', 'Address', 'Supplier', 'Order Date', 'Delivery', 'Amount'])
+      const row = document.querySelector('tbody tr')!.textContent!
+      for (const want of ['PO-1001', 'ROOF-0005', '12 Gable Ln', 'ABC Supply', '$400']) expect(row).toContain(want)
+      const last = () => s.calls.filter((c) => c.url === '/api/materials').pop()!.params
+      expect([last().sort, last().dir]).toEqual([undefined, undefined])
+      await click(document.querySelector('[data-testid="sort-delivery"]'))
+      expect([last().sort, last().dir]).toEqual(['delivery', 'asc'])
+      expect(document.querySelector('[data-testid="sort-delivery"]')!.closest('th')!.getAttribute('aria-sort')).toBe('ascending')
+      await click(document.querySelector('[data-testid="sort-delivery"]'))
+      expect([last().sort, last().dir]).toEqual(['delivery', 'desc'])
+      await click(document.querySelector('[data-testid="sort-supplier"]'))
+      expect([last().sort, last().dir]).toEqual(['supplier', 'asc'])
+      await click(document.querySelector('[data-testid="sort-supplier"]'))
+      await click(document.querySelector('[data-testid="sort-supplier"]'))
+      expect([last().sort, last().dir]).toEqual([undefined, undefined])
+    } finally { s.undo() }
+  })
+
+  test('a seat that may not see what the business paid gets no Amount column to sort', async () => {
+    const s = stub(() => ({ data: [{ ...ORDER, totalCost: undefined }], pagination: { page: 1, limit: 25, total: 1, pages: 1 } }))
+    try {
+      await mount(h(MaterialsPage), { permissions: ['inventory:read'] })
+      expect([...document.querySelectorAll('th')].map((th: any) => th.textContent.trim().replace(/[▲▼]/g, '').trim())).not.toContain('Amount')
+      expect(document.querySelector('[data-testid="sort-amount"]')).toBeNull()
+      expect(document.querySelector('[data-testid="sort-status"]')).not.toBeNull() // …but the other headers still sort
     } finally { s.undo() }
   })
 })

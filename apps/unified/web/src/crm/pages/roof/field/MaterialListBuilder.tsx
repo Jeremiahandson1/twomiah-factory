@@ -38,6 +38,9 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   const [importing, setImporting] = useState(false)
   const [imp, setImp] = useState<Record<string, string>>({ provider: 'eagleview' })
   const [supplier, setSupplier] = useState('')
+  // The delivery: when, to where, the roofer's PO number and who the supplier calls (Roofr's order form).
+  const [delivery, setDelivery] = useState({ deliveryDate: '', deliveryAddress: '', poNumber: '', contactName: '', contactPhone: '', contactEmail: '' })
+  const setDel = (k: keyof typeof delivery, v: string) => setDelivery((d) => ({ ...d, [k]: v }))
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -87,6 +90,7 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
     try {
       await api.post(`/api/material-list/jobs/${jobId}/order`, {
         supplier: supplier.trim(), squares: built?.squares, wastePercent: Number(wasteNow),
+        ...Object.fromEntries(Object.entries(delivery).filter(([, v]) => v.trim() !== '')),
         lines: lines.map((l) => ({ description: l.description.trim(), qty: Number(l.qty), unit: l.unit || 'ea', ...(l.code ? { code: l.code } : {}) })),
       })
       toast.success('Material order created from the list')
@@ -190,6 +194,14 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
           <label htmlFor="ml-supplier" className={lab}>Supplier *</label>
           <input id="ml-supplier" list="ml-suppliers" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="e.g. ABC Supply" className={input} />
           <datalist id="ml-suppliers">{SUPPLIERS.map((s) => <option key={s} value={s} />)}</datalist>
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="list-delivery">
+          <div><label htmlFor="ml-delivery" className={lab}>Delivery date</label><input id="ml-delivery" type="date" value={delivery.deliveryDate} onChange={(e) => setDel('deliveryDate', e.target.value)} className={input} /></div>
+          <div><label htmlFor="ml-po" className={lab}>PO number</label><input id="ml-po" value={delivery.poNumber} onChange={(e) => setDel('poNumber', e.target.value)} className={input} /></div>
+          <div className="sm:col-span-2"><label htmlFor="ml-address" className={lab}>Deliver to</label><input id="ml-address" value={delivery.deliveryAddress} placeholder={built?.address ?? ''} onChange={(e) => setDel('deliveryAddress', e.target.value)} className={input} /></div>
+          <div><label htmlFor="ml-contact" className={lab}>Point of contact</label><input id="ml-contact" value={delivery.contactName} onChange={(e) => setDel('contactName', e.target.value)} className={input} /></div>
+          <div><label htmlFor="ml-contact-phone" className={lab}>Contact phone</label><input id="ml-contact-phone" type="tel" value={delivery.contactPhone} onChange={(e) => setDel('contactPhone', e.target.value)} className={input} /></div>
+          <div className="sm:col-span-2"><label htmlFor="ml-contact-email" className={lab}>Contact email</label><input id="ml-contact-email" type="email" value={delivery.contactEmail} onChange={(e) => setDel('contactEmail', e.target.value)} className={input} /></div>
         </div>
         {error && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">{error}</p>}
         <div className="flex justify-end gap-2 mt-5">
