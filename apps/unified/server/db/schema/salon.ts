@@ -765,6 +765,8 @@ export const salonRetailSale = pgTable('salon_retail_sale', {
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
   lineItemId: text('line_item_id').notNull().references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
+  /** What one unit cost the salon when it was sold (the product's cost then); null when no cost was entered. Margins read this, so a later cost change does not rewrite old sales. */
+  unitCostCents: integer('unit_cost_cents'),
   /** Where the units came off (null = the salon's first location). */
   locationId: text('location_id'),
   /** Who sold it when no visit names them (a walk-in): a login (user) or a roster stylist (team member). */

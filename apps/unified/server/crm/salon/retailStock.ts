@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import { company, invoice, reminderLog, salonPurchaseOrder, salonPurchaseOrderLine, salonRetailProduct, salonRetailSale, salonStockLocation, salonStockMove, salonSupplier, user } from '../../db/schema/index.ts'
-import { defaultStockLocation, lockRetailProduct, retailOnHand, retailOnHandAt, retailProductsByCode, retailReturnedOn } from '../../data/salon.ts'
+import { defaultStockLocation, lockRetailProduct, retailOnHand, retailOnHandAt, retailProductsByCode, retailReturnedOn, retailStockValue } from '../../data/salon.ts'
 import { escHtml } from '../../core/email.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -251,18 +251,7 @@ export function createRetailStock(d: CrmDeps) {
     }
   }
 
-  /** What the stock on hand is worth, at cost and at the shelf price. */
-  async function stockValue(companyId: string) {
-    const rows: Array<typeof salonRetailProduct.$inferSelect> = await db.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), eq(salonRetailProduct.active, true))).limit(5000)
-    const have = await retailOnHand(db, companyId, null)
-    let cost = 0, retail = 0, units = 0, uncosted = 0
-    for (const p of rows) {
-      const n = Math.max(0, have.get(p.id) ?? 0)
-      units += n; retail += n * p.priceCents
-      if (p.costCents == null) { if (n > 0) uncosted++ } else cost += n * p.costCents
-    }
-    return { costCents: cost, retailCents: retail, units, productsWithoutCost: uncosted, products: rows.length }
-  }
+  const stockValue = (companyId: string) => retailStockValue(db, companyId)
 
   /**
    * The Monday summary to the owner: from 9 am on the shop's clock, once a week (reminder_log: company + kind + the Monday's date). It lists what

@@ -250,7 +250,7 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices, hooks: { afterCh
         const [line] = await tx.insert(invoiceLineItem).values({
           invoiceId: inv.id, description: lineName(p), type: 'retail', quantity: String(it.quantity), unitPrice: (p.priceCents / 100).toFixed(2), total: total.toFixed(2), sortOrder: order++,
         } as any).returning()
-        await tx.insert(salonRetailSale).values({ companyId, productId: p.id, invoiceId: inv.id, lineItemId: line.id, quantity: it.quantity, locationId: place, stylistId: seller.stylistId, stylistMemberId: seller.stylistMemberId })
+        await tx.insert(salonRetailSale).values({ companyId, productId: p.id, invoiceId: inv.id, lineItemId: line.id, quantity: it.quantity, unitCostCents: p.costCents, locationId: place, stylistId: seller.stylistId, stylistMemberId: seller.stylistMemberId })
         added.push({ lineId: line.id, name: lineName(p), quantity: it.quantity, totalCents: Math.round(total * 100) })
       }
       await retotal(tx, inv)
@@ -306,11 +306,11 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices, hooks: { afterCh
    */
   const lineEdit = {
     async before(tx: Tx, invoiceId: string) {
-      return tx.select({ productId: salonRetailSale.productId, quantity: salonRetailSale.quantity, locationId: salonRetailSale.locationId, stylistId: salonRetailSale.stylistId, stylistMemberId: salonRetailSale.stylistMemberId, companyId: salonRetailSale.companyId, description: invoiceLineItem.description, unitPrice: invoiceLineItem.unitPrice })
+      return tx.select({ productId: salonRetailSale.productId, quantity: salonRetailSale.quantity, locationId: salonRetailSale.locationId, stylistId: salonRetailSale.stylistId, stylistMemberId: salonRetailSale.stylistMemberId, unitCostCents: salonRetailSale.unitCostCents, companyId: salonRetailSale.companyId, description: invoiceLineItem.description, unitPrice: invoiceLineItem.unitPrice })
         .from(salonRetailSale).innerJoin(invoiceLineItem, eq(salonRetailSale.lineItemId, invoiceLineItem.id)).where(eq(salonRetailSale.invoiceId, invoiceId)).orderBy(asc(invoiceLineItem.sortOrder))
     },
     async after(tx: Tx, invoiceId: string, snapshot: unknown, rows: any[]): Promise<string | null> {
-      const snap = (snapshot as Array<{ productId: string; quantity: number; locationId: string | null; stylistId: string | null; stylistMemberId: string | null; companyId: string; description: string; unitPrice: string }>) || []
+      const snap = (snapshot as Array<{ productId: string; quantity: number; locationId: string | null; stylistId: string | null; stylistMemberId: string | null; unitCostCents: number | null; companyId: string; description: string; unitPrice: string }>) || []
       if (!snap.length) return null
       const used = new Set<string>()
       const matched: Array<{ s: (typeof snap)[number]; row: any; units: number }> = []
@@ -334,7 +334,7 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices, hooks: { afterCh
       }
       for (const m of matched) {
         await tx.update(invoiceLineItem).set({ type: 'retail' }).where(eq(invoiceLineItem.id, m.row.id))
-        await tx.insert(salonRetailSale).values({ companyId: m.s.companyId, productId: m.s.productId, invoiceId, lineItemId: m.row.id, quantity: m.units, locationId: m.s.locationId, stylistId: m.s.stylistId, stylistMemberId: m.s.stylistMemberId })
+        await tx.insert(salonRetailSale).values({ companyId: m.s.companyId, productId: m.s.productId, invoiceId, lineItemId: m.row.id, quantity: m.units, unitCostCents: m.s.unitCostCents, locationId: m.s.locationId, stylistId: m.s.stylistId, stylistMemberId: m.s.stylistMemberId })
       }
       return null
     },

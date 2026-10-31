@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, asc, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, salonStockLocation, saleTipSplit } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, salonStockLocation, salonSupplier, saleTipSplit } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -525,4 +525,58 @@ export async function retailReturnedOn(exec: any, companyId: string, invoiceId: 
 export async function retailProductsByCode(exec: any, companyId: string, code: string): Promise<Array<typeof salonRetailProduct.$inferSelect>> {
   const norm = (col: AnyColumn) => sql`upper(regexp_replace(${col}, '[^A-Za-z0-9]', '', 'g'))`
   return exec.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), sql`(${norm(salonRetailProduct.barcode)} = ${code} or ${norm(salonRetailProduct.sku)} = ${code})`)).limit(5)
+}
+
+/**
+ * Retail on sales paid (or since refunded) in [from, to), one row per retail line: the product it is linked to (brand, category, supplier, SKU), the
+ * sale's discount and refund, what a unit cost when it was sold, and who is credited — the stylist named on the line, else the visit's. Lines typed by hand
+ * (no product link) come too, with a null product. `returned` = units put back on the shelf after a refund, per sale and product.
+ */
+export async function retailLinesSold(db: any, companyId: string, from: Date, to: Date) {
+  const who = sql`coalesce(${salonRetailSale.stylistId}, ${appointment.stylistId})`
+  const whoMember = sql`coalesce(${salonRetailSale.stylistMemberId}, ${appointment.stylistMemberId})`
+  const linked = await db.select({
+    invoiceId: invoice.id, lineId: invoiceLineItem.id, productId: salonRetailSale.productId, qty: salonRetailSale.quantity, lineTotal: invoiceLineItem.total, description: invoiceLineItem.description,
+    subtotal: invoice.subtotal, discount: invoice.discount, total: invoice.total, amountRefunded: invoice.amountRefunded, unitCostCents: salonRetailSale.unitCostCents, sortOrder: invoiceLineItem.sortOrder,
+    name: salonRetailProduct.name, brand: salonRetailProduct.brand, category: salonRetailProduct.category, sku: salonRetailProduct.sku, supplier: salonSupplier.name,
+    stylistId: who, stylistMemberId: whoMember, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(salonRetailSale)
+    .innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .innerJoin(invoiceLineItem, eq(salonRetailSale.lineItemId, invoiceLineItem.id))
+    .innerJoin(salonRetailProduct, eq(salonRetailSale.productId, salonRetailProduct.id))
+    .leftJoin(salonSupplier, eq(salonRetailProduct.supplierId, salonSupplier.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(user.id, who))
+    .leftJoin(teamMember, eq(teamMember.id, whoMember))
+    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} in ('paid', 'refunded')`, gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+    .orderBy(invoice.id, invoiceLineItem.sortOrder)
+  const unlinked = await db.select({
+    invoiceId: invoice.id, lineId: invoiceLineItem.id, qty: invoiceLineItem.quantity, lineTotal: invoiceLineItem.total, description: invoiceLineItem.description,
+    subtotal: invoice.subtotal, discount: invoice.discount, total: invoice.total, amountRefunded: invoice.amountRefunded,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(invoiceLineItem)
+    .innerJoin(invoice, eq(invoiceLineItem.invoiceId, invoice.id))
+    .leftJoin(salonRetailSale, eq(salonRetailSale.lineItemId, invoiceLineItem.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} in ('paid', 'refunded')`, eq(invoiceLineItem.type, 'retail'), sql`${salonRetailSale.id} is null`, gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+  const ids = [...new Set<string>(linked.map((r: any) => r.invoiceId))]
+  const returned = ids.length ? await db.select({ invoiceId: salonStockMove.invoiceId, productId: salonStockMove.productId, n: sql<string>`sum(${salonStockMove.quantity})` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), eq(salonStockMove.kind, 'returned'), sql`${salonStockMove.invoiceId} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`))
+    .groupBy(salonStockMove.invoiceId, salonStockMove.productId) : []
+  return { linked: linked as any[], unlinked: unlinked as any[], returned: returned as Array<{ invoiceId: string; productId: string; n: string }> }
+}
+
+/** What the stock on hand is worth, at cost and at the shelf price (active products; a product with no cost is counted apart). */
+export async function retailStockValue(exec: any, companyId: string) {
+  const rows: Array<typeof salonRetailProduct.$inferSelect> = await exec.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), eq(salonRetailProduct.active, true))).limit(5000)
+  const have = await retailOnHand(exec, companyId, null)
+  let costCents = 0, retailCents = 0, units = 0, productsWithoutCost = 0
+  for (const p of rows) {
+    const n = Math.max(0, have.get(p.id) ?? 0)
+    units += n; retailCents += n * p.priceCents
+    if (p.costCents == null) { if (n > 0) productsWithoutCost++ } else costCents += n * p.costCents
+  }
+  return { costCents, retailCents, units, productsWithoutCost, products: rows.length }
 }

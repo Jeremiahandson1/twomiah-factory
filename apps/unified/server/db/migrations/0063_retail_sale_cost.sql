@@ -1,0 +1,1 @@
+ALTER TABLE "salon_retail_sale" ADD COLUMN "unit_cost_cents" integer;

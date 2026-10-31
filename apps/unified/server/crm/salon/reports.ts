@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { createTipShares } from './tipShares.ts'
 import { splitCents } from './tipSplit.ts'
-import { clientsWithFutureBooking, peopleNames, REPORT_VISIT_CAP, retailSold, tipsBySale, visitorsBetween, visitsForReport, visitsWithNext, visitSpans } from '../../data/salon.ts'
+import { clientsWithFutureBooking, peopleNames, REPORT_VISIT_CAP, retailLinesSold, retailSold, retailStockValue, tipsBySale, visitorsBetween, visitsForReport, visitsWithNext, visitSpans } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -16,6 +16,7 @@ import { calendarDateIn, createSalonClock, salonDayStart, shiftDays } from './da
 import { retentionOf } from './retention.ts'
 import { company, serviceMenu } from '../../db/schema/index.ts'
 import { createCommissionReports, CommissionReportError } from './commissionReports.ts'
+import { group, priceLine, totals, type SoldLine } from './retailMargins.ts'
 import { anchors, parseWindows, ratesFor, readWindows, WINDOWS_KEY } from './returnWindows.ts'
 import { and, eq } from 'drizzle-orm'
 
@@ -132,6 +133,41 @@ export function createSalonReports(d: CrmDeps) {
   }
 
   /**
+   * Retail by brand, category, supplier, SKU and stylist, with cost, margin and margin %, net of the sale's discount and any refund; and what the stock on
+   * hand is worth at cost and at the shelf price (retailMargins.ts says how each figure is worked). Lines typed by hand have revenue but no product.
+   */
+  async function retailProducts(companyId: string, q: { from?: string; to?: string }) {
+    const w = await windowOf(companyId, q)
+    const { linked, unlinked, returned } = await retailLinesSold(db, companyId, w.start, w.end)
+    const back = new Map<string, number>(returned.map((r) => [`${r.invoiceId}|${r.productId}`, Number(r.n) || 0]))
+    const lines: Array<SoldLine & { priced: ReturnType<typeof priceLine> }> = []
+    const num = (v: unknown) => Number(v) || 0
+    for (const r of linked) {
+      const key = `${r.invoiceId}|${r.productId}`
+      const qty = num(r.qty)
+      const take = Math.min(qty, back.get(key) ?? 0)                      // returned units are shared out over the sale's lines of the product, first line first
+      back.set(key, (back.get(key) ?? 0) - take)
+      const l: SoldLine = { productId: r.productId, name: r.name, brand: r.brand, category: r.category, supplier: r.supplier, sku: r.sku, qty, lineTotal: num(r.lineTotal), subtotal: num(r.subtotal), discount: num(r.discount), total: num(r.total), amountRefunded: num(r.amountRefunded), unitCostCents: r.unitCostCents ?? null, returnedUnits: take, who: whoIs(r) }
+      lines.push({ ...l, priced: priceLine(l) })
+    }
+    for (const r of unlinked) {
+      const l: SoldLine = { productId: null, name: r.description, brand: null, category: null, supplier: null, sku: null, qty: num(r.qty), lineTotal: num(r.lineTotal), subtotal: num(r.subtotal), discount: num(r.discount), total: num(r.total), amountRefunded: num(r.amountRefunded), unitCostCents: null, returnedUnits: 0, who: whoIs(r) }
+      lines.push({ ...l, priced: priceLine(l) })
+    }
+    const by = (label: string, pick: (l: SoldLine) => string | null) => group(lines, (l) => { const v = pick(l); return { key: v ? v.toLowerCase() : '-', name: v || label } })
+    return {
+      range: { from: w.from, to: w.to, days: w.days },
+      total: totals(lines),
+      byBrand: by('No brand', (l) => l.brand),
+      byCategory: by('No category', (l) => l.category),
+      bySupplier: by('No supplier', (l) => l.supplier),
+      bySku: group(lines, (l) => ({ key: l.productId ?? `hand:${l.name}`, name: l.productId ? [l.brand, l.name].filter(Boolean).join(' ') + (l.sku ? ` (${l.sku})` : '') : `${l.name} (not linked to a product)` })),
+      byStylist: group(lines, (l) => ({ key: l.who.key, name: l.who.name })),
+      stock: await retailStockValue(db, companyId),
+    }
+  }
+
+  /**
    * Tips taken in the window, net of tips given back, each SALE's tip split across the people on it (crm/salon/tipShares.ts): the shares the salon
    * set on that sale, else the value of each person's services on the visit. A sale with no visit is "No stylist recorded".
    */
@@ -213,7 +249,7 @@ export function createSalonReports(d: CrmDeps) {
     }
   }
 
-  return { retention, rebook, retail, tips, returnWindows, saveWindows, windowsFor }
+  return { retention, rebook, retail, retailProducts, tips, returnWindows, saveWindows, windowsFor }
 }
 export type SalonReports = ReturnType<typeof createSalonReports>
 
@@ -221,7 +257,7 @@ export type SalonReports = ReturnType<typeof createSalonReports>
 export function createSalonReportRoutes(d: CrmDeps, reports: SalonReports) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
-  const answer = (name: 'retention' | 'rebook' | 'retail' | 'tips') => async (c: any) => {
+  const answer = (name: 'retention' | 'rebook' | 'retail' | 'retailProducts' | 'tips') => async (c: any) => {
     const u = c.get('user') as any
     c.header('Cache-Control', 'no-store')
     try {
@@ -236,6 +272,7 @@ export function createSalonReportRoutes(d: CrmDeps, reports: SalonReports) {
   app.get('/rebook', requirePermission('reports:read'), answer('rebook'))
   app.get('/retail', requirePermission('reports:read'), answer('retail'))
   app.get('/tips', requirePermission('reports:read'), answer('tips'))
+  app.get('/retail-products', requirePermission('reports:read'), answer('retailProducts'))
   // Retention over several return windows, and per stylist (row 14): ?windows=30,60,90&serviceId=...
   app.get('/return-windows', requirePermission('reports:read'), async (c: any) => {
     const u = c.get('user') as any
