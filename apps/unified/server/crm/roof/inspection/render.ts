@@ -10,11 +10,11 @@ import { dayOf, gpsOf, inkOn, stampOf, type ReportPhoto, type ReportView } from 
 const logoSrc = (logo: string | null): string | null => (logo && (logo.startsWith('/media/') || /^https:\/\//.test(logo)) ? logo : null)
 
 export function renderReportHtml(view: ReportView, opts: { photoSrc: (p: ReportPhoto) => string; pdfHref: string }): string {
-  const { brand, job, timeZone } = view
+  const { brand, job, timeZone, layout } = view
   const ink = inkOn(brand.color)
   const logo = logoSrc(brand.logo)
   const fact = (label: string, value: string | null) => (value ? `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>` : '')
-  const facts = [
+  const facts = !layout.details ? '' : [
     fact('Property', job.address), fact('Homeowner', job.homeowner), fact('Job', job.number),
     fact('Inspected', dayOf(job.inspectionDate, timeZone)), fact('Date of loss', dayOf(job.dateOfLoss, 'UTC')),
     fact('Insurance company', job.insuranceCompany), fact('Claim number', job.claimNumber),
@@ -23,12 +23,14 @@ export function renderReportHtml(view: ReportView, opts: { photoSrc: (p: ReportP
     const gps = gpsOf(p)
     const when = stampOf(p.takenAt, timeZone)
     const map = gps ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(`${p.latitude},${p.longitude}`)}" target="_blank" rel="noopener noreferrer">GPS ${esc(gps)}</a>` : ''
+    const meta = [layout.timestamps && when ? esc(when) : '', layout.gps ? map : '', layout.photographer && p.by ? `Photographed by ${esc(p.by)}` : ''].filter(Boolean).join(' · ')
     return `<figure><img loading="lazy" src="${esc(opts.photoSrc(p))}" alt="${esc(p.caption || `${p.photoType} photo`)}">`
-      + `<figcaption>${p.caption ? `<strong>${esc(p.caption)}</strong>` : ''}`
-      + `<span class="meta">${[when ? esc(when) : '', map, p.by ? `Photographed by ${esc(p.by)}` : ''].filter(Boolean).join(' · ')}</span></figcaption></figure>`
+      + (layout.captions || meta ? `<figcaption>${layout.captions && p.caption ? `<strong>${esc(p.caption)}</strong>` : ''}${meta ? `<span class="meta">${meta}</span>` : ''}</figcaption>` : '') + '</figure>'
   }
   const sections = view.sections.map((s) => `<section><h2>${esc(s.title)}</h2>${s.notes ? `<p class="notes">${esc(s.notes)}</p>` : ''}`
-    + (s.photos.length ? `<div class="grid">${s.photos.map(photo).join('')}</div>` : '<p class="none">No photos in this section.</p>') + '</section>').join('')
+    + (s.photos.length ? `<div class="grid per-${layout.perRow}">${s.photos.map(photo).join('')}</div>` : '<p class="none">No photos in this section.</p>') + '</section>').join('')
+  const timeline = layout.timeline && view.timeline.length
+    ? `<section class="timeline"><h2>Job timeline</h2><ol>${view.timeline.map((e) => `<li><time datetime="${esc(e.at)}">${esc(stampOf(e.at, timeZone))}</time><span>${esc(e.text)}</span></li>`).join('')}</ol></section>` : ''
   const contact = [brand.phone, brand.email, brand.address, brand.license ? `License ${brand.license}` : ''].filter(Boolean).map(esc).join(' · ')
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
@@ -43,7 +45,9 @@ main{max-width:920px;margin:0 auto;padding:24px 16px 48px}.sheet{background:#fff
 h1{margin:0 0 4px;font-size:1.6rem}.sub{margin:0 0 16px;color:#4b5563}h2{margin:28px 0 8px;font-size:1.2rem;padding-bottom:6px;border-bottom:3px solid var(--brand)}
 dl.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 20px;margin:0 0 16px}dl.facts dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#6b7280}dl.facts dd{margin:0;font-weight:600}
 .intro,.notes{white-space:pre-wrap;margin:8px 0}.none{color:#6b7280}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:12px}figure{margin:0;break-inside:avoid}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:12px}.grid.per-1{grid-template-columns:1fr}.grid.per-3{grid-template-columns:repeat(3,1fr)}
+.per-1 figure img{height:380px}.per-3 figure img{height:150px}@media(max-width:640px){.grid,.grid.per-3{grid-template-columns:1fr}.grid.per-1 figure img,.grid.per-3 figure img{height:220px}}
+.timeline ol{list-style:none;margin:8px 0 0;padding:0}.timeline li{display:flex;gap:14px;padding:6px 0;border-bottom:1px solid #e5e7eb}.timeline time{flex:0 0 190px;color:#4b5563;font-size:.85rem}figure{margin:0;break-inside:avoid}
 figure img{display:block;width:100%;height:220px;object-fit:cover;border-radius:8px;background:#e5e7eb}figcaption{font-size:.9rem;margin-top:6px}figcaption strong{display:block}
 .meta{display:block;color:#4b5563;font-size:.8rem}.meta a{color:inherit}
 footer{margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;color:#4b5563;font-size:.85rem}
@@ -52,7 +56,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;color:#4b55
 <header class="band"><div class="brand">${logo ? `<img src="${esc(logo)}" alt="">` : ''}<span>${esc(brand.name)}</span></div><a class="dl" href="${esc(opts.pdfHref)}">Download PDF</a></header>
 <main><div class="sheet"><h1>${esc(view.title)}</h1><p class="sub">Prepared ${esc(dayOf(view.updatedAt, timeZone))}</p>
 ${facts ? `<dl class="facts">${facts}</dl>` : ''}${view.intro ? `<p class="intro">${esc(view.intro)}</p>` : ''}
-${sections || '<p class="none">No photos have been added to this report yet.</p>'}
+${sections || '<p class="none">No photos have been added to this report yet.</p>'}${timeline}
 <footer>${esc(brand.name)}${contact ? ` · ${contact}` : ''}</footer></div></main></body></html>`
 }
 
@@ -66,7 +70,7 @@ async function forPdf(bytes: Buffer, max = 900): Promise<Buffer | null> {
  * decides what may be read; nothing here reaches the network.
  */
 export async function renderReportPdf(view: ReportView, readImage: (mediaUrl: string) => Promise<Buffer | null>): Promise<Buffer> {
-  const { brand, job, timeZone } = view
+  const { brand, job, timeZone, layout } = view
   const LEFT = 48, WIDTH = 516, BOTTOM = 792 - 56
   const doc = new PDFDocument({ size: 'LETTER', margin: LEFT, bufferPages: true, info: { Title: view.title, Author: brand.name } })
   const chunks: Buffer[] = []
@@ -90,13 +94,17 @@ export async function renderReportPdf(view: ReportView, readImage: (mediaUrl: st
     ['Date of loss', dayOf(job.dateOfLoss, 'UTC')], ['Insurance company', job.insuranceCompany], ['Claim number', job.claimNumber],
   ]
   for (const [label, value] of facts) {
-    if (!value) continue
+    if (!value || !layout.details) continue
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#111827').text(`${label}: `, LEFT, doc.y, { continued: true, width: WIDTH })
     doc.font('Helvetica').text(value)
   }
   if (view.intro) { doc.moveDown(0.6); doc.font('Helvetica').fontSize(11).fillColor('#111827').text(view.intro, LEFT, doc.y, { width: WIDTH }) }
 
-  const CELL = 250, GAP = 16, IMG_H = 150, CAP_H = 36
+  // Photos per row (the layout): one large, two (the standard), or three small.
+  const GAP = 16
+  const CELL = layout.perRow === 1 ? WIDTH : layout.perRow === 3 ? Math.floor((WIDTH - 2 * GAP) / 3) : 250
+  const IMG_H = layout.perRow === 1 ? 300 : layout.perRow === 3 ? 110 : 150
+  const CAP_H = 36
   const ROW_H = IMG_H + 6 + CAP_H + 10
   for (const s of view.sections) {
     // A heading is never left alone at the foot of a page: it moves with its notes and its first row of photos.
@@ -110,11 +118,11 @@ export async function renderReportPdf(view: ReportView, readImage: (mediaUrl: st
     doc.y += 10
     if (s.notes) { doc.font('Helvetica').fontSize(10.5).fillColor('#111827').text(s.notes, LEFT, doc.y, { width: WIDTH }); doc.moveDown(0.4) }
     if (!s.photos.length) { doc.font('Helvetica-Oblique').fontSize(10).fillColor('#6b7280').text('No photos in this section.', LEFT, doc.y, { width: WIDTH }); continue }
-    for (let i = 0; i < s.photos.length; i += 2) {
+    for (let i = 0; i < s.photos.length; i += layout.perRow) {
       const rowH = ROW_H
       if (doc.y + rowH > BOTTOM) doc.addPage()
       const y = doc.y
-      for (let k = 0; k < 2 && i + k < s.photos.length; k++) {
+      for (let k = 0; k < layout.perRow && i + k < s.photos.length; k++) {
         const p = s.photos[i + k]
         const x = LEFT + k * (CELL + GAP)
         const raw = await readImage(p.url)
@@ -122,14 +130,31 @@ export async function renderReportPdf(view: ReportView, readImage: (mediaUrl: st
         if (img) doc.image(img, x, y, { fit: [CELL, IMG_H] })
         else { doc.rect(x, y, CELL, IMG_H).fill('#e5e7eb'); doc.fillColor('#6b7280').font('Helvetica').fontSize(10).text('Photo not available', x, y + IMG_H / 2 - 5, { width: CELL, align: 'center', lineBreak: false }) }
         let ty = y + IMG_H + 6
-        if (p.caption) { doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827').text(p.caption, x, ty, { width: CELL, height: 13, ellipsis: true, lineBreak: false }); ty += 13 }
+        if (layout.captions && p.caption) { doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827').text(p.caption, x, ty, { width: CELL, height: 13, ellipsis: true, lineBreak: false }); ty += 13 }
         const when = stampOf(p.takenAt, timeZone)
         const gps = gpsOf(p)
-        const meta = [when, gps ? `GPS ${gps}` : '', p.by ? `by ${p.by}` : ''].filter(Boolean).join('  |  ')
+        const meta = [layout.timestamps ? when : '', layout.gps && gps ? `GPS ${gps}` : '', layout.photographer && p.by ? `by ${p.by}` : ''].filter(Boolean).join('  |  ')
         if (meta) doc.font('Helvetica').fontSize(8).fillColor('#4b5563').text(meta, x, ty, { width: CELL, height: 22, ellipsis: true })
       }
       doc.x = LEFT
       doc.y = y + rowH
+    }
+  }
+
+  // The job's story, when the layout asks for it.
+  if (layout.timeline && view.timeline.length) {
+    if (doc.y + 60 > BOTTOM) doc.addPage()
+    doc.moveDown(1)
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text('Job timeline', LEFT, doc.y, { width: WIDTH })
+    doc.rect(LEFT, doc.y + 2, WIDTH, 2).fill(brand.color)
+    doc.y += 10
+    for (const e of view.timeline) {
+      if (doc.y + 18 > BOTTOM) doc.addPage()
+      const y = doc.y
+      doc.font('Helvetica').fontSize(9).fillColor('#4b5563').text(stampOf(e.at, timeZone), LEFT, y, { width: 150, lineBreak: false })
+      doc.font('Helvetica').fontSize(10).fillColor('#111827').text(e.text, LEFT + 160, y, { width: WIDTH - 160 })
+      doc.x = LEFT
+      doc.y = Math.max(doc.y, y + 14) + 3
     }
   }
 

@@ -551,10 +551,36 @@ export const inspectionReport = pgTable('inspection_report', {
   linkExpiresAt: timestamp('link_expires_at'),
   // Listed in the homeowner's portal under Photos & documents (the portal opens it by their own login link, not this one).
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  // How the page and the PDF are laid out (photos per row, which details print under a photo, the job's timeline): null is the
+  // standard layout. Read through layoutOf (inspection/view.ts).
+  layout: json('layout'),
+  // The last time it was sent to the homeowner from the CRM, and how ('sms' | 'email'). The job's timeline holds every send.
+  sentAt: timestamp('sent_at'),
+  sentVia: text('sent_via'),
+  // Frozen PDF copies filed under the job's documents: [{ documentId, savedAt, savedById }]. Read through copiesOf (checked against documents).
+  copies: json('copies').default([]).notNull(),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('inspection_report_company_id_idx').on(t.companyId),
   index('inspection_report_job_id_idx').on(t.jobId),
+])
+
+// A saved starting point for inspection reports (a roofer's own sections and layout): building a report from one takes its
+// intro and sections - each section filled with the job's photos of the kind it names - and its layout.
+export const inspectionReportTemplate = pgTable('inspection_report_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  intro: text('intro'),
+  // [{ title, notes, photoType }]: photoType is the kind of job photo that fills the section ('damage', 'before' ...), or null for none.
+  sections: json('sections').default([]).notNull(),
+  layout: json('layout'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('inspection_report_template_company_id_idx').on(t.companyId),
+  uniqueIndex('inspection_report_template_company_name_uniq').on(t.companyId, t.name),
 ])

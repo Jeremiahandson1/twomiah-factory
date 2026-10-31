@@ -10,6 +10,9 @@
 //     GET    /:id/pdf              the PDF                                                  jobs:read
 //     POST   /:id/link             switch the private link on (renew: a new address; expiresAt: a last day)   portal:share
 //     DELETE /:id/link             switch it off                                            portal:share
+//     POST   /:id/send             text or email the link to the job's homeowner, recorded on the job          portal:share
+//     POST   /:id/copy             a frozen PDF filed under the job's documents                              documents:create
+//     /templates                   saved section templates and layouts (./templates.ts)
 //
 //   /api/inspection-report-view    the homeowner's or adjuster's, by the private link — no sign-in
 //     GET /:token                  the page
@@ -23,7 +26,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { isDocumentToken, newDocumentToken, publicApiBase } from '@twomiah/tenant-backend'
-import { inspectionReport, job, jobPhoto } from '../../../db/schema/index.ts'
+import { inspectionReport, inspectionReportTemplate, job, jobPhoto } from '../../../db/schema/index.ts'
 import { cleanLines, cleanText } from '../../../core/sanitize.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -31,6 +34,9 @@ import { done, fail, listAll, one } from '../../../http/reply.ts'
 import { createGuessLimiter, TOKEN_GUESS_MAX, TOKEN_GUESS_WINDOW_MS } from '../../../http/guards.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createSeatJob } from '../seatJob.ts'
+import { addDeliveryRoutes, liveCopies, reachFor } from './delivery.ts'
+import { layoutBody, layoutOf } from './layout.ts'
+import { addTemplateRoutes, templateSectionsOf } from './templates.ts'
 import { renderReportHtml } from './render.ts'
 import { reportFileName, reportPdf } from './pdf.ts'
 import { buildReportView, sectionsOf, type ReportSection, type ReportView } from './view.ts'
@@ -49,6 +55,7 @@ const reportBody = z.object({
   title: cleanText(1).pipe(z.string().max(120, 'A title is 120 characters at most')),
   intro: cleanLines().pipe(z.string().max(4000, 'The introduction is 4000 characters at most')),
   sections: z.array(sectionBody).max(MAX_SECTIONS, `A report holds ${MAX_SECTIONS} sections at most`),
+  layout: layoutBody.optional(),
 })
 
 const securityHeaders = {
@@ -92,9 +99,28 @@ export function createInspectionReportRoutes(d: CrmDeps) {
     const path = `${VIEW_PATH}/${r.publicToken}`
     return { token: r.publicToken, path, url: `${publicApiBase()}${path}`, pdfPath: `${path}/pdf`, expiresAt: r.linkExpiresAt ? new Date(r.linkExpiresAt).toISOString() : null, expired: !!r.linkExpiresAt && new Date(r.linkExpiresAt).getTime() <= Date.now() }
   }
-  const shaped = async (r: any) => ({
-    ...(await buildReportView(db, r)), sharedWithCustomer: !!r.sharedWithCustomer, link: linkOf(r), createdAt: new Date(r.createdAt).toISOString(),
-  })
+  const shaped = async (r: any) => {
+    const jb = await db.select({ contactId: job.contactId }).from(job).where(and(eq(job.id, r.jobId), eq(job.companyId, r.companyId))).limit(1).then((x: any[]) => x[0])
+    const reach = await reachFor(d, r.companyId, jb?.contactId ?? null)
+    return {
+      ...(await buildReportView(db, r)), sharedWithCustomer: !!r.sharedWithCustomer, link: linkOf(r), createdAt: new Date(r.createdAt).toISOString(),
+      // Who "Send to homeowner" would reach, and why a way is shut: the screen enables or explains its buttons from this.
+      send: { homeowner: reach.who?.name ?? null, textBlocked: reach.textBlocked, emailBlocked: reach.emailBlocked, sentAt: r.sentAt ? new Date(r.sentAt).toISOString() : null, sentVia: r.sentVia ?? null },
+      copies: await liveCopies(db, r),
+    }
+  }
+
+  // The job's photos of these kinds, in the order they were taken. A photo that has been drawn on (photoMarkup/) is stood in for
+  // by its marked copy: the arrows are the point of the picture, and the original stays on the job.
+  async function photosOfTypes(companyId: string, jobId: string, types: string[]) {
+    const all = await db.select({ id: jobPhoto.id, photoType: jobPhoto.photoType, sourcePhotoId: jobPhoto.sourcePhotoId }).from(jobPhoto)
+      .where(and(eq(jobPhoto.jobId, jobId), eq(jobPhoto.companyId, companyId), inArray(jobPhoto.photoType, types))).orderBy(asc(jobPhoto.takenAt), asc(jobPhoto.id))
+    const marked = new Set(all.map((p: any) => p.sourcePhotoId).filter(Boolean))
+    return all.filter((p: any) => !marked.has(p.id)) as Array<{ id: string; photoType: string }>
+  }
+
+  // Saved templates (./templates.ts): before the /:id doors, so "templates" is never read as a report's id.
+  addTemplateRoutes(app, d)
 
   // GET /?jobId= — a job's reports, newest first.
   app.get('/', requirePermission('jobs:read'), async (c) => {
@@ -116,7 +142,15 @@ export function createInspectionReportRoutes(d: CrmDeps) {
     const jobId = typeof raw.jobId === 'string' ? raw.jobId : ''
     const jb = jobId ? await jobFor(c, jobId) : null
     if (!jb) return fail(c, 404, 'Job not found')
-    const parsed = reportBody.safeParse({ title: raw.title ?? `Roof inspection — ${jb.address || jb.number}`.slice(0, 120), intro: raw.intro ?? '', sections: raw.sections ?? [] })
+    // From a saved template: its introduction and layout, and each section filled with the job's photos of the kind it names.
+    let template: any = null
+    if (raw.templateId !== undefined) {
+      ;[template] = typeof raw.templateId === 'string'
+        ? await db.select().from(inspectionReportTemplate).where(and(eq(inspectionReportTemplate.id, raw.templateId), eq(inspectionReportTemplate.companyId, me.companyId))).limit(1)
+        : []
+      if (!template) return fail(c, 404, 'Template not found')
+    }
+    const parsed = reportBody.safeParse({ title: raw.title ?? `Roof inspection — ${jb.address || jb.number}`.slice(0, 120), intro: raw.intro ?? template?.intro ?? '', sections: raw.sections ?? [], layout: raw.layout ?? (template ? layoutOf(template.layout) : undefined) })
     if (!parsed.success) return invalid(c, parsed.error)
     const { title, intro } = parsed.data
     let sections: ReportSection[]
@@ -124,20 +158,19 @@ export function createInspectionReportRoutes(d: CrmDeps) {
       sections = dedupe(parsed.data.sections)
       const foreign = await foreignPhotoIds(me.companyId, jobId, sections)
       if (foreign.length) return fail(c, 400, 'Some of those photos are not on this job.', 'validation_failed', { sections: 'Photos must be this job’s own' })
+    } else if (template) {
+      const kinds = [...new Set(templateSectionsOf(template.sections).map((s) => s.photoType).filter(Boolean))] as string[]
+      const photos = kinds.length ? await photosOfTypes(me.companyId, jobId, kinds) : []
+      sections = dedupe(templateSectionsOf(template.sections).map((s) => ({ title: s.title, notes: s.notes, photoIds: s.photoType ? photos.filter((p) => p.photoType === s.photoType).map((p) => p.id).slice(0, MAX_PHOTOS) : [] })))
     } else {
-      const all = await db.select({ id: jobPhoto.id, photoType: jobPhoto.photoType, sourcePhotoId: jobPhoto.sourcePhotoId }).from(jobPhoto)
-        .where(and(eq(jobPhoto.jobId, jobId), eq(jobPhoto.companyId, me.companyId), inArray(jobPhoto.photoType, ['damage', 'before']))).orderBy(asc(jobPhoto.takenAt), asc(jobPhoto.id))
-      // A photo that has been drawn on shows its marked copy (photoMarkup/): the arrows are the point of the picture. The
-      // original stays on the job, and the report can still be changed to use it.
-      const marked = new Set(all.map((p: any) => p.sourcePhotoId).filter(Boolean))
-      const photos = all.filter((p: any) => !marked.has(p.id))
+      const photos = await photosOfTypes(me.companyId, jobId, ['damage', 'before'])
       sections = []
       for (const [type, name] of [['damage', 'Damage found'], ['before', 'Before']] as const) {
         const ids = photos.filter((p: any) => p.photoType === type).map((p: any) => p.id).slice(0, MAX_PHOTOS)
         if (ids.length) sections.push({ title: name, notes: '', photoIds: ids })
       }
     }
-    const [made] = await db.insert(inspectionReport).values({ companyId: me.companyId, jobId, title, intro: intro || null, sections, createdById: me.userId } as any).returning()
+    const [made] = await db.insert(inspectionReport).values({ companyId: me.companyId, jobId, title, intro: intro || null, sections, layout: parsed.data.layout ? layoutOf(parsed.data.layout) : null, createdById: me.userId } as any).returning()
     return one(c, await shaped(made), 201)
   })
 
@@ -151,11 +184,11 @@ export function createInspectionReportRoutes(d: CrmDeps) {
     const r = await reportFor(c, c.req.param('id'))
     if (!r) return fail(c, 404, 'Report not found')
     const raw: any = (await c.req.json().catch(() => null)) ?? {}
-    const parsed = reportBody.safeParse({ title: raw.title ?? r.title, intro: raw.intro ?? r.intro ?? '', sections: raw.sections ?? sectionsOf(r.sections) })
+    const parsed = reportBody.safeParse({ title: raw.title ?? r.title, intro: raw.intro ?? r.intro ?? '', sections: raw.sections ?? sectionsOf(r.sections), layout: raw.layout ?? layoutOf(r.layout) })
     if (!parsed.success) return invalid(c, parsed.error)
     const sections = dedupe(parsed.data.sections)
     if ((await foreignPhotoIds(me.companyId, r.jobId, sections)).length) return fail(c, 400, 'Some of those photos are not on this job.', 'validation_failed', { sections: 'Photos must be this job’s own' })
-    const [saved] = await db.update(inspectionReport).set({ title: parsed.data.title, intro: parsed.data.intro || null, sections, updatedAt: new Date() } as any)
+    const [saved] = await db.update(inspectionReport).set({ title: parsed.data.title, intro: parsed.data.intro || null, sections, layout: layoutOf(parsed.data.layout), updatedAt: new Date() } as any)
       .where(and(eq(inspectionReport.id, r.id), eq(inspectionReport.companyId, me.companyId))).returning()
     return one(c, await shaped(saved))
   })
@@ -193,6 +226,9 @@ export function createInspectionReportRoutes(d: CrmDeps) {
     await db.update(inspectionReport).set({ publicToken: null, linkExpiresAt: null, updatedAt: new Date() } as any).where(and(eq(inspectionReport.id, r.id), eq(inspectionReport.companyId, r.companyId)))
     return done(c)
   })
+
+  // Send to the homeowner; save a frozen copy to documents (./delivery.ts).
+  addDeliveryRoutes(app, d, { reportFor, jobFor, linkOf })
 
   async function pdfResponse(view: ReportView, _companyId: string) {
     const pdf = await reportPdf(storage, view)

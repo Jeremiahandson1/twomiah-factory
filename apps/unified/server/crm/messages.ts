@@ -230,6 +230,29 @@ ${data.disclosure}`,
     }
   },
 
+  /**
+   * The inspection report sent to the homeowner from the job (roof/inspection/delivery.ts). The link (data.reportUrl) opens that
+   * one report and nothing else of the job. The title and the note are typed by a person - escaped.
+   */
+  inspectionReportSent: (data, b) => ({
+    subject: `Your roof inspection report from ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.firstName)},</p>
+          ${data.message ? `<p>${escHtml(data.message).replace(/\n/g, '<br>')}</p>` : `<p>Your roof inspection report is ready.</p>`}
+          <p style="text-align:center;"><a href="${escHtml(data.reportUrl)}" class="button">View ${escHtml(data.title)}</a></p>
+          <p style="font-size:13px;color:#6b7280;text-align:center;">The report has the photos and notes from your inspection. You can download it as a PDF from that page.</p>
+          ${data.companyPhone ? `<p>Questions? Call ${escHtml(data.companyPhone)}.</p>` : ''}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.firstName},\n\n${data.message || 'Your roof inspection report is ready.'}\n\n${data.title}: ${data.reportUrl}\n\n${data.companyName}`,
+  }),
+
   quoteApproved: (data, b, appUrl) => ({
     subject: `Quote ${data.quoteNumber} has been approved!`,
     html: `

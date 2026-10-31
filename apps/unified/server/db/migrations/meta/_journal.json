@@ -449,6 +449,13 @@
       "when": 1793475911296,
       "tag": "0063_photo_markup",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793476705710,
+      "tag": "0064_inspection_report_send_templates",
+      "breakpoints": true
     }
   ]
 }
