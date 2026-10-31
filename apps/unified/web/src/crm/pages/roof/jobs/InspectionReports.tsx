@@ -11,7 +11,7 @@ import { useConfirm, useMayWrite, useToast, errorText } from '../../../../shared
 import { downloadFile } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
-export interface ReportPhotoChoice { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null }
+export interface ReportPhotoChoice { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null; sourcePhotoId?: string | null }
 interface Section { title: string; notes: string; photoIds: string[] }
 interface Link { token: string; path: string; url: string; expiresAt: string | null; expired: boolean }
 interface Row { id: string; title: string; photoCount: number; linkOn: boolean; sharedWithCustomer: boolean; updatedAt: string }
@@ -127,9 +127,10 @@ export default function InspectionReports({ jobId, photos }: { jobId: string; ph
                 {photos.map((p) => {
                   const on = s.photoIds.includes(p.id)
                   return (
-                    <button key={p.id} type="button" disabled={!mayBuild} aria-pressed={on} aria-label={`${on ? 'Remove' : 'Add'} ${p.caption || `${p.photoType || 'general'} photo`} ${on ? 'from' : 'to'} ${s.title || 'this section'}`}
-                      onClick={() => toggle(i, p.id)} className={`aspect-square rounded-md overflow-hidden border-2 ${on ? 'border-orange-600' : 'border-transparent opacity-60'}`}>
+                    <button key={p.id} type="button" disabled={!mayBuild} aria-pressed={on} aria-label={`${on ? 'Remove' : 'Add'} ${p.sourcePhotoId ? 'marked copy of ' : ''}${p.caption || `${p.photoType || 'general'} photo`} ${on ? 'from' : 'to'} ${s.title || 'this section'}`}
+                      onClick={() => toggle(i, p.id)} className={`relative aspect-square rounded-md overflow-hidden border-2 ${on ? 'border-orange-600' : 'border-transparent opacity-60'}`}>
                       <img src={p.thumbnailUrl || p.url || ''} alt="" className="w-full h-full object-cover" />
+                      {p.sourcePhotoId && <span className="absolute left-0.5 top-0.5 rounded bg-orange-600 px-1 text-[9px] font-semibold text-white">Marked</span>}
                     </button>
                   )
                 })}

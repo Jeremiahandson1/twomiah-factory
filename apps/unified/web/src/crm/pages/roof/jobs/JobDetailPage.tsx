@@ -84,7 +84,7 @@ const MEASUREMENT_STATUS_COLORS: Record<string, string> = {
 
 /** The homeowner, the whole CRM contact on GET /api/jobs/:id. */
 interface JobContact { id: string; name?: string | null; phone?: string | null; mobile?: string | null; email?: string | null; source?: string | null }
-interface JobPhoto { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null; takenAt?: string | null; latitude?: string | null; longitude?: string | null }
+interface JobPhoto { id: string; url?: string | null; thumbnailUrl?: string | null; caption?: string | null; photoType?: string | null; takenAt?: string | null; latitude?: string | null; longitude?: string | null; sourcePhotoId?: string | null; markup?: any[] | null }
 interface JobNote { id: string; body?: string | null; createdAt?: string | null }
 interface JobQuote { id: string; number?: string | null; status?: string | null; total?: string | number | null }
 interface JobInvoice { id: string; number?: string | null; status?: string | null; total?: string | number | null; amountPaid?: string | number | null; amountRefunded?: string | number | null }
@@ -686,14 +686,15 @@ export default function JobDetailPage() {
                       type="button"
                       key={photo.id || i}
                       onClick={() => setViewing(i)}
-                      aria-label={`Open ${photo.caption || `${photoTab} photo ${i + 1}`} full size`}
-                      className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                      aria-label={`Open ${photo.sourcePhotoId ? 'marked copy of ' : ''}${photo.caption || `${photoTab} photo ${i + 1}`} full size`}
+                      className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                     >
                       <img
                         src={photo.thumbnailUrl || photo.url || ''}
                         alt={photo.caption || `Photo ${i + 1}`}
                         className="w-full h-full object-cover"
                       />
+                      {photo.sourcePhotoId && <span className="absolute left-1 top-1 rounded bg-orange-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">Marked</span>}
                     </button>
                   ))}
                   {filteredPhotos.length === 0 && (
@@ -708,7 +709,8 @@ export default function JobDetailPage() {
                   className="hidden"
                   onChange={(e) => e.target.files && uploadPhotos(e.target.files)}
                 />
-                <PhotoDetails jobId={job.id} photos={filteredPhotos} onSaved={(saved) => setPhotos((prev) => prev.map((p) => (p.id === saved.id ? { ...p, ...saved } as JobPhoto : p)))} />
+                <PhotoDetails jobId={job.id} photos={filteredPhotos} allPhotos={photos} onSaved={(saved) => setPhotos((prev) => prev.map((p) => (p.id === saved.id ? { ...p, ...saved } as JobPhoto : p)))}
+                  onMarked={(r) => setPhotos((prev) => [...prev.filter((p) => p.sourcePhotoId !== r.original), ...(r.marked ? [r.marked as JobPhoto] : [])])} />
                 <PhotoViewer
                   label={`${formatStatus(photoTab)} photos`}
                   photos={filteredPhotos.map((p) => ({ id: p.id, src: p.url || p.thumbnailUrl, caption: p.caption }))}

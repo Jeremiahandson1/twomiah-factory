@@ -7,6 +7,7 @@ import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
 import { inspectionMounts } from './inspection/index.ts'
+import { photoMarkupMounts } from './photoMarkup/index.ts'
 import { portalFilesMounts } from './portalFiles/index.ts'
 import { createRoofCollector } from './collected.ts'
 import { createWorkOrderRoutes } from './workOrders.ts'
@@ -51,6 +52,7 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
     { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
+    ...photoMarkupMounts(d),
     ...portalFilesMounts(d),
   ] as Mount[]).map((m) => ({ ...m, addon: 'roof' }))
 }

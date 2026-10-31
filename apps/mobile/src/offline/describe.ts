@@ -19,7 +19,7 @@ export interface ItemLine {
 const KINDS: Array<[RegExp, string]> = [
   [/\/dispatch$/, 'On my way'], [/\/start$/, 'Arrived'], [/\/complete$/, 'Completed'],
   [/\/checklists\/job\/[^/]+\/submit$/, 'Checklist'], [/\/checklists\/submissions\/[^/]+\/sign$/, 'Customer signature'],
-  [/\/clock-in$|\/clock\/in$/, 'Clock in'], [/\/clock-out$|\/clock\/out$/, 'Clock out'],
+  [/\/api\/photo-markup\//, 'Photo marks'], [/\/clock-in$|\/clock\/in$/, 'Clock in'], [/\/clock-out$|\/clock\/out$/, 'Clock out'],
 ]
 
 /** The record this save is about, as a screen: a job's saves lead to the job. */

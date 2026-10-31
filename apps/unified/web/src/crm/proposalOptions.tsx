@@ -140,7 +140,7 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [dirty, setDirty] = useState(false)
-  const [jobPhotos, setJobPhotos] = useState<Array<{ id: string; url: string; caption?: string | null }>>([])
+  const [jobPhotos, setJobPhotos] = useState<Array<{ id: string; url: string; caption?: string | null; sourcePhotoId?: string | null }>>([])
   const [items, setItems] = useState<Array<{ id: string; name: string }>>([])
   const [pickItem, setPickItem] = useState('')
   const { hasFeature } = useAuth()
@@ -226,7 +226,7 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
               {jobPhotos.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                   {jobPhotos.map((p) => (
-                    <button type="button" key={p.id} onClick={() => togglePhoto(i, p.url)} aria-pressed={d.photos.includes(p.url)} aria-label={`${d.photos.includes(p.url) ? 'Remove' : 'Use'} photo ${p.caption || ''}`.trim()} className={`h-14 w-14 overflow-hidden rounded border-2 ${d.photos.includes(p.url) ? 'border-orange-600' : 'border-transparent'}`}><img src={p.url} alt={p.caption || 'Job photo'} className="h-full w-full object-cover" /></button>
+                    <button type="button" key={p.id} onClick={() => togglePhoto(i, p.url)} aria-pressed={d.photos.includes(p.url)} aria-label={`${d.photos.includes(p.url) ? 'Remove' : 'Use'} ${p.sourcePhotoId ? 'marked copy of photo' : 'photo'} ${p.caption || ''}`.trim()} className={`relative h-14 w-14 overflow-hidden rounded border-2 ${d.photos.includes(p.url) ? 'border-orange-600' : 'border-transparent'}`}><img src={p.url} alt={p.caption || 'Job photo'} className="h-full w-full object-cover" />{p.sourcePhotoId && <span className="absolute left-0 top-0 rounded-br bg-orange-600 px-1 text-[9px] font-semibold text-white">Marked</span>}</button>
                   ))}
                 </div>
               )}

@@ -658,9 +658,13 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const [existing] = await db.select().from(jobPhoto)
       .where(and(eq(jobPhoto.id, c.req.param('photoId')), eq(jobPhoto.jobId, c.req.param('id')), eq(jobPhoto.companyId, me.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Photo not found')
-    const key = String(existing.url || '').startsWith(MEDIA_PREFIX) ? existing.url.slice(MEDIA_PREFIX.length) : ''
-    if (key) { try { await d.services.storage.deleteFile(key) } catch { /* the row is the source of truth */ } }
-    await db.delete(jobPhoto).where(and(eq(jobPhoto.id, existing.id), eq(jobPhoto.companyId, me.companyId)))
+    // A photo's marked copy (server/crm/roof/photoMarkup) is drawn from it and goes with it; deleting the copy leaves the photo.
+    const gone = [existing, ...(existing.sourcePhotoId ? [] : await db.select().from(jobPhoto).where(and(eq(jobPhoto.sourcePhotoId, existing.id), eq(jobPhoto.companyId, me.companyId))))]
+    for (const row of gone) {
+      const key = String(row.url || '').startsWith(MEDIA_PREFIX) ? row.url.slice(MEDIA_PREFIX.length) : ''
+      if (key) { try { await d.services.storage.deleteFile(key) } catch { /* the row is the source of truth */ } }
+      await db.delete(jobPhoto).where(and(eq(jobPhoto.id, row.id), eq(jobPhoto.companyId, me.companyId)))
+    }
     return c.body(null, 204)
   })
 

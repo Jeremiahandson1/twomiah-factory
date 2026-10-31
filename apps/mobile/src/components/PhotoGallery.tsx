@@ -28,6 +28,8 @@ import { stampFields, type PhotoStamp } from '../photos/stamp'
 import { useToast } from './ToastProvider'
 import { useHaptics } from '../hooks/useHaptics'
 import { useVertical } from '../vertical/VerticalContext'
+import { PhotoMarkup } from '../photos/PhotoMarkup'
+import type { MarkupShape } from '../photos/markup'
 
 /** The verticals whose job carries its own photos (CrmSettings.jobs.photos, and roofing's job module). */
 const PHOTOS_ON_JOB = ['basic', 'fieldservice', 'landscaping', 'roofing']
@@ -38,6 +40,9 @@ export interface JobPhoto {
   url?: string | null
   thumbnailUrl?: string | null
   caption?: string | null
+  /** On a marked copy (roofing's photo_markup): the photo it was drawn on, and the drawing. */
+  sourcePhotoId?: string | null
+  markup?: MarkupShape[] | null
 }
 
 /** The photos of one job, as either store answers them (a bare array from the shared module, { data } from roofing's). */
@@ -92,6 +97,9 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const [failed, setFailed] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [viewPhoto, setViewPhoto] = useState<JobPhoto | null>(null)
+  // Drawing on a photo (photo_markup, not ready; ../photos/PhotoMarkup.tsx): the original being drawn on.
+  const [drawing, setDrawing] = useState<JobPhoto | null>(null)
+  const mayDraw = canAdd && photosOnJob(vertical) && hasFeature('photo_markup')
   const enabled = hasFeature('photo_capture')
 
   const loadPhotos = useCallback(async () => {
@@ -160,8 +168,9 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
             </View>
           )}
           {photos.map(photo => (
-            <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)}>
+            <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)} accessibilityLabel={photo.sourcePhotoId ? `Marked copy of ${photo.caption || 'photo'}` : photo.caption || 'Photo'}>
               <Image source={photoSource(photo, true)} style={styles.thumb} />
+              {photo.sourcePhotoId ? <View style={[styles.marked, { backgroundColor: t.primary }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>Marked</Text></View> : null}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -179,8 +188,26 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
           {viewPhoto?.caption ? (
             <Text style={styles.caption}>{viewPhoto.caption}</Text>
           ) : null}
+          {mayDraw && viewPhoto && (
+            <TouchableOpacity style={[styles.drawBtn, { backgroundColor: t.primary, bottom: insets.bottom + 24 }]} accessibilityRole="button"
+              onPress={() => { const original = photos.find((p) => p.id === (viewPhoto.sourcePhotoId || viewPhoto.id)); if (original) { setDrawing(original); setViewPhoto(null) } }}>
+              <Ionicons name="pencil" size={18} color={t.onPrimary} />
+              <Text style={[styles.drawText, { color: t.onPrimary }]}>{viewPhoto.sourcePhotoId || photos.some((p) => p.sourcePhotoId === viewPhoto.id) ? 'Change the marks' : 'Draw on this photo'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
+
+      {drawing && (
+        <PhotoMarkup
+          visible
+          photo={drawing}
+          source={photoSource(drawing)}
+          shapes={photos.find((p) => p.sourcePhotoId === drawing.id)?.markup || []}
+          onClose={() => setDrawing(null)}
+          onSaved={(queued) => { setDrawing(null); if (!queued) loadPhotos() }}
+        />
+      )}
     </View>
   )
 }
@@ -207,4 +234,8 @@ const styles = StyleSheet.create({
   modalClose: { position: 'absolute', right: 20, zIndex: 10, padding: 8 },
   fullImage: { width: SCREEN_WIDTH, height: SCREEN_WIDTH },
   caption: { color: OVERLAY_INK, fontSize: 14, marginTop: 12, textAlign: 'center' },
+  marked: { position: 'absolute', left: 4, top: 4, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  markedText: { color: OVERLAY_INK, fontSize: 10, fontWeight: '700' },
+  drawBtn: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24 },
+  drawText: { color: OVERLAY_INK, fontSize: 15, fontWeight: '600' },
 })

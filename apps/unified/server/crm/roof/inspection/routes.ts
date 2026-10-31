@@ -125,8 +125,12 @@ export function createInspectionReportRoutes(d: CrmDeps) {
       const foreign = await foreignPhotoIds(me.companyId, jobId, sections)
       if (foreign.length) return fail(c, 400, 'Some of those photos are not on this job.', 'validation_failed', { sections: 'Photos must be this job’s own' })
     } else {
-      const photos = await db.select({ id: jobPhoto.id, photoType: jobPhoto.photoType }).from(jobPhoto)
+      const all = await db.select({ id: jobPhoto.id, photoType: jobPhoto.photoType, sourcePhotoId: jobPhoto.sourcePhotoId }).from(jobPhoto)
         .where(and(eq(jobPhoto.jobId, jobId), eq(jobPhoto.companyId, me.companyId), inArray(jobPhoto.photoType, ['damage', 'before']))).orderBy(asc(jobPhoto.takenAt), asc(jobPhoto.id))
+      // A photo that has been drawn on shows its marked copy (photoMarkup/): the arrows are the point of the picture. The
+      // original stays on the job, and the report can still be changed to use it.
+      const marked = new Set(all.map((p: any) => p.sourcePhotoId).filter(Boolean))
+      const photos = all.filter((p: any) => !marked.has(p.id))
       sections = []
       for (const [type, name] of [['damage', 'Damage found'], ['before', 'Before']] as const) {
         const ids = photos.filter((p: any) => p.photoType === type).map((p: any) => p.id).slice(0, MAX_PHOTOS)
