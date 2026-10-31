@@ -8,6 +8,7 @@ import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, Dialog } from './registerUi';
 import { ManagerRequests, MyAvailability, MySwaps } from './StaffRequestsUi';
 import { MyCashTips } from './DeclaredTipsUi';
+import LaborForecast from './LaborForecastUi';
 
 /**
  * THE SCHEDULE (routes/barSchedule.ts). A manager (bar:update) builds the week — Monday to Sunday, the timesheet's
@@ -38,6 +39,7 @@ export default function BarSchedulePage() {
 }
 
 function WeekBuilder() {
+  const { hasFeature } = useAuth();
   const [day, setDay] = useState('');
   const [w, setW] = useState<any>(null);
   const [err, setErr] = useState('');
@@ -107,6 +109,7 @@ function WeekBuilder() {
           </tbody>
         </table>
       </div>
+      {hasFeature('bar_labor_forecast') && <LaborForecast weekStart={w.weekStart} version={(w.shifts || []).map((s: any) => `${s.id}${s.day}${s.start}${s.end}${s.position || ''}${s.userId}`).join('|')} />}
       <div className="flex flex-wrap gap-2 justify-end">
         <button className={`${BTN} ${OFF}`} disabled={!!busy} onClick={() => act('copy', () => api.post('/api/schedule/copy', { fromDay: shift(w.weekStart, -7), toDay: w.weekStart }))}>Copy last week</button>
         <button className={`${BTN} ${ON}`} disabled={!!busy} onClick={() => act('publish', () => api.post('/api/schedule/publish', { day: w.weekStart }))}>Publish this week</button>
