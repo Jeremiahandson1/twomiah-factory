@@ -114,6 +114,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // The salon's card step at online booking: the salon module hands in its cards service, the app hands in the booking
   // engine's "card saved" (the booking module is made after these services).
   const bookingCard: { cards: any | null; confirm: ((companyId: string, token: string) => Promise<unknown>) | null } = { cards: null, confirm: null }
+  /** A client has answered a form (booking page, sent link, desk, phone): the booking engine lets the bookings that waited for it move on (booking/engine.ts formsReleased). */
+  const bookingForms: { released: ((companyId: string, contactId: string) => Promise<unknown>) | null } = { released: null }
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
@@ -286,6 +288,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     afterInvoicePaid,
     /** The salon's card step at online booking (crm/salon/onlineBooking.ts, booking/engine.ts cardSaved). */
     bookingCard,
+    bookingForms,
     /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
     useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
     /** A vertical's own way of earning commission on a paid bill (the salon's stylist commissions). */

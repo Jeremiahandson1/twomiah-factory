@@ -496,8 +496,16 @@ export const intakeForm = pgTable('intake_form', {
   intro: text('intro'),
   /** [{ id, label, type: 'text' | 'longtext' | 'yesno' | 'choice' | 'consent', required, options? }] */
   questions: json('questions').$type<any[]>().default([]).notNull(),
-  /** Service Menu ids the form applies to; empty = every online booking. */
+  /** Service Menu ids the form applies to; empty (with no membership plans either) = every online booking. */
   serviceIds: json('service_ids').$type<string[]>().default([]).notNull(),
+  /** Membership plan ids: a client with an active enrolment in one of these is asked too (a form for members, whatever they book). */
+  membershipPlanIds: json('membership_plan_ids').$type<string[]>().default([]).notNull(),
+  /** An answer stands this many days, then the client is asked again (null = never expires). */
+  validForDays: integer('valid_for_days'),
+  /** The online booking is held (not confirmed) until the client has answered this form. */
+  beforeConfirm: boolean('before_confirm').default(false).notNull(),
+  /** How a consent form is signed: 'typed' (the full name) or 'drawn' (a signature drawn on screen). */
+  signature: text('signature').default('typed').notNull(),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -519,10 +527,42 @@ export const intakeResponse = pgTable('intake_response', {
   /** [{ label, type, answer }] — as asked, so a later change to the form never rewrites what a client said. */
   answers: json('answers').$type<any[]>().default([]).notNull(),
   signedName: text('signed_name'),
+  /** File and photo answers: [{ questionId, label, key, name, contentType }]; the bytes are in storage under `key`. */
+  files: json('files').$type<any[]>().default([]).notNull(),
+  /** The drawn signature's picture in storage (a consent form whose signature is 'drawn'), and its content type. */
+  signatureKey: text('signature_key'),
+  signatureType: text('signature_type'),
+  /** The last day (salon calendar day, YYYY-MM-DD) this answer stands; null = never expires. */
+  expiresOn: text('expires_on'),
+  /** Where it was filled in: 'booking' (the client's booking page), 'link' (a sent link), 'desk' (staff, at the desk or on the phone). */
+  via: text('via').default('booking').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('intake_response_contact_idx').on(t.companyId, t.contactId),
   uniqueIndex('intake_response_once_idx').on(t.formId, t.contactId, t.bookingToken),
+])
+
+/**
+ * A form sent to an existing client (one at a time or in bulk): a link they open without signing in. One open request per form per client;
+ * answering it (or answering the form any other way) closes it. The send is recorded whether or not it could go (status + reason).
+ */
+export const intakeRequest = pgTable('intake_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  formId: text('form_id').notNull().references(() => intakeForm.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** The secret in the link. */
+  token: text('token').notNull(),
+  /** 'sent' | 'skipped' | 'failed' — skipped carries the reason (no consent, no address, already valid ...). */
+  status: text('status').default('sent').notNull(),
+  channel: text('channel'),
+  reason: text('reason'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('intake_request_token_idx').on(t.token),
+  index('intake_request_form_idx').on(t.companyId, t.formId),
+  index('intake_request_contact_idx').on(t.companyId, t.contactId),
 ])
 
 /**

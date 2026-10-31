@@ -74,6 +74,7 @@ import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
+import { intakeFilesOf } from '../crm/salon/intakeForms.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
 import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
@@ -204,7 +205,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
     // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
     beforeDelete: async (companyId: string, contactId: string) => {
-      const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
+      // Their forms' photos, files and drawn signatures too (crm/salon/intakeForms.ts): health and consent records go with the client.
+      const files = [...await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] }), ...await intakeFilesOf(db, companyId, [contactId])]
       return () => removeVisitPhotoFiles(s.storage, files)
     },
   })

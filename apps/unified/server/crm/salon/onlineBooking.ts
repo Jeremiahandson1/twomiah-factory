@@ -76,7 +76,7 @@ const DEFAULT_MINUTES = 60
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
-export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; db?: any } = {}): BookingAddOn {
+export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; db?: any; storage?: any; released?: (companyId: string, contactId: string) => Promise<unknown> } = {}): BookingAddOn {
   return {
     questions: [],
     serviceList: { name: SERVICE_LIST },
@@ -89,14 +89,24 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
     // Clients choose their stylist (Settings › The Book; the feature `client_stylist_pick`): off unless the salon switched it on.
     // The salon's intake and consent forms, offered on the booking's page (feature `intake_forms`); none until the salon builds one.
     forms: opts.db ? (() => {
-      const kept = createIntakeForms({ db: opts.db })
+      const kept = createIntakeForms({ db: opts.db, storage: opts.storage, released: opts.released })
       const on = async (companyId: string) => !!opts.isFeatureEnabled && await opts.isFeatureEnabled(companyId, 'intake_forms')
+      const offer = (f: any) => ({ id: f.id, name: f.name, kind: f.kind, intro: f.intro, questions: f.questions as any[], signature: (f.signature === 'drawn' ? 'drawn' : 'typed') as 'typed' | 'drawn', beforeConfirm: !!f.beforeConfirm, expired: !!f.expired })
       return {
         async pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }) {
-          return (await on(a.companyId)) ? (await kept.pending(a.companyId, a.contactId, a.serviceMenuId)).map((f) => ({ id: f.id, name: f.name, kind: f.kind, intro: f.intro, questions: f.questions as any[] })) : []
+          return (await on(a.companyId)) ? (await kept.pending(a.companyId, a.contactId, a.serviceMenuId)).map(offer) : []
         },
-        async submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string) {
-          return (await on(a.companyId)) ? kept.submit(a, formId, answers, signedName) : 'Forms are not available.'
+        async submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string, extra?: any) {
+          return (await on(a.companyId)) ? kept.submit(a, formId, answers, signedName, extra) : 'Forms are not available.'
+        },
+        async blocking(a: { companyId: string; contactId: string; serviceMenuId: string | null }, exec?: any) {
+          return (await on(a.companyId)) ? kept.blocking(a, exec) : 0
+        },
+        async request(a: { companyId: string; token: string }) {
+          return (await on(a.companyId)) ? kept.request(a) : null
+        },
+        async answerRequest(a: { companyId: string; token: string }, answers: Record<string, unknown>, signedName: string, extra?: any) {
+          return (await on(a.companyId)) ? kept.answerRequest(a, answers, signedName, extra) : 'Forms are not available.'
         },
       }
     })() : undefined,

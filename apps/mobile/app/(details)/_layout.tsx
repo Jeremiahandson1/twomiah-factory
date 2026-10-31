@@ -27,7 +27,7 @@ export default function DetailsLayout() {
     >
       {/* Screens built with the design system's <Screen> draw their own header and back button; the stack's would show the file name. */}
       {['waiting', 'clock', 'job/checklist', 'leads/index', 'leads/[id]', 'invoices', 'invoice/[id]', 'rows', 'web', 't/[spec]/index', 't/[spec]/[id]', 'texts/index', 'texts/[id]', 'texts/new', 'email/index', 'email/[id]',
-        'office-time', 'office-bookings', 'office-waitlist', 'office-google-reviews', 'office-review-requests', 'reports-summary', 'expenses/index', 'expenses/new', 'visit-photo'].map((name) => (
+        'office-time', 'office-bookings', 'office-waitlist', 'office-google-reviews', 'office-review-requests', 'reports-summary', 'expenses/index', 'expenses/new', 'visit-photo', 'intake-form'].map((name) => (
         <Stack.Screen key={name} name={name} options={{ headerShown: false }} />
       ))}
     </Stack>

@@ -222,8 +222,13 @@ export const booking = pgTable('booking', {
   /** The customer's private link to view, reschedule or cancel (/booking/<token>). */
   token: text('token').notNull(),
   depositAmount: money('deposit_amount'),
-  /** 'none' | 'pending' | 'paid' | 'expired' | 'refunded' */
+  /**
+   * 'none' | 'pending' | 'paid' | 'expired' | 'refunded' | 'forms'. 'forms': held, not yet confirmed, until the client has filled in the forms the
+   * salon requires before confirming (intake forms with "before confirm"); the deposit or card step, if any, comes after them.
+   */
   depositStatus: text('deposit_status').default('none').notNull(),
+  /** When the current hold began, if not at creation (the deposit or card step opens after the forms are done); null = created_at. */
+  holdFrom: timestamp('hold_from'),
   /** The deposit's Stripe page also keeps the client's card for the salon's fee policy (one page, not two; salon parity row 5). */
   keepCard: boolean('keep_card').default(false).notNull(),
   paymentIntentId: text('payment_intent_id'),

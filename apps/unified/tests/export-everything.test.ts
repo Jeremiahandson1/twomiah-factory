@@ -102,7 +102,7 @@ describe('export everything', () => {
   test('every table of the schema is exported, scoped or deliberately left out', () => {
     const plan = exportPlan()
     expect(plan.filter((p) => p.how === 'unclassified')).toEqual([])
-    expect(plan.length).toBe(472) // 10/30: +saved_request, contractor #173, field service #169, restaurant-bar #171, store #174, landscaping #168, roofing #170, home care #172, salon #167; 10/31: +client_billing_splits, +book_block_type, +salon_time_off, +salon_closed_period, +book_preference, +sale_tip_split, +sale_receipt, +patch_test, +salon_supplier, +salon_stock_location, +salon_purchase_order, +salon_purchase_order_line, +salon_sale_seller
+    expect(plan.length).toBe(473) // 10/30: +saved_request, contractor #173, field service #169, restaurant-bar #171, store #174, landscaping #168, roofing #170, home care #172, salon #167; 10/31: +client_billing_splits, +book_block_type, +salon_time_off, +salon_closed_period, +book_preference, +sale_tip_split, +sale_receipt, +patch_test, +salon_supplier, +salon_stock_location, +salon_purchase_order, +salon_purchase_order_line, +salon_sale_seller, +intake_request
   })
 })
 
