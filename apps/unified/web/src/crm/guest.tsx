@@ -53,6 +53,9 @@ interface View {
   selections: Record<string, string[]>
   chosen: Array<{ name: string; quantity: number; unitPrice: number; total: number }>
   subtotal: number; tax: number; total: number
+  contract: { name: string; text: string } | null
+  signers: Array<{ position: number; role: string; roleLabel: string; name: string; status: 'waiting' | 'sent' | 'signed'; signedAt: string | null }>
+  you: { position: number; role: string; roleLabel: string; status: 'waiting' | 'sent' | 'signed'; name: string | null } | null
 }
 const CLOSED: Record<string, string> = { expired: 'This proposal has expired. Please ask us for a new one.', declined: 'This proposal was declined.', superseded: 'We have sent you a newer proposal — please use the newest link in your email.' }
 
@@ -69,9 +72,12 @@ export function ProposalPage() {
   const [declining, setDeclining] = useState(false)
   useEffect(() => { call(base).then(setV).catch((e) => setErr(e.message)) }, [base])
   useEffect(() => { document.title = v?.brand?.name ? `${v.brand.name} — Your event proposal` : 'Your event proposal' }, [v?.brand?.name])
-  const open = v && ['sent', 'viewed'].includes(v.status)
+  const open = v && ['sent', 'viewed', 'partly_signed'].includes(v.status)
+  // The first signer makes the choices; whoever signs after them reads what was chosen. Your turn: the signature box shows.
+  const choosing = !!v && !!open && (v.you?.position ?? 1) === 1 && !v.signers.some((s) => s.status === 'signed')
+  const myTurn = !!v && !!open && (!v.you || v.you.status === 'sent')
   const choose = async (optId: string, choiceId: string, kind: 'single' | 'multi') => {
-    if (!v || !open) return
+    if (!v || !choosing) return
     const cur = v.selections[optId] || []
     const next = kind === 'single' ? (cur[0] === choiceId ? [] : [choiceId]) : cur.includes(choiceId) ? cur.filter((x) => x !== choiceId) : [...cur, choiceId]
     setErr('')
@@ -93,7 +99,9 @@ export function ProposalPage() {
         <p className="text-gray-600 dark:text-slate-400">{[v.space?.name, v.event.guestCount ? `${v.event.guestCount} guests` : '', v.event.type].filter(Boolean).join(' · ')}</p>
         {v.message && <p className="mt-3 whitespace-pre-line">{v.message}</p>}
       </section>
-      {v.status === 'accepted' && <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />Signed by {v.signedBy}{v.acceptedAt ? ` on ${momentDate(v.acceptedAt)}` : ''}. Your date is booked — thank you!</p>}
+      {v.status === 'accepted' && <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />{v.signers.length > 1 ? 'Everyone has signed' : `Signed by ${v.signedBy}`}{v.acceptedAt ? ` on ${momentDate(v.acceptedAt)}` : ''}. Your date is booked — thank you!</p>}
+      {v.status === 'partly_signed' && v.you?.status === 'signed' && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />Thank you — your signature is kept. The date is booked once everyone below has signed; we will email you.</p>}
+      {open && v.you?.status === 'waiting' && <p role="status" className="text-amber-800 dark:text-amber-300">It is not your turn to sign yet. You will be emailed a message when the people before you have signed. You can read everything below.</p>}
       {CLOSED[v.status] && <Err>{CLOSED[v.status]}</Err>}
 
       {v.options.map((o) => (
@@ -105,7 +113,7 @@ export function ProposalPage() {
               const on = (v.selections[o.id] || []).includes(c.id)
               return (
                 <li key={c.id}>
-                  <button type="button" disabled={!open} aria-pressed={on} onClick={() => choose(o.id, c.id, o.kind)} className={`w-full text-left flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${on ? 'border-orange-600 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-300 dark:border-slate-700'} disabled:opacity-70`}>
+                  <button type="button" disabled={!choosing} aria-pressed={on} onClick={() => choose(o.id, c.id, o.kind)} className={`w-full text-left flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${on ? 'border-orange-600 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-300 dark:border-slate-700'} disabled:opacity-70`}>
                     <span className="flex items-center gap-2">{on && <Check className="w-4 h-4" />}{c.label}</span>
                     <span className="text-sm">{c.price > 0 ? `${money(c.price)}${c.perPerson ? ' per guest' : ''}` : 'Included'}</span>
                   </button>
@@ -129,17 +137,25 @@ export function ProposalPage() {
         {v.schedule.length > 0 && <div className="mt-3 text-sm"><p className="font-medium">When you pay</p><ul>{v.schedule.map((s, i) => <li key={i}>{s.label}: {money(s.amount)}{s.dueDate ? `, due ${s.dueDate}` : ''}</li>)}</ul></div>}
       </section>
 
+      {v.contract && <section className={box} data-testid="contract"><h2 className="font-semibold mb-2">{v.contract.name}</h2><p className="whitespace-pre-line text-sm">{v.contract.text}</p></section>}
       {v.terms && <section className={box}><h2 className="font-semibold mb-1">Terms</h2><p className="whitespace-pre-line text-sm">{v.terms}</p></section>}
       {err && <Err>{err}</Err>}
 
-      {open && (
+      {v.signers.length > 1 && (
+        <section className={box} data-testid="signers">
+          <h2 className="font-semibold mb-2">Who signs, in order</h2>
+          <ol className="space-y-1 text-sm">{v.signers.map((s) => <li key={s.position} className="flex items-center gap-2">{s.status === 'signed' ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <span className="w-4" />}<span><strong>{s.roleLabel}</strong> — {s.name}{s.status === 'signed' && s.signedAt ? `, signed ${momentDate(s.signedAt)}` : s.status === 'sent' ? ', waiting to sign' : s.status === 'waiting' ? ', next in line' : ''}</span></li>)}</ol>
+        </section>
+      )}
+
+      {myTurn && (
         <section className={`${box} space-y-3`}>
-          <h2 className="font-semibold flex items-center gap-2"><FileSignature className="w-4 h-4" />Sign to book your date</h2>
+          <h2 className="font-semibold flex items-center gap-2"><FileSignature className="w-4 h-4" />{(v.you?.position ?? 1) === 1 && v.signers.length <= 1 ? 'Sign to book your date' : `Sign as ${v.you?.roleLabel.toLowerCase() || 'the client'}`}</h2>
           <div><label className="block text-sm font-medium mb-1" htmlFor="signer">Your full name</label><input id="signer" className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 dark:border-slate-700" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></div>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I agree that my electronic signature is the legal equivalent of my handwritten signature.</label>
-          {missing && <p className="text-sm text-amber-800 dark:text-amber-300">Please choose for “{missing.title}” first.</p>}
+          {choosing && missing && <p className="text-sm text-amber-800 dark:text-amber-300">Please choose for “{missing.title}” first.</p>}
           {!signing
-            ? <button type="button" disabled={!name.trim() || !consent || !!missing || busy} onClick={() => setSigning(true)} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">Draw my signature</button>
+            ? <button type="button" disabled={!name.trim() || !consent || (choosing && !!missing) || busy} onClick={() => setSigning(true)} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">Draw my signature</button>
             : <div className="space-y-2">{busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <SignaturePad onSave={sign} onCancel={() => setSigning(false)} width={500} height={180} />}</div>}
           <div className="pt-2 border-t border-gray-100 dark:border-slate-800">
             {!declining ? <button type="button" className="text-sm underline text-gray-600 dark:text-slate-400" onClick={() => setDeclining(true)}>This isn’t for me</button> : (
@@ -149,7 +165,7 @@ export function ProposalPage() {
           </div>
         </section>
       )}
-      {v.status === 'accepted' && <a className="inline-flex items-center gap-2 underline" href={`${base}/pdf`}><Download className="w-4 h-4" />Download your signed copy (PDF)</a>}
+      {(v.status === 'accepted' || v.signers.some((x) => x.status === 'signed')) && <a className="inline-flex items-center gap-2 underline" href={`${base}/pdf`}><Download className="w-4 h-4" />{v.status === 'accepted' ? 'Download your signed copy (PDF)' : 'Download the copy so far (PDF)'}</a>}
     </Page>
   )
 }

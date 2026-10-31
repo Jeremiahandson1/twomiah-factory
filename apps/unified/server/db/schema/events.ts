@@ -1,6 +1,6 @@
 // Private-events add-on (restaurants, venues and bars): enquiries and bookings, spaces, menus and packages, deposits
 // and the banquet event order's timeline. Column for column from templates/crm-{restaurant,bar}/backend/db/schema.ts.
-import { pgTable, text, boolean, integer, decimal, timestamp, date, json, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, date, json, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact } from './crm.ts'
@@ -231,6 +231,12 @@ export const eventProposal = pgTable('event_proposal', {
   signedUserAgent: text('signed_user_agent'),
   signatureHash: text('signature_hash'),
   consentAt: timestamp('consent_at'),
+  // Contract and signers (restaurant-bar parity #1): the venue's contract template chosen for this event, frozen as sent; the
+  // signers drafted in their send order (each becomes an event_proposal_signer row when it is sent).
+  contractTemplateId: text('contract_template_id'),
+  contractName: text('contract_name'),
+  contractBody: text('contract_body'),
+  signerPlan: json('signer_plan').default([]).notNull(),   // [{role:'client'|'client_second'|'venue', name, email}] in send order
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -263,4 +269,49 @@ export const eventAutopay = pgTable('event_autopay', {
 }, (t) => [
   index('event_autopay_company_id_idx').on(t.companyId),
   index('event_autopay_event_id_idx').on(t.eventId),
+])
+
+// A contract the venue writes once and chooses per event (#1): text with {{merge fields}} the proposal fills from the event
+// (client, date, room, head count, menu, totals, deposit schedule, guarantee and minimum terms).
+export const eventContractTemplate = pgTable('event_contract_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),                            // "Wedding contract"
+  body: text('body').notNull(),
+  isDefault: boolean('is_default').default(false).notNull(), // used when an event's proposal names none
+  active: boolean('active').default(true).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_contract_template_company_id_idx').on(t.companyId),
+])
+
+// One person who signs a proposal, in the venue's send order (#1): the client, a second client signer, the venue's own
+// countersignature. Each keeps the same evidence a quote keeps — the drawn signature, the typed name, the consent words and
+// the moment — and has a private link; the next signer's link goes out when the one before signs.
+export const eventProposalSigner = pgTable('event_proposal_signer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  proposalId: text('proposal_id').notNull().references(() => eventProposal.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),                 // 1 = first to sign
+  role: text('role').notNull(),                            // client / client_second / venue
+  name: text('name'),                                      // who the venue invited
+  email: text('email').notNull(),
+  token: text('token').notNull(),                          // the signer's private link
+  status: text('status').default('waiting').notNull(),     // waiting (not their turn) / sent / signed
+  sentAt: timestamp('sent_at'),
+  signature: text('signature'),
+  signedBy: text('signed_by'),
+  signedAt: timestamp('signed_at'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
+  consentText: text('consent_text'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_proposal_signer_position_idx').on(t.proposalId, t.position),
+  index('event_proposal_signer_token_idx').on(t.token),
+  index('event_proposal_signer_company_id_idx').on(t.companyId),
 ])

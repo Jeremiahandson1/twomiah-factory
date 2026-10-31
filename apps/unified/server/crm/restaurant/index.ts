@@ -22,7 +22,8 @@ import { createEventSettingsRoutes } from './eventSettings.ts'
 import { createEventMinimumRoutes } from './eventMinimums.ts'
 import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes } from './eventCalendar.ts'
 import { createEventReportRoutes } from './eventReports.ts'
-import { createEventProposalRoutes, createProposalLinkRoutes } from './eventProposals.ts'
+import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
+import { createEventContractRoutes } from './eventContracts.ts'
 import { createEventPaymentRoutes, createEventPayLinkRoutes, startEventPaymentJobs, runPaymentReminders, runAutopay } from './eventPayments.ts'
 import { runGuaranteeReminders } from './eventGuarantee.ts'
 
@@ -55,6 +56,7 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/event-reports', access: 'user', feature: 'event_reports', router: createEventReportRoutes(d) },
     { path: '/api/event-proposals', access: 'user', feature: 'event_proposals', router: createEventProposalRoutes(d) },
     { path: '/api/proposal-links', access: 'public', feature: 'event_proposals', router: createProposalLinkRoutes(d) },
+    { path: '/api/event-contracts', access: 'user', feature: 'event_contracts', router: createEventContractRoutes(d, (companyId, eventId, body) => previewContract(d.db, companyId, eventId, body)) },
     { path: '/api/event-payments', access: 'user', feature: 'event_payment_automation', router: createEventPaymentRoutes(d) },
     { path: '/api/event-pay', access: 'public', feature: 'event_payment_automation', router: createEventPayLinkRoutes(d) },
   ]

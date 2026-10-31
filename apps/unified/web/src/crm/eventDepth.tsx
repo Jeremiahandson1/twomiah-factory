@@ -4,7 +4,7 @@
 // feature on (all of them not ready) and asks the permission its server route asks.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2 } from 'lucide-react'
+import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast, useConfirm, usePrompt, errorText } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -72,8 +72,9 @@ export function GuaranteeNote({ guarantee, event }: { guarantee?: { cutoff: stri
 // ── On the event: proposals ──────────────────────────────────────────────────────────────────────────────────────────
 interface Choice { id?: string; label: string; price: string; perPerson: boolean }
 interface OptionGroup { id?: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Choice[] }
-interface Proposal { id: string; version: number; status: string; message?: string | null; options: Array<{ id: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Array<{ id: string; label: string; price: number; perPerson: boolean }> }>; selections?: Record<string, string[]>; path?: string; sentAt?: string | null; expiresAt?: string | null; acceptedAt?: string | null; signedBy?: string | null; declineReason?: string | null; stale?: boolean }
-const PSTATUS: Record<string, string> = { draft: 'Draft', sent: 'Sent', viewed: 'Opened', accepted: 'Signed', declined: 'Declined', expired: 'Expired', superseded: 'Replaced' }
+interface SignerRow { position: number; role: string; roleLabel: string; name: string | null; status: string; email?: string; path?: string; signedAt?: string | null }
+interface Proposal { id: string; version: number; status: string; contractName?: string | null; signers?: SignerRow[]; message?: string | null; options: Array<{ id: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Array<{ id: string; label: string; price: number; perPerson: boolean }> }>; selections?: Record<string, string[]>; path?: string; sentAt?: string | null; expiresAt?: string | null; acceptedAt?: string | null; signedBy?: string | null; declineReason?: string | null; stale?: boolean }
+const PSTATUS: Record<string, string> = { draft: 'Draft', sent: 'Sent', viewed: 'Opened', partly_signed: 'Part signed', accepted: 'Signed', declined: 'Declined', expired: 'Expired', superseded: 'Replaced' }
 
 export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChanged: () => void }) {
   const { hasFeature, can } = useAuth()
@@ -118,13 +119,24 @@ export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChan
               <span className="font-medium">Proposal {p.version} <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${p.status === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200'}`}>{PSTATUS[p.status] || p.status}</span></span>
               <span className="flex flex-wrap gap-2">
                 {p.status === 'draft' && mayEdit && <button type="button" className={primary} onClick={() => send(p)}><Send className="w-4 h-4" />Send</button>}
-                {p.path && ['sent', 'viewed'].includes(p.status) && <button type="button" className={btn} onClick={() => copy(toast, abs(p.path!))}><Copy className="w-4 h-4" />Copy link</button>}
-                {['sent', 'viewed'].includes(p.status) && mayEdit && <button type="button" className={btn} onClick={() => withdraw(p)}><Ban className="w-4 h-4" />Withdraw</button>}
+                {p.path && !(p.signers && p.signers.length > 1) && ['sent', 'viewed'].includes(p.status) && <button type="button" className={btn} onClick={() => copy(toast, abs(p.path!))}><Copy className="w-4 h-4" />Copy link</button>}
+                {['sent', 'viewed', 'partly_signed'].includes(p.status) && mayEdit && <button type="button" className={btn} onClick={() => withdraw(p)}><Ban className="w-4 h-4" />Withdraw</button>}
                 <button type="button" className={btn} onClick={() => pdf(p)}><Download className="w-4 h-4" />PDF</button>
               </span>
             </div>
             {p.stale && <p role="alert" className="mt-2 text-amber-800 dark:text-amber-300">The date, time, room or head count changed after this was sent — the client can’t sign it. Send a new one.</p>}
-            {p.status === 'accepted' && <p className="mt-2 text-green-800 dark:text-green-300">Signed by {p.signedBy}{p.acceptedAt ? ` on ${whenDateTime(p.acceptedAt)}` : ''}.</p>}
+            {p.status === 'accepted' && !(p.signers && p.signers.length > 1) && <p className="mt-2 text-green-800 dark:text-green-300">Signed by {p.signedBy}{p.acceptedAt ? ` on ${whenDateTime(p.acceptedAt)}` : ''}.</p>}
+            {p.contractName && <p className={`mt-2 ${muted}`}><ScrollText className="w-4 h-4 inline mr-1" />Contract: {p.contractName}</p>}
+            {p.signers && p.signers.length > 1 && (
+              <ol className="mt-2 space-y-1" data-testid="proposal-signers">
+                {p.signers.map((sg) => (
+                  <li key={sg.position} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">{sg.status === 'signed' ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <span className="w-4" />}<strong>{sg.roleLabel}</strong> {sg.name || ''}<span className={muted}>{sg.status === 'signed' && sg.signedAt ? `signed ${whenDateTime(sg.signedAt)}` : sg.status === 'sent' ? 'has the link, not signed' : sg.status === 'waiting' ? 'waiting its turn' : 'in the draft'}</span></span>
+                    {sg.path && mayEdit && <button type="button" className={btn} onClick={() => copy(toast, abs(sg.path!))}><Copy className="w-4 h-4" />Copy link</button>}
+                  </li>
+                ))}
+              </ol>
+            )}
             {p.status === 'declined' && <p className="mt-2">Declined{p.declineReason ? `: “${p.declineReason}”` : '.'}</p>}
             {p.options.length > 0 && <p className={`mt-2 ${muted}`}>{p.options.map((o) => `${o.title} (${o.choices.length})`).join(' · ')}</p>}
           </li>
@@ -135,8 +147,28 @@ export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChan
   )
 }
 
+interface ContractTemplate { id: string; name: string; body: string; isDefault: boolean; active: boolean }
+interface SignerDraft { role: 'client' | 'client_second' | 'venue'; name: string; email: string }
+const SIGNER_WORDS: Record<SignerDraft['role'], string> = { client: 'Client', client_second: 'Second client signer', venue: 'Venue (countersignature)' }
+
 function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClose: () => void; onMade: () => void }) {
   const toast = useToast()
+  const { hasFeature } = useAuth()
+  const contracts = hasFeature('event_contracts')
+  const [templates, setTemplates] = useState<ContractTemplate[]>([])
+  const [templateId, setTemplateId] = useState<string>('')
+  const [preview, setPreview] = useState('')
+  const [signers, setSigners] = useState<SignerDraft[]>([{ role: 'client', name: '', email: '' }])
+  useEffect(() => {
+    if (!contracts) return
+    client.get('/api/event-contracts').then((r: { data: ContractTemplate[] }) => { const on = r.data.filter((t) => t.active); setTemplates(on); setTemplateId(on.find((t) => t.isDefault)?.id || '') }).catch(() => setTemplates([]))
+  }, [contracts])
+  useEffect(() => {
+    if (!templateId) { setPreview(''); return }
+    client.get(`/api/event-contracts/${templateId}/preview`, { eventId }).then((r: { text: string }) => setPreview(r.text)).catch(() => setPreview(''))
+  }, [templateId, eventId])
+  const addSigner = (role: SignerDraft['role']) => setSigners((x) => (x.some((y) => y.role === role) ? x : [...x, { role, name: '', email: '' }]))
+  const moveSigner = (i: number, by: -1 | 1) => setSigners((x) => { const n = [...x]; const j = i + by; if (j < 1 || j >= n.length) return x; [n[i], n[j]] = [n[j], n[i]]; return n })
   const [message, setMessage] = useState('')
   const [groups, setGroups] = useState<OptionGroup[]>([])
   const [busy, setBusy] = useState(false)
@@ -146,7 +178,7 @@ function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClos
   const submit = async () => {
     setBusy(true); setErr('')
     try {
-      await client.post('/api/event-proposals', { eventId, message: message.trim() || undefined, options: groups.map((g) => ({ title: g.title, kind: g.kind, required: g.required, choices: g.choices.map((c) => ({ label: c.label, price: Number(c.price || 0), perPerson: c.perPerson })) })) })
+      await client.post('/api/event-proposals', { eventId, message: message.trim() || undefined, ...(contracts ? { contractTemplateId: templateId || null, signers: signers.map((x) => ({ role: x.role, ...(x.name.trim() ? { name: x.name.trim() } : {}), ...(x.email.trim() ? { email: x.email.trim() } : {}) })) } : {}), options: groups.map((g) => ({ title: g.title, kind: g.kind, required: g.required, choices: g.choices.map((c) => ({ label: c.label, price: Number(c.price || 0), perPerson: c.perPerson })) })) })
       toast.success('Draft made — send it when you are ready'); onMade()
     } catch (e) { setErr(errorText(e, 'Could not make the proposal')) } finally { setBusy(false) }
   }
@@ -156,6 +188,42 @@ function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClos
         <h3 className="text-lg font-semibold">New proposal</h3>
         <p className={muted}>It is made from the event as it stands now — room, date, hours, head count, menu lines, minimum and the payment schedule. Add the choices the client makes.</p>
         <div><label className={label}>Note to the client</label><textarea value={message} onChange={(e) => setMessage(e.target.value)} className={input} rows={2} /></div>
+        {contracts && (
+          <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2" data-testid="contract-choice">
+            <label className={label} htmlFor="contract-template">Contract</label>
+            <select id="contract-template" className={input} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              <option value="">No contract — the terms in settings only</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? ' (default)' : ''}</option>)}
+            </select>
+            {preview && <details><summary className="cursor-pointer text-sm underline">Read it filled in for this event</summary><p className={`mt-2 whitespace-pre-line text-sm ${muted}`}>{preview}</p></details>}
+          </div>
+        )}
+        {contracts && (
+          <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2" data-testid="signers-choice">
+            <p className="font-medium">Who signs, in order</p>
+            <p className={`text-sm ${muted}`}>The client signs first and makes the choices. Each person is emailed when the one before them has signed. The event is booked when the last one signs.</p>
+            <ol className="space-y-2">
+              {signers.map((sg, i) => (
+                <li key={sg.role} className="flex flex-wrap items-end gap-2">
+                  <span className="w-48 font-medium">{i + 1}. {SIGNER_WORDS[sg.role]}</span>
+                  {sg.role === 'client' ? <span className={muted}>the event’s client, by their email</span> : (
+                    <>
+                      <input className={`${input} w-44`} placeholder="Full name" aria-label={`${SIGNER_WORDS[sg.role]} name`} value={sg.name} onChange={(e) => setSigners((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} />
+                      <input className={`${input} w-56`} type="email" placeholder={sg.role === 'venue' ? 'Email (blank = the business email)' : 'Email'} aria-label={`${SIGNER_WORDS[sg.role]} email`} value={sg.email} onChange={(e) => setSigners((x) => x.map((y, j) => (j === i ? { ...y, email: e.target.value } : y)))} />
+                      <button type="button" className={btn} aria-label="Sign earlier" disabled={i <= 1} onClick={() => moveSigner(i, -1)}><ArrowUp className="w-4 h-4" /></button>
+                      <button type="button" className={btn} aria-label="Sign later" disabled={i >= signers.length - 1} onClick={() => moveSigner(i, 1)}><ArrowDown className="w-4 h-4" /></button>
+                      <button type="button" className={btn} aria-label={`Remove ${SIGNER_WORDS[sg.role]}`} onClick={() => setSigners((x) => x.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+            <div className="flex gap-2">
+              {!signers.some((x) => x.role === 'client_second') && <button type="button" className={btn} onClick={() => addSigner('client_second')}><Plus className="w-4 h-4" />Add a second client signer</button>}
+              {!signers.some((x) => x.role === 'venue') && <button type="button" className={btn} onClick={() => addSigner('venue')}><Plus className="w-4 h-4" />Add the venue’s countersignature</button>}
+            </div>
+          </div>
+        )}
         {groups.map((g, i) => (
           <div key={i} className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
             <div className="flex gap-2 items-end">
@@ -226,6 +294,74 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
             ? <>The client left a {data.autopay.brand || 'card'} ending {data.autopay.last4}; each payment is charged to it on its due date.{mayEdit && <button type="button" className={btn} onClick={stop}>Stop</button>}</>
             : data.cardsOn ? <span className={muted}>No card on file. The client can leave one from any pay link.</span> : <span className={muted}>Card payments are not switched on for this business, so pay links show the amount only.</span>}
         </p>
+      )}
+    </section>
+  )
+}
+
+// ── Settings: the venue's contract templates ─────────────────────────────────────────────────────────────────────────
+interface MergeField { id: string; label: string; example: string }
+export function ContractTemplatesPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_contracts') && can('invoices:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<ContractTemplate[] | null>(null)
+  const [fields, setFields] = useState<MergeField[]>([])
+  const [edit, setEdit] = useState<{ id?: string; name: string; body: string; isDefault: boolean; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-contracts')) as { data: ContractTemplate[] }).data); setFields(((await client.get('/api/event-contracts/fields')) as { data: MergeField[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the contract templates')) }
+  }, [toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    try {
+      const body = { name: edit.name, body: edit.body, isDefault: edit.isDefault, active: edit.active }
+      if (edit.id) await client.put(`/api/event-contracts/${edit.id}`, body); else await client.post('/api/event-contracts', body)
+      setEdit(null); await load(); toast.success('Contract saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the contract')) }
+  }
+  const remove = async (t: ContractTemplate) => {
+    if (!(await ask('Proposals already sent keep the words they were sent with.', { title: `Delete “${t.name}”?`, confirmText: 'Delete' }))) return
+    try { await client.delete('/api/event-contracts', t.id); await load() } catch (e) { toast.error(errorText(e, 'Could not delete it')) }
+  }
+  return (
+    <section className={card} data-testid="contract-templates">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><ScrollText className="w-4 h-4" />Contract templates</h2>
+        {may && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ name: '', body: '', isDefault: !rows?.length, active: true }) }}><Plus className="w-4 h-4" />New contract</button>}
+      </div>
+      <p className={`${muted} mb-3`}>Write a contract once with merge fields like {'{{client_name}}'}; choose it for each event’s proposal and the event’s own date, room, menu, totals and terms are filled in when the client reads and signs.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>No contract templates yet.</p>}
+      <ul className="space-y-2">
+        {rows?.map((t) => (
+          <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+            <span><strong>{t.name}</strong>{t.isDefault ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100">Default</span> : null}{!t.active ? <span className={`ml-2 ${muted}`}>switched off</span> : null}</span>
+            {may && <span className="flex gap-2"><button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: t.id, name: t.name, body: t.body, isDefault: t.isDefault, active: t.active }) }}>Edit</button><button type="button" className={btn} aria-label={`Delete ${t.name}`} onClick={() => remove(t)}><Trash2 className="w-4 h-4" /></button></span>}
+          </li>
+        ))}
+      </ul>
+      {edit && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" role="dialog" aria-label={edit.id ? 'Edit contract' : 'New contract'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-3xl p-6 space-y-3 mt-8">
+            <h3 className="text-lg font-semibold">{edit.id ? 'Edit contract' : 'New contract'}</h3>
+            <div><label className={label} htmlFor="ct-name">Name</label><input id="ct-name" className={input} value={edit.name} placeholder="Wedding contract" onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+            <div><label className={label} htmlFor="ct-body">Contract text</label><textarea id="ct-body" className={`${input} font-mono text-xs`} rows={14} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></div>
+            <div>
+              <p className={`${label} mb-1`}>Fields — click to add one at the end</p>
+              <div className="flex flex-wrap gap-1">{fields.map((f) => <button key={f.id} type="button" title={`For example: ${f.example}`} className="px-2 py-0.5 rounded-full border border-gray-300 dark:border-slate-600 text-xs hover:bg-gray-50 dark:hover:bg-slate-800" onClick={() => setEdit({ ...edit, body: `${edit.body}${edit.body && !edit.body.endsWith('\n') ? ' ' : ''}{{${f.id}}}` })}>{f.label}</button>)}</div>
+            </div>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={edit.isDefault} onChange={(e) => setEdit({ ...edit, isDefault: e.target.checked })} />Use this for proposals that do not name a contract</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />Offer it when building a proposal</label>
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save}>Save</button></div>
+          </div>
+        </div>
       )}
     </section>
   )
@@ -443,6 +579,7 @@ export function EventInsightsPage() {
           )}
         </section>
       )}
+      <ContractTemplatesPanel />
       {showSettings && settings && (
         <section className={card} data-testid="event-settings">
           <h2 className="font-semibold mb-3 flex items-center gap-2"><Settings2 className="w-4 h-4" />Event settings</h2>
