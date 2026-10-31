@@ -563,11 +563,22 @@ export const techHours = pgTable('tech_hours', {
   weekday: integer('weekday').notNull(), // 0 = Sunday … 6 = Saturday, as Date.getUTCDay() on a job's day marker
   startsAt: text('starts_at').notNull(),
   endsAt: text('ends_at').notNull(),
+  /**
+   * A shift is a window on a weekday (0055, ServiceTitan's shift types). Several a day is a split shift (no unique
+   * index on person + weekday any more); `kind` on_call is a shift the person can be called out on, drawn apart on the
+   * Dispatch Board and offered after regular hours by Find a time; `ends_next_day` is an overnight shift (22:00–06:00
+   * ends on the next calendar day); `starts_on` / `ends_on` (day markers, both included, either null) bound a recurring
+   * pattern — a summer rota, a cover week — and a shift with neither runs every week.
+   */
+  kind: text('kind').default('regular').notNull(),
+  endsNextDay: boolean('ends_next_day').default(false).notNull(),
+  startsOn: timestamp('starts_on'),
+  endsOn: timestamp('ends_on'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('tech_hours_company_id_idx').on(t.companyId),
-  uniqueIndex('tech_hours_user_weekday_key').on(t.userId, t.weekday),
-  uniqueIndex('tech_hours_member_weekday_key').on(t.memberId, t.weekday),
+  index('tech_hours_user_idx').on(t.userId),
+  index('tech_hours_member_idx').on(t.memberId),
 ])
 
 /** Time off per person (0042): whole days (day markers, midnight UTC, both ends included) or, with times, part of them. */
