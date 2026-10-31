@@ -40,6 +40,7 @@ interface Service {
   priceIsFrom?: boolean;
   rebookIntervalDays?: number | null;
   requiresPatchTest?: boolean;
+  prepayOnline?: boolean;
   bookableOnline?: boolean;
   active?: boolean;
   /** This service's own no-show / late-cancel fee, whole cents or a percent (null = the salon's fee). */
@@ -167,6 +168,9 @@ export default function ServiceMenuPage() {
                       {s.bookableOnline && (
                         <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full dark:text-sky-300 dark:bg-sky-950/40">online</span>
                       )}
+                      {s.prepayOnline && (
+                        <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full dark:text-emerald-300 dark:bg-emerald-950/40">paid in full online</span>
+                      )}
                       {s.requiresPatchTest && (
                         <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full dark:text-amber-300 dark:bg-amber-950/40">
                           <AlertTriangle className="w-3 h-3" /> patch test
@@ -224,6 +228,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
     priceIsFrom: service?.priceIsFrom ?? false,
     rebookIntervalDays: service?.rebookIntervalDays?.toString() || '',
     requiresPatchTest: service?.requiresPatchTest ?? false,
+    prepayOnline: service?.prepayOnline ?? false,
     bookableOnline: service?.bookableOnline ?? false,
     active: service?.active ?? true,
   });
@@ -245,6 +250,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
         // reminders off — so it must be sent as null, not omitted.
         rebookIntervalDays: form.rebookIntervalDays === '' ? null : Number(form.rebookIntervalDays),
         requiresPatchTest: form.requiresPatchTest,
+        prepayOnline: form.prepayOnline,
         bookableOnline: form.bookableOnline,
         active: form.active,
       };
@@ -352,7 +358,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <input id="priceIsFrom" type="checkbox" checked={form.priceIsFrom} onChange={(e) => set('priceIsFrom', e.target.checked)} className="w-4 h-4" />
+                <input id="priceIsFrom" type="checkbox" checked={form.priceIsFrom} onChange={(e) => { set('priceIsFrom', e.target.checked); if (e.target.checked) set('prepayOnline', false); }} className="w-4 h-4" />
                 <label htmlFor="priceIsFrom" className="text-sm font-medium text-gray-700 dark:text-slate-200">Price is a starting point ("from $250")</label>
               </div>
               <div className="flex items-center gap-2">
@@ -363,6 +369,15 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
                 <input id="bookableOnline" type="checkbox" checked={form.bookableOnline} onChange={(e) => set('bookableOnline', e.target.checked)} className="w-4 h-4" />
                 <label htmlFor="bookableOnline" className="text-sm font-medium text-gray-700 dark:text-slate-200">Bookable online (shows on the booking page)</label>
               </div>
+              {form.bookableOnline && (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <input id="prepayOnline" type="checkbox" checked={form.prepayOnline} disabled={form.priceIsFrom || !(Number(form.price) > 0)} onChange={(e) => set('prepayOnline', e.target.checked)} className="w-4 h-4" />
+                    <label htmlFor="prepayOnline" className="text-sm font-medium text-gray-700 dark:text-slate-200">Take the full price when booking online</label>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 ml-6">The client pays the whole price on Stripe's page, into your own Stripe account, and the visit's sale is already paid at the chair. Needs a fixed price (not a "from" price).</p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input id="active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
                 <label htmlFor="active" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active on the menu</label>

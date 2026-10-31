@@ -147,10 +147,11 @@ describe('salon: the card step at online booking', () => {
     const row = await bookingOf(r.body.token)
     expect([row.status, row.depositStatus]).toEqual(['cancelled', 'expired'])
     expect(sessionCalls.filter((c) => c.args.metadata.booking_token === r.body.token)).toHaveLength(0)
-    // a late card (Stripe page finished after the release) does not bring it back
+    // a late card (Stripe page finished after the release) brings it back when the time is still free (salon parity row 5; the full
+    // rule, and the time-taken case, are in salon-card-deposit-online.test.ts)
     const sid = 'cs_late'; sessionMeta[sid] = { kind: 'card_on_file', company_id: co, contact_id: row.contactId as string, booking_token: r.body.token, consent_via: 'client_online' }
     await cardEvent(sid)
-    expect((await bookingOf(r.body.token)).status).toBe('cancelled')
+    expect((await bookingOf(r.body.token)).status).toBe('confirmed')
   })
 
   test('switched off in every other way: option off, Card on file off, or no Stripe link — online booking stands at once', async () => {

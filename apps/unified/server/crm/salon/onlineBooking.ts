@@ -49,7 +49,7 @@ type MenuItem = typeof serviceMenu.$inferSelect
  */
 export async function keepOnlineService(exec: any, m: MenuItem) {
   const offered = m.bookableOnline && m.active
-  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, priceIsFrom: m.priceIsFrom, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
+  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, priceIsFrom: m.priceIsFrom, prepay: m.prepayOnline && !m.priceIsFrom && m.price != null && Number(m.price) > 0, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
   const [linked] = await exec.select({ id: bookingService.id }).from(bookingService).where(and(eq(bookingService.companyId, m.companyId), eq(bookingService.serviceMenuId, m.id))).limit(1)
   if (linked) { await exec.update(bookingService).set(values).where(eq(bookingService.id, linked.id)); return }
   if (!offered) return
@@ -207,6 +207,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       if (!b.appointmentId) return
       const own = and(eq(appointment.id, b.appointmentId), eq(appointment.companyId, b.companyId), notInArray(appointment.status, ['completed', 'in_chair', 'checked_in']))
       if (change === 'moved') await exec.update(appointment).set({ startTime: b.startAt, endTime: b.endAt, stylistId: b.assignedUserId ?? null, updatedAt: new Date() }).where(own)
+      // A hold that ran out and then came back (a late card or payment, the time still free): the visit is on the Book again.
+      else if (b.status === 'confirmed' && change === 'status') await exec.update(appointment).set({ status: 'scheduled', cancelledAt: null, updatedAt: new Date() }).where(and(own, eq(appointment.status, 'cancelled')))
       else if (b.status === 'cancelled' || b.status === 'no_show') await exec.update(appointment).set({ status: b.status, updatedAt: new Date(), ...(b.status === 'cancelled' ? { cancelledAt: b.cancelledAt ?? new Date() } : {}) }).where(own)
     },
 

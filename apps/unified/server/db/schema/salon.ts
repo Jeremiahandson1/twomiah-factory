@@ -124,6 +124,8 @@ export const serviceMenu = pgTable('service_menu', {
   durationMin: integer('duration_min').default(60).notNull(),
   price: decimal('price', { precision: 10, scale: 2 }),
   priceIsFrom: boolean('price_is_from').default(false).notNull(), // "from $250" — colour is rarely fixed
+  /** Online booking takes the whole price at booking, on the salon's own Stripe (needs a fixed price; row 5). */
+  prepayOnline: boolean('prepay_online').default(false).notNull(),
   rebookIntervalDays: integer('rebook_interval_days'),
   requiresPatchTest: boolean('requires_patch_test').default(false).notNull(),
   bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)

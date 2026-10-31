@@ -379,17 +379,28 @@ export function createStripeService(deps: StripeServiceDeps) {
     cancelUrl: string
     /** When the page stops taking payment: Stripe allows 30 minutes to 24 hours from now. */
     expiresAt: Date
+    /**
+     * Keep the paying card for later charges too (one page, not two): the card is saved on the business's Stripe customer for the
+     * client and reaches the app as checkout.session.completed (kind booking_deposit, save_card 1), where retrieveDepositCard reads it.
+     */
+    keepCard?: { contactRow: any; metadata?: Record<string, string> }
   }): Promise<{ url: string; sessionId: string; stripeAccount: string } | null> {
     if (!stripe) return null
     const stripeAccount = await connectedAccountFor(params.companyId)
     if (!stripeAccount) return null
-    const metadata = { booking_id: params.bookingId, company_id: params.companyId, kind: 'booking_deposit' }
+    const keep = params.keepCard
+    const customer = keep ? await getOrCreateCustomer(keep.contactRow, stripeAccount) : null
+    const metadata = {
+      booking_id: params.bookingId, company_id: params.companyId, kind: 'booking_deposit',
+      ...(keep ? { ...(keep.metadata || {}), save_card: '1', contact_id: keep.contactRow.id } : {}),
+    }
     const min = Date.now() + 31 * 60_000, max = Date.now() + 23.5 * 3600_000
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      customer_email: params.customerEmail,
+      // A saved card needs a customer to belong to; Stripe takes the email from it.
+      ...(customer ? { customer: customer.id } : { customer_email: params.customerEmail }),
       line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: Math.round(params.amount * 100), product_data: { name: params.description } } }],
-      payment_intent_data: { description: params.description, metadata },
+      payment_intent_data: { description: params.description, metadata, ...(customer ? { setup_future_usage: 'off_session' as const } : {}) },
       metadata,
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
@@ -507,6 +518,26 @@ export function createStripeService(deps: StripeServiceDeps) {
     }, requestOpts(stripeAccount))
     if (!session.url) return null
     return { url: session.url, sessionId: session.id, stripeAccount }
+  }
+
+  /** The card a finished deposit page kept (createBookingDepositCheckout keepCard): the same shape as retrieveCardSetup. Null when none was kept. */
+  async function retrieveDepositCard(sessionId: string, stripeAccount: string | null) {
+    if (!stripe) return null
+    const session: any = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent.payment_method'] }, requestOpts(stripeAccount))
+    const intent = session?.payment_intent
+    const method = intent && typeof intent === 'object' ? intent.payment_method : null
+    if (!method || typeof method !== 'object' || method.type !== 'card') return null
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
+    if (!customerId) return null
+    return {
+      customerId: customerId as string,
+      paymentMethodId: method.id as string,
+      brand: (method.card?.brand as string | undefined) ?? null,
+      last4: (method.card?.last4 as string | undefined) ?? null,
+      expMonth: (method.card?.exp_month as number | undefined) ?? null,
+      expYear: (method.card?.exp_year as number | undefined) ?? null,
+      metadata: (session.metadata || {}) as Record<string, string>,
+    }
   }
 
   /** The card a finished setup page saved: Stripe's ids and the brand/last four — never a number. Null when none was saved. */
@@ -1146,6 +1177,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     chargeInvoiceOffSession,
     createCardSetupCheckout,
     retrieveCardSetup,
+    retrieveDepositCard,
     chargeSavedCard,
     tapToPayConnection,
     createTapToPayIntent,

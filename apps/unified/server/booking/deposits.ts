@@ -10,6 +10,8 @@ export interface DepositCheckouts {
   createBookingDepositCheckout(p: {
     bookingId: string; companyId: string; amount: number; customerEmail: string; description: string
     successUrl: string; cancelUrl: string; expiresAt: Date
+    /** Keep the paying card too, on this same page (salon parity row 5). */
+    keepCard?: { contactRow: any; metadata?: Record<string, string> }
   }): Promise<{ url: string; sessionId: string } | null>
 }
 
@@ -20,6 +22,7 @@ export function createStripeDeposits(stripe: DepositCheckouts, origin: () => str
       const page = await stripe.createBookingDepositCheckout({
         bookingId: a.bookingId, companyId: a.companyId, amount: a.amount, customerEmail: a.customerEmail, description: a.description,
         successUrl: back + '?deposit=paid', cancelUrl: back + '?deposit=cancelled', expiresAt: a.expiresAt,
+        ...(a.keepCard ? { keepCard: { contactRow: a.keepCard.contactRow, metadata: { consent_via: 'client_online' } } } : {}),
       })
       return page ? { url: page.url, reference: page.sessionId } : null
     },

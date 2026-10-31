@@ -393,6 +393,13 @@
       "when": 1793469973255,
       "tag": "0055_card_policy_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793470938785,
+      "tag": "0056_card_deposit_prepay",
+      "breakpoints": true
     }
   ]
 }

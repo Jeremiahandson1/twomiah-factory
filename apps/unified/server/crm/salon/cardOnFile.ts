@@ -239,9 +239,35 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
   const savedHooks: SavedHook[] = []
   const onSaved = (fn: SavedHook) => { savedHooks.push(fn) }
 
+  /**
+   * The card a booking's deposit page kept (createBookingDepositCheckout keepCard; salon parity row 5), kept on the client with the policy
+   * words as they stand now. Nothing here replaces the deposit's own event: the payment confirms the booking as it always did.
+   */
+  async function keepDepositCard(session: Stripe.Checkout.Session, stripeAccount: string): Promise<void> {
+    const companyId = session.metadata?.company_id, contactId = session.metadata?.contact_id
+    if (!companyId || !contactId || (await connectedAccount(companyId)) !== stripeAccount) return
+    const [c] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1)
+    if (!c) return
+    const saved = await stripe().retrieveDepositCard(session.id, stripeAccount)
+    if (!saved) return
+    const [made] = await db.insert(clientCard).values({
+      companyId, contactId, stripeAccount, stripeCustomerId: saved.customerId, paymentMethodId: saved.paymentMethodId,
+      brand: saved.brand, last4: saved.last4, expMonth: saved.expMonth, expYear: saved.expYear,
+      consentAt: new Date(), consentText: policyWords(await policyOf(companyId)), consentVia: 'client_online', consentUserId: null,
+    }).onConflictDoNothing().returning({ id: clientCard.id })
+    if (made) {
+      await audit.log({ action: 'create', entity: 'client_card', entityId: made.id, metadata: { contactId, brand: saved.brand, last4: saved.last4, consentVia: 'client_online', with: 'booking deposit' }, companyId })
+      live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'client_card' })
+    }
+  }
+
   async function claim(event: Stripe.Event, stripeAccount: string): Promise<Record<string, unknown> | null> {
     if (event.type !== 'checkout.session.completed') return null
     const session = event.data.object as Stripe.Checkout.Session
+    if (session.mode === 'payment' && session.metadata?.kind === 'booking_deposit' && session.metadata?.save_card === '1') {
+      await keepDepositCard(session, stripeAccount).catch((e: any) => logger.error('[cardOnFile] deposit card not kept', { error: e?.message || String(e) }))
+      return null   // the deposit's own events go on to the booking
+    }
     if (session.mode !== 'setup' || session.metadata?.kind !== 'card_on_file') return null
     const companyId = session.metadata?.company_id, contactId = session.metadata?.contact_id
     if (!companyId || !contactId) return { handled: false, reason: 'card setup without a client' }

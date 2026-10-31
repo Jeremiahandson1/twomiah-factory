@@ -16,6 +16,13 @@ import { BookingError } from './engine.ts'
 // The site's one rule for a tab's title, "Page — Business, City, ST" (site/menu.ts), as every other page of the site.
 import { pageTitle } from '../site/menu.ts'
 import { whenText } from './emails.ts'
+
+/** An opening offered after a late card or payment: "Tue, Nov 3 · 10:00 AM". */
+const openingText = (date: string, time: string) => {
+  const day = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const [h, m] = time.split(':').map(Number)
+  return `${day} · ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
 import { icsOf } from './happenings.ts'
 import { renderBody, escHtml } from '../site/render.ts'
 import { EMBED_CSP } from '../http/guards.ts'
@@ -208,7 +215,16 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const amount = price(String(Number(b.depositAmount || 0) + Number(b.tipAmount || 0)))
     const holdsCard = waitingCard && holdEnds.getTime() > Date.now()
     const terms = holdsCard ? await engine.cardTerms(b) : null
-    const note = c.req.query('card') === 'saved' && !c.req.query('cancelled') ? (b.status === 'confirmed'
+    // A deposit whose page also keeps the card: the policy to agree to sits beside the button (the server refuses the page without the tick).
+    const depositTerms = held ? await engine.depositTerms(b) : null
+    // A card or payment that came after the hold ran out and the time could not come back: said in words, with the next openings.
+    const late = (c.req.query('card') === 'saved' || c.req.query('deposit') === 'paid') && b.status === 'cancelled' ? await engine.lateNote(b) : null
+    const lateHtml = late ? `<p class="book-error" role="alert">${c.req.query('deposit') === 'paid'
+      ? (b.depositStatus === 'refunded' ? 'Your payment arrived after the hold ran out, and the time had already been taken, so it has been refunded.' : 'Your payment arrived after the hold ran out, and the time had already been taken, so it is being refunded.')
+      : 'Your card is saved, but the hold ran out before it arrived and the time has been given to someone else.'} Please choose another time.</p>
+      ${late.times.length ? `<ul class="book-late-times">${late.times.map((t) => `<li>${escHtml(openingText(t.date, t.time))}</li>`).join('')}</ul>` : ''}
+      <div class="book-actions"><a class="book-submit" href="/book/${escHtml(late.slug)}${keep(c)}"${top(c)}>Choose a new time</a></div>` : ''
+    const note = late ? '' : c.req.query('card') === 'saved' && !c.req.query('cancelled') ? (b.status === 'confirmed'
         ? '<p class="book-ok" role="status">Thank you — your card is saved and your booking is confirmed. A confirmation is on its way.</p>'
         : waitingCard ? '<p class="book-ok" role="status">Thank you — your card is being confirmed. This usually takes a few seconds; refresh to see it.</p>' : '')
       : (c.req.query('card') === 'cancelled' || (c.req.query('card') && c.req.query('cancelled'))) && holdsCard ? `<p class="book-error" role="alert">No card was saved. Your time is held until ${escHtml(whenText(holdEnds, tz))} — add your card below to keep it.</p>`
@@ -222,13 +238,13 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       : c.req.query('error') ? `<p class="book-error" role="alert">${escHtml(c.req.query('error')!)}</p>` : ''
     const body = `<section class="book-thanks"><div class="container container--narrow">
       <h1>Your booking</h1>
-      ${note}
+      ${note}${lateHtml}
       <div class="book-thanks__summary">
         <div><span>Service</span><strong>${escHtml(svc?.name || 'Booking')}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         <div><span>Status</span><strong>${escHtml(status)}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
-        ${b.depositAmount ? `<div><span>Deposit</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
+        ${b.depositAmount ? `<div><span>${svc?.prepay ? 'Payment' : 'Deposit'}</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
       ${forms.length ? `<div class="book-forms"><h2>Before your visit</h2><p class="book-thanks__lead">Please fill in ${forms.length === 1 ? 'this form' : 'these forms'} — it saves us time at your appointment.</p><ul>${forms.map((f) => `<li><a href="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}${keep(c)}"${top(c)}>${escHtml(f.name)}</a></li>`).join('')}</ul></div>` : ''}
       ${holdsCard ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/card"${top(c)}>
@@ -238,7 +254,13 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <div class="book-actions"><button type="submit" class="book-submit">Add my card</button></div>
         <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>
       </form>` : waitingCard ? '<p class="book-error" role="alert">The hold ran out before a card was added, and the time has been offered to others. Please book again.</p>' : ''}
-      ${held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>Pay the ${escHtml(amount)} deposit</a></div>
+      ${held && depositTerms ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/pay"${top(c)}>
+        <p class="book-thanks__lead">${svc?.prepay ? `Pay the ${escHtml(amount)} now` : `Pay the ${escHtml(amount)} deposit`} on our payment provider's page. The card you pay with is also <strong>kept securely</strong> for the policy below.</p>
+        <p class="book-card__terms">${escHtml(depositTerms)}</p>
+        <label class="book-check"><input type="checkbox" name="agree" value="1" required> I agree to the above and to keeping my card on file.</label>
+        <div class="book-actions"><button type="submit" class="book-submit">${svc?.prepay ? `Pay ${escHtml(amount)} and keep my card` : `Pay the ${escHtml(amount)} deposit and keep my card`}</button></div>
+        <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>
+      </form>` : held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>${svc?.prepay ? `Pay ${escHtml(amount)}` : `Pay the ${escHtml(amount)} deposit`}</a></div>
       <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>` : ''}
       ${open ? `<div class="book-actions">
         ${svc?.active ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule"${top(c)}>Reschedule</a>` : ''}
@@ -322,18 +344,24 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     return c.redirect(`/booking/${b.token}?form=done${keep(c, '&')}`, 303)
   })
 
-  app.get('/booking/:token/pay', async (c) => {
+  // The deposit's own page. One that also keeps the card is opened only from the form (POST below) with its tick.
+  const payPage = async (c: any, agreed: boolean) => {
     const s = await site(c); if (!s) return c.notFound()
     const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
     if (!b) return c.notFound()
-    const url = await engine.depositPage(s.ctx.companyId, b)
+    if (b.keepCard && !agreed) {
+      return c.redirect(`/booking/${b.token}?error=${encodeURIComponent('Please tick the box to agree before paying.')}`, 303)
+    }
+    const url = await engine.depositPage(s.ctx.companyId, b, { agreed })
     if (url) return c.redirect(url, 303)
     const now = await engine.byToken(s.ctx.companyId, b.token)
     const why = now?.depositStatus === 'paid' ? '' : now?.status === 'cancelled'
       ? 'The time was not held any longer — please book again.'
       : 'Card payment is not available right now — please get in touch.'
     return c.redirect(`/booking/${b.token}${why ? '?error=' + encodeURIComponent(why) : ''}`, 303)
-  })
+  }
+  app.get('/booking/:token/pay', (c) => payPage(c, false))
+  app.post('/booking/:token/pay', async (c) => payPage(c, !!(await c.req.parseBody().catch(() => ({} as Record<string, unknown>))).agree))
 
   app.get('/booking/:token/reschedule', async (c) => {
     const s = await site(c); if (!s) return c.notFound()

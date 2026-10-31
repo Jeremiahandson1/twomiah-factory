@@ -87,6 +87,8 @@ export const bookingService = pgTable('booking_service', {
   /** A deposit to book: a fixed amount, or a percent of the price (one or the other). */
   depositAmount: money('deposit_amount'),
   depositPercent: integer('deposit_percent'),
+  /** Pay the whole price at booking (a salon service's "Take the full price online", kept from the menu by keepOnlineService). Wins over the deposit above. */
+  prepay: boolean('prepay').default(false).notNull(),
   bufferBeforeMinutes: integer('buffer_before_minutes').default(0).notNull(),
   bufferAfterMinutes: integer('buffer_after_minutes').default(0).notNull(),
   /** Start times step by this many minutes. */
@@ -222,6 +224,8 @@ export const booking = pgTable('booking', {
   depositAmount: money('deposit_amount'),
   /** 'none' | 'pending' | 'paid' | 'expired' | 'refunded' */
   depositStatus: text('deposit_status').default('none').notNull(),
+  /** The deposit's Stripe page also keeps the client's card for the salon's fee policy (one page, not two; salon parity row 5). */
+  keepCard: boolean('keep_card').default(false).notNull(),
   paymentIntentId: text('payment_intent_id'),
   depositPaidAt: timestamp('deposit_paid_at'),
   tipAmount: money('tip_amount'),
