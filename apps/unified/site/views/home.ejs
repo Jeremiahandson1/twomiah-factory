@@ -31,7 +31,7 @@
   %>
   <% if (onepageAnchor) { %><span id="<%= onepageAnchor %>" class="onepage-anchor" aria-hidden="true"></span><% } %>
   <% try { %>
-    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, words: words, site: _site, live: _live, md: _md, currentPath: _path, isFirst: index === 0, smsConsent: _consent }) %>
+    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, words: words, site: _site, live: _live, md: _md, currentPath: _path, isFirst: index === 0, smsConsent: _consent, disclosure: (typeof financingDisclosure === 'string' ? financingDisclosure : '') }) %>
   <% } catch (e) {
        if (!/Could not find the include file/.test(String(e && e.message))) {
          console.error('[site] section ' + type + '/' + variant + ' failed: ' + (e && e.message));

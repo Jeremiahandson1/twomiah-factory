@@ -11,6 +11,7 @@ import { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
+import { openLenderPage, mayOfferFinancing } from '../../../src/payments/financing'
 import { invoiceStatusLabel, paymentMethodLabel } from '../../../src/home/labels'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
@@ -74,6 +75,10 @@ export default function InvoiceDetailScreen() {
   const canPay = canUpdate && balance > 0 && !['void', 'draft', 'refunded'].includes(invoice?.status)
   const canSend = canUpdate && !['void', 'refunded', 'paid'].includes(invoice?.status)
 
+  // Customer financing (consumer_financing, not ready): the phone only opens the lender's own page (src/payments/financing.ts).
+  const financing = mayOfferFinancing(can, hasFeature, balance > 0 && !['void', 'draft', 'refunded', 'paid'].includes(invoice?.status))
+  const openFinancing = async () => { const problem = await openLenderPage('invoice', String(invoice.id)); if (problem) toast.error(problem) }
+
   const openPay = () => { setAmount(balance > 0 ? balance.toFixed(2) : ''); setMethod('cash'); setTip(''); setSheet('pay') }
   const recordPayment = async () => {
     const dollars = paymentDollars(amount)
@@ -127,6 +132,10 @@ export default function InvoiceDetailScreen() {
 
         {invoice.contact ? (
           <Group><ListRow icon="person" title={invoice.contact.name} subtitle="Customer" divider={false} onPress={() => router.push(`/(details)/contact/${invoice.contact.id || invoice.contactId}` as any)} /></Group>
+        ) : null}
+
+        {financing ? (
+          <Group><ListRow icon="open-outline" title="Offer customer financing" subtitle="Opens the lender's page" divider={false} onPress={openFinancing} /></Group>
         ) : null}
 
         {items.length > 0 ? (

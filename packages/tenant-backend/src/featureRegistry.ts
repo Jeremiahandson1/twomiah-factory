@@ -234,7 +234,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // funded payment, and a Financing page. Hidden until a real lender sandbox run passes (owner: untested features stay
   // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
   // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
-  { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
+  { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
   // Job Reminders — NOT ready (2026-10-30). The reminder text and email the day before a job the office booked
   // (apps/unified server/crm/field/jobReminders.ts), per business, off until the owner switches it on, inside the
   // business's sending hours. Hidden until the owner has tested it; no plan, signup or Features page switches it on.

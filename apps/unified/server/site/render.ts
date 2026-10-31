@@ -3,6 +3,7 @@
 import ejs from 'ejs'
 import { siteSectionFeature } from '@twomiah/tenant-backend'
 import { consentBoxHtml } from './smsConsent.ts'
+import { DISCLOSURE } from '../crm/financing/lender.ts'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Context } from 'hono'
@@ -107,6 +108,8 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
     homepage, settings: effective, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
     site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
+    // The lender's required disclosure (crm/financing/lender.ts): the financing calculator shows a payment and an APR, so it shows this with them.
+    financingDisclosure: DISCLOSURE,
   }) as string
   const jsonLd = facts && o.facts ? o.facts.source.jsonLd(facts, { slug: currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections, settings: effective, about: o.facts.about }) : ''
   return wrap(ctx, body, effective, currentPath, lcpImage, hero.preloads, jsonLd || structuredDataFor(ctx, effective, { origin, path: currentPath, title: meta.title || '', sections }))

@@ -23,6 +23,8 @@ import { useTheme } from '../../../src/theme/ThemeContext'
 import { ACTION, ACTION_INK } from '../../../src/theme/actions'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
+import { openLenderPage, mayOfferFinancing } from '../../../src/payments/financing'
+import { useVertical } from '../../../src/vertical/VerticalContext'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
@@ -39,6 +41,7 @@ export default function QuoteDetailScreen() {
   const toast = useToast()
   const haptics = useHaptics()
   const { can } = useAuth()
+  const { hasFeature } = useVertical()
   const canUpdate = can('quotes:update')
   const canInvoice = can('invoices:create')
   const [quote, setQuote] = useState<any>(null)
@@ -89,6 +92,7 @@ export default function QuoteDetailScreen() {
     )
   }
 
+  const financing = mayOfferFinancing(can, hasFeature, !!quote?.contactId || !!quote?.contact) && !['declined', 'rejected'].includes(quote?.status)
   const items: any[] = Array.isArray(quote.lineItems) ? quote.lineItems : []
   const num = (v: unknown) => Number(v) || 0
   const money = (v: unknown) => `$${num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -143,6 +147,24 @@ export default function QuoteDetailScreen() {
                   {quote.contact.name}
                 </Text>
                 {quote.contact.email && <Text style={{ fontSize: 12, color: t.textMuted }}>{quote.contact.email}</Text>}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
+            </TouchableOpacity>
+          </AnimatedCard>
+        )}
+
+        {/* Customer financing: the phone only opens the lender's own page (src/payments/financing.ts) */}
+        {financing && (
+          <AnimatedCard index={1}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, flexDirection: 'row', alignItems: 'center', gap: 10 }]}
+              onPress={async () => { const problem = await openLenderPage('quote', String(quote.id)); if (problem) toast.error(problem) }}
+            >
+              <Ionicons name="open-outline" size={22} color={t.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.contactName, { color: t.text }]}>Offer customer financing</Text>
+                <Text style={{ fontSize: 12, color: t.textMuted }}>Opens the lender's page</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
             </TouchableOpacity>

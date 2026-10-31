@@ -15,7 +15,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import { invoice, quote } from '../../db/schema/index.ts'
 import { createFinancingService, type FinancingService } from './service.ts'
-import { SIGNATURE_HEADER } from './lender.ts'
+import { wisetack as lender } from './lender.ts'
 
 /** A refusal from the service as a reply: its status, sentence, code and the boxes it names. */
 async function answer(c: any, work: () => Promise<Response>) {
@@ -125,9 +125,9 @@ export function createFinancingPublicRoutes(d: CrmDeps, financing: FinancingServ
   })
 
   // The lender's webhook: the raw body, so the signature is checked on the bytes that were signed.
-  app.post('/webhook/wisetack', async (c) => {
+  app.post(lender.webhookRoute, async (c) => {
     const raw = await c.req.text()
-    const r = await financing.webhook(raw, c.req.header(SIGNATURE_HEADER))
+    const r = await financing.webhook(raw, c.req.header(lender.signatureHeader))
     return r.status >= 400 ? fail(c, r.status as any, String(r.body.error)) : one(c, r.body)
   })
 

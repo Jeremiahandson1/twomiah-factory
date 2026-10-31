@@ -15,7 +15,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { invoiceBalance, recordInvoicePayment, publicApiBase } from '@twomiah/tenant-backend'
 import { company, contact, financingApplication, financingEvent, invoice, job, payment, quote } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
-import { DISCLOSURE, FINAL, LENDER, createTransaction, moves, monthlyPayment, normalizeStatus, parseLenderEvent, partnerApi, verifyWisetackWebhook, webhookSecret, type FinancingStatus } from './lender.ts'
+import { DISCLOSURE, FINAL, LENDER, moves, monthlyPayment, normalizeStatus, wisetack as lender, type FinancingStatus } from './lender.ts'
 
 /** An error a route turns into its status (http/errors.ts reads `.status`). */
 const refuse = (message: string, status = 400, code?: string) => Object.assign(new Error(message), { status, code })
@@ -93,8 +93,8 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'servi
       prequalUrl: conn?.prequalUrl ?? null,
       connectedAt: conn?.connectedAt || null,
       // Whether this server can open applications at the lender and hear back (Twomiah's partner credentials).
-      partnerApi: !!partnerApi(),
-      webhooks: !!webhookSecret(),
+      partnerApi: !!lender.partnerApi(),
+      webhooks: !!lender.webhookSecret(),
       minAmount: LENDER.minAmount,
       maxAmount: LENDER.maxAmount,
       signupUrl: LENDER.merchantSignupUrl,
@@ -145,13 +145,13 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'servi
 
     const [person] = await db.select().from(contact).where(and(eq(contact.id, doc.contactId), eq(contact.companyId, companyId))).limit(1)
     if (!person) throw refuse('The customer on this ' + kind + ' was not found.', 409)
-    const api = partnerApi()
+    const api = lender.partnerApi()
     let externalId: string | null = null, applyUrl = conn.prequalUrl, st: FinancingStatus = 'not_started'
     if (api) {
       const [first, ...rest] = String(person.name || '').trim().split(/\s+/)
-      const opened = await createTransaction(api, {
+      const opened = await lender.createTransaction(api, {
         merchantId: conn.merchantId, amount: doc.amount, reference: `${kind}:${doc.id}`,
-        callbackUrl: `${publicApiBase()}/api/financing-public/webhook/wisetack`,
+        callbackUrl: lender.callbackUrl(publicApiBase()),
         customer: { firstName: first || '', lastName: rest.join(' '), email: person.email || null, phone: person.mobile || person.phone || null },
       })
       externalId = opened.transactionId; applyUrl = opened.applyUrl; st = opened.status
@@ -269,12 +269,12 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'servi
    * answered as already applied — and settles a funded application whose payment did not land the first time.
    */
   async function webhook(rawBody: string, signature: string | null | undefined): Promise<{ status: number; body: Record<string, unknown> }> {
-    const secret = webhookSecret()
+    const secret = lender.webhookSecret()
     if (!secret) return { status: 503, body: { error: 'Lender webhooks are not set up on this server.' } }
-    if (!verifyWisetackWebhook(rawBody, signature, secret)) return { status: 401, body: { error: 'Invalid signature' } }
+    if (!lender.verifyWebhook(rawBody, signature, secret)) return { status: 401, body: { error: 'Invalid signature' } }
     let body: any
     try { body = JSON.parse(rawBody) } catch { return { status: 400, body: { error: 'The body is not JSON' } } }
-    const ev = parseLenderEvent(body)
+    const ev = lender.parseEvent(body)
     if ('error' in ev) return { status: 400, body: { error: ev.error } }
     const [app] = await db.select().from(financingApplication).where(and(eq(financingApplication.provider, LENDER.id), eq(financingApplication.externalId, ev.transactionId))).limit(1)
     if (!app) {
