@@ -8,9 +8,8 @@ import { api } from '../../../../api'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { errorText, useToast } from '../../../../shared'
 import { listOf } from './http'
+import { SETTABLE_ORDER_STATUSES, orderStatusLabel } from '../lib/supplier'
 
-const STATUSES = ['not_ordered', 'ordered', 'partial', 'delivered', 'cancelled'] as const
-const label = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
 /** The supply houses a roofer names most (lib/supplier.ts KNOWN), offered as they type; anything typed is kept. */
 export const SUPPLIERS = ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'Allied Building Products', 'Home Depot', "Lowe's", 'Bradco Supply', 'Gulfeagle Supply', 'Roofers Supply']
@@ -117,7 +116,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
           <div>
             <label htmlFor="mo-status" className={lab}>Status</label>
             <select id="mo-status" value={form.orderStatus} onChange={(e) => set('orderStatus', e.target.value)} className={input}>
-              {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+              {SETTABLE_ORDER_STATUSES.map((s) => <option key={s} value={s}>{orderStatusLabel(s)}</option>)}
             </select>
           </div>
           <div>

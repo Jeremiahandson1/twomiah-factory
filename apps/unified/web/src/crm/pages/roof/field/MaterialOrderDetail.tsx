@@ -8,7 +8,7 @@ import { api } from '../../../../api'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { errorText, useAuth, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { supplierName } from '../lib/supplier'
+import { orderStatusLabel, supplierName } from '../lib/supplier'
 
 interface Line { description?: string; qty?: number; unit?: string; unitPrice?: number; total?: number }
 export interface OrderRecord {
@@ -18,8 +18,6 @@ export interface OrderRecord {
   contactName?: string | null; contactPhone?: string | null; contactEmail?: string | null
   notes?: string | null; lineItems?: Line[] | null; totalCost?: string | number | null
 }
-
-export const statusWords = (s: string | null | undefined) => (s || '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 
 export default function MaterialOrderDetail({ orderId, jobNumber, onClose }: { orderId: string; jobNumber?: string | null; onClose: () => void }) {
   const toast = useToast()
@@ -55,7 +53,7 @@ export default function MaterialOrderDetail({ orderId, jobNumber, onClose }: { o
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Material order{order?.poNumber ? ` ${order.poNumber}` : ''}</h2>
-            {order && <p className="text-sm text-gray-600 dark:text-slate-400">{supplierName(order.supplier)} · {statusWords(order.orderStatus ?? order.status)}</p>}
+            {order && <p className="text-sm text-gray-600 dark:text-slate-400">{supplierName(order.supplier)} · {orderStatusLabel(order.orderStatus ?? order.status)}</p>}
           </div>
           {order && hasList && (
             <button type="button" onClick={print} disabled={printing} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 dark:bg-slate-800 dark:hover:bg-slate-700">

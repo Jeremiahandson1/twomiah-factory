@@ -8,7 +8,7 @@ import { api } from '../../../../api'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { useAuth, useMayWrite, usePermissions } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { supplierName } from '../lib/supplier'
+import { orderStatusLabel, supplierName } from '../lib/supplier'
 import { listOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
 import MaterialOrderDetail from './MaterialOrderDetail'
@@ -63,7 +63,7 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
                 <span className="font-medium text-gray-900 dark:text-slate-100">{supplierName(o.supplier) || '—'}</span>
                 <span className="flex items-center gap-3">
                   <button type="button" onClick={() => setViewing(o.id)} className="text-xs font-medium text-orange-700 hover:underline dark:text-orange-300">Open</button>
-                  <span className="text-xs text-gray-600 dark:text-slate-400">{(o.status || '').replace(/_/g, ' ')}</span>
+                  <span className="text-xs text-gray-600 dark:text-slate-400">{orderStatusLabel(o.status)}</span>
                 </span>
               </div>
               <p className="text-xs text-gray-600 dark:text-slate-400">

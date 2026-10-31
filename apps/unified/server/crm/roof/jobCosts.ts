@@ -31,8 +31,11 @@ import type { CrmDeps } from '../deps.ts'
 /** Work orders that commit the shop to their price: the crew has been asked, or has said yes, or has done the work. */
 export const PRICED_WORK_ORDER_STATUSES = ['sent', 'accepted', 'completed'] as const
 
-/** Orders that are real spend. 'not_ordered' is a shopping list, 'cancelled' never happened. */
-export const SPEND_ORDER_STATUSES = ['ordered', 'partial', 'delivered'] as const
+/**
+ * Orders that are real spend. A draft ('not_ordered') and a ready-to-send order are shopping lists, a rejected one was refused
+ * and 'cancelled' never happened; an order SENT to the supplier is committed money, as one the roofer phoned in is.
+ */
+export const SPEND_ORDER_STATUSES = ['sent', 'ordered', 'partial', 'delivered'] as const
 
 const num = (v: unknown) => Number(v || 0)
 const round2 = (n: number) => Math.round(n * 100) / 100

@@ -80,6 +80,9 @@ const dateOf = (field: string, v: string | undefined): { value?: Date | null; er
   return Number.isNaN(d.getTime()) ? { error: `${field}: Enter a valid date.` } : { value: d }
 }
 
+/** `sent` belongs to the send action: a hand-set Sent would claim a message that was never sent. */
+const HAND_SET_SENT = 'An order is marked Sent when it is sent to the supplier. Use Send to supplier; to record an order you phoned in, choose Ordered.'
+
 export function createMaterialRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
@@ -146,6 +149,7 @@ export function createMaterialRoutes(d: CrmDeps) {
     const deliveryDate = dateOf('deliveryDate', data.deliveryDate)
     if (orderDate.error || deliveryDate.error) return fail(c, 400, (orderDate.error || deliveryDate.error)!)
     if (!(await ownJob(companyId, data.jobId))) return fail(c, 404, 'That job does not exist.')
+    if (data.orderStatus === 'sent') return fail(c, 400, HAND_SET_SENT, 'status_sent_by_sending', { orderStatus: HAND_SET_SENT })
     // The order is worth what its line items are worth.
     const { lineItems, total } = normaliseLineItems(data.lineItems)
     const [created] = await db.insert(material).values({
@@ -170,7 +174,9 @@ export function createMaterialRoutes(d: CrmDeps) {
     const parsed = partialOf(materialSchema).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
-    if (!(await ownOrder(companyId, id))) return fail(c, 404, 'Material order not found')
+    const before = await ownOrder(companyId, id)
+    if (!before) return fail(c, 404, 'Material order not found')
+    if (data.orderStatus === 'sent' && before.orderStatus !== 'sent') return fail(c, 400, HAND_SET_SENT, 'status_sent_by_sending', { orderStatus: HAND_SET_SENT })
     if (data.jobId && !(await ownJob(companyId, data.jobId))) return fail(c, 404, 'That job does not exist.')
     const orderDate = dateOf('orderDate', data.orderDate)
     const deliveryDate = dateOf('deliveryDate', data.deliveryDate)

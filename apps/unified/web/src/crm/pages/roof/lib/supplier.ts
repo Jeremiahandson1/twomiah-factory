@@ -45,3 +45,18 @@ export function supplierName(raw?: string | null): string {
     .map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
     .join(' ')
 }
+
+/**
+ * A MATERIAL ORDER'S STATUS IN THE ROOFER'S WORDS. Roofr's are draft, ready to send, sent, rejected and delivered; ours keep
+ * ordered and partly delivered for the order a roofer phones in. `not_ordered` is the stored word for a draft. The server has the
+ * same words for its documents (server/crm/roof/materialStatus.ts) — the web build cannot import them.
+ */
+export const ORDER_STATUS_LABELS: Record<string, string> = {
+  not_ordered: 'Draft', ready_to_send: 'Ready to send', sent: 'Sent', rejected: 'Rejected', ordered: 'Ordered',
+  partial: 'Partly delivered', delivered: 'Delivered', cancelled: 'Cancelled',
+}
+export const orderStatusLabel = (s?: string | null): string =>
+  ORDER_STATUS_LABELS[String(s ?? '')] ?? String(s ?? '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+
+/** The statuses a roofer may set by hand: Sent is set only by sending the order. */
+export const SETTABLE_ORDER_STATUSES = ['not_ordered', 'ready_to_send', 'ordered', 'partial', 'delivered', 'rejected', 'cancelled'] as const

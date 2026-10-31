@@ -38,7 +38,12 @@ export function pipelineFor(features: readonly string[]): string[] {
 /** Every status a roofing job may hold. */
 export const JOB_STATUSES = [...PIPELINE_STATUSES, ...TERMINAL_STATUSES] as const
 
-export const MATERIAL_ORDER_STATUSES = ['not_ordered', 'ordered', 'partial', 'delivered', 'cancelled'] as const
+/**
+ * A material order's status. Roofr's are draft, ready, sent, rejected and delivered; ours keep what a roofer who orders by phone
+ * already used (ordered, partly delivered) and add the ones sending needs. `not_ordered` is the stored word for a draft (rows
+ * already hold it); the screens say "Draft". `sent` is set only by sending the order (a hand-set Sent would have no send behind it).
+ */
+export const MATERIAL_ORDER_STATUSES = ['not_ordered', 'ready_to_send', 'sent', 'rejected', 'ordered', 'partial', 'delivered', 'cancelled'] as const
 
 export const CANVASSING_OUTCOMES = [
   'no_answer', 'not_interested', 'interested', 'appointment_set', 'already_has_contractor', 'vacant',

@@ -5,7 +5,8 @@
 // Changes from the template:
 //   · the Total Cost column follows margin:read — the permission the server withholds an order's prices by — where the
 //     template read a `moneyWithheld` flag the list no longer carries;
-//   · the status filter offers the statuses an order can have (not ordered, ordered, partial, delivered, cancelled); the
+//   · the status filter offers the statuses an order can have (draft, ready to send, sent, rejected, ordered, partly delivered,
+//     delivered, cancelled — Roofr's words where it has them); the
 //     template offered draft and shipped, which no order ever has, and lacked not ordered and partial;
 //   · the total and the page count are the reply's pagination;
 //   · the columns are Roofr's order dashboard (status, PO number, job, address, supplier, order date, delivery, amount) and each
@@ -15,7 +16,7 @@ import { ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react'
 import { api } from '../../../../api'
 import { errorText, useMayWrite, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { supplierName } from '../lib/supplier'
+import { ORDER_STATUS_LABELS, orderStatusLabel, supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
 import MaterialOrderDetail from './MaterialOrderDetail'
@@ -24,15 +25,16 @@ import { money } from '@twomiah/tenant-ui/src/money'
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
 const STATUS_COLORS: Record<string, string> = {
   not_ordered: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  ready_to_send: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
+  sent: 'bg-sky-100 text-sky-800 dark:text-sky-300 dark:bg-sky-950/40',
+  rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   ordered: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   partial: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
 
-function formatStatus(s: string | null | undefined) {
-  return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
+const formatStatus = (s: string | null | undefined) => orderStatusLabel(s)
 
 interface MaterialOrder {
   id: string
@@ -141,7 +143,7 @@ export default function MaterialsPage() {
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
-            {Object.keys(STATUS_COLORS).map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+            {Object.keys(ORDER_STATUS_LABELS).map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
           </select>
           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
             <span>From</span>

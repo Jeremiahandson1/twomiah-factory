@@ -299,3 +299,25 @@ describe('opening an order and printing it', () => {
     } finally { s.undo() }
   })
 })
+
+describe('statuses in the roofer\'s words', () => {
+  test('the Materials filter and badges use Roofr\'s words (Draft, Ready to send, Sent, Rejected, Delivered) beside Ordered and Partly delivered', async () => {
+    const order = { id: 'm1', jobId: 'j1', jobNumber: 'ROOF-1', supplier: 'ABC Supply', status: 'not_ordered', orderDate: null, deliveryDate: null }
+    const s = stub(() => ({ data: [order, { ...order, id: 'm2', status: 'ready_to_send' }, { ...order, id: 'm3', status: 'sent' }], pagination: { page: 1, limit: 25, total: 3, pages: 1 } }))
+    try {
+      await mount(h(MaterialsPage), { permissions: ['inventory:read'] })
+      const filter = [...document.querySelectorAll('select')].find((el: any) => [...el.options].some((o: any) => o.textContent === 'All Statuses')) as any
+      expect([...filter.options].map((o: any) => o.textContent)).toEqual(['All Statuses', 'Draft', 'Ready to send', 'Sent', 'Rejected', 'Ordered', 'Partly delivered', 'Delivered', 'Cancelled'])
+      const badges = [...document.querySelectorAll('tbody tr')].map((tr: any) => tr.children[0].textContent.trim())
+      expect(badges).toEqual(['Draft', 'Ready to send', 'Sent'])
+    } finally { s.undo() }
+  })
+
+  test('the order form offers every status but Sent, which only sending sets', async () => {
+    const s = stub(() => ({ data: [] }))
+    try {
+      await mount(h(MaterialOrderForm, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      expect([...(document.getElementById('mo-status') as any).options].map((o: any) => o.textContent)).toEqual(['Draft', 'Ready to send', 'Ordered', 'Partly delivered', 'Delivered', 'Rejected', 'Cancelled'])
+    } finally { s.undo() }
+  })
+})
