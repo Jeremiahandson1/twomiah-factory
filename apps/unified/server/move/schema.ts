@@ -28,12 +28,20 @@ export async function readLayout(query: Query): Promise<Layout> {
     })
     layout.set(c.table_name, t)
   }
-  const keys = await query(`SELECT tc.table_name, tc.constraint_type, kcu.column_name, ccu.table_name AS ref_table, ccu.column_name AS ref_column
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-    LEFT JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema AND tc.constraint_type = 'FOREIGN KEY'
-    WHERE tc.table_schema = 'public' AND tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
-    ORDER BY tc.table_name, kcu.ordinal_position`)
+  // Primary and foreign keys from the catalog. This read the three information_schema views joined on constraint name,
+  // which took ~58 s on the unified schema (PGlite; slow on a real server too) — every move read it twice. The catalog
+  // gives the same rows (checked row for row, 10/31) in ~50 ms, and pairs a composite key's columns by position.
+  const keys = await query(`SELECT t.relname AS table_name, CASE c.contype WHEN 'p' THEN 'PRIMARY KEY' ELSE 'FOREIGN KEY' END AS constraint_type,
+           a.attname AS column_name, rt.relname AS ref_table, ra.attname AS ref_column
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public'
+      CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+      LEFT JOIN pg_class rt ON rt.oid = c.confrelid
+      LEFT JOIN pg_attribute ra ON ra.attrelid = c.confrelid AND ra.attnum = c.confkey[k.ord]
+     WHERE c.contype IN ('p', 'f')
+     ORDER BY t.relname, k.ord`)
   for (const k of keys.rows) {
     const t = layout.get(k.table_name)
     if (!t) continue

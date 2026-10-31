@@ -26,13 +26,42 @@ const wrap = async (db: PGlite): Promise<Db> => {
   return { db, query, layout: await readLayout(query) }
 }
 
+// Built once per test process, copied for each test. Replaying a template's migrations, its prune and its reconcile (a
+// child process), and the unified app's 50 migrations, for every case made move-run alone take ~11 minutes in CI (two
+// databases a case). A database built once is dumped, and each caller gets a fresh one loaded from that dump —
+// identical, and nothing one test writes reaches another.
+// The layout (readLayout: every table's columns and keys) is read once with the dump: reading it is most of the cost
+// (~55 s for the unified schema on PGlite, against ~3 s to build), and a copy's layout is its original's.
+const snapshots = new Map<string, Promise<{ dump: Blob; layout: Layout }>>()
+async function fromSnapshot(key: string, build: () => Promise<PGlite>): Promise<Db> {
+  let snap = snapshots.get(key)
+  if (!snap) {
+    snap = build().then(async (db) => {
+      const { layout } = await wrap(db)
+      const dump = await db.dumpDataDir('none')
+      await db.close()
+      return { dump, layout }
+    })
+    snapshots.set(key, snap)
+    snap.catch(() => snapshots.delete(key)) // a failed build is tried again by the next caller, not handed out
+  }
+  const { dump, layout } = await snap
+  const db = new PGlite({ loadDataDir: dump })
+  const query: Query = (text, params) => db.query(text, params as any[]) as any
+  return { db, query, layout }
+}
+
 /** The unified app's database, from its own migrations. */
-export const unifiedDb = async () => wrap(await migrated(path.join(ROOT, 'apps/unified/server/db/migrations')))
+export const unifiedDb = async () => fromSnapshot('unified', () => migrated(path.join(ROOT, 'apps/unified/server/db/migrations')))
 
 /**
  * A live template tenant's database. `keepLegacy`: a tenant whose prune never ran (its quickbooks_connection survives).
  */
 export async function liveTemplate(template: 'crm' | 'crm-bar', opts: { keepLegacy?: boolean } = {}): Promise<Db> {
+  return fromSnapshot(`${template}:${opts.keepLegacy ? 'legacy' : 'pruned'}`, () => buildLiveTemplate(template, opts))
+}
+
+async function buildLiveTemplate(template: 'crm' | 'crm-bar', opts: { keepLegacy?: boolean }): Promise<PGlite> {
   const backend = path.join(ROOT, 'templates', template, 'backend')
   const db = await migrated(path.join(backend, 'db/migrations'))
   // db/prune-legacy.ts: its LEGACY_TABLES and ENSURE lists, read from the file so the test follows the template.
@@ -49,7 +78,7 @@ export async function liveTemplate(template: 'crm' | 'crm-bar', opts: { keepLega
   const specs = JSON.parse(run.stdout) as TableSpec[]
   const result = await reconcileSchema({ execute: async (s) => (await db.query(s)).rows as any[] }, specs, { log: () => {} })
   if (result.errors.length) throw new Error(`reconcile ${template}: ${result.errors.map((e) => e.error).join('; ')}`)
-  return wrap(db)
+  return db
 }
 
 /** Inserts a row with the given values (only the columns the table has); every other required column gets a plain value. */
