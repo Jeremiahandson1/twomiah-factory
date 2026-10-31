@@ -9,14 +9,19 @@ import { errorText, useMayWrite, useToast } from '../../../../shared'
 import { SUPPLIERS } from './MaterialOrderForm'
 
 interface ListLine { code?: string; description: string; qty: number | string; unit: string; basis?: string }
+interface ReportChoice { id: string; kind: 'roof_report' | 'provider_report'; label: string; provider: string | null; createdAt: string }
 interface Built {
-  squares: number; squaresSource: 'job' | 'measurement' | 'typed' | null; orderedSquares: number
+  squares: number; squaresSource: 'job' | 'measurement' | 'typed' | 'roof_report' | 'provider_report' | null; orderedSquares: number
   lengths: Record<string, number>; estimated: string[]; lines: ListLine[]; warnings: string[]; assumptions: Record<string, number | string>
+  lengthSources: Record<string, 'typed' | 'roof_report' | 'provider_report' | 'estimated' | 'none'>
+  lengthsReport: ReportChoice | null; reportChoices: ReportChoice[]
 }
 interface Labels { [k: string]: { label: string; unit: string; help: string } }
 
 const LENGTHS: Array<[string, string]> = [['eaveFt', 'Eave (ft)'], ['rakeFt', 'Rake (ft)'], ['ridgeFt', 'Ridge and hip (ft)'], ['valleyFt', 'Valley (ft)']]
-const SOURCE: Record<string, string> = { job: 'entered on the job', measurement: 'from its measurement report', typed: 'typed here' }
+const SOURCE: Record<string, string> = { job: 'entered on the job', measurement: 'from its measurement report', typed: 'typed here', roof_report: 'from its roof report', provider_report: 'from the provider report' }
+const PROVIDERS: Array<[string, string]> = [['eagleview', 'EagleView'], ['hover', 'HOVER'], ['gaf', 'GAF QuickMeasure']]
+const IMPORT_LENGTHS: Array<[string, string]> = [['eaveFt', 'Eave (ft)'], ['rakeFt', 'Rake (ft)'], ['ridgeFt', 'Ridge (ft)'], ['hipFt', 'Hip (ft)'], ['valleyFt', 'Valley (ft)']]
 
 export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId: string; onClose: () => void; onSaved: () => void }) {
   const toast = useToast()
@@ -27,14 +32,21 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   const [lengths, setLengths] = useState<Record<string, string>>({})
   const [changed, setChanged] = useState<Record<string, string>>({})
   const [lines, setLines] = useState<ListLine[]>([])
+  // Which report the lengths are read from: '' = the job's newest, 'none' = none (estimate from the squares).
+  const [reportId, setReportId] = useState('')
+  const mayMeasure = useMayWrite('measurements:create') // what POST …/provider-report asks
+  const [importing, setImporting] = useState(false)
+  const [imp, setImp] = useState<Record<string, string>>({ provider: 'eagleview' })
   const [supplier, setSupplier] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const work = useCallback(async (sq: string, ls: Record<string, string>, over: Record<string, string>) => {
+  const work = useCallback(async (sq: string, ls: Record<string, string>, over: Record<string, string>, from = '') => {
     setError('')
     try {
       const params: Record<string, string> = { ...over }
+      if (from === 'none') params.lengthsFrom = 'none'
+      else if (from) params.reportId = from
       if (sq) params.squares = sq
       for (const [k, v] of Object.entries(ls)) if (v !== '') params[k] = v
       const r = (await api.get(`/api/material-list/jobs/${jobId}`, params)) as Built
@@ -48,7 +60,21 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
     api.get('/api/material-list/assumptions').then((r: any) => setLabels(r?.labels || {})).catch(() => setLabels({}))
   }, [work])
 
-  const recalc = () => work(squares, lengths, changed)
+  const recalc = () => work(squares, lengths, changed, reportId)
+  const pickReport = (id: string) => { setReportId(id); setLengths({}); work(squares, {}, changed, id) }
+  const importReport = async () => {
+    setError('')
+    try {
+      const num = (k: string) => (imp[k] ? Number(imp[k]) : 0)
+      await api.post(`/api/material-list/jobs/${jobId}/provider-report`, {
+        provider: imp.provider, reportNumber: imp.reportNumber || undefined, squares: Number(imp.squares),
+        eaveFt: num('eaveFt'), rakeFt: num('rakeFt'), ridgeFt: num('ridgeFt'), hipFt: num('hipFt'), valleyFt: num('valleyFt'),
+      })
+      toast.success('Report added to the job')
+      setImporting(false); setImp({ provider: 'eagleview' }); setReportId(''); setLengths({})
+      await work('', {}, changed, '')
+    } catch (err) { setError(errorText(err, 'Could not add the report')) }
+  }
   const setLine = (i: number, k: keyof ListLine, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
   const wasteNow = changed.wastePercent ?? String(built?.assumptions.wastePercent ?? 10)
 
@@ -77,13 +103,50 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
         <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
           {built?.squaresSource ? `${built.squares} squares, ${SOURCE[built.squaresSource]}.` : 'This job has no squares yet — type them below.'} Change anything; the list is yours to edit before it becomes an order.
         </p>
+        <div className="mb-3 text-sm text-gray-700 dark:text-slate-300" data-testid="lengths-source">
+          {built?.lengthsReport
+            ? <p>Eave, rake, ridge and valley lengths are measured: {built.lengthsReport.label}.</p>
+            : <p>No report with measured lengths is on this job — the lengths are estimated from the squares unless you type them.</p>}
+          {(built?.reportChoices.length ?? 0) > 0 && (
+            <div className="mt-2 max-w-md">
+              <label htmlFor="ml-report" className={lab}>Read the lengths from</label>
+              <select id="ml-report" value={reportId} onChange={(e) => pickReport(e.target.value)} className={input}>
+                <option value="">The job&apos;s newest report</option>
+                {built!.reportChoices.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                <option value="none">None — estimate from the squares</option>
+              </select>
+            </div>
+          )}
+          {mayMeasure && (
+            <button type="button" onClick={() => setImporting((v) => !v)} className="mt-2 text-sm font-medium text-orange-700 hover:underline dark:text-orange-300">
+              {importing ? 'Close' : 'I have an EagleView, HOVER or GAF report'}
+            </button>
+          )}
+        </div>
+        {importing && (
+          <div className="mb-4 rounded-lg border p-3 dark:border-slate-700" data-testid="provider-import">
+            <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">Type the squares and lengths from the report. It is kept on the job as its measurement.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div><label htmlFor="pi-provider" className={lab}>Report from</label>
+                <select id="pi-provider" value={imp.provider} onChange={(e) => setImp((v) => ({ ...v, provider: e.target.value }))} className={input}>
+                  {PROVIDERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select></div>
+              <div><label htmlFor="pi-number" className={lab}>Report number</label><input id="pi-number" value={imp.reportNumber ?? ''} onChange={(e) => setImp((v) => ({ ...v, reportNumber: e.target.value }))} className={input} /></div>
+              <div><label htmlFor="pi-squares" className={lab}>Squares *</label><input id="pi-squares" type="number" min={0} step="any" value={imp.squares ?? ''} onChange={(e) => setImp((v) => ({ ...v, squares: e.target.value }))} className={input} /></div>
+              {IMPORT_LENGTHS.map(([k, text]) => (
+                <div key={k}><label htmlFor={`pi-${k}`} className={lab}>{text}</label><input id={`pi-${k}`} type="number" min={0} step="any" value={imp[k] ?? ''} onChange={(e) => setImp((v) => ({ ...v, [k]: e.target.value }))} className={input} /></div>
+              ))}
+            </div>
+            <button type="button" onClick={importReport} className="mt-3 px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700">Add the report to this job</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div><label htmlFor="ml-squares" className={lab}>Squares</label><input id="ml-squares" type="number" min={0} step="any" value={squares} onChange={(e) => setSquares(e.target.value)} className={input} /></div>
           <div><label htmlFor="ml-waste" className={lab}>Waste %</label><input id="ml-waste" type="number" min={0} step="any" value={wasteNow} onChange={(e) => setChanged((c) => ({ ...c, wastePercent: e.target.value }))} className={input} /></div>
           {LENGTHS.map(([k, text]) => (
             <div key={k}><label htmlFor={`ml-${k}`} className={lab}>{text}</label>
-              <input id={`ml-${k}`} type="number" min={0} step="any" placeholder={built?.estimated.includes(k) ? `~${built.lengths[k]}` : ''} value={lengths[k] ?? ''} onChange={(e) => setLengths((l) => ({ ...l, [k]: e.target.value }))} className={input} /></div>
+              <input id={`ml-${k}`} type="number" min={0} step="any" placeholder={built?.estimated.includes(k) ? `~${built.lengths[k]}` : built?.lengthSources?.[k] && built.lengthSources[k] !== 'none' ? String(built.lengths[k]) : ''} value={lengths[k] ?? ''} onChange={(e) => setLengths((l) => ({ ...l, [k]: e.target.value }))} className={input} /></div>
           ))}
         </div>
         <details className="mt-3">

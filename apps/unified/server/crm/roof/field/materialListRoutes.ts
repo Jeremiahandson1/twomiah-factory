@@ -6,6 +6,8 @@
 //   GET  /jobs/:jobId            a list for the job: its squares (entered on the job, else its newest   jobs:read
 //                                measurement report's), ?wastePercent= and the other assumptions
 //   POST /jobs/:jobId/order      the edited list → a material order on the job                          inventory:create
+//   POST /jobs/:jobId/provider-report   an EagleView / HOVER / GAF report keyed in from its PDF: its squares and   measurements:create
+//                                       lengths become the job's measurement, and the list is worked from them
 //
 // The arithmetic is materialList.ts. The order it makes is a plain material order (field/materials.ts): the same table,
 // the same Materials screen, the same cost rule (no price is stored — the supplier's quote is the price — so there is
@@ -19,6 +21,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { normaliseLineItems } from '../validation.ts'
+import { PROVIDERS, PROVIDER_LABELS, listLengths, reportChoicesFor, type ReportChoice } from '../reportLengths.ts'
 import { ASSUMPTION_LABELS, DEFAULT_ASSUMPTIONS, buildMaterialList, type Lengths } from '../materialList.ts'
 import { createSeatJob } from './seatJob.ts'
 
@@ -32,6 +35,15 @@ const calculateSchema = z.object({
   lengths: lengthsSchema.optional(),
   assumptions: assumptionsSchema,
 })
+
+const providerReportSchema = z.object({
+  provider: z.enum(PROVIDERS),
+  /** The provider's own report or order number, to find it again. */
+  reportNumber: z.string().trim().max(60).optional(),
+  squares: z.coerce.number().finite().positive('Enter the roof squares from the report.'),
+  areaSqft: num.optional(),
+  eaveFt: num.default(0), rakeFt: num.default(0), ridgeFt: num.default(0), hipFt: num.default(0), valleyFt: num.default(0),
+}).refine((v) => v.eaveFt + v.rakeFt + v.ridgeFt + v.hipFt + v.valleyFt > 0, { message: 'Enter at least one length from the report (eave, rake, ridge, hip or valley).', path: ['eaveFt'] })
 
 const orderSchema = z.object({
   supplier: z.string().trim().min(1, 'Enter the supplier.'),
@@ -85,17 +97,63 @@ export function createMaterialListRoutes(d: CrmDeps) {
     // The caller can type squares of their own (a re-measure on the roof) and the lengths they took.
     const q = c.req.query()
     const typed = q.squares !== undefined && q.squares !== '' ? Number(q.squares) : undefined
-    const squares = typed !== undefined && Number.isFinite(typed) && typed > 0 ? typed : found.squares
+    // The reports that carry real lengths for THIS job (its homeowner's, at its address, or a provider's keyed in on it).
+    const choices = await reportChoicesFor(db, me.companyId, row)
+    let chosen: ReportChoice | null = choices[0] ?? null
+    if (q.reportId) {
+      chosen = choices.find((r) => r.id === q.reportId) ?? null
+      if (!chosen) return fail(c, 404, 'That report is not one this job can be worked from.')
+    } else if (q.reportId === '' || q.lengthsFrom === 'none') chosen = null
+    // Squares: typed, else the job's, else its measurement report's, else (a job with none of those) the report the lengths come from.
+    let squares = typed !== undefined && Number.isFinite(typed) && typed > 0 ? typed : found.squares
+    let squaresSource: string | null = typed !== undefined && squares === typed ? 'typed' : found.source
+    if (squares == null && chosen?.squares) { squares = chosen.squares; squaresSource = chosen.kind }
     const lengths: Lengths = {}
-    for (const k of ['eaveFt', 'rakeFt', 'ridgeFt', 'valleyFt'] as const) if (q[k] !== undefined && q[k] !== '' && Number.isFinite(Number(q[k]))) lengths[k] = Number(q[k])
+    const lengthSources: Record<string, string> = {}
+    const fromReport = chosen ? listLengths(chosen.lengths) : null
+    for (const k of ['eaveFt', 'rakeFt', 'ridgeFt', 'valleyFt'] as const) {
+      if (q[k] !== undefined && q[k] !== '' && Number.isFinite(Number(q[k]))) { lengths[k] = Number(q[k]); lengthSources[k] = 'typed' }
+      else if (fromReport) { lengths[k] = fromReport[k]; lengthSources[k] = chosen!.kind }
+      else lengthSources[k] = k === 'valleyFt' ? 'none' : 'estimated'
+    }
     const over: Record<string, string> = {}
     for (const k of Object.keys(DEFAULT_ASSUMPTIONS)) if (q[k] !== undefined && q[k] !== '') over[k] = q[k]
     const list = buildMaterialList(squares ?? 0, lengths, over)
     return one(c, {
       jobId: row.id, jobNumber: row.number, address: row.address ?? row.propertyAddress ?? null,
-      squaresSource: typed !== undefined && squares === typed ? 'typed' : found.source,
+      squaresSource,
+      lengthSources,
+      lengthsReport: chosen ? { id: chosen.id, kind: chosen.kind, label: chosen.label, provider: chosen.provider ?? null, createdAt: chosen.createdAt } : null,
+      reportChoices: choices.map((r) => ({ id: r.id, kind: r.kind, label: r.label, provider: r.provider ?? null, createdAt: r.createdAt })),
       ...list,
     })
+  })
+
+  // A provider's report keyed in from its PDF. The provider's own API (ordering a report, receiving it by webhook) needs the
+  // roofer's provider account and developer credentials and is not built (docs/integration-eagleview-hover.md).
+  app.post('/jobs/:jobId/provider-report', requirePermission('measurements:create'), async (c) => {
+    const me = c.get('user')
+    const row = await seatJob(c, c.req.param('jobId'))
+    if (!row) return fail(c, 404, 'Job not found')
+    const parsed = providerReportSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const v = parsed.data
+    const lengths = { eaveFt: v.eaveFt, rakeFt: v.rakeFt, ridgeFt: v.ridgeFt, hipFt: v.hipFt, valleyFt: v.valleyFt }
+    const created = await db.transaction(async (tx: any) => {
+      const [made] = await tx.insert(measurementReport).values({
+        companyId: me.companyId, jobId: row.id,
+        address: row.address ?? '', city: row.city ?? '', state: row.state ?? '', zip: row.zip ?? '',
+        provider: v.provider, status: 'complete', totalSquares: String(v.squares), totalArea: String(v.areaSqft ?? Math.round(v.squares * 100)),
+        cost: '0.00', externalProvider: v.provider, externalOrderId: v.reportNumber || null, externalStatus: 'keyed_in',
+        rawData: { keyedIn: true, importedFrom: PROVIDER_LABELS[v.provider], importedById: me.userId, lengths },
+      } as any).returning()
+      // The job points at the newest measurement; its squares are filled in only where the roofer has not entered their own.
+      await tx.update(job).set({
+        measurementReportId: made.id, ...(Number(row.totalSquares) > 0 ? {} : { totalSquares: String(v.squares) }), updatedAt: new Date(),
+      } as any).where(and(eq(job.id, row.id), eq(job.companyId, me.companyId)))
+      return made
+    })
+    return one(c, { id: created.id, provider: v.provider, label: `${PROVIDER_LABELS[v.provider]} report${v.reportNumber ? ` ${v.reportNumber}` : ''}`, squares: v.squares, lengths }, 201)
   })
 
   app.post('/jobs/:jobId/order', requirePermission('inventory:create'), async (c) => {
