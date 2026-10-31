@@ -484,7 +484,7 @@ export const barTerminalCharge = pgTable('bar_terminal_charge', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
   orderId: text('order_id'),                            // a kiosk order paid before it becomes a check
-  readerId: text('reader_id').notNull(),                // bar_reader.id
+  readerId: text('reader_id'),                          // bar_reader.id; null for a hold taken by Tap to Pay on the phone (parity row 14)
   stripeAccount: text('stripe_account'),
   paymentIntentId: text('payment_intent_id').notNull(),
   amountCents: integer('amount_cents').notNull(),       // toward the check; a tip the reader asks for is on top

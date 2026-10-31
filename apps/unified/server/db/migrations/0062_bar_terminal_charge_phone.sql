@@ -1,0 +1,1 @@
+ALTER TABLE "bar_terminal_charge" ALTER COLUMN "reader_id" DROP NOT NULL;

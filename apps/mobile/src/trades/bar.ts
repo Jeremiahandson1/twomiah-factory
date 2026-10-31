@@ -56,6 +56,8 @@ export const BAR: ScreenSpec[] = [
           { label: 'Special', get: (d) => d.live?.special?.title }, { label: 'Note', get: (d) => d.live?.note || d.status?.note },
         ] },
         { fields: [{ label: 'Good to know', get: () => 'Changes made here last until 4 AM, then go back to your hours.' }] },
+        // Card tabs held with Tap to Pay (parity row 14; bar_tab_preauth + tap_to_pay): its own screen, the only card door on the phone besides the invoice's.
+        { feature: 'bar_tab_preauth', links: () => [{ label: 'Card tabs on this phone', url: '', icon: 'card', route: '/(details)/bar-tabs' }] },
       ],
       actions: [
         tonightAction('bar-open', 'Bar: open or closed', 'barOpen'), tonightAction('kitchen-open', 'Kitchen: open or closed', 'kitchenOpen', true),

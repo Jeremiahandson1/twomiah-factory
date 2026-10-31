@@ -17,7 +17,7 @@ const HOURS_PAGE = SHELL_HERE.nav.find((i) => i.to === '/crm/bar-settings')?.lab
 
 interface Reader { id: string; label: string; deviceType: string | null; serialNumber: string | null; simulated: boolean; status: string | null }
 interface Settings {
-  terminal: { tipping: boolean }
+  terminal: { tipping: boolean; tabHoldHours?: number }
   tabs: boolean
   kiosk: { payAtCounter: boolean; idleSeconds: number; askTable: boolean }
   ordering: { paused: boolean; leadMinutes: number }
@@ -51,6 +51,7 @@ export default function FoodSettingsPage() {
   const [idle, setIdle] = useState('')
   const [dd, setDd] = useState('')
   const [ue, setUe] = useState('')
+  const [tabHours, setTabHours] = useState('24')
 
   const load = useCallback(async () => {
     try {
@@ -58,6 +59,7 @@ export default function FoodSettingsPage() {
       setA(r); setErr('')
       setLead(String(r.settings.ordering.leadMinutes)); setIdle(String(r.settings.kiosk.idleSeconds))
       setDd(r.settings.delivery.doordashUrl || ''); setUe(r.settings.delivery.ubereatsUrl || '')
+      setTabHours(String(r.settings.terminal.tabHoldHours ?? 24))
     } catch (e) { setErr(errorText(e, 'Could not load the settings. Try again.')) }
   }, [])
   useEffect(() => { load() }, [load])
@@ -120,6 +122,15 @@ export default function FoodSettingsPage() {
           )}
           <Toggle id="fs-tipping" label="Ask for a tip on the reader" help="The reader shows 15%, 18% and 20% before the guest pays. The tip is recorded with the payment." on={s.terminal.tipping} disabled={!mayEdit || !!busy}
             onChange={(v) => save('tip', { tipping: v }, v ? 'The reader will ask for a tip.' : 'The reader will not ask for a tip.')} />
+          {/* The saved-card window (parity row 14, Toast's pre-auth settings): a tab open longer than this is released by itself, hourly. */}
+          <div className="mt-3">
+            <label htmlFor="fs-tab-hours" className={LABEL}>A card tab is released by itself after (hours)</label>
+            <div className="flex gap-2 items-center mt-1">
+              <input id="fs-tab-hours" className={`${INPUT} max-w-[8rem]`} inputMode="numeric" value={tabHours} onChange={(e) => setTabHours(e.target.value)} disabled={!mayEdit || !!busy} />
+              <button type="button" className={`${BTN} ${OFF} min-h-[40px]`} disabled={!mayEdit || !!busy} onClick={() => save('hold', { terminal: { tabHoldHours: Number(tabHours) } }, `A tab is released after ${tabHours} hours.`)}>Save</button>
+            </div>
+            <p className={`text-xs mt-1 ${MUTED}`}>1 to 168. The check stays open; only the card is let go. Stripe lets a hold stand for up to 7 days.</p>
+          </div>
           <div className="rounded-xl border border-amber-300 bg-amber-50 text-gray-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-slate-100 p-3">
             <p className="font-semibold">Offline payments: not available</p>
             <p className="text-sm mt-1">These readers take a card only while they can reach Stripe over the internet. Stripe offers offline card payments only to apps built on its mobile Terminal software, which this register is not, so there is no offline mode to switch on. If the internet drops, take cash, or run the card on another machine and record it with Card (record).</p>

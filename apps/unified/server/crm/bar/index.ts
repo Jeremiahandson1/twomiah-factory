@@ -34,6 +34,15 @@ export function barMounts(d: CrmDeps): Mount[] {
   Object.assign(d.services.eventJobs, {
     runShiftExpiry: (now?: Date) => bar.staffRequests.runExpiry(now, (companyId) => d.features.isFeatureEnabled(companyId, 'bar_shift_swaps')),
   })
+  //   · a card tab open longer than the venue's window is released (restaurant-bar parity #14, the saved-card window).
+  Object.assign(d.services.eventJobs, {
+    runStaleTabs: (now?: Date) => bar.terminal.releaseStaleTabs(now),
+  })
+  d.services.addJob(() => {
+    const tabs = () => bar.terminal.releaseStaleTabs().catch((err: any) => d.logger.error('[terminal] stale tabs failed', { error: err?.message }))
+    setTimeout(tabs, 240_000)
+    setInterval(tabs, 60 * 60 * 1000)
+  })
   d.services.addJob(() => {
     const expiry = () => bar.staffRequests.runExpiry(new Date(), (companyId) => d.features.isFeatureEnabled(companyId, 'bar_shift_swaps')).catch((err: any) => d.logger.error('[schedule] swap expiry failed', { error: err?.message }))
     setTimeout(expiry, 210_000)

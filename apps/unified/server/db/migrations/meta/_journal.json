@@ -428,6 +428,13 @@
       "when": 1793474933181,
       "tag": "0061_bar_menu_item_count",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793475254236,
+      "tag": "0062_bar_terminal_charge_phone",
+      "breakpoints": true
     }
   ]
 }

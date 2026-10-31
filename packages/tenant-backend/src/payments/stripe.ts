@@ -1081,12 +1081,17 @@ export function createStripeService(deps: StripeServiceDeps) {
    * The phone says the tap went through: read the PaymentIntent from Stripe and, when it succeeded (captured here if the
    * tap only authorised it), record it on its invoice. A PaymentIntent of another business, or not a tap, is refused.
    */
-  async function recordTapToPay(companyId: string, paymentIntentId: string) {
+  async function recordTapToPay(companyId: string, paymentIntentId: string, offline = false) {
     if (!stripe) throw tapRefusal('Card payments are not set up on this server yet.', 503, 'STRIPE_NOT_CONFIGURED')
     const stripeAccount = await connectedAccountFor(companyId)
     if (!stripeAccount) throw tapRefusal('Connect your Stripe account in Settings › Integrations first.', 400, 'stripe_not_connected')
     let intent: Stripe.PaymentIntent
-    try { intent = await stripe.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount)) } catch { throw tapRefusal('That payment was not found.', 404) }
+    try { intent = await stripe.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount)) } catch {
+      // Taken offline on the phone (Stripe Terminal's offline mode): the SDK forwards it when the phone is back online, so
+      // the record is not yet possible rather than wrong. 425 is what the phone's offline queue retries.
+      if (offline) throw tapRefusal('Stripe has not received that payment yet (it was taken offline). It is recorded once the phone forwards it.', 425, 'not_yet_forwarded')
+      throw tapRefusal('That payment was not found.', 404)
+    }
     if (intent.metadata?.company_id !== companyId || intent.metadata?.kind !== TAP_KIND) throw tapRefusal('That payment was not found.', 404)
     if (intent.status === 'requires_capture') intent = await stripe.paymentIntents.capture(intent.id, {}, { stripeAccount, idempotencyKey: `tap-capture:${intent.id}` })
     if (intent.status !== 'succeeded') return { recorded: false, status: intent.status }
@@ -1241,7 +1246,8 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     app.post('/tap-to-pay/payments/:paymentIntentId/record', tap, requirePermission('invoices:update'), async (c: any) => {
       const user = c.get('user') as any
       return answer(c, async () => {
-        const out = await stripeService.recordTapToPay(user.companyId, c.req.param('paymentIntentId'))
+        const b: any = await c.req.json().catch(() => ({}))
+        const out = await stripeService.recordTapToPay(user.companyId, c.req.param('paymentIntentId'), b?.offline === true)
         if (out.recorded) audit?.log?.({ req: c, action: audit.ACTIONS?.UPDATE ?? 'update', entity: 'invoice', entityId: out.invoiceId, userId: user.userId, companyId: user.companyId, metadata: { tapToPay: true, amount: out.amount } })
         return out
       })
