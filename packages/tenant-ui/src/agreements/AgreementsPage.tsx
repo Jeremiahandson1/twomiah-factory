@@ -1,8 +1,8 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import {
   FileText, Plus, Search, Calendar, DollarSign, Users,
   AlertTriangle, RefreshCw, XCircle, Clock, Star, TrendingUp,
-  Loader2, Edit2, ChevronRight, CalendarPlus, Check
+  Loader2, Edit2, ChevronRight, CalendarPlus, Check, Pause, Play
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AgreementsApi, AgreementsPageProps } from './types';
@@ -38,6 +38,8 @@ interface AgreementPlan {
   name?: string;
 }
 
+const HISTORY_WORDS: Record<string, string> = { created: 'Sold', renewed: 'Renewed', suspended: 'Suspended', reactivated: 'Reactivated', cancelled: 'Cancelled', expired: 'Expired' };
+
 interface Agreement {
   id: string;
   status: string;
@@ -62,6 +64,8 @@ interface Agreement {
   reminderDaysBefore?: number;
   /** When the billing run bills it next; absent until it has been billed once (nextBillOf reads it). */
   nextBillDate?: string | null;
+  /** The team member credited with selling the plan (shown on the Plan Reports "Sold" tab). */
+  soldById?: string | null;
 }
 
 interface Plan {
@@ -115,6 +119,8 @@ interface AgreementRowProps {
   onView: () => void;
   onRenew: () => void;
   onCancel: () => void;
+  onSuspend?: () => void;
+  onReactivate?: () => void;
 }
 
 interface PlansTabProps {
@@ -181,6 +187,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   const [showAgreementForm, setShowAgreementForm] = useState<boolean>(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
+  const openOnce = useRef(false);
   // A refused cancel says why on the page, not in a browser pop-up (scripts/check-refusals-render-on-the-page.ts).
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -208,6 +215,14 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
         api.get('/api/agreements/reports/stats'),
       ]);
       setAgreements(agreementsRes.data || []);
+      // A link from a report (/crm/agreements?open=<id>) opens that plan once.
+      const wanted = openOnce.current ? null : new URLSearchParams(window.location.search).get('open');
+      if (wanted) {
+        openOnce.current = true;
+        const found = (agreementsRes.data || []).find((a: Agreement) => a.id === wanted)
+          || await api.get(`/api/agreements/${wanted}`).then((r: any) => r?.data || r).catch(() => null);
+        if (found?.id) { setSelectedAgreement(found); setShowAgreementForm(true); }
+      }
       setPlans(plansRes || []);
       setStats(statsRes);
     } catch (error) {
@@ -366,6 +381,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
               <option value="active">Active</option>
               <option value="pending">Pending</option>
               <option value="expired">Expired</option>
+              <option value="suspended">Suspended</option>
               <option value="cancelled">Cancelled</option>
               <option value="">All</option>
             </select>
@@ -402,6 +418,8 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
                       onView={() => { setSelectedAgreement(agreement); setShowAgreementForm(true); }}
                       onRenew={() => handleRenew(agreement.id)}
                       onCancel={() => handleCancel(agreement.id)}
+                      onSuspend={() => handleSuspend(agreement.id)}
+                      onReactivate={() => handleReactivate(agreement.id)}
                     />
                   ))}
                 </tbody>
@@ -458,6 +476,30 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
       loadData();
     } catch (error) {
       alert('Failed to renew agreement');
+    }
+  }
+
+  // Suspend holds a plan without ending it: no billing and no new visits while it is held; reactivating pushes the end date
+  // out by the days it was held, so the customer does not lose paid time. Both are recorded in the plan's history.
+  async function handleSuspend(agreementId: string) {
+    if (!(await confirm('Billing and new visits stop until you reactivate it. The customer keeps the plan.', { title: 'Suspend this agreement?', confirmText: 'Suspend agreement' }))) return;
+    setActionError(null);
+    try {
+      await api.post(`/api/agreements/${agreementId}/suspend`, {});
+      loadData();
+    } catch (error) {
+      setActionError(error instanceof Error && error.message ? error.message : 'The agreement could not be suspended.');
+    }
+  }
+
+  async function handleReactivate(agreementId: string) {
+    if (!(await confirm('Billing and visits start again, and the end date moves out by the days it was suspended.', { title: 'Reactivate this agreement?', confirmText: 'Reactivate agreement', danger: false }))) return;
+    setActionError(null);
+    try {
+      await api.post(`/api/agreements/${agreementId}/reactivate`, {});
+      loadData();
+    } catch (error) {
+      setActionError(error instanceof Error && error.message ? error.message : 'The agreement could not be reactivated.');
     }
   }
 
@@ -577,7 +619,7 @@ function visitsDetail(a: Agreement): string {
   return `This term: ${parts.join(', ')}`;
 }
 
-function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
+function AgreementRow({ agreement, onView, onRenew, onCancel, onSuspend, onReactivate, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const { api } = useAgreements();
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
   const mayUpdate = useMayWrite('agreements:update');
@@ -591,6 +633,7 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
     active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
     pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
     expired: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    suspended: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
     cancelled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   };
 
@@ -657,7 +700,27 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
               <RefreshCw className="w-4 h-4" />
             </button>
           )}
-          {(agreement.status === 'active' || agreement.status === 'pending') && mayUpdate && (
+          {agreement.status === 'active' && mayUpdate && onSuspend && (
+            <button
+              onClick={onSuspend}
+              aria-label="Suspend agreement"
+              className="p-1.5 text-blue-700 hover:bg-blue-50 rounded dark:text-blue-300 dark:hover:bg-blue-950/40"
+              title="Suspend agreement"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          )}
+          {agreement.status === 'suspended' && mayUpdate && onReactivate && (
+            <button
+              onClick={onReactivate}
+              aria-label="Reactivate agreement"
+              className="p-1.5 text-green-700 hover:bg-green-50 rounded dark:text-green-300"
+              title="Reactivate agreement"
+            >
+              <Play className="w-4 h-4" />
+            </button>
+          )}
+          {(agreement.status === 'active' || agreement.status === 'pending' || agreement.status === 'suspended') && mayUpdate && (
             <button
               onClick={onCancel}
               aria-label="Cancel agreement"
@@ -1014,6 +1077,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     nextServiceDate: string;
     reminderDaysBefore: string | number;
     firstVisitDate: string;
+    /** '' = no one recorded, 'me' = leave it to the server (the signed-in user), else a user id */
+    soldBy: string;
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
@@ -1024,7 +1089,10 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate,
     reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
     firstVisitDate: '',
+    soldBy: agreement ? (agreement.soldById || '') : 'me',
   });
+  const [team, setTeam] = useState<Array<{ id: string; name: string }>>([]);
+  const [history, setHistory] = useState<Array<{ id: string; kind: string; at: string; by?: string | null; note?: string | null }>>([]);
   /**
    * The plan's visits per term go on the Schedule when the agreement is saved (server scheduleTermVisits), spread
    * across the term from the first visit. (live test 2026-10-22: a two-visit contract scheduled nothing.)
@@ -1051,6 +1119,13 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
 
   useEffect(() => {
     loadContacts();
+    api.get('/api/team/assignable').then((r: any) => {
+      const list = Array.isArray(r) ? r : (r?.data || []);
+      setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' })));
+    }).catch(() => setTeam([]));
+    if (agreement) {
+      api.get(`/api/agreements/${agreement.id}/history`).then((r: any) => setHistory(r?.events || r?.data?.events || [])).catch(() => setHistory([]));
+    }
   }, []);
 
   const loadContacts = async () => {
@@ -1076,6 +1151,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
         autoRenew: form.autoRenew,
         // The first of the term's visits; blank is the start date (server scheduleTermVisits).
         ...(!agreement && planVisits > 0 && form.firstVisitDate ? { firstVisitDate: form.firstVisitDate } : {}),
+        // 'me' on a new plan = say nothing and the server credits the signed-in user; '' = no one.
+        ...(form.soldBy === 'me' ? {} : { soldById: form.soldBy || null }),
       };
       const saveRecurrence = async (id: string, on: boolean) => {
         await api.put(`/api/agreements/${id}/recurrence`, {
@@ -1162,6 +1239,21 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
             </div>
 
             <div>
+              <label htmlFor="agreement-sold-by" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Sold by</label>
+              <select
+                id="agreement-sold-by"
+                value={form.soldBy}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, soldBy: e.target.value }))}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                {!agreement && <option value="me">Me</option>}
+                <option value="">No one recorded</option>
+                {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">Credited on the Plan Reports “Sold” tab.</p>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
               <input
                 type="date"
@@ -1205,6 +1297,19 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                   </button>
                 )}
                 {visitMsg && <p role={visitMsg.kind === 'err' ? 'alert' : 'status'} className={`text-sm ${visitMsg.kind === 'err' ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>{visitMsg.text}</p>}
+              </div>
+            )}
+
+            {agreement && history.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan history</h3>
+                <ul className="text-sm text-gray-700 dark:text-slate-300 space-y-1" aria-label="Plan history">
+                  {history.map((h) => (
+                    <li key={h.id}>
+                      {formatDate(h.at)} — {HISTORY_WORDS[h.kind] || codeLabel(h.kind)}{h.by ? ` by ${h.by}` : ''}{h.note ? ` (${h.note})` : ''}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

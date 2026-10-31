@@ -13,21 +13,21 @@
 // not place. (Accounts receivable aging is not here: that is the invoices report.)
 import { sql } from 'drizzle-orm'
 
-const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
-const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
-const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+export const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
+export const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+export const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 export interface Range { gte?: Date; lte?: Date }
 
 /** A bound as a timestamp-without-zone literal in UTC, which is how every timestamp column here is stored. */
-const at = (d: Date) => sql`${d.toISOString()}::timestamp`
-const between = (col: ReturnType<typeof sql.raw>, range: Range) => sql`${range.gte ? sql`AND ${col} >= ${at(range.gte)}` : sql``} ${range.lte ? sql`AND ${col} <= ${at(range.lte)}` : sql``}`
+export const at = (d: Date) => sql`${d.toISOString()}::timestamp`
+export const between = (col: ReturnType<typeof sql.raw>, range: Range) => sql`${range.gte ? sql`AND ${col} >= ${at(range.gte)}` : sql``} ${range.lte ? sql`AND ${col} <= ${at(range.lte)}` : sql``}`
 
 export interface Person { id: string; name: string; kind: 'user' | 'member' }
 export interface PersonRow { person: Person | null; bucket: 'none' | 'unplaced'; [k: string]: unknown }
 
 /** Names for users (login) and roster-only crew (team_member), by id. */
-async function namesFor(db: any, companyId: string, userIds: string[], memberIds: string[]): Promise<Map<string, Person>> {
+export async function namesFor(db: any, companyId: string, userIds: string[], memberIds: string[]): Promise<Map<string, Person>> {
   const out = new Map<string, Person>()
   if (userIds.length) {
     const rows = rowsOf(await db.execute(sql`SELECT id, first_name, last_name FROM "user" WHERE company_id = ${companyId} AND id IN (${sql.join(userIds.map((i) => sql`${i}`), sql`, `)})`))
@@ -146,6 +146,17 @@ const MONTHS_PER_BILL: Record<string, number> = { monthly: 1, quarterly: 3, 'sem
 /** What a plan brings in over a year: its price per bill, times the bills in a year. */
 export const yearlyValue = (amount: unknown, frequency: string) => r2(num(amount) * 12 / (MONTHS_PER_BILL[frequency] ?? 1))
 
+export interface PlanFilter { name?: string; sellerId?: string; contactId?: string; status?: string }
+
+/** The plan filters as SQL on a plan alias. A seller of 'none' is the plans made before the seller was recorded. */
+export const planWhere = (f: PlanFilter, a = 'a') => {
+  const al = sql.raw(a)
+  return sql`${f.name ? sql`AND ${al}.name = ${f.name}` : sql``}
+    ${f.sellerId ? (f.sellerId === 'none' ? sql`AND ${al}.sold_by_id IS NULL` : sql`AND ${al}.sold_by_id = ${f.sellerId}`) : sql``}
+    ${f.contactId ? sql`AND ${al}.contact_id = ${f.contactId}` : sql``}
+    ${f.status ? sql`AND ${al}.status = ${f.status}` : sql``}`
+}
+
 export interface PlanSoldRow { person: Person | null; bucket: 'person' | 'not_recorded'; sold: number; yearlyValue: number; stillActive: number }
 
 /** Plans sold in the period (by the day the plan was made), per person who sold it; plans made before 0041 are `not_recorded`. */
@@ -175,14 +186,14 @@ export interface RenewalRow { id: string; number: string; name: string; contactI
  * Plans whose term ends within `days` days of `today` (a day marker, midnight UTC, on the company's calendar) — the
  * ones still active. `auto` renews itself; `manual` lapses unless someone renews it, which is the list to call.
  */
-export async function renewalsDue(db: any, companyId: string, today: Date, days: number): Promise<RenewalRow[]> {
+export async function renewalsDue(db: any, companyId: string, today: Date, days: number, f: PlanFilter = {}): Promise<RenewalRow[]> {
   const until = new Date(today.getTime() + (days + 1) * 86_400_000 - 1)
   const rows = rowsOf(await db.execute(sql`
     SELECT a.id, a.number, a.name, a.contact_id, a.end_date, a.renewal_type, a.autopay, a.amount, a.billing_frequency,
            c.name AS contact_name, c.company AS contact_company
     FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
     WHERE a.company_id = ${companyId} AND a.status = 'active' AND a.end_date IS NOT NULL
-      AND a.end_date >= ${at(today)} AND a.end_date <= ${at(until)}
+      AND a.end_date >= ${at(today)} AND a.end_date <= ${at(until)} ${planWhere({ ...f, status: undefined })}
     ORDER BY a.end_date, a.number`))
   return rows.map((r) => ({
     id: r.id, number: r.number, name: r.name, contactId: r.contact_id,
@@ -200,13 +211,13 @@ export interface ChurnRow { id: string; number: string; name: string; customer: 
  * Plans that ended in the period: cancelled by someone, or run out their term without a renewal. The day is `ended_at`
  * where the app recorded it; a plan that ended before 0041 is dated by its last change and flagged `dateKnown: false`.
  */
-export async function churnedPlans(db: any, companyId: string, range: Range): Promise<ChurnRow[]> {
+export async function churnedPlans(db: any, companyId: string, range: Range, f: PlanFilter = {}): Promise<ChurnRow[]> {
   const when = sql`COALESCE(a.ended_at, a.updated_at)`
   const rows = rowsOf(await db.execute(sql`
     SELECT a.id, a.number, a.name, a.status, a.ended_how, a.ended_at, a.updated_at, a.cancel_reason, a.sold_by_id, a.amount, a.billing_frequency,
            c.name AS contact_name, c.company AS contact_company
     FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
-    WHERE a.company_id = ${companyId} AND a.status IN ('cancelled', 'expired') ${between(when as any, range)}
+    WHERE a.company_id = ${companyId} AND a.status IN ('cancelled', 'expired') ${between(when as any, range)} ${planWhere({ ...f, status: undefined })}
     ORDER BY ${when} DESC, a.number`))
   const people = await namesFor(db, companyId, [...new Set(rows.map((r) => r.sold_by_id).filter(Boolean))] as string[], [])
   return rows.map((r) => ({

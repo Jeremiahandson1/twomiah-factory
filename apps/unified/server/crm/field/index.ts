@@ -20,7 +20,8 @@ import { createGeofencingRoutes } from './geofencing.ts'
 import { createWeatherRoutes } from './weather.ts'
 import { createPayrollRoutes } from './payroll.ts'
 import { createJobReminderRoutes } from './jobReminderRoutes.ts'
-import { createPlanReportRoutes, createTeamRevenueRoutes } from './teamReportRoutes.ts'
+import { createTeamRevenueRoutes } from './teamReportRoutes.ts'
+import { createPlanReports } from './planReportRoutes.ts'
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
@@ -35,6 +36,10 @@ export function fieldMounts(d: CrmDeps): Mount[] {
   d.services.eventJobs.overtimePass = async (now?: Date) => (await clockExtras.overtimePass(now)).alerts
   d.services.addJob(() => { setTimeout(() => { void clockExtras.overtimePass() }, 90_000); setInterval(() => { void clockExtras.overtimePass() }, 5 * 60_000) })
   // A customer confirms a visit: by the link in a reminder, in the portal, or by texting Y / C back (jobConfirm.ts).
+  // Plan Reports, finished: the tabs, filters, chosen columns and CSV, and saved reports that email themselves on a schedule.
+  const planReports = createPlanReports(d)
+  d.services.eventJobs.savedReportsPass = async (now?: Date) => planReports.saved.pass(now)
+  d.services.addJob(() => { setTimeout(() => { void planReports.saved.pass() }, 120_000); setInterval(() => { void planReports.saved.pass() }, 15 * 60_000) })
   const jobConfirm = createJobConfirm(d)
   d.services.useSmsReply((m) => jobConfirm.onReply(m))
   return [
@@ -62,7 +67,7 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue', access: 'user', feature: 'team_revenue_reports', router: createTeamRevenueRoutes(d) },
-    { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: createPlanReportRoutes(d) },
+    { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: planReports.routes },
     // When each tech works and is away (crm/field/availabilityRoutes.ts); jobs.ts warns when a job is given outside it. Not ready.
     { path: '/api/availability', access: 'user', feature: 'tech_availability', router: createAvailabilityRoutes(d) },
     // The checklists a business builds per job type, filled in on the phone and signed on site (crm/field/checklistRoutes.ts). Not ready.

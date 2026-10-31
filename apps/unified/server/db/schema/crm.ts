@@ -496,6 +496,8 @@ export const invoice = pgTable('invoice', {
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
   amountRefunded: decimal('amount_refunded', { precision: 12, scale: 2 }).default('0').notNull(), // money returned; amountPaid stays gross so a refund never reopens a balance
+  // The service plan this invoice billed (the plan reports' collected revenue by plan). Null on every other invoice and on plan invoices made before 0054 that no plan could be matched to.
+  serviceAgreementId: text('service_agreement_id'),
   notes: text('notes'),
   qbInvoiceId: text('qb_invoice_id'),
   syncedAt: timestamp('synced_at'),
@@ -537,6 +539,7 @@ export const invoice = pgTable('invoice', {
   // One bill per salon visit (templates/crm-salon schema.ts): checkout relies on this refusal. NULLs never collide, so every
   // invoice raised by hand, with no appointment, is untouched.
   uniqueIndex('invoice_appointment_unique').on(t.companyId, t.appointmentId),
+  index('invoice_service_agreement_idx').on(t.serviceAgreementId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {

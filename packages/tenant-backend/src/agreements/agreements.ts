@@ -21,11 +21,11 @@ import { addDays } from '../booking/time'
 
 /** A refused agreement write: bad input (400) or a customer / plan / agreement not in this company (404). */
 export class AgreementError extends Error {
-  status: 400 | 404
-  constructor(message: string, status: 400 | 404) { super(message); this.status = status }
+  status: 400 | 404 | 409
+  constructor(message: string, status: 400 | 404 | 409) { super(message); this.status = status }
 }
 export const AGREEMENT_FREQUENCIES = ['weekly', 'monthly', 'quarterly', 'semi-annual', 'semiannual', 'semi_annual', 'annual', 'yearly']
-export const AGREEMENT_STATUSES = ['active', 'pending', 'cancelled', 'expired']
+export const AGREEMENT_STATUSES = ['active', 'pending', 'suspended', 'cancelled', 'expired']
 
 export interface AgreementsTables {
   serviceAgreement: any
@@ -35,6 +35,10 @@ export interface AgreementsTables {
   job: any
   invoice: any
   invoiceLineItem: any
+  /** The plan's history (agreement_event): optional, so a template without the table records nothing. */
+  agreementEvent?: any
+  /** To check the person chosen as a plan's seller works for the business. Optional. */
+  user?: any
   /** For the renewal notice (company name, email, phone). Optional: without it no notices are sent. */
   company?: any
 }
@@ -142,7 +146,14 @@ function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: numb
 
 export function createAgreementsService(deps: AgreementsServiceDeps) {
   const { db, tables, stripe, audit, sendRenewalNotice } = deps
-  const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company } = tables
+  const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user: userTable } = tables
+
+  /** One line in the plan's history (made, renewed, suspended, reactivated, cancelled, expired). Never fails the action it records. */
+  async function record(companyId: string, agreementId: string, kind: string, byUserId?: string | null, at: Date = new Date(), note?: string | null) {
+    if (!agreementEvent) return
+    try { await db.insert(agreementEvent).values({ companyId, agreementId, kind, at, byUserId: byUserId ?? null, note: note ?? null }) }
+    catch (err) { console.error('[agreements] history not recorded:', (err as Error).message) }
+  }
 
   // ---- plans ----
   async function getPlans(companyId: string, { active }: { active?: boolean | null } = {}) {
@@ -225,6 +236,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         const [renewed] = await db.update(serviceAgreement).set({ startDate: end, endDate: newEnd, updatedAt: now }).where(stillEnded(agr)).returning()
         // An automatic renewal starts a term too: its visits go on the calendar (scheduleTermVisits).
         if (renewed) await scheduleTermVisits(agr.id, agr.companyId).catch((err) => console.error('[agreements] renewal visits not scheduled:', (err as Error).message))
+        if (renewed) await record(agr.companyId, agr.id, 'renewed', null, now, 'automatic')
         if (renewed) audit?.log({ action: 'renew', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
           metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
         continue
@@ -237,6 +249,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         if (!row || !Object.keys(stamp).length) return row
         return (await tx.update(serviceAgreement).set(stamp).where(eq(serviceAgreement.id, row.id)).returning())[0]
       })
+      if (expired) await record(agr.companyId, agr.id, 'expired', null, now, 'term ran out')
       if (expired) audit?.log({ action: 'expire', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
         metadata: { automatic: true, endDate: agr.endDate, renewalType: agr.renewalType,
           reason: agr.renewalType === 'auto' ? `ended ${Math.floor(lapsedDays)} days ago — past the ${RENEWAL_GRACE_DAYS}-day automatic renewal window` : 'manual renewal' } })
@@ -390,6 +403,17 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       if (!['auto', 'manual'].includes(data.renewalType)) throw new AgreementError('Renewal must be auto or manual.', 400)
       out.renewalType = data.renewalType
     } else if (has('autoRenew')) out.renewalType = data.autoRenew === false ? 'manual' : 'auto'
+    if (has('soldById')) {
+      if (data.soldById === null || data.soldById === '') out.soldById = null
+      else {
+        if (typeof data.soldById !== 'string') throw new AgreementError('Choose who sold this plan from your team.', 400)
+        if (userTable) {
+          const [u] = await db.select({ id: userTable.id }).from(userTable).where(and(eq(userTable.id, data.soldById), eq(userTable.companyId, companyId))).limit(1)
+          if (!u) throw new AgreementError('Choose who sold this plan from your team.', 400)
+        }
+        out.soldById = data.soldById
+      }
+    }
     for (const k of ['terms', 'notes'] as const) {
       if (!has(k)) continue
       if (data[k] !== null && typeof data[k] !== 'string') throw new AgreementError(`${k === 'terms' ? 'Terms' : 'Notes'} must be text.`, 400)
@@ -414,6 +438,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function createAgreement(companyId: string, data: any, soldById?: string | null) {
     const fields = await agreementFields(companyId, data ?? {}, null)
+    // The seller: whoever the form chose, else the signed-in person (a plan made by a script has none).
+    if ('soldById' in fields) { soldById = (fields as any).soldById ?? null; delete (fields as any).soldById }
     const firstVisit = data?.firstVisitDate === undefined || data?.firstVisitDate === null || data?.firstVisitDate === '' ? undefined : String(data.firstVisitDate)
     if (firstVisit !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(firstVisit) || isNaN(Date.parse(firstVisit)))) throw new AgreementError('First visit must be a valid date.', 400)
     const agreement = await db.transaction(async (tx: any) => {
@@ -421,6 +447,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       const [row] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active', ...(soldById && 'soldById' in serviceAgreement ? { soldById } : {}) }).returning()
       return row
     })
+    await record(companyId, agreement.id, 'created', soldById ?? null, new Date(agreement.createdAt ?? Date.now()))
     const visits = await scheduleTermVisits(agreement.id, companyId, { firstVisitDate: firstVisit })
     return { ...agreement, visitsMade: visits.made, visitDates: visits.dates }
   }
@@ -568,16 +595,23 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return { ...withRel, visits }
   }
 
-  async function updateAgreement(agreementId: string, companyId: string, data: any) {
+  async function updateAgreement(agreementId: string, companyId: string, data: any, byUserId?: string | null) {
     const [existing] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!existing) throw new AgreementError('Agreement not found', 404)
     const fields = await agreementFields(companyId, data ?? {}, existing)
-    return db.update(serviceAgreement).set({ ...fields, updatedAt: new Date() })
+    const updated = await db.update(serviceAgreement).set({ ...fields, updatedAt: new Date() })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
+    // A status set by hand on the edit form is history too.
+    const to = (fields as any).status
+    if (to && to !== existing.status) {
+      const kind = to === 'cancelled' ? 'cancelled' : to === 'expired' ? 'expired' : to === 'suspended' ? 'suspended' : to === 'active' && existing.status === 'suspended' ? 'reactivated' : to === 'active' && ['cancelled', 'expired'].includes(existing.status) ? 'renewed' : null
+      if (kind) await record(companyId, agreementId, kind, byUserId ?? null)
+    }
+    return updated
   }
 
-  async function cancelAgreement(agreementId: string, companyId: string, reason?: string) {
+  async function cancelAgreement(agreementId: string, companyId: string, reason?: string, byUserId?: string | null) {
     const [agreement] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
@@ -598,6 +632,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     }
     const cancelled = await db.update(serviceAgreement).set({ status: 'cancelled', updatedAt: new Date(), ...endStamp('cancelled', new Date(), reason) })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
+    if (cancelled?.length) await record(companyId, agreementId, 'cancelled', byUserId ?? null, new Date(), typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : null)
     // "No more visits are planned from it" (the page's confirm): the visits still to come are cancelled, not left on the
     // calendar for a customer who has left. Work already under way or done stays.
     if (job && 'serviceAgreementId' in (job as any)) {
@@ -608,7 +643,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return cancelled
   }
 
-  async function renewAgreement(agreementId: string, companyId: string) {
+  async function renewAgreement(agreementId: string, companyId: string, byUserId?: string | null) {
     const agreement = await getAgreement(agreementId, companyId)
     if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     const startDate = agreement.endDate ? new Date(agreement.endDate) : new Date()
@@ -616,9 +651,71 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [renewed] = await db.update(serviceAgreement)
       .set({ startDate, endDate, status: 'active', updatedAt: new Date() })
       .where(eq(serviceAgreement.id, agreementId)).returning()
+    await record(companyId, agreementId, 'renewed', byUserId ?? null)
     // The new term's visits, as a new agreement's are (scheduleTermVisits).
     await scheduleTermVisits(agreementId, companyId).catch((err) => console.error('[agreements] renewal visits not scheduled:', (err as Error).message))
     return renewed
+  }
+
+  /**
+   * Put an active plan on hold. While it is suspended nothing is billed, no visits are scheduled, no renewal notice goes
+   * out and its term does not run out (every one of those looks for an active plan). The day it was suspended is recorded.
+   */
+  async function suspendAgreement(agreementId: string, companyId: string, reason?: string, byUserId?: string | null) {
+    const agreement = await getAgreement(agreementId, companyId)
+    if (!agreement) throw new AgreementError('Agreement not found', 404)
+    if (agreement.status !== 'active') throw new AgreementError('Only an active plan can be suspended.', 409)
+    const now = new Date()
+    const [row] = await db.update(serviceAgreement).set({ status: 'suspended', updatedAt: now })
+      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'))).returning()
+    if (!row) throw new AgreementError('Only an active plan can be suspended.', 409)
+    await record(companyId, agreementId, 'suspended', byUserId ?? null, now, typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : null)
+    return row
+  }
+
+  /**
+   * Take a suspended plan off hold. The term is given back the days it was on hold (the end date moves out by them), and a
+   * bill date that fell due while it was suspended is moved on to the next one — the hold is not billed afterwards.
+   */
+  async function reactivateAgreement(agreementId: string, companyId: string, byUserId?: string | null) {
+    const agreement = await getAgreement(agreementId, companyId)
+    if (!agreement) throw new AgreementError('Agreement not found', 404)
+    if (agreement.status !== 'suspended') throw new AgreementError('Only a suspended plan can be reactivated.', 409)
+    const now = new Date()
+    const tz = await companyTimeZone(db, companyId)
+    let heldDays = 0
+    if (agreementEvent) {
+      const [since] = await db.select({ at: agreementEvent.at }).from(agreementEvent)
+        .where(and(eq(agreementEvent.agreementId, agreementId), eq(agreementEvent.kind, 'suspended'))).orderBy(desc(agreementEvent.at)).limit(1)
+      if (since) heldDays = Math.max(0, Math.floor((now.getTime() - new Date(since.at).getTime()) / 86_400_000))
+    }
+    const set: Record<string, unknown> = { status: 'active', updatedAt: now }
+    if (agreement.endDate && heldDays > 0) { const e = new Date(agreement.endDate); e.setUTCDate(e.getUTCDate() + heldDays); set.endDate = e }
+    if (agreement.nextBillDate) {
+      const today = dayMarker(storeDateString(now, tz))
+      let next = dayMarker(billDay(agreement.nextBillDate, tz))
+      let guard = 0
+      while (next < today && guard++ < 240) next = addInterval(next, agreement.billingFrequency)
+      set.nextBillDate = next
+    }
+    const [row] = await db.update(serviceAgreement).set(set)
+      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'suspended'))).returning()
+    if (!row) throw new AgreementError('Only a suspended plan can be reactivated.', 409)
+    await record(companyId, agreementId, 'reactivated', byUserId ?? null, now, heldDays ? `${heldDays} day${heldDays === 1 ? '' : 's'} on hold` : null)
+    await scheduleTermVisits(agreementId, companyId).catch((err) => console.error('[agreements] visits not scheduled after reactivation:', (err as Error).message))
+    return row
+  }
+
+  /** A plan's history, newest last: what happened, when, and who did it (the app itself for an automatic renewal or expiry). */
+  async function getHistory(agreementId: string, companyId: string) {
+    const agreement = await getAgreement(agreementId, companyId)
+    if (!agreement) return null
+    if (!agreementEvent) return { events: [] }
+    const rows = await db.select().from(agreementEvent).where(and(eq(agreementEvent.agreementId, agreementId), eq(agreementEvent.companyId, companyId))).orderBy(asc(agreementEvent.at))
+    const ids = [...new Set(rows.map((r: any) => r.byUserId).filter(Boolean))] as string[]
+    const names = new Map<string, string>()
+    if (ids.length && userTable) for (const u of await db.select({ id: userTable.id, f: userTable.firstName, l: userTable.lastName }).from(userTable).where(and(eq(userTable.companyId, companyId), inArray(userTable.id, ids)))) names.set(u.id, `${u.f || ''} ${u.l || ''}`.trim())
+    return { events: rows.map((r: any) => ({ id: r.id, kind: r.kind, at: new Date(r.at).toISOString(), by: r.byUserId ? names.get(r.byUserId) ?? null : null, note: r.note })) }
   }
 
   // ---- visits ----
@@ -898,6 +995,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         dueDate: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000),
         subtotal: String(agreement.amount),
         total: String(agreement.amount),
+        ...('serviceAgreementId' in invoice ? { serviceAgreementId: agreementId } : {}),
       }).returning()
       await tx.insert(invoiceLineItem).values({
         invoiceId: created.id,
@@ -1134,7 +1232,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   return {
     getPlans, createPlan, updatePlan, deletePlan,
-    createAgreement, getAgreements, getAgreement, updateAgreement, cancelAgreement, renewAgreement,
+    createAgreement, getAgreements, getAgreement, updateAgreement, cancelAgreement, renewAgreement, suspendAgreement, reactivateAgreement, getHistory,
     scheduleVisit, completeVisit, getUpcomingVisits,
     getAgreementsDueForBilling, setAgreementAutopay, processAgreementBilling, processDueAgreements, startBillingProcessor,
     getAgreementStats, getExpiringAgreements,
@@ -1252,7 +1350,7 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   app.put('/:id', requirePermission('agreements:update'), async (c: any) => {
     const user = c.get('user'); const id = c.req.param('id')
     try {
-      await service.updateAgreement(id, user.companyId, await c.req.json().catch(() => ({})))
+      await service.updateAgreement(id, user.companyId, await c.req.json().catch(() => ({})), user.userId)
     } catch (err) {
       if (err instanceof AgreementError) return c.json({ error: err.message }, err.status)
       throw err
@@ -1261,10 +1359,27 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   })
   app.post('/:id/cancel', requirePermission('agreements:update'), async (c: any) => {
     const { reason } = await c.req.json()
-    await service.cancelAgreement(c.req.param('id'), (c.get('user')).companyId, reason)
+    await service.cancelAgreement(c.req.param('id'), (c.get('user')).companyId, reason, (c.get('user')).userId)
     return c.json({ success: true })
   })
-  app.post('/:id/renew', requirePermission('agreements:update'), async (c: any) => c.json(await service.renewAgreement(c.req.param('id'), (c.get('user')).companyId)))
+  app.post('/:id/renew', requirePermission('agreements:update'), async (c: any) => c.json(await service.renewAgreement(c.req.param('id'), (c.get('user')).companyId, (c.get('user')).userId)))
+  // Put a plan on hold and take it off again (the plan reports count both).
+  const holdRoute = (fn: 'suspendAgreement' | 'reactivateAgreement') => async (c: any) => {
+    const user = c.get('user')
+    try {
+      const body = await c.req.json().catch(() => ({}))
+      return c.json(fn === 'suspendAgreement' ? await service.suspendAgreement(c.req.param('id'), user.companyId, body?.reason, user.userId) : await service.reactivateAgreement(c.req.param('id'), user.companyId, user.userId))
+    } catch (err) {
+      if (err instanceof AgreementError) return c.json({ error: err.message }, err.status)
+      throw err
+    }
+  }
+  app.get('/:id/history', async (c: any) => {
+    const r = await service.getHistory(c.req.param('id'), (c.get('user')).companyId)
+    return r ? c.json(r) : c.json({ error: 'Agreement not found' }, 404)
+  })
+  app.post('/:id/suspend', requirePermission('agreements:update'), holdRoute('suspendAgreement'))
+  app.post('/:id/reactivate', requirePermission('agreements:update'), holdRoute('reactivateAgreement'))
   // Put this term's visits on the calendar — an agreement sold before visits were scheduled, or one whose visits were
   // cancelled. Only what is missing is made (scheduleTermVisits).
   app.post('/:id/schedule-visits', requirePermission('agreements:update'), async (c: any) => {
