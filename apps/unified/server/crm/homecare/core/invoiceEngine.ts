@@ -25,7 +25,11 @@
 // timeEntryId, serviceDate, rateType, billedBasis, scheduledMinutes … now); insertLineItems reads camelCase lines.
 // The writes that need no raw SQL use the query builder.
 import { and, eq } from 'drizzle-orm'
-import { invoices, invoiceLineItems, invoicePayments } from '../../../db/schema/index.ts'
+import { invoices, invoiceLineItems, invoicePayments, clientBillingSplits } from '../../../db/schema/index.ts'
+import { splitLines, type SplitRule } from './splitBilling.ts'
+
+/** The feature that applies a client's split-billing rules when invoices are made (not ready: hidden until tested). */
+export const SPLIT_BILLING_FEATURE = 'care_split_billing'
 import {
   referralSourceRateFor, billingClient, billingTimeEntries, billingOccurrences, cancelledBillingDays,
   lockClientForBilling, advanceBilledThrough, lockInvoiceMoney, rollUpInvoicePayments,
@@ -589,6 +593,8 @@ export function createInvoiceEngine(d: CrmDeps, deps: { time: AgencyTime }) {
     advanceBilledThrough?: 'greatest' | 'set' | false; sentAt?: Date | null
   }) {
     const { companyId, client, periodStart, periodEnd, lineItems, total } = opts
+    // Split billing (core/splitBilling.ts): asked before the transaction opens (it reads on its own connection).
+    const splitOn = !!(await Promise.resolve(d.features.isFeatureEnabled(companyId, SPLIT_BILLING_FEATURE)).catch(() => false))
     return await d.db.transaction(async (tx: Dbc) => {
       await lockClientForBilling(tx, companyId, client.id)
       const existing = await tx.select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber }).from(invoices)
@@ -599,6 +605,38 @@ export function createInvoiceEngine(d: CrmDeps, deps: { time: AgencyTime }) {
       }
       const due = addDays(periodEnd, 30)
       const isPrivate = !!(client.isPrivatePay ?? client.is_private_pay)
+      const advance = async () => {
+        if (opts.advanceBilledThrough === 'set') await advanceBilledThrough(tx, companyId, client.id, periodEnd, 'set')
+        else if (opts.advanceBilledThrough !== false) await advanceBilledThrough(tx, companyId, client.id, periodEnd, 'greatest')
+      }
+      // A client whose visits are split: one invoice per party — each payer's share, then the family's rest — made
+      // together, so the period's "already invoiced" check above covers them all. The visits' hours count on the first.
+      const rules: SplitRule[] = splitOn
+        ? (await tx.select().from(clientBillingSplits).where(and(eq(clientBillingSplits.companyId, companyId), eq(clientBillingSplits.clientId, client.id))))
+          .map((r: any) => ({ payerId: r.payerId, priority: r.priority, kind: r.kind, value: Number(r.value) }))
+        : []
+      if (rules.length) {
+        const { parts } = splitLines(lineItems, rules)
+        const splitGroupId = crypto.randomUUID()
+        const made: any[] = []
+        for (const [i, part] of parts.entries()) {
+          const [row] = await tx.insert(invoices).values({
+            companyId, clientId: client.id, invoiceNumber: generateInvoiceNumber(client.id) + (parts.length > 1 ? `-${i + 1}` : ''),
+            billingPeriodStart: periodStart, billingPeriodEnd: periodEnd,
+            subtotal: String(round2(part.total)), total: String(round2(part.total)), paymentStatus: 'pending', paymentDueDate: due,
+            notes: opts.notes ?? null, referralSourceId: part.payerId, invoiceType: part.billTo === 'payer' ? 'insurance' : 'private_pay',
+            billTo: part.billTo, splitGroupId, countsHours: i === 0, sentAt: opts.sentAt ?? null,
+          }).returning()
+          await insertLineItems(companyId, row.id, part.lines, tx)
+          made.push(row)
+        }
+        await advance()
+        // The family's part is the one the screen opens on (the payers' are listed with it); none left: the first payer's.
+        const main = made.find((r) => r.billTo === 'family') ?? made[0]
+        return { ...main, periodStartText: main.billingPeriodStart, splitParts: made.map((r) => ({ id: r.id, invoiceNumber: r.invoiceNumber, billTo: r.billTo, payerId: r.referralSourceId, total: r.total })) }
+      }
+      const referralSourceId = isPrivate ? null : ((client.referredById ?? client.referred_by_id) || null)
+      const invoiceType = isPrivateByRule(client) ? 'private_pay' : 'insurance'
       const [inv] = await tx.insert(invoices).values({
         companyId,
         clientId: client.id,
@@ -610,13 +648,13 @@ export function createInvoiceEngine(d: CrmDeps, deps: { time: AgencyTime }) {
         paymentStatus: 'pending',
         paymentDueDate: due,
         notes: opts.notes ?? null,
-        referralSourceId: isPrivate ? null : ((client.referredById ?? client.referred_by_id) || null),
-        invoiceType: isPrivateByRule(client) ? 'private_pay' : 'insurance',
+        referralSourceId, invoiceType,
+        // An insurance invoice naming its payer is the payer's to pay; any other is the family's (migration 0051's rule).
+        billTo: invoiceType === 'insurance' && referralSourceId ? 'payer' : 'family',
         sentAt: opts.sentAt ?? null,
       }).returning()
       await insertLineItems(companyId, inv.id, lineItems, tx)
-      if (opts.advanceBilledThrough === 'set') await advanceBilledThrough(tx, companyId, client.id, periodEnd, 'set')
-      else if (opts.advanceBilledThrough !== false) await advanceBilledThrough(tx, companyId, client.id, periodEnd, 'greatest')
+      await advance()
       return { ...inv, periodStartText: inv.billingPeriodStart }
     })
   }

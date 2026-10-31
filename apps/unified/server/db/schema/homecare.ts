@@ -708,14 +708,45 @@ export const invoices = pgTable('invoices', {
   // (packages/tenant-backend portal/documentLinks.ts). The email linked /pay/<invoice id>, and only when FRONTEND_URL
   // was set (live test, 2026-10-23: the agency's invoice email had no way to pay).
   publicToken: text('public_token').unique(),
+  // Who this invoice is billed to (0051): 'payer' — a payer (referral_source_id) owes it; 'family' — the client and
+  // their family owe it. Only a 'family' invoice is shown in the family portal, paid on the public pay page or charged
+  // to the family's saved card (data/homecareBilling.ts clientVisibleInvoiceSql, homecareAutopay.ts).
+  billTo: text('bill_to').default('family').notNull(),
+  // Split billing (0051, core/splitBilling.ts): the parts one generate made of the same visits — each payer's share and
+  // the family's rest — share this id. Null: not split.
+  splitGroupId: text('split_group_id'),
+  // Whether this invoice's hours count in hour totals: a split's visits are on every part, and counted on one.
+  countsHours: boolean('counts_hours').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('invoices_company_id_idx').on(t.companyId),
+  index('invoices_split_group_idx').on(t.splitGroupId),
   uniqueIndex('invoices_seq_number_unique').on(t.seqNumber),
   index('invoices_client_id_idx').on(t.clientId),
   index('invoices_payment_status_idx').on(t.paymentStatus),
   index('invoices_period_status_idx').on(t.billingPeriodStart, t.billingPeriodEnd, t.paymentStatus),
+])
+
+/**
+ * Split billing (0051, core/splitBilling.ts) — the AxisCare / WellSky way, as the owner decided (10/30): a client's payers
+ * in priority order, each paying a percent of each visit or a fixed amount per hour of it, the family paying the rest; no
+ * payer is billed more than what is left of the visit after the payers before it, so the parts never add up to more
+ * than the visit. Applied when the agency has the care_split_billing feature on.
+ */
+export const clientBillingSplits = pgTable('client_billing_splits', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  payerId: text('payer_id').notNull().references(() => referralSources.id),
+  priority: integer('priority').notNull(),
+  // 'percent' (value: 0–100 of each visit) or 'per_hour' (value: dollars per hour of each visit).
+  kind: text('kind').notNull(),
+  value: decimal('value', { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_billing_splits_client_idx').on(t.companyId, t.clientId),
+  uniqueIndex('client_billing_splits_client_payer_unique').on(t.clientId, t.payerId),
 ])
 
 export const invoiceLineItems = pgTable('invoice_line_items', {

@@ -20,6 +20,7 @@ import { createPricingRoutes } from './pricing.ts'
 import { createVisitInvoiceStripeRoutes } from './stripe.ts'
 import { createAutopayRoutes } from './autopayRoutes.ts'
 import { createLtcRoutes } from './ltcRoutes.ts'
+import { createSplitBillingRoutes } from './splitRoutes.ts'
 
 export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   // /api/billing: the visit invoicing, and at the same root the Factory subscription's three doors — as the template's
@@ -40,6 +41,8 @@ export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/care-autopay', access: 'user', feature: 'care_autopay', router: createAutopayRoutes(core, d) },
     // Item 3 (care_ltc_billing, not ready): a long-term care insurance policy per client and a claim packet per invoice.
     { path: '/api/care-ltc', access: 'user', feature: 'care_ltc_billing', router: createLtcRoutes(core, d) },
+    // Split billing (care_split_billing, not ready): payers in priority order share each visit; the family pays the rest.
+    { path: '/api/care-split', access: 'user', feature: 'care_split_billing', router: createSplitBillingRoutes(core, d) },
     // Public: the family's pay page and Stripe's webhook answer without a session; the router signs people in itself
     // for the rest (modules/crm.ts leaves /api/stripe to this mount for home care).
     { path: '/api/stripe', access: 'public', router: createVisitInvoiceStripeRoutes(core, d) },

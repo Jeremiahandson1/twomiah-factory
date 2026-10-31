@@ -9,14 +9,15 @@ import type { Q } from './homecareCore.ts'
  * Sent invoices of clients with a card on file that still owe something and have no try that stops another one:
  * a try that worked, one that needs the family (their bank asked for more), a hard decline, the last allowed try, a failed
  * try whose wait is not over, or a try that started less than `staleMinutes` ago (it is still being asked of Stripe).
- * One company's when `companyId` is given. A draft (sent_at empty) is never charged.
+ * One company's when `companyId` is given. A draft (sent_at empty) is never charged, nor an invoice billed to a payer:
+ * the family's card pays what the family owes (0051 bill_to — an insurer's invoice, or a payer's share of split visits).
  */
 export async function invoicesDueForCharge(q: Q, companyId: string | null, maxAttempts: number, staleMinutes: number, limit = 200): Promise<{ id: string; companyId: string }[]> {
   return camelRows(await q.execute(sql`
     SELECT i.id, i.company_id
       FROM invoices i
       JOIN client_autopay a ON a.client_id = i.client_id AND a.company_id = i.company_id AND a.status = 'active'
-     WHERE i.sent_at IS NOT NULL AND i.payment_status <> 'paid'
+     WHERE i.sent_at IS NOT NULL AND i.payment_status <> 'paid' AND i.bill_to = 'family'
        AND (i.total - COALESCE(i.amount_paid, 0) - COALESCE(i.amount_adjusted, 0)) > 0
        ${companyId ? sql`AND i.company_id = ${companyId}` : sql``}
        AND NOT EXISTS (

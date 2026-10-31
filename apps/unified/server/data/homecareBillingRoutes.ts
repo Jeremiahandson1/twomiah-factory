@@ -190,10 +190,20 @@ export async function visitInvoiceLines(q: Q, companyId: string, invoiceId: stri
 }
 
 /** An invoice's period, for deleting it (null when there is no such invoice). */
-export async function invoicePeriodOf(q: Q, companyId: string, id: string): Promise<{ id: string; invoiceNumber: string; clientId: string; s: string; e: string } | null> {
+export async function invoicePeriodOf(q: Q, companyId: string, id: string): Promise<{ id: string; invoiceNumber: string; clientId: string; s: string; e: string; splitGroupId: string | null } | null> {
   return camelFirst(await q.execute(sql`
-    SELECT id, invoice_number, client_id, to_char(billing_period_start, 'YYYY-MM-DD') AS s, to_char(billing_period_end, 'YYYY-MM-DD') AS e
+    SELECT id, invoice_number, client_id, to_char(billing_period_start, 'YYYY-MM-DD') AS s, to_char(billing_period_end, 'YYYY-MM-DD') AS e, split_group_id
       FROM invoices WHERE id = ${id} AND company_id = ${companyId}`)) ?? null
+}
+
+/** Every part of a split (0051): the invoices one generate made of the same visits, each with whether money is on it. */
+export async function splitParts(q: Q, companyId: string, splitGroupId: string): Promise<Array<{ id: string; invoiceNumber: string; clientId: string; s: string; e: string; hasMoney: boolean }>> {
+  return camelRows(await q.execute(sql`
+    SELECT i.id, i.invoice_number, i.client_id, to_char(i.billing_period_start, 'YYYY-MM-DD') AS s, to_char(i.billing_period_end, 'YYYY-MM-DD') AS e,
+           (COALESCE(i.amount_paid, 0) > 0 OR i.payment_status IN ('paid', 'partial')
+             OR EXISTS (SELECT 1 FROM invoice_payments p WHERE p.invoice_id = i.id)) AS has_money
+      FROM invoices i WHERE i.company_id = ${companyId} AND i.split_group_id = ${splitGroupId}
+     ORDER BY i.invoice_number`)) as any
 }
 
 /**
@@ -214,7 +224,7 @@ export async function deleteVisitInvoice(tx: Q, companyId: string, inv: { id: st
 /** What a line-item edit needs to know about the invoice (null when there is none). */
 export async function invoiceForLineEdit(q: Q, companyId: string, id: string): Promise<any | null> {
   return camelFirst(await q.execute(sql`
-    SELECT i.id, i.client_id, i.payment_status, i.amount_paid, i.tax,
+    SELECT i.id, i.client_id, i.payment_status, i.amount_paid, i.tax, i.split_group_id,
            to_char(i.billing_period_start, 'YYYY-MM-DD') AS s, to_char(i.billing_period_end, 'YYYY-MM-DD') AS e
       FROM invoices i WHERE i.id = ${id} AND i.company_id = ${companyId}`)) ?? null
 }
@@ -251,8 +261,11 @@ export async function appendInvoiceNote(q: Q, companyId: string, id: string, lin
 export async function invoiceForEmail(q: Q, companyId: string, id: string): Promise<any | null> {
   return camelFirst(await q.execute(sql`
     SELECT i.*, to_char(i.payment_due_date, 'YYYY-MM-DD') AS due_text,
-           c.first_name, c.last_name, COALESCE(c.portal_email, c.email) AS client_email
-      FROM invoices i JOIN clients c ON i.client_id = c.id WHERE i.id = ${id} AND i.company_id = ${companyId}`)) ?? null
+           c.first_name, c.last_name, COALESCE(c.portal_email, c.email) AS client_email,
+           rs.name AS payer_name, NULLIF(COALESCE(NULLIF(rs.billing_contact_email, ''), rs.email), '') AS payer_email
+      FROM invoices i JOIN clients c ON i.client_id = c.id
+      LEFT JOIN referral_sources rs ON rs.id = i.referral_source_id AND rs.company_id = i.company_id
+     WHERE i.id = ${id} AND i.company_id = ${companyId}`)) ?? null
 }
 
 /** An invoice's lines as its email lists them. */
@@ -419,7 +432,8 @@ export async function billingSummaryFigures(q: Q, companyId: string, start: stri
       FROM invoices i LEFT JOIN referral_sources rs ON i.referral_source_id = rs.id
      WHERE ${where} GROUP BY rs.name ORDER BY total_billed DESC`))
   const byCaregiver = camelRows(await q.execute(sql`
-    SELECT u.first_name || ' ' || u.last_name AS caregiver_name, COALESCE(SUM(ili.hours), 0) AS total_hours,
+    -- A split visit's hours are on every part of it (0051): counted once, on the part that carries them.
+    SELECT u.first_name || ' ' || u.last_name AS caregiver_name, COALESCE(SUM(ili.hours) FILTER (WHERE i.counts_hours), 0) AS total_hours,
            COALESCE(SUM(ili.amount), 0) AS total_billed
       FROM invoice_line_items ili JOIN invoices i ON ili.invoice_id = i.id LEFT JOIN "user" u ON ili.caregiver_id = u.id
      WHERE ${where} GROUP BY u.first_name, u.last_name ORDER BY total_hours DESC`))

@@ -26,7 +26,7 @@ import {
 import {
   visitInvoicePage, visitInvoiceTotals, billingScheduleRows, clientsWithBillableActivity, pickableScheduledVisits, billedVisitLines,
   invoicePeriodsOverlapping, homemakingMinutes, visitInvoiceDetail, visitInvoiceLines, invoicePeriodOf, deleteVisitInvoice,
-  invoiceForLineEdit, lockInvoicePaymentState, invoiceLinesInOrder, releaseVisitInvoice, appendInvoiceNote, invoiceForEmail,
+  invoiceForLineEdit, splitParts, lockInvoicePaymentState, invoiceLinesInOrder, releaseVisitInvoice, appendInvoiceNote, invoiceForEmail,
   invoiceEmailLines, invoicePaymentRows, lockInvoiceRow, applyInvoiceWriteDown, invoiceAdjustmentRows, payerRateRows,
   missingPayerRates, retirePayerRate, updatePayerRate, invoiceCsvRows, evvExportRows, billingSummaryFigures,
 } from '../../../data/homecareBillingRoutes.ts'
@@ -496,6 +496,15 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const { companyId } = who(c)
     const inv = await invoicePeriodOf(db, companyId, c.req.param('id'))
     if (!inv) return fail(c, 404, 'Invoice not found')
+    // A part of split visits goes with the others (one generate made them of the same visits): deleting one alone would
+    // leave the period half-billed and blocked. Not while money is on any of them — that payment would go with it.
+    if (inv.splitGroupId) {
+      const parts = await splitParts(db, companyId, inv.splitGroupId)
+      const paid = parts.find((p) => p.hasMoney)
+      if (paid) return fail(c, 409, `Invoice ${paid.invoiceNumber} — a part of the same split visits — has a payment recorded, so the split cannot be deleted. Record an adjustment instead.`, 'split_has_payment')
+      await db.transaction(async (tx: any) => { for (const p of parts) await deleteVisitInvoice(tx, companyId, p) })
+      return done(c, `Invoices ${parts.map((p) => p.invoiceNumber).join(', ')} (one split) deleted successfully`)
+    }
     await db.transaction(async (tx: any) => { await deleteVisitInvoice(tx, companyId, inv) })
     return done(c, `Invoice ${inv.invoiceNumber} deleted successfully`)
   })
@@ -510,6 +519,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     if (items.length === 0) return fail(c, 400, 'At least one line item is required')
     const inv = await invoiceForLineEdit(db, companyId, id)
     if (!inv) return fail(c, 404, 'Invoice not found')
+    // A part of split visits is priced by the split, not by hand: its lines and the other parts' must stay one visit.
+    if (inv.splitGroupId) return fail(c, 409, "This invoice is one part of split visits, so its lines are set by the client's split. Delete the split's invoices and create them again to change them.", 'split_part')
     if (inv.paymentStatus === 'paid' || num(inv.amountPaid) > 0) {
       return fail(c, 409, 'This invoice has a payment recorded and can no longer be edited.', 'invoice_has_payment')
     }
@@ -593,8 +604,10 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const invoice = await invoiceForEmail(db, companyId, id)
     if (!invoice) return fail(c, 404, 'Invoice not found')
     const b = await body(c)
-    const to = b.email || invoice.clientEmail
-    if (!to) return fail(c, 400, 'No email address found for this client. Please provide an email.')
+    // A payer's invoice goes to the payer's billing contact, the family's to the family (0051 bill_to).
+    const toPayer = invoice.billTo === 'payer'
+    const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
+    if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')
     const amountDue = num(invoice.total) - num(invoice.amountPaid) - num(invoice.amountAdjusted)
     const lines = await invoiceEmailLines(db, companyId, id)
@@ -628,8 +641,10 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     if (!invoice) return fail(c, 404, 'Invoice not found')
     if (invoice.paymentStatus === 'paid') return fail(c, 400, 'This invoice is already paid — no reminder needed.')
     const b = await body(c)
-    const to = b.email || invoice.clientEmail
-    if (!to) return fail(c, 400, 'No email address found for this client. Please provide an email.')
+    // A payer's invoice goes to the payer's billing contact, the family's to the family (0051 bill_to).
+    const toPayer = invoice.billTo === 'payer'
+    const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
+    if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')
     const amountDue = num(invoice.total) - num(invoice.amountPaid) - num(invoice.amountAdjusted)
     if (amountDue <= 0) return fail(c, 400, 'No balance due on this invoice.')
