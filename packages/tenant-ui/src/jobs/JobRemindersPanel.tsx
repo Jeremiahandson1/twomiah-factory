@@ -5,6 +5,7 @@ import { BellRing, Check, Mail, MessageSquare } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import { whenTime } from '../time/companyClock'
 import { codeLabel } from '../labels/codes'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Api { get: (p: string, q?: any) => Promise<any>; post: (p: string, b?: any) => Promise<any> }
 interface Toast { success: (m: string) => void; error: (m: string) => void }
@@ -16,7 +17,9 @@ interface Panel {
   notices: Notice[]
 }
 
-export function JobRemindersPanel({ api, toast, jobId, mayUpdate, open }: { api: Api; toast: Toast; jobId: string; mayUpdate: boolean; open: boolean }) {
+export function JobRemindersPanel({ api, toast, jobId, mayUpdate: mayUpdateProp, open }: { api: Api; toast: Toast; jobId: string; mayUpdate: boolean; open: boolean }) {
+  // POST /api/job-reminders/send/:jobId asks jobs:update.
+  const mayUpdate = mayUpdateProp && useMayWrite('jobs:update')
   const [panel, setPanel] = useState<Panel | null>(null)
   const [busy, setBusy] = useState('')
   const load = useCallback(() => api.get(`/api/job-reminders/job/${jobId}`).then((r) => setPanel((r?.data ?? r) as Panel)).catch(() => setPanel(null)), [api, jobId])

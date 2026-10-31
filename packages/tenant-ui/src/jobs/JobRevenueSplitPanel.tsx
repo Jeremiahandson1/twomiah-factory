@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Api { get: (p: string, q?: any) => Promise<any>; put: (p: string, b?: any) => Promise<any> }
 interface Toast { success: (m: string) => void; error: (m: string) => void }
@@ -15,7 +16,9 @@ const MODES: Array<['equal' | 'hours' | 'percent', string, string]> = [
   ['percent', 'By percent', 'You set each person’s percentage; they must add up to 100.'],
 ]
 
-export function JobRevenueSplitPanel({ api, toast, jobId, mayUpdate, crewSize }: { api: Api; toast: Toast; jobId: string; mayUpdate: boolean; crewSize: number }) {
+export function JobRevenueSplitPanel({ api, toast, jobId, mayUpdate: mayUpdateProp, crewSize }: { api: Api; toast: Toast; jobId: string; mayUpdate: boolean; crewSize: number }) {
+  // PUT /api/team-revenue/jobs/:id/split asks jobs:update.
+  const mayUpdate = mayUpdateProp && useMayWrite('jobs:update')
   const [split, setSplit] = useState<Split | null>(null)
   const [mode, setMode] = useState<Split['mode']>('equal')
   const [percents, setPercents] = useState<Record<string, string>>({})

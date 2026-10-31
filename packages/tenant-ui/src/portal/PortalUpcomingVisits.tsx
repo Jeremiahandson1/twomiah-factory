@@ -14,7 +14,7 @@ export function PortalUpcomingVisits() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   useEffect(() => { portalFetch('/upcoming-visits').then((d) => setVisits(Array.isArray(d) ? d : [])).catch((e) => setError((e as Error).message)).finally(() => setLoading(false)) }, [portalFetch])
-  const confirm = async (jobId: string) => {
+  const confirmVisit = async (jobId: string) => {
     setBusy(jobId); setError('')
     try {
       const v = await portalFetch(`/upcoming-visits/${jobId}/confirm`, { method: 'POST', body: JSON.stringify({}) })
@@ -36,7 +36,7 @@ export function PortalUpcomingVisits() {
               <div className="mt-3">
                 {v.confirmed
                   ? <span className="inline-flex items-center gap-1 text-sm font-medium text-green-700 dark:text-green-400"><Check className="h-4 w-4" aria-hidden />You have confirmed this visit</span>
-                  : <button type="button" disabled={busy === v.jobId} onClick={() => confirm(v.jobId)} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{busy === v.jobId ? 'Confirming…' : 'Confirm this visit'}</button>}
+                  : <button type="button" disabled={busy === v.jobId} onClick={() => confirmVisit(v.jobId)} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{busy === v.jobId ? 'Confirming…' : 'Confirm this visit'}</button>}
               </div>
             </div>
           ))}

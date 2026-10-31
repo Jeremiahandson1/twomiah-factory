@@ -4,6 +4,7 @@
 // shows nothing when Job Reminders is off, the job has no customer, or the customer can be reached neither way.
 import { useEffect, useState } from 'react'
 import { Modal, Button, errMsg } from '../invoicing/ui'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Api { get: (p: string, q?: any) => Promise<any>; post: (p: string, b?: any) => Promise<any> }
 interface Toast { success: (m: string) => void; error: (m: string) => void }
@@ -17,8 +18,10 @@ export function NotifyMovedDialog({ api, toast, jobIds, onDone }: { api: Api; to
   const [text, setText] = useState(true)
   const [mail, setMail] = useState(true)
   const [busy, setBusy] = useState(false)
+  // POST /api/job-reminders/moved/:jobId asks jobs:update: a seat without it is never asked, and the caller carries on.
+  const mayNotify = useMayWrite('jobs:update')
   const key = jobIds.join(',')
-  useEffect(() => { setQueue(jobIds) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!mayNotify && jobIds.length) { setQueue([]); setTimeout(onDone, 0); return } setQueue(jobIds) }, [key, mayNotify]) // eslint-disable-line react-hooks/exhaustive-deps
   const current = queue[0]
   const next = () => setQueue((q) => { const rest = q.slice(1); if (!rest.length) setTimeout(onDone, 0); return rest })
   useEffect(() => {

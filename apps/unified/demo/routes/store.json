@@ -60,6 +60,7 @@
   "/api/site/preview/settings/site?v=1",
   "/api/site/settings",
   "/api/support/kb",
+  "/api/team/assignable",
   "/api/team?limit=25&page=1",
   "/api/text-activity/contact/:id"
  ]
