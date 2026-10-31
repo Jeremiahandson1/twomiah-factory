@@ -189,7 +189,7 @@ export function terminalStripeFake() {
   const confirmBankIntent = (id: string, pm = 'pm_bank_ok', opts: { microdeposits?: boolean } = {}) => {
     const pi = intents.get(id)
     Object.assign(pi, { payment_method: pm, last_payment_error: null })
-    if (opts.microdeposits) Object.assign(pi, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { arrival_date: Math.floor(Date.now() / 1000) + 2 * 86400, hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${pi.id}` } } })
+    if (opts.microdeposits) Object.assign(pi, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { arrival_date: Math.floor(Date.now() / 1000) + 2 * 86400, hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${pi.id}`, microdeposit_type: 'descriptor_code' } } })
     else Object.assign(pi, { status: 'processing', next_action: null })
     if (pi.setup_future_usage) pi.mandate = mandateFor(pm)
     return pi
@@ -204,7 +204,7 @@ export function terminalStripeFake() {
   const confirmBankSetup = (id: string, pm = 'pm_bank_ok', opts: { microdeposits?: boolean } = {}) => {
     const si = setups.get(id)
     Object.assign(si, { payment_method: pm, mandate: mandateFor(pm) })
-    if (opts.microdeposits) Object.assign(si, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${si.id}` } } })
+    if (opts.microdeposits) Object.assign(si, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { arrival_date: Math.floor(Date.now() / 1000) + 2 * 86400, hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${si.id}`, microdeposit_type: 'descriptor_code' } } })
     else Object.assign(si, { status: 'succeeded', next_action: null })
     return si
   }

@@ -51,7 +51,8 @@ function stripeSays(e: any, fallback: string): string {
 
 export interface ChargeView {
   id: string; status: string; failure: string | null; amountCents: number; tipCents: number
-  checkId: string | null; orderId: string | null; readerId: string; readerLabel: string | null; paymentId: string | null; createdAt: string
+  /** The counter reader, or null for a hold taken by Tap to Pay on the phone (parity row 14). */
+  checkId: string | null; orderId: string | null; readerId: string | null; readerLabel: string | null; paymentId: string | null; createdAt: string
   /** 'sale' (an ordinary charge) or 'preauth' (a tab: amountCents is the hold). */
   kind: string
   card: { brand: string | null; last4: string | null; holder: string | null } | null
@@ -311,7 +312,7 @@ export function createBarTerminal(deps: {
         else if (pi?.status === 'succeeded') await record(charge, pi)
         else if (pi?.status === 'canceled') await finish(charge.id, 'canceled', 'The payment was cancelled.')
         else {
-          const [reader] = await db.select().from(barReader).where(eq(barReader.id, charge.readerId)).limit(1)
+          const [reader] = charge.readerId ? await db.select().from(barReader).where(eq(barReader.id, charge.readerId)).limit(1) : [null]
           let action: any = null
           if (reader) { try { action = ((await stripe.terminal.readers.retrieve(reader.stripeReaderId, {}, opts)) as any).action } catch { action = null } }
           const ours = action && action.process_payment_intent?.payment_intent === charge.paymentIntentId
@@ -326,8 +327,8 @@ export function createBarTerminal(deps: {
       }
       charge = await chargeRow(companyId, id)
     }
-    const [reader] = await db.select({ label: barReader.label }).from(barReader).where(eq(barReader.id, charge.readerId)).limit(1)
-    return chargeView(charge, reader?.label ?? null)
+    const [reader] = charge.readerId ? await db.select({ label: barReader.label }).from(barReader).where(eq(barReader.id, charge.readerId)).limit(1) : [null]
+    return chargeView(charge, reader?.label ?? (charge.readerId ? null : 'This phone'))
   }
 
   /** Stop the reader and cancel the PaymentIntent — and if Stripe says it already went through, record it instead. */
@@ -351,7 +352,7 @@ export function createBarTerminal(deps: {
     if (charge.status !== 'pending') return pollCharge(actor.companyId, id)
     const stripe = stripeOf()
     if (!stripe) { await finish(charge.id, 'canceled', 'Cancelled at the register.'); return pollCharge(actor.companyId, id) }
-    const [reader] = await db.select().from(barReader).where(eq(barReader.id, charge.readerId)).limit(1)
+    const [reader] = charge.readerId ? await db.select().from(barReader).where(eq(barReader.id, charge.readerId)).limit(1) : [null]
     await giveUp(stripe, charge, reader?.stripeReaderId ?? null, 'canceled', `Cancelled at the register by ${actor.name}.`)
     return pollCharge(actor.companyId, id)
   }
@@ -359,6 +360,7 @@ export function createBarTerminal(deps: {
   /** Stripe's test helper: present a test card on a SIMULATED reader (a test account only), for setting up and the live test. */
   async function simulateCard(companyId: string, id: string, outcome: 'approve' | 'decline', tipCents = 0) {
     const charge = await chargeRow(companyId, id)
+    if (!charge.readerId) throw new TerminalError('That hold was taken on a phone; there is no reader to hand a test card to.', 409)
     const reader = await readerOf(companyId, charge.readerId)
     if (!String(reader.deviceType || '').startsWith('simulated')) throw new TerminalError('Only a simulated reader can be handed a test card.', 409)
     const stripe = stripeOf()
@@ -475,8 +477,8 @@ export function createBarTerminal(deps: {
   async function tabFor(companyId: string, checkId: string): Promise<ChargeView | null> {
     const [row] = await db.select().from(barTerminalCharge).where(and(eq(barTerminalCharge.companyId, companyId), eq(barTerminalCharge.checkId, checkId), eq(barTerminalCharge.kind, 'preauth'), inArray(barTerminalCharge.status, ACTIVE_TAB))).orderBy(desc(barTerminalCharge.createdAt)).limit(1)
     if (!row) return null
-    const [reader] = await db.select({ label: barReader.label }).from(barReader).where(eq(barReader.id, row.readerId)).limit(1)
-    return chargeView(row, reader?.label ?? null)
+    const [reader] = row.readerId ? await db.select({ label: barReader.label }).from(barReader).where(eq(barReader.id, row.readerId)).limit(1) : [null]
+    return chargeView(row, reader?.label ?? (row.readerId ? null : 'This phone'))
   }
 
   /**

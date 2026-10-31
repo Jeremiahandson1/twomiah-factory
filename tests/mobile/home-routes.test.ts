@@ -43,7 +43,8 @@ check('call, text and email use tel:, sms: and mailto:', telUrl('(555) 010-0100'
 
 // A card is taken on the phone ONLY by Tap to Pay (the owner's yes, 10/30): through Stripe Terminal's own SDK, on the Tap to
 // Pay screen and its loader, into the business's own Stripe. Nowhere else, and a card's details are never typed into the app.
-const TAP_TO_PAY_FILES = new Set(['app/(details)/invoice/tap.tsx', 'app/(details)/invoice/[id].tsx', 'src/payments/terminal.native.ts', 'src/payments/terminal.ts'])
+// The card tabs screen (restaurant-bar parity row 14) is a Tap to Pay screen too: the hold is collected by the same SDK, through the server.
+const TAP_TO_PAY_FILES = new Set(['app/(details)/invoice/tap.tsx', 'app/(details)/invoice/[id].tsx', 'app/(details)/bar-tabs.tsx', 'src/payments/terminal.native.ts', 'src/payments/terminal.ts'])
 const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === 'preview' ? [] : walk(path.join(d, e.name))) : [path.join(d, e.name)]))
 const srcFiles = [...walk(path.resolve(import.meta.dir, '../../apps/mobile/app')), ...walk(path.resolve(import.meta.dir, '../../apps/mobile/src'))].filter((f) => /\.(tsx?|ts)$/.test(f))
 const rel = (f: string) => path.relative(path.resolve(import.meta.dir, '../../apps/mobile'), f).split(path.sep).join('/')

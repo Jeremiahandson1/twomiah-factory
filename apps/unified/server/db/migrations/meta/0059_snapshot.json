@@ -1,6 +1,6 @@
 {
-  "id": "f80f48f0-b37d-48c5-b4d1-9a3c7a45cde3",
-  "prevId": "418b862c-8472-4f7a-a438-94c335d66645",
+  "id": "4ab1c048-723a-4593-aca8-992bd0a7d686",
+  "prevId": "a4022644-2475-497c-8ab1-ed20215aef9d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -38906,12 +38906,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "day": {
-          "name": "day",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "start_time": {
           "name": "start_time",
           "type": "text",
@@ -39003,6 +38997,175 @@
         "bar_availability_company_id_company_id_fk": {
           "name": "bar_availability_company_id_company_id_fk",
           "tableFrom": "bar_availability",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bar_availability_date": {
+      "name": "bar_availability_date",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_by_name": {
+          "name": "decided_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "bar_availability_date_key": {
+          "name": "bar_availability_date_key",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bar_availability_date_day_idx": {
+          "name": "bar_availability_date_day_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bar_availability_date_user_id_user_id_fk": {
+          "name": "bar_availability_date_user_id_user_id_fk",
+          "tableFrom": "bar_availability_date",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "bar_availability_date_company_id_company_id_fk": {
+          "name": "bar_availability_date_company_id_company_id_fk",
+          "tableFrom": "bar_availability_date",
           "tableTo": "company",
           "columnsFrom": [
             "company_id"
@@ -39951,28 +40114,28 @@
           "primaryKey": false,
           "notNull": true
         },
-        "cents": {
-          "name": "cents",
+        "amount_cents": {
+          "name": "amount_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "declared_cents": {
-          "name": "declared_cents",
+        "original_cents": {
+          "name": "original_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "declared_at": {
-          "name": "declared_at",
-          "type": "timestamp",
+        "declared_via": {
+          "name": "declared_via",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": "'web'"
         },
-        "corrected_cents": {
-          "name": "corrected_cents",
-          "type": "integer",
+        "note": {
+          "name": "note",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -39988,11 +40151,19 @@
           "primaryKey": false,
           "notNull": false
         },
-        "note": {
-          "name": "note",
-          "type": "text",
+        "declared_at": {
+          "name": "declared_at",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         },
         "company_id": {
           "name": "company_id",
@@ -40717,26 +40888,14 @@
           "notNull": true,
           "default": "'review'"
         },
-        "file_name": {
-          "name": "file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mime_type": {
-          "name": "mime_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "vendor_id": {
           "name": "vendor_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "vendor_name": {
-          "name": "vendor_name",
+        "supplier_name": {
+          "name": "supplier_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -40753,14 +40912,45 @@
           "primaryKey": false,
           "notNull": false
         },
+        "total_cents": {
+          "name": "total_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "lines": {
           "name": "lines",
           "type": "json",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'[]'::json"
         },
-        "read_note": {
-          "name": "read_note",
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_key": {
+          "name": "file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_type": {
+          "name": "file_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reader": {
+          "name": "reader",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -40777,6 +40967,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "confirmed_by_name": {
+          "name": "confirmed_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -40784,11 +40986,12 @@
           "notNull": true,
           "default": "now()"
         },
-        "confirmed_at": {
-          "name": "confirmed_at",
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "now()"
         },
         "company_id": {
           "name": "company_id",
@@ -41233,6 +41436,24 @@
         },
         "eighty_sixed_at": {
           "name": "eighty_sixed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_count": {
+          "name": "stock_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_count_reset": {
+          "name": "stock_count_reset",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_counted_at": {
+          "name": "stock_counted_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -42643,6 +42864,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "shift_stamp": {
+          "name": "shift_stamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "with_stamp": {
+          "name": "with_stamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "from_user_id": {
           "name": "from_user_id",
           "type": "text",
@@ -43348,6 +43581,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bottle_tare_grams": {
+          "name": "bottle_tare_grams",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bottle_full_grams": {
+          "name": "bottle_full_grams",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "is_active": {
           "name": "is_active",
           "type": "boolean",
@@ -43667,7 +43912,7 @@
           "name": "reader_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "stripe_account": {
           "name": "stripe_account",
@@ -43992,6 +44237,156 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.bar_tip_import": {
+      "name": "bar_tip_import",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_day": {
+          "name": "business_day",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_staff_id": {
+          "name": "external_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tip_cents": {
+          "name": "tip_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "bar_tip_import_payment_key": {
+          "name": "bar_tip_import_payment_key",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "external_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bar_tip_import_day_idx": {
+          "name": "bar_tip_import_day_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bar_tip_import_source_id_bar_tip_source_id_fk": {
+          "name": "bar_tip_import_source_id_bar_tip_source_id_fk",
+          "tableFrom": "bar_tip_import",
+          "tableTo": "bar_tip_source",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "bar_tip_import_company_id_company_id_fk": {
+          "name": "bar_tip_import_company_id_company_id_fk",
+          "tableFrom": "bar_tip_import",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.bar_tip_payout": {
       "name": "bar_tip_payout",
       "schema": "",
@@ -44041,6 +44436,20 @@
         },
         "tips_cents": {
           "name": "tips_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "declared_cents": {
+          "name": "declared_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "imported_cents": {
+          "name": "imported_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -44161,6 +44570,265 @@
         "bar_tip_payout_company_id_company_id_fk": {
           "name": "bar_tip_payout_company_id_company_id_fk",
           "tableFrom": "bar_tip_payout",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bar_tip_source": {
+      "name": "bar_tip_source",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_account_id": {
+          "name": "external_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credentials_enc": {
+          "name": "credentials_enc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_expires_at": {
+          "name": "token_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'connected'"
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_import_at": {
+          "name": "last_import_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "connected_by_name": {
+          "name": "connected_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "bar_tip_source_provider_key": {
+          "name": "bar_tip_source_provider_key",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bar_tip_source_company_id_company_id_fk": {
+          "name": "bar_tip_source_company_id_company_id_fk",
+          "tableFrom": "bar_tip_source",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bar_tip_staff_map": {
+      "name": "bar_tip_staff_map",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_staff_id": {
+          "name": "external_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_name": {
+          "name": "external_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_email": {
+          "name": "external_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matched_by": {
+          "name": "matched_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "bar_tip_staff_map_key": {
+          "name": "bar_tip_staff_map_key",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "external_staff_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bar_tip_staff_map_source_id_bar_tip_source_id_fk": {
+          "name": "bar_tip_staff_map_source_id_bar_tip_source_id_fk",
+          "tableFrom": "bar_tip_staff_map",
+          "tableTo": "bar_tip_source",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "bar_tip_staff_map_user_id_user_id_fk": {
+          "name": "bar_tip_staff_map_user_id_user_id_fk",
+          "tableFrom": "bar_tip_staff_map",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "bar_tip_staff_map_company_id_company_id_fk": {
+          "name": "bar_tip_staff_map_company_id_company_id_fk",
+          "tableFrom": "bar_tip_staff_map",
           "tableTo": "company",
           "columnsFrom": [
             "company_id"

@@ -13,7 +13,7 @@ import { BTN, ON, OFF, CARD, LABEL, INPUT, MUTED } from './registerUi';
  * report compares against the count before.
  */
 
-interface Item { id: string; name: string; category: string; unitLabel: string; packName: string; packSize: number }
+interface Item { id: string; name: string; category: string; unitLabel: string; packName: string; packSize: number; bottleTareGrams?: number | null; bottleFullGrams?: number | null }
 interface Count { id: string; lines: Array<{ stockItemId: string; qty: number; fills?: number[]; countedByName: string | null }> }
 // Things that come in bottles, which a person counts by how full the open ones are.
 const BOTTLED = ['liquor', 'wine', 'beer', 'na'];

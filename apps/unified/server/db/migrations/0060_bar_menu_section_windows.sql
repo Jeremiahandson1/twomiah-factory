@@ -1,1 +1,0 @@
-ALTER TABLE "bar_menu_section" ADD COLUMN "available_windows" json DEFAULT '[]'::json NOT NULL;

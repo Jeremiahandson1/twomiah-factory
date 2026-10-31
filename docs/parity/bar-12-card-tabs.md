@@ -1,17 +1,34 @@
 # Bar 12 - Pre-authorised tabs on the counter reader
 
-Feature id: `bar_tab_preauth` (hidden, not ready). Test: `apps/unified/tests/bar-card-tabs.test.ts` (8 tests).
+Feature id: `bar_tab_preauth` (hidden, not ready); the phone's tab needs `tap_to_pay` (hidden) as well. Tests: `apps/unified/tests/bar-card-tabs.test.ts` (8), `bar-card-tabs-depth.test.ts` (3); phone: `tests/mobile/bar-tabs-phone.test.ts`. The food-service suites share one fake Stripe and run one file at a time (`bun tests/runEach.ts`).
 
-Leader: Toast card pre-authorization - https://support.toasttab.com/en/article/Card-Pre-Authorization-Configuration-Device-Setup
+Leader: Toast card pre-authorization - https://support.toasttab.com/en/article/Card-Pre-Authorization-Configuration-Device-Setup ; Toast offline mode and pre-auth settings - https://support.toasttab.com
 
 | Leader capability | Ours | Mark |
 |---|---|---|
 | Hold on a card at the reader, tab opened | Server-driven reader, manual capture, $1 to $1,000 hold | matches |
-| Capture on close with tip | Close with tip captures; higher than the hold uses incremental authorisation, a declined increase leaves the original hold | matches |
+| Capture on close with tip | Close with tip captures; higher than the hold RAISES the hold first (Stripe's `increment_authorization`, which the tab asked for when it was made) and then captures; a card that will not raise it leaves the original hold | matches |
 | Release on void | Release and lapse handling | matches |
 | Card details on the tab | Brand, last four, cardholder | matches |
-| Tip entered on the reader | Not built; the bartender enters the tip | not doing |
-| Offline mode, saved card window | Not built | not doing |
-| Phone takes no cards | Correct: counter reader only | by design |
+| Tip entered on the reader | At close, "Guest tips on the reader": a sale for what the check comes to goes to the counter reader with on-reader tipping (the salon's reader's own way, Stripe Terminal's tipping configuration on the location), the guest picks the tip and taps, the check is paid with the tip, and the hold is released with it. Needs "Ask for a tip on the reader" on in Register Settings, and says so | matches |
+| Saved card window (pre-auth settings) | Register Settings: "A card tab is released by itself after N hours" (1 to 168, 24 by default; Stripe lets a hold stand up to 7 days). The hourly pass releases tabs older than that - the check stays open, only the card is let go - and a manager can run the pass by hand | matches |
+| Offline mode | The counter reader (Stripe's server-driven integration) has none: Stripe offers offline collection only to its mobile SDKs, and Register Settings says so. The PHONE has it: with no signal the Terminal SDK makes the PaymentIntent on the phone with the metadata the server checks, takes the card and forwards it when the phone is back online, within the limits Stripe sets for the account (offline mode and its per-payment and stored totals are switched on in the Stripe Dashboard); the record goes through the phone's offline queue, and the server answers 425 (retried) until Stripe has it. The SDK's forwarding is shown in words | matches on the phone; not possible on the counter reader (Stripe) |
+| Tabs on the phone | A tab held with Tap to Pay: the server makes the hold (manual capture, the business's own Stripe, no reader), the phone collects the card with the SDK, and the hold counts once Stripe says it is in place; closing with the tip and releasing are the ordinary routes. A Card tabs screen on the phone, opened from Tonight | matches |
 
-The venue's own Stripe (every call carries the connected account). Unverified: only a fake Stripe and no physical reader were used.
+## Row 18: the fake checked against Stripe's documented shapes
+
+For every call these items make, `tests/foodKit.ts` was read against Stripe's API reference. Matches: PaymentIntent create for `card_present` with `capture_method` manual/automatic and `payment_method_options[card_present][request_incremental_authorization_support]`; `terminal.readers.process_payment_intent` with `process_config.skip_tipping` / `tipping.amount_eligible` / `enable_customer_cancellation` and the reader's `action` (`in_progress` / `succeeded` / `failed` with `failure_code`, `failure_message`); the errors `terminal_reader_offline` and `terminal_reader_busy`; `test_helpers.terminal.readers.present_payment_method` with `card_present[number]` and `amount_tip`; a PaymentIntent retrieved with `expand[]=latest_charge` carrying `payment_method_details.card_present.{brand,last4,cardholder_name,capture_before}`; `amount_details.tip.amount` on a tipped sale; cancel refused on a succeeded intent (`payment_intent_unexpected_state`); refunds created and listed newest first. **One mismatch, fixed in this round:** the fake let a capture above the hold raise the hold; Stripe refuses `amount_to_capture` above `amount_capturable` (`amount_too_large`) and raises a hold only through `POST /v1/payment_intents/:id/increment_authorization` (requires_capture, a higher amount, only when support was requested at creation; the card may decline, and a card that cannot answers `incremental_authorization_not_supported`). `closeTab` now follows that order and the fake answers both endpoints as documented. Not confirmed from a page I could read: the exact `failure_code` strings a reader reports beyond `card_declined`, and the SDK's offline forwarding events (`onDidForwardPaymentIntent`, `onDidReportForwardingError`, `onDidChangeOfflineStatus`) in the React Native SDK version pinned (0.0.1-beta.33).
+
+## Owner's check in Stripe test mode
+
+Use a test venue with its Stripe account connected in test mode, a simulated reader (registration code `simulated-wpe`) or a real WisePOS E, and the features `bar_register`, `card_reader`, `bar_tab_preauth`, `tap_to_pay` on; turn on "Ask for a tip on the reader" in Register Settings.
+
+1. Open a tab on a check with a $20 hold; present Stripe's test card on the reader. Confirm the tab shows VISA ····4242, $20.00 held, and the check shows no payment yet.
+2. Ring $12 on the check and close the tab with an 18% tip. Confirm one card payment of $12 + tip on the check, the check paid, and in Stripe's dashboard one PaymentIntent captured for that amount.
+3. Ring $35 on a new check against a $20 hold and close it with no tip: confirm the hold is raised and captured for $35 (Stripe shows the incremented authorization). Repeat with Stripe's test card that declines incremental authorizations (or a card that does not support them): confirm "the card would not raise it", nothing taken, then "Close for the hold ($20.00)" takes $20 and the rest is taken in cash.
+4. On a tab, press "Guest tips on the reader": confirm the reader asks for the tip, then the card; the check is paid with that tip once, and the tab's hold is cancelled in Stripe's dashboard (not captured twice).
+5. Set "A card tab is released by itself after" to 1 hour, open a tab and wait past the hour (or run the pass by hand from a manager's seat): confirm the hold is cancelled in Stripe and the check is still open with no payment.
+6. On the phone (a native build with the Terminal SDK, and on iPhone Apple's Tap to Pay entitlement): Tonight > Card tabs on this phone; hold $30 on an open check by tapping Stripe's test card on the phone. Confirm the tab shows on the desktop register with the card's brand and last four, then close it from the phone with a $2 tip: one capture, the check paid.
+7. Offline (the phone): put the phone in airplane mode, take an invoice payment with Tap to Pay (offline mode switched on in the Stripe Dashboard for the account); confirm it says the payment was taken offline; turn the signal back on and confirm the SDK forwards it, the queued record goes through, and the invoice shows the payment once.
+
+Not seen on a real reader, in a real browser or on a real phone: everything above was proved against the fake only.
