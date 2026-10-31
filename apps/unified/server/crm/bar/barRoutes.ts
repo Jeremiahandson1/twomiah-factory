@@ -12,7 +12,7 @@
 // ({ data, pagination }), deletes are { success: true }.
 import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ne } from 'drizzle-orm'
-import { cleanWindows, refreshMenu, servingNow, windowRefusal, windowWords, menuDaypartsOn } from './menuDay.ts'
+import { cleanWindows, countRefusal, itemCountsOn, refreshMenu, servingNow, windowRefusal, windowWords, menuDaypartsOn } from './menuDay.ts'
 import { barSettings, barStatus, barTap, barSpecial, barGame, barEvent, barMenuSection, barMenuItem, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
@@ -435,6 +435,29 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     if (!row) return bad(c, 'Menu item not found', 404)
     audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: { imageUrl: row.imageUrl } })
     return one(c, row, 201)
+  })
+
+  // A count that counts down (menu_item_counts, not ready; parity row 13): "12 left", and what it refreshes to at open. The same
+  // seat as 86 (bar:console). Setting a count above zero puts an item back that the count 86ed; clearing it stops the counting.
+  app.put('/menu/items/:id/count', requireEnabledFeature('bar_menu'), requirePermission('bar:console'), async (c) => {
+    const { companyId } = me(c)
+    const id = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    if (!(await itemCountsOn(db, companyId))) return bad(c, 'Counting items down is not switched on for this business.')
+    const refusal = countRefusal(body); if (refusal) return bad(c, refusal)
+    const [cur] = await db.select({ id: barMenuItem.id, count: barMenuItem.stockCount, is86ed: barMenuItem.is86ed }).from(barMenuItem).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).limit(1)
+    if (!cur) return bad(c, 'Menu item not found', 404)
+    const now = new Date()
+    const count = body.stockCount === undefined ? cur.count : body.stockCount === null ? null : Number(body.stockCount)
+    const reset = body.stockCountReset === undefined ? undefined : body.stockCountReset === null ? null : Number(body.stockCountReset)
+    const backOn = cur.count === 0 && cur.is86ed && count !== null && count > 0
+    const soldOut = count === 0 && !cur.is86ed
+    const [row] = await db.update(barMenuItem).set({
+      stockCount: count, ...(reset !== undefined ? { stockCountReset: reset } : {}), ...(count === null ? { stockCountReset: null } : {}), stockCountedAt: count === null ? null : now,
+      ...(backOn ? { is86ed: false, eightySixUntilOpen: false, eightySixedAt: null } : {}), ...(soldOut ? { is86ed: true, eightySixUntilOpen: false, eightySixedAt: now } : {}), updatedAt: now,
+    }).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).returning()
+    audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: { stockCount: row.stockCount, stockCountReset: row.stockCountReset } })
+    return one(c, row)
   })
 
   // 86 — the bartender's control: out of it now, back on later. Reaches the website on its next read.

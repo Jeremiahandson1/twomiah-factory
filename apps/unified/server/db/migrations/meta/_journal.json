@@ -421,6 +421,13 @@
       "when": 1793474603818,
       "tag": "0060_bar_menu_section_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793474933181,
+      "tag": "0061_bar_menu_item_count",
+      "breakpoints": true
     }
   ]
 }

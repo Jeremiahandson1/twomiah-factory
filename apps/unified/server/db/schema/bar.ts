@@ -284,6 +284,13 @@ export const barMenuItem = pgTable('bar_menu_item', {
   eightySixUntilOpen: boolean('eighty_six_until_open').default(false).notNull(),
   /** When it was last put out, so the next opening after that time puts it back. */
   eightySixedAt: timestamp('eighty_sixed_at'),
+  /**
+   * A count that counts down (parity row 13, Toast): "12 left" - each sale takes one, it 86es itself at zero, and the count
+   * comes back to stock_count_reset at the next opening (null: no automatic refresh) or when staff set it. null = not counted.
+   */
+  stockCount: integer('stock_count'),
+  stockCountReset: integer('stock_count_reset'),
+  stockCountedAt: timestamp('stock_counted_at'),
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),

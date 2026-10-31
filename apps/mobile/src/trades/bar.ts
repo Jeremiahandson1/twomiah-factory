@@ -80,6 +80,10 @@ export const BAR: ScreenSpec[] = [
       actions: [
         { id: 'put-86', label: 'Put on the 86 board', icon: 'close-circle', any: ['bar:console'], when: (d) => !d.is86ed, request: (d) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/86`, body: { is86ed: true } }), done: 'On the 86 board' },
         { id: 'back-on', label: 'Back on the menu', icon: 'checkmark-circle', any: ['bar:console'], when: (d) => !!d.is86ed, request: (d) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/86`, body: { is86ed: false } }), done: 'Back on the menu' },
+        // "12 left" (menu_item_counts, parity row 13): the count and what it refreshes to at open; each sale takes one, zero 86es it.
+        { id: 'set-count', label: 'How many are left', icon: 'calculator', any: ['bar:console'], feature: 'menu_item_counts',
+          inputs: [{ id: 'stockCount', label: 'Left now (empty stops counting)', kind: 'number', initial: (d) => (d.stockCount == null ? '' : String(d.stockCount)) }, { id: 'stockCountReset', label: 'Refreshes to at open (optional)', kind: 'number', initial: (d) => (d.stockCountReset == null ? '' : String(d.stockCountReset)) }],
+          request: (d, v) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/count`, body: { stockCount: String(v.stockCount ?? '').trim() === '' ? null : Number(v.stockCount), stockCountReset: String(v.stockCountReset ?? '').trim() === '' ? null : Number(v.stockCountReset) } }), done: 'Count saved' },
       ],
     },
   },

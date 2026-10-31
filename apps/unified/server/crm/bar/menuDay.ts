@@ -117,10 +117,71 @@ export async function resetBackAtOpen(db: any, companyId: string, hours: HoursCo
   return back
 }
 
-/** The menu is about to be read: bring back what was out until opening (menu_dayparts on), without hours or a feature, nothing happens. */
+// ─── A count that counts down (parity row 13, Toast; hidden feature menu_item_counts) ──────────────────────────────────
+export async function itemCountsOn(db: any, companyId: string): Promise<boolean> {
+  const [co] = await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+  return Array.isArray(co?.f) && co.f.includes('menu_item_counts')
+}
+
+/** Staff set the count ("12 left") and, if they like, what it refreshes to at open. null clears the count; a count above zero puts a count-86 back on. */
+export function countRefusal(b: Record<string, unknown>): string | null {
+  for (const k of ['stockCount', 'stockCountReset'] as const) {
+    if (b[k] === undefined || b[k] === null) continue
+    const n = Number(b[k])
+    if (!Number.isInteger(n) || n < 0 || n > 100_000) return k === 'stockCount' ? 'How many are left? A whole number, 0 or more.' : 'What it refreshes to at open: a whole number, 0 or more.'
+  }
+  return null
+}
+
+/**
+ * A sale takes `qty` off the item's count; at zero the item 86es itself (a count-86: eighty_six_until_open stays false, and
+ * the count's own refresh or a hand-set count puts it back). Nothing happens to an item with no count, or while the feature is off.
+ */
+export async function takeFromCount(tx: any, companyId: string, menuItemId: string, qty: number, now = new Date()): Promise<{ left: number | null; soldOut: boolean }> {
+  if (!(await itemCountsOn(tx, companyId))) return { left: null, soldOut: false }
+  const [it] = await tx.select({ id: barMenuItem.id, count: barMenuItem.stockCount, is86ed: barMenuItem.is86ed }).from(barMenuItem).where(and(eq(barMenuItem.id, menuItemId), eq(barMenuItem.companyId, companyId))).limit(1)
+  if (!it || it.count === null) return { left: null, soldOut: false }
+  const left = Math.max(0, it.count - Math.max(1, Math.floor(qty)))
+  const soldOut = left === 0
+  await tx.update(barMenuItem).set({ stockCount: left, ...(soldOut && !it.is86ed ? { is86ed: true, eightySixUntilOpen: false, eightySixedAt: now } : {}), updatedAt: now }).where(eq(barMenuItem.id, it.id))
+  return { left, soldOut }
+}
+
+/** A line taken off or voided gives its count back; an item that 86ed itself at zero comes back on when the count is above zero again. */
+export async function giveBackToCount(tx: any, companyId: string, menuItemId: string, qty: number, now = new Date()): Promise<number | null> {
+  if (!(await itemCountsOn(tx, companyId))) return null
+  const [it] = await tx.select({ id: barMenuItem.id, count: barMenuItem.stockCount, is86ed: barMenuItem.is86ed }).from(barMenuItem).where(and(eq(barMenuItem.id, menuItemId), eq(barMenuItem.companyId, companyId))).limit(1)
+  if (!it || it.count === null) return null
+  const left = it.count + Math.max(1, Math.floor(qty))
+  const backOn = it.count === 0 && it.is86ed && left > 0   // it was the count that 86ed it
+  await tx.update(barMenuItem).set({ stockCount: left, ...(backOn ? { is86ed: false, eightySixUntilOpen: false, eightySixedAt: null } : {}), updatedAt: now }).where(eq(barMenuItem.id, it.id))
+  return left
+}
+
+/** Every counted item with a refresh figure that has been through an opening since it was last set comes back to that figure (and back on, if the count had 86ed it). */
+export async function resetCountsAtOpen(db: any, companyId: string, hours: HoursConfig, now = new Date()): Promise<number> {
+  if (!(await itemCountsOn(db, companyId))) return 0
+  const rows = await db.select({ id: barMenuItem.id, count: barMenuItem.stockCount, reset: barMenuItem.stockCountReset, at: barMenuItem.stockCountedAt, is86ed: barMenuItem.is86ed })
+    .from(barMenuItem).where(and(eq(barMenuItem.companyId, companyId), isNotNull(barMenuItem.stockCountReset), isNotNull(barMenuItem.stockCountedAt), lte(barMenuItem.stockCountedAt, now)))
+  let n = 0
+  for (const it of rows) {
+    if (nextOpening(hours, hours.timezone || 'America/Chicago', new Date(it.at)).getTime() > now.getTime()) continue
+    const backOn = it.count === 0 && it.is86ed && (it.reset as number) > 0
+    await db.update(barMenuItem).set({ stockCount: it.reset, stockCountedAt: now, ...(backOn ? { is86ed: false, eightySixUntilOpen: false, eightySixedAt: null } : {}), updatedAt: now }).where(eq(barMenuItem.id, it.id))
+    n++
+  }
+  return n
+}
+
+/** The menu is about to be read: bring back what was out until opening (menu_dayparts on) and refresh the counts that are due (menu_item_counts on); with neither, nothing happens. */
 export async function refreshMenu(db: any, companyId: string, now = new Date()): Promise<number> {
-  if (!(await menuDaypartsOn(db, companyId))) return 0
-  return resetBackAtOpen(db, companyId, await createBarLive(db).hoursFor(companyId), now)
+  const [dayparts, counts] = await Promise.all([menuDaypartsOn(db, companyId), itemCountsOn(db, companyId)])
+  if (!dayparts && !counts) return 0
+  const hours = await createBarLive(db).hoursFor(companyId)
+  let n = 0
+  if (dayparts) n += await resetBackAtOpen(db, companyId, hours, now)
+  if (counts) n += await resetCountsAtOpen(db, companyId, hours, now)
+  return n
 }
 
 /** Whether a section is served right now: always true while menu_dayparts is off. */

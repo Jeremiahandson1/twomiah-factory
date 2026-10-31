@@ -17,7 +17,7 @@ import { money } from '@twomiah/tenant-ui/src/money'
 
 interface Item {
   id: string; sectionId: string | null; name: string; slug: string; description: string | null; priceCents: number | null;
-  priceLabel: string | null; isSignature: boolean; is86ed: boolean; eightySixUntilOpen?: boolean; isActive: boolean; dietary: string[]; story: string | null;
+  priceLabel: string | null; isSignature: boolean; is86ed: boolean; eightySixUntilOpen?: boolean; stockCount?: number | null; stockCountReset?: number | null; isActive: boolean; dietary: string[]; story: string | null;
   variations: Array<{ name: string; priceCents: number }>;
   imageUrl: string | null;
   toKitchen: boolean | null; prepSeconds: number | null;
@@ -33,11 +33,42 @@ const LBL = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
 
 const price = (cents: number | null) => cents === null || cents === undefined ? '' : `${money((cents / 100))}`;
 
+/**
+ * "12 left" (menu_item_counts, not ready; parity row 13): staff set how many are left and, if they like, what it refreshes to
+ * at open; each sale takes one and at zero the item 86es itself. PUT /api/bar/menu/items/:id/count, the same seat as 86.
+ */
+function CountControl({ item, onSaved }: { item: Item; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [count, setCount] = useState(item.stockCount == null ? '' : String(item.stockCount));
+  const [reset, setReset] = useState(item.stockCountReset == null ? '' : String(item.stockCountReset));
+  const [err, setErr] = useState('');
+  const save = async (clear = false) => {
+    setErr('');
+    try { await api.put(`/api/bar/menu/items/${item.id}/count`, clear ? { stockCount: null } : { stockCount: count.trim() === '' ? null : Number(count), stockCountReset: reset.trim() === '' ? null : Number(reset) }); setOpen(false); onSaved(); }
+    catch (e) { setErr(errorText(e, 'That did not save.')); }
+  };
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <button onClick={() => setOpen((x) => !x)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">{item.stockCount == null ? 'Count it' : `${item.stockCount} left`}</button>
+      {open && (
+        <span className="inline-flex flex-wrap items-center gap-1 text-sm">
+          <input aria-label={`${item.name} left`} className={`${INPUT} w-20`} inputMode="numeric" placeholder="left" value={count} onChange={(e) => setCount(e.target.value)} />
+          <input aria-label={`${item.name} refreshes to at open`} className={`${INPUT} w-24`} inputMode="numeric" placeholder="at open" value={reset} onChange={(e) => setReset(e.target.value)} />
+          <button onClick={() => save()} className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-orange-600 text-white">Save</button>
+          {item.stockCount != null && <button onClick={() => save(true)} className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100">Stop counting</button>}
+          {err && <span className="text-xs text-red-800 dark:text-red-300">{err}</span>}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function MenuPage() {
   const mayEdit = useMayWrite('bar:update');
   const may86 = useMayWrite('bar:console');
   const { hasFeature } = useAuth();
   const byTime = hasFeature('menu_dayparts');
+  const counts = hasFeature('menu_item_counts');
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -168,6 +199,7 @@ export default function MenuPage() {
                     <div className="flex items-center gap-1 shrink-0">
                       {may86 && <button onClick={() => toggle86(i)} aria-pressed={i.is86ed} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${i.is86ed ? 'bg-orange-600 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-500' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{i.is86ed ? 'Back on' : '86'}</button>}
                       {may86 && byTime && !i.is86ed && <button onClick={() => toggle86(i, true)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">86 until we open</button>}
+                      {may86 && counts && <CountControl item={i} onSaved={load} />}
                       {mayEdit && <button onClick={() => { setFormErr(''); setPhoto(null); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '', mods: (i.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: (m.priceCents / 100).toFixed(2) })) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
                       {mayEdit && (confirmDelete === i.id
                         ? <><button onClick={() => remove('items', i.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Delete</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
