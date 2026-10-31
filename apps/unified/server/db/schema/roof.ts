@@ -216,6 +216,35 @@ export const supplementStatus = pgTable('supplement_status', {
   uniqueIndex('supplement_status_company_name_idx').on(t.companyId, t.name),
 ])
 
+/**
+ * A permit on a roofing job (roofing parity, row 11; AccuLynx "Tips for Managing Your Roofing Permits, Mortgage Checks, &
+ * Supplements"): what the city or county was asked for, what it cost, and where it stands. `status` is needed -> applied ->
+ * issued -> finaled (closed out after the final inspection), or rejected; each step is stamped with its day. The days are CALENDAR
+ * DAYS (a UTC-midnight marker for the day on the company's clock, read back with markerDay) and the fee is integer cents.
+ */
+export const jobPermit = pgTable('job_permit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  permitType: text('permit_type'),
+  jurisdiction: text('jurisdiction'),
+  permitNumber: text('permit_number'),
+  status: text('status').default('needed').notNull(),
+  feeCents: integer('fee_cents'),
+  feePaidOn: timestamp('fee_paid_on'),
+  appliedOn: timestamp('applied_on'),
+  issuedOn: timestamp('issued_on'),
+  expiresOn: timestamp('expires_on'),
+  finaledOn: timestamp('finaled_on'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_permit_company_id_idx').on(t.companyId),
+  index('job_permit_job_id_idx').on(t.jobId),
+])
+
 export const adjusterContact = pgTable('adjuster_contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

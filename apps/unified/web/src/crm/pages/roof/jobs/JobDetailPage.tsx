@@ -39,6 +39,7 @@ import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobCommissionPeople from './JobCommissionPeople'
 import JobBooks from './JobBooks'
+import JobPermits from './JobPermits'
 import InspectionReports from './InspectionReports'
 import PhotoDetails from './PhotoDetails'
 import ShareWithHomeowner from './ShareWithHomeowner'
@@ -963,6 +964,8 @@ export default function JobDetailPage() {
             {/* Materials ordered for this job (the materials feature; GET/POST /api/materials?jobId=). */}
             {job && hasFeature('materials') && <JobMaterials jobId={job.id} jobAddress={job.address} />}
             {job && hasFeature('roof_work_orders') && <JobWorkOrders jobId={job.id} jobAddress={job.address} />}
+            {/* Permits on this job (roof_permits, not ready; GET/POST /api/permits). */}
+            {job && hasFeature('roof_permits') && <JobPermits jobId={job.id} />}
           </div>
         </div>
       </div>

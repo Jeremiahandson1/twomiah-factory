@@ -11,7 +11,7 @@
 // item asks the same — gate the menu and the API alike.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BarChart3, Briefcase, LayoutDashboard } from 'lucide-react'
+import { BarChart3, Briefcase, FileCheck2, LayoutDashboard } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -20,6 +20,7 @@ const JobsPage = page(() => import('./JobsPage'))
 const JobDetailPage = page(() => import('./JobDetailPage'))
 const ReportsPage = page(() => import('./ReportsPage'))
 const PipelineSettingsPage = page(() => import('./PipelineSettingsPage'))
+const PermitsPage = page(() => import('./PermitsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -27,6 +28,8 @@ export const routes: ReactElement[] = [
   <Route key="roof-jobs" path="jobs" element={<JobsPage />} />,
   <Route key="roof-job" path="jobs/:id" element={<JobDetailPage />} />,
   <Route key="roof-reports" path="reports" element={<ReportsPage />} />,
+  // Not ready (roof_permits): the permit board across jobs.
+  <Route key="roof-permits" path="permits" element={<PermitsPage />} />,
   // Not ready (pipeline_boards): the company's names for its stages. Reached from Settings (verticals/roof.tsx SETTINGS_EXTRA).
   <Route key="roof-pipeline-settings" path="settings/pipeline" element={<PipelineSettingsPage />} />,
 ]
@@ -35,6 +38,8 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/pipeline', icon: LayoutDashboard, label: 'Pipeline', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
+  // Not ready (roof_permits): every job's permits by status. GET /api/permits asks jobs:read.
+  { to: '/crm/permits', icon: FileCheck2, label: 'Permits', features: ['roof_permits'], permission: 'jobs:read' },
   // Reports is its own switch (the registry offers roofing `reports`), and reports:read as every vertical's Reports is: a Field
   // seat has no Reports (roofing live test 2026-10-24); the page reads the jobs, the invoices' totals and the roster.
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
@@ -47,6 +52,7 @@ export const nav: NavItem[] = [
 export const routePermissions: Record<string, string> = {
   '/crm/pipeline': 'jobs:read',
   '/crm/jobs': 'jobs:read',
+  '/crm/permits': 'jobs:read',
   '/crm/reports': 'reports:read',
 }
 
