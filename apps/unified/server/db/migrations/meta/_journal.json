@@ -400,6 +400,13 @@
       "when": 1793470900529,
       "tag": "0056_event_spend_and_report_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793472334370,
+      "tag": "0057_shift_swap_and_tip_depth",
+      "breakpoints": true
     }
   ]
 }
