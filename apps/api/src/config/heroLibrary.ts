@@ -52,6 +52,8 @@ export const HERO_LIBRARY: Record<string, HeroImage[]> = {
     { file: "contractor-03.jpg", tag: "services", source: 'pexels', photographer: "https://kaboompics.com/", photographerUrl: "https://www.pexels.com/@karola-g", sourceUrl: "https://www.pexels.com/photo/person-hammering-a-nail-into-the-wood-7285984/", sourceId: "7285984", license: 'Pexels License' },
     { file: "contractor-04.jpg", tag: "craft", source: 'pexels', photographer: "Los Muertos Crew", photographerUrl: "https://www.pexels.com/@cristian-rojas", sourceUrl: "https://www.pexels.com/photo/close-up-shot-of-a-carpenter-measuring-a-wood-plank-8447774/", sourceId: "8447774", license: 'Pexels License' },
     { file: "contractor-05.jpg", tag: "projects", source: 'pexels', photographer: "Curtis Adams", photographerUrl: "https://www.pexels.com/@curtis-adams-1694007", sourceUrl: "https://www.pexels.com/photo/modern-neutral-kitchen-with-granite-countertops-36777548/", sourceId: "36777548", license: 'Pexels License' },
+    { file: "contractor-06.jpg", tag: "consultation", source: 'pexels', photographer: "Mikael Blomkvist", photographerUrl: "https://www.pexels.com/@mikael-blomkvist", sourceUrl: "https://www.pexels.com/photo/a-man-and-a-woman-holding-a-paper-while-standing-on-the-tiled-wall-8961296/", sourceId: "8961296", license: 'Pexels License' },
+    { file: "contractor-07.jpg", tag: "projects", source: 'pexels', photographer: "Curtis Adams", photographerUrl: "https://www.pexels.com/@curtis-adams-1694007", sourceUrl: "https://www.pexels.com/photo/white-marble-tiled-shower-cabin-5502225/", sourceId: "5502225", license: 'Pexels License' },
   ],
   roofing: [
     { file: "roofing-01.jpg", tag: "hero", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/professional-roofer-installing-shingles-on-new-roof-33404248/", sourceId: "33404248", license: 'Pexels License' },
@@ -66,49 +68,90 @@ export const HERO_LIBRARY: Record<string, HeroImage[]> = {
     { file: "homecare-02.jpg", tag: "services", source: 'pexels', photographer: "Los Muertos Crew", photographerUrl: "https://www.pexels.com/@cristian-rojas", sourceUrl: "https://www.pexels.com/photo/woman-and-man-wearing-aprons-preparing-food-in-a-kitchen-8064899/", sourceId: "8064899", license: 'Pexels License' },
     { file: "homecare-03.jpg", tag: "housekeeping", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/elderly-women-holding-a-white-cloth-6942735/", sourceId: "6942735", license: 'Pexels License' },
     { file: "homecare-04.jpg", tag: "companionship", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/man-in-pink-polo-shirt-sitting-beside-a-woman-in-white-t-shirt-8871440/", sourceId: "8871440", license: 'Pexels License' },
+    { file: "homecare-05.jpg", tag: "companionship", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/elderly-woman-in-blue-shirt-beside-a-woman-in-white-7232031/", sourceId: "7232031", license: 'Pexels License' },
+    { file: "homecare-06.jpg", tag: "companionship", source: 'pexels', photographer: "SHVETS production", photographerUrl: "https://www.pexels.com/@shvets-production", sourceUrl: "https://www.pexels.com/photo/an-elderly-couple-having-a-conversation-8972500/", sourceId: "8972500", license: 'Pexels License' },
   ],
   fieldservice: [
     { file: "fieldservice-01.jpg", tag: "hero", source: 'pexels', photographer: "Anastasia Shuraeva", photographerUrl: "https://www.pexels.com/@anastasia-shuraeva", sourceUrl: "https://www.pexels.com/photo/a-man-in-white-button-up-shirt-smiling-7647233/", sourceId: "7647233", license: 'Pexels License' },
     { file: "fieldservice-02.jpg", tag: "plumbing", source: 'pexels', photographer: "Sergei Starostin", photographerUrl: "https://www.pexels.com/@sejio402", sourceUrl: "https://www.pexels.com/photo/professional-plumber-installing-a-radiator-pipe-29226620/", sourceId: "29226620", license: 'Pexels License' },
     { file: "fieldservice-03.jpg", tag: "electrical", source: 'pexels', photographer: "Mikael Blomkvist", photographerUrl: "https://www.pexels.com/@mikael-blomkvist", sourceUrl: "https://www.pexels.com/photo/a-man-and-a-woman-wearing-goggles-holding-red-pipes-8961701/", sourceId: "8961701", license: 'Pexels License' },
     { file: "fieldservice-04.jpg", tag: "tools", source: 'pexels', photographer: "AS Photography", photographerUrl: "https://www.pexels.com/@asphotography", sourceUrl: "https://www.pexels.com/photo/wrench-and-pipes-on-sketch-14953886/", sourceId: "14953886", license: 'Pexels License' },
+    { file: "fieldservice-05.jpg", tag: "hvac", source: 'pexels', photographer: "Israel Markle", photographerUrl: "https://www.pexels.com/@israelmarkle", sourceUrl: "https://www.pexels.com/photo/industrial-air-conditioning-units-in-florence-40476251/", sourceId: "40476251", license: 'Pexels License' },
+    { file: "fieldservice-06.jpg", tag: "electrical", source: 'pexels', photographer: "mickael ange konan", photographerUrl: "https://www.pexels.com/@mickael-ange-konan-2156070331", sourceUrl: "https://www.pexels.com/photo/female-technician-working-on-electrical-control-panel-34526423/", sourceId: "34526423", license: 'Pexels License' },
   ],
   landscaping: [
     { file: "landscaping-01.jpg", tag: "hero", source: 'pexels', photographer: "Max Vakhtbovych", photographerUrl: "https://www.pexels.com/@artbovich", sourceUrl: "https://www.pexels.com/photo/house-backyard-with-lawn-green-grass-7546775/", sourceId: "7546775", license: 'Pexels License' },
     { file: "landscaping-02.jpg", tag: "services", source: 'pexels', photographer: "Anna Shvets", photographerUrl: "https://www.pexels.com/@shvetsa", sourceUrl: "https://www.pexels.com/photo/man-trimming-the-leaves-5027602/", sourceId: "5027602", license: 'Pexels License' },
     { file: "landscaping-03.jpg", tag: "projects", source: 'pexels', photographer: "Max Vakhtbovych", photographerUrl: "https://www.pexels.com/@artbovich", sourceUrl: "https://www.pexels.com/photo/clouds-around-house-8092385/", sourceId: "8092385", license: 'Pexels License' },
+    { file: "landscaping-04.jpg", tag: "services", source: 'pexels', photographer: "Vaan Photography", photographerUrl: "https://www.pexels.com/@vaan-photos", sourceUrl: "https://www.pexels.com/photo/a-man-mowing-the-green-lawn-12087398/", sourceId: "12087398", license: 'Pexels License' },
+    { file: "landscaping-05.jpg", tag: "projects", source: 'pexels', photographer: "Jan Wright", photographerUrl: "https://www.pexels.com/@jan-wright-2156785233", sourceUrl: "https://www.pexels.com/photo/vibrant-flower-beds-in-congleton-park-40382453/", sourceId: "40382453", license: 'Pexels License' },
+    { file: "landscaping-06.jpg", tag: "projects", source: 'pexels', photographer: "Brett A", photographerUrl: "https://www.pexels.com/@brett-a-2161021813", sourceUrl: "https://www.pexels.com/photo/tranquil-stone-patio-in-new-york-garden-37785078/", sourceId: "37785078", license: 'Pexels License' },
   ],
   dispensary: [],
   restaurant: [
     { file: "restaurant-01.jpg", tag: "hero", source: 'pexels', photographer: "Quang Nguyen Vinh", photographerUrl: "https://www.pexels.com/@quang-nguyen-vinh-222549", sourceUrl: "https://www.pexels.com/photo/interior-of-the-melia-vinpearl-thanh-hoa-luxury-hotel-in-thanh-hoa-city-vietnam-26729395/", sourceId: "26729395", license: 'Pexels License' },
     { file: "restaurant-02.jpg", tag: "ambiance", source: 'pexels', photographer: "Alexandra Kollstrem", photographerUrl: "https://www.pexels.com/@alexandra-kollstrem-77751824", sourceUrl: "https://www.pexels.com/photo/wine-glasses-on-bar-counter-8856561/", sourceId: "8856561", license: 'Pexels License' },
+    { file: "restaurant-03.jpg", tag: "hero", source: 'pexels', photographer: "Magda Ehlers", photographerUrl: "https://www.pexels.com/@magda-ehlers-pexels", sourceUrl: "https://www.pexels.com/photo/elegant-restaurant-with-extensive-wine-collection-35636873/", sourceId: "35636873", license: 'Pexels License' },
+    { file: "restaurant-04.jpg", tag: "services", source: 'pexels', photographer: "Willians Huerta", photographerUrl: "https://www.pexels.com/@willians-huerta-2157111846", sourceUrl: "https://www.pexels.com/photo/chef-adding-finishing-touches-to-gourmet-dish-36430088/", sourceId: "36430088", license: 'Pexels License' },
+    { file: "restaurant-05.jpg", tag: "services", source: 'pexels', photographer: "Diana ✨", photographerUrl: "https://www.pexels.com/@didsss", sourceUrl: "https://www.pexels.com/photo/casual-dining-with-beers-and-platters-33312298/", sourceId: "33312298", license: 'Pexels License' },
+    { file: "restaurant-06.jpg", tag: "guests", source: 'pexels', photographer: "Adrienn", photographerUrl: "https://www.pexels.com/@adrienn-638530", sourceUrl: "https://www.pexels.com/photo/woman-eating-bruschetta-1537635/", sourceId: "1537635", license: 'Pexels License' },
+    { file: "restaurant-07.jpg", tag: "space", source: 'pexels', photographer: "Antoni Shkraba", photographerUrl: "https://www.pexels.com/@shkrabaanthony", sourceUrl: "https://www.pexels.com/photo/a-bartender-making-a-cocktail-4485382/", sourceId: "4485382", license: 'Pexels License' },
   ],
   cafe: [
     { file: "cafe-01.jpg", tag: "hero", source: 'pexels', photographer: "Jack Atkinson", photographerUrl: "https://www.pexels.com/@jack-atkinson-1289771108", sourceUrl: "https://www.pexels.com/photo/man-preparing-coffee-at-cafe-24613535/", sourceId: "24613535", license: 'Pexels License' },
     { file: "cafe-02.jpg", tag: "services", source: 'pexels', photographer: "Ubeydulah Beşir KÖROĞLU", photographerUrl: "https://www.pexels.com/@ubeydulah-besir-koroglu-2155166096", sourceUrl: "https://www.pexels.com/photo/barista-pouring-fresh-coffee-in-cafe-35819418/", sourceId: "35819418", license: 'Pexels License' },
+    { file: "cafe-03.jpg", tag: "hero", source: 'pexels', photographer: "Andrea Piacquadio", photographerUrl: "https://www.pexels.com/@olly", sourceUrl: "https://www.pexels.com/photo/woman-holding-stainless-cup-and-ceramic-cup-3914062/", sourceId: "3914062", license: 'Pexels License' },
+    { file: "cafe-04.jpg", tag: "space", source: 'pexels', photographer: "Arda Kaykısız", photographerUrl: "https://www.pexels.com/@arda-kaykisiz-672105204", sourceUrl: "https://www.pexels.com/photo/plants-in-a-restaurant-18721993/", sourceId: "18721993", license: 'Pexels License' },
+    { file: "cafe-05.jpg", tag: "services", source: 'pexels', photographer: "Chevanon Photography", photographerUrl: "https://www.pexels.com/@chevanon", sourceUrl: "https://www.pexels.com/photo/close-up-of-hand-holding-cappuccino-302901/", sourceId: "302901", license: 'Pexels License' },
+    { file: "cafe-06.jpg", tag: "services", source: 'pexels', photographer: "Faheem Ahamad", photographerUrl: "https://www.pexels.com/@faheem-ahamad-422934800", sourceUrl: "https://www.pexels.com/photo/assorted-baked-goods-on-display-in-bakery-40408087/", sourceId: "40408087", license: 'Pexels License' },
   ],
   salon: [
     { file: "salon-01.jpg", tag: "hero", source: 'pexels', photographer: "Nataliya Vaitkevich", photographerUrl: "https://www.pexels.com/@n-voitkevich", sourceUrl: "https://www.pexels.com/photo/woman-in-white-shirt-and-blue-denim-jeans-getting-a-haircut-8467964/", sourceId: "8467964", license: 'Pexels License' },
     { file: "salon-02.jpg", tag: "styling", source: 'pexels', photographer: "Ron Lach", photographerUrl: "https://www.pexels.com/@ron-lach", sourceUrl: "https://www.pexels.com/photo/hairdresser-using-curling-iron-on-customers-hair-10318038/", sourceId: "10318038", license: 'Pexels License' },
+    { file: "salon-03.jpg", tag: "hero", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/woman-in-black-long-sleeves-cutting-the-hair-of-customer-8834092/", sourceId: "8834092", license: 'Pexels License' },
+    { file: "salon-04.jpg", tag: "services", source: 'pexels', photographer: "Marvin Sacdalan", photographerUrl: "https://www.pexels.com/@marvin-sacdalan-276316567", sourceUrl: "https://www.pexels.com/photo/barber-cutting-client-hair-in-saloon-13138585/", sourceId: "13138585", license: 'Pexels License' },
+    { file: "salon-05.jpg", tag: "services", source: 'pexels', photographer: "RDNE Stock project", photographerUrl: "https://www.pexels.com/@rdne", sourceUrl: "https://www.pexels.com/photo/a-woman-using-a-nail-file-while-polishing-nails-of-her-client-7755218/", sourceId: "7755218", license: 'Pexels License' },
+    { file: "salon-06.jpg", tag: "space", source: 'pexels', photographer: "Max Vakhtbovych", photographerUrl: "https://www.pexels.com/@artbovich", sourceUrl: "https://www.pexels.com/photo/backwash-chairs-near-cosmetology-supplies-7195811/", sourceId: "7195811", license: 'Pexels License' },
+    { file: "salon-07.jpg", tag: "space", source: 'pexels', photographer: "Max Vakhtbovych", photographerUrl: "https://www.pexels.com/@artbovich", sourceUrl: "https://www.pexels.com/photo/leather-chairs-in-front-of-round-mirrors-7750124/", sourceId: "7750124", license: 'Pexels License' },
   ],
   fitness: [
     { file: "fitness-01.jpg", tag: "hero", source: 'pexels', photographer: "ShotPot", photographerUrl: "https://www.pexels.com/@shotpot", sourceUrl: "https://www.pexels.com/photo/photo-of-guy-lifting-weights-4047159/", sourceId: "4047159", license: 'Pexels License' },
     { file: "fitness-02.jpg", tag: "classes", source: 'pexels', photographer: "Andrea Piacquadio", photographerUrl: "https://www.pexels.com/@olly", sourceUrl: "https://www.pexels.com/photo/women-in-sports-bra-and-black-leggings-while-doing-exercise-3776144/", sourceId: "3776144", license: 'Pexels License' },
+    { file: "fitness-03.jpg", tag: "hero", source: 'pexels', photographer: "Victor Freitas", photographerUrl: "https://www.pexels.com/@victorfreitas", sourceUrl: "https://www.pexels.com/photo/man-about-to-lift-barbell-2261477/", sourceId: "2261477", license: 'Pexels License' },
+    { file: "fitness-04.jpg", tag: "services", source: 'pexels', photographer: "Yan Krukau", photographerUrl: "https://www.pexels.com/@yankrukov", sourceUrl: "https://www.pexels.com/photo/photo-of-people-doing-yoga-8436626/", sourceId: "8436626", license: 'Pexels License' },
+    { file: "fitness-05.jpg", tag: "services", source: 'pexels', photographer: "Julia Larson", photographerUrl: "https://www.pexels.com/@julia-larson", sourceUrl: "https://www.pexels.com/photo/multiethnic-man-and-woman-training-together-in-gym-6455903/", sourceId: "6455903", license: 'Pexels License' },
+    { file: "fitness-06.jpg", tag: "services", source: 'pexels', photographer: "Andrea Piacquadio", photographerUrl: "https://www.pexels.com/@olly", sourceUrl: "https://www.pexels.com/photo/group-of-women-doing-exercise-inside-the-building-3775566/", sourceId: "3775566", license: 'Pexels License' },
   ],
   hotel: [
     { file: "hotel-01.jpg", tag: "hero", source: 'pexels', photographer: "Ramaz Bluashvili", photographerUrl: "https://www.pexels.com/@ramazphotos", sourceUrl: "https://www.pexels.com/photo/luxurious-cozy-bedroom-in-tbilisi-hotel-32418082/", sourceId: "32418082", license: 'Pexels License' },
     { file: "hotel-02.jpg", tag: "rooms", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/elegant-wooden-sleeping-bed-6466236/", sourceId: "6466236", license: 'Pexels License' },
+    { file: "hotel-03.jpg", tag: "hero", source: 'pexels', photographer: "Pixabay", photographerUrl: "https://www.pexels.com/@pixabay", sourceUrl: "https://www.pexels.com/photo/black-and-grey-bedspread-on-bed-and-pillow-164595/", sourceId: "164595", license: 'Pexels License' },
+    { file: "hotel-04.jpg", tag: "space", source: 'pexels', photographer: "Quang Nguyen Vinh", photographerUrl: "https://www.pexels.com/@quang-nguyen-vinh-222549", sourceUrl: "https://www.pexels.com/photo/the-reception-area-of-a-hotel-14036253/", sourceId: "14036253", license: 'Pexels License' },
+    { file: "hotel-05.jpg", tag: "space", source: 'pexels', photographer: "Olga Udovychenko", photographerUrl: "https://www.pexels.com/@ladyhelga", sourceUrl: "https://www.pexels.com/photo/flowers-in-vase-on-tray-23731964/", sourceId: "23731964", license: 'Pexels License' },
+    { file: "hotel-06.jpg", tag: "services", source: 'pexels', photographer: "Andrea Piacquadio", photographerUrl: "https://www.pexels.com/@olly", sourceUrl: "https://www.pexels.com/photo/selective-focus-photo-of-reception-signage-3768095/", sourceId: "3768095", license: 'Pexels License' },
   ],
   events: [
     { file: "events-01.jpg", tag: "hero", source: 'pexels', photographer: "NUDE Nahum", photographerUrl: "https://www.pexels.com/@nudethephotographer", sourceUrl: "https://www.pexels.com/photo/elegant-outdoor-wedding-table-setting-with-floral-centerpiece-37190239/", sourceId: "37190239", license: 'Pexels License' },
     { file: "events-02.jpg", tag: "styling", source: 'pexels', photographer: "Mizzu Cho", photographerUrl: "https://www.pexels.com/@nicetomizzu", sourceUrl: "https://www.pexels.com/photo/a-flower-vase-and-glassware-on-a-table-6910896/", sourceId: "6910896", license: 'Pexels License' },
+    { file: "events-03.jpg", tag: "hero", source: 'pexels', photographer: "Engin Akyurt", photographerUrl: "https://www.pexels.com/@enginakyurt", sourceUrl: "https://www.pexels.com/photo/tables-with-flowers-9644360/", sourceId: "9644360", license: 'Pexels License' },
+    { file: "events-04.jpg", tag: "space", source: 'pexels', photographer: "Matheus Bertelli", photographerUrl: "https://www.pexels.com/@bertellifotografia", sourceUrl: "https://www.pexels.com/photo/a-table-decoration-for-a-wedding-17001792/", sourceId: "17001792", license: 'Pexels License' },
+    { file: "events-05.jpg", tag: "services", source: 'pexels', photographer: "Amina Filkins", photographerUrl: "https://www.pexels.com/@amina-filkins", sourceUrl: "https://www.pexels.com/photo/smiling-florist-making-composition-of-flowers-in-floristry-shop-5414019/", sourceId: "5414019", license: 'Pexels License' },
+    { file: "events-06.jpg", tag: "services", source: 'pexels', photographer: "Yan Krukau", photographerUrl: "https://www.pexels.com/@yankrukov", sourceUrl: "https://www.pexels.com/photo/man-using-audio-mixer-9005458/", sourceId: "9005458", license: 'Pexels License' },
   ],
   foodtruck: [
     { file: "foodtruck-01.jpg", tag: "hero", source: 'pexels', photographer: "Robert So", photographerUrl: "https://www.pexels.com/@robertkso", sourceUrl: "https://www.pexels.com/photo/women-buying-coffee-at-a-mobile-food-truck-16782204/", sourceId: "16782204", license: 'Pexels License' },
+    { file: "foodtruck-02.jpg", tag: "hero", source: 'pexels', photographer: "Peter Lopez", photographerUrl: "https://www.pexels.com/@peter-lopez-3895759", sourceUrl: "https://www.pexels.com/photo/people-sitting-on-chairs-near-the-food-truck-during-night-11655727/", sourceId: "11655727", license: 'Pexels License' },
+    { file: "foodtruck-03.jpg", tag: "hero", source: 'pexels', photographer: "Medina Edelbi", photographerUrl: "https://www.pexels.com/@medina-edelbi-153182799", sourceUrl: "https://www.pexels.com/photo/red-cafe-truck-20218397/", sourceId: "20218397", license: 'Pexels License' },
+    { file: "foodtruck-04.jpg", tag: "services", source: 'pexels', photographer: "Mâide Arslan", photographerUrl: "https://www.pexels.com/@maide-arslan-128712163", sourceUrl: "https://www.pexels.com/photo/people-near-foodtruck-during-christmas-fair-19652493/", sourceId: "19652493", license: 'Pexels License' },
+    { file: "foodtruck-05.jpg", tag: "services", source: 'pexels', photographer: "RDNE Stock project", photographerUrl: "https://www.pexels.com/@rdne", sourceUrl: "https://www.pexels.com/photo/man-receiving-orders-from-a-vendor-on-a-food-truck-5779533/", sourceId: "5779533", license: 'Pexels License' },
+    { file: "foodtruck-06.jpg", tag: "services", source: 'pexels', photographer: "DΛVΞ GΛRCIΛ", photographerUrl: "https://www.pexels.com/@davegarcia", sourceUrl: "https://www.pexels.com/photo/delicious-tacos-with-fresh-guacamole-and-cilantro-36498698/", sourceId: "36498698", license: 'Pexels License' },
   ],
   generic: [
     { file: "generic-01.jpg", tag: "team", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/men-wearing-apron-smiling-together-8475204/", sourceId: "8475204", license: 'Pexels License' },
     { file: "generic-02.jpg", tag: "hero", source: 'pexels', photographer: "Amina Filkins", photographerUrl: "https://www.pexels.com/@amina-filkins", sourceUrl: "https://www.pexels.com/photo/calm-woman-standing-in-doorway-of-store-5413720/", sourceId: "5413720", license: 'Pexels License' },
+    { file: "generic-03.jpg", tag: "hero", source: 'pexels', photographer: "Demetra Ioannidou", photographerUrl: "https://www.pexels.com/@demetra-ioannidou-420891723", sourceUrl: "https://www.pexels.com/photo/smiling-shopkeeper-with-homemade-preserves-34674788/", sourceId: "34674788", license: 'Pexels License' },
+    { file: "generic-04.jpg", tag: "services", source: 'pexels', photographer: "Gustavo Fring", photographerUrl: "https://www.pexels.com/@gustavo-fring", sourceUrl: "https://www.pexels.com/photo/female-customers-getting-paper-bags-at-counter-desk-3865901/", sourceId: "3865901", license: 'Pexels License' },
+    { file: "generic-05.jpg", tag: "services", source: 'pexels', photographer: "https://kaboompics.com/", photographerUrl: "https://www.pexels.com/@karola-g", sourceUrl: "https://www.pexels.com/photo/anonymous-man-preparing-package-for-shipment-4464482/", sourceId: "4464482", license: 'Pexels License' },
   ],
 }
 
@@ -149,6 +192,24 @@ export function getHeroLibrary(businessType: string): Array<{ url: string; tag: 
   return entries.map(i => ({ url: `${base}/hero-library/${i.group}/${i.file}`, tag: i.tag }))
 }
 
+
+// ─── When live stock photos are used ─────────────────────────────────────────
+// A trade whose checked library is thin — fewer than LIVE_STOCK_BELOW photos — gets live Pexels photos BESIDE its own,
+// so two businesses are not the same few pictures. A trade with a full library keeps only its checked photos (10/31 every
+// trade's library was grown to six or more; only an empty group like dispensary is thin now). Stores and other businesses
+// with no trade ('generic') always take live photos too: what fits is what they sell, which no library can know. Home
+// care is checked photos only, whatever its count: a live search for "home care" returns hospital beds, drips and
+// scrubs, and the owner's rule is daily living, no medical imagery.
+export const LIVE_STOCK_BELOW = 6
+export const CURATED_ONLY_GROUPS: ReadonlySet<string> = new Set(['homecare'])
+
+/** May this business's site use live stock photos (as well as the checked library)? */
+export function liveStockFor(businessType: string): boolean {
+  const group = pickHeroGroup(businessType)
+  if (CURATED_ONLY_GROUPS.has(group)) return false
+  if (group === 'generic') return true
+  return (HERO_LIBRARY[group]?.length || 0) < LIVE_STOCK_BELOW
+}
 
 // ─── Live stock registry (tier 2) ───────────────────────────────────────────
 // Images fetched live from a stock API (Pexels) during a compose are not in the
@@ -257,4 +318,21 @@ export function collectImageUrls(value: unknown, found: string[] = []): string[]
     for (const v of Object.values(value as Record<string, unknown>)) collectImageUrls(v, found)
   }
   return found
+}
+
+/** Two credit lists as one: one line per photographer and source, counts added. A site's credits are the ones saved
+ *  when it was composed (the live registry was warm then) together with the ones its pages work out now. */
+export function mergeCredits(...lists: Array<PhotoCredit[] | null | undefined>): PhotoCredit[] {
+  const out = new Map<string, PhotoCredit>()
+  for (const list of lists) for (const c of Array.isArray(list) ? list : []) {
+    if (!c?.photographer) continue
+    const key = c.photographer + '|' + (c.source || '')
+    const had = out.get(key)
+    if (!had) { out.set(key, { ...c }); continue }
+    // The same line from both lists is one credit, not two.
+    if (had.sourceUrl && had.sourceUrl === c.sourceUrl) continue
+    had.count = Math.max(had.count, 0) + Math.max(c.count || 1, 1)
+    had.sourceUrl = undefined
+  }
+  return [...out.values()]
 }

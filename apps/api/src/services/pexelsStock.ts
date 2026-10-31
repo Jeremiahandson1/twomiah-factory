@@ -188,3 +188,32 @@ export async function searchPexelsStock(input: {
   }
   return out
 }
+
+// ─── The quick preview's hero choices ──────────────────────────────────────────
+// The twomiah.com instant preview renders for every business name a visitor types, so it cannot run the full search
+// above (an AI call and up to nine Pexels calls each; the API allows 200 an hour). It asks Pexels once per trade for
+// hero shots and keeps the answer for a day; the business's name then picks among them and the trade's checked photos
+// (instantComposer.ts libraryHeroFor). Credits are registered as for any live photo.
+const HERO_CACHE_MS = 24 * 3600_000
+const heroCache = new Map<string, { at: number; photos: StockPhoto[] }>()
+
+export async function pexelsHeroPhotos(businessType: string, opts: { timeoutMs?: number } = {}): Promise<StockPhoto[]> {
+  if (!process.env.PEXELS_API_KEY) return []
+  const key = (businessType || '').trim().toLowerCase()
+  const hit = heroCache.get(key)
+  if (hit && Date.now() - hit.at < HERO_CACHE_MS) {
+    // A cached answer's credits may have been dropped from the registry since (it is bounded): register them again.
+    for (const p of hit.photos) registerLiveImage(p.url, { file: p.url, tag: 'hero', source: 'pexels', photographer: p.photographer, photographerUrl: p.photographerLink, license: 'Pexels License' })
+    return hit.photos
+  }
+  const spec = deriveStockQueries(businessType || '', [], '', '')[0]
+  if (!spec) return []
+  // Kept when it answers, even after the preview stopped waiting; an empty answer (a failed search) is not kept for a day.
+  const search = pexelsSearch({ ...spec, perPage: 6 }).then((photos) => {
+    if (photos.length) { if (heroCache.size >= 500) heroCache.clear(); heroCache.set(key, { at: Date.now(), photos }) }
+    return photos
+  })
+  const timeout = new Promise<StockPhoto[] | null>((resolve) => setTimeout(() => resolve(null), opts.timeoutMs ?? 4000))
+  const photos = await Promise.race([search, timeout])
+  return photos ?? [] // slow today: this preview goes with the checked photos; the next one finds the cache filled
+}

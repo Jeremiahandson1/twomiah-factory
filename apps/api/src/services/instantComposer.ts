@@ -21,7 +21,7 @@
  */
 import { enforceIntakeFacts, wantsBookings, ownerParagraphs as paragraphsOf } from './composerFacts'
 import { SECTION_SCHEMA, pageRecipesFor, tradeKindFor, type ComposerInput, type Section, type TradeKind } from './sectionComposer'
-import { getHeroLibrary } from '../config/heroLibrary'
+import { getHeroLibrary, liveStockFor, pickHeroGroup } from '../config/heroLibrary'
 import { offeredLayouts } from '../../../unified/server/site/layouts'
 import { websiteTradeFor } from '../config/websiteTrades'
 
@@ -54,18 +54,35 @@ function firstSentence(text?: string): string {
   return m ? m[0] : t.slice(0, 160)
 }
 
-// The library photo for the trade's hero. Where websiteTrades hand-picked shots (plumbing and HVAC:
-// the library's first field-service photo is an electrician; salons and gyms had office stock), the
-// premium site uses the same pick the standard site does.
-function libraryHeroFor(businessType: string): string {
+// The photo for the trade's hero: one of the shots that suit it, chosen by the business's name — steady for one business,
+// different between two (two salons were the same picture). Where websiteTrades hand-picked shots (plumbing and HVAC: the
+// library's first field-service photo is an electrician; salons and gyms had office stock), the choice is among those; a
+// trade whose checked library is thin also chooses among live stock hero shots it was given (heroLibrary.ts liveStockFor).
+function libraryHeroFor(businessType: string, seed: number, stock: Array<{ url: string; tag?: string }> = []): string {
   const lib = getHeroLibrary(businessType)
   const pick = websiteTradeFor(businessType.toLowerCase().replace(/\s+/g, '_'))?.heroPhotos
+  let checked: string[] = []
   if (pick) {
     const want = (pick.files || []).map((f) => '/hero-library/' + pick.group + '/' + f)
-    const hit = lib.find((x) => want.some((w) => x.url.endsWith(w))) || lib.find((x) => x.url.includes('/hero-library/' + pick.group + '/'))
-    if (hit) return hit.url
+    checked = want.map((w) => lib.find((x) => x.url.endsWith(w))?.url).filter((u): u is string => !!u)
+    if (!checked.length) {
+      // A group named without files (salons, restaurants, gyms): its hero shots, else its first photo.
+      const group = lib.filter((x) => x.url.includes('/hero-library/' + pick.group + '/'))
+      const heroes = group.filter((x) => x.tag === 'hero')
+      checked = (heroes.length ? heroes : group.slice(0, 1)).map((x) => x.url)
+    }
   }
-  return lib[0]?.url || ''
+  if (!checked.length) {
+    // The trade's own photos first (the shared generic set only stands in for a trade that has none).
+    const group = pickHeroGroup(businessType)
+    const own = lib.filter((x) => x.url.includes('/hero-library/' + group + '/'))
+    const pool = own.length ? own : lib
+    const heroes = pool.filter((x) => x.tag === 'hero')
+    checked = (heroes.length ? heroes : pool.slice(0, 1)).map((x) => x.url)
+  }
+  const live = liveStockFor(businessType) ? stock.filter((p) => p?.url && (p.tag || 'hero') === 'hero').map((p) => p.url) : []
+  const all = [...checked, ...live]
+  return all.length ? all[seed % all.length] : ''
 }
 
 
@@ -220,7 +237,7 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const own = (input.customerPhotos || []).filter((p) => p?.url && p.tag !== 'misc' && !/\blogo\b/i.test(p.alt || ''))
   // The owner's picture for the top of the site (the signup's photo is tagged 'hero'), else their first photo, else the
   // trade's library photo. A hero photo may be of the team or the place, so it never stands in a gallery of "our work".
-  const heroImage = own.find((p) => p.tag === 'hero')?.url || own[0]?.url || libraryHeroFor(type)
+  const heroImage = own.find((p) => p.tag === 'hero')?.url || own[0]?.url || libraryHeroFor(type, seed, input.stockPhotos)
   const ownPhotos = own.filter((p) => p.tag !== 'hero').map((p) => p.url)
   const contactCta = { label: 'Get in touch', href: 'contact' }
   const f = input.facts || {}

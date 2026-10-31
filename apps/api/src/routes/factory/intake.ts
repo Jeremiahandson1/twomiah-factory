@@ -14,7 +14,7 @@ import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/
 import { composeSite } from '../../services/sectionComposer'
 import { parseIntakeFacts, type ContentGap } from '../../services/composerFacts'
 import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
-import { collectImageUrls, heroCreditsForUrls } from '../../config/heroLibrary'
+import { collectImageUrls, heroCreditsForUrls, mergeCredits } from '../../config/heroLibrary'
 import { buildPremiumNav, premiumSitePages, premiumServiceAreas } from '../../services/premiumSitePages'
 import { composeInstant } from '../../services/instantComposer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
@@ -1044,7 +1044,10 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
   if (premium) {
     if (!acquireInflight()) return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)
     try {
-      const site = composeInstant({ businessName, businessType, city: city || undefined, state: state || undefined })
+      // A thin trade's hero may be a live stock shot (one cached search per trade, never more than a few seconds' wait).
+      const { liveStockFor } = await import('../../config/heroLibrary')
+      const stockPhotos = liveStockFor(businessType) ? (await (await import('../../services/pexelsStock')).pexelsHeroPhotos(businessType).catch(() => [])).map((p) => ({ url: p.url, tag: 'hero', alt: p.alt })) : []
+      const site = composeInstant({ businessName, businessType, city: city || undefined, state: state || undefined, ...(stockPhotos.length ? { stockPhotos } : {}) })
       const published = Object.keys(site.pages).filter((slug) => !site.heldPages.includes(slug))
       const settings = {
         companyName: businessName,
@@ -1934,8 +1937,9 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     // Credits for every curated-library photo across the composed pages. The
     // settings row is seeded once at first boot, so this covers the whole
     // site rather than a single page — a photo used on /services still gets
-    // credited in the footer that renders on every page.
-    photoCredits: heroCreditsForUrls(collectImageUrls(pages)),
+    // credited in the footer that renders on every page. With the credits saved at compose time, when the live stock
+    // registry was warm (a live photo is otherwise uncredited once this runs on another instance).
+    photoCredits: mergeCredits((composed as any)._photoCredits, heroCreditsForUrls(collectImageUrls(pages))),
   }
 
   // Note: admin credentials are NOT returned here. The seed reads them

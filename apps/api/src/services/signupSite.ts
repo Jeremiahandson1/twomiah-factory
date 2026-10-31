@@ -27,6 +27,7 @@ import { raiseAlert, clearAlert, raiseIfAiAccountProblem } from './alerts'
 import crypto from 'node:crypto'
 import type { ComposerInput, SiteResult } from './sectionComposer'
 import { composeInstant, heldToOwnerFacts, toComposition } from './instantComposer'
+import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
 
 export const MAX_ATTEMPTS = 2
 /** How long a build waits for the AI's site before it goes ahead with the template one. */
@@ -214,8 +215,10 @@ async function attempt(tenantId: string, deps: SignupSiteDeps): Promise<void> {
     const site = heldToOwnerFacts(await deps.compose({ ...state.input, ...(stock.length ? { stockPhotos: stock } : {}) }) as any, state.input)
     const home = (site.pages as any)?.home?.sections
     if (!Array.isArray(home) || !home.length) throw new Error('the AI composition has no home page')
+    // The photo credits are worked out NOW, while this process still knows who took each live stock photo; the site is
+    // built later, often on another instance, and its footer reads these back (unified/factory.ts provisionSite).
     const kept = await writeIfCurrent(db, tenantId, attemptId, () => ({
-      ...site, composer: 'ai', composedAt: new Date(now()).toISOString(),
+      ...site, composer: 'ai', composedAt: new Date(now()).toISOString(), _photoCredits: heroCreditsForUrls(collectImageUrls(site)),
       aiCompose: { ...started, status: 'done', attemptId: null, doneAt: new Date(now()).toISOString() } satisfies AiComposeState,
     }))
     clearAlert('ai:credit'); clearAlert('ai:auth'); clearAlert('ai-site:' + tenantId)

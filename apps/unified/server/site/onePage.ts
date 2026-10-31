@@ -12,6 +12,15 @@ import { cleanPalette } from './palette.ts'
 import { cleanStyle } from './feel.ts'
 import { WEB_PRESENCE_SECTIONS } from './webPresenceSections.ts'
 import { effectiveForms } from '../../../api/src/webPresence/site/clean.mjs'
+import { heroCreditsForUrls } from '../../../api/src/config/heroLibrary.ts'
+
+/** Every library photo a page's sections show (any '/hero-library/<group>/<file>' address in their data), for its credits. */
+function libraryPhotosIn(value: unknown, found: string[] = []): string[] {
+  if (typeof value === 'string') { if (/\/hero-library\/[^/]+\/[^/?#]+/.test(value)) found.push(value) }
+  else if (Array.isArray(value)) for (const v of value) libraryPhotosIn(v, found)
+  else if (value && typeof value === 'object') for (const v of Object.values(value as Record<string, unknown>)) libraryPhotosIn(v, found)
+  return found
+}
 
 export interface OnePageSection { id: string; type: string; variant: string; hidden?: boolean; data: Record<string, any> }
 export interface OnePageModel {
@@ -149,6 +158,9 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
     noHeaderCta: !hasContact,
     // The one page has no other pages to link a footer to but its privacy page.
     onePage: true,
+    // The library's photos came through the Pexels API, whose guidelines make crediting the photographer a condition of
+    // use: the footer credits each library photo on the page, as the full sites do (base.ejs settings.photoCredits).
+    photoCredits: heroCreditsForUrls(libraryPhotosIn(sections)),
   }
   const primary = palette?.brand || '#1f4e79'
   const input = {

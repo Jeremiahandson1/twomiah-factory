@@ -120,15 +120,13 @@ export async function searchStockPhotosForBusiness(
   const svcArr = Array.isArray(services) ? services.filter(Boolean) : services ? [services] : []
 
   // Unsplash+ not subscribed → source tier-2 live from Pexels (free commercial
-  // license; attribution is registered so the composed page credits it). Scoped
-  // to verticals WITHOUT a curated hero set (stores/dropship → 'generic', plus
-  // empty groups like dispensary) so the hand-picked, eye-verified library still
-  // wins for the established trades — this only fills the gap, never overrides.
+  // license; attribution is registered so the composed page credits it). Only
+  // for a trade whose checked library is thin (heroLibrary.ts liveStockFor:
+  // fewer than LIVE_STOCK_BELOW photos, never home care) — the composer is
+  // given both; a trade with a full library keeps only its own.
   if (!isConfigured()) {
-    const { pickHeroGroup, HERO_LIBRARY } = await import('../config/heroLibrary.ts')
-    const group = pickHeroGroup(businessType)
-    const hasCurated = group !== 'generic' && (HERO_LIBRARY[group]?.length || 0) > 0
-    if (hasCurated) return []
+    const { liveStockFor } = await import('../config/heroLibrary.ts')
+    if (!liveStockFor(businessType)) return []
     const { searchPexelsStock } = await import('./pexelsStock.ts')
     return searchPexelsStock({ businessType, services: svcArr, description, businessName })
   }

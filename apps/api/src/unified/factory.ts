@@ -35,7 +35,7 @@ import { composeInstant, toComposition, tradeLabelFor } from '../services/instan
 import { websiteTradeFor } from '../config/websiteTrades'
 import { wantsBookings } from '../services/composerFacts'
 import { signupQuestionsFor } from '../config/signupQuestions'
-import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
+import { collectImageUrls, heroCreditsForUrls, mergeCredits } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
 import { requestedLook } from '../config/siteLooks'
 
@@ -229,7 +229,8 @@ export function provisionSite(tenant: any): Record<string, unknown> {
     // the name alone here was stamped on every page's tab.
     nav: buildPremiumNav([...pages.filter((p) => p.isPublished).map((p) => p.slug), ...(serviceAreas.length ? ['service-areas'] : [])]),
     serviceAreas,
-    photoCredits: heroCreditsForUrls(collectImageUrls(pages)),
+    // The credits saved when the site was composed (the live stock registry was warm then) and the ones its pages work out now.
+    photoCredits: mergeCredits((composed as any)?._photoCredits, heroCreditsForUrls(collectImageUrls(pages))),
     contentGaps: Array.isArray(composed?.contentGaps) ? composed!.contentGaps : [],
     contactCtaLabel: 'Get in touch',
     // The look the visitor chose in the preview, kept with the signup (intake_data.signup.design); none: the vertical's own.
