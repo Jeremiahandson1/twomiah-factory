@@ -25,10 +25,13 @@ import { Banner, BannerText, Button, Card, Field, SectionTitle, SOLID, useTone }
 import { SandataIdBox, SandataPromptCard, VisitSandata, SandataHelp } from '../../src/care/components/Sandata'
 import { CareTaskChecklist, MedicationLog, VisitPhotos, VitalsForm } from '../../src/care/components/VisitParts'
 import { VisitItems } from '../../src/care/components/VisitItems'
+import { ClientSignature } from '../../src/care/components/ClientSignature'
+import { useOpenRequired, resetOpen } from '../../src/care/openRequired'
+import { clearPending, loadPending } from '../../src/care/visitSignatureStore'
 import { ConfirmSheet } from '../../src/components/ConfirmSheet'
 import { needsSandata } from '../../src/care/sandata'
 import { VisitQuestionFields, useVisitQuestions } from '../../src/care/components/VisitQuestions'
-import { answersBody, type VisitAnswers } from '../../src/care/rules'
+import { answersBody, signatureBody, type VisitAnswers } from '../../src/care/rules'
 
 function ActiveVisitView() {
   const t = useTheme()
@@ -52,14 +55,20 @@ function ActiveVisitView() {
   const success = useTone('success')
   const dangerTone = useTone('danger')
   const todays = care.todayVisits.find((v) => v.clientId === a.clientId)
+  // Clock out stays grey while a REQUIRED task, in-visit item or the client's signature is still open: each part of the screen reports
+  // what it is waiting for. A visit saved on the phone without signal has no task list or items to report (the server flags such a
+  // clock-out for the office instead), but the signature rule is kept on the phone, so that still holds.
+  const stillOpen = useOpenRequired()
 
   const doClockOut = async () => {
     setNoteError(null)
     // The server holds a live clock-out until the required questions are answered (409, handled below); a clock-out with no signal is
     // saved with whatever was answered.
     setOutMissing([])
-    const r = await care.clockOut(care.visitNote, answersBody(outQuestions, outAnswers))
+    const signed = await loadPending(a.id)
+    const r = await care.clockOut(care.visitNote, answersBody(outQuestions, outAnswers), signed ? signatureBody(signed) : null)
     if (!r.ok) {
+      if (r.code === 'signature_required') { setOutOpen(false); haptics.error(); Alert.alert('The client needs to sign', r.error || ''); return }
       if (r.code === 'questions_required') { setOutMissing(outQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
       haptics.error()
       // A note the server or the offline rule requires: keep the sheet open and say why.
@@ -71,6 +80,7 @@ function ActiveVisitView() {
     }
     haptics.success()
     setOutOpen(false)
+    clearPending(a.id); resetOpen()
     if (r.queued) Alert.alert('Saved on your phone', r.message || '')
     else toast.success(r.message || 'Clocked out.')
   }
@@ -102,6 +112,7 @@ function ActiveVisitView() {
       <CareTaskChecklist timeEntryId={a.id} />
 
       <VisitItems timeEntryId={a.id} />
+      <ClientSignature visitId={a.id} clientName={name} />
       <MedicationLog clientId={a.clientId} timeEntryId={a.id} />
       <VitalsForm clientId={a.clientId} timeEntryId={a.id} />
       <VisitPhotos />
@@ -111,7 +122,10 @@ function ActiveVisitView() {
         placeholder="What you did, how the client was, anything the office or family should know"
         hint="Saved on this phone as you type, and sent when you clock out." />
 
-      <Button variant="danger" icon="stop-circle" label="Clock out" onPress={() => { care.warmFix(); setNoteError(null); setOutOpen(true) }} style={{ marginTop: 6 }} />
+      <Button variant="danger" icon="stop-circle" label="Clock out" disabled={stillOpen.length > 0} onPress={() => { care.warmFix(); setNoteError(null); setOutOpen(true) }} style={{ marginTop: 6 }} />
+      {stillOpen.length > 0 ? (
+        <Text accessibilityRole="alert" style={[styles.sheetText, { color: t.textSecondary, marginTop: 6 }]}>Clock out turns on when these are done: {stillOpen.join('; ')}.</Text>
+      ) : null}
 
       <Modal visible={outOpen} transparent animationType="slide" onRequestClose={() => !care.clockingOut && setOutOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetBackdrop}>

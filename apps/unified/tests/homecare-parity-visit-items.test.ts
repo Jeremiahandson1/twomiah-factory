@@ -165,7 +165,7 @@ describe('home care parity row 4 — in the visit', () => {
     const tenAgo = new Date(Date.now() - 10 * 60_000)
     expect((await record(v, task.id, { status: 'done', savedAt: tenAgo.toISOString() })).status).toBe(200)
     const [log] = await t.db.select().from(t.schema.visitItemLog).where(eq(t.schema.visitItemLog.itemId, task.id))
-    expect(Math.abs(new Date(log.completedAt).getTime() - tenAgo.getTime())).toBeLessThan(2000)
+    expect(Math.abs(new Date(log.completedAt!).getTime() - tenAgo.getTime())).toBeLessThan(2000)
     expect((await record(v, task.id, { status: 'done', savedAt: new Date(Date.now() + 3_600_000).toISOString() })).body.code).toBe('bad_saved_time')
     await setFeatures(ON)
   })

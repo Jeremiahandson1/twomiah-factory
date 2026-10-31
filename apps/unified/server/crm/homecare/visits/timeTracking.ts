@@ -513,6 +513,15 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     const noteMissing = !String(notes || entry.notes || '').trim() && await core.visitItems.noteRequired(companyId)
     if (noteMissing && !endAt) return fail(c, 400, 'This agency needs a visit note to clock out. Please add a short note about the visit.', 'note_required')
 
+    // The client's signature (care_visit_signature). The phone sends it in the clock-out body, so a visit clocked out while offline still
+    // carries it. When the agency requires it, a live clock-out waits for the signature or a reason; an offline one is flagged.
+    if (b.signature && typeof b.signature === 'object' && await core.visitSignature.enabled(companyId)) {
+      const rec = await core.visitSignature.record(companyId, entry, me, b.signature)
+      if (!rec.ok && !endAt) return fail(c, 400, rec.message, rec.code, rec.fields)
+    }
+    const signatureMissing = await core.visitSignature.missingFor(companyId, entry.id)
+    if (signatureMissing && !endAt) return fail(c, 409, 'Have the client sign before clocking out — or pick why they could not sign.', 'signature_required')
+
     // Questions at clock-out (care_visit_questions): the same rule as at clock-in.
     const asked = await core.visitQuestions.gate(companyId, 'clock_out', b.answers, !endAt)
     if (Object.keys(asked.problems).length) return questionsRefusal(c, asked)
@@ -523,6 +532,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
       openRequired.length ? `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}` : '',
       openItems.length ? `Required items not recorded: ${openItems.map((i) => i.name).join(', ')}` : '',
       noteMissing ? 'No visit note' : '',
+      signatureMissing ? 'No client signature or reason' : '',
     ].filter(Boolean)
     const flag = flagged.length
       ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, ...flagged].filter(Boolean).join(' · ') }

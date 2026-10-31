@@ -226,10 +226,10 @@ export async function shiftChecklist(q: Q, companyId: string, timeEntryId: strin
  * The required tasks of this shift's client that are still open: no mark, or a mark that is not "done" and not a skip /
  * refusal that carries a reason. A weekly task already completed on another shift this week is not open. (Item 12.)
  */
-export async function pendingRequiredTasks(q: Q, companyId: string, timeEntryId: string, clientId: string, tz: string): Promise<{ taskId: string; taskName: string }[]> {
+export async function pendingRequiredTasks(q: Q, companyId: string, timeEntryId: string, clientId: string, tz: string): Promise<{ taskId: string; taskName: string; daysOfWeek: string | null; timeOfDay: string | null }[]> {
   const weekStart = sql`((date_trunc('week', NOW() AT TIME ZONE ${tz}) AT TIME ZONE ${tz}) AT TIME ZONE 'UTC')`
   return camelRows(await q.execute(sql`
-    SELECT t.id AS task_id, t.task_name
+    SELECT t.id AS task_id, t.task_name, t.days_of_week, t.time_of_day
       FROM client_task_templates t
       LEFT JOIN shift_task_completions sc ON sc.task_template_id = t.id AND sc.time_entry_id = ${timeEntryId}
      WHERE t.client_id = ${clientId} AND t.company_id = ${companyId} AND t.is_active = true AND t.is_required = true

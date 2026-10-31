@@ -49,6 +49,8 @@ export interface ScheduleException {
  */
 export interface ScheduleRow {
   id: string
+  /** shared by the rows of one repeating shift made on several weekdays */
+  repeatGroupId?: string | null
   caregiverId: string | null
   clientId: string
   scheduleType?: string | null

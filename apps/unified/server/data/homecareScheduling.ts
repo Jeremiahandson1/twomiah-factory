@@ -112,16 +112,16 @@ export interface NewSchedule {
 }
 
 /** Write one schedule row (active), in the company. Returns its id. */
-export async function insertSchedule(q: Q, companyId: string, v: NewSchedule & { endDate?: string | null }): Promise<string> {
+export async function insertSchedule(q: Q, companyId: string, v: NewSchedule & { endDate?: string | null; repeatGroupId?: string | null }): Promise<string> {
   const id = createId()
   await q.execute(sql`
     INSERT INTO schedules (id, company_id, caregiver_id, client_id, schedule_type, day_of_week, date, start_time, end_time, notes,
                            frequency, effective_date, anchor_date, is_split_shift, split_shift_group_id, split_segment,
-                           is_training, end_date, is_active, status, created_at, updated_at)
+                           is_training, end_date, repeat_group_id, is_active, status, created_at, updated_at)
     VALUES (${id}, ${companyId}, ${v.caregiverId}, ${v.clientId}, ${v.scheduleType}, ${v.dayOfWeek}, ${v.date}::date,
             ${v.startTs}::timestamp, ${v.endTs}::timestamp, ${v.notes ?? null}, ${v.frequency || 'weekly'},
             ${v.effectiveDate ?? null}::date, ${v.anchorDate ?? null}::date, ${!!v.split}, ${v.split?.group ?? null},
-            ${v.split?.segment ?? null}, ${!!v.isTraining}, ${v.endDate ?? null}::date, true, 'active', NOW(), NOW())`)
+            ${v.split?.segment ?? null}, ${!!v.isTraining}, ${v.endDate ?? null}::date, ${v.repeatGroupId ?? null}, true, 'active', NOW(), NOW())`)
   return id
 }
 
@@ -161,13 +161,15 @@ export async function cancelOccurrence(q: Q, companyId: string, scheduleId: stri
 }
 
 /** End an active pattern on `endDate`. */
-export async function endActivePattern(q: Q, companyId: string, id: string, endDate: string): Promise<void> {
-  await q.execute(sql`UPDATE schedules SET end_date = ${endDate}::date, updated_at = NOW() WHERE id = ${id} AND company_id = ${companyId} AND is_active = true`)
+export async function endActivePattern(q: Q, companyId: string, id: string, endDate: string, repeatGroupId?: string | null): Promise<void> {
+  await q.execute(sql`UPDATE schedules SET end_date = ${endDate}::date, updated_at = NOW() WHERE company_id = ${companyId} AND is_active = true
+    AND ${repeatGroupId ? sql`repeat_group_id = ${repeatGroupId}` : sql`id = ${id}`}`)
 }
 
-/** Which rows a delete means: one row, or the active halves of a split shift. */
-export type ScheduleTarget = { id: string } | { splitGroup: string }
-const targetSql = (t: ScheduleTarget): SQL => ('splitGroup' in t ? sql`split_shift_group_id = ${t.splitGroup} AND is_active = true` : sql`id = ${t.id}`)
+/** Which rows a delete means: one row, the active halves of a split shift, or every weekday of a repeating shift made on several. */
+export type ScheduleTarget = { id: string } | { splitGroup: string } | { repeatGroup: string }
+const targetSql = (t: ScheduleTarget): SQL => ('splitGroup' in t ? sql`split_shift_group_id = ${t.splitGroup} AND is_active = true`
+  : 'repeatGroup' in t ? sql`repeat_group_id = ${t.repeatGroup} AND is_active = true` : sql`id = ${t.id}`)
 
 /** Take rows off the schedule (is_active false). Returns their ids. */
 export async function deactivateSchedules(q: Q, companyId: string, t: ScheduleTarget): Promise<string[]> {

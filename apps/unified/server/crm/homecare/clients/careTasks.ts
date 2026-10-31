@@ -28,6 +28,7 @@ import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { wholeNumber } from '../core/careAudit.ts'
 import { REQUIRED_TASKS_FEATURE } from '../core/requiredTasks.ts'
+import { parseTaskDays, taskBelongsTo } from '../core/taskDays.ts'
 import { uploadedForm } from '../core/upload.ts'
 import { formatsForState } from '../core/assessmentImports.ts'
 import { AssessmentPdfError } from '../core/midasAssessmentPdf.ts'
@@ -54,8 +55,15 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
 
   /** One of the company's time entries (a shift), or undefined. */
   const loadEntry = async (companyId: string, id: string) =>
-    (await db.select({ id: timeEntries.id, clientId: timeEntries.clientId, caregiverId: timeEntries.caregiverId })
+    (await db.select({ id: timeEntries.id, clientId: timeEntries.clientId, caregiverId: timeEntries.caregiverId, startTime: timeEntries.startTime, endTime: timeEntries.endTime })
       .from(timeEntries).where(and(eq(timeEntries.id, id), eq(timeEntries.companyId, companyId))).limit(1))[0]
+
+  /** With care_required_tasks the days are READ, so text we cannot read is refused in plain words instead of silently meaning every day. */
+  async function unreadableDays(companyId: string, text: unknown): Promise<string | null> {
+    if (text === undefined || text === null || !String(text).trim()) return null
+    if (parseTaskDays(text).ok || !(await core.requiredTasks.enabled(companyId))) return null
+    return `I can't read the days "${String(text).trim()}". Write day names like Mon, Wed, Fri (or Mon-Fri, weekdays, weekends), or Daily for every day.`
+  }
 
   // ── the formats this agency can import ──
   app.get('/assessment-formats', requirePermission('care-clients:update'), async (c) => {
@@ -86,6 +94,8 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       minutes = m
     }
     if (!(await access.clientInCompany(companyId, clientId))) return fail(c, 404, 'Client not found')
+    const daysBad = await unreadableDays(companyId, b.daysOfWeek)
+    if (daysBad) return fail(c, 400, daysBad, 'bad_days', { daysOfWeek: 'Use day names like Mon, Wed, Fri — or Daily' })
     const makeRequired = b.isRequired === true || b.isRequired === 'true'
     if (makeRequired && !(await d.features.isFeatureEnabled(companyId, REQUIRED_TASKS_FEATURE))) return fail(c, 400, 'Required tasks are not switched on for this agency yet.', 'required_tasks_not_available')
     const sortOrder = wholeNumber(b.sortOrder) ?? await nextTaskSortOrder(db, companyId, clientId)
@@ -205,7 +215,11 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
     if (!entry) return fail(c, 404, 'Time entry not found')
     if (entry.caregiverId !== me && !access.office(user)) return fail(c, 403, 'Not your shift')
     const tz = await core.time.timezone(companyId)
-    return whole(c, await shiftChecklist(db, companyId, entry.id, entry.clientId, tz))
+    const rows = await shiftChecklist(db, companyId, entry.id, entry.clientId, tz)
+    // With care_required_tasks the task's days and time of day are read: `appliesToVisit` says whether it belongs to THIS visit (a
+    // Tuesday task on a Wednesday visit is false). The phone hides the ones that do not belong. Without the feature it is always true.
+    const when = await core.requiredTasks.whenOf(companyId, entry)
+    return whole(c, rows.map((r: any) => ({ ...r, appliesToVisit: !when || taskBelongsTo(r, when) })))
   })
 
   app.put('/time-entry/:timeEntryId/:taskId', requirePermission('evv:update'), async (c) => {
@@ -269,7 +283,11 @@ export function createCareTaskRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       set.sortOrder = s
     }
     if (b.weeklyFrequency !== undefined && b.weeklyFrequency !== null) set.weeklyFrequency = normFreq(b.weeklyFrequency)
-    if (b.daysOfWeek !== undefined && b.daysOfWeek !== null) set.daysOfWeek = b.daysOfWeek
+    if (b.daysOfWeek !== undefined && b.daysOfWeek !== null) {
+      const daysBad = await unreadableDays(companyId, b.daysOfWeek)
+      if (daysBad) return fail(c, 400, daysBad, 'bad_days', { daysOfWeek: 'Use day names like Mon, Wed, Fri — or Daily' })
+      set.daysOfWeek = b.daysOfWeek
+    }
     if (b.timeOfDay) set.timeOfDay = normTimeOfDay(b.timeOfDay)
     if (b.cadence) set.cadence = normCadence(b.cadence)
     if (b.isRequired !== undefined && b.isRequired !== null) {

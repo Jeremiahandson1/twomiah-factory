@@ -84,6 +84,8 @@ export type SandataPrompt = { kind: 'in' | 'out'; clientId: string; clientName: 
 
 /** The answers sent with a punch (questions the agency asks at clock-in / clock-out). */
 export type Answers = { questionId: string; answer: string }[]
+/** The client's signature (or the reason they could not sign) sent with the clock-out (care_visit_signature). */
+export type ClientSignatureBody = { signature?: string; reasonCode?: string; note?: string; savedAt: string }
 
 export interface PunchResult { ok: boolean; error?: string; code?: string; queued?: boolean; message?: string }
 
@@ -135,7 +137,7 @@ interface CareValue {
   warmFix: () => void
   checkClockIn: (clientId: string) => Promise<ClockInCheck>
   clockIn: (clientId: string, fix: Fix | null, answers?: Answers) => Promise<PunchResult>
-  clockOut: (notes: string, answers?: Answers) => Promise<PunchResult>
+  clockOut: (notes: string, answers?: Answers, signature?: ClientSignatureBody | null) => Promise<PunchResult>
   visitNote: string
   setVisitNote: (v: string) => void
   photos: VisitPhoto[]
@@ -566,7 +568,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }, [active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── clock out ───────────────────────────────────────────────────────────────
-  const clockOut = useCallback(async (notes: string, answers?: Answers): Promise<PunchResult> => {
+  const clockOut = useCallback(async (notes: string, answers?: Answers, signature?: ClientSignatureBody | null): Promise<PunchResult> => {
     const a = activeRef.current
     if (!a || !userId) return { ok: false, error: 'No open visit.' }
     const offline = isOfflineId(a.id)
@@ -594,13 +596,13 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       const { fix } = await getFix(2500)
       if (offline) {
         // Its clock-in is still on the phone — queue the clock-out behind it.
-        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: a.id.slice(OFFLINE_PREFIX.length), entryId: null, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers })
+        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: a.id.slice(OFFLINE_PREFIX.length), entryId: null, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers, signature: signature ?? undefined })
         if (!saved) return { ok: false, error: 'This phone could not save the clock-out. Call the office with your end time.' }
         return await finishSavedOffline()
       }
-      const res = await carePost(`/api/time-entries/${a.id}/clock-out`, { latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, ...(answers?.length ? { answers } : {}) })
+      const res = await carePost(`/api/time-entries/${a.id}/clock-out`, { latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, ...(answers?.length ? { answers } : {}), ...(signature ? { signature } : {}) })
       if (isUnreachable(res.status)) {
-        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: null, entryId: a.id, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers })
+        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: null, entryId: a.id, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers, signature: signature ?? undefined })
         if (!saved) return { ok: false, error: 'No signal, and this phone could not save the clock-out. Call the office with your end time.' }
         return await finishSavedOffline()
       }

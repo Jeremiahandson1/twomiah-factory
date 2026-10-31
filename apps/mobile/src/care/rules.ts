@@ -209,3 +209,43 @@ export const GOAL_RATINGS: { value: 'progress' | 'no_change' | 'declined'; label
 export function reasonNeeded(status: 'skipped' | 'refused', required: boolean): boolean {
   return status === 'refused' || required
 }
+
+
+// ─── Required tasks, the client's signature, and the Clock out button (row 5) ────────────────────────
+
+/** A care task on the visit checklist (GET /api/care-tasks/time-entry/:id), as far as the rules need. */
+export interface ChecklistTask { taskId: string; taskName: string; isRequired?: boolean; status?: string | null; notes?: string | null; cadence?: string | null; doneThisWeek?: boolean; appliesToVisit?: boolean }
+
+/** Does the task belong to this visit? The server says (a Tuesday task on a Wednesday visit is false); an older server says nothing: yes. */
+export const taskAppliesHere = (t: { appliesToVisit?: boolean }) => t.appliesToVisit !== false
+
+/**
+ * The names of the REQUIRED tasks still open on this visit — the same rule the server holds the clock-out by: required, belongs to
+ * this visit, and neither done, nor skipped / refused with a reason, nor a weekly task already done earlier this week.
+ */
+export function openRequiredTasks(tasks: ChecklistTask[]): string[] {
+  return tasks.filter((t) => t.isRequired && taskAppliesHere(t)
+    && !(t.status === 'completed' || ((t.status === 'skipped' || t.status === 'refused') && String(t.notes ?? '').trim()) || (t.cadence === 'weekly' && t.doneThisWeek)))
+    .map((t) => t.taskName)
+}
+
+/** The names of required in-visit items (forms, interventions, goals, tasks) with nothing recorded yet. */
+export function openRequiredItems(items: { name: string; required: boolean; status: string | null }[]): string[] {
+  return items.filter((i) => i.required && !i.status).map((i) => i.name)
+}
+
+export interface SignatureConfig { required: boolean; reasons: { code: string; label: string }[] }
+/** What the phone keeps for one visit's signature and sends with the clock-out (and as soon as it can). `savedAt` is when the client signed. */
+export interface PendingSignature { signature?: string; reasonCode?: string; note?: string; savedAt: string }
+
+/** Why a "could not sign" choice is not ready, in plain words — or null when it is. "Another reason" needs the reason written. */
+export function reasonProblem(code: string | null | undefined, note: string | null | undefined): string | null {
+  if (!code) return 'Pick why the client could not sign.'
+  if (code === 'other' && !String(note ?? '').trim()) return 'Write the reason.'
+  return null
+}
+
+/** The signature as the server takes it: the drawing, or the reason (with its note) — never both. */
+export function signatureBody(p: PendingSignature): { signature?: string; reasonCode?: string; note?: string; savedAt: string } {
+  return p.signature ? { signature: p.signature, savedAt: p.savedAt } : { reasonCode: p.reasonCode, ...(p.note?.trim() ? { note: p.note.trim() } : {}), savedAt: p.savedAt }
+}

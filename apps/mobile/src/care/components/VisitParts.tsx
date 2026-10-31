@@ -20,6 +20,8 @@ import { useOfflineApi } from '../../offline/useOfflineApi'
 import { isOfflineId } from '../offlinePunches'
 import { formatClock } from '../time'
 import { Banner, Button, Card, Field, SectionTitle, useTone } from '../ui'
+import { openRequiredTasks, taskAppliesHere } from '../rules'
+import { clearOpen, reportOpen } from '../openRequired'
 
 // ─── care task checklist ─────────────────────────────────────────────────────────────────────
 
@@ -86,6 +88,11 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
     if (r.ok) { setItems(asList(r.data)); setFailed(false) } else setFailed(true)
   }, [timeEntryId, offline])
   useEffect(() => { load() }, [load])
+  // What the Clock out button waits for: the REQUIRED tasks still open (a Tuesday task is not open on a Wednesday visit).
+  useEffect(() => {
+    if (items) reportOpen('tasks', openRequiredTasks(items))
+    return () => clearOpen('tasks')
+  }, [items])
 
   // A tick made with no signal is kept on the phone and sent later (src/offline), with the time it was tapped; the server's
   // Idempotency-Key guard makes a resend harmless. Shown as waiting, never as done (10/30, home care PR #172 item 4).
@@ -106,16 +113,18 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
       ? <Banner tone="warning" icon="alert-circle" title="Tasks didn't load" onPress={load}>Tap to try again.</Banner>
       : <ActivityIndicator color={t.primary} style={{ marginVertical: 16 }} />
   }
-  if (!items.length) return <Text style={[styles.empty, { color: t.textSecondary }]}>No care tasks are set up for this client.</Text>
-  const done = items.filter((x) => x.status === 'completed').length
-  const daily = items.filter((x) => (x.cadence || 'daily') !== 'weekly')
-  const weekly = items.filter((x) => (x.cadence || 'daily') === 'weekly')
+  // Only the tasks that belong to THIS visit's day and time of day (the server says which; an older server shows them all).
+  const here = items.filter(taskAppliesHere)
+  if (!here.length) return <Text style={[styles.empty, { color: t.textSecondary }]}>No care tasks are set up for this visit.</Text>
+  const done = here.filter((x) => x.status === 'completed').length
+  const daily = here.filter((x) => (x.cadence || 'daily') !== 'weekly')
+  const weekly = here.filter((x) => (x.cadence || 'daily') === 'weekly')
   return (
     <View>
       <View style={[styles.progressTrack, { backgroundColor: t.surfaceAlt }]}>
-        <View style={[styles.progressFill, { backgroundColor: t.primary, width: `${Math.round((done / items.length) * 100)}%` }]} />
+        <View style={[styles.progressFill, { backgroundColor: t.primary, width: `${Math.round((done / here.length) * 100)}%` }]} />
       </View>
-      <Text style={[styles.progressText, { color: t.textSecondary }]}>{done} of {items.length} done</Text>
+      <Text style={[styles.progressText, { color: t.textSecondary }]}>{done} of {here.length} done</Text>
       {daily.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}
       {weekly.length > 0 && <Text style={[styles.subhead, { color: t.textSecondary }]}>Weekly tasks</Text>}
       {weekly.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}

@@ -343,6 +343,8 @@ export const schedules = pgTable('schedules', {
   isSplitShift: boolean('is_split_shift').default(false),
   splitShiftGroupId: text('split_shift_group_id'),
   splitSegment: integer('split_segment'),
+  // A repeating shift made on several weekdays at once is one row per weekday; they share this id so the office can end them together.
+  repeatGroupId: text('repeat_group_id'),
   // Training shift (0016_visits): the trainee is paid through payroll, the client is never billed for it.
   isTraining: boolean('is_training').default(false).notNull(),
   // Suspended service (0016_visits): no occurrence on/after this date is generated. NULL = active.
@@ -354,6 +356,7 @@ export const schedules = pgTable('schedules', {
   index('schedules_client_id_idx').on(t.clientId),
   index('schedules_caregiver_id_idx').on(t.caregiverId),
   index('schedules_split_group_idx').on(t.splitShiftGroupId),
+  index('schedules_repeat_group_idx').on(t.repeatGroupId),
   // One active recurring pattern per caregiver, client, weekday and clock time (template 0016_visits.sql).
   uniqueIndex('uniq_active_recurring_schedule').on(t.caregiverId, t.clientId, t.dayOfWeek, scheduleStartClock, scheduleEndClock).where(scheduleActiveRecurring),
   index('idx_schedules_is_training').on(t.isTraining).where(scheduleIsTraining),
@@ -3193,4 +3196,24 @@ export const visitItemLog = pgTable('visit_item_log', {
 }, (t) => [
   uniqueIndex('visit_item_log_once_idx').on(t.timeEntryId, t.itemId),
   index('visit_item_log_company_idx').on(t.companyId),
+])
+
+// The client's signature for one visit, drawn on the caregiver's phone (row 5, care_visit_signature) — or, when the client cannot sign,
+// the reason picked from the agency's list. One row per visit. signedAt is the moment the client signed (the phone's time if it was
+// signed offline), not the moment it reached us.
+export const visitSignature = pgTable('visit_signature', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  signatureImage: text('signature_image'),
+  signedAt: timestamp('signed_at'),
+  reasonCode: text('reason_code'), // set instead of the image when the client could not sign
+  reasonNote: text('reason_note'),
+  recordedById: text('recorded_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_signature_visit_idx').on(t.timeEntryId),
+  index('visit_signature_company_idx').on(t.companyId, t.createdAt),
 ])

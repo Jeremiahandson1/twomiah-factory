@@ -27,6 +27,8 @@ import { createProspectRoutes, createProspectAppointmentRoutes } from './prospec
 import { createSupervisoryVisitRoutes } from './supervisoryVisits.ts'
 import { createMedicationReminderRoutes } from './medicationReminders.ts'
 import { createVisitItemRoutes } from '../visits/visitItems.ts'
+import { createVisitSignatureRoutes } from '../visits/visitSignature.ts'
+import { createTaskReportRoutes } from '../visits/taskReport.ts'
 
 export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   const access = createClientAccess(core, d)
@@ -39,6 +41,8 @@ export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/medications', access: 'user', router: createMedicationRoutes(core, d, access) },
     { path: '/api/medication-reminders', access: 'user', feature: 'care_medication_reminders', router: createMedicationReminderRoutes(core, d) },
     { path: '/api/visit-items', access: 'user', feature: 'care_visit_items', router: createVisitItemRoutes(core, d, access) },
+    { path: '/api/evv-task-report', access: 'user', feature: 'care_required_tasks', router: createTaskReportRoutes(core, d) },
+    { path: '/api/visit-signature', access: 'user', feature: 'care_visit_signature', router: createVisitSignatureRoutes(core, d, access) },
     { path: '/api/adl', access: 'user', router: createAdlRoutes(core, d, access) },
     { path: '/api/client-documents', access: 'user', router: createClientDocumentRoutes(core, d, access) },
     { path: '/api/insurance-cards', access: 'user', router: createInsuranceCardRoutes(core, d) },

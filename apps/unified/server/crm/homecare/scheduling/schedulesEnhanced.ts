@@ -17,12 +17,15 @@ import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
-import { alignRepeatAnchor } from '../core/repeats.ts'
+import { alignRepeatAnchor, parseFrequency } from '../core/repeats.ts'
+import { sundayOfWeek, addDays } from '../core/agencyTime.ts'
+import { SHIFT_REPEAT_FEATURE } from './repeatInput.ts'
 import { frequencyFromRequest } from './repeatInput.ts'
-import { insertSchedule, oneTimeOverlap, oneTimeTwin } from '../../../data/homecareScheduling.ts'
+import { deactivateSchedules, insertSchedule, oneTimeOverlap, oneTimeTwin } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, who, type SchedulingShared } from './shared.ts'
 
-const isDup = (e: any) => e?.code === '23505' || /unique|duplicate key/i.test(e?.message || '')
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const isDup = (e: any) => e?.code === '23505' || e?.cause?.code === '23505' || /unique|duplicate key/i.test(e?.message || '') || /unique|duplicate key/i.test(e?.cause?.message || '')
 
 export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, shared: SchedulingShared) {
   const app = new Hono<AppEnv>()
@@ -70,6 +73,17 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     return listAll(c, rows)
   })
 
+  /** `daysOfWeek: [1, 3, 5]` → the weekdays, sorted and distinct; { days: null } when one weekday (or none) was asked for. */
+  async function weekdaysFromRequest(companyId: string, b: any): Promise<{ days: number[] | null } | { error: string; code: string }> {
+    if (b.daysOfWeek === undefined || b.daysOfWeek === null) return { days: null }
+    const list = Array.isArray(b.daysOfWeek) ? b.daysOfWeek : null
+    const days = list ? [...new Set(list.map((x: unknown) => Number(x)))] as number[] : null
+    if (!days || days.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) return { error: 'daysOfWeek is a list of weekdays, 0 (Sunday) to 6 (Saturday).', code: 'bad_weekdays' }
+    if (days.length < 2) { if (days.length === 1 && (b.dayOfWeek === undefined || b.dayOfWeek === null || b.dayOfWeek === '')) b.dayOfWeek = days[0]; return { days: null } } // one weekday is an ordinary shift
+    if (!(await d.features.isFeatureEnabled(companyId, SHIFT_REPEAT_FEATURE))) return { error: 'A shift on several weekdays is not switched on for this agency yet.', code: 'repeat_not_available' }
+    return { days: days.sort((x, y) => x - y) }
+  }
+
   // POST /api/schedules-enhanced
   app.post('/', perm('care-schedule:create'), async (c) => {
     const { companyId, me } = who(c)
@@ -83,7 +97,12 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     const asked = await frequencyFromRequest(d, companyId, b)
     if ('error' in asked) return fail(c, 400, asked.error, asked.code)
     const frequency = asked.frequency
-    const dayOfWeek = b.dayOfWeek === '' || b.dayOfWeek === null || b.dayOfWeek === undefined ? null : Number(b.dayOfWeek)
+    // Several weekdays at once (care_shift_repeats): daysOfWeek [1, 3, 5] makes one repeating shift on Monday, Wednesday and Friday.
+    const several = await weekdaysFromRequest(companyId, b)
+    if ('error' in several) return fail(c, 400, several.error, several.code)
+    if (several.days && splitShift) return fail(c, 400, 'A split shift is made one weekday at a time.', 'bad_weekdays')
+    if (several.days && frequency && parseFrequency(frequency).kind === 'monthly') return fail(c, 400, 'A monthly shift is made one weekday at a time (every 2nd Tuesday, say).', 'bad_weekdays')
+    const dayOfWeek = several.days ? several.days[0] : b.dayOfWeek === '' || b.dayOfWeek === null || b.dayOfWeek === undefined ? null : Number(b.dayOfWeek)
     const isRecurring = dayOfWeek !== null
     if (isRecurring && !(Number.isInteger(dayOfWeek) && dayOfWeek! >= 0 && dayOfWeek! <= 6)) return fail(c, 400, 'dayOfWeek must be 0 (Sunday) to 6 (Saturday).')
     if (!isRecurring && !(date && DATE_RE.test(date))) return fail(c, 400, 'A one-time shift needs its date (YYYY-MM-DD).')
@@ -102,6 +121,9 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     if (isRecurring && (frequency || 'weekly') !== 'weekly') {
       anchorDate = alignRepeatAnchor({ frequency, anchorDate: b.anchorDate, effectiveDate, dayOfWeek })
     }
+    // On several weekdays every row counts its weeks from the SAME week (the one the series starts in), so "every other week on Monday and
+    // Wednesday" is Monday and Wednesday of one week, then of the week two later — not a fortnight's drift between them.
+    const anchorFor = (dow: number) => (several.days && (frequency || 'weekly') !== 'weekly' ? addDays(sundayOfWeek(effectiveDate!), dow) : anchorDate)
 
     let totalHours = shiftHours(startTime, endTime)
     if (splitShift?.startTime && splitShift?.endTime) totalHours += shiftHours(splitShift.startTime, splitShift.endTime)
@@ -114,10 +136,10 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     if (endDate && !DATE_RE.test(endDate)) return fail(c, 400, 'endDate must be a date (YYYY-MM-DD).')
     if (endDate && endDate < effectiveDate!) return fail(c, 400, 'The end date is before the schedule starts.')
 
-    const insert = (start: string, end: string, split?: { group: string; segment: number }) => insertSchedule(db, companyId, {
-      caregiverId, clientId, scheduleType: scheduleType || (isRecurring ? 'recurring' : 'one-time'), dayOfWeek,
+    const insert = (start: string, end: string, split?: { group: string; segment: number }, dow: number | null = dayOfWeek, repeatGroupId: string | null = null) => insertSchedule(db, companyId, {
+      caregiverId, clientId, scheduleType: scheduleType || (isRecurring ? 'recurring' : 'one-time'), dayOfWeek: dow,
       date: isRecurring ? null : date, startTs: schedTs(start, base), endTs: schedTs(end, base), notes: notes || null,
-      frequency: frequency || 'weekly', effectiveDate, anchorDate, split: split ?? null, isTraining: !!isTraining, endDate,
+      frequency: frequency || 'weekly', effectiveDate, anchorDate: dow === null ? anchorDate : anchorFor(dow), split: split ?? null, isTraining: !!isTraining, endDate, repeatGroupId,
     })
 
     // An expired credential: refused when the agency blocks it, otherwise a flag on the reply (empty without care_cert_reminders).
@@ -142,6 +164,24 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
         const segments = [await core.schedules.scheduleById(companyId, id1), await core.schedules.scheduleById(companyId, id2)]
         await core.notify.recordAudit(companyId, me, 'CREATE', 'schedules', id1, null, { splitShift: true, segments })
         return one(c, { splitShift: true, segments, effectiveDateClamped, effectiveDate, anchorDate, authWarnings: authCheck.warnings, credentialWarnings }, 201)
+      }
+
+      // One repeating shift on several weekdays: one row per weekday, tied by a series id. All or none: if one weekday is already taken, the
+      // ones just made are taken back out and the reply says which.
+      if (several.days) {
+        const repeatGroupId = createId()
+        const made: string[] = []
+        try {
+          for (const dow of several.days) made.push(await insert(startTime, endTime, undefined, dow, repeatGroupId))
+        } catch (e: any) {
+          await deactivateSchedules(db, companyId, { repeatGroup: repeatGroupId })
+          if (isDup(e)) return fail(c, 409, `This caregiver already has this exact shift on ${DAY_NAMES[several.days[made.length]]} (same client and time). Nothing was created.`, 'duplicate')
+          throw e
+        }
+        const rows = []
+        for (const id of made) rows.push(await core.schedules.scheduleById(companyId, id))
+        await core.notify.recordAudit(companyId, me, 'CREATE', 'schedules', made[0], null, { repeatGroupId, rows })
+        return one(c, { series: true, repeatGroupId, rows, effectiveDateClamped, effectiveDate, authWarnings: authCheck.warnings, credentialWarnings }, 201)
       }
 
       // One-time duplicate guard: a double-submit returns the existing row, not a billable twin.

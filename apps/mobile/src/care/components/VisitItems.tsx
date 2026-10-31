@@ -13,7 +13,8 @@ import { useToast } from '../../components/ToastProvider'
 import { careGet, asList } from '../careApi'
 import { useOfflineApi } from '../../offline/useOfflineApi'
 import { isOfflineId } from '../offlinePunches'
-import { formMissing, GOAL_RATINGS, reasonNeeded, type FormField } from '../rules'
+import { formMissing, GOAL_RATINGS, openRequiredItems, reasonNeeded, type FormField } from '../rules'
+import { clearOpen, reportOpen } from '../openRequired'
 import { Banner, Button, Field, SectionTitle, useTone } from '../ui'
 import { SignaturePad } from './SignaturePad'
 
@@ -164,6 +165,11 @@ export function VisitItems({ timeEntryId }: { timeEntryId: string }) {
     setItems(r.ok ? (asList(r.data) as Item[]) : null) // 403/404: the agency has not got this switched on
   }, [timeEntryId, offline])
   useEffect(() => { load() }, [load])
+  // What the Clock out button waits for: required items with nothing recorded.
+  useEffect(() => {
+    if (items) reportOpen('items', openRequiredItems(items))
+    return () => clearOpen('items')
+  }, [items])
 
   const record = async (item: Item, status: 'done' | 'skipped' | 'refused', extra?: { note?: string; rating?: string }) => {
     const r = await queue.put(`/api/visit-items/visit/${timeEntryId}/${item.id}`, { status, note: extra?.note || null, rating: extra?.rating, savedAt: new Date().toISOString() },

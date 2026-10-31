@@ -157,6 +157,7 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
   //   ?scope=all (default)  recurring: END it as of today, keeping every worked occurrence; one-time: remove the row
   //   ?scope=purge          erase the pattern including history (for a pattern made by mistake)
   //   &deletePair=true      also the other half of a split shift
+  //   &series=true          a repeating shift made on several weekdays: every weekday of it (not only this one)
   app.delete('/:scheduleId', perm('care-schedule:delete'), async (c) => {
     const { companyId, me: actor } = who(c)
     const scheduleId = c.req.param('scheduleId')
@@ -164,6 +165,7 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
     const date = c.req.query('date')
     const reason = c.req.query('reason') || null
     const deletePair = c.req.query('deletePair') === 'true'
+    const series = c.req.query('series') === 'true'
 
     const shift = await core.schedules.scheduleById(companyId, scheduleId)
     if (!shift) return fail(c, 404, 'Schedule not found')
@@ -186,14 +188,15 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
 
     if (scope === 'following') {
       const endDate = addDays(date!, -1)
-      await endActivePattern(db, companyId, scheduleId, endDate)
+      await endActivePattern(db, companyId, scheduleId, endDate, series ? shift.repeatGroupId : null)
       const after = await core.schedules.scheduleById(companyId, scheduleId)
       await core.notify.recordAudit(companyId, actor, 'END_PATTERN', 'schedules', scheduleId, shift, after, reason)
       return one(c, { message: 'Recurring pattern ended', endDate, schedule: after })
     }
 
     const isSplitPair = !!(shift.isSplitShift && shift.splitShiftGroupId && deletePair)
-    const target: ScheduleTarget = isSplitPair ? { splitGroup: shift.splitShiftGroupId } : { id: scheduleId }
+    const target: ScheduleTarget = isSplitPair ? { splitGroup: shift.splitShiftGroupId }
+      : series && shift.repeatGroupId ? { repeatGroup: shift.repeatGroupId } : { id: scheduleId }
 
     if (scope === 'purge') {
       const ids = await deactivateSchedules(db, companyId, target)
