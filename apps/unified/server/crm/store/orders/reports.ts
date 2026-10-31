@@ -5,12 +5,13 @@
 // takings are the owner's and the manager's, never the staff seat's, the same line the Dashboard draws. The Menu row asks
 // the same feature and permission. The shared /crm/reports is invoices and jobs and is not offered to a store.
 //
+//   Also cut by variant (size, colour…): units, net sales, cost and margin per option, beside the by-product view.
 //   GET /?from=YYYY-MM-DD&to=YYYY-MM-DD&bucket=day|week|month   (default: the last 30 days, bucket chosen from the length)
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
-import { salesOverTime, salesTotals, topProducts, repeatCustomers, profitTotals, discountCodes, type Bucket } from '../../../data/storeReports.ts'
+import { salesOverTime, salesTotals, topProducts, salesByVariant, repeatCustomers, profitTotals, discountCodes, type Bucket } from '../../../data/storeReports.ts'
 import { escapeCsv } from '../../../core/sanitize.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
@@ -27,6 +28,11 @@ const todayIn = (tz: string) => new Intl.DateTimeFormat('en-CA', { timeZone: tz,
 const spanOf = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY) + 1
 /** Day by day while it fits on a page, then by week, then by month. */
 const bucketFor = (days: number): Bucket => (days <= 62 ? 'day' : days <= 183 ? 'week' : 'month')
+
+/** Profit and margin of the costed part of a line group; both null when none of it had a cost (never zero, never a guess). */
+const profitOf = (costedSalesCents: number, costCents: number | null) =>
+  costCents == null ? { profitCents: null, marginPercent: null }
+    : { profitCents: costedSalesCents - costCents, marginPercent: costedSalesCents > 0 ? Math.round(((costedSalesCents - costCents) / costedSalesCents) * 1000) / 10 : null }
 
 /** Money as a spreadsheet wants it: 1234 → 12.34. */
 const dollars = (cents: number) => (cents / 100).toFixed(2)
@@ -59,14 +65,16 @@ export function createSalesReportRoutes(d: CrmDeps) {
     if (win instanceof Response) return win
     const { w, bucket, companyId } = win
     const margin = await seesMargin(c)
-    const [totals, series, products, repeat, codes, profit] = await Promise.all([
-      salesTotals(db, companyId, w), salesOverTime(db, companyId, w, bucket), topProducts(db, companyId, w), repeatCustomers(db, companyId, w),
+    const [totals, series, products, variants, repeat, codes, profit] = await Promise.all([
+      salesTotals(db, companyId, w), salesOverTime(db, companyId, w, bucket), topProducts(db, companyId, w), salesByVariant(db, companyId, w), repeatCustomers(db, companyId, w),
       discountCodes(db, companyId, w), margin ? profitTotals(db, companyId, w) : Promise.resolve(null),
     ])
     return one(c, {
       from: w.from, to: w.to, timeZone: w.timeZone, bucket, totals, series, repeat, discountCodes: codes,
       // A seat without margin:read is sent no cost and no profit — LEFT OUT, never zero. A product with no cost says costCents null.
       topProducts: products.map(({ costedSalesCents, costCents, ...p }) => (margin ? { ...p, costCents, profitCents: costCents == null ? null : costedSalesCents - costCents } : p)),
+      // The same rule by variant: cost, profit and margin only for a seat that sees costs; null = no cost stored, never zero.
+      variants: variants.map(({ costedSalesCents, costCents, ...v }) => (margin ? { ...v, costCents, ...profitOf(costedSalesCents, costCents) } : v)),
       ...(profit ? { profit } : {}),
     })
   })
@@ -77,7 +85,7 @@ export function createSalesReportRoutes(d: CrmDeps) {
     if (win instanceof Response) return win
     const { w, bucket, companyId } = win
     const report = c.req.query('report') || 'sales'
-    if (!['sales', 'products', 'discounts'].includes(report)) return fail(c, 400, 'Export sales, products or discounts.', 'validation_failed', { report: 'Not sales, products or discounts' })
+    if (!['sales', 'products', 'variants', 'discounts'].includes(report)) return fail(c, 400, 'Export sales, products, variants or discounts.', 'validation_failed', { report: 'Not sales, products, variants or discounts' })
     const margin = await seesMargin(c)
     let rows: unknown[][]
     if (report === 'sales') {
@@ -88,6 +96,13 @@ export function createSalesReportRoutes(d: CrmDeps) {
       const products = await topProducts(db, companyId, w, 5000)
       rows = [['Product', 'Units sold', 'Brought in', ...(margin ? ['Cost', 'Profit'] : [])],
         ...products.map((p) => [p.name, p.units, dollars(p.salesCents), ...(margin ? [p.costCents == null ? 'no cost' : dollars(p.costCents), p.costCents == null ? 'no cost' : dollars(p.costedSalesCents - p.costCents)] : [])])]
+    } else if (report === 'variants') {
+      const variants = await salesByVariant(db, companyId, w, 50_000)
+      rows = [['Product', 'Option', 'SKU', 'Units sold', 'Net sales', ...(margin ? ['Cost', 'Profit', 'Margin %'] : [])],
+        ...variants.map((v) => {
+          const p = profitOf(v.costedSalesCents, v.costCents)
+          return [v.productName, v.variantName, v.sku, v.units, dollars(v.salesCents), ...(margin ? [v.costCents == null ? 'no cost' : dollars(v.costCents), p.profitCents == null ? 'no cost' : dollars(p.profitCents), p.marginPercent == null ? 'no cost' : p.marginPercent] : [])]
+        })]
     } else {
       const codes = await discountCodes(db, companyId, w)
       rows = [['Code', 'Orders', 'Taken off', 'Orders kept'], ...codes.map((r) => [r.code, r.orders, dollars(r.discountCents), dollars(r.netCents)])]
