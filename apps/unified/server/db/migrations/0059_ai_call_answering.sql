@@ -1,4 +1,3 @@
-ALTER TABLE "ai_receptionist_settings" ADD COLUMN "call_answering" json;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "ai_call_session" (
 	"id" text PRIMARY KEY NOT NULL,
 	"company_id" text NOT NULL,
@@ -23,6 +22,7 @@ CREATE TABLE IF NOT EXISTS "ai_call_turn" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "ai_receptionist_settings" ADD COLUMN "call_answering" json;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "ai_call_session" ADD CONSTRAINT "ai_call_session_company_id_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."company"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
