@@ -79,7 +79,7 @@ export function createJobConfirm(d: CrmDeps) {
     const ids = [...new Set(reminded.map((r: any) => r.subjectId as string))]
     if (!ids.length) return null
     const rows: any[] = await db.select().from(job)
-      .where(and(eq(job.companyId, m.companyId), eq(job.contactId, contactId), inArray(job.id, ids), inArray(job.status, OPEN), gte(job.scheduledDate, dayBefore())))
+      .where(and(eq(job.companyId, m.companyId), eq(job.contactId, contactId), inArray(job.id, ids as any), inArray(job.status, OPEN as any), gte(job.scheduledDate, dayBefore())))
     if (!rows.length) return null
     rows.sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime() || String(a.scheduledTime ?? '').localeCompare(String(b.scheduledTime ?? '')))
     const [co] = await db.select().from(company).where(eq(company.id, m.companyId)).limit(1)
