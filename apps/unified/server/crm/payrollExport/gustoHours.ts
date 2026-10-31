@@ -22,6 +22,9 @@ export interface GustoHoursRow {
   totalHours: number | string
   /** Home care with care_payroll_rules only: hours at double time. The column appears only when someone has some. */
   doubleTimeHours?: number | string
+  /** The bar and restaurant pay file (restaurant-bar parity #8): tips paid on the paycheck and cash tips the person declared, in cents. Each column appears only when someone has some. */
+  paycheckTipsCents?: number
+  cashTipsCents?: number
 }
 
 /** A text cell: quoted, and a leading = + - @ made harmless so a name can never run as a spreadsheet formula. */
@@ -31,12 +34,22 @@ const text = (v: unknown) => {
 }
 const hours = (v: number | string) => Number(v || 0).toFixed(2)
 
+const dollars = (cents: number | undefined) => ((cents || 0) / 100).toFixed(2)
+
 export function gustoHoursCsv(rows: GustoHoursRow[]): string {
   const withDouble = rows.some((r) => Number(r.doubleTimeHours || 0) > 0)
-  const lines: string[] = [(withDouble ? [...GUSTO_HOURS_HEADER, 'Double Overtime Hours'] : [...GUSTO_HOURS_HEADER]).join(',')]
+  const withPaycheckTips = rows.some((r) => (r.paycheckTipsCents || 0) > 0)
+  const withCashTips = rows.some((r) => (r.cashTipsCents || 0) > 0)
+  const header: string[] = [...GUSTO_HOURS_HEADER]
+  if (withDouble) header.push('Double Overtime Hours')
+  if (withPaycheckTips) header.push('Paycheck Tips')
+  if (withCashTips) header.push('Cash Tips')
+  const lines: string[] = [header.join(',')]
   for (const r of rows) {
     const cells = [text(r.firstName), text(r.lastName), text(r.email), hours(r.regularHours), hours(r.overtimeHours), hours(r.totalHours)]
     if (withDouble) cells.push(hours(r.doubleTimeHours ?? 0))
+    if (withPaycheckTips) cells.push(dollars(r.paycheckTipsCents))
+    if (withCashTips) cells.push(dollars(r.cashTipsCents))
     lines.push(cells.join(','))
   }
   return lines.join('\n')

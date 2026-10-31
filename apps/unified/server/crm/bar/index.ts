@@ -22,6 +22,7 @@ import { createBarLoyaltyRoutes } from './barLoyaltyRoutes.ts'
 import { createBarStockRoutes } from './barStockRoutes.ts'
 import { createBarScheduleRoutes } from './barScheduleRoutes.ts'
 import { createBarTipRoutes } from './barTipRoutes.ts'
+import { createBarPayrollRoutes } from './barPayrollRoutes.ts'
 import { createBarTipSourceRoutes, createBarTipSourceReturnRoutes } from './barTipSourceRoutes.ts'
 import { createBarFoodRoutes } from './barFoodRoutes.ts'
 import { createBarFoodPublicRoutes } from './barFoodPublicRoutes.ts'
@@ -56,6 +57,7 @@ export function barMounts(d: CrmDeps): Mount[] {
     { path: '/api/stock', access: 'user', feature: 'bar_stock', router: createBarStockRoutes(d, bar) },
     { path: '/api/schedule', access: 'user', feature: 'bar_schedule', router: createBarScheduleRoutes(d, bar) },
     { path: '/api/tips', access: 'user', feature: 'bar_tip_pooling', router: createBarTipRoutes(d, bar) },
+    { path: '/api/bar-payroll', access: 'user', feature: 'bar_payroll_export', router: createBarPayrollRoutes(d, bar) },
     { path: '/api/tip-sources', access: 'user', feature: 'bar_tip_import', router: createBarTipSourceRoutes(d, bar) },
     // No sign-in: Square sends the browser back here after the owner allows it; the signed state proves it is ours.
     { path: '/api/tip-sources-return', access: 'public', feature: 'bar_tip_import', router: createBarTipSourceReturnRoutes(d, bar) },

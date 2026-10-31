@@ -52,14 +52,15 @@ export async function companyWorkWeek(db: any, companyId: string): Promise<{ sta
 /**
  * One person's entries → regular, overtime and total hours: each work week's hours over 40 are overtime. Hundredths of
  * an hour, so 39.99 stays 39.99. A week that straddles the period counts only the days inside it.
+ * `overtimeAfter` is the weekly hours the pay run counts as regular (40, the FLSA's, unless a business sets another: the bar's pay file does).
  */
-export function splitByWorkWeek(entries: Array<{ date: Date | string; hours: number | string | null }>, tz: string, startDay: number) {
+export function splitByWorkWeek(entries: Array<{ date: Date | string; hours: number | string | null }>, tz: string, startDay: number, overtimeAfter = OT_WEEKLY_HOURS) {
   const weeks = new Map<string, number>()
   for (const e of entries) {
     const week = workweekStartOn(storeDateString(new Date(e.date), tz), startDay)
     weeks.set(week, (weeks.get(week) ?? 0) + Number(e.hours || 0))
   }
-  const cap = OT_WEEKLY_HOURS * 100
+  const cap = Math.round(overtimeAfter * 100)
   let regular = 0, overtime = 0
   for (const h of weeks.values()) {
     const n = Math.max(0, Math.round(h * 100))
