@@ -497,9 +497,29 @@ export const roofMoneySetting = pgTable('roof_money_setting', {
   // version goes up whenever the words change, so a changed disclaimer is accepted again.
   commissionDisclaimer: text('commission_disclaimer'),
   commissionDisclaimerVersion: integer('commission_disclaimer_version').default(0).notNull(),
+  // A job's worksheet (its costing) must be approved before its profit counts — in commissions on profit, the minimum profit, and the
+  // job-costing roll-ups (./worksheetApproval.ts). Off by default: every job's figures count as they always did.
+  requireWorksheetApproval: boolean('require_worksheet_approval').default(false).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('roof_money_setting_company_id_idx').on(t.companyId),
+])
+
+// A job's approved worksheet: who signed its costing off, when, and the figures they saw (before commissions). One row per job; reopening
+// the worksheet removes the row (the audit log keeps the history). Only read when roof_money_setting.require_worksheet_approval is on.
+export const jobWorksheetApproval = pgTable('job_worksheet_approval', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  approvedById: text('approved_by_id').references(() => user.id, { onDelete: 'set null' }),
+  approvedAt: timestamp('approved_at').defaultNow().notNull(),
+  revenue: decimal('revenue', { precision: 12, scale: 2 }).notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).notNull(),
+  profit: decimal('profit', { precision: 12, scale: 2 }).notNull(),
+  note: text('note'),
+}, (t) => [
+  uniqueIndex('job_worksheet_approval_job_id_idx').on(t.jobId),
+  index('job_worksheet_approval_company_id_idx').on(t.companyId),
 ])
 
 // Who accepted which version of the company's commission disclaimer, and the words they accepted (kept as they were, so a later edit

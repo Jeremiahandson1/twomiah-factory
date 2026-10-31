@@ -29,11 +29,12 @@ function fakeApi(routes: Record<string, any>) {
   }
   return { calls, api: { get: answer('GET'), post: answer('POST'), put: answer('PUT'), delete: answer('DELETE') } }
 }
-async function mount(api: any) {
+async function mount(api: any, can: (p: string) => boolean = () => false) {
+  const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
   document.body.innerHTML = ''
   const el = document.createElement('div'); document.body.appendChild(el)
   const root = createRoot(el)
-  await act(async () => { root.render(h(JobCostingPage, { api, config: {} })) })
+  await act(async () => { root.render(h(AuthContext.Provider, { value: { hasFeature: () => false, can } }, h(JobCostingPage, { api, config: {} }))) })
   await settle()
   return root
 }
@@ -61,8 +62,8 @@ export const DETAIL = {
   variance: { cost: 4000, labor: 0, material: 4000, hours: 0, costPercent: 0 },
   roof: { materialOrderCost: 4000, crewCost: 0, crewBasis: 'unknown', crewName: null, squares: 30, payPerSquare: null, commissionCost: 1140, supplements: { approved: 0, pending: 0, denied: 0, count: 0 } },
 }
-export const open = async (api: any) => {
-  const root = await mount(api)
+export const open = async (api: any, can?: (p: string) => boolean) => {
+  const root = await mount(api, can)
   await click(Array.from(document.querySelectorAll('tr')).find((r) => (r.textContent || '').includes('JOB-00001')))
   return root
 }
@@ -155,5 +156,51 @@ describe('a crew’s lump-sum price (row 5)', () => {
     expect(body).toBeTruthy()
     expect('price' in body).toBe(false)
     root.unmount(); undo()
+  })
+})
+
+describe('worksheet approval (row 5)', () => {
+  const waiting = { ...SUMMARY, jobs: [{ ...SUMMARY.jobs[0], counted: false }], unapprovedJobs: 1 }
+  test('the list marks a job whose worksheet is not approved and says it is not in the totals', async () => {
+    const { api } = fakeApi({ '/api/job-costing/summary': waiting, '/api/job-costing/by-category': { data: [] } })
+    const root = await mount(api)
+    expect(text()).toContain('Not approved')
+    expect(text()).toContain('1 job’s worksheet is waiting for approval')
+    root.unmount()
+  })
+
+  test('an owner approves the worksheet from the job and the screen reloads it', async () => {
+    let approved = false
+    const { api, calls } = fakeApi({
+      '/api/job-costing/summary': waiting, '/api/job-costing/by-category': { data: [] },
+      '/api/job-costing/job/j1': () => ({ ...DETAIL, worksheet: { required: true, approved, approvedByName: approved ? 'Olive Owner' : null } }),
+      'POST /api/job-worksheet/j1/approve': () => { approved = true; return { required: true, approved: true } },
+    })
+    const root = await open(api, (p) => p === 'reports:update')
+    expect(text()).toContain('Worksheet waiting for approval')
+    await click(Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === 'Approve worksheet'))
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/api/job-worksheet/j1/approve')).toBe(true)
+    expect(text()).toContain('Worksheet approved by Olive Owner')
+    expect(Array.from(document.querySelectorAll('button')).some((b) => (b.textContent || '').trim() === 'Reopen worksheet')).toBe(true)
+    root.unmount()
+  })
+
+  test('a seat that cannot update reports reads the state and has no button', async () => {
+    const { api } = fakeApi({
+      '/api/job-costing/summary': waiting, '/api/job-costing/by-category': { data: [] },
+      '/api/job-costing/job/j1': { ...DETAIL, worksheet: { required: true, approved: false } },
+    })
+    const root = await open(api, () => false)
+    expect(text()).toContain('Worksheet waiting for approval')
+    expect(Array.from(document.querySelectorAll('button')).some((b) => /Approve worksheet/.test(b.textContent || ''))).toBe(false)
+    root.unmount()
+  })
+
+  test('where the company does not require it, no banner and no note', async () => {
+    const { api } = fakeApi({ '/api/job-costing/summary': SUMMARY, '/api/job-costing/by-category': { data: [] }, '/api/job-costing/job/j1': DETAIL })
+    const root = await open(api, () => true)
+    expect(text()).not.toContain('Worksheet waiting')
+    expect(text()).not.toContain('waiting for approval')
+    root.unmount()
   })
 })

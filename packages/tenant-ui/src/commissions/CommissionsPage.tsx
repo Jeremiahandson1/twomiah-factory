@@ -199,6 +199,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [rules, setRules] = useState<any | null>(null)
   const [minKind, setMinKind] = useState<'none' | 'percent' | 'amount'>('none')
   const [minValue, setMinValue] = useState('')
+  const [needApproval, setNeedApproval] = useState(false)
   const [disclaimerText, setDisclaimerText] = useState('')
   const [acceptances, setAcceptances] = useState<any[]>([])
   const [viewerRoles, setViewerRoles] = useState<string[]>(['manager'])
@@ -210,6 +211,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       setMinValue(r?.minProfit ? String(r.minProfit.value) : '')
       setViewerRoles(Array.isArray(r?.commissionViewerRoles) ? r.commissionViewerRoles : ['manager'])
       setDisclaimerText(r?.commissionDisclaimer || '')
+      setNeedApproval(!!r?.requireWorksheetApproval)
       try { setAcceptances(listOf(await api.get('/api/commission-disclaimer/acceptances'))) } catch { setAcceptances([]) }
     } catch (e) { setRules(null); toast.error(errMsg(e, 'Could not load the commission rules')) }
   }, [api])
@@ -224,6 +226,14 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'The rules could not be saved')) } finally { setBusy(false) }
   }
 
+  const saveApproval = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      setRules(await api.put('/api/roof-money/settings', { requireWorksheetApproval: needApproval }))
+      toast.success('Saved')
+    } catch (err) { toast.error(errMsg(err, 'This could not be saved')) } finally { setBusy(false) }
+  }
   const saveDisclaimer = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -464,6 +474,15 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </Field>
             )}
           </div>
+          {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
+        </form>
+        <form onSubmit={saveApproval} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Worksheet approval</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400">When this is on, a job&rsquo;s costing worksheet must be approved by an owner or admin (on the Job Costing screen) before its profit counts: a commission on profit — and every commission while a minimum profit is set — waits for it, and the job&rsquo;s profit stays out of the Job Costing totals until then.</p>
+          <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
+            <input type="checkbox" disabled={!mayUpdate} checked={needApproval} onChange={(e) => setNeedApproval(e.target.checked)} />
+            Require an approved worksheet before a job&rsquo;s profit counts
+          </label>
           {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
         </form>
         <form onSubmit={saveDisclaimer} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">

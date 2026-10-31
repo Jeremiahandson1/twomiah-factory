@@ -11,6 +11,8 @@
 //
 //   commissionDisclaimer    the words a person who collects commissions accepts before seeing their own (./commissionDisclaimer.ts);
 //               null = none. Changing the words raises commissionDisclaimerVersion, so a changed disclaimer is accepted again.
+//   requireWorksheetApproval   a job's worksheet (its costing) must be approved (./worksheetApproval.ts) before its profit counts: in a
+//               commission on profit, in the minimum profit, and in the job-costing roll-ups. Off by default.
 //
 // GET is commissions:read (a manager reads the rules; nobody below that does). The registry gates the feature
 // (commission_tracking, an existing id: nothing new is advertised).
@@ -32,8 +34,9 @@ export interface RoofMoneySettings {
   commissionViewerRoles: string[]
   commissionDisclaimer: string | null
   commissionDisclaimerVersion: number
+  requireWorksheetApproval: boolean
 }
-export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null, commissionViewerRoles: [...DEFAULT_COMMISSION_VIEWERS], commissionDisclaimer: null, commissionDisclaimerVersion: 0 })
+export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null, commissionViewerRoles: [...DEFAULT_COMMISSION_VIEWERS], commissionDisclaimer: null, commissionDisclaimerVersion: 0, requireWorksheetApproval: false })
 
 const minProfitSchema = z.object({
   kind: z.enum(['percent', 'amount'], { error: 'Choose percent or dollars for the minimum profit.' }),
@@ -43,6 +46,7 @@ const minProfitSchema = z.object({
 const settingsSchema = z.object({
   minProfit: minProfitSchema.nullable().optional(),
   commissionViewerRoles: z.array(z.enum(COMMISSION_VIEWER_CHOICES, { error: 'Choose roles from the list.' })).max(3).optional(),
+  requireWorksheetApproval: z.boolean().optional(),
   commissionDisclaimer: z.string().max(5000, 'Keep the disclaimer under 5,000 characters.').nullable().optional(),
 })
 
@@ -59,6 +63,7 @@ export function createRoofMoneySettings(d: CrmDeps) {
     if (Array.isArray(row.commissionViewerRoles)) out.commissionViewerRoles = (row.commissionViewerRoles as unknown[]).filter((r): r is string => (COMMISSION_VIEWER_CHOICES as readonly string[]).includes(String(r)))
     out.commissionDisclaimer = row.commissionDisclaimer || null
     out.commissionDisclaimerVersion = Number(row.commissionDisclaimerVersion || 0)
+    out.requireWorksheetApproval = !!row.requireWorksheetApproval
     return out
   }
 
@@ -69,6 +74,7 @@ export function createRoofMoneySettings(d: CrmDeps) {
       set.minProfitKind = patch.minProfit ? patch.minProfit.kind : null
       set.minProfitValue = patch.minProfit ? String(patch.minProfit.value) : null
     }
+    if (patch.requireWorksheetApproval !== undefined) set.requireWorksheetApproval = patch.requireWorksheetApproval
     if (patch.commissionDisclaimer !== undefined) {
       const words = patch.commissionDisclaimer === null ? null : patch.commissionDisclaimer.trim() || null
       const now = await read(companyId)

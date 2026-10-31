@@ -46,6 +46,7 @@ import type { CrmDeps } from '../deps.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
 import { createRoofMoneySettings, type MinProfit } from './moneySettings.ts'
 import { PIPELINE_STATUSES } from './validation.ts'
+import { createWorksheetApproval } from './worksheetApproval.ts'
 
 /** Not a bill the homeowner owes: a draft that never went out, a void one. Collected's own rule (collected.ts). */
 const NOT_BILLED = ['draft', 'void']
@@ -81,6 +82,7 @@ export function createRoofCommissions(d: CrmDeps) {
   const { db } = d
   const costing = createJobCostingService(d)
   const moneySettings = createRoofMoneySettings(d)
+  const worksheet = createWorksheetApproval(d)
 
   /** Who holds each role on the job: the seller is the job's sales rep, the others are named on it (job_person). */
   async function peopleOf(companyId: string, row: any): Promise<Map<CommissionJobRole, string[]>> {
@@ -148,6 +150,8 @@ export function createRoofCommissions(d: CrmDeps) {
     const now = new Date()
 
     const settings = await moneySettings.read(companyId)
+    // Where the company wants worksheets approved, the job's profit counts only once its worksheet is (roof/worksheetApproval.ts).
+    const figuresCount = !settings.requireWorksheetApproval || (await worksheet.approvedJobIds(companyId, [jobId])).has(jobId)
     const plans = (await db.select().from(commissionPlan).where(and(eq(commissionPlan.companyId, companyId), eq(commissionPlan.isActive, true))))
 
     // A plan is ready when its trigger stage has been reached (and, for Paid or a $0-balance plan, every invoice that went out is
@@ -159,7 +163,7 @@ export function createRoofCommissions(d: CrmDeps) {
       const trigger = effectiveTrigger(p, row)
       if (!stageReachedBy(row.status, TRIGGER_STAGE[trigger])) return []
       if ((trigger === 'collected' || p.zeroBalanceOnly) && !paidInFull) return []
-      if ((measuredOnOf(p) !== 'contract' || settings.minProfit) && !stageReachedBy(row.status, TRIGGER_STAGE.completed)) return []
+      if ((measuredOnOf(p) !== 'contract' || settings.minProfit) && !(stageReachedBy(row.status, TRIGGER_STAGE.completed) && figuresCount)) return []
       const when = trigger === 'collected' ? paidAt! : now
       if (new Date(p.autoSince) > when || (p.effectiveFrom && new Date(p.effectiveFrom) > when) || (p.effectiveTo && new Date(p.effectiveTo) < when)) return []
       return [{ plan: p, role, trigger, when }]

@@ -363,3 +363,23 @@ describe('the commission disclaimer (row 4)', () => {
     root.unmount()
   })
 })
+
+describe('worksheet approval rule (row 5)', () => {
+  test('the Rules tab shows the switch from the company’s setting and sends exactly what was ticked', async () => {
+    const { api, calls } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/roof-money/settings': { minProfit: null, commissionViewerRoles: ['manager'], requireWorksheetApproval: false },
+      'PUT /api/roof-money/settings': (b: any) => ({ minProfit: null, commissionViewerRoles: ['manager'], ...b }),
+    })
+    const root = await mount(api)
+    await click(tab('Rules'))
+    const form = Array.from(document.querySelectorAll('form')).find((f) => f.textContent?.includes('Worksheet approval'))!
+    const box = form.querySelector('input[type=checkbox]') as HTMLInputElement
+    expect(box.checked).toBe(false)
+    await click(box)
+    await act(async () => { form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true })) })
+    await settle()
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/roof-money/settings')?.body).toEqual({ requireWorksheetApproval: true })
+    root.unmount()
+  })
+})

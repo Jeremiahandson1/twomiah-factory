@@ -11,6 +11,7 @@ import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/jobCosting.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createRoofJobCosts, type RoofJobCost } from '../roof/jobCosts.ts'
+import { createWorksheetApproval } from '../roof/worksheetApproval.ts'
 
 /** Not revenue: a draft has not been raised, and a void one never was (invoicing's own stats rule). */
 const NOT_REVENUE = ['draft', 'void']
@@ -96,6 +97,8 @@ export function createJobCostingService(d: CrmDeps) {
   const { db } = d
   // A roofer's material orders, crew pay and supplements (roof/jobCosts.ts): in the costs only where the add-on is on.
   const roof = d.settings?.roof ? createRoofJobCosts(d) : null
+  // A roofer's worksheet approval (roof/worksheetApproval.ts): when the company requires it, a job's profit is left out of the roll-ups until approved.
+  const worksheet = d.settings?.roof ? createWorksheetApproval(d) : null
 
   /** Actual cost per job from every ledger that holds job cost; set-based, four queries per 500 jobs. */
   async function costsByJob(companyId: string, jobIds: string[], opts: { beforeCommissions?: boolean } = {}): Promise<Map<string, JobCost>> {
@@ -419,6 +422,8 @@ export function createJobCostingService(d: CrmDeps) {
         // A project invoice appears on every job of the project; it is counted once in any total.
         shared: !(i.quoteId && i.quoteId === jobRow.quoteId),
       })),
+      // Roofing: whether the worksheet is approved, and so whether this job's profit counts (roof/worksheetApproval.ts).
+      ...(worksheet ? { worksheet: await worksheet.stateOf(companyId, jobId) } : {}),
       // Roofing: what its material orders, crew and supplements add (roof/jobCosts.ts). Absent for every other trade.
       ...(roof && cost.roof ? {
         roof: {
@@ -472,6 +477,9 @@ export function createJobCostingService(d: CrmDeps) {
       estimatedCostsByQuote(uniq(scope.map((j) => j.quoteId).filter(Boolean) as string[])),
     ])
 
+    // Where the company wants worksheets approved, a job whose worksheet is not is listed (marked) but left out of the totals.
+    const approvedSet = worksheet && (await worksheet.required(companyId)) ? await worksheet.approvedJobIds(companyId, scope.map((j) => j.id)) : null
+
     const rowFor = (j: any) => {
       const rev = byJob.get(j.id) || { directRevenue: 0, sharedRevenue: 0, revenue: 0, salesTax: 0, collected: 0, invoiceIds: [], invoices: [] }
       const cost = costMap.get(j.id) || EMPTY_COST
@@ -502,6 +510,7 @@ export function createJobCostingService(d: CrmDeps) {
         laborHours: cost.laborHours,
         unratedLaborHours: cost.unratedLaborHours,
         isProfitable: profit > 0,
+        counted: approvedSet ? approvedSet.has(j.id) : true,
         // The estimate has no commission in it, so the variance is read before them.
         variance: round2(cost.totalCost - (cost.commissionCost || 0) - estimatedCost),
         commissionCost: cost.commissionCost || 0,
@@ -510,8 +519,13 @@ export function createJobCostingService(d: CrmDeps) {
 
     const all = scope.map(rowFor)
     const page = all.slice(0, Math.max(0, queryLimit))
+    const counted = all.filter((r) => r.counted)
+    // The totals cover the jobs that count; their revenue is worked out again over those jobs alone (an invoice is counted once).
+    const countedDistinct = approvedSet
+      ? (await attributeRevenue(companyId, keys.filter((k) => approvedSet.has(k.id)))).distinct
+      : distinct
 
-    const totals = all.reduce(
+    const totals = counted.reduce(
       (acc, j) => ({
         ...acc,
         estimatedRevenue: round2(acc.estimatedRevenue + j.estimatedRevenue),
@@ -529,12 +543,12 @@ export function createJobCostingService(d: CrmDeps) {
       },
     )
     // Revenue from the DISTINCT invoice set, never the sum of job rows (a project invoice shows on each job).
-    totals.invoicedRevenue = distinct.revenue
-    totals.salesTax = distinct.salesTax
-    totals.collected = distinct.collected
+    totals.invoicedRevenue = countedDistinct.revenue
+    totals.salesTax = countedDistinct.salesTax
+    totals.collected = countedDistinct.collected
     totals.profit = round2(totals.invoicedRevenue - totals.totalCost)
     totals.margin = totals.invoicedRevenue > 0 ? round1((totals.profit / totals.invoicedRevenue) * 100) : 0
-    totals.profitablePercent = all.length > 0 ? Math.round((totals.profitableCount / all.length) * 100) : 0
+    totals.profitablePercent = counted.length > 0 ? Math.round((totals.profitableCount / counted.length) * 100) : 0
 
     return {
       jobs: page,
@@ -543,7 +557,8 @@ export function createJobCostingService(d: CrmDeps) {
       returned: page.length,
       truncated: page.length < all.length,
       totalsTruncated,
-      invoiceCount: distinct.invoiceCount,
+      invoiceCount: countedDistinct.invoiceCount,
+      ...(approvedSet ? { unapprovedJobs: all.length - counted.length } : {}),
     }
   }
 
@@ -556,7 +571,12 @@ export function createJobCostingService(d: CrmDeps) {
     { groupBy = 'month', startDate, endDate, status }:
       { groupBy?: string; startDate?: string; endDate?: string; status?: string } = {},
   ) {
-    const jobs: any[] = await q.jobsForProfitability(db, companyId, SUMMARY_JOB_COLUMNS, { status, startDate, endDate, ceiling: TOTALS_CEILING })
+    let jobs: any[] = await q.jobsForProfitability(db, companyId, SUMMARY_JOB_COLUMNS, { status, startDate, endDate, ceiling: TOTALS_CEILING })
+    // Where the company wants worksheets approved, only the approved jobs are in the profit by month (or technician, or type).
+    if (worksheet && (await worksheet.required(companyId))) {
+      const ok = await worksheet.approvedJobIds(companyId, jobs.map((j) => j.id))
+      jobs = jobs.filter((j) => ok.has(j.id))
+    }
 
     const keys: JobKey[] = jobs.map((j) => ({ id: j.id, quoteId: j.quoteId, projectId: j.projectId }))
     const [{ byJob }, costMap] = await Promise.all([
