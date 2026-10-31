@@ -183,7 +183,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
           {pending.map(p => (
             <View key={`${p.itemId}:${p.uri}`} accessibilityLabel={p.state === 'failed' ? "Couldn't send \u2014 tap to fix in Waiting to send" : 'Waiting to send'}>
               <Image source={{ uri: p.uri }} style={[styles.thumb, { opacity: 0.6 }]} />
-              <View style={{ position: 'absolute', right: 4, bottom: 4 }}><Ionicons name={p.state === 'failed' ? 'alert-circle' : 'time'} size={18} color={p.state === 'failed' ? t.error : t.warning} /></View>
+              <View style={{ position: 'absolute', right: 4, top: 4 }}><Ionicons name={p.state === 'failed' ? 'alert-circle' : 'time'} size={18} color={p.state === 'failed' ? t.error : t.warning} /></View>
             </View>
           ))}
           {photos.map(photo => (
