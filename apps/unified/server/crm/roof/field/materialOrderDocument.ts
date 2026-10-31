@@ -5,6 +5,7 @@ import PDFDocument from 'pdfkit'
 import { and, eq } from 'drizzle-orm'
 import { companyTimeZone, markerDay, storeDateString } from '@twomiah/tenant-backend'
 import { company, contact, job } from '../../../db/schema/index.ts'
+import { escHtml } from '../../../core/email.ts'
 
 export interface OrderDocLine { description: string; qty: number; unit: string; unitPrice: number | null; total: number | null }
 export interface OrderDocument {
@@ -147,4 +148,33 @@ export async function renderOrderPdf(doc: OrderDocument, statusLabel: string): P
   }
   pdf.end()
   return finished
+}
+
+// ── the email to the supplier ──────────────────────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_ORDER_MESSAGE = 'Please find our material order below. Reply to this email to confirm it and give us the delivery window.'
+
+/** The subject a supplier sees when the sender did not write one: what it is, which job, who from. */
+export const defaultOrderSubject = (doc: Pick<OrderDocument, 'reference' | 'deliverTo' | 'job' | 'company'>) =>
+  `Material order ${doc.reference} — ${doc.deliverTo || doc.job.address || doc.job.number} — ${doc.company.name}`.replace(/\s+—\s+—/g, ' —').trim()
+
+/** The order as the body of an email (escaped: everything in it was typed by a person) and as plain text for clients that show no HTML. */
+export function orderEmailBody(doc: OrderDocument, message: string): { html: string; text: string } {
+  const facts: Array<[string, string]> = ([
+    ['PO number', doc.poNumber], ['Deliver to', doc.deliverTo || doc.job.address || null], ['Delivery date', doc.deliveryDay ? dayWords(doc.deliveryDay) : null],
+    ['Point of contact', [doc.contact.name, doc.contact.phone, doc.contact.email].filter(Boolean).join(' · ') || null], ['Job', doc.job.number || null],
+  ] as Array<[string, string | null]>).filter((f): f is [string, string] => !!f[1])
+  const td = 'padding:6px 10px;border-bottom:1px solid #e5e7eb;'
+  const rows = doc.lines.map((l) =>
+    `<tr><td style="${td}text-align:right">${escHtml(l.qty)}</td><td style="${td}">${escHtml(l.unit)}</td><td style="${td}">${escHtml(l.description)}</td>${doc.showPrices ? `<td style="${td}text-align:right">${l.total == null ? '' : escHtml(moneyText(l.total))}</td>` : ''}</tr>`).join('')
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;max-width:640px">
+<p style="white-space:pre-wrap">${escHtml(message)}</p>
+<table style="border-collapse:collapse;margin:12px 0">${facts.map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#4b5563">${escHtml(k)}</td><td style="padding:2px 0;font-weight:600">${escHtml(v)}</td></tr>`).join('')}</table>
+<table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr style="background:#f3f4f6"><th style="${td}text-align:right">Qty</th><th style="${td}text-align:left">Unit</th><th style="${td}text-align:left">Material</th>${doc.showPrices ? `<th style="${td}text-align:right">Total</th>` : ''}</tr></thead><tbody>${rows}</tbody></table>
+${doc.showPrices && doc.total != null ? `<p style="text-align:right;font-weight:600">Total ${escHtml(moneyText(doc.total))}</p>` : ''}
+${doc.notes ? `<p style="white-space:pre-wrap;color:#374151">${escHtml(doc.notes)}</p>` : ''}
+<p style="color:#6b7280;font-size:13px">${escHtml(doc.company.name)}${doc.company.phone ? ` · ${escHtml(doc.company.phone)}` : ''}${doc.company.email ? ` · ${escHtml(doc.company.email)}` : ''}</p></div>`
+  const text = [message, '', ...facts.map(([k, v]) => `${k}: ${v}`), '', ...doc.lines.map((l) => `${l.qty} ${l.unit}  ${l.description}${doc.showPrices && l.total != null ? `  ${moneyText(l.total)}` : ''}`),
+    ...(doc.showPrices && doc.total != null ? ['', `Total ${moneyText(doc.total)}`] : []), ...(doc.notes ? ['', doc.notes] : []), '', doc.company.name].join('\n')
+  return { html, text }
 }

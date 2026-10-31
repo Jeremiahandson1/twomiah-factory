@@ -9,13 +9,16 @@
 //   DELETE /price-lists/:id              delete it; orders priced from it keep their prices, unlocked    inventory:delete + margin:read
 //   POST   /orders/:id/price             price the order from the supplier's list and lock it            inventory:update
 //   DELETE /orders/:id/price             take the supplier's pricing off the order                       inventory:update
+//   GET    /orders/:id/send              what the send box starts with: recipients last used for this supplier, subject, message  inventory:update
+//   POST   /orders/:id/send              email the order (PDF attached) to the supplier; marks it Sent    inventory:update
+//   POST   /orders/send                  the same for several orders of one supplier, one email each      inventory:update
 //
 // What a supplier charges the business is the business's cost, so the price lists are for a seat that may see costs (margin:read),
 // and an order's prices are withheld from any other seat exactly as every material read does (materials.ts).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, desc, eq } from 'drizzle-orm'
-import { material, supplierPriceItem, supplierPriceList } from '../../../db/schema/index.ts'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { material, supplierPriceItem, supplierPriceList, user } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
@@ -23,8 +26,19 @@ import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { clearPricing, dollarsToCents, parsePriceCsv, priceLines, sameSupplier, totalOf, type OrderLine, type ParsedItem, type PriceItem } from '../supplierPricing.ts'
 import { withoutMaterialMoney } from './materials.ts'
+import { buildOrderDocument, defaultOrderSubject, DEFAULT_ORDER_MESSAGE, orderEmailBody, orderFileName, renderOrderPdf } from './materialOrderDocument.ts'
+import { materialStatusLabel } from '../materialStatus.ts'
+import { appendSendLog, isSendable, MAX_BULK, MAX_CC, MAX_TO, parseRecipients, type SendLogEntry } from '../orderSend.ts'
 
 const MAX_ITEMS = 5000
+
+const sendSchema = z.object({
+  to: z.union([z.string(), z.array(z.string())]),
+  cc: z.union([z.string(), z.array(z.string())]).optional(),
+  subject: z.string().trim().max(200).optional(),
+  message: z.string().trim().max(5000).optional(),
+})
+const bulkSchema = sendSchema.extend({ orderIds: z.array(z.string().min(1)).min(1, 'Choose the orders to send.').max(MAX_BULK, `Send at most ${MAX_BULK} orders at once.`) })
 
 const itemSchema = z.object({
   code: z.string().trim().max(40).optional(),
@@ -188,6 +202,113 @@ export function createMaterialSupplyRoutes(d: CrmDeps) {
     const [saved] = await db.update(material).set({ lineItems: lines, totalCost: totalOf(lines).toFixed(2), priceListId: null, updatedAt: new Date() } as any)
       .where(and(eq(material.id, order.id), eq(material.companyId, me.companyId))).returning()
     return one(c, await shape(c, saved))
+  })
+
+  // ── sending an order to the supplier ──────────────────────────────────────────────────────────────────────────────────
+
+  /** The one order's email: the PDF (no prices — the supplier knows its own, and a seat that cannot see costs must not leak them) and the body. */
+  async function composeFor(order: any, subject: string | undefined, message: string) {
+    const doc = await buildOrderDocument(db, order.companyId, order, { showPrices: false })
+    const pdf = await renderOrderPdf(doc, materialStatusLabel(order.orderStatus))
+    const body = orderEmailBody(doc, message)
+    return { doc, subject: subject || defaultOrderSubject(doc), pdf, filename: orderFileName(doc), ...body }
+  }
+
+  type Recipients = { to: string[]; cc: string[] } | { error: string; fields: Record<string, string> }
+  function recipientsFrom(v: { to: string | string[]; cc?: string | string[] }): Recipients {
+    const to = parseRecipients(v.to)
+    const cc = parseRecipients(v.cc ?? [])
+    const fields: Record<string, string> = {}
+    if (to.bad.length) fields.to = `Not an email address: ${to.bad.join(', ')}.`
+    else if (!to.emails.length) fields.to = 'Enter the supplier’s email address.'
+    else if (to.emails.length > MAX_TO) fields.to = `Send to at most ${MAX_TO} addresses.`
+    if (cc.bad.length) fields.cc = `Not an email address: ${cc.bad.join(', ')}.`
+    else if (cc.emails.length > MAX_CC) fields.cc = `Copy at most ${MAX_CC} addresses.`
+    const first = Object.values(fields)[0]
+    return first ? { error: first, fields } : { to: to.emails, cc: cc.emails.filter((e) => !to.emails.includes(e)) }
+  }
+
+  /** The seat sending: replies to the supplier's email come to them. */
+  async function sender(c: any) {
+    const me = c.get('user')
+    const [u] = await db.select({ email: user.email, firstName: user.firstName, lastName: user.lastName }).from(user).where(and(eq(user.id, me.userId), eq(user.companyId, me.companyId))).limit(1)
+    return { userId: me.userId as string, name: [u?.firstName, u?.lastName].filter(Boolean).join(' ') || null, email: (u?.email as string | undefined) ?? null }
+  }
+
+  type Sent = { ok: true; order: any } | { ok: false; status: number; error: string; code: string }
+  /** Email one order and, only if the mail went, mark it Sent and log it. */
+  async function sendOne(c: any, order: any, r: { to: string[]; cc: string[] }, subject: string | undefined, message: string): Promise<Sent> {
+    if (!isSendable(order.orderStatus)) return { ok: false, status: 409, code: 'order_not_sendable', error: `This order is ${materialStatusLabel(order.orderStatus).toLowerCase()}; it can no longer be sent to the supplier.` }
+    const lines: any[] = Array.isArray(order.lineItems) ? order.lineItems : []
+    if (!lines.some((l) => Number(l.qty ?? l.quantity) > 0)) return { ok: false, status: 409, code: 'order_empty', error: 'This order has nothing on it to send. Add the materials first.' }
+    const me = await sender(c)
+    const mail = await composeFor(order, subject, message)
+    const [co] = [mail.doc.company]
+    let result: any
+    try {
+      result = await d.services.emailService.sendRaw({
+        to: r.to.join(', '), ...(r.cc.length ? { cc: r.cc.join(', ') } : {}), subject: mail.subject, html: mail.html, text: mail.text,
+        fromName: co.name || undefined, ...(me.email || co.email ? { replyTo: (me.email || co.email) as string } : {}),
+        attachments: [{ filename: mail.filename, content: mail.pdf, contentType: 'application/pdf' }],
+      })
+    } catch {
+      return { ok: false, status: 502, code: 'send_failed', error: 'The email could not be sent. The order has not been marked Sent. Try again, or call the supplier.' }
+    }
+    // No provider in development: nothing left the building, so the order must not say it did.
+    if (!result || result.success === false || result.dev) return { ok: false, status: 503, code: 'email_not_configured', error: 'Email is not set up for this business yet, so nothing was sent. The order has not been marked Sent.' }
+    const entry: SendLogEntry = { at: new Date().toISOString(), byUserId: me.userId, byName: me.name, to: r.to, cc: r.cc, subject: mail.subject, message, attachment: mail.filename, messageId: result.messageId ?? null }
+    const [saved] = await db.update(material).set({
+      orderStatus: 'sent', orderDate: order.orderDate ?? new Date(), sendLog: appendSendLog(order.sendLog, entry), updatedAt: new Date(),
+    } as any).where(and(eq(material.id, order.id), eq(material.companyId, order.companyId))).returning()
+    return { ok: true, order: saved }
+  }
+
+  // Declared before the single-order route so "send" is never read as an order id.
+  app.post('/orders/send', requirePermission('inventory:update'), async (c) => {
+    const me = c.get('user')
+    const parsed = bulkSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const r = recipientsFrom(parsed.data)
+    if ('error' in r) return fail(c, 400, r.error, 'bad_recipients', r.fields)
+    const ids = [...new Set(parsed.data.orderIds)]
+    const orders = await db.select().from(material).where(and(eq(material.companyId, me.companyId), inArray(material.id, ids)))
+    if (orders.length !== ids.length) return fail(c, 404, 'One of those orders was not found.')
+    if (orders.some((o: any) => !sameSupplier(o.supplier, orders[0].supplier))) return fail(c, 409, 'Those orders are for different suppliers. Send each supplier’s orders together.', 'mixed_suppliers')
+    const results: Array<{ id: string; sent: boolean; error?: string; code?: string }> = []
+    for (const id of ids) {
+      const o = orders.find((x: any) => x.id === id)
+      const out = await sendOne(c, o, r, parsed.data.subject || undefined, parsed.data.message || DEFAULT_ORDER_MESSAGE)
+      results.push(out.ok ? { id, sent: true } : { id, sent: false, error: out.error, code: out.code })
+    }
+    return one(c, { sent: results.filter((x) => x.sent).length, failed: results.filter((x) => !x.sent).length, results })
+  })
+
+  app.get('/orders/:id/send', requirePermission('inventory:update'), async (c) => {
+    const me = c.get('user')
+    const order = await ownOrder(me.companyId, c.req.param('id'))
+    if (!order) return fail(c, 404, 'Material order not found')
+    const doc = await buildOrderDocument(db, me.companyId, order, { showPrices: false })
+    // The people this supplier was last emailed at, from any earlier order to the same supplier.
+    const earlier = await db.select({ supplier: material.supplier, sendLog: material.sendLog }).from(material).where(eq(material.companyId, me.companyId)).orderBy(desc(material.updatedAt)).limit(200)
+    const last = earlier.filter((o: any) => sameSupplier(o.supplier, order.supplier) && Array.isArray(o.sendLog) && o.sendLog.length)
+      .map((o: any) => o.sendLog[o.sendLog.length - 1] as SendLogEntry).sort((a: SendLogEntry, b: SendLogEntry) => b.at.localeCompare(a.at))[0]
+    return one(c, {
+      to: last?.to ?? [], cc: last?.cc ?? [], subject: defaultOrderSubject(doc), message: DEFAULT_ORDER_MESSAGE,
+      attachment: orderFileName(doc), sendable: isSendable(order.orderStatus), status: order.orderStatus, statusLabel: materialStatusLabel(order.orderStatus),
+    })
+  })
+
+  app.post('/orders/:id/send', requirePermission('inventory:update'), async (c) => {
+    const me = c.get('user')
+    const order = await ownOrder(me.companyId, c.req.param('id'))
+    if (!order) return fail(c, 404, 'Material order not found')
+    const parsed = sendSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const r = recipientsFrom(parsed.data)
+    if ('error' in r) return fail(c, 400, r.error, 'bad_recipients', r.fields)
+    const out = await sendOne(c, order, r, parsed.data.subject || undefined, parsed.data.message || DEFAULT_ORDER_MESSAGE)
+    if (!out.ok) return fail(c, out.status as 409 | 502 | 503, out.error, out.code)
+    return one(c, await shape(c, out.order))
   })
 
   return app
