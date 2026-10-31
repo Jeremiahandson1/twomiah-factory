@@ -103,7 +103,7 @@ export function terminalStripeFake() {
     // The connected account itself: whether bank debits are switched on for it (capabilities.us_bank_account_ach_payments).
     if ((m = p.match(/^\/v1\/accounts\/([^/]+)$/)) && method === 'GET') return json({ id: m[1], object: 'account', capabilities: { card_payments: 'active', transfers: 'active', us_bank_account_ach_payments: state.bankCapability ? 'active' : 'inactive' } })
     if (p === '/v1/payment_intents' && method === 'POST') {
-      const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), customer: param(params, 'customer'), setup_future_usage: param(params, 'setup_future_usage'), metadata: {} as Record<string, string>, amount_details: {}, last_payment_error: null, next_action: null }
+      const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), customer: param(params, 'customer'), setup_future_usage: param(params, 'setup_future_usage'), metadata: {} as Record<string, string>, amount_details: {}, last_payment_error: null, next_action: null, payment_method_options: { card_present: { request_incremental_authorization_support: param(params, 'payment_method_options[card_present][request_incremental_authorization_support]') } } }
       // confirm=true with a saved card is an off-session charge: the declining test card fails the way Stripe's does.
       if (param(params, 'confirm') === 'true') {
         if (isBank(pi.payment_method)) {
@@ -131,12 +131,26 @@ export function terminalStripeFake() {
       if (pi.status === 'succeeded') return err(400, 'You cannot cancel this PaymentIntent because it has a status of succeeded.', 'payment_intent_unexpected_state')
       pi.status = 'canceled'; return json(pi)
     }
+    // An incremental authorisation, as Stripe documents it (docs.stripe.com/terminal/features/incremental-authorizations):
+    // only on a card_present PaymentIntent that asked for it when made (payment_method_options[card_present]
+    // [request_incremental_authorization_support]=true) and is requires_capture; the new amount is above the old; the card
+    // may refuse (card_declined), and a card that cannot do it at all answers incremental_authorization_not_supported.
+    if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)\/increment_authorization$/)) && method === 'POST') {
+      const pi = intents.get(m[1]); if (!pi) return err(404, 'No such payment_intent')
+      if (pi.status !== 'requires_capture') return err(400, `This PaymentIntent could not be incremented because it has a status of ${pi.status}.`, 'payment_intent_unexpected_state')
+      if (pi.payment_method_options?.card_present?.request_incremental_authorization_support !== 'true') return err(400, 'This PaymentIntent does not support incremental authorizations.', 'incremental_authorization_not_supported')
+      const amount = Number(param(params, 'amount'))
+      if (!(amount > pi.amount)) return err(400, 'The amount must be greater than the current amount.', 'parameter_invalid_integer')
+      if (state.declineIncrement) return err(402, 'Your card was declined.', 'card_declined')
+      Object.assign(pi, { amount, amount_capturable: amount })
+      return json(pi)
+    }
     if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)\/capture$/)) && method === 'POST') {
       const pi = intents.get(m[1]); if (!pi) return err(404, 'No such payment_intent')
       if (pi.status !== 'requires_capture' && !(pi.status === 'requires_payment_method' && pi.capture_method === 'manual')) return err(400, `This PaymentIntent could not be captured because it has a status of ${pi.status}.`, 'payment_intent_unexpected_state')
       const want = param(params, 'amount_to_capture') ? Number(param(params, 'amount_to_capture')) : pi.amount
-      // Capturing more than was authorised asks the card for an incremental authorisation; a card that will not leaves the original hold.
-      if (want > pi.amount) { if (state.declineIncrement) return err(402, 'Your card was declined.', 'card_declined'); pi.amount = want }
+      // Stripe captures up to what was authorised, never more: raising the hold is increment_authorization, above.
+      if (want > pi.amount) return err(400, `The amount_to_capture (${want}) must be less than or equal to the amount_capturable (${pi.amount}).`, 'amount_too_large')
       Object.assign(pi, { status: 'succeeded', amount_received: want, amount_capturable: 0 })
       return json(pi)
     }

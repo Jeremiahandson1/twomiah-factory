@@ -510,17 +510,22 @@ export function createBarTerminal(deps: {
     let toward = balance, tipped = tip, pi: any = null
     const capture = async (amount: number) => stripe.paymentIntents.capture(charge.paymentIntentId, { amount_to_capture: amount }, { ...opts, idempotencyKey: `twomiah-tab-${charge.id}-${amount}` })
     try {
-      try { pi = await capture(balance + tip) }
-      catch (e: any) {
-        // Over the hold and the card would not raise it (a declined incremental authorisation leaves the original hold).
-        if (balance + tip <= hold || e?.code !== 'card_declined') throw e
-        if (input.partial !== true) {
-          await back()
-          throw new TerminalError(`The tab comes to ${money(balance + tip)} and the card is held for ${money(hold)}; the card would not raise it. Close it for ${money(hold)}, then take the rest another way.`, 409, 'TAB_OVER_HOLD')
+      // Stripe's order (docs.stripe.com/terminal/features/incremental-authorizations, row 18's check of the fake): a capture
+      // can never take more than the hold, so over it the hold is RAISED first (increment_authorization - the tab asked for
+      // it when it was made), and only then captured. A card that will not raise it (declined, or a card that cannot) leaves
+      // the original hold: the tab closes for the hold, when the bartender says so, and the rest is taken another way.
+      if (balance + tip > hold) {
+        try { await stripe.paymentIntents.incrementAuthorization(charge.paymentIntentId, { amount: balance + tip }, { ...opts, idempotencyKey: `twomiah-tab-${charge.id}-raise-${balance + tip}` }) }
+        catch (e: any) {
+          if (e?.code !== 'card_declined' && e?.code !== 'incremental_authorization_not_supported') throw e
+          if (input.partial !== true) {
+            await back()
+            throw new TerminalError(`The tab comes to ${money(balance + tip)} and the card is held for ${money(hold)}; the card would not raise it. Close it for ${money(hold)}, then take the rest another way.`, 409, 'TAB_OVER_HOLD')
+          }
+          toward = Math.min(balance, hold); tipped = Math.min(tip, hold - toward)
         }
-        toward = Math.min(balance, hold); tipped = Math.min(tip, hold - toward)
-        pi = await capture(toward + tipped)
       }
+      pi = await capture(toward + tipped)
     } catch (e: any) {
       if (e instanceof TerminalError) throw e
       await back()
