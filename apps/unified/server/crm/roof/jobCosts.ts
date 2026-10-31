@@ -11,13 +11,17 @@
 //                    clocked time on the job: hours clocked are priced by job costing already, and a crew's pay counted
 //                    beside them would be the same labour twice. A job whose crew has no rate, or no squares, is "not
 //                    known" — reported as such, never read as a free crew.
+//   commissions      what the job's people have EARNED on it (a live commission of any status: pending, approved, paid, disputed — not
+//                    void or cancelled — and a taken-back line netted off) is a cost of the job. The commission engine
+//                    (./commissions.ts) asks job costing for the costs BEFORE commissions, so a plan on gross or net profit is
+//                    never worked out on a profit its own payout has reduced; every screen and report shows the profit after.
 //   supplements      what the carrier approved, what is waiting on a decision, what was denied. Approved supplements raise
 //                    the job's EXPECTED revenue; the revenue actually earned is what is invoiced, so a supplement counts
 //                    once it is billed (and is never counted twice by also being added to an invoice).
 //
 // Withholding is the caller's: job costing is reports:read, as every cost it shows already is.
-import { and, eq, inArray } from 'drizzle-orm'
-import { crew, job, material, supplement } from '../../db/schema/index.ts'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { commission, crew, job, material, supplement } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 
 /** Orders that are real spend. 'not_ordered' is a shopping list, 'cancelled' never happened. */
@@ -39,13 +43,15 @@ export interface RoofJobCost {
   /** True when the job has a crew, the crew has a rate and the job has squares. */
   crewCostKnown: boolean
   crewName: string | null
+  /** Commissions earned on the job (live ones, taken-back lines netted). Part of the job's cost on every screen; not in the engine's own figures. */
+  commissionCost: number
   squares: number
   payPerSquare: number | null
   supplements: { approved: number; pending: number; denied: number; count: number }
 }
 
 export const emptyRoofCost = (): RoofJobCost => ({
-  materialOrderCost: 0, crewCost: 0, crewCostKnown: false, crewName: null, squares: 0, payPerSquare: null,
+  materialOrderCost: 0, crewCost: 0, crewCostKnown: false, crewName: null, commissionCost: 0, squares: 0, payPerSquare: null,
   supplements: { approved: 0, pending: 0, denied: 0, count: 0 },
 })
 
@@ -77,6 +83,10 @@ export function createRoofJobCosts(d: CrmDeps) {
         c.crewCostKnown = !!cr && cr.payPerSquare != null && c.squares > 0
         c.crewCost = c.crewCostKnown ? round2(c.squares * (c.payPerSquare as number)) : 0
       }
+
+      const earned = await db.select({ jobId: commission.jobId, amount: commission.commissionAmount }).from(commission)
+        .where(and(eq(commission.companyId, companyId), inArray(commission.jobId, ids), notInArray(commission.status, ['void', 'cancelled'])))
+      for (const e of earned as any[]) { const c = out.get(e.jobId); if (c) c.commissionCost = round2(c.commissionCost + num(e.amount)) }
 
       const sups = await db.select({ jobId: supplement.jobId, status: supplement.status, totalAmount: supplement.totalAmount, approvedAmount: supplement.approvedAmount }).from(supplement)
         .where(and(eq(supplement.companyId, companyId), inArray(supplement.jobId, ids)))

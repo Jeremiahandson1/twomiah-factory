@@ -52,10 +52,14 @@ interface Detail {
   roof?: {
     materialOrderCost: number; crewCost: number; crewBasis: 'clocked' | 'per_square' | 'unknown'
     crewName: string | null; squares: number; payPerSquare: number | null
+    /** Commissions earned on the job — a cost, so the profit above is after them. */
+    commissionCost?: number
     supplements: { approved: number; pending: number; denied: number; count: number }
   }
   materialOrderDetail?: Array<{ supplier?: string; orderNumber?: string | null; status?: string; cost?: number }>
   crewDetail?: Array<{ crew?: string; squares?: number; payPerSquare?: number | null; cost?: number }>
+  /** Roofing, for a seat that reads commissions: who earned what on the job. */
+  commissionDetail?: Array<{ person?: string; source?: string; status?: string; amount?: number }>
   supplementDetail?: Array<{ number?: string; status?: string; reason?: string; asked?: number; approved?: number | null }>
 }
 
@@ -255,9 +259,10 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             {detail.roof && (
               <div className={card}>
                 <h3 className={h3}>Roof</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <Stat label="Material orders" value={money(detail.roof.materialOrderCost)} />
                   <Stat label="Crew" value={detail.roof.crewBasis === 'per_square' ? money(detail.roof.crewCost) : detail.roof.crewBasis === 'clocked' ? 'Clocked hours' : 'Not known'} />
+                  <Stat label="Commissions" value={money(detail.roof.commissionCost ?? 0)} />
                   <Stat label="Supplements approved" value={money(detail.roof.supplements.approved)} />
                   <Stat label="Supplements waiting" value={money(detail.roof.supplements.pending)} />
                 </div>
@@ -266,6 +271,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                   {detail.roof.crewBasis === 'unknown' ? ' The crew\u2019s pay is not known: give the crew its pay per square on the Crews page, and put the roof\u2019s squares on the job.' : ''}
                   {detail.roof.crewBasis === 'clocked' ? ' Hours were clocked on this job, so the crew is costed from those hours, not from its pay per square.' : ''}
                   {detail.roof.crewBasis === 'per_square' ? ` ${detail.roof.crewName} is paid ${money(detail.roof.payPerSquare ?? 0)} a square on ${detail.roof.squares} squares.` : ''}
+                  {' '}Commissions the job\u2019s people have earned (not void or cancelled, taken-back lines netted off) are a cost of the job, so the profit shown is after them; what a commission is worked out on is the profit before them.
                   {' '}Approved supplements raise the estimated revenue; they count as earned revenue once they are on an invoice.
                 </p>
               </div>
@@ -291,6 +297,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                ['Materials', detail.materialDetail, (r: any) => [r.name || r.item || 'Item', String(r.quantity ?? ''), money(r.cost ?? 0)]],
                ['Material orders', detail.materialOrderDetail, (r: any) => [r.supplier || 'Supplier', [r.orderNumber, r.status].filter(Boolean).join(' · '), money(r.cost ?? 0)]],
                ['Crew', detail.crewDetail, (r: any) => [r.crew || 'Crew', `${r.squares ?? 0} squares × ${money(r.payPerSquare ?? 0)}`, money(r.cost ?? 0)]],
+               ['Commissions', detail.commissionDetail, (r: any) => [r.person || 'Someone', [r.source === 'draw' ? 'draw in advance' : r.source === 'reversal' ? 'taken back' : '', r.status].filter(Boolean).join(' · '), money(r.amount ?? 0)]],
                ['Supplements', detail.supplementDetail, (r: any) => [`${r.number || 'Supplement'}${r.reason ? ` — ${r.reason}` : ''}`, r.status || '', r.approved != null ? money(r.approved) : money(r.asked ?? 0)]],
                ['Expenses', detail.expenseDetail, (r: any) => [r.description || 'Expense', r.category || '', money(r.amount ?? 0)]],
                ['Vendor bills', detail.billDetail, (r: any) => [r.vendor || 'Vendor', r.number || '', money(r.amount ?? 0)]],

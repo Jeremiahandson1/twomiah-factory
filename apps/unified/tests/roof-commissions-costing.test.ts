@@ -209,6 +209,7 @@ describe('the rep is paid when the job is paid', () => {
   })
 })
 
+const round2 = (n: number) => Math.round(n * 100) / 100
 describe('the job’s P&L', () => {
   test('job costing carries the material orders placed, the crew’s pay by the square, and the supplements', async () => {
     const detail = await json(await as('owner')(`/api/job-costing/job/${ids.paidJob}`))
@@ -216,7 +217,10 @@ describe('the job’s P&L', () => {
     const b = detail.body
     // Revenue is the invoice before tax; the cost is the material orders that were placed plus the crew; the list and the
     // cancelled order are not spend.
-    expect(b.actual).toMatchObject({ revenue: 10000, materialCost: 3650, laborCost: 1350, totalCost: 5000, profit: 5000, margin: 50 })
+    // The commissions this job's people earned are a cost of it too (roofing parity row 5): $5,000 of work, then the commissions.
+    expect(b.actual).toMatchObject({ revenue: 10000, materialCost: 3650, laborCost: 1350 })
+    expect(round2(b.actual.totalCost - b.actual.commissionCost)).toBe(5000)
+    expect(round2(b.actual.profit + b.actual.commissionCost)).toBe(5000)
     expect(b.roof).toMatchObject({ materialOrderCost: 3650, crewCost: 1350, crewBasis: 'per_square', crewName: 'Ridge Crew', squares: 30, payPerSquare: 45 })
     expect(b.roof.supplements).toMatchObject({ approved: 1200, pending: 400, denied: 0, count: 2 })
     // The estimate is the job's value plus what the carrier approved on top.
@@ -228,7 +232,7 @@ describe('the job’s P&L', () => {
     const summary = await json(await as('owner')('/api/job-costing/summary'))
     const row = summary.body.jobs.find((j: any) => j.id === ids.paidJob)
     expect(summary.status).toBe(200)
-    expect([row.invoicedRevenue, row.materialCost, row.laborCost, row.totalCost, row.profit]).toEqual([10000, 3650, 1350, 5000, 5000])
+    expect([row.invoicedRevenue, row.materialCost, row.laborCost, round2(row.totalCost - row.commissionCost), round2(row.profit + row.commissionCost)]).toEqual([10000, 3650, 1350, 5000, 5000])
     // The roll-up can be read by stage, the roofer’s own filter.
     const collected = await json(await as('owner')('/api/job-costing/summary?status=collected'))
     expect(collected.body.jobs.some((j: any) => j.id === ids.paidJob)).toBe(true)

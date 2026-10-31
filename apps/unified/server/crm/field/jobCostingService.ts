@@ -39,6 +39,8 @@ export interface JobCost {
   subcontractorCost: number
   /** Vendor bills raised against the job, excluding void ones. */
   billedCost: number
+  /** Roofing: the commissions earned on the job, INSIDE totalCost (not when the caller asked for the costs before commissions). */
+  commissionCost?: number
   totalCost: number
   /**
    * Roofing only (CrmSettings.roof): the material orders and the crew's pay that are INSIDE materialCost and laborCost
@@ -96,7 +98,7 @@ export function createJobCostingService(d: CrmDeps) {
   const roof = d.settings?.roof ? createRoofJobCosts(d) : null
 
   /** Actual cost per job from every ledger that holds job cost; set-based, four queries per 500 jobs. */
-  async function costsByJob(companyId: string, jobIds: string[]): Promise<Map<string, JobCost>> {
+  async function costsByJob(companyId: string, jobIds: string[], opts: { beforeCommissions?: boolean } = {}): Promise<Map<string, JobCost>> {
     const out = new Map<string, JobCost>()
     for (const id of jobIds) out.set(id, { ...EMPTY_COST })
     if (!jobIds.length) return out
@@ -128,13 +130,17 @@ export function createJobCostingService(d: CrmDeps) {
         const crewCost = clocked ? 0 : r.crewCost
         c.materialCost += r.materialOrderCost
         c.laborCost += crewCost
+        // The commissions the job's people earned are a cost of the job — except for the commission engine, which asks for the
+        // costs before them (a plan on profit is never worked out on a profit its own payout has reduced).
+        c.commissionCost = opts.beforeCommissions ? 0 : r.commissionCost
         c.roof = { ...r, crewCost, crewBasis: clocked ? 'clocked' : r.crewCostKnown ? 'per_square' : 'unknown' }
       }
     }
 
     // Subcontractor cost is a SLICE of expense cost, reported separately; adding it again would double-count.
     for (const c of out.values()) {
-      c.totalCost = round2(c.laborCost + c.materialCost + c.expenseCost + c.billedCost)
+      c.totalCost = round2(c.laborCost + c.materialCost + c.expenseCost + c.billedCost + (c.commissionCost || 0))
+      if (c.commissionCost !== undefined) c.commissionCost = round2(c.commissionCost)
       c.laborCost = round2(c.laborCost); c.materialCost = round2(c.materialCost)
       c.expenseCost = round2(c.expenseCost); c.subcontractorCost = round2(c.subcontractorCost)
       c.billedCost = round2(c.billedCost)
@@ -346,6 +352,7 @@ export function createJobCostingService(d: CrmDeps) {
         expenseCost: cost.expenseCost,
         subcontractorCost: cost.subcontractorCost,
         billedCost: cost.billedCost,
+        commissionCost: cost.commissionCost || 0,
         totalCost: cost.totalCost,
         profit: grossProfit,
         margin: round1(grossMargin),
@@ -354,11 +361,11 @@ export function createJobCostingService(d: CrmDeps) {
       },
       // Positive = over budget.
       variance: {
-        cost: round2(cost.totalCost - estimatedCost),
+        cost: round2(cost.totalCost - (cost.commissionCost || 0) - estimatedCost),
         labor: round2(cost.laborCost - est.labor),
         material: round2(cost.materialCost - est.material),
         hours: round1(cost.laborHours - estimatedLaborHours),
-        costPercent: estimatedCost > 0 ? round1(((cost.totalCost - estimatedCost) / estimatedCost) * 100) : 0,
+        costPercent: estimatedCost > 0 ? round1(((cost.totalCost - (cost.commissionCost || 0) - estimatedCost) / estimatedCost) * 100) : 0,
       },
       laborDetail: timeEntries.map((e) => {
         // The entry's rate, else the person's, else a non-zero roster rate: a roster rate of 0 is a blank.
@@ -417,6 +424,7 @@ export function createJobCostingService(d: CrmDeps) {
           crewCost: cost.roof.crewCost,
           crewBasis: cost.roof.crewBasis,
           crewName: cost.roof.crewName,
+          commissionCost: cost.roof.commissionCost,
           squares: cost.roof.squares,
           payPerSquare: cost.roof.payPerSquare,
           supplements: cost.roof.supplements,
@@ -434,8 +442,8 @@ export function createJobCostingService(d: CrmDeps) {
    */
   async function getJobCostingSummary(
     companyId: string,
-    { startDate, endDate, status, projectId, limit: queryLimit = 50 }:
-      { startDate?: string; endDate?: string; status?: string; projectId?: string; limit?: number } = {},
+    { startDate, endDate, status, projectId, limit: queryLimit = 50, beforeCommissions }:
+      { startDate?: string; endDate?: string; status?: string; projectId?: string; limit?: number; beforeCommissions?: boolean } = {},
   ) {
     const conditions = [eq(job.companyId, companyId)]
     if (startDate) conditions.push(gte(job.createdAt, new Date(startDate)))
@@ -457,7 +465,7 @@ export function createJobCostingService(d: CrmDeps) {
     const keys: JobKey[] = scope.map((j) => ({ id: j.id, quoteId: j.quoteId, projectId: j.projectId }))
     const [{ byJob, distinct }, costMap, estMap] = await Promise.all([
       attributeRevenue(companyId, keys),
-      costsByJob(companyId, scope.map((j) => j.id)),
+      costsByJob(companyId, scope.map((j) => j.id), { beforeCommissions }),
       estimatedCostsByQuote(uniq(scope.map((j) => j.quoteId).filter(Boolean) as string[])),
     ])
 
@@ -491,7 +499,9 @@ export function createJobCostingService(d: CrmDeps) {
         laborHours: cost.laborHours,
         unratedLaborHours: cost.unratedLaborHours,
         isProfitable: profit > 0,
-        variance: round2(cost.totalCost - estimatedCost),
+        // The estimate has no commission in it, so the variance is read before them.
+        variance: round2(cost.totalCost - (cost.commissionCost || 0) - estimatedCost),
+        commissionCost: cost.commissionCost || 0,
       }
     }
 

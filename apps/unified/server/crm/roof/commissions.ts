@@ -169,7 +169,8 @@ export function createRoofCommissions(d: CrmDeps) {
     // The numbers on the job-costing screen: the contract and what the job cost. Paid, the contract is what was invoiced before
     // tax; before that it is what was billed so far or the signed contract, whichever is more.
     const { byJob } = await costing.attributeRevenue(companyId, [{ id: jobId, quoteId: row.quoteId, projectId: row.projectId }])
-    const costs = (await costing.costsByJob(companyId, [jobId])).get(jobId)
+    // The costs BEFORE commissions: a plan on profit is never worked out on a profit its own payout (or another plan's) has reduced.
+    const costs = (await costing.costsByJob(companyId, [jobId], { beforeCommissions: true })).get(jobId)
     const invoiced = round2(byJob.get(jobId)?.revenue ?? 0)
     const signed = readyPlans.some((r: { trigger: CommissionTrigger }) => r.trigger !== 'collected') ? await signedValue(companyId, row) : 0
     const cost = costs?.totalCost ?? 0
