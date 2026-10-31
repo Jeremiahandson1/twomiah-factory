@@ -16,6 +16,7 @@ import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWee
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
 import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
 import BookGrid, { type GridColumn, type GridBlock } from './BookGrid'
+import { addMinutesToWall } from './blockRepeatForm'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -821,7 +822,23 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
   const [end, setEnd] = useState(endParts.time);
   const [reason, setReason] = useState(block?.reason || '');
   const [repeat, setRepeat] = useState('0');
+  // The owner's preset kinds of blocked time (Settings › The Book): picking one fills in its usual length.
+  const [types, setTypes] = useState<Array<{ id: string; name: string; color: string; defaultMin: number; paid: boolean }>>([]);
+  const [typeId, setTypeId] = useState<string>(block?.typeId || '');
+  // Repeat rule: none, every N days, or every N weeks on chosen weekdays; it ends on a date or after a number of times.
+  const [every, setEvery] = useState<'none' | 'day' | 'week'>('none');
+  const [interval, setIntervalText] = useState('1');
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [endKind, setEndKind] = useState<'count' | 'until'>('count');
+  const [count, setCount] = useState('4');
+  const [until, setUntil] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => { api.get('/api/book-blocks/types').then((r: any) => setTypes(((r?.data ?? r) || []) as any[])).catch(() => setTypes([])); }, []);
+  const pickType = (id: string) => {
+    setTypeId(id);
+    const ty = types.find((x) => x.id === id);
+    if (ty && !block) { const e = addMinutesToWall(startDate, start, ty.defaultMin); setEndDate(e.date); setEnd(e.time); }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -833,7 +850,14 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
       };
       if (block) await api.put(`/api/book-blocks/${block.id}`, payload);
       else {
-        if (Number(repeat) > 0) payload.repeatWeeks = Number(repeat);
+        if (typeId) payload.typeId = typeId;
+        if (every !== 'none') {
+          payload.repeat = {
+            every, interval: Number(interval) || 1,
+            ...(every === 'week' && weekdays.length ? { weekdays } : {}),
+            ...(endKind === 'count' ? { count: Number(count) } : { until }),
+          };
+        }
         const made = await api.post('/api/book-blocks', payload);
         if (made?.appointmentsInside > 0) toast.warning?.(`${made.appointmentsInside} appointment${made.appointmentsInside === 1 ? ' is' : 's are'} already booked in that time — they stay until you move them.`);
       }
@@ -842,10 +866,12 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
       toast.error((err as Error).message || 'Could not save the blocked time');
     } finally { setSaving(false); }
   };
-  const remove = async () => {
-    if (!block || !(await confirm('Remove this blocked time? The hours open up for booking again.', { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
-    try { await api.delete(`/api/book-blocks/${block.id}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
+  const remove = async (following = false) => {
+    const words = following ? 'Remove this blocked time and every later one in its repeat? Those hours open up for booking again.' : 'Remove this blocked time? The hours open up for booking again.';
+    if (!block || !(await confirm(words, { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
+    try { await api.delete(`/api/book-blocks/${block.id}${following ? '?scope=following' : ''}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
   };
+  const DOW = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']] as const;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -869,19 +895,57 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
             <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (day)<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
             <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (time)<input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
           </div>
+          {!block && types.length > 0 && (
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Kind of blocked time
+              <select value={typeId} onChange={(e) => pickType(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
+                <option value="">Other (write a reason)</option>
+                {types.map((x) => <option key={x.id} value={x.id}>{x.name} — {x.defaultMin} min, {x.paid ? 'paid' : 'unpaid'}</option>)}
+              </select>
+            </label>
+          )}
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Reason (only your team sees it)
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lunch, training, day off" className="mt-1 w-full px-3 py-2 border rounded-lg" maxLength={200} />
           </label>
           {!block && (
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Repeat every week for
-              <select value={repeat} onChange={(e) => setRepeat(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
-                <option value="0">Just this once</option>
-                {[1, 2, 3, 4, 8, 12, 26].map((n) => <option key={n} value={n}>{n} more week{n === 1 ? '' : 's'}</option>)}
+            <fieldset className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700">
+              <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-200">Repeat</legend>
+              <select aria-label="Repeat" value={every} onChange={(e) => setEvery(e.target.value as 'none' | 'day' | 'week')} className="w-full px-3 py-2 border rounded-lg">
+                <option value="none">Just this once</option>
+                <option value="day">Every day</option>
+                <option value="week">Every week</option>
               </select>
-            </label>
+              {every !== 'none' && (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">Every
+                    <input type="number" min={1} max={52} value={interval} onChange={(e) => setIntervalText(e.target.value)} className="w-16 px-2 py-1 border rounded-lg" aria-label="Repeat interval" />
+                    {every === 'day' ? 'day(s)' : 'week(s)'}
+                  </label>
+                  {every === 'week' && (
+                    <div role="group" aria-label="On these days" className="flex flex-wrap gap-2">
+                      {DOW.map(([n, label]) => (
+                        <label key={n} className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">
+                          <input type="checkbox" checked={weekdays.includes(n)} onChange={(e) => setWeekdays(e.target.checked ? [...weekdays, n] : weekdays.filter((d) => d !== n))} />{label}
+                        </label>
+                      ))}
+                      <p className="w-full text-xs text-gray-500 dark:text-slate-400">None ticked: the same weekday as the first block.</p>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                    <select aria-label="Ends" value={endKind} onChange={(e) => setEndKind(e.target.value as 'count' | 'until')} className="px-2 py-1 border rounded-lg">
+                      <option value="count">Ends after</option>
+                      <option value="until">Ends on</option>
+                    </select>
+                    {endKind === 'count'
+                      ? <><input type="number" min={1} max={120} value={count} onChange={(e) => setCount(e.target.value)} className="w-20 px-2 py-1 border rounded-lg" aria-label="Number of times" /> times in all</>
+                      : <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="px-2 py-1 border rounded-lg" aria-label="Last day" />}
+                  </div>
+                </>
+              )}
+            </fieldset>
           )}
           <div className="flex gap-3 pt-2">
-            {block && <button type="button" onClick={remove} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            {block && <button type="button" onClick={() => remove(false)} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            {block?.seriesId && <button type="button" onClick={() => remove(true)} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove this and later</button>}
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
           </div>

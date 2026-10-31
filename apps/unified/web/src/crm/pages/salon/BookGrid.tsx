@@ -12,7 +12,9 @@ export interface GridAppt {
   id: string; status?: string; startTime?: string; endTime?: string; stylistId?: string | null
   clientName?: string; serviceName?: string; processingAfterMin?: number | null; processingMin?: number | null; items?: GridItem[]
 }
-export interface GridBlock { id: string; stylistId?: string | null; startTime: string; endTime: string; reason?: string | null }
+export interface GridBlock { id: string; stylistId?: string | null; startTime: string; endTime: string; reason?: string | null; typeId?: string | null; typeName?: string | null; typeColor?: string | null; paid?: boolean | null; seriesId?: string | null }
+/** What a block says on the Book: its type, then its own reason. */
+export const blockLabel = (b: Pick<GridBlock, 'typeName' | 'reason'>) => (b.typeName && b.reason ? `${b.typeName} · ${b.reason}` : b.typeName || b.reason || 'Blocked')
 export interface GridColumn { key: string; label: string; sub?: string; /** day mode: the stylist ('' = unassigned) */ stylistId?: string; /** week mode: the day */ day?: string }
 
 const DEAD = new Set(['cancelled', 'no_show'])
@@ -152,9 +154,9 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
                 {(blocked.get(col.key) || []).map(({ b, start, end }) => (
                   <button key={b.id + col.key} type="button" onClick={() => mayMove && onBlock(b)} disabled={!mayMove}
                     className="absolute inset-x-0 z-10 overflow-hidden border-y border-gray-300 px-1 text-left text-[11px] text-gray-600 dark:border-slate-600 dark:text-slate-300"
-                    style={{ top: (Math.max(start, range.from) - range.from) * PX_PER_MIN, height: (Math.min(end, range.to) - Math.max(start, range.from)) * PX_PER_MIN, backgroundImage: 'repeating-linear-gradient(135deg, rgba(120,120,120,.18) 0 6px, transparent 6px 12px)' }}
-                    title={b.reason || 'Blocked'}>
-                    <Lock className="mr-1 inline h-3 w-3" aria-hidden="true" />{b.reason || 'Blocked'}{!b.stylistId && !weekMode ? ' · everyone' : ''}
+                    style={{ top: (Math.max(start, range.from) - range.from) * PX_PER_MIN, height: (Math.min(end, range.to) - Math.max(start, range.from)) * PX_PER_MIN, backgroundImage: 'repeating-linear-gradient(135deg, rgba(120,120,120,.18) 0 6px, transparent 6px 12px)', ...(b.typeColor ? { borderLeft: `4px solid ${b.typeColor}` } : {}) }}
+                    title={`${blockLabel(b)}${b.paid === true ? ' (paid)' : b.paid === false ? ' (unpaid)' : ''}`}>
+                    <Lock className="mr-1 inline h-3 w-3" aria-hidden="true" />{blockLabel(b)}{!b.stylistId && !weekMode ? ' · everyone' : ''}
                   </button>
                 ))}
                 {laid.map((c) => {

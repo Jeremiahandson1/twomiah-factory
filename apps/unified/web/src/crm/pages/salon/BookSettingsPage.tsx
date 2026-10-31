@@ -9,6 +9,7 @@ import { api } from '../../../api'
 import { useToast, usePermissions, useAuth } from '../../../shared'
 import { roleWord } from '../../viewAs'
 import type { BookScope } from './bookScope'
+import BlockTypesSection from './BlockTypesSection'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -111,6 +112,8 @@ export default function BookSettingsPage() {
           next {stylist.toLowerCase()} can repeat a colour. {desk}, managers, admins and the owner always see the whole book.
         </p>
       </section>
+
+      {hasFeature('book_grid') && <BlockTypesSection mayEdit={mayEdit} />}
 
       {pick !== null && (
         <section className={box} aria-label="Choosing a stylist online">
