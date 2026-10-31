@@ -319,6 +319,21 @@ export async function visitsForReport(db: any, companyId: string, from: Date, to
   return rows as Array<{ id: string; contactId: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; rebooked: boolean }>
 }
 
+/** Visits in [from, to) in time order, each with the date of the SAME client's next visit (any service), for the return-window reports (crm/salon/returnWindows.ts). */
+export async function visitsWithNext(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    contactId: serviceRecord.contactId, stylistId: serviceRecord.stylistId, stylistMemberId: serviceRecord.stylistMemberId, serviceId: serviceRecord.serviceId,
+    firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name, performedAt: serviceRecord.performedAt,
+    nextMs: sql<string | null>`(select (extract(epoch from min(nx.performed_at)) * 1000)::bigint::text from ${serviceRecord} nx where nx.company_id = ${serviceRecord.companyId} and nx.contact_id = ${serviceRecord.contactId} and nx.performed_at > ${serviceRecord.performedAt})`,
+  }).from(serviceRecord)
+    .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+    .orderBy(serviceRecord.performedAt).limit(REPORT_VISIT_CAP + 1)
+  // The next visit comes back as epoch milliseconds: a bare timestamp string would be read in the server's own zone.
+  return (rows as any[]).map(({ nextMs, ...r }) => ({ ...r, performedAt: new Date(r.performedAt), nextAt: nextMs ? new Date(Number(nextMs)) : null })) as Array<{ contactId: string; stylistId: string | null; stylistMemberId: string | null; serviceId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; nextAt: Date | null }>
+}
+
 /** The clients who had a visit in [from, to). */
 export async function visitorsBetween(db: any, companyId: string, from: Date, to: Date): Promise<Set<string>> {
   const rows = await db.selectDistinct({ contactId: serviceRecord.contactId }).from(serviceRecord)

@@ -8,14 +8,16 @@
 import { Hono } from 'hono'
 import { createTipShares } from './tipShares.ts'
 import { splitCents } from './tipSplit.ts'
-import { clientsWithFutureBooking, peopleNames, REPORT_VISIT_CAP, retailSold, tipsBySale, visitorsBetween, visitsForReport, visitSpans } from '../../data/salon.ts'
+import { clientsWithFutureBooking, peopleNames, REPORT_VISIT_CAP, retailSold, tipsBySale, visitorsBetween, visitsForReport, visitsWithNext, visitSpans } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn, createSalonClock, salonDayStart, shiftDays } from './days.ts'
 import { retentionOf } from './retention.ts'
-import { company } from '../../db/schema/index.ts'
-import { eq } from 'drizzle-orm'
+import { company, serviceMenu } from '../../db/schema/index.ts'
+import { createCommissionReports, CommissionReportError } from './commissionReports.ts'
+import { anchors, parseWindows, ratesFor, readWindows, WINDOWS_KEY } from './returnWindows.ts'
+import { and, eq } from 'drizzle-orm'
 
 const DAY = 86400_000
 const MAX_DAYS = 731
@@ -159,7 +161,59 @@ export function createSalonReports(d: CrmDeps) {
     return { range: { from: w.from, to: w.to, days: w.days }, total: round2(totalCents / 100), payments, stylists }
   }
 
-  return { retention, rebook, retail, tips }
+  /** The windows to report on: ?windows= for one look, else the salon's saved ones. */
+  async function windowsFor(companyId: string, asked?: string): Promise<number[]> {
+    if (asked) {
+      const p = parseWindows(asked)
+      if ('problem' in p) throw new ReportError(p.problem, 'from')
+      return p.windows
+    }
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    return readWindows(co?.settings)
+  }
+
+  /** Save the salon's own windows (the owner's pick); returns what was saved. */
+  async function saveWindows(companyId: string, raw: unknown): Promise<{ windows: number[] } | { problem: string }> {
+    const p = parseWindows(raw)
+    if ('problem' in p) return p
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    await db.update(company).set({ settings: { ...((co?.settings as any) || {}), [WINDOWS_KEY]: p.windows }, updatedAt: new Date() } as any).where(eq(company.id, companyId))
+    return p
+  }
+
+  /**
+   * Client retention over several return windows, and the same for each stylist's clients (the stylist of the anchor visit): of the clients who
+   * had a visit in the period, the share back within each window. `serviceId` slices both to clients whose first visit in the period was that service.
+   */
+  async function returnWindows(companyId: string, q: { from?: string; to?: string; windows?: string; serviceId?: string }) {
+    const w = await windowOf(companyId, q)
+    const windows = await windowsFor(companyId, q.windows)
+    let service: { id: string; name: string } | null = null
+    if (q.serviceId) {
+      const [s] = await db.select({ id: serviceMenu.id, name: serviceMenu.name }).from(serviceMenu).where(and(eq(serviceMenu.id, q.serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+      if (!s) throw new ReportError('That service is not on your menu.', 'from')
+      service = s
+    }
+    const all = await visitsWithNext(db, companyId, w.start, w.end)
+    const truncated = all.length > REPORT_VISIT_CAP
+    const rows = (truncated ? all.slice(0, REPORT_VISIT_CAP) : all).filter((v) => !service || v.serviceId === service.id)
+    const first = anchors(rows)
+    const now = new Date()
+    const by = new Map<string, { id: string | null; name: string; list: typeof first }>()
+    for (const v of first) {
+      const p = whoIs(v)
+      const e = by.get(p.key) || { id: p.id, name: p.name, list: [] }
+      e.list.push(v); by.set(p.key, e)
+    }
+    const stylists = [...by.values()].map((e) => ({ id: e.id, name: e.name, clients: e.list.length, windows: ratesFor(e.list, windows, now) }))
+      .sort((a, b) => b.clients - a.clients || a.name.localeCompare(b.name))
+    return {
+      range: { from: w.from, to: w.to, days: w.days }, truncated, windowDays: windows, service,
+      clients: first.length, windows: ratesFor(first, windows, now), stylists,
+    }
+  }
+
+  return { retention, rebook, retail, tips, returnWindows, saveWindows, windowsFor }
 }
 export type SalonReports = ReturnType<typeof createSalonReports>
 
@@ -182,5 +236,58 @@ export function createSalonReportRoutes(d: CrmDeps, reports: SalonReports) {
   app.get('/rebook', requirePermission('reports:read'), answer('rebook'))
   app.get('/retail', requirePermission('reports:read'), answer('retail'))
   app.get('/tips', requirePermission('reports:read'), answer('tips'))
+  // Retention over several return windows, and per stylist (row 14): ?windows=30,60,90&serviceId=...
+  app.get('/return-windows', requirePermission('reports:read'), async (c: any) => {
+    const u = c.get('user') as any
+    c.header('Cache-Control', 'no-store')
+    try {
+      return one(c, await reports.returnWindows(u.companyId, { from: c.req.query('from') || undefined, to: c.req.query('to') || undefined, windows: c.req.query('windows') || undefined, serviceId: c.req.query('serviceId') || undefined }))
+    } catch (e: any) {
+      if (e instanceof ReportError) return fail(c, 400, e.message, 'BAD_RANGE', { [e.field]: e.message })
+      d.logger.error('[salon-reports]', { error: e?.message || String(e) })
+      return fail(c, 500, 'That report could not be made. Try again.')
+    }
+  })
+  // The owner's own windows, kept for the salon. Whoever changes the company settings.
+  app.put('/return-windows', requirePermission('company:update'), async (c: any) => {
+    const u = c.get('user') as any
+    const body = ((await c.req.json().catch(() => null)) ?? {}) as { windows?: unknown }
+    const saved = await reports.saveWindows(u.companyId, body.windows)
+    if ('problem' in saved) return fail(c, 400, saved.problem, 'BAD_WINDOWS', { windows: saved.problem })
+    return one(c, saved)
+  })
+
+  // ── Commission summary, line items and the payroll file (row 16; ./commissionReports.ts) ──────────────────────────────────────────────
+  // Behind `salon_reports` (the mount) AND `salon_commissions` (the commissions themselves), and the commission ledger's own rights.
+  const money = createCommissionReports(d)
+  const commissionsOn = (fn: (u: any, c: any) => Promise<Response>) => async (c: any) => {
+    const u = c.get('user') as any
+    if (!(await d.features.isFeatureEnabled(u.companyId, 'salon_commissions'))) return fail(c, 404, 'Not found')
+    c.header('Cache-Control', 'no-store')
+    try { return await fn(u, c) } catch (e: any) {
+      if (e instanceof CommissionReportError) return fail(c, e.status, e.message, e.status === 409 ? 'TOO_MANY' : 'BAD_RANGE', { [e.field]: e.message })
+      d.logger.error('[salon-commission-reports]', { error: e?.message || String(e) })
+      return fail(c, 500, 'That report could not be made. Try again.')
+    }
+  }
+  const range = (c: any) => ({ from: c.req.query('from') || undefined, to: c.req.query('to') || undefined })
+  app.get('/commissions/summary', requirePermission('commissions:read'), commissionsOn(async (u, c) => one(c, await money.summary(u.companyId, range(c)))))
+  app.get('/commissions/lines', requirePermission('commissions:read'), commissionsOn(async (u, c) => {
+    const r = await money.lineItems(u.companyId, { ...range(c), userId: c.req.query('userId') || undefined })
+    return one(c, r)
+  }))
+  // The payroll file: a download, and a record of who took it. Only whoever approves payouts.
+  app.get('/commissions/payroll.csv', requirePermission('commissions:update'), commissionsOn(async (u, c) => {
+    const f = await money.payroll(u.companyId, { ...range(c), format: c.req.query('format') || undefined, statuses: c.req.query('statuses') || undefined, coCode: c.req.query('coCode') || undefined, earningCode: c.req.query('earningCode') || undefined })
+    d.audit.log({ req: c, action: d.audit.ACTIONS.EXPORT, entity: 'commission-payroll', entityName: `${f.people} people, ${f.range.from} to ${f.range.to}`, metadata: { ...f.range, people: f.people, total: f.total }, userId: u.userId, companyId: u.companyId })
+    return c.body(f.csv, 200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${f.filename}"`, 'X-Payroll-People': String(f.people), 'X-Payroll-Total': String(f.total), 'X-Payroll-Warnings': encodeURIComponent(f.warnings.join(' | ')) })
+  }))
+  app.get('/commissions/file-numbers', requirePermission('commissions:update'), commissionsOn(async (u, c) => one(c, { fileNumbers: await money.fileNumbers(u.companyId) })))
+  app.put('/commissions/file-numbers', requirePermission('commissions:update'), commissionsOn(async (u, c) => {
+    const body = ((await c.req.json().catch(() => null)) ?? {}) as { fileNumbers?: unknown }
+    const r = await money.saveFileNumbers(u.companyId, body.fileNumbers)
+    if ('problem' in r) return fail(c, 400, r.problem, 'BAD_FILE_NUMBER', { fileNumbers: r.problem })
+    return one(c, { fileNumbers: r.saved })
+  }))
   return app
 }

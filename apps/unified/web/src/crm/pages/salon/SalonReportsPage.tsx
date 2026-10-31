@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom'
 import { BarChart3, Loader2 } from 'lucide-react'
 import { api, useAuth, money, todayKey, dayKeyPlus } from '../../../shared'
 import { inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { ReturnWindowsSection } from './ReturnWindows'
+import { CommissionReportsSection } from './CommissionReports'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -99,6 +101,9 @@ export default function SalonReportsPage() {
               </tbody>
             </table>
           </section>
+
+          <ReturnWindowsSection from={from} to={to} />
+          <CommissionReportsSection from={from} to={to} />
 
           <section className={box} aria-label="Rebook rate">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rebook rate by stylist</h2>
