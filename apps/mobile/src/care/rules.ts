@@ -351,3 +351,29 @@ export function takeText(seriesVisits: number | null | undefined): { button: str
     ? { button: `Take all ${n} visits`, confirm: `This offer is one of ${n} visits offered together. Taking it takes all ${n}.` }
     : { button: 'Take this shift', confirm: '' }
 }
+
+// ── Caregiver satisfaction survey (row 13, care_caregiver_surveys) ──────────────────────────────────────────────────────────────
+export interface SurveyQuestion { id: string; text: string; kind: 'scale' | 'yes_no' | 'text' }
+export type SurveyAnswers = Record<string, number | boolean | string | undefined>
+export const SCALE_WORDS = ['Very unhappy', 'Unhappy', 'So-so', 'Happy', 'Very happy']
+
+/** What stops the survey being sent: the first scale or yes/no question with no answer (free text may be left empty). */
+export function surveyProblem(questions: SurveyQuestion[], answers: SurveyAnswers): string | null {
+  for (const q of questions) {
+    const v = answers[q.id]
+    if (q.kind === 'scale' && !(typeof v === 'number' && v >= 1 && v <= 5)) return `Pick 1 to 5 for "${q.text}".`
+    if (q.kind === 'yes_no' && typeof v !== 'boolean') return `Answer yes or no to "${q.text}".`
+  }
+  return null
+}
+
+/** The answers the server reads: every scale and yes/no answer, and a text answer only when it says something. */
+export function surveyBody(questions: SurveyQuestion[], answers: SurveyAnswers): Record<string, number | boolean | string> {
+  const out: Record<string, number | boolean | string> = {}
+  for (const q of questions) {
+    const v = answers[q.id]
+    if (q.kind === 'text') { const text = typeof v === 'string' ? v.trim() : ''; if (text) out[q.id] = text }
+    else if (v !== undefined) out[q.id] = v as number | boolean
+  }
+  return out
+}

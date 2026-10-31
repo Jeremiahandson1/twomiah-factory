@@ -28,7 +28,12 @@ export default function MoreHomecareScreen() {
   const care = useCare()
   // care_pickup_rewards: the points page answers only for an agency that has it, so the two entries show only then.
   const [points, setPoints] = useState<number | null>(null)
-  useFocusEffect(useCallback(() => { careGet<any>('/api/care-rewards/me').then((r) => setPoints(r.ok && r.data && typeof r.data.balance === 'number' ? r.data.balance : null)) }, []))
+  // care_caregiver_surveys: the survey page answers only for an agency that has it, so "How is it going?" shows only then (with a badge).
+  const [surveys, setSurveys] = useState<number | null>(null)
+  useFocusEffect(useCallback(() => {
+    careGet<any>('/api/care-rewards/me').then((r) => setPoints(r.ok && r.data && typeof r.data.balance === 'number' ? r.data.balance : null))
+    careGet<any>('/api/caregiver-surveys/me').then((r) => setSurveys(r.ok && r.data && Array.isArray(r.data.pending) ? r.data.pending.length : null))
+  }, []))
 
   const email = (company as any)?.email as string | undefined
   const phone = (company as any)?.phone as string | undefined
@@ -60,6 +65,7 @@ export default function MoreHomecareScreen() {
       title: 'You',
       items: [
         { icon: 'notifications-outline', label: 'Notifications', desc: 'Updates from your agency', to: '/(care)/notifications', badge: care.unreadNotifications },
+        ...(surveys !== null ? [{ icon: 'happy-outline', label: 'How is it going?', desc: surveys ? `${surveys} survey${surveys === 1 ? '' : 's'} waiting for you` : 'Surveys from your agency', to: '/(care)/survey', badge: surveys }] : []),
         ...(care.payday ? [{ icon: 'cash-outline', label: 'Confirm your hours', desc: 'Payday verification for the last pay period', to: '/(care)/payday', badge: 1 }] : []),
         ...(care.sandata?.clients?.some(needsSandata) ? [{ icon: 'phone-portrait-outline', label: 'Sandata help', desc: 'Setting up Sandata Mobile Connect', to: '/(care)/sandata-help' }] : []),
       ],

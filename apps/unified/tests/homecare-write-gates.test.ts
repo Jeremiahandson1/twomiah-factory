@@ -32,6 +32,7 @@ const SELF: Record<string, string> = {
   'POST /api/care-rewards/redeem': 'I ask for a reward with my own points (care_pickup_rewards)',
   'POST /api/open-shift-offers/:id/decline': 'I turn an open shift down, with a reason (care_open_shift_offers)',
   'POST /api/open-shift-offers/:id/hide': 'I hide an open shift from my own list (care_open_shift_offers)',
+  'POST /api/caregiver-surveys/me/:requestId/answer': 'I answer a satisfaction survey asked of me (care_caregiver_surveys)',
   'POST /api/shift-swaps': 'I ask to swap my own shift',
   'PUT /api/shift-swaps/:id/respond': 'only the caregiver asked answers',
   'PUT /api/shift-swaps/:id/cancel': 'only the caregiver who asked withdraws',
