@@ -86,6 +86,35 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
       })
     })
 
+    describe('paused (ServiceTitan\'s Pause)', () => {
+      test('a started job is paused and resumed; the status stays in progress; a repeat changes nothing', async () => {
+        const j = await newJob()
+        await as(`/api/jobs/${j.id}/start`, 'POST', {})
+        const p = await as(`/api/jobs/${j.id}/pause`, 'POST', { tappedAt: minutesAgo(10) })
+        expect(p.status).toBe(200)
+        expect(p.body.status).toBe('in_progress')
+        expect(Math.abs(new Date(p.body.pausedAt).getTime() - Date.parse(minutesAgo(10)))).toBeLessThan(2000)
+        expect((await as(`/api/jobs/${j.id}/pause`, 'POST', {})).body.unchanged).toBe(true)
+        const r = await as(`/api/jobs/${j.id}/resume`, 'POST', {})
+        expect(r.status).toBe(200)
+        expect(r.body.pausedAt).toBeNull()
+        expect((await as(`/api/jobs/${j.id}/resume`, 'POST', {})).body.unchanged).toBe(true)
+      })
+      test('only a started job can be paused; a finished one is refused in words', async () => {
+        const j = await newJob()
+        const early = await as(`/api/jobs/${j.id}/pause`, 'POST', {})
+        expect(early.status).toBe(409)
+        expect(early.body.error).toContain('nothing to pause')
+        await as(`/api/jobs/${j.id}/start`, 'POST', {})
+        await as(`/api/jobs/${j.id}/pause`, 'POST', {})
+        await as(`/api/jobs/${j.id}/complete`, 'POST', {})
+        const late = await as(`/api/jobs/${j.id}/resume`, 'POST', {})
+        expect(late.status).toBe(409)
+        expect(late.body.error).toContain('already completed')
+        expect((await row(j.id)).status).toBe('completed')
+      })
+    })
+
     describe('when the tech tapped', () => {
       test('completed: the tapped time is the completion time', async () => {
         const j = await newJob()

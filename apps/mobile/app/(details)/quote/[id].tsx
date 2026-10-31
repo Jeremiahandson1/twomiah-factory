@@ -6,10 +6,11 @@
  * reject need quotes:update; converting raises an invoice, invoices:create. The PDF opens in the phone's browser on a
  * one-time download link (src/api/download.ts openDownload).
  *
- * A quote with Good / Better / Best options answers `proposal` { needsChoice, options: [{ id, name, brand, warranty, price,
- * deposit, recommended, chosen }] } and `lineItems` are then the lines every option shares. The customer picks on the quote's
- * link; here a seat with quotes:update picks for a customer who says it in person or by phone (POST /:id/proposal/choose),
- * and approving refuses until one is chosen.
+ * A quote with Good / Better / Best options answers `proposal` { needsChoice, sets: [{ index, name, kind: 'one' | 'any',
+ * needsChoice, options: [{ id, name, brand, warranty, price, addPrice, deposit, recommended, chosen }] }] } and `lineItems`
+ * are then the lines every option shares. A 'one' set the customer picks one of; an 'any' set (add-ons) any number of. The
+ * customer picks on the quote's link; here a seat with quotes:update picks for a customer who says it in person or by phone
+ * (POST /:id/proposal/choose { optionId, chosen }), and approving refuses until every pick-one set is picked.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -57,10 +58,11 @@ export default function QuoteDetailScreen() {
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
   useRealTimeEvent(EVENTS.QUOTE_UPDATED, load, [load])
 
-  const chooseOption = async (optionId: string) => {
-    const res = await post(`/api/quotes/${id}/proposal/choose`, { optionId })
-    if (res.ok) { haptics.success(); toast.success('Option chosen'); load() }
-    else { haptics.error(); toast.error(res.error || 'Could not choose that option') }
+  // A pick-one set: pick (the pick can only move). An add-on set: `chosen` adds or removes the one option.
+  const chooseOption = async (optionId: string, chosen = true) => {
+    const res = await post(`/api/quotes/${id}/proposal/choose`, { optionId, chosen })
+    if (res.ok) { haptics.success(); toast.success(chosen ? 'Option chosen' : 'Add-on removed'); load() }
+    else { haptics.error(); toast.error(res.error || 'Could not change that option') }
   }
 
   const doAction = async (endpoint: string, successMsg: string) => {
@@ -95,6 +97,11 @@ export default function QuoteDetailScreen() {
   const discount = num(quote.discount)
   const total = num(quote.total)
   const proposal = quote.proposal && Array.isArray(quote.proposal.options) && quote.proposal.options.length ? quote.proposal : null
+  // The sets as the server answers them; a server answering options only (before sets) is one pick-one set.
+  const sets: any[] = proposal
+    ? (Array.isArray(proposal.sets) && proposal.sets.length ? proposal.sets : [{ index: 0, name: 'Options', kind: 'one', options: proposal.options, needsChoice: !proposal.options.some((o: any) => o.chosen) }])
+    : []
+  const manySets = sets.length > 1
   const open = ['draft', 'sent', 'viewed'].includes(quote.status)
 
   return (
@@ -189,27 +196,44 @@ export default function QuoteDetailScreen() {
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <Text style={[styles.sectionTitle, { color: t.text }]}>Options</Text>
               <Text style={{ color: t.textSecondary, fontSize: 13, marginBottom: 8 }}>
-                {proposal.needsChoice ? 'Not chosen yet. Each price is for the whole job; the lines above are in every option.' : 'The quote is priced at the option chosen.'}
+                {proposal.needsChoice ? 'Not chosen yet. Each price is for the whole job; the lines above are in every option.' : 'The quote is priced at what is chosen.'}
               </Text>
-              {proposal.options.map((o: any, i: number) => (
-                <View key={o.id} style={[styles.lineItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.itemDesc, { color: t.text }]}>{o.name}{o.recommended ? ' · Recommended' : ''}{o.chosen ? ' · Chosen' : ''}</Text>
-                    {(o.brand || o.warranty) ? <Text style={[styles.itemMeta, { color: t.textMuted }]}>{[o.brand, o.warranty].filter(Boolean).join(' · ')}</Text> : null}
-                    {num(o.deposit) > 0 ? <Text style={[styles.itemMeta, { color: t.textMuted }]}>Deposit {money(o.deposit)}</Text> : null}
-                  </View>
-                  <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                    <Text style={[styles.itemTotal, { color: t.text }]}>{money(o.price)}</Text>
-                    {canUpdate && open && !o.chosen && (
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Choose ${o.name} for the customer`}
-                        onPress={() => setConfirmAction({ title: `Choose ${o.name}`, desc: `The customer has chosen ${o.name} (${money(o.price)})?`, label: 'Choose', action: () => chooseOption(o.id) })}
-                        style={[styles.chooseBtn, { backgroundColor: ACTION.blue }]}>
-                        <Text style={styles.chooseText}>Choose</Text>
-                      </TouchableOpacity>
+              {sets.map((s: any, si: number) => {
+                const additive = s.kind === 'any'
+                return (
+                  <View key={s.index ?? si} style={si > 0 ? { marginTop: 12 } : undefined} accessibilityLabel={`${s.name}: ${additive ? 'add any' : 'choose one'}`}>
+                    {(manySets || additive) && (
+                      <Text style={[styles.setTitle, { color: t.text }]}>{s.name} <Text style={{ color: t.textMuted, fontWeight: '400' }}>· {additive ? 'add any' : 'choose one'}{s.needsChoice ? ' · not chosen yet' : ''}</Text></Text>
                     )}
+                    {s.options.map((o: any, i: number) => (
+                      <View key={o.id} style={[styles.lineItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.itemDesc, { color: t.text }]}>{o.name}{o.recommended ? ' · Recommended' : ''}{o.chosen ? (additive ? ' · Added' : ' · Chosen') : ''}</Text>
+                          {(o.brand || o.warranty) ? <Text style={[styles.itemMeta, { color: t.textMuted }]}>{[o.brand, o.warranty].filter(Boolean).join(' · ')}</Text> : null}
+                          {!additive && num(o.deposit) > 0 ? <Text style={[styles.itemMeta, { color: t.textMuted }]}>Deposit {money(o.deposit)}</Text> : null}
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                          <Text style={[styles.itemTotal, { color: t.text }]}>{additive ? `+ ${money(o.addPrice ?? o.price)}` : money(o.price)}</Text>
+                          {canUpdate && open && !additive && !o.chosen && (
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Choose ${o.name} for the customer`}
+                              onPress={() => setConfirmAction({ title: `Choose ${o.name}`, desc: `The customer has chosen ${o.name} (${money(o.price)})?`, label: 'Choose', action: () => chooseOption(o.id, true) })}
+                              style={[styles.chooseBtn, { backgroundColor: ACTION.blue }]}>
+                              <Text style={styles.chooseText}>Choose</Text>
+                            </TouchableOpacity>
+                          )}
+                          {canUpdate && open && additive && (
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${o.chosen ? 'Remove' : 'Add'} ${o.name} for the customer`}
+                              onPress={() => setConfirmAction({ title: o.chosen ? `Remove ${o.name}` : `Add ${o.name}`, desc: o.chosen ? `The customer no longer wants ${o.name}?` : `The customer wants ${o.name} (+ ${money(o.addPrice ?? o.price)})?`, label: o.chosen ? 'Remove' : 'Add', destructive: !!o.chosen, action: () => chooseOption(o.id, !o.chosen) })}
+                              style={[styles.chooseBtn, { backgroundColor: o.chosen ? ACTION.slate : ACTION.blue }]}>
+                              <Text style={styles.chooseText}>{o.chosen ? 'Remove' : 'Add'}</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                </View>
-              ))}
+                )
+              })}
             </View>
           </AnimatedCard>
         )}
@@ -295,6 +319,7 @@ const styles = StyleSheet.create({
   expiry: { fontSize: 12, marginTop: 4 },
   contactName: { fontSize: 15, fontWeight: '600' },
   sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
+  setTitle: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   lineItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   itemDesc: { fontSize: 14, fontWeight: '500' },
   itemMeta: { fontSize: 12, marginTop: 2 },

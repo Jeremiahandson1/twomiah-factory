@@ -265,7 +265,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
-      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate,
+      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.
       availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>

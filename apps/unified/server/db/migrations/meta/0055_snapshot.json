@@ -1,5 +1,5 @@
 {
-  "id": "821dcbdc-b70b-4d2e-9641-9c384da0728b",
+  "id": "b0b401a3-58c7-4911-831f-9d7b6bc79856",
   "prevId": "b0c9ba54-bc72-4158-9a87-18c1ad5cd256",
   "version": "7",
   "dialect": "postgresql",
@@ -4481,6 +4481,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "paused_at": {
+          "name": "paused_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "address": {
           "name": "address",
           "type": "text",
@@ -4650,12 +4656,6 @@
         "assigned_crew_id": {
           "name": "assigned_crew_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revenue_split": {
-          "name": "revenue_split",
-          "type": "json",
           "primaryKey": false,
           "notNull": false
         },
@@ -6911,18 +6911,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "salesperson_id": {
-          "name": "salesperson_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "converted_at": {
-          "name": "converted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -6931,21 +6919,6 @@
           "columns": [
             {
               "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "quote_salesperson_idx": {
-          "name": "quote_salesperson_idx",
-          "columns": [
-            {
-              "expression": "salesperson_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7057,19 +7030,6 @@
           "tableTo": "user",
           "columnsFrom": [
             "created_by_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "quote_salesperson_id_user_id_fk": {
-          "name": "quote_salesperson_id_user_id_fk",
-          "tableFrom": "quote",
-          "tableTo": "user",
-          "columnsFrom": [
-            "salesperson_id"
           ],
           "columnsTo": [
             "id"

@@ -103,9 +103,9 @@ export default function JobDetailScreen() {
   useEffect(() => { void flowData.reload(); void load() }, [queueSignature]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** On my way / arrived / complete: sent now with signal, kept on the phone without — never lost, never shown as done early. */
-  const moveJob = async (m: 'dispatch' | 'start' | 'complete' | 'hold') => {
+  const moveJob = async (m: 'dispatch' | 'start' | 'complete' | 'hold' | 'pause' | 'resume') => {
     setMoving(true)
-    const words = { dispatch: 'On my way', start: job?.status === 'on_hold' ? 'Resumed' : 'Arrived', complete: 'Completed', hold: 'On hold' }[m]
+    const words = { dispatch: 'On my way', start: job?.status === 'on_hold' ? 'Resumed' : 'Arrived', complete: 'Completed', hold: 'On hold', pause: 'Paused', resume: 'Resumed' }[m]
     // The body says when the tech tapped, so a move kept until signal returns still records the real time (flow.ts moveBody).
     const r = await offline.post(`/api/jobs/${id}/${m}`, moveBody(), { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
     setMoving(false)
@@ -393,7 +393,7 @@ export default function JobDetailScreen() {
               {!isRoof && (
                 <JobFlowCard
                   jobId={String(id)} status={job.status} queue={queue} checklists={flowData.checklists} photoCount={flowData.photoCount}
-                  busy={moving} startedAt={job.startedAt} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
+                  busy={moving} startedAt={job.startedAt} pausedAt={job.pausedAt} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
                 />
               )}
 

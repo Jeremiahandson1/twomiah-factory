@@ -126,6 +126,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
               {job.isOverdue && <StatusBadge status="overdue" />}
+              {job.status === 'in_progress' && (job as any).pausedAt && <span className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Paused</span>}
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${PRIORITY_COLORS[job.priority] || ''}`}>{codeLabel(job.priority)}</span>
             </div>
           </div>

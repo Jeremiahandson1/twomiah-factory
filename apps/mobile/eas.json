@@ -7,21 +7,30 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "env": {
+        "TAP_TO_PAY_IOS": "0"
+      }
     },
     "preview": {
       "android": {
         "buildType": "apk"
       },
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "TAP_TO_PAY_IOS": "0"
+      }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
       },
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "TAP_TO_PAY_IOS": "0"
+      }
     },
     "build-preview": {
       "extends": "preview",

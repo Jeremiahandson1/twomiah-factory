@@ -182,6 +182,29 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         expect(Number(closed.hours)).toBeGreaterThan(0.3)
       })
 
+      test('Pause takes a break on the job\'s clock and Resume ends it; a clock started by hand is left alone', async () => {
+        await reset('tia')
+        await setClock({ automatic: { mode: 'arrive' } })
+        const j = await newJob(ids.tia)
+        await as('tia', `/api/jobs/${j.id}/start`, 'POST', { tappedAt: ago(30) })
+        await as('tia', `/api/jobs/${j.id}/pause`, 'POST', { tappedAt: ago(20) })
+        let open = (await as('tia', '/api/time/active')).body
+        expect(open.breakStartedAt).not.toBeNull()
+        await as('tia', `/api/jobs/${j.id}/resume`, 'POST', { tappedAt: ago(5) })
+        open = (await as('tia', '/api/time/active')).body
+        expect(open.breakStartedAt).toBeNull()
+        expect(open.breakMinutes).toBeGreaterThanOrEqual(14)
+        expect(open.breakMinutes).toBeLessThanOrEqual(16)
+        // A clock the person started by hand is theirs: Pause does not touch it.
+        await reset('sam')
+        const k = await newJob(ids.sam)
+        await setClock({ automatic: { mode: 'off' } })
+        await as('sam', '/api/time/clock-in', 'POST', {})
+        await as('sam', `/api/jobs/${k.id}/start`, 'POST', {})
+        await as('sam', `/api/jobs/${k.id}/pause`, 'POST', {})
+        expect((await as('sam', '/api/time/active')).body.breakStartedAt).toBeNull()
+      })
+
       test('On my way starts it when that is the setting', async () => {
         await reset('tia')
         await setClock({ automatic: { mode: 'on_my_way' } })

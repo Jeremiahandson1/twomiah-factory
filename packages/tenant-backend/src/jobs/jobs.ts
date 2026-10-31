@@ -64,7 +64,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
-export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook }
+export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook }
 /**
  * The hook a status runs when a job moves INTO it — one table for every door a status is reached by: the buttons, the
  * edit form, the Dispatch Board (PUT /:id) and bulk updates (bulk.ts). Staying in a status runs nothing. (2026-10-22)
@@ -105,6 +105,9 @@ export interface JobOptions {
   onCreate?: JobHook
   /** may return extra fields merged into the complete response (e.g. nextServiceDate) */
   onComplete?: JobHook
+  /** Paused / resumed (POST /:id/pause, /:id/resume): the clock takes a break where timekeeping is automatic. */
+  onPause?: JobHook
+  onResume?: JobHook
   maxLimit?: number
   /**
    * Present → a NEW job must be for a customer (the one named, or its project's), refused in words when it is not, and
@@ -185,7 +188,7 @@ export const JOB_MOVES_FROM = {
 
 /** The sentence for a button that would move a job backwards (or out of cancelled). */
 export function jobMoveRefusal(to: string, from: string): string {
-  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : to === 'on_hold' ? 'put on hold' : 'completed'
+  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : to === 'on_hold' ? 'put on hold' : to === 'paused' ? 'paused' : to === 'resumed' ? 'resumed' : 'completed'
   if (from === 'cancelled') return `This job was cancelled, so it can't be ${doing}. Reopen it first.`
   if (from === 'completed') return `This job is already completed, so it can't be ${doing} again. Reopen it first if there is more to do.`
   return `This job is already ${from === 'in_progress' ? 'in progress' : from.replace(/_/g, ' ')}, so it can't be ${doing} now.`
@@ -1307,6 +1310,31 @@ export function createJobRoutes(deps: JobDeps) {
   transition('dispatch', 'dispatched', () => hookFor('dispatched'))
   // Put on hold (waiting on a part, the customer, the weather): the job keeps its crew and day; Start or On my way picks it up again.
   transition('hold', 'on_hold', () => undefined)
+
+  /**
+   * POST /:id/pause and /:id/resume — Paused (ServiceTitan): the tech stops work for a while (lunch, a parts run) and
+   * stays on the job. A stamp, not a status: the job stays in_progress, so every list and report reads as before. Only a
+   * job being worked can be paused; a repeat changes nothing; a finished or cancelled job is refused in words. The time
+   * tapped on the phone is kept the same way the moves keep it; the hooks let the clock take a break (crm/field/clockExtras).
+   */
+  for (const [path, paused] of [['pause', true], ['resume', false]] as const) {
+    app.post(`/:id/${path}`, requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      const now = await findOwned(id, currentUser.companyId)
+      if (!now) return c.json({ error: 'Job not found' }, 404)
+      if (now.status === 'completed' || now.status === 'cancelled') return c.json({ error: jobMoveRefusal(paused ? 'paused' : 'resumed', String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
+      if (paused && now.status !== 'in_progress') return c.json({ error: `This job is not started, so there is nothing to pause. Tap I've arrived first.`, code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
+      if (!!(now as any).pausedAt === paused) return c.json({ ...(await shapeJobMoney(c, now)), unchanged: true })
+      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
+      const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : new Date()
+      const [updated] = await db.update(t.job).set({ pausedAt: paused ? when : null, updatedAt: new Date() } as any).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
+      emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, { id: updated.id, pausedAt: (updated as any).pausedAt })
+      const more = await runHook(paused ? o.onPause : o.onResume, updated, currentUser, when)
+      return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
+    })
+  }
 
   /**
    * POST /:id/invoice — bill this job. Mounted only where options.billing says the template can. (T41)

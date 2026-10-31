@@ -7,7 +7,8 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "quote_salesperson_idx" ON "quote" USING btree ("salesperson_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "quote_salesperson_idx" ON "quote" USING btree ("salesperson_id");
+--> statement-breakpoint
 -- A quote that already became a job is dated by that job's creation (the earliest, when several came from it).
 UPDATE "quote" q SET "converted_at" = m."at"
 FROM (

@@ -210,6 +210,14 @@ export function createClockExtras(d: CrmDeps) {
       if (!r.ok && r.status !== 409) logger.warn('[time] automatic clock-in not kept', { error: r.error })
       return
     }
+    // Paused / resumed: the job's own clock takes a break and ends it (the person's hours stop while they are paused).
+    if (kind === 'paused' || kind === 'resumed') {
+      const open = await clock.activeEntry(userId, companyId)
+      if (!open || open.clockSource !== 'job' || open.jobId !== j.id) return
+      const r = kind === 'paused' ? (open.breakStartedAt ? { ok: true } : await clock.startBreak({ userId, companyId }, { at })) : (open.breakStartedAt ? await clock.endBreak({ userId, companyId }, { at }) : { ok: true })
+      if (!r.ok) logger.warn('[time] automatic break not kept', { error: (r as any).error })
+      return
+    }
     if (kind === 'completed') {
       const open = await clock.activeEntry(userId, companyId)
       // Only the clock this job opened: a clock the person started by hand, or for another job, is theirs to close.

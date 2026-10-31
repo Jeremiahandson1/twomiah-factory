@@ -10,7 +10,7 @@
  */
 import type { ItemView } from '../offline/engine'
 
-export type StepKey = 'on_hold' | 'on_my_way' | 'arrived' | 'checklist' | 'photos' | 'signature' | 'complete'
+export type StepKey = 'on_hold' | 'paused' | 'on_my_way' | 'arrived' | 'checklist' | 'photos' | 'signature' | 'complete'
 export type StepState = 'done' | 'waiting' | 'failed' | 'next' | 'todo'
 
 export interface FlowStep { key: StepKey; label: string; state: StepState; note?: string }
@@ -33,6 +33,8 @@ export interface FlowInput {
   photoCount: number | null
   /** When the tech first pressed Arrived (the job's startedAt): a job put on hold after that still shows it as done. */
   startedAt?: string | null
+  /** The server's pausedAt: the tech paused work (lunch, a parts run) and is still on the job. */
+  pausedAt?: string | null
 }
 
 export const jobKey = (id: string) => `job:${id}`
@@ -44,6 +46,8 @@ const MOVES: Array<{ suffix: string; to: string; from: string[] }> = [
   { suffix: '/hold', to: 'on_hold', from: ['scheduled', 'dispatched', 'in_progress'] },
 ]
 const ORDER = ['scheduled', 'dispatched', 'in_progress', 'completed']
+// Pause / resume are a stamp on a started job, not a status (jobs.ts POST /:id/pause, /:id/resume).
+const PAUSES = ['/pause', '/resume']
 
 /**
  * The body of a move sent from the phone: WHEN the tech tapped, on the phone's clock. A move kept until signal returns still
@@ -57,6 +61,21 @@ const queuedMoves = (input: FlowInput) =>
   input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST')
     .map((q) => ({ q, move: MOVES.find((m) => q.path === `/api/jobs/${input.jobId}${m.suffix}`) }))
     .filter((x): x is { q: typeof x.q; move: typeof MOVES[number] } => !!x.move)
+const queuedPauses = (input: FlowInput) =>
+  input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST' && PAUSES.some((p) => q.path === `/api/jobs/${input.jobId}${p}`))
+    .map((q) => ({ q, suffix: PAUSES.find((p) => q.path === `/api/jobs/${input.jobId}${p}`)! }))
+
+/** Is the job paused once what is waiting is sent? A refused pause does not count; a move past in_progress ends it. */
+export function effectivePaused(input: FlowInput): boolean {
+  let paused = !!input.pausedAt
+  const all = input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST' && q.state !== 'failed')
+  for (const q of all) {
+    if (q.path === `/api/jobs/${input.jobId}/pause`) paused = true
+    else if (q.path === `/api/jobs/${input.jobId}/resume`) paused = false
+    else if (MOVES.some((m) => q.path === `/api/jobs/${input.jobId}${m.suffix}`)) paused = false
+  }
+  return paused && effectiveStatus(input) === 'in_progress'
+}
 
 /** The status the job will have once what is waiting is sent. A refused move does not count. */
 export function effectiveStatus(input: FlowInput): string {
@@ -71,7 +90,7 @@ export function effectiveStatus(input: FlowInput): string {
   return status
 }
 
-export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]; next: StepKey | null; completeBlockedBy: string | null; canHold: boolean } {
+export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]; next: StepKey | null; completeBlockedBy: string | null; canHold: boolean; canPause: boolean; paused: boolean } {
   const moves = queuedMoves(input)
   const moveState = (suffix: string, doneBy: string): { state: StepState; note?: string } => {
     const queued = moves.find((m) => m.move.suffix === suffix)
@@ -123,5 +142,18 @@ export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]
   const withNext = steps.map((s) => (s.key === next && s.state === 'todo' ? { ...s, state: 'next' as StepState } : s))
   // May the tech put it on hold now? Not when it is already (or about to be) on hold, finished, or cancelled, or a hold was refused.
   const canHold = ['scheduled', 'dispatched', 'in_progress'].includes(status) && !holdMove
-  return { status, steps: withNext, next: status === 'on_hold' ? (holdMove?.q.state === 'failed' ? null : 'on_hold' as StepKey) : next, completeBlockedBy, canHold }
+  // Paused: the job is started and the tech stopped for a while. The one step is Resume work; a pause waiting to send shows so;
+  // a refused pause shows the server's words. Pause is offered only on a started job that is not (about to be) paused.
+  const paused = effectivePaused(input)
+  const pauses = queuedPauses(input)
+  const lastPause = pauses.filter((p) => p.suffix === '/pause').pop()
+  const failedPause = pauses.find((p) => p.q.state === 'failed')
+  if (paused || failedPause) {
+    withNext.unshift(failedPause
+      ? { key: 'paused', label: failedPause.suffix === '/pause' ? 'Pause' : 'Resume work', state: 'failed', note: failedPause.q.refusal?.message || failedPause.q.lastError || "Couldn't send" }
+      : { key: 'paused', label: 'Paused', state: lastPause && lastPause.q.state !== 'failed' ? 'waiting' : 'next', note: lastPause && lastPause.q.state !== 'failed' ? undefined : 'Tap Resume work to carry on' })
+  }
+  const canPause = status === 'in_progress' && !paused && !pauses.some((p) => p.q.state !== 'failed')
+  const nextKey: StepKey | null = status === 'on_hold' ? (holdMove?.q.state === 'failed' ? null : 'on_hold' as StepKey) : paused ? (failedPause ? null : 'paused') : next
+  return { status, steps: withNext, next: nextKey, completeBlockedBy, canHold, canPause, paused }
 }
