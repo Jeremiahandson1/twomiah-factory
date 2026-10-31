@@ -491,20 +491,39 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const [row] = await db.select().from(t.automation).where(eq(t.automation.companyId, companyId)).limit(1)
     return row || null
   }
+  /**
+   * The business's saved segments as a limit on an automatic email (the store's store_segments): the same filter a
+   * campaign audience uses. `undefined` back = the segment is gone, or segments are switched off — then NOBODY matches.
+   */
+  const segmentFilter = deps.audienceFilters?.segmentId
+  const segmentCondition = async (segmentId: string | null | undefined, companyId: string): Promise<SQL | undefined | 'everyone'> => {
+    if (!segmentId) return 'everyone'
+    if (!segmentFilter) return undefined
+    return segmentFilter(segmentId, companyId)
+  }
   async function getAutomations(companyId: string) {
     const row = await automationRow(companyId)
     const can = !!(t.automation && t.automationSend)
     const wb = DEFAULT_WIN_BACK(), wl = DEFAULT_WELCOME()
+    // The segments the owner may limit each email to (none offered where the business has no saved segments, or they are off).
+    const segments = segmentFilter && deps.audienceOptions ? (await deps.audienceOptions(companyId)).segments || [] : []
     return {
-      winBack: { available: can && !!deps.lastActivity, word: activityWord, days: row?.winBackDays ?? null, subject: row?.winBackSubject || wb.subject, body: row?.winBackBody || wb.body, customSubject: !!row?.winBackSubject, customBody: !!row?.winBackBody },
-      welcome: { available: can && !!deps.welcome, on: !!row?.welcomeOn, subject: row?.welcomeSubject || wl.subject, body: row?.welcomeBody || wl.body, customSubject: !!row?.welcomeSubject, customBody: !!row?.welcomeBody },
+      winBack: { available: can && !!deps.lastActivity, word: activityWord, days: row?.winBackDays ?? null, subject: row?.winBackSubject || wb.subject, body: row?.winBackBody || wb.body, customSubject: !!row?.winBackSubject, customBody: !!row?.winBackBody, segmentId: row?.winBackSegmentId ?? null },
+      welcome: { available: can && !!deps.welcome, on: !!row?.welcomeOn, subject: row?.welcomeSubject || wl.subject, body: row?.welcomeBody || wl.body, customSubject: !!row?.welcomeSubject, customBody: !!row?.welcomeBody, segmentId: row?.welcomeSegmentId ?? null },
+      segments,
     }
   }
-  async function saveAutomations(companyId: string, data: { winBackDays?: number | null; winBackSubject?: string | null; winBackBody?: string | null; welcomeOn?: boolean; welcomeSubject?: string | null; welcomeBody?: string | null }) {
+  async function saveAutomations(companyId: string, data: { winBackDays?: number | null; winBackSubject?: string | null; winBackBody?: string | null; welcomeOn?: boolean; welcomeSubject?: string | null; welcomeBody?: string | null; winBackSegmentId?: string | null; welcomeSegmentId?: string | null }) {
     const cur = await getAutomations(companyId)
     if (data.winBackDays !== undefined && data.winBackDays !== null && !cur.winBack.available) throw new MarketingError('Win-back emails are not available here.', 400)
     if (data.welcomeOn === true && !cur.welcome.available) throw new MarketingError('A welcome email is not available here.', 400)
     if (data.winBackDays !== undefined && data.winBackDays !== null && (!Number.isInteger(data.winBackDays) || data.winBackDays < 14 || data.winBackDays > 730)) throw new MarketingError('Choose a number of days from 14 to 730.', 400)
+    // A segment is accepted only when it is one the owner could pick right now (saved, and segments switched on).
+    for (const id of [data.winBackSegmentId, data.welcomeSegmentId]) {
+      if (id === undefined || id === null) continue
+      if (!segmentFilter) throw new MarketingError('Saved segments are not available here.', 400)
+      if (!cur.segments.some((s) => s.id === id)) throw new MarketingError('That segment no longer exists. Choose another, or send to every customer.', 400)
+    }
     const clean = (v: string | null | undefined) => (v === undefined ? undefined : (v === null || !v.trim() ? null : v))
     const subjects = { winBackSubject: clean(data.winBackSubject), welcomeSubject: clean(data.welcomeSubject) }
     const bodies = { winBackBody: data.winBackBody === undefined ? undefined : (data.winBackBody ? sanitizeEmailHtml(data.winBackBody).trim() || null : null), welcomeBody: data.welcomeBody === undefined ? undefined : (data.welcomeBody ? sanitizeEmailHtml(data.welcomeBody).trim() || null : null) }
@@ -512,6 +531,8 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const set: Record<string, unknown> = {}
     if (data.winBackDays !== undefined) set.winBackDays = data.winBackDays
     if (data.welcomeOn !== undefined) set.welcomeOn = data.welcomeOn
+    if (data.winBackSegmentId !== undefined) set.winBackSegmentId = data.winBackSegmentId || null
+    if (data.welcomeSegmentId !== undefined) set.welcomeSegmentId = data.welcomeSegmentId || null
     for (const [k, v] of Object.entries({ ...subjects, ...bodies })) if (v !== undefined) set[k] = v
     if (!t.automation) throw new MarketingError('Automatic emails are not available here.', 400)
     await db.insert(t.automation).values({ companyId, ...set }).onConflictDoUpdate({ target: t.automation.companyId, set: { ...set, updatedAt: new Date() } })
@@ -536,6 +557,13 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     if (isFeatureEnabled && !(await isFeatureEnabled(companyId, 'email_marketing'))) return 'off'
     const [c] = await db.select().from(t.contact).where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId))).limit(1)
     if (!c || !c.email || c.emailOptOut) return 'skipped'
+    // Limited to a segment: only a customer in it (their first order counts — it is paid by now). A gone segment: no one.
+    const within = await segmentCondition(row.welcomeSegmentId, companyId)
+    if (within !== 'everyone') {
+      if (!within) return 'skipped'
+      const [hit] = await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId), within)).limit(1)
+      if (!hit) return 'skipped'
+    }
     const claim = await claimAutomated(companyId, contactId, 'welcome', 'welcome')
     if (!claim) return 'already'
     const wl = DEFAULT_WELCOME()
@@ -572,11 +600,15 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       companies++
       const days = Number(cfg.winBackDays)
       const day = 86_400_000
+      // Limited to a segment: only its customers lapse into a win-back. A segment that is gone (or segments off) sends to no one.
+      const within = await segmentCondition(cfg.winBackSegmentId, cfg.companyId)
+      if (!within) continue
       const lapsed = await db.select({ id: t.contact.id, name: t.contact.name, email: t.contact.email, company: t.contact.company, last: sql`${last}`.as('last_activity') })
         .from(t.contact)
         .where(and(
           eq(t.contact.companyId, cfg.companyId), sql`${t.contact.email} IS NOT NULL`, sql`${t.contact.email} <> ''`, eq(t.contact.emailOptOut, false),
           sql`(${last}) <= ${new Date(now.getTime() - days * day)}`, sql`(${last}) > ${new Date(now.getTime() - (days + WIN_BACK_CATCH_UP_DAYS) * day)}`,
+          ...(within === 'everyone' ? [] : [within]),
         ))
         .orderBy(sql`last_activity ASC`).limit(WIN_BACK_BATCH)
       const wb = DEFAULT_WIN_BACK()
@@ -589,6 +621,13 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       }
     }
     return { companies, sent }
+  }
+  /** Why a saved segment may not be removed: an automatic email still sends to it (null = free). */
+  async function segmentInUse(companyId: string, segmentId: string): Promise<string | null> {
+    const row = await automationRow(companyId)
+    if (row?.welcomeSegmentId === segmentId) return 'Your welcome email setting'
+    if (row?.winBackSegmentId === segmentId) return 'Your win-back email setting'
+    return null
   }
   /** What the audience picker can offer: the tags in use, the business's own groups, and whether "not back in N days" works. */
   async function audienceOptions(companyId: string) {
@@ -658,7 +697,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     createTemplate, getTemplates, getTemplate, updateTemplate, duplicateTemplate, deleteTemplate,
     createCampaign, getCampaigns, getCampaign, updateCampaign, getCampaignRecipients, sendCampaign, scheduleCampaign, unscheduleCampaign, deleteCampaign, processScheduledCampaigns,
     createSequence, getSequence, getSequences, updateSequence, deleteSequence, enrollInSequence, getEnrollments, processDripEmails, startMarketingProcessor,
-    previewAudience, audienceOptions, getAutomations, saveAutomations, sendWelcome, sendClaimed, processWinBacks,
+    previewAudience, audienceOptions, getAutomations, saveAutomations, sendWelcome, sendClaimed, processWinBacks, segmentInUse,
     trackOpen, trackClick, handleUnsubscribe, resubscribe, getMarketingStats,
   }
 }
@@ -698,6 +737,8 @@ const automationSchema = z.object({
   welcomeOn: z.boolean().optional(),
   welcomeSubject: z.string().max(300).nullable().optional(),
   welcomeBody: z.string().max(200_000).nullable().optional(),
+  winBackSegmentId: z.string().min(1).max(100).nullable().optional(),
+  welcomeSegmentId: z.string().min(1).max(100).nullable().optional(),
 })
 
 export function createMarketingRoutes({ service: m, authenticate, requirePermission, escapeHtml, featureGate, campaignsGate }: MarketingRoutesDeps) {

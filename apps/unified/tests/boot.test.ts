@@ -18,7 +18,7 @@ let seeded: Awaited<ReturnType<typeof seedOwner>>
 beforeAll(async () => {
   t = await bootTenant()
   seeded = await seedOwner(t)
-})
+}, 120_000) // 58 migrations on an empty database: more than the default five seconds on a slow machine
 
 const login = (password: string) => t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password } })
 

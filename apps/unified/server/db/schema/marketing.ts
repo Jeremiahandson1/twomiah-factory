@@ -586,6 +586,11 @@ export const marketingAutomation = pgTable('marketing_automation', {
   welcomeOn: boolean('welcome_on').default(false).notNull(),
   welcomeSubject: text('welcome_subject'),
   welcomeBody: text('welcome_body'),
+  // 2026-10-31, store parity row 2: each email may be limited to one of the business's saved segments (the store's
+  // store_segment; null = every customer). No foreign key: the segment table is the store's, this module is every trade's;
+  // a segment that is gone matches NOBODY, never everyone (marketing.ts).
+  winBackSegmentId: text('win_back_segment_id'),
+  welcomeSegmentId: text('welcome_segment_id'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [uniqueIndex('marketing_automation_company_unique').on(t.companyId)])
 

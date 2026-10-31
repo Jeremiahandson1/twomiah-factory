@@ -23,7 +23,7 @@ QuickBooks are offered to the store as opt-in. Marks: **built** · **partly** ·
 | 1 | CSV export | sales by day, products, codes | built |
 | 3 | Segments from CRM data: groups, tags, last order date | tag, customer group, "no order in N days" | built |
 | 3 | Segments by total spend, order count, product / category bought and **not** bought | `store_segments`: saved segments over the last N days or a stretch of the shop's own days; one query shared by campaigns, the post-purchase emails and the audience export | built |
-| 3 | Segments usable by campaigns and automations | campaigns (audience picker) and the three post-purchase emails can each be limited to a segment. The shared **welcome** and **win-back** automations cannot: they are one setting per shop in the shared Email Marketing module and take no audience | partly |
+| 3 | Segments usable by campaigns and automations | campaigns (audience picker), the three post-purchase emails, and the shared **welcome** and **win-back** automations can each be limited to a saved segment (the same query; a segment that is gone matches nobody; a segment an email sends to cannot be deleted) | built |
 | 3 | Campaign editor + send to a segment | shared Email Marketing | built |
 | 3 | Welcome series; win-back after N days (owner sets N) | both, off by default; every trade with Email Marketing gets them | built |
 | 3 | Post-purchase automation | `store_followups`, off by default: first-order follow-up, thank-you with the products bought / cross-sell, replenishment reminder (owner sets the days); sent once per order through the shared claim, so unsubscribe and Email Marketing gating are honoured; plus the review request | built |
@@ -52,9 +52,8 @@ QuickBooks are offered to the store as opt-in. Marks: **built** · **partly** ·
 | 8 | A catalogue of apps made by other companies (the App Store) | needs those developers, a review of their apps and a listing; a developer can build against the Store API and webhooks | outside party |
 
 ## What is left
-Only an outside party, an approval or a real-device look remains; nothing in the eight rows was left unbuilt.
-1. **Row 2 — partly.** The shared welcome and win-back automations do not take a segment (shared Email Marketing module; one setting per shop).
-2. **Outside party, not built:** Shop Pay's network across stores; Shopify Audiences' pool of shoppers; other companies' apps in a catalogue.
-3. **Owner's approvals before these work live:** Apple Pay domain registration with Stripe; the Stripe Connect webhook subscribed to `payment_intent.succeeded` (wallet payments); a Meta System User token with `ads_management` (App Review if the app is not theirs); Google's developer-token approval and an OAuth client for Customer Match.
-4. **Never run against the real thing:** Stripe.js and the wallets, Meta's and Google's APIs (tested against stand-ins), any webhook receiver. No page was seen in a real browser and no phone screen on a real phone.
-5. **Is the trade at full parity with Shopify?** Not yet: what a single shop can do is built, behind hidden switches, but the three outside-party items above are Shopify's own network and marketplace, and the unseen items must be tried live before any switch is turned on.
+Only an outside party, an approval or a real-device look remains; nothing in the eight rows was left unbuilt or partly built.
+1. **Outside party, not built:** Shop Pay's network across stores; Shopify Audiences' pool of shoppers; other companies' apps in a catalogue.
+2. **Owner's approvals before these work live:** Apple Pay domain registration with Stripe; the Stripe Connect webhook subscribed to `payment_intent.succeeded` (wallet payments); a Meta System User token with `ads_management` (App Review if the app is not theirs); Google's developer-token approval and an OAuth client for Customer Match.
+3. **Never run against the real thing:** Stripe.js and the wallets, Meta's and Google's APIs (tested against stand-ins), any webhook receiver. No page was seen in a real browser and no phone screen on a real phone.
+4. **Is the trade at full parity with Shopify?** Not yet: what a single shop can do is built, behind hidden switches, but the three outside-party items above are Shopify's own network and marketplace, and the unseen items must be tried live before any switch is turned on.

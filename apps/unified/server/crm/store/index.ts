@@ -54,7 +54,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
     ...ordersMounts(d, core),
     ...catalogMounts(d, core),
     // 2026-10-31, parity row 2: saved customer segments (marketing:read), behind store_segments (not ready).
-    { path: '/api/admin/segments', access: 'user', feature: 'store_segments', router: createSegmentRoutes(d, followups.segmentInUse) },
+    // A segment stays while a post-purchase email, the welcome or the win-back still sends to it.
+    { path: '/api/admin/segments', access: 'user', feature: 'store_segments', router: createSegmentRoutes(d, async (companyId, segmentId) => (await followups.segmentInUse(companyId, segmentId)) ?? (await d.services.marketing.segmentInUse(companyId, segmentId))) },
     // 2026-10-31, parity row 3: the post-purchase emails' settings (marketing:read / marketing:update), behind store_followups (not ready).
     { path: '/api/admin/followups', access: 'user', feature: 'store_followups', router: createFollowupRoutes(d, followups) },
     // 2026-10-31, parity row 4: "Draft a reorder" — supplier purchase orders (margin:read, products:update), behind store_reorders (not ready).
