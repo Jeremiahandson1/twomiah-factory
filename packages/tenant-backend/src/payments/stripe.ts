@@ -1022,6 +1022,79 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   // Bun serves requests on WebCrypto, whose signature check is async-only —
   // Stripe's sync constructEvent() throws SubtleCryptoProvider errors here.
+  // ============================================
+  // TAP TO PAY (the phone as the card reader)
+  // ============================================
+  // The owner's decision (10/30): a card tapped on the business's own phone, through Stripe Terminal's mobile SDK, on the
+  // business's own connected Stripe account — never the platform's. The phone asks for a connection token and the
+  // business's Terminal location, then for an in-person PaymentIntent for an invoice; the SDK collects the tap and
+  // confirms it; the phone tells the server, which reads the PaymentIntent from Stripe and records it like any other card
+  // payment (handlePaymentSuccess, once — the payment's reference is the PaymentIntent id, so Stripe's webhook for the
+  // same payment is recognised as a repeat). Nothing is recorded on the phone's word alone.
+  const TAP_KIND = 'tap_to_pay'
+  const tapRefusal = (message: string, status = 400, code?: string) => Object.assign(new Error(message), { status, code })
+
+  /** The business's Terminal location (Stripe needs one to connect a reader): made once from its address, per account. */
+  async function terminalLocationFor(companyId: string, stripeAccount: string): Promise<string> {
+    const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+    const integrations: any = co?.integrations || {}
+    const kept = integrations.stripeTerminalLocation
+    if (kept && kept.account === stripeAccount && typeof kept.id === 'string') return kept.id
+    if (!co?.address || !co?.city || !co?.state || !co?.zip) throw tapRefusal("Add the business's street address, city, state and ZIP in Settings first — Stripe needs it to accept taps.", 400, 'address_needed')
+    const loc = await stripe!.terminal.locations.create({ display_name: String(co.name || 'Business').slice(0, 100), address: { line1: co.address, city: co.city, state: co.state, postal_code: co.zip, country: 'US' } }, { stripeAccount })
+    await db.update(company).set({ integrations: { ...integrations, stripeTerminalLocation: { account: stripeAccount, id: loc.id } }, updatedAt: new Date() } as any).where(eq(company.id, companyId))
+    return loc.id
+  }
+
+  /** A connection token for the phone's Terminal SDK, and the location it connects with. Only on a connected account. */
+  async function tapToPayConnection(companyId: string): Promise<{ secret: string; locationId: string }> {
+    if (!stripe) throw tapRefusal('Card payments are not set up on this server yet.', 503, 'STRIPE_NOT_CONFIGURED')
+    const stripeAccount = await connectedAccountFor(companyId)
+    if (!stripeAccount) throw tapRefusal('Connect your Stripe account in Settings › Integrations first: taps are paid into your own Stripe.', 400, 'stripe_not_connected')
+    const locationId = await terminalLocationFor(companyId, stripeAccount)
+    const token = await stripe.terminal.connectionTokens.create({ location: locationId }, { stripeAccount })
+    return { secret: token.secret, locationId }
+  }
+
+  /** An in-person PaymentIntent for what the invoice still owes (or less, when `amount` is given). */
+  async function createTapToPayIntent(invoiceRow: any, amount?: number, idempotencyKey?: string) {
+    if (!stripe) throw tapRefusal('Card payments are not set up on this server yet.', 503, 'STRIPE_NOT_CONFIGURED')
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    if (!stripeAccount) throw tapRefusal('Connect your Stripe account in Settings › Integrations first: taps are paid into your own Stripe.', 400, 'stripe_not_connected')
+    const owed = Math.round(invoiceOwed(invoiceRow) * 100)
+    if (owed <= 0) throw tapRefusal('Nothing is owed on this invoice.', 400, 'nothing_owed')
+    const cents = amount === undefined ? owed : Math.round(Number(amount) * 100)
+    if (!(cents > 0)) throw tapRefusal('Enter an amount more than $0.', 400)
+    if (cents > owed) throw tapRefusal(`That is more than the ${(owed / 100).toFixed(2)} still owed.`, 400, 'over_balance')
+    // The business's account, and the phone's key for this attempt (a second press is the same PaymentIntent) — the
+    // shape chargeSavedCard uses.
+    const requestOpts = (account: string) => ({ stripeAccount: account, ...(idempotencyKey ? { idempotencyKey: `tap:${invoiceRow.id}:${idempotencyKey}` } : {}) })
+    const intent = await stripe.paymentIntents.create({
+      amount: cents, currency: 'usd', payment_method_types: ['card_present'], capture_method: 'automatic',
+      description: `Invoice ${invoiceRow.number} (tap to pay)`,
+      metadata: { invoice_id: invoiceRow.id, invoice_number: invoiceRow.number, company_id: invoiceRow.companyId, kind: TAP_KIND },
+    }, requestOpts(stripeAccount))
+    return { paymentIntentId: intent.id, clientSecret: intent.client_secret, amount: cents / 100 }
+  }
+
+  /**
+   * The phone says the tap went through: read the PaymentIntent from Stripe and, when it succeeded (captured here if the
+   * tap only authorised it), record it on its invoice. A PaymentIntent of another business, or not a tap, is refused.
+   */
+  async function recordTapToPay(companyId: string, paymentIntentId: string) {
+    if (!stripe) throw tapRefusal('Card payments are not set up on this server yet.', 503, 'STRIPE_NOT_CONFIGURED')
+    const stripeAccount = await connectedAccountFor(companyId)
+    if (!stripeAccount) throw tapRefusal('Connect your Stripe account in Settings › Integrations first.', 400, 'stripe_not_connected')
+    let intent: Stripe.PaymentIntent
+    try { intent = await stripe.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount)) } catch { throw tapRefusal('That payment was not found.', 404) }
+    if (intent.metadata?.company_id !== companyId || intent.metadata?.kind !== TAP_KIND) throw tapRefusal('That payment was not found.', 404)
+    if (intent.status === 'requires_capture') intent = await stripe.paymentIntents.capture(intent.id, {}, { stripeAccount, idempotencyKey: `tap-capture:${intent.id}` })
+    if (intent.status !== 'succeeded') return { recorded: false, status: intent.status }
+    const out: any = await handlePaymentSuccess(intent, stripeAccount)
+    if (out?.handled === false) throw tapRefusal(out.error || 'The payment went through at Stripe but could not be recorded on the invoice. Record it by hand.', 409, 'not_recorded')
+    return { recorded: true, status: intent.status, invoiceId: intent.metadata.invoice_id, amount: intent.amount / 100, duplicate: !!out?.duplicate }
+  }
+
   async function constructWebhookEvent(payload: string | Buffer, signature: string) {
     return await stripe!.webhooks.constructEventAsync(payload, signature, process.env.STRIPE_WEBHOOK_SECRET!)
   }
@@ -1055,6 +1128,9 @@ export function createStripeService(deps: StripeServiceDeps) {
     createCardSetupCheckout,
     retrieveCardSetup,
     chargeSavedCard,
+    tapToPayConnection,
+    createTapToPayIntent,
+    recordTapToPay,
   }
 }
 
@@ -1080,6 +1156,8 @@ export interface StripeRoutesDeps {
   canTakeCardPayments?: (companyId: string) => Promise<boolean>
   /** The Online Payments gate for the office's card routes (the unified app: online_payments). */
   requireFeature?: (c: any, next: any) => any
+  /** Tap to Pay on the phone's gate (the unified app: tap_to_pay). Absent: the tap-to-pay routes are not mounted. */
+  requireTapToPay?: (c: any, next: any) => any
 }
 
 export function createStripeRoutes(deps: StripeRoutesDeps) {
@@ -1136,6 +1214,40 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     const gate = deps.requireFeature
     app.use('*', async (c: any, next: any) => (c.req.path.includes('/portal/') ? next() : gate(c, next)))
   }
+  // ============================================
+  // TAP TO PAY (the phone as the reader) — stripeService.tapToPayConnection / createTapToPayIntent / recordTapToPay.
+  // invoices:update: the seats that may record a payment on an invoice (POST /api/invoices/:id/payments asks the same).
+  // ============================================
+  if (deps.requireTapToPay) {
+    const tap = deps.requireTapToPay
+    const answer = async (c: any, run: () => Promise<any>) => {
+      try { return c.json(await run()) } catch (e: any) {
+        if (e?.status) return c.json({ error: e.message, ...(e.code ? { code: e.code } : {}) }, e.status)
+        console.error('[tap-to-pay]', e?.message)
+        return c.json({ error: `Stripe did not answer: ${e?.message || 'try again'}` }, 502)
+      }
+    }
+    app.post('/tap-to-pay/connection-token', tap, requirePermission('invoices:update'), async (c: any) =>
+      answer(c, () => stripeService.tapToPayConnection((c.get('user') as any).companyId)))
+    app.post('/tap-to-pay/invoices/:id/intent', tap, requirePermission('invoices:update'), async (c: any) => {
+      const user = c.get('user') as any
+      const b: any = await c.req.json().catch(() => ({}))
+      const [inv] = await db.select().from(invoice).where(and(eq(invoice.id, c.req.param('id')), eq(invoice.companyId, user.companyId))).limit(1)
+      if (!inv) return c.json({ error: 'Invoice not found' }, 404)
+      if (inv.status === 'void' || inv.status === 'draft') return c.json({ error: `This invoice is ${inv.status}: send it before taking a payment.` }, 400)
+      const key = typeof b?.key === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(b.key) ? b.key : undefined
+      return answer(c, () => stripeService.createTapToPayIntent(inv, b?.amount === undefined || b?.amount === null ? undefined : Number(b.amount), key))
+    })
+    app.post('/tap-to-pay/payments/:paymentIntentId/record', tap, requirePermission('invoices:update'), async (c: any) => {
+      const user = c.get('user') as any
+      return answer(c, async () => {
+        const out = await stripeService.recordTapToPay(user.companyId, c.req.param('paymentIntentId'))
+        if (out.recorded) audit?.log?.({ req: c, action: audit.ACTIONS?.UPDATE ?? 'update', entity: 'invoice', entityId: out.invoiceId, userId: user.userId, companyId: user.companyId, metadata: { tapToPay: true, amount: out.amount } })
+        return out
+      })
+    })
+  }
+
   /** A customer's saved-card door, refused while this business takes no cards online (the switch, the account, the keys). */
   const portalTakesCards = async (contactRow: any) => !deps.canTakeCardPayments || (await deps.canTakeCardPayments(contactRow.companyId).catch(() => false))
 

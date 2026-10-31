@@ -50,8 +50,10 @@ export default function InvoiceDetailScreen() {
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('cash')
   // A salon records the stylist's tip with the payment, as its desktop does (verticals/salon/settings.ts invoicing.tips).
-  const { vertical } = useVertical()
+  const { vertical, hasFeature } = useVertical()
   const tips = vertical === 'salon'
+  // Tap to Pay on this phone (tap_to_pay, not ready): the card is tapped here, into the business's own Stripe (./tap.tsx).
+  const tapToPay = hasFeature('tap_to_pay')
   const [tip, setTip] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -103,7 +105,8 @@ export default function InvoiceDetailScreen() {
       onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
       footer={(canPay || canSend) ? (
         <View style={{ flexDirection: 'row', gap: space[2] }}>
-          {canPay ? <View style={{ flex: 1 }}><Button label="Record payment" icon="cash" size="lg" fullWidth onPress={openPay} /></View> : null}
+          {canPay && tapToPay && invoice.status !== 'draft' ? <View style={{ flex: 1 }}><Button label="Tap to Pay" icon="card" size="lg" fullWidth onPress={() => router.push(`/(details)/invoice/tap?id=${encodeURIComponent(String(invoice.id))}`)} /></View> : null}
+          {canPay ? <View style={{ flex: 1 }}><Button label="Record payment" icon="cash" size="lg" fullWidth variant={tapToPay && invoice.status !== 'draft' ? 'secondary' : 'primary'} onPress={openPay} /></View> : null}
           {canSend ? <View style={{ flex: 1 }}><Button label={invoice.status === 'draft' ? 'Send invoice' : 'Send again'} icon="paper-plane" size="lg" fullWidth variant={canPay ? 'secondary' : 'primary'} onPress={() => setSheet('send')} /></View> : null}
         </View>
       ) : undefined}>

@@ -521,7 +521,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin, requireFeature: features.requireEnabledFeature('two_way_texting') } as any)) },
     // Home care's /api/stripe pays its visit invoices (server/crm/homecare/billing/stripe.ts), so the shared one — which
     // pays the CRM's invoice — stands aside there.
-    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments, requireFeature: features.requireEnabledFeature('online_payments') } as any) }]),
+    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments, requireFeature: features.requireEnabledFeature('online_payments'), requireTapToPay: features.requireEnabledFeature('tap_to_pay') } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.

@@ -201,6 +201,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // The app talks to its server over HTTPS only (no encryption of its own): no export-compliance question on each upload.
         ITSAppUsesNonExemptEncryption: false,
       },
+      // Tap to Pay on iPhone (tap_to_pay): Apple grants this entitlement to the developer account on request. A build that
+      // carries it before Apple has granted it fails signing, so it is added only when the build says so
+      // (TAP_TO_PAY_IOS=1 in the EAS profile, once Apple's email arrives).
+      ...(process.env.TAP_TO_PAY_IOS === '1' ? { entitlements: { 'com.apple.developer.proximity-reader.payment.acceptance': true } } : {}),
       // Apple's required-reason API declarations for what the app and its libraries use (Expo's list for SDK 52).
       privacyManifests: {
         NSPrivacyAccessedAPITypes: [
@@ -217,8 +221,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundColor: TWOMIAH_DARK,
       },
       package: v.bundleId,
-      // Added by the platform's defaults, not used by this app: no sound recording, no drawing over other apps.
-      blockedPermissions: ['android.permission.RECORD_AUDIO', 'android.permission.SYSTEM_ALERT_WINDOW'],
+      // Added by the platform's defaults, not used by this app: no sound recording, no drawing over other apps. Bluetooth is
+      // added by Stripe Terminal's plugin for its card readers; this app takes cards only by Tap to Pay on the phone itself.
+      blockedPermissions: [
+        'android.permission.RECORD_AUDIO', 'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.BLUETOOTH', 'android.permission.BLUETOOTH_ADMIN', 'android.permission.BLUETOOTH_SCAN', 'android.permission.BLUETOOTH_CONNECT',
+      ],
       permissions: [
         'CAMERA',
         'ACCESS_FINE_LOCATION',
@@ -272,6 +280,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           : { photosPermission: `Allow ${v.appName} to attach photos from your library to jobs and records`, cameraPermission: v.cameraPermission, microphonePermission: false },
       ],
       '@react-native-community/datetimepicker',
+      // Tap to Pay (tap_to_pay, not ready): Stripe Terminal's SDK. Its plugin adds the Swift file iOS needs to build it and,
+      // with tapToPayCheck, Android's guard for the Tap to Pay process; the location text stays the app's own.
+      ['@stripe/stripe-terminal-react-native', { locationWhenInUsePermission: v.locationPermission, tapToPayCheck: true }],
+      // Stripe Terminal's Android library needs Android 8 (API 26) or later; Expo 54 builds for 7 (24) by default.
+      ['expo-build-properties', { android: { minSdkVersion: 26 } }],
     ],
     extra: {
       ...(projectId ? { eas: { projectId } } : {}),
