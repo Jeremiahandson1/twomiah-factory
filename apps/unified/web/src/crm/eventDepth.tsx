@@ -2,7 +2,7 @@
 // payment reminders / pay links / card on file, the guarantee note, the room minimums, the room calendar with its
 // waitlist and feeds, the lead-source and year reports, and the venue's event settings. Each shows only with its own
 // feature on (all of them not ready) and asks the permission its server route asks.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type DragEvent as ReactDragEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText, Landmark, RefreshCw } from 'lucide-react'
 import { api } from '../api'
@@ -449,22 +449,37 @@ export function MinimumNote({ minimum }: { minimum?: { required: number | null; 
 
 // ── The room calendar ────────────────────────────────────────────────────────────────────────────────────────────────
 interface CalSpace { id: string; name: string }
-interface CalEvent { id: string; name: string; status: string; eventDate: string; startTime: string | null; endTime: string | null; spaceId: string | null; guestCount: number | null }
+interface CalEvent { id: string; name: string; status: string; eventDate: string; startTime: string | null; endTime: string | null; spaceId: string | null; guestCount: number | null; holdUntil?: string | null }
 interface Wait { id: string; spaceId: string; eventDate: string; startTime: string | null; endTime: string | null; name: string; status: string }
+interface MoveCheck { ok: boolean; blocked: { code: string; message: string } | null; warnings: string[]; notes: string[] }
+interface MoveDraft { ev: CalEvent; eventDate: string; spaceId: string; startTime: string; endTime: string }
 const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
 const mondayOf = (d: string) => { const dow = new Date(d + 'T12:00:00Z').getUTCDay(); return addDays(d, -((dow + 6) % 7)) }
+const dayWords = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const shortDay = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
 const STATUS_TONE: Record<string, string> = { enquiry: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-100', tentative: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100', confirmed: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-100', completed: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100' }
+const STATUS_WORDS: Record<string, string> = { enquiry: 'Enquiry', tentative: 'Hold', confirmed: 'Confirmed', completed: 'Completed' }
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6)
+const hhmm = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+const minsOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+const hourLabel = (h: number) => new Date(Date.UTC(2000, 0, 1, h)).toLocaleTimeString(undefined, { hour: 'numeric', timeZone: 'UTC' })
+/** Dropping on an hour: the event starts then and keeps its length (three hours when it had no times). */
+function shiftedTimes(ev: CalEvent, hour: number): { startTime: string; endTime: string } {
+  const len = ev.startTime && ev.endTime ? minsOf(ev.endTime) - minsOf(ev.startTime) : 180
+  const start = hour * 60
+  return { startTime: hhmm(start), endTime: hhmm(Math.min(start + len, 24 * 60 - 1)) }
+}
 
 export function EventCalendarPage() {
   const { hasFeature, can } = useAuth()
   const toast = useToast()
   const ask = useConfirm()
-  const [mode, setMode] = useState<'week' | 'month'>('week')
+  const [mode, setMode] = useState<'day' | 'week' | 'month'>('week')
   const [start, setStart] = useState(() => mondayOf(companyTodayKey()))
   const [data, setData] = useState<{ spaces: CalSpace[]; events: CalEvent[]; waitlist: Wait[] } | null>(null)
   const [feeds, setFeeds] = useState<Array<{ spaceId: string; name: string; path: string }> | null>(null)
   const [waitList, setWaitList] = useState<Wait[]>([])
-  const days = useMemo(() => Array.from({ length: mode === 'week' ? 7 : 35 }, (_, i) => addDays(mode === 'week' ? start : mondayOf(start.slice(0, 8) + '01'), i)), [mode, start])
+  const days = useMemo(() => mode === 'day' ? [start] : Array.from({ length: mode === 'week' ? 7 : 35 }, (_, i) => addDays(mode === 'week' ? start : mondayOf(start.slice(0, 8) + '01'), i)), [mode, start])
   const first = days[0], last = days[days.length - 1]
   const load = useCallback(async () => {
     try { setData(await client.get('/api/event-calendar', { from: first, to: last })) } catch (e) { toast.error(errorText(e, 'Could not load the calendar')) }
@@ -474,8 +489,26 @@ export function EventCalendarPage() {
   const mayFeeds = can('contacts:update')
   useEffect(() => { if (mayFeeds) client.get('/api/event-calendar/feeds').then((r: any) => setFeeds(r.data)).catch(() => setFeeds([])) }, [mayFeeds])
   const [wait, setWait] = useState<{ spaceId: string; eventDate: string; name: string; email: string; startTime: string; endTime: string } | null>(null)
+  // Moving an event: dragged onto another day, hour or room, or chosen with the Move button (which works by keyboard and on a phone,
+  // where dragging does not). Either way the same box opens; it asks the server what the move would do and the edit makes it.
+  const mayMove = hasFeature('event_calendar') && can('contacts:update')
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [move, setMove] = useState<MoveDraft | null>(null)
+  const [check, setCheck] = useState<MoveCheck | null>(null)
+  const [moveErr, setMoveErr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const asked = move ? `${move.ev.id}|${move.eventDate}|${move.spaceId}|${move.startTime}|${move.endTime}` : ''
+  useEffect(() => {
+    if (!move) { setCheck(null); return }
+    let live = true
+    setCheck(null)
+    client.post('/api/event-calendar/move-check', { eventId: move.ev.id, eventDate: move.eventDate, spaceId: move.spaceId || null, startTime: move.startTime || null, endTime: move.endTime || null })
+      .then((r: MoveCheck) => { if (live) setCheck(r) }).catch((e: unknown) => { if (live) setCheck({ ok: false, blocked: { code: 'error', message: errorText(e, 'Could not check the move') }, warnings: [], notes: [] }) })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asked])
   if (!hasFeature('event_calendar')) return <p className="text-gray-600 dark:text-slate-400">The room calendar is not switched on for this business.</p>
-  const step = mode === 'week' ? 7 : 28
+  const step = mode === 'day' ? 1 : mode === 'week' ? 7 : 28
   const submitWait = async () => {
     if (!wait) return
     try { await client.post('/api/event-waitlist', { ...wait, email: wait.email || undefined, startTime: wait.startTime || undefined, endTime: wait.endTime || undefined }); toast.success('Added to the waitlist'); setWait(null); await load() } catch (e) { toast.error(errorText(e, 'Could not add them')) }
@@ -484,33 +517,88 @@ export function EventCalendarPage() {
     if (!(await ask('The old link stops working; anyone subscribed needs the new one.', { title: 'Make a new calendar link?', confirmText: 'Make a new link' }))) return
     try { const r = await client.post(`/api/event-calendar/feeds/${spaceId}/reset`); setFeeds((f) => (f || []).map((x) => (x.spaceId === spaceId ? r : x))) } catch (e) { toast.error(errorText(e, 'Could not reset it')) }
   }
+  const openMove = (ev: CalEvent, patch: Partial<Omit<MoveDraft, 'ev'>> = {}) => { setMoveErr(''); setMove({ ev, eventDate: ev.eventDate, spaceId: ev.spaceId || '', startTime: ev.startTime || '', endTime: ev.endTime || '', ...patch }) }
+  const dropped = (id: string | null, patch: Partial<Omit<MoveDraft, 'ev'>>) => {
+    setDragId(null)
+    const ev = data?.events.find((e) => e.id === id)
+    if (ev && mayMove) openMove(ev, patch)
+  }
+  const doMove = async () => {
+    if (!move) return
+    setSaving(true); setMoveErr('')
+    try {
+      const r = await client.put(`/api/events/${move.ev.id}`, { eventDate: move.eventDate, spaceId: move.spaceId || null, startTime: move.startTime || null, endTime: move.endTime || null })
+      setMove(null)
+      toast.success(r?.warnings?.length ? `Moved. ${r.warnings.join(' ')}` : 'Moved')
+      await load()
+    } catch (e) { setMoveErr(errorText(e, 'Could not move it')) } finally { setSaving(false) }
+  }
+  const chip = (e: CalEvent) => (
+    <div key={e.id} data-testid="cal-event" draggable={mayMove} onDragStart={(ev) => { ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; setTimeout(() => setDragId(e.id), 0) }} onDragEnd={() => setDragId(null)}
+      className={`rounded px-1.5 py-1 mb-1 ${STATUS_TONE[e.status] || STATUS_TONE.enquiry} ${mayMove ? 'cursor-grab' : ''} ${dragId === e.id ? 'opacity-50' : ''}`}>
+      <Link to={`/crm/events/${e.id}`} draggable={false} className="block"><span className="font-medium">{e.startTime ? `${e.startTime}${e.endTime ? '–' + e.endTime : ''} ` : ''}</span>{e.name}</Link>
+      {e.status === 'tentative' && e.holdUntil && hasFeature('event_hold_expiry') && <span className="block text-[11px]">Hold ends {shortDay(e.holdUntil)}</span>}
+      {mayMove && <button type="button" className="text-[11px] underline" aria-label={`Move ${e.name}`} onClick={() => openMove(e)}>Move</button>}
+    </div>
+  )
+  const target = (patch: Partial<Omit<MoveDraft, 'ev'>>) => mayMove ? {
+    onDragOver: (e: ReactDragEvent) => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } },
+    onDrop: (e: ReactDragEvent) => { e.preventDefault(); dropped(e.dataTransfer.getData('text/plain') || dragId, patch) },
+  } : {}
+  const unplaced = data ? data.events.filter((e) => !e.spaceId) : []
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold flex items-center gap-2 text-gray-900 dark:text-slate-100"><CalendarDays className="w-6 h-6 text-orange-600 dark:text-orange-200" />Room calendar</h1>
         <div className="flex gap-2">
           <button type="button" className={btn} onClick={() => setStart(addDays(start, -step))}>Earlier</button>
-          <button type="button" className={btn} onClick={() => setStart(mondayOf(companyTodayKey()))}>Today</button>
+          <button type="button" className={btn} onClick={() => setStart(mode === 'day' ? companyTodayKey() : mondayOf(companyTodayKey()))}>Today</button>
           <button type="button" className={btn} onClick={() => setStart(addDays(start, step))}>Later</button>
-          <select className={`${input} w-28`} value={mode} onChange={(e) => setMode(e.target.value as 'week' | 'month')} aria-label="Show"><option value="week">Week</option><option value="month">Month</option></select>
+          <select className={`${input} w-28`} value={mode} onChange={(e) => { const m = e.target.value as 'day' | 'week' | 'month'; setMode(m); if (m !== 'day') setStart(mondayOf(start)) }} aria-label="Show"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select>
         </div>
       </div>
-      {!data ? <Loader2 className="w-5 h-5 animate-spin text-gray-400" /> : (
+      {mayMove && <p className={muted}>Drag an event to another {mode === 'day' ? 'hour or room' : 'day or room'} to move it, or use its Move button. You are asked to confirm before anything changes.</p>}
+      {!data ? <Loader2 className="w-5 h-5 animate-spin text-gray-400" /> : mode === 'day' ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-xs bg-white dark:bg-slate-900" data-testid="room-grid">
+            <caption className="text-left font-medium p-2">{dayWords(first)}</caption>
+            <thead><tr><th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">Time</th>{data.spaces.map((s) => <th key={s.id} className="border p-2 min-w-[9rem] font-medium">{s.name}</th>)}{unplaced.length > 0 && <th className="border p-2 min-w-[9rem] font-medium">No room yet</th>}</tr></thead>
+            <tbody>
+              <tr>
+                <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">No hours set</th>
+                {[...data.spaces.map((s) => s.id), ...(unplaced.length > 0 ? [''] : [])].map((sid) => (
+                  <td key={sid || 'none'} className="border p-1 align-top" {...target({ eventDate: first, spaceId: sid, startTime: '', endTime: '' })}>{data.events.filter((e) => (e.spaceId || '') === sid && e.eventDate === first && !e.startTime).map(chip)}</td>
+                ))}
+              </tr>
+              {HOURS.map((h) => (
+                <tr key={h}>
+                  <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900 font-normal">{hourLabel(h)}</th>
+                  {[...data.spaces.map((s) => s.id), ...(unplaced.length > 0 ? [''] : [])].map((sid) => (
+                    <td key={sid || 'none'} className="border p-1 align-top h-10" {...(dragId ? target({ eventDate: first, spaceId: sid, ...shiftedTimes(data.events.find((e) => e.id === dragId)!, h) }) : {})}>
+                      {data.events.filter((e) => (e.spaceId || '') === sid && e.eventDate === first && e.startTime && Math.max(HOURS[0], Number(e.startTime.slice(0, 2))) === h).map(chip)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-xs bg-white dark:bg-slate-900" data-testid="room-grid">
             <thead><tr><th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">Room</th>{days.map((d) => <th key={d} className="border p-2 min-w-[7rem] font-medium">{new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}</th>)}</tr></thead>
             <tbody>
-              {data.spaces.map((s) => (
-                <tr key={s.id}>
+              {[...data.spaces.map((s) => ({ id: s.id, name: s.name })), ...(unplaced.length > 0 ? [{ id: '', name: 'No room yet' }] : [])].map((s) => (
+                <tr key={s.id || 'none'}>
                   <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">{s.name}</th>
                   {days.map((d) => {
-                    const here = data.events.filter((e) => e.spaceId === s.id && e.eventDate === d)
-                    const waiting = data.waitlist.filter((w) => w.spaceId === s.id && w.eventDate === d)
+                    const here = data.events.filter((e) => (e.spaceId || '') === s.id && e.eventDate === d)
+                    const waiting = s.id ? data.waitlist.filter((w) => w.spaceId === s.id && w.eventDate === d) : []
                     return (
-                      <td key={d} className="border p-1 align-top">
-                        {here.map((e) => <Link key={e.id} to={`/crm/events/${e.id}`} className={`block rounded px-1.5 py-1 mb-1 ${STATUS_TONE[e.status] || STATUS_TONE.enquiry}`}><span className="font-medium">{e.startTime ? `${e.startTime}${e.endTime ? '–' + e.endTime : ''} ` : ''}</span>{e.name}</Link>)}
+                      <td key={d} className="border p-1 align-top" {...target({ eventDate: d, spaceId: s.id })}>
+                        {here.map(chip)}
                         {waiting.length > 0 && <p className="text-[11px] text-purple-800 dark:text-purple-300">{waiting.length} waiting</p>}
-                        {here.length > 0 && can('contacts:create') && <button type="button" className="text-[11px] underline text-gray-600 dark:text-slate-400" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ waitlist</button>}
+                        {here.length > 0 && s.id && can('contacts:create') && <button type="button" className="text-[11px] underline text-gray-600 dark:text-slate-400" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ waitlist</button>}
                       </td>
                     )
                   })}
@@ -536,6 +624,29 @@ export function EventCalendarPage() {
           )}
         </section>
       )}
+      {move && data && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label="Move event" data-testid="move-dialog">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-lg p-5 space-y-3 text-gray-900 dark:text-slate-100">
+            <h3 className="font-semibold">Move “{move.ev.name}”?</h3>
+            <p className={muted}>{STATUS_WORDS[move.ev.status] || 'Event'} · now {dayWords(move.ev.eventDate)}{move.ev.startTime ? `, ${move.ev.startTime}${move.ev.endTime ? '–' + move.ev.endTime : ''}` : ''}, {data.spaces.find((s) => s.id === move.ev.spaceId)?.name || 'no room yet'}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={label} htmlFor="mv-date">Day</label><input id="mv-date" type="date" className={input} value={move.eventDate} onChange={(e) => setMove({ ...move, eventDate: e.target.value })} /></div>
+              <div><label className={label} htmlFor="mv-room">Room</label><select id="mv-room" className={input} value={move.spaceId} onChange={(e) => setMove({ ...move, spaceId: e.target.value })}><option value="">No room yet</option>{data.spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label className={label} htmlFor="mv-start">From</label><input id="mv-start" type="time" className={input} value={move.startTime} onChange={(e) => setMove({ ...move, startTime: e.target.value })} /></div>
+              <div><label className={label} htmlFor="mv-end">To</label><input id="mv-end" type="time" className={input} value={move.endTime} onChange={(e) => setMove({ ...move, endTime: e.target.value })} /></div>
+            </div>
+            <div aria-live="polite" className="space-y-1" data-testid="move-check">
+              {!check && <p className={muted}><Loader2 className="inline w-4 h-4 animate-spin mr-1" />Checking…</p>}
+              {check?.blocked && <p role="alert" className="text-red-700 dark:text-red-300">{check.blocked.message}</p>}
+              {check?.warnings.map((w) => <p key={w} className="text-amber-800 dark:text-amber-300">{w}</p>)}
+              {check?.notes.map((n) => <p key={n} className={muted}>{n}</p>)}
+              {check?.ok && !check.warnings.length && !check.notes.length && <p className={muted}>That slot is free.</p>}
+            </div>
+            {moveErr && <p role="alert" className="text-red-700 dark:text-red-300">{moveErr}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setMove(null)}>Cancel</button><button type="button" className={primary} onClick={doMove} disabled={!check?.ok || saving}>{saving ? 'Moving…' : 'Move it'}</button></div>
+          </div>
+        </div>
+      )}
       {wait && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label="Add to the waitlist">
           <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3">
@@ -551,6 +662,35 @@ export function EventCalendarPage() {
   )
 }
 
+/** On a tentative event: the last day the hold is kept, changeable for this hold alone (event_hold_expiry; PUT /api/events asks contacts:update). */
+export function HoldExpiryNote({ event, onChanged }: { event: { id: string; status?: string; eventDate?: string; holdUntil?: string | null; holdReleasedAt?: string | null }; onChanged: () => void }) {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const [day, setDay] = useState(event.holdUntil || '')
+  useEffect(() => { setDay(event.holdUntil || '') }, [event.holdUntil])
+  if (!hasFeature('event_hold_expiry')) return null
+  const may = can('contacts:update')
+  const save = async (value: string | null) => {
+    try { await client.put(`/api/events/${event.id}`, { holdUntil: value }); toast.success(value ? 'Hold end day saved' : 'This hold will not lapse by itself'); onChanged() } catch (e) { toast.error(errorText(e, 'Could not save the hold’s end day')) }
+  }
+  if (event.status !== 'tentative') {
+    return event.status === 'enquiry' && event.holdReleasedAt
+      ? <p className={`mt-3 text-sm ${muted}`} data-testid="hold-released">The hold lapsed on {whenDateTime(event.holdReleasedAt)} and the room was released.</p>
+      : null
+  }
+  return (
+    <div className="mt-3 text-sm rounded-lg border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-3" data-testid="hold-expiry">
+      <p>{event.holdUntil ? <>This hold is kept through <strong>{dayWords(event.holdUntil)}</strong>. If it is not confirmed by then the room is released and offered to the waitlist.</> : <>This hold does not lapse by itself.</>}</p>
+      {may && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <div><label className={label} htmlFor="hold-day">Keep it through</label><input id="hold-day" type="date" className={`${input} w-44`} value={day} max={event.eventDate} onChange={(e) => setDay(e.target.value)} /></div>
+          <button type="button" className={btn} disabled={!day || day === event.holdUntil} onClick={() => save(day)}>Save</button>
+          {event.holdUntil && <button type="button" className={btn} onClick={() => save(null)}>Never lapse</button>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Website form campaigns (restaurant-bar parity #4) ───────────────────────────────────────────────────────────────────
 interface Campaign { id: string; name: string; source: string; sourceLabel: string; active: boolean; token: string; path: string; embedScriptPath: string; enquiries: number }
@@ -630,7 +770,7 @@ export function CampaignFormsPanel() {
 interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number }
 interface YearMonth { month: number; booked: number; lastYearBooked: number; value?: number; lastYearValue?: number }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string; payAtSigning: boolean }
+interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string; payAtSigning: boolean; holdDays: number; holdReminderDays: number; holdRemindClient: boolean }
 
 export function EventInsightsPage() {
   const { hasFeature, can } = useAuth()
@@ -691,11 +831,14 @@ export function EventInsightsPage() {
             {hasFeature('event_guarantee') && num('guaranteeReminderDays', 'Remind the client (days before the cutoff)', '0 means no reminder.')}
             {hasFeature('event_payment_automation') && num('payRemindBeforeDays', 'Remind before a payment is due (days)', '0 means no reminder before.')}
             {hasFeature('event_payment_automation') && num('payRemindOverdueDays', 'Remind after it was due (days)', '0 means no reminder after.')}
+            {hasFeature('event_hold_expiry') && num('holdDays', 'A new hold is kept for (days)', '0 means a hold never lapses by itself. You can set a different day on any one hold.')}
+            {hasFeature('event_hold_expiry') && num('holdReminderDays', 'Remind your team before a hold lapses (days)', '0 means no reminder.')}
             {hasFeature('event_proposals') && num('proposalValidDays', 'A proposal stays open (days)', 'After that the client’s link says it has expired.')}
           </div>
           <div className="mt-3 space-y-2">
             {hasFeature('event_payment_automation') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payRemindOnDue} onChange={(e) => set('payRemindOnDue', e.target.checked)} />Remind on the day a payment is due</label>}
             {hasFeature('event_payment_automation') && hasFeature('event_proposals') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payAtSigning} onChange={(e) => set('payAtSigning', e.target.checked)} />After the client signs, take the first payment on the same page</label>}
+            {hasFeature('event_hold_expiry') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.holdRemindClient} onChange={(e) => set('holdRemindClient', e.target.checked)} />Also remind the client that their date is held until then</label>}
             {hasFeature('event_minimums') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.shortfallTaxed} onChange={(e) => set('shortfallTaxed', e.target.checked)} />Charge sales tax on a minimum-spend shortfall</label>}
             {hasFeature('event_proposals') && <div><label className={label}>Terms printed on every proposal</label><textarea className={input} rows={4} disabled={!maySave} value={settings.proposalTerms} onChange={(e) => set('proposalTerms', e.target.value)} /></div>}
           </div>

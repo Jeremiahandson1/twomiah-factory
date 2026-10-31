@@ -230,6 +230,7 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
     depositRequired: body.depositRequired ?? null,
     source: body.source || null,
     campaignId: body.campaignId || null,
+    holdUntil: body.holdUntil || null,
     dietaryRequirements: body.dietaryRequirements || null,
     setupNotes: body.setupNotes || null,
     notes: body.notes || null,

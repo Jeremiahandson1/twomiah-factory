@@ -32,7 +32,7 @@ import { EVENT_TILES, eventTileCondition } from './tileConditions.ts'
 import { countChangeVerdict, overrideColumns, guaranteeFor, guaranteeOn } from './eventGuarantee.ts'
 import { getEventSettings } from './eventSettings.ts'
 import { sourceRefusal } from './eventSources.ts'
-import { offerWaitlist } from './eventCalendar.ts'
+import { offerWaitlist, holdColumns } from './eventCalendar.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
   EXIT_STATUSES, HELD, DATE_RE, venueToday, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
@@ -216,9 +216,12 @@ export function createEventRoutes(d: CrmDeps) {
     const cErr = await coordinatorRefusal(db, currentUser.companyId, body.coordinatorId)
     if (cErr) return fail(c, 400, cErr)
 
+    // A hold made now gets the venue's default length, or the day chosen for it (eventCalendar.ts holdColumns).
+    const hold = await holdColumns(d, currentUser.companyId, null, body, body)
+    if (hold.error) return fail(c, 400, hold.error)
     let created: any
     try {
-      created = await db.transaction((tx: any) => createEvent(tx, currentUser.companyId, body))
+      created = await db.transaction((tx: any) => createEvent(tx, currentUser.companyId, { ...body, holdUntil: hold.cols.holdUntil ?? null }))
     } catch (e: unknown) {
       const refused = clash(c, e)
       if (refused) return refused
@@ -266,6 +269,10 @@ export function createEventRoutes(d: CrmDeps) {
       const cErr = await coordinatorRefusal(db, currentUser.companyId, updates.coordinatorId)
       if (cErr) return fail(c, 400, cErr)
     }
+    // A hold's last day: set when it becomes a hold, changed for this hold alone, cleared when it stops being one (eventCalendar.ts).
+    const hold = await holdColumns(d, currentUser.companyId, existing, updates, body)
+    if (hold.error) return fail(c, 400, hold.error)
+    Object.assign(updates, hold.cols)
 
     // Moving the date, changing the room, or promoting an enquiry can all create a double-book; re-check on any.
     const nextSpace = 'spaceId' in updates ? updates.spaceId : existing.spaceId

@@ -33,6 +33,10 @@ export const event = pgTable('event', {
   source: text('source'),                                  // where the enquiry came from
   // The website-form campaign the enquiry came in through (restaurant-bar parity #4); its source was copied to `source`.
   campaignId: text('campaign_id').references(() => eventFormCampaign.id, { onDelete: 'set null' }),
+  // A hold (a tentative event) can lapse (restaurant-bar parity #5): the last day it is kept, a reminder before, and when it was let go.
+  holdUntil: date('hold_until'),
+  holdReminderSentAt: timestamp('hold_reminder_sent_at'),
+  holdReleasedAt: timestamp('hold_released_at'),
   lostReason: text('lost_reason'),                         // why it didn't close — the only way to learn
   dietaryRequirements: text('dietary_requirements'),
   setupNotes: text('setup_notes'),

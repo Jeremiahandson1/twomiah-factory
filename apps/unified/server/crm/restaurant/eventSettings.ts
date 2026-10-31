@@ -28,18 +28,26 @@ export interface EventSettings {
   proposalTerms: string
   /** After the client signs, the same page takes the first payment (and offers to keep the card for the rest). */
   payAtSigning: boolean
+  /** Days a new hold (a tentative event) is kept before it lapses and the room is released. 0 = a hold never lapses by itself. */
+  holdDays: number
+  /** Days before a hold lapses that the venue's team is reminded. 0 = no reminder. */
+  holdReminderDays: number
+  /** Whether the client is reminded too that their date is held until then. */
+  holdRemindClient: boolean
 }
 
 export const EVENT_SETTINGS_DEFAULTS: EventSettings = {
   guaranteeDays: 7, guaranteeReminderDays: 3, shortfallTaxed: true,
   payRemindBeforeDays: 7, payRemindOnDue: true, payRemindOverdueDays: 3,
   proposalValidDays: 14, proposalTerms: '', payAtSigning: true,
+  holdDays: 0, holdReminderDays: 2, holdRemindClient: false,
 }
 
 const WHOLE: Array<[keyof EventSettings, string, number]> = [
   ['guaranteeDays', 'Guarantee cutoff', 90], ['guaranteeReminderDays', 'Guarantee reminder', 60],
   ['payRemindBeforeDays', 'Reminder before a payment is due', 60], ['payRemindOverdueDays', 'Reminder after a payment is due', 60],
   ['proposalValidDays', 'Proposal validity', 365],
+  ['holdDays', 'How long a hold lasts', 180], ['holdReminderDays', 'Reminder before a hold lapses', 30],
 ]
 
 /** The venue's event settings, with defaults for anything it has not set. */
@@ -56,7 +64,7 @@ export function eventSettingsRefusal(body: Record<string, unknown>): string | nu
     const v = Number(body[k])
     if (!Number.isInteger(v) || v < 0 || v > max) return `${label} must be a whole number of days from 0 to ${max}.`
   }
-  for (const k of ['shortfallTaxed', 'payRemindOnDue', 'payAtSigning'] as const) if (k in body && typeof body[k] !== 'boolean') return `${k} must be true or false.`
+  for (const k of ['shortfallTaxed', 'payRemindOnDue', 'payAtSigning', 'holdRemindClient'] as const) if (k in body && typeof body[k] !== 'boolean') return `${k} must be true or false.`
   if ('proposalTerms' in body && (typeof body.proposalTerms !== 'string' || body.proposalTerms.length > 8000)) return 'Proposal terms must be text of 8,000 characters or fewer.'
   return null
 }

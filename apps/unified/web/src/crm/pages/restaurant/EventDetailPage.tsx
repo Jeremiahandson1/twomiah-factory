@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, Clock, Wallet, AlertTriangle, AlertCircle, ExternalLink, Trash2, Check,
 } from 'lucide-react';
 import { api } from '../../../api'
-import { GuaranteeNote, MinimumNote, ProposalsPanel, PaymentAutomationPanel, SourcePicker, useGuaranteeOverride, errCode } from '../../eventDepth'
+import { GuaranteeNote, HoldExpiryNote, MinimumNote, ProposalsPanel, PaymentAutomationPanel, SourcePicker, useGuaranteeOverride, errCode } from '../../eventDepth'
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDay } from './EventsPage';
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
 import { PAYMENT_METHODS, useMayWrite, useConfirm, useAuth, errorText } from '../../../shared'
@@ -41,6 +41,8 @@ interface EventFull {
   guestCount?: number;
   guestCountFinal?: number;
   guaranteeOverrideReason?: string | null;
+  holdUntil?: string | null;
+  holdReleasedAt?: string | null;
   quotedTotal?: number | string;
   depositRequired?: number | string;
   source?: string;
@@ -303,6 +305,7 @@ export default function EventDetailPage() {
         )}
 
         <GuaranteeNote guarantee={detail.guarantee} event={ev} />
+        <HoldExpiryNote event={ev} onChanged={load} />
 
         {belowMinimum && (
           <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">

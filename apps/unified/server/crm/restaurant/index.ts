@@ -20,7 +20,7 @@ import { createMenuPackageRoutes } from './menuPackages.ts'
 import { createVenueImportRoutes } from './eventImport.ts'
 import { createEventSettingsRoutes } from './eventSettings.ts'
 import { createEventMinimumRoutes } from './eventMinimums.ts'
-import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes } from './eventCalendar.ts'
+import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes, runHoldReminders, runHoldReleases } from './eventCalendar.ts'
 import { createEventReportRoutes } from './eventReports.ts'
 import { createEventCampaignRoutes, createEventFormPublicRoutes } from './eventForm.ts'
 import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
@@ -35,6 +35,8 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     runPaymentReminders: (now?: Date, opts?: { fromHour?: number }) => runPaymentReminders(d, now, opts),
     runAutopay: (now?: Date) => runAutopay(d, now),
     runBankSettlement: (now?: Date) => runBankSettlement(d, now),
+    runHoldReminders: (now?: Date) => runHoldReminders(d, now),
+    runHoldReleases: (now?: Date) => runHoldReleases(d, now),
   })
   // Stripe's events for a bank debit this module started (processing, settled, returned) come first to it, not to the shared card handler.
   d.services.useConnectedEvents?.(bankEventClaim(d))
@@ -44,6 +46,10 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     const guarantee = () => runGuaranteeReminders(d).catch((err: any) => d.logger.error('[events] guarantee reminders failed', { error: err?.message }))
     setTimeout(guarantee, 120_000)
     setInterval(guarantee, 6 * 60 * 60 * 1000)
+    // Holds that lapse (restaurant-bar parity #5): the reminder, then the release and the waitlist's offer, hourly.
+    const holds = async () => { try { await runHoldReminders(d); await runHoldReleases(d) } catch (err: any) { d.logger.error('[events] hold pass failed', { error: err?.message }) } }
+    setTimeout(holds, 150_000)
+    setInterval(holds, 60 * 60 * 1000)
   })
   return [
     { path: '/api/events', access: 'user', feature: 'event_bookings', router: createEventRoutes(d) },

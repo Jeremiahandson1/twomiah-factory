@@ -386,6 +386,13 @@
       "when": 1793470356217,
       "tag": "0054_event_form_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793470651669,
+      "tag": "0055_event_hold_expiry",
+      "breakpoints": true
     }
   ]
 }
