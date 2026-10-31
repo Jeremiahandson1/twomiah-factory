@@ -414,6 +414,13 @@
       "when": 1793475913538,
       "tag": "0058_tech_availability_finished",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793480000000,
+      "tag": "0059_ai_call_answering",
+      "breakpoints": true
     }
   ]
 }
