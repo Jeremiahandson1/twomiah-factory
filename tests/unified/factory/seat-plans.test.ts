@@ -3,12 +3,13 @@
 // Covers: the Factory's public /api/v1/factory/plans (even when a stale old-tier row is stored), the care sign-up page's plans,
 // and the Factory wizard's plan list. Display only: nothing here touches Stripe or what an existing customer pays.
 import { describe, test, expect, mock, beforeAll } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { sharedFactoryDb } from './fakeStore.ts'
 
 const supabase = sharedFactoryDb
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() }))
+stubAuth({ supabase, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() })
 const { Hono } = createRequire(path.resolve(import.meta.dir, '../../../apps/api/package.json'))('hono')
 
 const { PLANS } = await import('../../../packages/tenant-backend/src/plans.ts')

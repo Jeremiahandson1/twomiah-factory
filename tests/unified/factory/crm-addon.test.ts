@@ -2,13 +2,14 @@
 // already is its CRM: the add-on answers "provisioned" and calls nothing — no premium site, no Render. A premium tenant
 // still goes the old way (its first refusals are unchanged).
 import { test, expect, mock } from 'bun:test'
+import { stubAuth, stubFetch } from './stubs.ts'
 import path from 'node:path'
 
 let tenant: any = null
 const supabase = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: tenant, error: null }) }) }) }) }
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async () => {} }))
+stubAuth({ supabase, authenticate: async () => {}, requireRole: () => async () => {} })
 const fetched: string[] = []
-globalThis.fetch = (async (input: any) => { fetched.push(String(input?.url ?? input)); return new Response('{}', { status: 500 }) }) as any
+stubFetch(async (input: any) => { fetched.push(String(input?.url ?? input)); return new Response('{}', { status: 500 }) })
 delete process.env.RESEND_API_KEY
 
 const { provisionCrmAddonForTenant } = await import('../../../apps/api/src/services/crmAddonProvision')

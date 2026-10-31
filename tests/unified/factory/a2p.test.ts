@@ -3,6 +3,7 @@
 // Low-Volume Standard, the sole proprietor's YES, replies routed to the business's own CRM, and the approved number
 // handed to that CRM. The Factory DB is a stand-in; the wallet is a recorder; nothing reaches Twilio.
 import { test, expect, mock, beforeEach, describe } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import path from 'node:path'
 import { sharedFactoryDb } from './fakeStore.ts'
 
@@ -15,7 +16,7 @@ delete process.env.TWILIO_A2P_MOCK
 
 const supabase = sharedFactoryDb
 const debits: Array<{ tenantId: string; cents: number; reason: string }> = []
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async () => {} }))
+stubAuth({ supabase, authenticate: async () => {}, requireRole: () => async () => {} })
 const { provisionA2p, advance, a2pDataProblem, campaignContent } = await import('../../../apps/api/src/services/a2p.ts')
 const { encryptJSON } = await import('../../../apps/api/src/lib/crypto.ts')
 

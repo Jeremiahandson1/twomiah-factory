@@ -3,12 +3,13 @@
 // a way back that is not the business's own app; deauthorize cuts only the account recorded for THAT business; and
 // Stripe's redirect is carried through to the right business and recorded. Stripe and the business are stand-ins (fetch).
 import { test, expect, mock, beforeAll, beforeEach, afterAll, describe } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { sharedFactoryDb } from './fakeStore.ts'
 
 const supabase = sharedFactoryDb
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async () => {} }))
+stubAuth({ supabase, authenticate: async () => {}, requireRole: () => async () => {} })
 
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'

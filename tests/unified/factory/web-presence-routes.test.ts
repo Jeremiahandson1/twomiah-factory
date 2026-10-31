@@ -1,6 +1,7 @@
 // The Web presence plan's HTTP routes: with the switch off every one answers 404 (as if it did not exist), a request from a site must be
 // signed with THAT site's secret, and the signup route refuses the plan while off. Services are the same stand-ins as the service tests.
-import { describe, test, expect, beforeEach, afterEach, beforeAll, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, beforeAll, mock, afterAll } from 'bun:test'
+import { installAuth, restoreAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { provisionSite, type Deps } from '../../../apps/api/src/webPresence/service'
@@ -14,13 +15,12 @@ let registerWebPresenceRoutes: any
 let registerIntakeRoutes: any
 let signupStore: ReturnType<typeof fakeStore>
 beforeAll(async () => {
-  const authPath = '../../../apps/api/src/middleware/auth'
-  const real = await import(authPath)
   signupStore = fakeStore({ tenants: [] })
-  mock.module(authPath, () => ({ ...real, supabase: signupStore }))
+  installAuth({ supabase: signupStore })
   ;({ registerWebPresenceRoutes } = await import('../../../apps/api/src/routes/factory/webPresence'))
   ;({ registerIntakeRoutes } = await import('../../../apps/api/src/routes/factory/intake'))
 })
+afterAll(restoreAuth)
 
 const MASTER = 'master-key-for-tests'
 const ENV = { WEB_PRESENCE_ON: '1', WEB_PRESENCE_SECRET_KEY: MASTER, TWOMIAH_FACTORY_URL: 'https://factory.test' }

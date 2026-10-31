@@ -3,6 +3,7 @@
 // page, checked 2026-10-27) — kept in hundredths of a cent so thousands of texts add up exactly.
 // The Factory DB is a stand-in; Stripe and Twilio are never called.
 import { test, expect, mock, describe, beforeAll, beforeEach } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { sharedFactoryDb } from './fakeStore'
@@ -22,8 +23,7 @@ const walletRpc = async (_fn: string, a: any) => {
   return { data: next, error: null }
 }
 beforeEach(() => { store.rpc = walletRpc; ledger.length = 0 })
-const authPath = path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts')
-mock.module(authPath, () => ({ supabase: store, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() }))
+stubAuth({ supabase: store, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() })
 
 const T = '11111111-1111-4111-8111-111111111111'
 const tenant = (over: any = {}) => ({ id: T, name: 'Acme', email: 'owner@acme.example', stripe_customer_id: null, messaging_enabled: true, messaging_wallet_hc: 0, factory_sync_key: 'acme-key', a2p_status: 'approved', ...over })

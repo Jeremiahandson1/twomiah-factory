@@ -1,7 +1,8 @@
 // The free preview and the signup take the look a visitor chose (foundry, heritage or studio). The preview of a trade
 // the unified app is open to is drawn by the unified renderer; a bad look is refused; the choice is kept with the
 // signup and reaches the new site's row. Only the Factory database is a stand-in; nothing here reaches a live API.
-import { test, expect, mock, beforeAll, describe } from 'bun:test'
+import { test, expect, mock, beforeAll, describe, afterAll } from 'bun:test'
+import { installAuth, restoreAuth } from './stubs.ts'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -20,13 +21,12 @@ beforeAll(async () => {
     UNIFIED_SIGNUPS: 'test', UNIFIED_LIVE_VERTICALS: 'contractor,fieldservice,landscaping,roofing,homecare,restaurant,bar,salon,basic',
     SIGNUP_WEBSITE_ENGINE: 'premium',
   })
-  const authPath = '../../../apps/api/src/middleware/auth'
-  const real = await import(authPath)
-  mock.module(authPath, () => ({ ...real, supabase: store, requireRole: () => async (_c: any, next: any) => next() }))
+  installAuth({ supabase: store, requireRole: () => async (_c: any, next: any) => next() })
   const { registerIntakeRoutes } = await import('../../../apps/api/src/routes/factory/intake')
   app = new Hono()
   registerIntakeRoutes(app as any)
 })
+afterAll(restoreAuth)
 
 // A fresh address each time: the route's own rate limit (6 per ten minutes per address) is exercised on purpose below.
 const post = (p: string, json: unknown, ip = '10.0.0.' + ++n) =>

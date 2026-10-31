@@ -6,6 +6,7 @@
 // The Factory DB is a stand-in (mock.module of middleware/auth); GitHub/Render are stand-ins (fake hosts, or the global
 // fetch for the template path); the functions are the real ones.
 import { test, expect, mock, beforeEach } from 'bun:test'
+import { stubAuth, stubFetch } from './stubs.ts'
 import path from 'node:path'
 
 process.env.RENDER_API_KEY = 'test-render'
@@ -39,12 +40,12 @@ function table(name: keyof typeof rows) {
   return api
 }
 const supabase = { from: (n: keyof typeof rows) => table(n) }
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async () => {} }))
+stubAuth({ supabase, authenticate: async () => {}, requireRole: () => async () => {} })
 
 // ── GitHub and Render, for the template path (fetch) ──
 let renderServices: any[] = []
 let fetchCalls: string[] = []
-globalThis.fetch = (async (input: any, init: any = {}) => {
+stubFetch(async (input: any, init: any = {}) => {
   const url = String(input?.url ?? input)
   const method = String(init.method || 'GET').toUpperCase()
   fetchCalls.push(method + ' ' + url)
@@ -55,7 +56,7 @@ globalThis.fetch = (async (input: any, init: any = {}) => {
   if (url.startsWith('https://api.github.com/repos/') && method === 'DELETE') return new Response(null, { status: 204 })
   if (url.startsWith('https://api.github.com/repos/') && method === 'GET') return json({ message: 'Not Found' }, 404)
   throw new Error('unexpected fetch ' + method + ' ' + url)
-}) as any
+})
 
 const { hardDeleteTestTenant, teardownUnifiedTestTenant } = await import('../../../apps/api/src/services/testCleanup')
 const { emptyOwnership } = await import('../../../apps/api/src/services/resourceOwnership')

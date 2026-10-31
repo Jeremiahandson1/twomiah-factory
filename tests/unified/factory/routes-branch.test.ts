@@ -1,7 +1,8 @@
 // The Factory's routes branch on tenants.engine (routes/factory/deploy.ts): Update Code, resync-shared-code and
 // flip-to-crm take the unified path for a unified tenant and the template path, unchanged, for every other.
 // Only the Factory database is a stand-in (middleware/auth's supabase); nothing here reaches GitHub or Render.
-import { test, expect, mock, beforeAll } from 'bun:test'
+import { test, expect, mock, beforeAll, afterAll } from 'bun:test'
+import { installAuth, restoreAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fakeStore } from './fakeStore'
@@ -32,13 +33,12 @@ const { Hono } = createRequire(path.resolve(import.meta.dir, '../../../apps/api/
 let app: any
 beforeAll(async () => {
   Object.assign(process.env, { RENDER_API_KEY: 'k', RENDER_OWNER_ID: 'o', GITHUB_TOKEN: 't', GITHUB_ORG: 'acct', RENDER_GIT_COMMIT: 'abcdef1' })
-  const authPath = '../../../apps/api/src/middleware/auth'
-  const real = await import(authPath)
-  mock.module(authPath, () => ({ ...real, supabase: store, requireRole: () => async (_c: any, next: any) => next() }))
+  installAuth({ supabase: store, requireRole: () => async (_c: any, next: any) => next() })
   const { registerDeployRoutes } = await import('../../../apps/api/src/routes/factory/deploy')
   app = new Hono()
   registerDeployRoutes(app as any)
 })
+afterAll(restoreAuth)
 
 const post = (p: string) => app.request(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
 

@@ -2,13 +2,14 @@
 // the seat plans from packages/tenant-backend/src/plans.ts READ-ONLY, whatever the stored factory_pricing row still holds, and a
 // save never writes them; the dispensary's own tiers stay editable. Nothing here touches Stripe or what a customer pays.
 import { describe, test, expect, mock, beforeAll, beforeEach } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { sharedFactoryDb } from './fakeStore.ts'
 
 const supabase = sharedFactoryDb
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async (_c: any, next: any) => next(), requireRole: () => async (_c: any, next: any) => next() }))
+stubAuth({ supabase, authenticate: async (_c: any, next: any) => next(), requireRole: () => async (_c: any, next: any) => next() })
 const { Hono } = createRequire(path.resolve(import.meta.dir, '../../../apps/api/package.json'))('hono')
 const { PLANS } = await import('../../../packages/tenant-backend/src/plans.ts')
 const { PRODUCTS, getProductDefaults } = await import('../../../apps/api/src/config/pricing.ts')

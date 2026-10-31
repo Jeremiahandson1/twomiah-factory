@@ -165,12 +165,10 @@ jobs:
       # The Factory's other unified pieces — the deploy, domains, the CRM add-on, site addresses, teardown, names, the
       # tree, routes, provisioning — and the tenant-select guard. They ran only by hand until 2026-10-20.
       - name: The Factory's unified path, and every handler reading the tenant columns it selected
-        run: bun test --timeout 300000 $(ls tests/unified/factory/*.test.ts | grep -v build.test.ts | grep -v web-presence-routes.test.ts)
-      # Its own process: four Factory test files mock.module() the auth middleware with a requireRole that lets everyone through,
-      # and a module mock lasts for the whole `bun test` run — so in the run above, "staff routes refuse the public" would be
-      # testing that stand-in, not the real requireRole (CI 10/30). Here it meets the real one.
-      - name: Web presence routes, against the real staff check
-        run: bun test --timeout 300000 tests/unified/factory/web-presence-routes.test.ts
+      # One process for all of them: a stand-in for the sign-in module or for fetch is installed only through
+      # tests/unified/factory/stubs.ts, which puts the real one back when its file ends (no-leaking-stubs.test.ts guards it).
+      # Web presence routes had its own step while crm-addon's open requireRole leaked into it (10/30 → fixed 10/31).
+        run: bun test --timeout 300000 $(ls tests/unified/factory/*.test.ts | grep -v build.test.ts)
 
   # The step-3 measure (SPEC §0): the base CRM's own behaviour suite, unchanged, against the unified app. A file passes,
   # or every assertion it fails is a documented divergence (tests/unified/harness/unified-divergences.ts) whose

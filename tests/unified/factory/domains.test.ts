@@ -4,6 +4,7 @@
 // Render, Cloudflare and Resend are stand-ins (the global fetch); the functions are the real ones. A template tenant's
 // lookup is unchanged and never sees the unified name.
 import { test, expect, beforeEach } from 'bun:test'
+import { stubFetch } from './stubs.ts'
 
 process.env.RENDER_API_KEY = 'test-render'
 process.env.CLOUDFLARE_API_TOKEN = 'test-cf'
@@ -18,7 +19,7 @@ let renderListStatus = 200
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
 const svc = (id: string, name: string, url = `https://${name}.onrender.com`) => ({ id, name, slug: name, serviceDetails: { url } })
 
-globalThis.fetch = (async (input: any, init: any = {}) => {
+stubFetch(async (input: any, init: any = {}) => {
   const url = String(input?.url ?? input)
   const method = String(init.method || 'GET').toUpperCase()
   const body = init.body ? JSON.parse(String(init.body)) : null
@@ -33,7 +34,7 @@ globalThis.fetch = (async (input: any, init: any = {}) => {
   if (url.startsWith('https://api.cloudflare.com/')) return json({ success: true, result: { id: 'rec-' + calls.length } })
   if (url === 'https://api.resend.com/domains' && method === 'POST') return json({ id: 'rs-1', records: [] })
   throw new Error('unexpected fetch ' + method + ' ' + url)
-}) as any
+})
 
 const D = await import('../../../apps/api/src/services/deploy')
 

@@ -6,6 +6,7 @@
 //   · registering for texting needs $25 in the wallet: the one-time carrier registration and something to text with.
 // The Factory DB is a stand-in; Stripe and Twilio are never called.
 import { test, expect, mock, describe, beforeAll, beforeEach } from 'bun:test'
+import { stubAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { sharedFactoryDb } from './fakeStore'
@@ -23,8 +24,7 @@ const walletRpc = async (_fn: string, a: any) => {
   return { data: next, error: null }
 }
 beforeEach(() => { store.rpc = walletRpc })
-const authPath = path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts')
-mock.module(authPath, () => ({ supabase: store, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() }))
+stubAuth({ supabase: store, authenticate: async () => {}, requireRole: () => async (_c: any, next: any) => next() })
 const reloads: any[] = []
 let cardWorks = true
 /** Stripe's reload invoice, stood in by injection (services/messagingWallet.ts reloadWallet's deps) — never a module mock. */

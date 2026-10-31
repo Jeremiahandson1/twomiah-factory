@@ -3,6 +3,7 @@
 // stand-in (setAlertHooks) and the Factory database, Stripe and Anthropic are stand-ins too: nothing here sends email or
 // calls a live API.
 import { test, expect, mock, describe, beforeAll, beforeEach, afterEach, afterAll, spyOn } from 'bun:test'
+import { installAuth, restoreAuth } from './stubs.ts'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fakeStore } from './fakeStore'
@@ -291,14 +292,12 @@ describe('unhandled errors', () => {
 // ─── 6. The public routes and Stripe, over a database that is down ───────────
 
 describe('the routes', () => {
-  const authPath = '../../../apps/api/src/middleware/auth'
   const down = { from: () => { throw new Error('database is down') } }
   let app: any
   const savedEnv: Record<string, string | undefined> = {}
   beforeAll(async () => {
     for (const k of ['STRIPE_WEBHOOK_SECRET', 'STRIPE_SECRET_KEY']) savedEnv[k] = process.env[k]
-    const real = await import(authPath)
-    mock.module(authPath, () => ({ ...real, supabase: down, requireRole: () => async (_c: any, next: any) => next() }))
+    installAuth({ supabase: down, requireRole: () => async (_c: any, next: any) => next() })
     const { registerIntakeRoutes } = await import('../../../apps/api/src/routes/factory/intake')
     const { registerBillingRoutes } = await import('../../../apps/api/src/routes/factory/billing')
     app = new Hono()
@@ -306,6 +305,7 @@ describe('the routes', () => {
     registerBillingRoutes(app as any)
   })
   afterAll(() => { for (const [k, v] of Object.entries(savedEnv)) { if (v === undefined) delete process.env[k]; else process.env[k] = v } })
+  afterAll(restoreAuth)
 
   const post = (p: string, body: any, headers: Record<string, string> = {}) =>
     app.request(p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) })
