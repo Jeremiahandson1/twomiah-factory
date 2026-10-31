@@ -372,6 +372,13 @@
       "when": 1793466893208,
       "tag": "0052_salon_block_types",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793467439955,
+      "tag": "0053_salon_time_off",
+      "breakpoints": true
     }
   ]
 }

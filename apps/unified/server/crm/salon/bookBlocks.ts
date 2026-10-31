@@ -13,6 +13,7 @@ import { resolveStylist, stylistIdOf, unknownStylist, type StylistRef } from './
 import { isOwnChair, type OwnChair } from './bookScope.ts'
 import type { SalonServices } from './services.ts'
 import { expandRepeat, repeatRefusal, type RepeatRule } from './bookRepeat.ts'
+import { createTimeOffRoutes, findOff, offSpans } from './timeOff.ts'
 
 const MAX_BLOCK_MS = 14 * 86400_000     // a fortnight's holiday; longer is a mistake
 const MAX_REPEAT_WEEKS = 26
@@ -21,17 +22,21 @@ const CANCELLED = ['cancelled', 'no_show']
 
 type BlockRow = typeof bookBlock.$inferSelect
 
-/** The block, if any, that covers any of these stretches for these stylists (a salon-wide block covers everyone). `exec` may be a transaction. */
-export async function findBlock(exec: any, companyId: string, spans: Array<{ stylist: StylistRef; start: Date; end: Date }>): Promise<BlockRow | undefined> {
+/**
+ * What takes these stretches off the Book for these stylists, if anything: a block, an approved time off, or a closed day (a salon-wide block
+ * and a closed period cover everyone). `reason` is what the desk is told. `exec` may be a transaction.
+ */
+export async function findBlock(exec: any, companyId: string, spans: Array<{ stylist: StylistRef; start: Date; end: Date }>): Promise<{ reason: string | null } | undefined> {
   for (const sp of spans) {
     const mine = sp.stylist.stylistId ? eq(bookBlock.stylistId, sp.stylist.stylistId) : sp.stylist.stylistMemberId ? eq(bookBlock.stylistMemberId, sp.stylist.stylistMemberId) : undefined
     const [hit] = await exec.select().from(bookBlock).where(and(
       eq(bookBlock.companyId, companyId),
       mine ? or(mine, and(isNull(bookBlock.stylistId), isNull(bookBlock.stylistMemberId))) : and(isNull(bookBlock.stylistId), isNull(bookBlock.stylistMemberId)),
       lt(bookBlock.startTime, sp.end), gt(bookBlock.endTime, sp.start))).limit(1)
-    if (hit) return hit
+    if (hit) return { reason: hit.typeName && hit.reason ? `${hit.typeName}: ${hit.reason}` : hit.typeName || hit.reason }
   }
-  return undefined
+  const off = await findOff(exec, companyId, spans)
+  return off ? { reason: off.reason } : undefined
 }
 
 export function createBookBlockRoutes(d: CrmDeps, salon: SalonServices) {
@@ -91,12 +96,23 @@ export function createBookBlockRoutes(d: CrmDeps, salon: SalonServices) {
     const rows: any[] = await db.select({ b: bookBlock, first: user.firstName, last: user.lastName, member: teamMember.name }).from(bookBlock)
       .leftJoin(user, eq(user.id, bookBlock.stylistId)).leftJoin(teamMember, eq(teamMember.id, bookBlock.stylistMemberId))
       .where(and(...conds)).orderBy(asc(bookBlock.startTime))
-    return listAll(c, rows.filter((r) => visibleTo(own, r.b)).map((r) => ({
-      ...r.b, stylistId: stylistIdOf(r.b), stylistMemberId: undefined,
+    const blocks = rows.filter((r) => visibleTo(own, r.b)).map((r) => ({
+      ...r.b, kind: 'block', stylistId: stylistIdOf(r.b), stylistMemberId: undefined,
       stylistFirstName: r.first ?? (String(r.member || '').trim().split(/\s+/)[0] || null),
       stylistLastName: r.last ?? (String(r.member || '').trim().split(/\s+/).slice(1).join(' ') || null),
-    })))
+    }))
+    // Approved time off and closed days are drawn on the Book like blocks, but are kept on their own screen (timeOff.ts): `readOnly`.
+    const off = (await offSpans(db, u.companyId, from ? new Date(from) : new Date(0), to ? new Date(to) : new Date('2100-01-01T00:00:00Z')))
+      .filter((o) => visibleTo(own, { stylistId: o.stylistId, stylistMemberId: o.stylistMemberId }))
+      .map((o) => ({
+        id: `${o.kind}:${o.id}`, kind: o.kind, readOnly: true, stylistId: o.stylistId ?? o.stylistMemberId, startTime: o.start.toISOString(), endTime: o.end.toISOString(),
+        reason: o.reason, typeName: o.kind === 'closed' ? 'Closed' : 'Time off', typeColor: o.kind === 'closed' ? '#64748b' : '#a855f7',
+      }))
+    return listAll(c, [...blocks, ...off].sort((a, b) => String(a.startTime instanceof Date ? a.startTime.toISOString() : a.startTime).localeCompare(String(b.startTime instanceof Date ? b.startTime.toISOString() : b.startTime))))
   })
+
+  // Team time off, closed periods and the paid/unpaid hours report (timeOff.ts): /time-off, /closed, /hours — before /:id below.
+  app.route('/', createTimeOffRoutes(d, salon))
 
   // ─── Types: the preset kinds of blocked time the owner keeps (name, colour, usual length, paid or unpaid) ───────────────────────────────
   const typeOut = (t: typeof bookBlockType.$inferSelect) => ({ id: t.id, name: t.name, color: t.color, defaultMin: t.defaultMin, paid: t.paid })

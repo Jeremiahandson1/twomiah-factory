@@ -345,6 +345,45 @@ export const bookBlock = pgTable('book_block', {
 ])
 
 /**
+ * Time off for one stylist (salon parity row 3; Fresha team time off): requested by the stylist, or entered by a manager, and approved or
+ * denied by a manager. Any length — not the 14-day cap a block has. Only an APPROVED one takes the chair off the Book and out of online booking.
+ */
+export const salonTimeOff = pgTable('salon_time_off', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'cascade' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time').notNull(),
+  /** 'pending', 'approved' or 'denied'. */
+  status: text('status').default('pending').notNull(),
+  /** Paid time off counts toward the hours report; unpaid does not. */
+  paid: boolean('paid').default(false).notNull(),
+  reason: text('reason'),
+  requestedBy: text('requested_by'),
+  decidedBy: text('decided_by'),
+  decidedAt: timestamp('decided_at'),
+  decisionNote: text('decision_note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_time_off_company_start_idx').on(t.companyId, t.startTime),
+  index('salon_time_off_company_status_idx').on(t.companyId, t.status),
+])
+
+/** The salon closed on whole days (a holiday, a refit): every chair, online booking too (salon parity row 3; Fresha closed dates). Both days included. */
+export const salonClosedPeriod = pgTable('salon_closed_period', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_closed_period_company_start_idx').on(t.companyId, t.startDate),
+])
+
+/**
  * A form the salon asks its clients to fill in before a visit (salon "intake and consent forms"; feature `intake_forms`): questions of
  * its own, or a consent to tick and sign by typing a name. Offered on the booking's page for the services it names (none named = every
  * online booking). A response is kept as it was asked — the form may change after.

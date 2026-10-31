@@ -21,6 +21,7 @@
 // already hang off; the menu stays the only place a service's name, length and price are changed.
 import { and, eq, gt, gte, inArray, isNull, lt, ne, notExists, notInArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { findOff, offSpans } from './timeOff.ts'
 import { appointment, appointmentItem, bookBlock, booking, bookingService, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import { findStylistConflict } from './held.ts'
 import { piecesOf } from './segments.ts'
@@ -168,6 +169,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
           eq(bookBlock.companyId, companyId), or(eq(bookBlock.stylistId, b.assignedUserId), and(isNull(bookBlock.stylistId), isNull(bookBlock.stylistMemberId))),
           lt(bookBlock.startTime, b.endAt), gt(bookBlock.endTime, b.startAt))).limit(1)
         if (blocked) throw new BookingError('That time has just been taken — please pick another.', 409, 'taken')
+        // A day off or a closed day (timeOff.ts): the same, and the client is never told why.
+        if (await findOff(tx, companyId, [{ stylist: { stylistId: b.assignedUserId, stylistMemberId: null }, start: b.startAt, end: b.endAt }])) throw new BookingError('That time has just been taken — please pick another.', 409, 'taken')
       }
       // The name typed is kept on the appointment when the client record (found by email) carries another (Vet T12 L11).
       const [owner] = await tx.select({ name: contact.name }).from(contact).where(eq(contact.id, contactId)).limit(1)
@@ -233,6 +236,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       const blocks = await exec.select({ stylistId: bookBlock.stylistId, memberId: bookBlock.stylistMemberId, start: bookBlock.startTime, end: bookBlock.endTime }).from(bookBlock)
         .where(and(eq(bookBlock.companyId, companyId), lt(bookBlock.startTime, to), gt(bookBlock.endTime, from)))
       for (const k of blocks) if (k.stylistId || !k.memberId) out.push({ userId: k.stylistId ?? null, start: new Date(k.start), end: new Date(k.end) })
+      // Approved time off and closed days (timeOff.ts): a stylist's, or everybody's.
+      for (const o of await offSpans(exec, companyId, from, to)) if (o.stylistId || !o.stylistMemberId) out.push({ userId: o.stylistId ?? null, start: o.start, end: o.end })
       return out
     },
   }
