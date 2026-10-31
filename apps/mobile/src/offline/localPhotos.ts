@@ -13,7 +13,12 @@
  *   · the place the save is going refused (404: the session is not there) → the save fails with that refusal.
  */
 
-export interface PhotosSpec { uploadTo: string; uris: string[] }
+/**
+ * `keys[i]` (optional) is what photo i is FOR — a checklist's photo question id. The save goes with `photoKeys` beside `photos`,
+ * holding the key of each photo that WAS uploaded, in the same order, so a photo left off never shifts the rest onto the wrong
+ * question. Without `keys` nothing changes (canvass).
+ */
+export interface PhotosSpec { uploadTo: string; uris: string[]; keys?: string[] }
 /** Is the camera's file still on the phone? */
 export type FileExists = (uri: string) => Promise<boolean>
 export type UploadPhoto = (path: string, name: string, uri: string) => Promise<{ status: number; data?: any }>
@@ -29,6 +34,7 @@ export async function withUploadedPhotos(saveId: string, body: any, exists: File
   if (!spec) return { body }
   const { $photos: _drop, ...rest } = body
   const urls: string[] = []
+  const urlKeys: string[] = []
   let leftOff = 0
   for (const [i, uri] of (spec.uris || []).entries()) {
     let there = false
@@ -36,11 +42,11 @@ export async function withUploadedPhotos(saveId: string, body: any, exists: File
     if (!there) { leftOff++; continue }
     let r: { status: number; data?: any }
     try { r = await upload(spec.uploadTo, photoName(saveId, i), uri) } catch { r = { status: 0 } }
-    if (r.status >= 200 && r.status < 300 && typeof r.data?.url === 'string') { urls.push(r.data.url); continue }
+    if (r.status >= 200 && r.status < 300 && typeof r.data?.url === 'string') { urls.push(r.data.url); urlKeys.push(spec.keys?.[i] ?? ''); continue }
     if (waits(r.status)) return { status: r.status, data: r.data }
     if (r.status === 404) return { status: 404, data: r.data }
     leftOff++
   }
   const note = leftOff ? `(${leftOff} photo${leftOff === 1 ? '' : 's'} could not be sent from the phone)` : ''
-  return { body: { ...rest, photos: urls, ...(note ? { notes: [rest.notes, note].filter(Boolean).join('\n') } : {}) } }
+  return { body: { ...rest, photos: urls, ...(spec.keys ? { photoKeys: urlKeys } : {}), ...(note ? { notes: [rest.notes, note].filter(Boolean).join('\n') } : {}) } }
 }
