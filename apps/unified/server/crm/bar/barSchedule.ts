@@ -261,8 +261,8 @@ async function punchByPin(actor: Actor, rawPin: unknown) {
   const open = await clock.activeEntry(who.id, actor.companyId)
   const r = open ? await clock.clockOut(person) : await clock.clockIn(person, { description: 'Bar tablet' })
   if (!r.ok) throw new RotaError(r.error, r.status)
-  if (r.discarded) return { name: nameOf(who), action: 'discarded' as const, message: r.message }
-  return { name: nameOf(who), action: open ? 'out' as const : 'in' as const, hours: open ? Number(r.entry.hours) : 0 }
+  if (r.discarded) return { userId: who.id, name: nameOf(who), action: 'discarded' as const, message: r.message }
+  return { userId: who.id, name: nameOf(who), action: open ? 'out' as const : 'in' as const, hours: open ? Number(r.entry.hours) : 0 }
 }
 
 /** Who is on the clock right now (anyone past 16 hours probably forgot to clock out). */

@@ -48,7 +48,13 @@ export function roleForPositions(rules: TipRules, positions: string[], fallback:
   return fallback
 }
 
-export interface TipPerson { userId: string; name: string; role: string; hours: number; tipsCents: number; salesCents: number }
+export interface TipPerson {
+  userId: string; name: string; role: string; hours: number
+  /** Everything they made in tips: what is on the checks they closed, plus the two parts below. */
+  tipsCents: number; salesCents: number
+  /** Of tipsCents: cash tips they declared at clock-out (not rung on our register), and tips imported from another register (Toast, Square). */
+  declaredCents?: number; importedCents?: number
+}
 export interface TipPayout extends TipPerson {
   keptCents: number
   tipOutPaidCents: number

@@ -7,6 +7,7 @@ import { useMayWrite, useAuth } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, Dialog } from './registerUi';
 import { ManagerRequests, MyAvailability, MySwaps } from './StaffRequestsUi';
+import { MyCashTips } from './DeclaredTipsUi';
 
 /**
  * THE SCHEDULE (routes/barSchedule.ts). A manager (bar:update) builds the week — Monday to Sunday, the timesheet's
@@ -174,7 +175,7 @@ function MyStaffRequests() {
     if (!hasFeature('bar_shift_swaps')) return;
     api.get('/api/schedule/published').then((d) => setPublished((d.weeks || []).flatMap((w: any) => (w.published ? w.shifts : [])))).catch(() => setPublished([]));
   }, [hasFeature]);
-  return (<><MyAvailability /><MySwaps published={published} meId={(user as any)?.id ?? null} /></>);
+  return (<><MyAvailability /><MySwaps published={published} meId={(user as any)?.id ?? null} /><MyCashTips /></>);
 }
 
 function PublishedWeeks() {

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../../api';
 import FormError, { errorText } from '../../ui/FormError';
-import { useMayWrite } from '../../../shared';
+import { useAuth, useMayWrite } from '../../../shared';
+import { DeclaredTipsView } from './DeclaredTipsUi';
 import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money } from './registerUi';
@@ -17,7 +18,7 @@ import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money } from './regist
 interface Role { name: string; positions: string[]; mode: 'keeps' | 'pools'; poolPct: number }
 interface TipOut { from: string; to: string; pct: number; basis: 'tips' | 'sales' }
 interface Rules { roles: Role[]; tipOuts: TipOut[]; defaultRole: string; positionRoles?: Record<string, string> }
-export interface Payout { userId: string; name: string; role: string; hours: number; tipsCents: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number }
+export interface Payout { userId: string; name: string; role: string; hours: number; tipsCents: number; declaredCents?: number; importedCents?: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number }
 interface Night { day: string; configured: boolean; payouts: Payout[]; poolCents: number; notes: string[]; totalTipsCents: number }
 interface Report { people: Array<{ userId: string; name: string; hours: number; tipsCents: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number; nights: number }>; totalCents: number }
 
@@ -35,7 +36,7 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
         <tbody>
           {payouts.map((p) => (
             <tr key={p.userId} className="border-t border-gray-100 dark:border-slate-800">
-              <td className={TD}>{p.name}</td><td className={TD}>{codeLabel(p.role)}</td><td className={TD}>{p.hours}</td><td className={`${TD} font-mono`}>{money(p.tipsCents)}</td>
+              <td className={TD}>{p.name}</td><td className={TD}>{codeLabel(p.role)}</td><td className={TD}>{p.hours}</td><td className={`${TD} font-mono`}>{money(p.tipsCents)}{(p.declaredCents || p.importedCents) ? <span className={`block text-xs font-sans ${MUTED}`}>{[p.declaredCents ? `${money(p.declaredCents)} declared cash` : '', p.importedCents ? `${money(p.importedCents)} from another register` : ''].filter(Boolean).join(' · ')}</span> : null}</td>
               <td className={`${TD} font-mono`}>{p.tipOutPaidCents ? `−${money(p.tipOutPaidCents)}` : '—'}</td><td className={`${TD} font-mono`}>{p.tipOutReceivedCents ? money(p.tipOutReceivedCents) : '—'}</td>
               <td className={`${TD} font-mono`}>{p.poolShareCents ? money(p.poolShareCents) : '—'}</td><td className={`${TD} font-mono font-bold`}>{money(p.totalCents)}</td>
             </tr>
@@ -48,7 +49,8 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
 
 export default function TipsPage() {
   const may = useMayWrite('bar:manage');
-  const [tab, setTab] = useState<'night' | 'rules' | 'report'>('night');
+  const { hasFeature } = useAuth();
+  const [tab, setTab] = useState<'night' | 'rules' | 'report' | 'cash'>('night');
   return (
     <div className="space-y-4 max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -56,10 +58,11 @@ export default function TipsPage() {
         <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center`}>Close-out</Link>
       </div>
       <div className="flex gap-2" role="tablist">
-        {([['night', 'A night'], ['report', 'Report'], ['rules', 'Rules']] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`${BTN} ${tab === k ? ON : OFF}`} onClick={() => setTab(k)}>{l}</button>)}
+        {([['night', 'A night'], ['report', 'Report'], ...(hasFeature('bar_declared_tips') ? [['cash', 'Cash tips']] : []), ['rules', 'Rules']] as Array<readonly [typeof tab, string]>).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`${BTN} ${tab === k ? ON : OFF}`} onClick={() => setTab(k)}>{l}</button>)}
       </div>
       {tab === 'night' && <NightView />}
       {tab === 'report' && <ReportView />}
+      {tab === 'cash' && <DeclaredTipsView />}
       {tab === 'rules' && <RulesView may={may} />}
     </div>
   );
