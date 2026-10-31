@@ -5,7 +5,7 @@
 // by the same features; the bar's settings rename them (screens.nav).
 import type { ReactElement } from 'react'
 import { Navigate, Route, useLocation } from 'react-router-dom'
-import { Beer, CalendarDays, Coins, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
+import { Banknote, Beer, CalendarDays, Coins, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
 import { kioskLocked } from '../pages/bar/kioskLock'
 import { useAuth, type NavItem } from '../../shared'
 import { NoAccessPage } from '@twomiah/tenant-ui/src/shell/noAccess'
@@ -26,6 +26,7 @@ const FloorPage = page(() => import('../pages/bar/FloorPage'))
 const StockPage = page(() => import('../pages/bar/StockPage'))
 const CountPage = page(() => import('../pages/bar/CountPage'))
 const TipsPage = page(() => import('../pages/bar/TipsPage'))
+const PayrollPage = page(() => import('../pages/bar/PayrollPage'))
 const ClockPage = page(() => import('../pages/bar/ClockPage'))
 const BarSchedulePage = page(() => import('../pages/bar/BarSchedulePage'))
 const SalesReport = page(() => import('../pages/bar/SalesReport'))
@@ -83,6 +84,7 @@ export const routes: ReactElement[] = [
   <Route key="bar-stock" path="stock" element={<StockPage />} />,
   <Route key="bar-count" path="count" element={<CountPage />} />,
   <Route key="bar-tips" path="tips" element={<TipsPage />} />,
+  <Route key="bar-payroll" path="pay-period" element={<PayrollPage />} />,
   <Route key="bar-clock" path="clock" element={<ClockPage />} />,
   <Route key="bar-shifts" path="shifts" element={<BarSchedulePage />} />,
   <Route key="bar-register-settings" path="register-settings" element={<FoodSettingsPage />} />,
@@ -105,6 +107,7 @@ export const nav: NavItem[] = [
   { to: '/crm/stock', icon: Package, label: 'Stock', features: ['bar_stock'], permission: 'bar:update' },
   { to: '/crm/shifts', icon: CalendarDays, label: 'Schedule', features: ['bar_schedule'], permission: 'bar:read' },
   { to: '/crm/tips', icon: Coins, label: 'Tips', features: ['bar_tip_pooling'], permission: 'bar:manage' },
+  { to: '/crm/pay-period', icon: Banknote, label: 'Payroll', features: ['bar_payroll_export'], permission: 'bar:manage' },
   { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
