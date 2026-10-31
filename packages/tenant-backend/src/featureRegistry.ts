@@ -280,7 +280,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Roofing
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
-  { id: 'tap_to_pay', name: 'Tap to Pay on the phone', description: "Take a customer's card by tapping it on your own phone, paid into your own Stripe account, and recorded on the invoice", category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'], hidden: true, words: ['tap to pay', 'card reader', 'contactless'] },
+  { id: 'tap_to_pay', name: 'Tap to Pay on the phone', description: "Take a customer's card by tapping it on your own phone, paid into your own Stripe account, and recorded on the invoice", category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'], hidden: true, words: ['tap to pay', 'contactless'] },
   { id: 'quote_proposals', name: 'Good / Better / Best', description: 'One quote with two to six priced options, each with photos, a brand and a warranty: the customer picks one and signs, and the price and deposit follow their pick', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'], hidden: true, words: ['quote options', 'good better best', 'proposal options'] },
   // Not ready (roofing depth, gaps 6 and 10): the owner tests them first.
   { id: 'inspection_reports', name: 'Inspection Reports', description: 'A branded photo report of a roof inspection, shared by a private link and as a PDF', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },

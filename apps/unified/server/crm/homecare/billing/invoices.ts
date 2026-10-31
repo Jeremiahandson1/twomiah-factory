@@ -604,8 +604,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const invoice = await invoiceForEmail(db, companyId, id)
     if (!invoice) return fail(c, 404, 'Invoice not found')
     const b = await body(c)
-    // A payer's invoice goes to the payer's billing contact, the family's to the family (0051 bill_to).
-    const toPayer = invoice.billTo === 'payer'
+    // A payer's share of split visits goes to the payer's billing contact (0051); every other invoice to the client, as always.
+    const toPayer = !!invoice.splitGroupId && invoice.billTo === 'payer'
     const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
     if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')
@@ -641,8 +641,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     if (!invoice) return fail(c, 404, 'Invoice not found')
     if (invoice.paymentStatus === 'paid') return fail(c, 400, 'This invoice is already paid — no reminder needed.')
     const b = await body(c)
-    // A payer's invoice goes to the payer's billing contact, the family's to the family (0051 bill_to).
-    const toPayer = invoice.billTo === 'payer'
+    // A payer's share of split visits goes to the payer's billing contact (0051); every other invoice to the client, as always.
+    const toPayer = !!invoice.splitGroupId && invoice.billTo === 'payer'
     const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
     if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')

@@ -23,12 +23,12 @@ const alias = (a: string) => {
 // ── Who outside the office may see an invoice (invoiceEngine.ts) ─────────────────────────────
 
 /**
- * WHERE fragment over the `invoices` table (query builder): what the family portal shows — released, and billed to the
- * family. A payer's invoice (an insurer's, or a payer's share of split visits) is the payer's, never on the family's
- * page or their Pay button (0051 bill_to).
+ * WHERE fragment over the `invoices` table (query builder): what the family portal shows — released, and not a payer's
+ * share of split visits (0051: that part is the payer's, never on the family's page or their Pay button). An invoice
+ * that is not split shows as it always has, whoever it is billed to.
  */
 export function clientVisibleInvoiceSql(): SQL {
-  return sql`((${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial')) AND ${invoices.billTo} = 'family')`
+  return sql`((${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial')) AND (${invoices.splitGroupId} IS NULL OR ${invoices.billTo} = 'family'))`
 }
 
 /** The same rule for raw SQL over an aliased invoices table. A RELEASED invoice is what every money report counts as billed. */

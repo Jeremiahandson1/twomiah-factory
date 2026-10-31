@@ -24,7 +24,9 @@ export interface FenceViolation { path: string; detail: string }
 const UNIFIED_OWN = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//]
 /** Existing files that may be deleted: the phone app's (owner, 2026-10-19 — it has no users yet) and the unified app's own. */
 const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN]
-const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
+// The Factory's checked photo library (apps/api/assets/hero-library) — NEW photos only, each one looked at before it is kept
+// (photo variety step 3, owner's yes 10/30–31); an existing photo stays fenced, since live sites point at it by name.
+const ADD_ALLOWED = [/^apps\/api\/assets\/hero-library\/[a-z]+\/[a-z]+-\d{2}\.jpg$/, /^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 // apps/mobile (and its tests, tests/mobile): the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
 // The four registry/shared-default guards: a change to the shared code they check must update them in the same push, or
