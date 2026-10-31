@@ -116,11 +116,17 @@ export const lead = pgTable('lead', {
   location: text('location'),
   budget: text('budget'),
   description: text('description'),
-  status: text('status').default('new').notNull(), // new, contacted, converted, dismissed
+  status: text('status').default('new').notNull(), // new, contacted, converted, dismissed (spam; lost with lead_lost)
   rawPayload: json('raw_payload'),
   convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
   contactedAt: timestamp('contacted_at'),
   receivedAt: timestamp('received_at').defaultNow().notNull(),
+  // Lost (feature lead_lost): status 'lost' with why. Site visit (feature lead_site_visit): when, and the calendar entry it made.
+  lostReason: text('lost_reason'),
+  lostNote: text('lost_note'),
+  lostAt: timestamp('lost_at'),
+  siteVisitAt: timestamp('site_visit_at'),
+  siteVisitEventId: text('site_visit_event_id'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 

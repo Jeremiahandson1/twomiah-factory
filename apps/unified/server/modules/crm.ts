@@ -82,6 +82,7 @@ import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
+import { leadMounts } from '../crm/leads/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
@@ -601,6 +602,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...homecareMounts(own),
     ...roofMounts(own),
     ...storeMounts(own),
+    // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
+    ...leadMounts(own),
   ]
 }
 

@@ -10,6 +10,7 @@ import { api } from './api'
 import { SHELL_HERE, SETTINGS_SUB_PAGES } from './shell'
 import { verticalScreens } from './crm/vertical'
 import { leadStarts } from './leadStarts'
+import { LeadPipelineStrip } from './crm/pages/LeadPipelineStrip'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
@@ -105,7 +106,13 @@ export const LeadInbox = () => {
   const screens = verticalScreens() as any
   // Convert and start the work in one step: only what this trade has, the business has on, and this seat may create (leadStarts.ts).
   const startAfterConvert = leadStarts(screens, hasFeature, can)
-  return <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert }} subscribe={subscribeLive} />
+  // Lost with a reason, site visits and the pipeline strip are each their own switch (not ready): offered only where on.
+  return (
+    <>
+      <div className="px-6 pt-6"><LeadPipelineStrip /></div>
+      <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert, lost: hasFeature('lead_lost'), siteVisit: hasFeature('lead_site_visit') }} subscribe={subscribeLive} />
+    </>
+  )
 }
 
 export function AuditLog() {

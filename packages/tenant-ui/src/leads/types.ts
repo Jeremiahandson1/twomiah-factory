@@ -50,6 +50,16 @@ export interface LeadsConfig {
    */
   spam?: boolean
   /**
+   * The server keeps a Lost status with a reason (the unified app's lead_lost feature, /api/lead-lost): the inbox offers
+   * "Lost" on an enquiry (a reason to pick, a note), "Reopen" on a lost one, and a Lost filter. Absent: not offered.
+   */
+  lost?: boolean
+  /**
+   * The server books site visits onto the schedule (the unified app's lead_site_visit feature, /api/lead-site-visit): the
+   * inbox offers "Book site visit" (and move / cancel) on an enquiry and shows the date. Absent: not offered.
+   */
+  siteVisit?: boolean
+  /**
    * What the business can start for a person the moment their enquiry becomes a contact — "Start a job", "Start a quote" —
    * each opening that screen with the new contact already chosen. The caller lists only what the trade has AND the seat may
    * create, so nothing is offered that would be refused. Absent: Convert to Contact alone, as every template has.
@@ -118,6 +128,12 @@ export interface LeadRow {
   receivedAt: string
   contactedAt?: string | null
   convertedContactId?: string | null
+  /** Lost (config.lost): why, in the reason's id and the owner's own note, and when. */
+  lostReason?: string | null
+  lostNote?: string | null
+  lostAt?: string | null
+  /** Site visit (config.siteVisit): when it is booked for. */
+  siteVisitAt?: string | null
 }
 export interface LeadSourceRow {
   id: string

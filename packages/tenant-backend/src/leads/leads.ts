@@ -53,6 +53,11 @@ export interface LeadsOptions {
    * default list, out of New and out of every count. Absent: the four statuses every template has always had.
    */
   spam?: boolean
+  /**
+   * Statuses the inbox may FILTER by that no one can set through PUT /:id/status — they are set by a route of their own that
+   * also records why (a lost enquiry's reason). Absent: the statuses above only, as every template has run it.
+   */
+  filterOnlyStatuses?: string[]
 }
 export interface LeadsDeps {
   db: any
@@ -176,7 +181,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const maxLimit = deps.options?.maxLimit || 100
   const own = !!deps.options?.ownPermission
   const spamOn = !!deps.options?.spam
-  const filterStatuses: readonly string[] = spamOn ? [...LEAD_STATUSES, 'spam'] : LEAD_STATUSES
+  const filterStatuses: readonly string[] = [...LEAD_STATUSES, ...(spamOn ? ['spam'] : []), ...(deps.options?.filterOnlyStatuses || [])]
   const settableStatuses: readonly string[] = spamOn ? [...SETTABLE_STATUSES, 'spam'] : SETTABLE_STATUSES
   const mayRead = requirePermission(own ? 'leads:read' : 'contacts:read')
   const mayWork = requirePermission(own ? 'leads:update' : 'contacts:update')
