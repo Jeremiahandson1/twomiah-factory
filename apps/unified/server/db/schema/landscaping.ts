@@ -1,9 +1,9 @@
 // Landscaping add-on: recurring mow routes, area pricing and snow contracts. Column for column from
 // templates/crm-landscaping/backend/db/schema.ts.
-import { pgTable, text, boolean, integer, decimal, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
-import { contact, invoice } from './crm.ts'
+import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
 
 // A named per-weekday crew route (e.g. "Monday Route A").
@@ -14,6 +14,14 @@ export const recurringRoute = pgTable('recurring_route', {
   dayOfWeek: integer('day_of_week').notNull(), // 0=Sun .. 6=Sat
   assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
   estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  // When the crew leaves the yard, 'HH:MM'. The first stop starts here; each next stop starts when the one before is
+  // done, so the stop order IS the day's order on the Schedule, Crew View and the phone.
+  startTime: text('start_time').default('08:00').notNull(),
+  // How this route's visits are billed: 'per_visit' (a draft invoice when the crew marks the visit complete), 'monthly'
+  // (the batch run makes one draft per customer) or 'elsewhere' (an agreement or recurring invoice bills it). NULL = not
+  // chosen yet: it reads as 'elsewhere' when a customer on the route has an active agreement or recurring invoice, so
+  // nothing already billing bills twice, and as 'monthly' otherwise (data/routeBilling.ts).
+  billingMode: text('billing_mode'),
   status: text('status').default('active').notNull(), // active, paused, archived
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -63,13 +71,15 @@ export const snowContract = pgTable('snow_contract', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
-  billingMode: text('billing_mode').notNull().default('per_push'), // per_push, per_event, per_inch, seasonal
+  billingMode: text('billing_mode').notNull().default('per_push'), // per_push, per_event, per_inch, seasonal, hourly
   perPushRate: decimal('per_push_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   perEventRate: decimal('per_event_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   perInchRate: decimal('per_inch_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   seasonalRate: decimal('seasonal_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   triggerDepthInches: decimal('trigger_depth_inches', { precision: 5, scale: 2 }).default('2').notNull(),
   saltRate: decimal('salt_rate', { precision: 12, scale: 2 }).default('0').notNull(),
+  // The rate an 'hourly' contract is billed by: the crew's hours on site, times this (storm mode's clock, data/snowStorm.ts).
+  hourlyRate: decimal('hourly_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   status: text('status').default('active').notNull(), // active, paused, ended
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -78,6 +88,22 @@ export const snowContract = pgTable('snow_contract', {
   index('snow_contract_company_id_idx').on(t.companyId),
   index('snow_contract_site_id_idx').on(t.siteId),
   index('snow_contract_status_idx').on(t.status),
+])
+
+// One storm: a named run of snow work the office starts, dispatches to every contract on a route or tag, and bills at the
+// end (data/snowStorm.ts). The contracts' own rules price every visit; the storm only gathers them.
+export const snowStorm = pgTable('snow_storm', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  status: text('status').default('active').notNull(), // active, ended
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  endedAt: timestamp('ended_at'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('snow_storm_company_id_idx').on(t.companyId),
 ])
 
 // One logged plow/salt visit. billableAmount is computed from the contract's billing mode at log time.
@@ -98,6 +124,10 @@ export const snowEvent = pgTable('snow_event', {
    * for it. Default false: nobody made that decision on a row that predates the flag.
    */
   billBelowTrigger: boolean('bill_below_trigger').default(false).notNull(),
+  // The crew's hours on site, for an 'hourly' contract (from the stop's Start to the crew logging it, or typed).
+  hours: decimal('hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  // The storm this visit was logged in, if it was logged through storm mode.
+  stormId: text('storm_id').references(() => snowStorm.id, { onDelete: 'set null' }),
   billableAmount: decimal('billable_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   billingMode: text('billing_mode').notNull(), // snapshot of mode used
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
@@ -108,4 +138,116 @@ export const snowEvent = pgTable('snow_event', {
   index('snow_event_company_id_idx').on(t.companyId),
   index('snow_event_contract_id_idx').on(t.snowContractId),
   index('snow_event_serviced_at_idx').on(t.servicedAt),
+])
+
+// A contract's place in a storm: one row per contract per storm (unique), carrying the crew's job for it ("Today's route" on
+// the phone), the visit they logged, and where it stands. Dispatching a storm twice adds nothing the second time.
+export const snowStormStop = pgTable('snow_storm_stop', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stormId: text('storm_id').notNull().references(() => snowStorm.id, { onDelete: 'cascade' }),
+  snowContractId: text('snow_contract_id').notNull().references(() => snowContract.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  eventId: text('event_id').references(() => snowEvent.id, { onDelete: 'set null' }),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  status: text('status').default('open').notNull(), // open, working, done, skipped
+  startedAt: timestamp('started_at'),
+  doneAt: timestamp('done_at'),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('snow_storm_stop_contract_idx').on(t.stormId, t.snowContractId),
+  index('snow_storm_stop_company_id_idx').on(t.companyId),
+  index('snow_storm_stop_job_id_idx').on(t.jobId),
+])
+
+// The message a customer gets when a visit is done (data/visitReports.ts): the crew's note, the after-photos, and what became of
+// the message. One row per job, ever (unique job_id), so finishing a job twice never messages the customer twice.
+export const visitReport = pgTable('visit_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  // The crew's words for the customer. Customer-visible, unlike the job's own notes.
+  note: text('note'),
+  // "Do not message the customer about this visit."
+  skip: boolean('skip').default(false).notNull(),
+  // draft (nothing sent yet), queued (a text waits for its send window), sent, skipped, nothing (no way to reach them), failed
+  status: text('status').default('draft').notNull(),
+  channel: text('channel'), // text, email
+  photoCount: integer('photo_count').default(0).notNull(),
+  sendAt: timestamp('send_at'),
+  sentAt: timestamp('sent_at'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_report_job_idx').on(t.jobId),
+  index('visit_report_company_id_idx').on(t.companyId),
+  index('visit_report_contact_id_idx').on(t.contactId),
+])
+
+// One run of "bill the completed visits" (monthly batch): kept so the whole batch can be undone while its invoices are drafts.
+export const routeBillingBatch = pgTable('route_billing_batch', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  fromDate: text('from_date').notNull(), // YYYY-MM-DD, the visits' service days
+  toDate: text('to_date').notNull(),
+  groupBy: text('group_by').default('none').notNull(), // none, property
+  invoiceCount: integer('invoice_count').default(0).notNull(),
+  visitCount: integer('visit_count').default(0).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  undoneAt: timestamp('undone_at'),
+}, (t) => [
+  index('route_billing_batch_company_id_idx').on(t.companyId),
+])
+
+// A route visit's bill. One row per visit, ever (unique job_id): the database's refusal under "never bill a visit twice".
+// A deleted invoice takes its rows with it, so those visits are billable again; a voided one is cleared by the billing code.
+export const routeVisitInvoice = pgTable('route_visit_invoice', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  invoiceLineItemId: text('invoice_line_item_id').references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
+  batchId: text('batch_id').references(() => routeBillingBatch.id, { onDelete: 'set null' }),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(), // what this visit billed, before tax
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('route_visit_invoice_job_idx').on(t.jobId),
+  index('route_visit_invoice_invoice_id_idx').on(t.invoiceId),
+  index('route_visit_invoice_company_id_idx').on(t.companyId),
+])
+
+// A shape drawn on the satellite map for a property (Area Pricing › Measure on the map). `areaType` is the property column
+// it adds to — lawnSqft, bedSqft, hardscapeSqft, lotSqft or drivewaySqft — and `mode` says whether it adds to that area or
+// cuts out of it (a bed inside a lawn). The area is worked out by the server from the corners; the property's column holds
+// the sum of its shapes of that type (data/siteShapes.ts).
+export const siteShape = pgTable('site_shape', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
+  areaType: text('area_type').notNull(),
+  mode: text('mode').default('add').notNull(), // add, cut
+  label: text('label'),
+  path: json('path').notNull(), // [[lat, lng], …] in drawing order
+  areaSqft: integer('area_sqft').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('site_shape_site_id_idx').on(t.siteId),
+  index('site_shape_company_id_idx').on(t.companyId),
+])
+
+// A landscaping business's own switches. One row per company, made the first time one is saved; no row means every switch is at its
+// default. `rainDaySkipSundays` (default on): a rain day never lands visits on a Sunday — they go to Monday instead.
+export const landscapingSetting = pgTable('landscaping_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  rainDaySkipSundays: boolean('rain_day_skip_sundays').default(true).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),
 ])

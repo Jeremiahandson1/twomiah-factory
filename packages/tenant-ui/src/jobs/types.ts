@@ -64,6 +64,11 @@ export interface JobsConfig {
   requireCustomer?: boolean
   /** What this trade calls its customer, lower case ("customer", "client", "homeowner"). Used with requireCustomer. */
   customerWord?: string
+  /**
+   * A weekly repeat can pick its days of the week (Monday and Thursday). Needs the server's jobs.repeatWeekdays (tenant-backend
+   * jobs.ts options). Default false: the repeat box is as it was. Landscaping only.
+   */
+  repeatWeekdays?: boolean
   /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
   aside?: (job: Record<string, any>) => import('react').ReactNode
 }
@@ -95,6 +100,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     requireCustomer: !!cfg.requireCustomer,
     customerWord: cfg.customerWord || 'customer',
     jobTypes: cfg.jobTypes && cfg.jobTypes.length ? cfg.jobTypes : null,
+    repeatWeekdays: !!cfg.repeat && !!cfg.repeatWeekdays,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

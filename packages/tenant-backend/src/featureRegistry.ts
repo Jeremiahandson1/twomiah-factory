@@ -91,6 +91,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv'] },
   { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
+  // NOT READY until the owner has tested it: the customer is messaged when a visit is done (apps/unified server/data/visitReports.ts).
+  { id: 'visit_reports', name: 'Visit-done messages', description: 'Tell the customer a visit is done, with the crew\'s note and the after-photos', category: 'Landscaping', core: false, templates: ['crm-landscaping'], hidden: true },
   { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event and per-inch snow billing; a seasonal contract leaves its visits uncharged (bill the season itself with a recurring invoice)', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* not crm-homecare: an agency has no quotes or invoices to price (owner, 2026-10-19) */ },
 

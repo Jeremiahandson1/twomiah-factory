@@ -54,7 +54,7 @@ export interface PortalOptions {
   /** Status a portal service request is created in. Default 'pending' (unscheduled, waiting for the office). */
   serviceRequestStatus?: string
   /** Endpoint groups to leave unmounted even though their tables exist. */
-  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets'>
+  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits'>
 }
 export interface PortalDeps {
   db: any
@@ -106,6 +106,11 @@ export interface PortalDeps {
     onApproved: (companyId: string, quote: any) => Promise<unknown>
     depositFor: (companyId: string, quoteId: string) => Promise<unknown>
   }
+  /**
+   * The customer's finished visits with the crew's note and after-photos (landscaping's visit-done message). Optional: given,
+   * the portal gains a Visits section. Answers null when the business has not turned the messages on — then it is a 404.
+   */
+  visits?: (who: { companyId: string; contactId: string }) => Promise<unknown[] | null>
   options?: PortalOptions
 }
 
@@ -135,6 +140,7 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   // hardcoded "always available" on both sides, so a customer of a tenant with Online Payments OFF was
   // shown a Payment Method tab. Same shape as equipment/agreements in T26 M7. (Field Service T29 M1)
   paymentMethods: ['online_payments'],
+  visits: ['visit_reports'],
 }
 /** One id: is it on. A nested list: is ANY of them on. */
 const featureSatisfied = (need: string | string[], enabled: string[]): boolean =>
@@ -198,6 +204,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     // vet: the owner's animals. (T12 H6 — the portal offered a veterinary client projects, change orders and lien
     // waivers, and nothing at all about the pets they actually bring in.)
     pets: !!t.patient && !off('pets'),
+    // landscaping: the visits that are done (deps.visits supplies them)
+    visits: !!deps.visits && !off('visits'),
   }
   const app = new Hono()
   const portalUrlFor = (token: string) => `${frontendUrl()}/portal/${token}`
@@ -574,6 +582,16 @@ export function createPortalRoutes(deps: PortalDeps) {
       sections,
     })
   })
+
+  // ---- visits (landscaping): finished visits with the crew's note and the after-photos
+  if (has.visits) {
+    app.get('/p/:token/visits', portalAuth, gate('visits'), async (c) => {
+      const { contact } = P(c)
+      const rows = await deps.visits!({ companyId: contact.companyId, contactId: contact.id })
+      if (rows === null) return c.json({ error: 'This section is not available on your account.', code: 'FEATURE_NOT_ENABLED' }, 404)
+      return c.json(rows)
+    })
+  }
 
   // ---- pets (vet)
   // What an owner comes to the portal for: their animals, what each is due, and what is booked. Read-only — the

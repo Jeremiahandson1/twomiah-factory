@@ -47,10 +47,11 @@ const landscaping: VerticalSettings = {
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
+    visitReports: true,
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
     // owner objected that "a landscaping job is labelled REPAIR" (T58); the template only hid the label on the
     // dispatch card and kept storing it. It billed no job on its own (no POST /api/jobs/:id/invoice).
-    jobs: { photos: true, textArrival: true, requireCustomer: true },
+    jobs: { photos: true, textArrival: true, requireCustomer: true, repeatWeekdays: true },
     quotes: { textOnSend: true },
     // No drawings to mark up: plan markup is construction's (field service's fix, T28 L10 — the landscaping copy still
     // passed the table).
@@ -78,7 +79,8 @@ const landscaping: VerticalSettings = {
     // and job forms.
     sites: { singular: 'Property', plural: 'Properties', namePlaceholder: 'e.g. "Home", "Lake cottage"' },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true },
+    // repeatWeekdays: a repeating job can run on chosen days of the week (Monday and Thursday); the server's jobs.repeatWeekdays is the same switch.
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true, repeatWeekdays: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },
     // markup/projects: construction's, as for field service (the template still offered both; projects is not offered
     // to this vertical).
@@ -125,7 +127,7 @@ const landscaping: VerticalSettings = {
     },
     portal: {
       providerNoun: 'landscaping team',
-      clientNav: ['myJobs', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'visits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Visits', agreements: 'Service Plans' },

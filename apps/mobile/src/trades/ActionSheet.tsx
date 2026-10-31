@@ -4,6 +4,7 @@ import { View } from 'react-native'
 import { BottomSheet, Button, DText, TextField, Chip, space } from '../design'
 import { api, get } from '../api/client'
 import { useToast } from '../components/ToastProvider'
+import { useOfflineApi } from '../offline/useOfflineApi'
 import { unwrap, type Action } from './kit'
 
 /** The choices wrap onto more lines instead of hiding behind a sideways scroll: every answer is on the screen. */
@@ -11,6 +12,7 @@ const Wrap = ({ children }: { children: React.ReactNode }) => <View style={{ fle
 
 export function ActionSheet({ action, row, onClose, onDone }: { action: Action | null; row: any; onClose: () => void; onDone: () => void }) {
   const toast = useToast()
+  const offline = useOfflineApi()
   const [values, setValues] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // Choices the server offers (rates for a label): { label → value }, or a sentence when it has none / refuses.
@@ -37,10 +39,14 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
     const sent = { ...values }
     for (const inp of action.inputs || []) if (inp.options) sent[inp.id] = offered[inp.id]?.map[values[inp.id]] ?? ''
     const req = action.request(row, sent)
-    const r = await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
+    const keep = action.offline?.(row)
+    const r: any = keep
+      ? await ({ POST: offline.post, PUT: offline.put, PATCH: offline.patch, DELETE: (p: string, _b: unknown, o: any) => offline.del(p, o) } as const)[req.method](req.path, req.body, { recordKey: keep.key, label: keep.label })
+      : await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
     setBusy(false)
     if (!r.ok) { toast.show(r.error || 'That did not go through', 'error'); return }
-    toast.show(action.done, 'success'); onClose(); onDone()
+    // Kept on the phone, not done yet: said as waiting, never as done.
+    toast.show(r.queued ? 'Saved on your phone. It will be sent when you have signal.' : action.done, r.queued ? 'info' : 'success'); onClose(); onDone()
   }
   return (
     <BottomSheet visible={!!action} title={action?.confirm?.title || action?.label || ''} onClose={onClose}>

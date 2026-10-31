@@ -14,7 +14,7 @@ import { fail, one, listAll } from '../../http/reply.ts'
 // The same numbering as the CRM's invoices (the shared default INV-00001).
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
 
-const BILLING_MODES = ['per_push', 'per_event', 'per_inch', 'seasonal'] as const
+const BILLING_MODES = ['per_push', 'per_event', 'per_inch', 'seasonal', 'hourly'] as const
 
 // A rate/decimal column, coerced for storage. Blank optional fields arrive from the form as '' — which
 // `?? default` does NOT catch, so it used to reach the numeric column verbatim and 500 the whole save
@@ -29,7 +29,7 @@ const rate = (v: unknown, dflt = '0'): string => {
 
 const RATE_FIELDS: Array<[string, string]> = [
   ['perPushRate', 'Per-push rate'], ['perEventRate', 'Per-event rate'], ['perInchRate', 'Per-inch rate'],
-  ['seasonalRate', 'Seasonal rate'], ['saltRate', 'Salt rate'], ['triggerDepthInches', 'Trigger depth'],
+  ['seasonalRate', 'Seasonal rate'], ['hourlyRate', 'Hourly rate'], ['saltRate', 'Salt rate'], ['triggerDepthInches', 'Trigger depth'],
 ]
 
 /**
@@ -72,6 +72,7 @@ export function snowContractInputError(body: any, existing?: any): string | null
     per_event: ['perEventRate', 'a per-event rate'],
     per_inch: ['perInchRate', 'a per-inch rate'],
     seasonal: ['seasonalRate', 'a seasonal fee'],
+    hourly: ['hourlyRate', 'an hourly rate'],
   }
   const mode = body.billingMode ?? existing?.billingMode
   const needed = mode ? MODE_RATE[mode] : undefined
@@ -99,6 +100,10 @@ export function snowEventInputError(body: any): string | null {
     const i = Number(body.snowfallInches)
     if (!Number.isFinite(i) || i < 0 || i > 120) return 'Snowfall must be a number of inches from 0 to 120.'
   }
+  if (body.hours !== undefined && body.hours !== null && String(body.hours).trim() !== '') {
+    const h = Number(body.hours)
+    if (!Number.isFinite(h) || h < 0 || h > 48) return 'Hours must be a number from 0 to 48.'
+  }
   if (body.servicedAt !== undefined && body.servicedAt !== null && String(body.servicedAt).trim() !== '' && isNaN(new Date(body.servicedAt).getTime())) {
     return 'Serviced date must be a valid date.'
   }
@@ -111,6 +116,7 @@ interface ContractRates {
   perEventRate: string | number
   perInchRate: string | number
   seasonalRate: string | number
+  hourlyRate?: string | number
   saltRate: string | number
   // Read by isBelowTrigger (T58d); typed here for strict TypeScript, the template left it implicit.
   triggerDepthInches?: string | number | null
@@ -168,7 +174,7 @@ interface ContractRates {
  */
 export function computeSnowEventCharge(
   contract: ContractRates,
-  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; billBelowTrigger?: boolean },
+  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; billBelowTrigger?: boolean; hours?: number },
 ) {
   const n = (v: string | number) => Number(v) || 0
   let base = 0
@@ -177,6 +183,8 @@ export function computeSnowEventCharge(
     case 'per_event': base = n(contract.perEventRate); break
     case 'per_inch': base = n(ev.snowfallInches) * n(contract.perInchRate); break
     case 'seasonal': base = 0; break
+    // Hourly: the crew's hours on site times the contract's hourly rate (storm mode keeps the clock).
+    case 'hourly': base = n(ev.hours ?? 0) * n(contract.hourlyRate ?? 0); break
   }
   if (isBelowTrigger(contract, ev) && !ev.billBelowTrigger) base = 0
   const salt = ev.saltApplied ? n(contract.saltRate) : 0
@@ -221,9 +229,12 @@ export function isBelowTrigger(
  */
 export function snowEventChargeError(
   billingMode: string,
-  ev: { pushes: number; snowfallInches: number; saltApplied: boolean },
+  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; hours?: number },
 ): string | null {
   if (ev.saltApplied) return null
+  if (billingMode === 'hourly' && !(Number(ev.hours) > 0)) {
+    return 'This contract is billed by the hour, so a visit needs the hours worked — or tick salt if that is all that was done.'
+  }
   if (billingMode === 'per_push' && !(Number(ev.pushes) > 0)) {
     return 'This contract is billed per push, so a visit needs at least one push — or tick salt if that is all that was done.'
   }
@@ -251,14 +262,15 @@ async function contractLabel(db: any, companyId: string, siteId: string | null |
 }
 
 /** An invoice line for a logged visit: the date and what was charged for (pushes / event / inches, salt). */
-export function snowEventLine(ev: { servicedAt: Date | string; pushes: number; snowfallInches: string | number; saltApplied: boolean; billingMode: string; billableAmount: string | number }) {
+export function snowEventLine(ev: { servicedAt: Date | string; pushes: number; snowfallInches: string | number; saltApplied: boolean; billingMode: string; billableAmount: string | number; hours?: string | number }) {
   const day = new Date(ev.servicedAt).toISOString().slice(0, 10)
   const work = ev.billingMode === 'per_push' ? `${ev.pushes} push${Number(ev.pushes) === 1 ? '' : 'es'}`
     : ev.billingMode === 'per_inch' ? `${Number(ev.snowfallInches)}" snowfall`
-    : ev.billingMode === 'per_event' ? 'snow event' : 'seasonal visit'
+    : ev.billingMode === 'per_event' ? 'snow event'
+    : ev.billingMode === 'hourly' ? `${Number(ev.hours)} hour${Number(ev.hours) === 1 ? '' : 's'}` : 'seasonal visit'
   // A salt-only run (no plough pass) reads as "salt", not "0 pushes + salt" — the customer reads this line.
   const saltOnly = ev.saltApplied
-    && (ev.billingMode === 'per_push' ? !(Number(ev.pushes) > 0) : ev.billingMode === 'per_inch' ? !(Number(ev.snowfallInches) > 0) : false)
+    && (ev.billingMode === 'per_push' ? !(Number(ev.pushes) > 0) : ev.billingMode === 'per_inch' ? !(Number(ev.snowfallInches) > 0) : ev.billingMode === 'hourly' ? !(Number(ev.hours) > 0) : false)
   if (saltOnly) return { description: `Snow & ice service ${day} — salt`, quantity: 1, unitPrice: Number(ev.billableAmount) }
   return { description: `Snow & ice service ${day} — ${work}${ev.saltApplied ? ' + salt' : ''}`, quantity: 1, unitPrice: Number(ev.billableAmount) }
 }
@@ -302,6 +314,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       perEventRate: rate(body.perEventRate),
       perInchRate: rate(body.perInchRate),
       seasonalRate: rate(body.seasonalRate),
+      hourlyRate: rate(body.hourlyRate),
       triggerDepthInches: rate(body.triggerDepthInches, '2'),
       saltRate: rate(body.saltRate),
       status: body.status ?? 'active',
@@ -323,7 +336,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     const bad = snowContractInputError(body, before)
     if (bad) return fail(c, 400, bad)
     const patch: Record<string, unknown> = { updatedAt: new Date() }
-    for (const k of ['perPushRate', 'perEventRate', 'perInchRate', 'seasonalRate', 'triggerDepthInches', 'saltRate']) {
+    for (const k of ['perPushRate', 'perEventRate', 'perInchRate', 'seasonalRate', 'hourlyRate', 'triggerDepthInches', 'saltRate']) {
       if (body[k] !== undefined) patch[k] = rate(body[k], k === 'triggerDepthInches' ? '2' : '0')
     }
     if (body.billingMode && (BILLING_MODES as readonly string[]).includes(body.billingMode)) patch.billingMode = body.billingMode
@@ -397,6 +410,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       snowfallInches: String(body.snowfallInches ?? '').trim() === '' ? 0 : Number(body.snowfallInches),
       saltApplied: !!body.saltApplied,
       billBelowTrigger: !!body.billBelowTrigger,
+      hours: String(body.hours ?? '').trim() === '' ? 0 : Number(body.hours),
     }
     const badCharge = snowEventChargeError(contract.billingMode, ev)
     if (badCharge) return fail(c, 400, badCharge)
@@ -412,6 +426,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       snowfallInches: String(ev.snowfallInches),
       saltApplied: ev.saltApplied,
       billBelowTrigger: ev.billBelowTrigger,
+      hours: String(ev.hours),
       billableAmount: String(billableAmount),
       billingMode: contract.billingMode,
       assignedToId: body.assignedToId ?? u.userId ?? null,

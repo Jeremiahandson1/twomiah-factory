@@ -59,7 +59,8 @@ import { fieldMounts } from '../crm/field/index.ts'
 import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
-import { createSmsMediaRoutes, SMS_MEDIA_PATH } from '../crm/comms/smsMedia.ts'
+import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
+import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
@@ -256,6 +257,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
+      ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.
@@ -545,6 +547,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
+      // Landscaping: finished visits with the crew's note and after-photos (feature visit_reports; null = not on, so a 404).
+      ...(v.visitReports ? { visits: async ({ companyId, contactId }: { companyId: string; contactId: string }) =>
+        (await features.enabledFeaturesFor(companyId)).includes('visit_reports')
+          ? visitsForCustomer(db, companyId, contactId, (k, s) => `${SMS_MEDIA_PATH}/file/${pictureToken(k, s)}`)
+          : null } : {}),
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },

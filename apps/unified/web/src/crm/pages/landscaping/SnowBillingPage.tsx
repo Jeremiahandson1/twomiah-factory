@@ -7,15 +7,17 @@ import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import { money } from '@twomiah/tenant-ui/src/money'
+import SnowStormPanel from './SnowStormPanel'
 
 const MODES = [
   { value: 'per_push', label: 'Per Push' },
   { value: 'per_event', label: 'Per Event' },
   { value: 'per_inch', label: 'Per Inch' },
   { value: 'seasonal', label: 'Seasonal' },
+  { value: 'hourly', label: 'Hourly' },
 ]
 
-type RateField = 'perPushRate' | 'perEventRate' | 'perInchRate' | 'seasonalRate'
+type RateField = 'perPushRate' | 'perEventRate' | 'perInchRate' | 'seasonalRate' | 'hourlyRate'
 
 /**
  * Which rate the contract is actually billed by (T41). Mirrors MODE_RATE in server/crm/landscaping/snowBilling.ts, which
@@ -26,17 +28,18 @@ const MODE_RATE: Record<string, { field: RateField; label: string }> = {
   per_event: { field: 'perEventRate', label: 'Per event' },
   per_inch: { field: 'perInchRate', label: 'Per inch' },
   seasonal: { field: 'seasonalRate', label: 'Seasonal' },
+  hourly: { field: 'hourlyRate', label: 'Hourly' },
 }
 
 type ContractForm = Record<RateField, string> & { siteId: string; billingMode: string; triggerDepthInches: string; saltRate: string; notes: string }
 
 const EMPTY_CONTRACT: ContractForm = {
   siteId: '', billingMode: 'per_push', perPushRate: '', perEventRate: '', perInchRate: '',
-  seasonalRate: '', triggerDepthInches: '2', saltRate: '', notes: '',
+  seasonalRate: '', hourlyRate: '', triggerDepthInches: '2', saltRate: '', notes: '',
 }
 
-type EventForm = { pushes: string; snowfallInches: string; saltApplied: boolean; billBelowTrigger: boolean; notes: string }
-const EMPTY_EVENT: EventForm = { pushes: '1', snowfallInches: '', saltApplied: false, billBelowTrigger: false, notes: '' }
+type EventForm = { pushes: string; snowfallInches: string; hours: string; saltApplied: boolean; billBelowTrigger: boolean; notes: string }
+const EMPTY_EVENT: EventForm = { pushes: '1', snowfallInches: '', hours: '', saltApplied: false, billBelowTrigger: false, notes: '' }
 
 /** A row of GET /api/snow/contracts: the contract and the site it covers. Rates are decimal strings. */
 interface Contract {
@@ -57,6 +60,7 @@ interface SnowEvent {
   servicedAt: string;
   pushes: number;
   snowfallInches: string | number;
+  hours?: string | number;
   saltApplied: boolean;
   billBelowTrigger: boolean;
   billableAmount: string | number;
@@ -161,6 +165,10 @@ export default function SnowBillingPage() {
         toast.error('This contract is billed per push — enter how many pushes, or tick Salt applied if that is all that was done.')
         return
       }
+      if (selected.billingMode === 'hourly' && !(Number(evForm.hours) > 0)) {
+        toast.error('This contract is billed by the hour — enter the hours worked, or tick Salt applied if that is all that was done.')
+        return
+      }
       if (selected.billingMode === 'per_inch' && !(Number(evForm.snowfallInches) > 0)) {
         toast.error('This contract is billed per inch — enter the snowfall, or tick Salt applied if that is all that was done.')
         return
@@ -198,7 +206,7 @@ export default function SnowBillingPage() {
       <div className="flex justify-between items-center mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Snowflake className="w-6 h-6" /> Snow &amp; Ice Billing</h1>
-          <p className="text-gray-500 text-sm dark:text-slate-400">Per-push, per-event, per-inch, or seasonal — log storms and the charge is computed automatically.</p>
+          <p className="text-gray-500 text-sm dark:text-slate-400">Per-push, per-event, per-inch, hourly, or seasonal — log storms and the charge is computed automatically.</p>
         </div>
         {mayBill && <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> New Contract</button>}
       </div>
@@ -225,6 +233,9 @@ export default function SnowBillingPage() {
           <Field id="snow-seasonal" label="Seasonal ($)">
             <input id="snow-seasonal" className="input w-full" type="number" placeholder="Seasonal $" value={form.seasonalRate} onChange={(e) => setForm({ ...form, seasonalRate: e.target.value })} />
           </Field>
+          <Field id="snow-hourly" label="Hourly ($)">
+            <input id="snow-hourly" className="input w-full" type="number" placeholder="Hourly $" value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} />
+          </Field>
           <Field id="snow-trigger" label="Trigger depth (in)">
             <input id="snow-trigger" className="input w-full" type="number" placeholder="Trigger depth in" value={form.triggerDepthInches} onChange={(e) => setForm({ ...form, triggerDepthInches: e.target.value })} />
           </Field>
@@ -241,6 +252,8 @@ export default function SnowBillingPage() {
           <button onClick={createContract} className="btn-primary col-span-2">Create Contract</button>
         </div>
       )}
+
+      <SnowStormPanel onBilled={load} />
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="space-y-3 min-w-0">
@@ -286,6 +299,11 @@ export default function SnowBillingPage() {
                 <Field id="snow-inches" label="Snowfall (in)">
                   <input id="snow-inches" className="input w-full" type="number" placeholder="Snowfall in." value={evForm.snowfallInches} onChange={(e) => setEvForm({ ...evForm, snowfallInches: e.target.value })} />
                 </Field>
+                {selected.billingMode === 'hourly' && (
+                  <Field id="snow-hours" label="Hours on site" className="col-span-2">
+                    <input id="snow-hours" className="input w-full" type="number" step="0.25" placeholder="Hours" value={evForm.hours} onChange={(e) => setEvForm({ ...evForm, hours: e.target.value })} />
+                  </Field>
+                )}
                 <label className="flex items-center gap-2 text-sm col-span-2">
                   <input type="checkbox" checked={evForm.saltApplied} onChange={(e) => setEvForm({ ...evForm, saltApplied: e.target.checked })} /> Salt applied
                 </label>
@@ -315,6 +333,7 @@ export default function SnowBillingPage() {
                     <span>{[
                       formatDate(ev.servicedAt),
                       Number(ev.pushes) > 0 ? `${ev.pushes} push` : '',
+                      Number(ev.hours) > 0 ? `${Number(ev.hours)} h` : '',
                       Number(ev.snowfallInches) > 0 ? `${Number(ev.snowfallInches)}"` : '',
                       ev.saltApplied ? 'salt' : '',
                     ].filter(Boolean).join(' · ')}</span>

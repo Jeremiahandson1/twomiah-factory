@@ -36,6 +36,9 @@ import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
 import { createInventoryLowStockDigest } from './inventory/lowStock.ts'
 import { startLowStockDigest } from './lowStockDigest.ts'
+import { billOnComplete } from '../data/routeBilling.ts'
+import { stampVisitStart, recordVisitTime } from '../data/routeVisits.ts'
+import { sendVisitReport, visitSendDeps } from '../data/visitReports.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -189,13 +192,28 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook } = {
     ...(textArrival ? {
       onDispatch: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_my_way').catch(() => {}) },
-      onStart: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {}) },
     } : {}),
+    // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
+    onStart: async ({ job: j, companyId }) => {
+      if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
+      if (textArrival) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+    },
     onComplete: async ({ job: done, companyId }) => {
       if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
+      // A route billed per visit gets its draft invoice as the crew finishes the visit (data/routeBilling.ts); a failure here
+      // never holds up completing the job.
+      if ((done as any).recurringRouteStopId) {
+        await recordVisitTime(db, companyId, done as any).catch((err: any) => logger.warn('[jobs] visit time not kept', { error: err?.message }))
+        await billOnComplete(db, companyId, done as any).catch((err: any) => logger.warn('[jobs] route visit not billed', { error: err?.message }))
+      }
       const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
       if (((co?.enabledFeatures || []) as string[]).includes('google_reviews')) {
         reviews.scheduleReviewRequest(done.id).catch((err: any) => logger.warn('[jobs] review request not scheduled', { error: err?.message }))
+      }
+      // The customer is told the visit is done, with the crew's note and after-photos, where the business has turned that on
+      // (feature visit_reports, data/visitReports.ts). Never holds up completing the job.
+      if (await isFeatureEnabled(companyId, 'visit_reports').catch(() => false)) {
+        await sendVisitReport(db, visitSendDeps((m) => email.sendRaw(m)), companyId, done.id).catch((err: any) => logger.warn('[jobs] visit message not sent', { error: err?.message }))
       }
       // A visit of a recurring agreement makes the next one (the screen reads nextServiceDate either way).
       if (!settings.agreements?.recurrence || !(done as any).serviceAgreementId) return { nextServiceDate: null }

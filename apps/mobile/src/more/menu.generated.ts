@@ -226,7 +226,7 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Waitlist","path":"/crm/bookings/waitlist","group":"Customers","icon":"ellipse","permission":"bookings:read","features":["online_booking"],"native":[{"route":"/(details)/office-waitlist"}]},
     {"label":"Insights","path":"/crm/bookings/insights","group":"Customers","icon":"ellipse","permission":"bookings:read","features":["online_booking"]},
     {"label":"Booking settings","path":"/crm/bookings/settings","group":"Customers","icon":"ellipse","permission":"bookings:update","features":["online_booking"]},
-    {"label":"Route Board","path":"/crm/recurring-routes","group":"Work","icon":"repeat","permission":"jobs:read","features":["recurring_routes"]},
+    {"label":"Route Board","path":"/crm/recurring-routes","group":"Work","icon":"repeat","permission":"jobs:read","features":["recurring_routes"],"native":[{"route":"/(tabs)/land-route"}]},
     {"label":"Area Pricing","path":"/crm/area-pricing","group":"Money & reports","icon":"map","permission":"quotes:read","features":["area_pricing"]},
     {"label":"Snow Billing","path":"/crm/snow-billing","group":"Money & reports","icon":"snow","permission":"invoices:read","features":["snow_billing"]},
     {"label":"Audit Log","path":"/crm/audit","group":"Business & website","icon":"eye","permission":"audit:read"},

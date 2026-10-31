@@ -95,6 +95,8 @@ export interface CrmSettings {
    * landscaping, basic, bar)
    */
   serviceSites?: boolean
+  /** The portal's Visits section: finished visits with the crew's note and after-photos (landscaping; feature visit_reports). */
+  visitReports?: boolean
   jobs?: {
     /** What a new job is when none is given (the database's default is 'service'). */
     defaultType?: string
@@ -106,6 +108,8 @@ export interface CrmSettings {
     textArrival?: boolean
     /** A new job must be for a customer (packages/tenant-backend jobs.ts options.requireCustomer); the vertical's own word comes from its vocabulary. */
     requireCustomer?: boolean
+    /** A repeating job can run on chosen days of the week (Monday and Thursday), not just one weekday. */
+    repeatWeekdays?: boolean
   }
   quotes?: {
     /** Text the customer a link when a quote is sent. */

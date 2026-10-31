@@ -63,6 +63,15 @@ describe('a save sent twice with one key is made once', () => {
     expect([bad.status, (await bad.json() as any).code]).toEqual([400, 'bad_key'])
   })
 
+  test("the phone queue's own keys are accepted (apps/mobile/src/offline/engine.ts: a UUID, or its fallback)", async () => {
+    // A key the server refused would be a 400, which the queue shows as "couldn't send" — every queued save would fail.
+    const fallback = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`
+    for (const key of [crypto.randomUUID(), fallback]) {
+      const r = await as('/api/contacts', { method: 'POST', json: { name: 'Queue ' + key.slice(0, 6) }, headers: { 'Idempotency-Key': key } })
+      expect([key, r.status]).toEqual([key, 201])
+    }
+  })
+
   test('a queued "complete" sent twice completes the job once', async () => {
     const job = await (await as('/api/jobs', { method: 'POST', json: { title: 'Queued', contactId: customer } })).json() as any
     const id = (job.data ?? job).id

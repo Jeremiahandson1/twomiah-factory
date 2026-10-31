@@ -25,7 +25,7 @@ import { checkFilter } from '../listFilter'
 import { JOB_TILES, jobsTodayCondition } from '../reporting/tileConditions'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
-import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from '../time/series'
+import { seriesDays, describeSeriesDays, cleanWeekdays, MAX_SERIES, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
 import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 import { onJob, ownJobScope } from './onJob'
@@ -82,6 +82,11 @@ export interface JobOptions {
    */
   availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
   numbering?: { prefix?: string; pad?: number }
+  /**
+   * A weekly repeat can name its days of the week (`repeat.weekdays`, 0 = Sunday … 6 = Saturday: Monday and Thursday is
+   * [1, 4]) — needs job_series.weekdays. Off → `weekdays` is refused in words, and a repeat is one weekday as before.
+   */
+  repeatWeekdays?: boolean
   /**
    * A new job's type when none is given, on a job table with a job_type column. The templates each left it to their own
    * database default ('service' in basic and bar, 'repair' in field service and landscaping); one shared database
@@ -300,7 +305,7 @@ export function createJobRoutes(deps: JobDeps) {
    * the job's day (the first visit), and an end — a number of visits or a last day — because a series with no end would
    * fill the calendar for good. Refusals are sentences about the boxes on the form.
    */
-  const readRepeat = (raw: any, firstDate?: string): { spec: { frequency: SeriesFrequency; intervalCount: number; firstDate: string; occurrencesCount?: number | null; untilDate?: string | null } } | { error: string } => {
+  const readRepeat = (raw: any, firstDate?: string): { spec: { frequency: SeriesFrequency; intervalCount: number; firstDate: string; occurrencesCount?: number | null; untilDate?: string | null; weekdays?: number[] } } | { error: string } => {
     const frequency = raw?.frequency
     if (frequency !== 'weekly' && frequency !== 'monthly') return { error: 'Choose how often it repeats: every week, every few weeks, or every month.' }
     const day = typeof firstDate === 'string' ? firstDate.slice(0, 10) : ''
@@ -322,7 +327,15 @@ export function createJobRoutes(deps: JobDeps) {
       if (u <= day) return { error: 'The repeats must end after the first visit.' }
       untilDate = u
     }
-    return { spec: { frequency, intervalCount: interval, firstDate: day, occurrencesCount, untilDate } }
+    let weekdays: number[] | undefined
+    if (raw?.weekdays !== undefined && raw?.weekdays !== null) {
+      if (!o.repeatWeekdays) return { error: 'Repeating on chosen days of the week is not offered here.' }
+      if (frequency !== 'weekly') return { error: 'Days of the week go with a weekly repeat. Choose "every week" or "every few weeks".' }
+      const picked = cleanWeekdays(raw.weekdays)
+      if (!Array.isArray(raw.weekdays) || picked.length !== new Set(raw.weekdays.map(Number)).size) return { error: 'Pick the days from Sunday to Saturday.' }
+      if (picked.length) weekdays = picked
+    }
+    return { spec: { frequency, intervalCount: interval, firstDate: day, occurrencesCount, untilDate, ...(weekdays ? { weekdays } : {}) } }
   }
   /** A branch must be one of this company's — an id from anywhere else is refused, not stored. */
   const branchRefusal = async (companyId: string, locationId: unknown) => {
@@ -925,6 +938,7 @@ export function createJobRoutes(deps: JobDeps) {
         ;[seriesRow] = await tx.insert(t.jobSeries).values({
           companyId: currentUser.companyId, frequency: repeat.spec.frequency, intervalCount: repeat.spec.intervalCount,
           firstDate: repeat.spec.firstDate, occurrencesCount: repeat.spec.occurrencesCount ?? null, untilDate: repeat.spec.untilDate ?? null,
+          ...(repeat.spec.weekdays ? { weekdays: repeat.spec.weekdays.join(',') } : {}),
           createdById: currentUser.userId,
         }).returning()
         let first: any = null

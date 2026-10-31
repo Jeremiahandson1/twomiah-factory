@@ -17,8 +17,8 @@ export const FORBIDDEN = /(refund|charge|checkout|\/pos\b|register|kiosk|gift-?c
 export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
-export interface Link { label: string; url: string; icon?: string }
-export interface Section { /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string }
+export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 /** kind 'level' is a fill level: a number of percent from 0 to 100 moved in steps of 5 (empty = not used) — the phone's slider. */
 export interface Input {
   id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level'; choices?: string[]; required?: boolean; initial?: (d: any) => string
@@ -31,12 +31,16 @@ export interface Action {
   icon?: string
   /** The permission the server checks for this call (one of them). */
   any: string[]
+  /** Offered only while this business switch is on (the route behind it is gated on the same one). */
+  feature?: string
   /** Offer the action only when this holds for the row. */
   when?: (d: any) => boolean
   /** Ask first: a sheet with these words and a confirm button. */
   confirm?: { title: string; body: (d: any) => string; button: string }
   inputs?: Input[]
   /** DELETE only for taking a row off a list that is the business's own (a waitlist entry), and always with `confirm`. */
+  /** Keep the save on the phone when there is no signal (src/offline). ONLY for a call that is safe to send twice — the queue is at-least-once. `key` groups saves of one record. */
+  offline?: (d: any) => { key: string; label: string }
   request: (d: any, values: Record<string, string>) => { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string; body?: any }
   done: string
 }

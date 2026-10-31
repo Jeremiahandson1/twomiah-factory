@@ -3,8 +3,10 @@
 // templates/crm-landscaping/backend/src/routes/areaPricing.ts. The registry signs the person in and applies the
 // 'area_pricing' gate.
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
-import { serviceRate, site } from '../../db/schema/index.ts'
+import { eq, and, sql } from 'drizzle-orm'
+import { serviceRate, site, quote, quoteLineItem } from '../../db/schema/index.ts'
+import { retotalQuote } from '@twomiah/tenant-backend'
+import { readShapes, replaceShapes, shapesOf } from '../../data/siteShapes.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
@@ -120,35 +122,88 @@ export function createAreaPricingRoutes(d: CrmDeps) {
     return one(c, updated)
   })
 
+  // ---- Shapes drawn on the satellite map ----
+
+  // GET /api/area-pricing/sites/:siteId/shapes — what is drawn on the property, with the area of each
+  app.get('/sites/:siteId/shapes', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user')
+    const [s] = await db.select({ id: site.id }).from(site).where(and(eq(site.id, c.req.param('siteId')), eq(site.companyId, u.companyId))).limit(1)
+    if (!s) return fail(c, 404, 'Site not found')
+    return listAll(c, await shapesOf(db, u.companyId, s.id))
+  })
+
+  // PUT /api/area-pricing/sites/:siteId/shapes { shapes: [{ areaType, mode?, label?, path: [[lat, lng], …] }] } — the whole set. The
+  // server measures each shape and sets the property's lawn/bed/… columns to the sum, which is what the rate card prices.
+  app.put('/sites/:siteId/shapes', requirePermission('contacts:update'), async (c) => {
+    const u = c.get('user')
+    const body: any = await c.req.json().catch(() => ({}))
+    const read = readShapes(body?.shapes)
+    if ('error' in read) return fail(c, 400, read.error, undefined, { shapes: read.error })
+    const updated = await replaceShapes(db, u.companyId, c.req.param('siteId'), read.shapes)
+    if (!updated) return fail(c, 404, 'Site not found')
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'site_measurements', entityId: updated.id, entityName: updated.name, userId: u.userId, companyId: u.companyId, metadata: { shapes: read.shapes.length, source: 'map' } })
+    return one(c, { site: updated, shapes: await shapesOf(db, u.companyId, updated.id) })
+  })
+
   // ---- Quote a service for a site from its measured area ----
+
+  // The price of one service at one property — the line a quote takes. Shared by the calculator and "Add to quote".
+  const priceFor = async (companyId: string, siteId: string, serviceType: string) => {
+    const [s] = await db.select().from(site).where(and(eq(site.id, siteId), eq(site.companyId, companyId)))
+    if (!s) return { status: 404 as const, error: 'Site not found' }
+    const [rate] = await db.select().from(serviceRate)
+      .where(and(eq(serviceRate.companyId, companyId), eq(serviceRate.serviceType, serviceType), eq(serviceRate.active, true)))
+    if (!rate) return { status: 404 as const, error: `No active rate for service "${serviceType}"` }
+    const areaField: AreaField = isAreaField(rate.areaField) ? rate.areaField : 'lawnSqft'
+    const areaSqft = Number((s as Record<string, unknown>)[areaField] ?? 0)
+    if (!areaSqft) return { status: 422 as const, error: `Site has no ${areaField} measurement`, code: 'NEEDS_MEASUREMENT' }
+    const price = computeAreaPrice(areaSqft, Number(rate.ratePer1000Sqft), Number(rate.minCharge))
+    const lineDescription = `${serviceType} — ${areaSqft.toLocaleString()} sq ft @ $${rate.ratePer1000Sqft}/1,000 sq ft (${rate.unitLabel})`
+    return { s, rate, areaField, areaSqft, price, lineDescription }
+  }
+
+  // POST /api/area-pricing/quote/add { quoteId, siteId, serviceType, optional? } — the service's price for the property as a new
+  // line on an open quote (draft or sent), the totals worked out again. The price is the rate card's, never the screen's.
+  app.post('/quote/add', requirePermission('quotes:update'), async (c) => {
+    const u = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (!b?.quoteId || !b?.siteId || !b?.serviceType) return fail(c, 400, 'Choose the quote, the property and the service.')
+    const [q] = await db.select().from(quote).where(and(eq(quote.id, String(b.quoteId)), eq(quote.companyId, u.companyId))).limit(1)
+    if (!q) return fail(c, 404, 'Quote not found')
+    if (!['draft', 'sent'].includes(q.status)) return fail(c, 409, `This quote is ${q.status}: its lines can no longer change.`)
+    const priced: any = await priceFor(u.companyId, String(b.siteId), String(b.serviceType))
+    if ('status' in priced) return fail(c, priced.status, priced.error, priced.code)
+    const optional = b.optional === true
+    const out = await db.transaction(async (tx: any) => {
+      const [{ next }] = await tx.select({ next: sql<number>`COALESCE(MAX(${quoteLineItem.sortOrder}), -1) + 1` }).from(quoteLineItem).where(eq(quoteLineItem.quoteId, q.id))
+      const [line] = await tx.insert(quoteLineItem).values({
+        quoteId: q.id, description: priced.lineDescription, type: 'service', quantity: '1', unitPrice: String(priced.price), total: String(priced.price),
+        sortOrder: Number(next), optional, selected: !optional,
+      }).returning()
+      const re = await retotalQuote(tx, { quote, quoteLineItem }, u.companyId, q.id)
+      return { line, quote: re?.quote }
+    })
+    d.realtime.emitToCompany(u.companyId, d.realtime.EVENTS.QUOTE_UPDATED, { id: q.id })
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'quote', entityId: q.id, entityName: q.number, userId: u.userId, companyId: u.companyId, metadata: { added: priced.lineDescription, optional } })
+    return one(c, { line: out.line, quote: out.quote }, 201)
+  })
 
   app.get('/quote', requirePermission('quotes:read'), async (c) => {
     const u = c.get('user')
     const siteId = c.req.query('siteId')
     const serviceType = c.req.query('serviceType')
     if (!siteId || !serviceType) return fail(c, 400, 'siteId and serviceType are required')
-
-    const [s] = await db.select().from(site).where(and(eq(site.id, siteId), eq(site.companyId, u.companyId)))
-    if (!s) return fail(c, 404, 'Site not found')
-
-    const [rate] = await db.select().from(serviceRate)
-      .where(and(eq(serviceRate.companyId, u.companyId), eq(serviceRate.serviceType, serviceType), eq(serviceRate.active, true)))
-    if (!rate) return fail(c, 404, `No active rate for service "${serviceType}"`)
-
-    const areaField: AreaField = isAreaField(rate.areaField) ? rate.areaField : 'lawnSqft'
-    const areaSqft = Number((s as Record<string, unknown>)[areaField] ?? 0)
-    // The template's reply also carried { areaField, needsMeasurement: true }; no screen read them (the page shows the
+    const p: any = await priceFor(u.companyId, siteId, serviceType)
+    // The reply also carried { areaField, needsMeasurement: true } in the template; no screen read them (the page shows the
     // sentence), so the field is named in the sentence and the case has a code (RULEBOOK §3).
-    if (!areaSqft) return fail(c, 422, `Site has no ${areaField} measurement`, 'NEEDS_MEASUREMENT')
-    const price = computeAreaPrice(areaSqft, Number(rate.ratePer1000Sqft), Number(rate.minCharge))
-    const lineDescription = `${serviceType} — ${areaSqft.toLocaleString()} sq ft @ $${rate.ratePer1000Sqft}/1,000 sq ft (${rate.unitLabel})`
+    if ('status' in p) return fail(c, p.status, p.error, p.code)
     return one(c, {
-      siteId, serviceType, areaField, areaSqft,
-      ratePer1000Sqft: Number(rate.ratePer1000Sqft),
-      minCharge: Number(rate.minCharge),
-      minChargeApplied: price <= Number(rate.minCharge),
-      price,
-      lineItem: { description: lineDescription, quantity: 1, unitPrice: price, total: price },
+      siteId, serviceType, areaField: p.areaField, areaSqft: p.areaSqft,
+      ratePer1000Sqft: Number(p.rate.ratePer1000Sqft),
+      minCharge: Number(p.rate.minCharge),
+      minChargeApplied: p.price <= Number(p.rate.minCharge),
+      price: p.price,
+      lineItem: { description: p.lineDescription, quantity: 1, unitPrice: p.price, total: p.price },
     })
   })
 
