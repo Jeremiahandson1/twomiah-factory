@@ -6,7 +6,9 @@
 // All three take ?from=YYYY-MM-DD&to=YYYY-MM-DD in the salon's own calendar (default: the last 90 days) and ask reports:read.
 // What each figure means is written on the report, in words; a window too big to read is said, never quietly cut.
 import { Hono } from 'hono'
-import { clientsWithFutureBooking, REPORT_VISIT_CAP, retailSold, tipsReceived, visitorsBetween, visitsForReport, visitSpans } from '../../data/salon.ts'
+import { createTipShares } from './tipShares.ts'
+import { splitCents } from './tipSplit.ts'
+import { clientsWithFutureBooking, peopleNames, REPORT_VISIT_CAP, retailSold, tipsBySale, visitorsBetween, visitsForReport, visitSpans } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -127,19 +129,34 @@ export function createSalonReports(d: CrmDeps) {
     return { range: { from: w.from, to: w.to, days: w.days }, total: round2(total), units, byItem: fin(items), byStylist: fin(people) }
   }
 
-  /** Tips taken in the window, each to the stylist of the visit the sale closed; a tip on a sale with no visit is "No stylist recorded". */
+  /**
+   * Tips taken in the window, net of tips given back, each SALE's tip split across the people on it (crm/salon/tipShares.ts): the shares the salon
+   * set on that sale, else the value of each person's services on the visit. A sale with no visit is "No stylist recorded".
+   */
   async function tips(companyId: string, q: { from?: string; to?: string }) {
     const w = await windowOf(companyId, q)
-    const rows = await tipsReceived(db, companyId, w.start, w.end)
-    const by = new Map<string, { id: string | null; name: string; tips: number; payments: number }>()
-    let total = 0, payments = 0
-    for (const r of rows) {
-      const p = whoIs(r), t = Number(r.tips) || 0, n = Number(r.payments) || 0
-      total += t; payments += n
-      const e = by.get(p.key) || { id: p.id, name: p.name, tips: 0, payments: 0 }; e.tips += t; e.payments += n; by.set(p.key, e)
+    const sales = await tipsBySale(db, companyId, w.start, w.end)
+    const shares = createTipShares(db)
+    const weights = await shares.weightsFor(companyId, sales)
+    const userIds = new Set<string>(), memberIds = new Set<string>()
+    const by = new Map<string, { key: string; tips: number; payments: number }>()
+    let totalCents = 0, payments = 0
+    for (const sale of sales) {
+      const net = Math.round(Number(sale.tips) * 100) || 0
+      const n = Number(sale.payments) || 0
+      totalCents += net; payments += n
+      for (const part of splitCents(net, weights.get(sale.invoiceId)!.weights)) {
+        if (part.key.startsWith('u:')) userIds.add(part.key.slice(2)); else if (part.key.startsWith('m:')) memberIds.add(part.key.slice(2))
+        const e = by.get(part.key) || { key: part.key, tips: 0, payments: 0 }
+        e.tips += part.cents; if (n > 0 && (part.cents !== 0 || weights.get(sale.invoiceId)!.weights.length === 1)) e.payments += n
+        by.set(part.key, e)
+      }
     }
-    const stylists = [...by.values()].map((e) => ({ ...e, tips: round2(e.tips) })).sort((a, b) => b.tips - a.tips || a.name.localeCompare(b.name))
-    return { range: { from: w.from, to: w.to, days: w.days }, total: round2(total), payments, stylists }
+    const names = await peopleNames(db, [...userIds], [...memberIds])
+    const stylists = [...by.values()].filter((e) => e.tips !== 0 || e.payments > 0).map((e) => ({
+      id: e.key === 'none' ? null : e.key.slice(2), name: names.get(e.key) ?? 'No stylist recorded', tips: round2(e.tips / 100), payments: e.payments,
+    })).sort((a, b) => b.tips - a.tips || a.name.localeCompare(b.name))
+    return { range: { from: w.from, to: w.to, days: w.days }, total: round2(totalCents / 100), payments, stylists }
   }
 
   return { retention, rebook, retail, tips }

@@ -1041,10 +1041,21 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (net <= 0.005) return { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }
     if (requested > net + 0.005) return { ok: false, status: 400, error: `Refund exceeds what was collected — ${money(net)} still refundable on this invoice.` }
 
+    // A payment that carried a tip (a salon's card reader; the card was charged the sale AND the tip): a refund that returns the rest of
+    // the sale returns the tip with it — the same rule as the salon's own refund button and as a refund made in Stripe's dashboard — and
+    // the refund line records it as a negative tip, which comes off the stylists' tips by their shares. A part refund leaves the tip.
+    let tipBack = 0
+    if (Number(paymentRow.tipAmount || 0) > 0.005 && requested >= Math.min(collected, net) - 0.005) {
+      const rows = await db.select({ tip: payment.tipAmount }).from(payment).where(eq(payment.invoiceId, paymentRow.invoiceId))
+      const tipNet = round2(rows.reduce((t: number, r: any) => t + Number(r.tip || 0), 0))
+      tipBack = round2(Math.max(0, Math.min(Number(paymentRow.tipAmount), tipNet)))
+    }
+
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const refund = await stripe!.refunds.create({
       payment_intent: paymentRow.reference,
-      amount: Math.round(requested * 100),
+      amount: Math.round((requested + tipBack) * 100),
+      ...(tipBack > 0.005 ? { metadata: { tip_cents: String(Math.round(tipBack * 100)) } } : {}),
     }, requestOpts(stripeAccount))
 
     const outcome = await recordStripeRefund(refund, paymentRow)

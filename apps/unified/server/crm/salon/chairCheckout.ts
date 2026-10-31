@@ -25,6 +25,8 @@ import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { platformStripe } from '../platformStripe.ts'
 import { tipsOutstanding } from '../../data/salon.ts'
+import { createTipShares } from './tipShares.ts'
+import { weightsFromPercents } from './tipSplit.ts'
 
 type Tx = any
 export type ChargeRow = typeof salonTerminalCharge.$inferSelect
@@ -455,6 +457,35 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
     const u = c.get('user') as any
     const b = await body(c)
     return act(c, 200, async () => t.refundPayment(u, c.req.param('paymentId'), b))
+  })
+  // Who the sale's tip goes to (salon parity row 10): by the value of each person's services unless the salon set the shares on this sale.
+  // Read by anyone who can see the sale; changed by the seat that takes the payment, at checkout and afterwards. Reports follow at once.
+  const shares = createTipShares(d.db)
+  app.get('/sales/:invoiceId/tip-split', requirePermission('invoices:read'), async (c) => {
+    c.header('Cache-Control', 'no-store')
+    const view = await shares.view((c.get('user') as any).companyId, c.req.param('invoiceId'))
+    return view ? one(c, view) : fail(c, 404, 'Sale not found')
+  })
+  app.put('/sales/:invoiceId/tip-split', mayCharge, async (c) => {
+    const u = c.get('user') as any
+    const invoiceId = c.req.param('invoiceId')
+    const b = await body(c)
+    const before = await shares.view(u.companyId, invoiceId)
+    if (!before) return fail(c, 404, 'Sale not found')
+    if (b.reset === true) {
+      await shares.save(u.companyId, invoiceId, null, u.userId || u.id || null)
+    } else {
+      const rows = Array.isArray(b.shares) ? (b.shares as any[]).map((r) => ({ key: String(r?.key ?? ''), percent: r?.percent })) : []
+      const known = await shares.knownKeys(u.companyId)
+      if (rows.some((r) => !known.has(r.key))) return fail(c, 400, 'Choose people from your team.', 'UNKNOWN_PERSON')
+      const got = weightsFromPercents(rows)
+      if ('problem' in got) return fail(c, 400, got.problem, 'BAD_SPLIT', { shares: got.problem })
+      await shares.save(u.companyId, invoiceId, got.weights, u.userId || u.id || null)
+    }
+    const after = await shares.view(u.companyId, invoiceId)
+    d.audit.log({ req: c, action: 'update', entity: 'sale_tip_split', entityId: invoiceId, changes: { before: before.people.map((p) => `${p.name} ${p.percent}%`).join(', '), after: after!.people.map((p) => `${p.name} ${p.percent}%`).join(', ') } })
+    d.realtime.emitToCompany(u.companyId, d.realtime.EVENTS.REFRESH, { entity: 'invoice' })
+    return one(c, after!)
   })
   // A test card on a simulated reader: configuration-level, because it exists to set the reader up.
   app.post('/charges/:id/simulate', requirePermission('company:update'), async (c) => {

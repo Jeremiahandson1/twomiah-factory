@@ -123,7 +123,7 @@ export function terminalStripeFake() {
     }
     if (p === '/v1/refunds' && method === 'POST') {
       const metadata: Record<string, string> = {}
-      for (const [k, v] of params) { const mm = k.match(/^metadata[(.+)]$/); if (mm) metadata[mm[1]] = v }
+      for (const [k, v] of params) { const mm = k.match(/^metadata\[(.+)\]$/); if (mm) metadata[mm[1]] = v }
       const r = { id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(param(params, 'amount')), payment_intent: param(params, 'payment_intent'), metadata, created: Math.floor(Date.now() / 1000) + state.n }
       refunds.push(r); return json(r)
     }

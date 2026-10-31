@@ -2,7 +2,7 @@
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
 import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct } from '../db/schema/index.ts'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, saleTipSplit } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -404,4 +404,66 @@ export async function tipsReceived(db: any, companyId: string, from: Date, to: D
     .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
     .groupBy(appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
   return rows as Array<{ tips: string; payments: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
+}
+
+
+/**
+ * Tips in [from, to) by SALE: the net of each sale's tip lines (refunds are negative), how many payments took a tip, and the visit's own
+ * stylist. The Tips report splits each sale's net across the people on it (crm/salon/tipSplit.ts) — the sale's own shares if the salon set
+ * them, else by the value of each person's services.
+ */
+export async function tipsBySale(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    invoiceId: payment.invoiceId, tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*) FILTER (WHERE ${payment.tipAmount}::numeric > 0)`,
+    appointmentId: invoice.appointmentId, stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId,
+  }).from(payment)
+    .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
+    .groupBy(payment.invoiceId, invoice.appointmentId, appointment.stylistId, appointment.stylistMemberId)
+  return rows as Array<{ invoiceId: string; tips: string; payments: string; appointmentId: string | null; stylistId: string | null; stylistMemberId: string | null }>
+}
+
+/** The services on these visits with who does each and its price (a visit with no rows has one stylist: the visit's). */
+export async function itemsOfVisits(db: any, appointmentIds: string[]) {
+  if (!appointmentIds.length) return []
+  const rows = await db.select({ appointmentId: appointmentItem.appointmentId, stylistId: appointmentItem.stylistId, stylistMemberId: appointmentItem.stylistMemberId, price: appointmentItem.price })
+    .from(appointmentItem).where(sql`${appointmentItem.appointmentId} in (${sql.join(appointmentIds.map((i) => sql`${i}`), sql`, `)})`)
+  return rows as Array<{ appointmentId: string; stylistId: string | null; stylistMemberId: string | null; price: string | null }>
+}
+
+/** The shares the salon set on these sales (hundredths of a percent); a sale with none uses the default split. */
+export async function tipSharesSet(db: any, companyId: string, invoiceIds: string[]) {
+  if (!invoiceIds.length) return []
+  const rows = await db.select({ invoiceId: saleTipSplit.invoiceId, stylistId: saleTipSplit.stylistId, stylistMemberId: saleTipSplit.stylistMemberId, shareBp: saleTipSplit.shareBp })
+    .from(saleTipSplit).where(and(eq(saleTipSplit.companyId, companyId), sql`${saleTipSplit.invoiceId} in (${sql.join(invoiceIds.map((i) => sql`${i}`), sql`, `)})`))
+  return rows as Array<{ invoiceId: string; stylistId: string | null; stylistMemberId: string | null; shareBp: number }>
+}
+
+/** Replace a sale's own shares (none = back to the default), in one transaction. */
+export async function setTipShares(db: any, companyId: string, invoiceId: string, shares: Array<{ stylistId: string | null; stylistMemberId: string | null; shareBp: number }>, setByUserId: string | null) {
+  await db.transaction(async (tx: any) => {
+    await tx.delete(saleTipSplit).where(and(eq(saleTipSplit.companyId, companyId), eq(saleTipSplit.invoiceId, invoiceId)))
+    if (shares.length) await tx.insert(saleTipSplit).values(shares.map((x) => ({ companyId, invoiceId, stylistId: x.stylistId, stylistMemberId: x.stylistMemberId, shareBp: x.shareBp, setByUserId })))
+  })
+}
+
+/** Names for these logins and roster members, by key (`u:<id>` / `m:<id>`). */
+export async function peopleNames(db: any, userIds: string[], memberIds: string[]) {
+  const out = new Map<string, string>()
+  if (userIds.length) {
+    const rows = await db.select({ id: user.id, f: user.firstName, l: user.lastName }).from(user).where(sql`${user.id} in (${sql.join(userIds.map((i) => sql`${i}`), sql`, `)})`)
+    for (const r of rows) out.set(`u:${r.id}`, [r.f, r.l].filter(Boolean).join(' ').trim() || 'Team member')
+  }
+  if (memberIds.length) {
+    const rows = await db.select({ id: teamMember.id, n: teamMember.name }).from(teamMember).where(sql`${teamMember.id} in (${sql.join(memberIds.map((i) => sql`${i}`), sql`, `)})`)
+    for (const r of rows) out.set(`m:${r.id}`, String(r.n || 'Team member'))
+  }
+  return out
+}
+
+/** The tip still on a sale in whole cents: every tip taken less every tip given back. */
+export async function tipsNetCents(db: any, invoiceId: string): Promise<number> {
+  const [row] = await db.select({ n: sql<string>`coalesce(sum(${payment.tipAmount}::numeric), 0)` }).from(payment).where(eq(payment.invoiceId, invoiceId))
+  return Math.round(Number(row?.n || 0) * 100)
 }

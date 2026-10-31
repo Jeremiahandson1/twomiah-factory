@@ -279,3 +279,84 @@ export default function CardReadersSettingsPage() {
     </div>
   )
 }
+
+
+interface TipPerson { key: string; name: string; percent: number; cents: number }
+interface TipView { tipCents: number; manual: boolean; people: TipPerson[] }
+
+/**
+ * Who the sale's tip goes to (salon parity row 10; server crm/salon/tipShares.ts): split by the value of each person's services unless the
+ * salon sets the shares here — at checkout or any time after. The Tips by stylist report follows at once, and a tip given back comes off each
+ * share the same way. Shown beside a sale that has a tip or more than one person on it.
+ */
+export function TipSplitPanel({ invoiceId, reload }: { invoiceId: string; reload?: () => void }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const on = hasFeature('chair_checkout') && known
+  const mayEdit = on && (can('invoices:update') || can('cardreader:use'))
+  const [view, setView] = useState<TipView | null>(null)
+  const [edit, setEdit] = useState<Array<{ key: string; name: string; percent: string }> | null>(null)
+  const [team, setTeam] = useState<Array<{ key: string; name: string }>>([])
+  const [problem, setProblem] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => { api.get(`/api/chair-checkout/sales/${invoiceId}/tip-split`).then((r: TipView) => setView(r)).catch(() => setView(null)) }, [invoiceId])
+  useEffect(() => { if (on) load() }, [on, load])
+  if (!on || !view || (view.tipCents === 0 && view.people.length < 2)) return null
+
+  const startEdit = async () => {
+    setProblem('')
+    setEdit(view.people.map((p) => ({ key: p.key, name: p.name, percent: String(p.percent) })))
+    try {
+      const r: any = await api.get('/api/team/assignable')
+      setTeam(((r?.data ?? r) as any[]).map((m) => ({ key: m.kind === 'member' ? `m:${m.id}` : `u:${m.id}`, name: m.name || [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Team member' })))
+    } catch { setTeam([]) }
+  }
+  const save = async (reset: boolean) => {
+    setBusy(true); setProblem('')
+    try {
+      const body = reset ? { reset: true } : { shares: (edit || []).map((e) => ({ key: e.key, percent: Number(e.percent) })) }
+      const r: TipView = await api.put(`/api/chair-checkout/sales/${invoiceId}/tip-split`, body)
+      setView(r); setEdit(null); toast.success(reset ? 'Back to splitting by service value' : 'Tip split saved'); reload?.()
+    } catch (e: any) { setProblem(e?.data?.fields?.shares || e?.message || 'The split could not be saved.') } finally { setBusy(false) }
+  }
+  const total = (edit || []).reduce((t, e) => t + (Number(e.percent) || 0), 0)
+
+  return (
+    <section className={box} aria-labelledby="tip-split-heading">
+      <h3 id="tip-split-heading" className="font-semibold text-gray-900 dark:text-slate-100">Who gets the tip</h3>
+      {!edit ? (
+        <>
+          <p className="text-sm text-gray-600 dark:text-slate-300">{view.manual ? 'Split the way you set it for this sale.' : 'Split by the value of each person\'s services on the visit.'}{view.tipCents ? ` The tip so far is ${cents(view.tipCents)}.` : ''}</p>
+          <ul className="mt-2 text-sm">
+            {view.people.map((p) => <li key={p.key} className="flex justify-between"><span>{p.name}</span><span>{p.percent}%{view.tipCents ? ` · ${cents(p.cents)}` : ''}</span></li>)}
+          </ul>
+          {mayEdit && <Button onClick={startEdit} className="mt-2">Change the split</Button>}
+        </>
+      ) : (
+        <div className="space-y-2">
+          {edit.map((e, i) => (
+            <label key={e.key} className="flex items-center justify-between gap-2 text-sm">
+              <span>{e.name}</span>
+              <span className="flex items-center gap-1"><input inputMode="decimal" aria-label={`${e.name} share`} value={e.percent} onChange={(ev) => setEdit(edit.map((x, j) => (j === i ? { ...x, percent: ev.target.value } : x)))} className={inputCls + ' w-24'} />%
+                <button type="button" aria-label={`Remove ${e.name}`} onClick={() => setEdit(edit.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button></span>
+            </label>
+          ))}
+          {team.filter((m) => !edit.some((e) => e.key === m.key)).length > 0 && (
+            <select aria-label="Add a person" className={inputCls} value="" onChange={(ev) => { const m = team.find((x) => x.key === ev.target.value); if (m) setEdit([...edit, { key: m.key, name: m.name, percent: '0' }]) }}>
+              <option value="">Add a person…</option>
+              {team.filter((m) => !edit.some((e) => e.key === m.key)).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+            </select>
+          )}
+          <p className={'text-xs ' + (Math.round(total * 100) === 10000 ? 'text-gray-600 dark:text-slate-400' : 'text-red-700 dark:text-red-300')} role="status">Shares add up to {Math.round(total * 100) / 100}% — they need to be 100%.</p>
+          {problem && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{problem}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save(false)} disabled={busy}>{busy ? 'Saving…' : 'Save the split'}</Button>
+            {view.manual && <Button onClick={() => save(true)} disabled={busy}>Back to service value</Button>}
+            <button type="button" onClick={() => setEdit(null)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">Cancel</button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
