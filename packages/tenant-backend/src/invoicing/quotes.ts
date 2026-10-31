@@ -18,7 +18,7 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
-import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, optionPrices, cheapestOption, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
+import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
 import { applyMarkups, sectionSummary } from './quoteSections'
 
@@ -582,13 +582,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       Object.assign(update, { subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(), discount: calc.effectiveDiscount.toString(), total: calc.total.toString() })
     }
     // The deposit is checked against the total the quote will have once this edit is saved — with Good / Better / Best options,
-    // against the cheapest of them as this edit prices it: any of them can still be the one chosen.
+    // against the least it can come to as this edit prices it (the cheapest pick of every set): any pick can still be the one.
     let depositBase = Number(update.total ?? existing.total)
     if (hasProposal) {
       const rows = await lineRows(id)
       const shared: any[] = data.lineItems !== undefined ? counted(data.lineItems, hasOptional) : includedLines<any>(rows.filter((li: any) => !li.proposalOptionId))
-      const cheapest = cheapestOption(optionPrices(shared, rows.filter((li: any) => li.proposalOptionId), data.taxRate ?? existing.taxRate, data.discount ?? existing.discount))
-      if (cheapest !== null) depositBase = cheapest
+      const optionRows = await db.select().from(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, id))
+      const lowest = lowestPrice(shared, rows.filter((li: any) => li.proposalOptionId), optionRows, data.taxRate ?? existing.taxRate, data.discount ?? existing.discount)
+      if (lowest) depositBase = lowest.total
     }
     const deposit = depositValues(data, existing, depositBase)
     if ('error' in deposit) return c.json({ error: deposit.error }, 400)
@@ -727,9 +728,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         // A quote whose customer has yet to choose is offered by its options: each at its whole price, the total "from" the lowest.
         const offered = (await proposalAllowed(cid)) ? await proposalView(db, t as any, found) : null
         if (offered?.needsChoice) {
-          lines = offered.options.map((op) => ({ description: `${op.name}${op.brand ? ` — ${op.brand}` : ''}${op.warranty ? ` (${op.warranty})` : ''}`, quantity: '1', unitPrice: op.price, total: op.price })) as any
-          const lowest = [...offered.options].sort((a, b) => Number(a.price) - Number(b.price))[0]
-          emailTotal = lowest.price; emailSubtotal = lowest.subtotal; emailTax = lowest.taxAmount
+          // Each option under its set when there is more than one set; an add-on at what it adds, a pick at the whole price.
+          const manySets = offered.sets.length > 1
+          lines = offered.options.map((op) => {
+            const amount = op.setKind === 'any' ? op.addPrice : op.price
+            const label = `${manySets ? `${op.setName}: ` : ''}${op.name}${op.brand ? ` — ${op.brand}` : ''}${op.warranty ? ` (${op.warranty})` : ''}${op.setKind === 'any' ? ' (add-on)' : ''}`
+            return { description: label, quantity: '1', unitPrice: amount, total: amount }
+          }) as any
+          emailTotal = offered.lowest.total; emailSubtotal = offered.lowest.subtotal; emailTax = offered.lowest.taxAmount
         }
         try {
           await deps.sendQuoteEmail(recipient.email, {
@@ -804,8 +810,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     })
   }
   // ---------------------------------------------------------------- proposal options (Good / Better / Best)
-  // Two to six options on one quote, each with its lines, brand, warranty and photos; the customer chooses one on the
-  // quote's link (portal.ts) or the office does on the phone, and the quote's price follows (quoteOptions.ts).
+  // Options on one quote in up to three sets — pick one of a set, or any of an additive set — each option with its lines,
+  // brand, warranty and photos; the customer picks on the quote's link (portal.ts) or the office does on the phone, and the
+  // quote's price follows every pick (quoteOptions.ts).
   if (hasProposal) {
     const optionSchema = z.object({
       name: z.string().trim().min(1, 'Name each option.').max(80),
@@ -817,38 +824,64 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       recommended: z.boolean().optional(),
       lines: z.array(lineItemSchema.omit({ optional: true, selected: true })).min(1, 'Each option needs at least one line.'),
     })
-    const proposalSchema = z.object({ options: z.array(optionSchema).max(MAX_PROPOSAL_OPTIONS, `A proposal has at most ${MAX_PROPOSAL_OPTIONS} options.`) })
+    const optionsSchema = z.array(optionSchema).max(MAX_PROPOSAL_OPTIONS, `A set has at most ${MAX_PROPOSAL_OPTIONS} options.`)
+    const setSchema = z.object({
+      name: z.string().trim().max(80).nullable().optional(),
+      kind: z.enum(SET_KINDS).default('one'),
+      options: optionsSchema.min(2, 'A set needs at least two options.'),
+    })
+    // `options` alone is the quote's one pick-one set (every screen written before sets); `sets` is the whole proposal.
+    const proposalSchema = z.object({
+      options: optionsSchema.optional(),
+      sets: z.array(setSchema).max(MAX_PROPOSAL_SETS, `A quote has at most ${MAX_PROPOSAL_SETS} sets of options.`).optional(),
+    })
     type OptionInput = z.infer<typeof optionSchema>
+    type SetInput = z.infer<typeof setSchema>
 
-    /** Replace the quote's options (none clears them). The customer's choice, if any, is cleared with them. */
-    const saveProposal = async (cid: string, id: string, options: OptionInput[]): Promise<{ error: string; status: 400 } | { quote: any; lineItems: any[] }> => {
-      if (options.length === 1) return { error: 'A proposal needs at least two options to choose between.', status: 400 }
-      for (const op of options) if (op.photos.some((x) => !isPhotoAddress(x))) return { error: `"${op.name}": a photo is an https address or one of your own /media files.`, status: 400 }
-      // A deposit the quote already asks must fit every option, since the customer may choose any of them.
-      if (hasDeposit && options.length) {
+    /** Replace the quote's options (no sets clears them). The customer's picks, if any, are cleared with them. */
+    const saveProposal = async (cid: string, id: string, sets: SetInput[]): Promise<{ error: string; status: 400 } | { quote: any; lineItems: any[] }> => {
+      if (sets.length > 1 && sets.some((s) => !s.name)) return { error: 'Name each set of options, so the customer knows what each choice is for.', status: 400 }
+      for (const s of sets) for (const op of s.options) if (op.photos.some((x) => !isPhotoAddress(x))) return { error: `"${op.name}": a photo is an https address or one of your own /media files.`, status: 400 }
+      // A deposit the quote already asks must fit the least the quote can come to, since the customer may pick any way.
+      if (hasDeposit && sets.length) {
         const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
         if (q?.depositType) {
           const shared = includedLines<any>((await lineRows(id)).filter((li: any) => !li.proposalOptionId))
-          const optionLines = options.flatMap((op, i) => op.lines.map((l) => ({ ...l, proposalOptionId: String(i) })))
-          const problem = depositProblem(q.depositType, q.depositValue, cheapestOption(optionPrices(shared, optionLines, q.taxRate, q.discount)) ?? 0)
+          const optionRows = sets.flatMap((s, si) => s.options.map((op, i) => ({ id: `${si}:${i}`, setIndex: si, setKind: s.kind, chosen: false, lines: op.lines })))
+          const optionLines = optionRows.flatMap((r) => r.lines.map((l) => ({ ...l, proposalOptionId: r.id })))
+          const problem = depositProblem(q.depositType, q.depositValue, lowestPrice(shared, optionLines, optionRows, q.taxRate, q.discount)?.total ?? 0)
           if (problem) return { error: `${problem} The cheapest option sets the limit — lower the deposit on the quote first.`, status: 400 }
         }
       }
       const out = await db.transaction(async (tx: any) => {
         await tx.delete(t.quoteLineItem).where(and(eq(t.quoteLineItem.quoteId, id), isNotNull(t.quoteLineItem.proposalOptionId)))
         await tx.delete(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, id))
-        let sawRecommended = false
-        for (const [i, op] of options.entries()) {
-          const recommended: boolean = !!op.recommended && !sawRecommended
-          sawRecommended = sawRecommended || recommended
-          const [row] = await tx.insert(t.quoteProposalOption).values({ quoteId: id, name: op.name, tier: op.tier ?? null, brand: op.brand || null, warranty: op.warranty || null, description: op.description || null, photos: op.photos, recommended, sortOrder: i }).returning()
-          // An option's lines are optional lines, ticked together when the option is chosen: unticked until then.
-          const rows = toRow(op.lines as any, id, !!o.hasLineCost, true).map((r: any) => ({ ...r, optional: true, selected: false, proposalOptionId: row.id, sortOrder: i * 1000 + r.sortOrder }))
-          await tx.insert(t.quoteLineItem).values(rows)
+        let n = 0
+        for (const [si, s] of sets.entries()) {
+          let sawRecommended = false
+          for (const op of s.options) {
+            const i = n++
+            const recommended: boolean = !!op.recommended && !sawRecommended
+            sawRecommended = sawRecommended || recommended
+            const [row] = await tx.insert(t.quoteProposalOption).values({
+              quoteId: id, name: op.name, tier: op.tier ?? null, brand: op.brand || null, warranty: op.warranty || null, description: op.description || null, photos: op.photos, recommended, sortOrder: i,
+              setIndex: si, setName: s.name || null, setKind: s.kind,
+            }).returning()
+            // An option's lines are optional lines, ticked together when the option is chosen: unticked until then.
+            const rows = toRow(op.lines as any, id, !!o.hasLineCost, true).map((r: any) => ({ ...r, optional: true, selected: false, proposalOptionId: row.id, sortOrder: i * 1000 + r.sortOrder }))
+            await tx.insert(t.quoteLineItem).values(rows)
+          }
         }
         return retotalQuote(tx, t as any, cid, id)
       })
       return out ?? { error: 'Quote not found', status: 400 as const }
+    }
+    /** The sets a request means: `sets`, or `options` as the one pick-one set (one option alone is not a choice; none clears). */
+    const setsOf = (data: z.infer<typeof proposalSchema>): SetInput[] | { error: string } => {
+      if (data.sets) return data.sets
+      const options = data.options || []
+      if (options.length === 1) return { error: 'A proposal needs at least two options to choose between.' }
+      return options.length ? [{ name: null, kind: 'one', options }] : []
     }
     const answer = async (c: any, cid: string, r: { quote: any; lineItems: any[] }) => {
       const shaped = await withProposal({ ...r.quote, lineItems: r.lineItems })
@@ -868,20 +901,23 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if ('fail' in got) return got.fail
       const parsed = proposalSchema.safeParse(await c.req.json().catch(() => ({})))
       if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the options.' }, 400)
-      if (parsed.data.options.length && !(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
-      const r = await saveProposal(got.cid, got.existing.id, parsed.data.options)
+      const sets = setsOf(parsed.data)
+      if ('error' in sets) return c.json({ error: sets.error }, 400)
+      if (sets.length && !(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+      const r = await saveProposal(got.cid, got.existing.id, sets)
       if ('error' in r) return c.json({ error: r.error }, r.status)
-      logQuote(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', r.quote, { options: parsed.data.options.length })
+      logQuote(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', r.quote, { sets: sets.length, options: sets.reduce((n, s) => n + s.options.length, 0) })
       return answer(c, got.cid, r)
     })
 
-    // The office picks for a customer who said yes by phone (the customer's own pick is portal.ts's).
+    // The office picks for a customer who said yes by phone (the customer's own pick is portal.ts's). `chosen: false`
+    // unticks an add-on; a pick-one set's pick can only be moved to another option.
     app.post('/:id/proposal/choose', requirePermission('quotes:update'), async (c: any) => {
       const got = await openQuote(c)
       if ('fail' in got) return got.fail
       if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
       const body = await c.req.json().catch(() => ({}))
-      const r: any = await chooseProposalOption(db, t as any, got.cid, got.existing.id, body?.optionId)
+      const r: any = await chooseProposalOption(db, t as any, got.cid, got.existing.id, body?.optionId, body?.chosen)
       if ('error' in r) return c.json({ error: r.error }, r.status)
       return answer(c, got.cid, r)
     })
@@ -910,7 +946,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
             lines: [{ description: `${item.name} — ${name}`, quantity: 1, unitPrice: round2(Number(tier.price)), ...(o.hasLineCost ? { pricebookItemId: item.id } : {}) }],
           } as OptionInput
         })
-        const r = await saveProposal(got.cid, got.existing.id, options)
+        // The item's tiers are the quote's one pick-one set, named after the item.
+        const r = await saveProposal(got.cid, got.existing.id, [{ name: item.name, kind: 'one', options }])
         if ('error' in r) return c.json({ error: r.error }, r.status)
         return answer(c, got.cid, r)
       })
@@ -1084,8 +1121,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // one is how it ends up in a file somebody emails.
     // A quote whose customer has yet to choose prints the lines every option shares and each option at its whole price.
     const view = hasProposal ? await proposalView(db, t as any, found) : null
-    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines) }))) : undefined
-    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options } : {}) }, co)
+    const options = offersOptions(view, found.status) ? await Promise.all(view!.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines) }))) : undefined
+    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}) }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   })
 

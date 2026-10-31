@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -204,7 +204,7 @@ const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'exp
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
 const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance'] as const
 // What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
-const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit'] as const
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'addPrice', 'deposit', 'setIndex', 'setName', 'setKind'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -793,12 +793,12 @@ export function createPortalRoutes(deps: PortalDeps) {
     const deposit = asks > 0 && found.status === 'approved' && deps.quoteDeposit ? await deps.quoteDeposit.depositFor(companyId, found.id).catch(() => null) : null
     // A quote with options: the lines every option shares are the quote's lines, and the options come apart with their own.
     const view = (await proposalsLive(t, deps.proposalsEnabled, companyId)) ? await proposalView(db, t, found) : null
+    // Every option names its set; `sets` groups them (name, pick one or any, what is picked there) for the page to lay out.
+    const customerOption = async (op: any) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)) })
     const proposal = view ? {
-      chosenOptionId: view.chosenOptionId, needsChoice: view.needsChoice,
-      options: await Promise.all(view.options.map(async (op) => ({
-        ...pick(op, PORTAL_OPTION_FIELDS),
-        lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
-      }))),
+      chosenOptionId: view.chosenOptionId, chosenOptionIds: view.chosenOptionIds, needsChoice: view.needsChoice, lowest: view.lowest,
+      options: await Promise.all(view.options.map(customerOption)),
+      sets: await Promise.all(view.sets.map(async (s) => ({ index: s.index, name: s.name, kind: s.kind, chosenOptionIds: s.chosenOptionIds, needsChoice: s.needsChoice, options: await Promise.all(s.options.map(customerOption)) }))),
     } : null
     return {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
@@ -825,7 +825,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
 
-  /** The customer chooses one of a quote's options while the quote is theirs to answer; the price follows. */
+  /** The customer picks one of a set's options (or ticks / unticks an add-on, `chosen`) while the quote is theirs to answer; the price follows. */
   const chooseProposal = async (c: any) => {
     const { contact, company } = P(c)
     const quoteId = c.req.param('quoteId')
@@ -836,7 +836,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     const body = await c.req.json().catch(() => ({}))
-    const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId)
+    const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId, body?.chosen)
     if ('error' in r) return c.json({ error: r.error }, r.status)
     emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
@@ -883,19 +883,21 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
-    // A quote with options is signed for ONE of them: the customer chooses before they sign.
+    // A quote with options is signed for the options PICKED — one of every pick-one set, the add-ons ticked: the customer
+    // picks before they sign, and what they signed names every pick.
     const optionsLive = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
     if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST, code: CHOOSE_FIRST_CODE }, 400)
     const view = optionsLive ? await proposalView(db, t, found) : null
-    const chosenOption = view?.options.find((op) => op.chosen) || null
+    const picked = chosenLabel(view)
+    const pickedIds = view?.chosenOptionIds || []
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
     const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     const lineItems = includedLines(allLines)
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
-    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
+    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(picked ? { option: picked, optionIds: pickedIds } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
-    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null })
-    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}) } })
+    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: picked })
+    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${picked ? ` — ${picked}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(picked ? { option: picked, optionId: pickedIds[0], optionIds: pickedIds } : {}) } })
     // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
     let deposit: unknown = null
     if (deps.quoteDeposit) {
@@ -927,9 +929,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     // customer has yet to choose, the lines every option shares and each option at its whole price.
     const lineItems = includedLines<any>(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
     const view = (await proposalsLive(t, deps.proposalsEnabled, contact.companyId)) ? await proposalView(db, t, found) : null
-    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines) }))) : undefined
+    const options = offersOptions(view, found.status) ? await Promise.all(view!.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines) }))) : undefined
     const generate = await loadQuotePdf()
-    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options } : {}) }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}) }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   }
 
