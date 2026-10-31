@@ -98,3 +98,51 @@ describe('a list from the signed quote', () => {
     expect((made.body.lineItems as any[]).map((l) => l.description)).toContain('Pipe boots')
   })
 })
+
+describe('saved templates', () => {
+  const standard = { name: 'Standard re-roof', assumptions: { wastePercent: 15, bundlesPerSquare: 3, ventType: 'ridge', nonsense: 4, atticSqFtPerVentSqFt: -1 }, extraLines: [{ description: 'Pipe boots', qty: 4, unit: 'each' }, { description: 'Roof cement', qty: 2 }], supplier: 'ABC Supply' }
+  test('a template keeps only the real changes to the defaults, its extra lines and its supplier; names are not repeated', async () => {
+    const made = await call('mgr', 'POST', '/api/material-list/templates', standard)
+    expect(made.status).toBe(201)
+    expect(made.body).toMatchObject({ name: 'Standard re-roof', assumptions: { wastePercent: 15, ventType: 'ridge' }, supplier: 'ABC Supply', extraLines: [{ description: 'Pipe boots', qty: 4, unit: 'each' }, { description: 'Roof cement', qty: 2, unit: 'ea' }] })
+    expect(Object.keys(made.body.assumptions).sort()).toEqual(['ventType', 'wastePercent']) // 3 bundles is the default; nonsense is dropped
+    ids.template = made.body.id
+    const again = await call('mgr', 'POST', '/api/material-list/templates', { name: ' standard RE-ROOF ' })
+    expect([again.status, again.body.code]).toEqual([409, 'name_taken'])
+    expect((await call('mgr', 'POST', '/api/material-list/templates', { name: '' })).status).toBe(400)
+    expect((await call('mgr', 'POST', '/api/material-list/templates', { name: 'Bad', extraLines: [{ description: 'x', qty: 0 }] })).status).toBe(400)
+    const listed = await call('view', 'GET', '/api/material-list/templates')
+    expect(listed.body.data.map((x: any) => x.name)).toEqual(['Standard re-roof'])
+  })
+
+  test('a job\'s list can be worked from a template: its assumptions, then its extra lines; what is typed still wins', async () => {
+    const jobId = await makeJob({ propertyAddress: '20 Gable Ln', totalSquares: 30 })
+    const plain = await call('mgr', 'GET', `/api/material-list/jobs/${jobId}?eaveFt=150&rakeFt=100&ridgeFt=60&valleyFt=20`)
+    const viaTemplate = await call('mgr', 'GET', `/api/material-list/jobs/${jobId}?eaveFt=150&rakeFt=100&ridgeFt=60&valleyFt=20&templateId=${ids.template}`)
+    expect(plain.body.template).toBeNull()
+    expect(viaTemplate.body.template).toMatchObject({ id: ids.template, name: 'Standard re-roof' })
+    expect(viaTemplate.body.assumptions).toMatchObject({ wastePercent: 15, ventType: 'ridge' })
+    expect(viaTemplate.body.lines.find((l: any) => l.code === 'shingles').qty).toBe(104) // 30 × 3 × 1.15
+    expect(viaTemplate.body.lines.find((l: any) => l.code === 'vents').description).toBe('Ridge vent')
+    expect(viaTemplate.body.lines.slice(-2).map((l: any) => [l.description, l.qty, l.unit, l.basis])).toEqual([
+      ['Pipe boots', 4, 'each', 'From the template "Standard re-roof"'], ['Roof cement', 2, 'ea', 'From the template "Standard re-roof"'],
+    ])
+    const typed = await call('mgr', 'GET', `/api/material-list/jobs/${jobId}?templateId=${ids.template}&wastePercent=20`)
+    expect(typed.body.assumptions.wastePercent).toBe(20)
+    expect((await call('mgr', 'GET', `/api/material-list/jobs/${jobId}?templateId=nope`)).status).toBe(404)
+  })
+
+  test('change and delete; only a seat that may order saves, and another company\'s template is nobody\'s', async () => {
+    const edited = await call('mgr', 'PUT', `/api/material-list/templates/${ids.template}`, { name: 'Standard shingle re-roof', assumptions: { wastePercent: 12 } })
+    expect(edited.body).toMatchObject({ name: 'Standard shingle re-roof', assumptions: { wastePercent: 12 }, supplier: 'ABC Supply' })
+    expect((await call('view', 'POST', '/api/material-list/templates', { name: 'Mine' })).status).toBe(403)
+    expect((await call('view', 'PUT', `/api/material-list/templates/${ids.template}`, { name: 'Mine' })).status).toBe(403)
+    expect((await call('view', 'DELETE', `/api/material-list/templates/${ids.template}`)).status).toBe(403)
+    const foreign = await ins(t.schema.materialListTemplate, { companyId: otherCompanyId, name: 'Theirs', assumptions: {}, extraLines: [] })
+    expect((await call('owner', 'PUT', `/api/material-list/templates/${foreign.id}`, { name: 'Mine now' })).status).toBe(404)
+    expect((await call('owner', 'DELETE', `/api/material-list/templates/${foreign.id}`)).status).toBe(404)
+    expect((await call('owner', 'GET', '/api/material-list/templates')).body.data.map((x: any) => x.name)).toEqual(['Standard shingle re-roof'])
+    expect((await call('mgr', 'DELETE', `/api/material-list/templates/${ids.template}`)).status).toBe(204)
+    expect((await call('owner', 'GET', '/api/material-list/templates')).body.data).toEqual([])
+  })
+})

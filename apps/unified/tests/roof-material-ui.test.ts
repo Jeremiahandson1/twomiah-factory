@@ -61,7 +61,11 @@ function stub(built: (url: string, params: any) => any) {
     if (url === '/api/material-list/assumptions') return { labels: { wastePercent: { label: 'Waste', unit: '%', help: '' } } }
     return built(url, params)
   }
-  api.post = async (url: string, body?: any) => { calls.push({ m: 'POST', url, body }); return {} }
+  api.post = async (url: string, body?: any) => {
+    calls.push({ m: 'POST', url, body })
+    if (url === '/api/material-list/templates') return { id: 't9', name: body.name, supplier: body.supplier ?? null, extraLines: body.extraLines, assumptions: body.assumptions }
+    return {}
+  }
   return { calls, undo: () => Object.assign(api, real) }
 }
 
@@ -216,6 +220,46 @@ describe('a list from the signed quote', () => {
     try {
       await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
       expect(document.querySelector('[data-testid="quote-source"]')).toBeNull()
+    } finally { s.undo() }
+  })
+})
+
+describe('saved templates', () => {
+  const TEMPLATE = { id: 't1', name: 'Standard re-roof', supplier: 'ABC Supply', extraLines: [{ description: 'Pipe boots', qty: 4, unit: 'each' }], assumptions: { wastePercent: 15 } }
+  const route = (url: string) => (url === '/api/material-list/templates' ? { data: [TEMPLATE], pagination: { page: 1, limit: 1, total: 1, pages: 1 } }
+    : url.endsWith('/quote-lines') ? { quotes: [] } : BUILT({ template: TEMPLATE, assumptions: { wastePercent: 15, ventType: 'box' }, lines: [LINE, { code: 'template-1', description: 'Pipe boots', qty: 4, unit: 'each', basis: 'From the template "Standard re-roof"' }] }))
+
+  test('picking a template re-works the list from it and fills the supplier it names', async () => {
+    const s = stub(route)
+    try {
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      const sel = document.getElementById('ml-template') as any
+      expect([...sel.options].map((o: any) => o.textContent)).toEqual(['None — the standard assumptions', 'Standard re-roof'])
+      await setSelect(sel, 't1')
+      expect(s.calls.filter((c) => c.url === '/api/material-list/jobs/j1').pop()!.params.templateId).toBe('t1')
+      expect((document.getElementById('ml-supplier') as any).value).toBe('ABC Supply')
+      expect((document.getElementById('ml-d-1') as any).value).toBe('Pipe boots')
+    } finally { s.undo() }
+  })
+
+  test('the settings and the lines the roofer added can be saved as a template; a seat that may not order is not offered it', async () => {
+    const s = stub(route)
+    try {
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      await click(button('Add a line'))
+      await setInput(document.getElementById('ml-d-2'), 'Caulk')
+      await setInput(document.getElementById('ml-q-2'), '6')
+      await setInput(document.getElementById('ml-supplier'), 'SRS Distribution')
+      await click(button('Save these settings as a template'))
+      await setInput(document.getElementById('ml-template-name'), 'Cut-up roofs')
+      await click(button('Save template'))
+      const posted = s.calls.find((c) => c.m === 'POST' && c.url === '/api/material-list/templates')!
+      expect(posted.body).toMatchObject({ name: 'Cut-up roofs', supplier: 'SRS Distribution', extraLines: [{ description: 'Pipe boots', qty: 4, unit: 'each' }, { description: 'Caulk', qty: 6, unit: 'ea' }] })
+      expect(posted.body.assumptions.wastePercent).toBe(15)
+      expect([...(document.getElementById('ml-template') as any).options].map((o: any) => o.textContent)).toContain('Cut-up roofs')
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }), { permissions: ['jobs:read'] })
+      expect(button('Save these settings as a template')).toBeUndefined()
+      expect(document.getElementById('ml-template')).not.toBeNull()
     } finally { s.undo() }
   })
 })

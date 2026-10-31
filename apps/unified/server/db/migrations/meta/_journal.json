@@ -477,6 +477,13 @@
       "when": 1793481508742,
       "tag": "0067_material_order_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1793481778527,
+      "tag": "0068_material_list_template",
+      "breakpoints": true
     }
   ]
 }

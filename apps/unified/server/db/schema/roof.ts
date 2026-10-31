@@ -80,6 +80,25 @@ export const material = pgTable('material', {
   index('material_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A saved material-list template (0068): a name for a set of assumptions (waste, bundles to the square, coverage per roll,
+ * vent type…) and the standing extra lines a roofer always adds (pipe boots, caulk, a dumpster), with the supplier they usually
+ * order from. `assumptions` holds only the numbers that differ from the defaults (server/crm/roof/materialList.ts).
+ */
+export const materialListTemplate = pgTable('material_list_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  assumptions: json('assumptions').notNull(),
+  extraLines: json('extra_lines').notNull(),
+  supplier: text('supplier'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('material_list_template_company_id_idx').on(t.companyId),
+])
+
 export const jobNote = pgTable('job_note', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

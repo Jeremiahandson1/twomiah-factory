@@ -7,6 +7,7 @@ import { Calculator, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../../api'
 import { errorText, useMayWrite, useToast } from '../../../../shared'
 import { SUPPLIERS } from './MaterialOrderForm'
+import { listOf } from './http'
 
 interface ListLine { code?: string; description: string; qty: number | string; unit: string; basis?: string }
 interface ReportChoice { id: string; kind: 'roof_report' | 'provider_report'; label: string; provider: string | null; createdAt: string }
@@ -17,6 +18,7 @@ interface Built {
   lengthsReport: ReportChoice | null; reportChoices: ReportChoice[]
 }
 interface QuoteSource { id: string; number: string; name: string; signed: boolean; signedAt: string | null; lines: ListLine[] }
+interface Template { id: string; name: string; supplier: string | null; extraLines: Array<{ description: string; qty: number; unit: string }> }
 interface Labels { [k: string]: { label: string; unit: string; help: string } }
 
 const LENGTHS: Array<[string, string]> = [['eaveFt', 'Eave (ft)'], ['rakeFt', 'Rake (ft)'], ['ridgeFt', 'Ridge and hip (ft)'], ['valleyFt', 'Valley (ft)']]
@@ -36,6 +38,11 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   // The job's signed quotes with material lines: a list can start from one instead of from the squares.
   const [quotes, setQuotes] = useState<QuoteSource[]>([])
   const [sourceNote, setSourceNote] = useState('')
+  // Saved templates: assumptions and standing extra lines the roofer starts from.
+  const mayManage = useMayWrite('inventory:create') // what POST /api/material-list/templates asks
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templateId, setTemplateId] = useState('')
+  const [saveAs, setSaveAs] = useState<string | null>(null)
   // Which report the lengths are read from: '' = the job's newest, 'none' = none (estimate from the squares).
   const [reportId, setReportId] = useState('')
   const mayMeasure = useMayWrite('measurements:create') // what POST …/provider-report asks
@@ -48,12 +55,13 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const work = useCallback(async (sq: string, ls: Record<string, string>, over: Record<string, string>, from = '') => {
+  const work = useCallback(async (sq: string, ls: Record<string, string>, over: Record<string, string>, from = '', tpl = '') => {
     setError('')
     try {
       const params: Record<string, string> = { ...over }
       if (from === 'none') params.lengthsFrom = 'none'
       else if (from) params.reportId = from
+      if (tpl) params.templateId = tpl
       if (sq) params.squares = sq
       for (const [k, v] of Object.entries(ls)) if (v !== '') params[k] = v
       const r = (await api.get(`/api/material-list/jobs/${jobId}`, params)) as Built
@@ -65,12 +73,36 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   useEffect(() => {
     work('', {}, {})
     api.get(`/api/material-list/jobs/${jobId}/quote-lines`).then((r: any) => setQuotes(((r?.quotes || []) as QuoteSource[]).filter((q) => q.lines.length))).catch(() => setQuotes([]))
+    api.get('/api/material-list/templates').then((r: any) => setTemplates(listOf<Template>(r))).catch(() => setTemplates([]))
     api.get('/api/material-list/assumptions').then((r: any) => setLabels(r?.labels || {})).catch(() => setLabels({}))
   }, [work])
 
+  // The lines the roofer added or the template brought: everything the worked list does not make itself.
+  const OWN = (l: ListLine) => !l.code || l.code.startsWith('template-')
+  const pickTemplate = async (id: string) => {
+    setTemplateId(id); setChanged({})
+    await work(squares, lengths, {}, reportId, id)
+    const tpl = templates.find((x) => x.id === id)
+    if (tpl?.supplier) setSupplier((cur) => cur || tpl.supplier!)
+  }
+  const saveTemplate = async () => {
+    const name = (saveAs || '').trim()
+    if (!name) { setError('Name the template.'); return }
+    setError('')
+    try {
+      const made = (await api.post('/api/material-list/templates', {
+        name, supplier: supplier.trim() || undefined,
+        assumptions: { ...(built?.assumptions || {}), ...changed },
+        extraLines: lines.filter(OWN).filter((l) => l.description.trim() && Number(l.qty) > 0).map((l) => ({ description: l.description.trim(), qty: Number(l.qty), unit: l.unit || 'ea' })),
+      })) as Template
+      setTemplates((ts) => [...ts, made].sort((a, b) => a.name.localeCompare(b.name)))
+      setTemplateId(made.id); setSaveAs(null)
+      toast.success('Template saved')
+    } catch (err) { setError(errorText(err, 'Could not save the template')) }
+  }
   const useQuote = (q: QuoteSource) => { setLines(q.lines.map((l) => ({ ...l }))); setSourceNote(`Material list from ${q.signed ? 'signed' : 'approved'} quote ${q.number}.`) }
-  const recalc = () => work(squares, lengths, changed, reportId)
-  const pickReport = (id: string) => { setReportId(id); setLengths({}); work(squares, {}, changed, id) }
+  const recalc = () => work(squares, lengths, changed, reportId, templateId)
+  const pickReport = (id: string) => { setReportId(id); setLengths({}); work(squares, {}, changed, id, templateId) }
   const importReport = async () => {
     setError('')
     try {
@@ -81,7 +113,7 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
       })
       toast.success('Report added to the job')
       setImporting(false); setImp({ provider: 'eagleview' }); setReportId(''); setLengths({})
-      await work('', {}, changed, '')
+      await work('', {}, changed, '', templateId)
     } catch (err) { setError(errorText(err, 'Could not add the report')) }
   }
   const setLine = (i: number, k: keyof ListLine, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
@@ -151,6 +183,27 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
           </div>
         )}
 
+        {(templates.length > 0 || mayManage) && (
+          <div className="mb-4 flex flex-wrap items-end gap-3" data-testid="template-picker">
+            {templates.length > 0 && (
+              <div className="min-w-[14rem]">
+                <label htmlFor="ml-template" className={lab}>Start from a template</label>
+                <select id="ml-template" value={templateId} onChange={(e) => pickTemplate(e.target.value)} className={input}>
+                  <option value="">None — the standard assumptions</option>
+                  {templates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </div>
+            )}
+            {mayManage && saveAs === null && <button type="button" onClick={() => setSaveAs('')} className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700">Save these settings as a template</button>}
+            {mayManage && saveAs !== null && (
+              <div className="flex items-end gap-2">
+                <div><label htmlFor="ml-template-name" className={lab}>Template name</label><input id="ml-template-name" value={saveAs} onChange={(e) => setSaveAs(e.target.value)} className={input} /></div>
+                <button type="button" onClick={saveTemplate} className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700">Save template</button>
+                <button type="button" onClick={() => setSaveAs(null)} className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
+              </div>
+            )}
+          </div>
+        )}
         {quotes.length > 0 && (
           <div className="mb-4 rounded-lg border p-3 dark:border-slate-700" data-testid="quote-source">
             <p className="text-sm text-gray-700 dark:text-slate-300">This job has {quotes.length === 1 ? 'a ' : ''}{quotes.some((q) => q.signed) ? 'signed' : 'approved'} quote with material lines. Start the list from what the customer bought instead of from the squares:</p>

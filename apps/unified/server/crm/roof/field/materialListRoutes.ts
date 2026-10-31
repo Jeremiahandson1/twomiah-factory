@@ -4,8 +4,10 @@
 //   GET  /assumptions            the numbers a list is worked from, with their words                   (any signed-in seat)
 //   POST /calculate              a list for squares (and lengths) the caller sends — nothing stored     jobs:read
 //   GET  /jobs/:jobId            a list for the job: its squares (entered on the job, else its newest   jobs:read
-//                                measurement report's), ?wastePercent= and the other assumptions
+//                                measurement report's), ?wastePercent= and the other assumptions, ?templateId= a saved template
 //   POST /jobs/:jobId/order      the edited list → a material order on the job                          inventory:create
+//   GET/POST/PUT/DELETE /api/material-list/templates   saved assumption sets with standing extra lines (./materialListTemplates.ts,
+//                                mounted beside this router in ./index.ts)
 //   GET  /jobs/:jobId/quote-lines  the material lines of the job's signed (approved) quotes, newest first     jobs:read
 //   POST /jobs/:jobId/provider-report   an EagleView / HOVER / GAF report keyed in from its PDF: its squares and   measurements:create
 //                                       lengths become the job's measurement, and the list is worked from them
@@ -16,7 +18,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
-import { job, material, measurementReport, quote, quoteLineItem } from '../../../db/schema/index.ts'
+import { job, material, materialListTemplate, measurementReport, quote, quoteLineItem } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
@@ -26,6 +28,7 @@ import { orderReference } from './materials.ts'
 import { PROVIDERS, PROVIDER_LABELS, listLengths, reportChoicesFor, type ReportChoice } from '../reportLengths.ts'
 import { ASSUMPTION_LABELS, DEFAULT_ASSUMPTIONS, buildMaterialList, type Lengths } from '../materialList.ts'
 import { createSeatJob } from './seatJob.ts'
+import { shapeTemplate } from './materialListTemplates.ts'
 
 const num = z.coerce.number().finite().nonnegative()
 const lengthsSchema = z.object({ eaveFt: num.optional(), rakeFt: num.optional(), ridgeFt: num.optional(), valleyFt: num.optional() })
@@ -124,10 +127,21 @@ export function createMaterialListRoutes(d: CrmDeps) {
       else if (fromReport) { lengths[k] = fromReport[k]; lengthSources[k] = chosen!.kind }
       else lengthSources[k] = k === 'valleyFt' ? 'none' : 'estimated'
     }
-    const over: Record<string, string> = {}
+    // A saved template's assumptions, with anything typed here laid over them; its standing extra lines go after the worked ones.
+    let template: any = null
+    if (q.templateId) {
+      template = (await db.select().from(materialListTemplate).where(and(eq(materialListTemplate.id, q.templateId), eq(materialListTemplate.companyId, me.companyId))).limit(1))[0]
+      if (!template) return fail(c, 404, 'Template not found')
+    }
+    const over: Record<string, unknown> = { ...(template?.assumptions ?? {}) }
     for (const k of Object.keys(DEFAULT_ASSUMPTIONS)) if (q[k] !== undefined && q[k] !== '') over[k] = q[k]
-    const list = buildMaterialList(squares ?? 0, lengths, over)
+    const list = buildMaterialList(squares ?? 0, lengths, over as any)
+    if (template && list.lines.length) {
+      ;((template.extraLines ?? []) as Array<{ description: string; qty: number; unit?: string }>).forEach((l, i) =>
+        list.lines.push({ code: `template-${i + 1}`, description: l.description, qty: l.qty, unit: l.unit || 'ea', basis: `From the template "${template.name}"` }))
+    }
     return one(c, {
+      template: template ? shapeTemplate(template) : null,
       jobId: row.id, jobNumber: row.number, address: row.address ?? row.propertyAddress ?? null,
       squaresSource,
       lengthSources,
