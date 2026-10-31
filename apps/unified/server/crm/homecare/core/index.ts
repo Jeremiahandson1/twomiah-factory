@@ -48,6 +48,10 @@ import { createAutopay } from './autopay.ts'
 import { createLtc } from './ltc.ts'
 import { createOfflineSaves } from './offlineSaves.ts'
 import { createVisitJobs } from './visitJobs.ts'
+import { createReportBuilder } from './reportBuilder.ts'
+import { createReportSchedules } from './reportSchedules.ts'
+import { createRetentionRisk } from './retentionRisk.ts'
+import { createCaregiverSurveys } from './caregiverSurveys.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
 import { createEligibilityEngine } from './eligibilityEngine.ts'
@@ -145,7 +149,13 @@ function buildHomecareCore(d: CrmDeps) {
   const alertRules = createAlertRules(d, { wordingProblem })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time })
-  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay })
+  // Caregiver satisfaction surveys and the retention risk (row 13), then reports (row 12): the builder (its retention tile reads
+  // the surveys), the dashboards and the scheduled report emails.
+  const risk = createRetentionRisk(d, { time })
+  const caregiverSurveys = createCaregiverSurveys(d, { time, notify, risk })
+  const reportBuilder = createReportBuilder(d, { time, margin, retention: caregiverSurveys })
+  const reportSchedules = createReportSchedules(d, { time, margin, reportBuilder })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -154,7 +164,7 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, importAttach, migration, autopay, ltc, offlineSaves,
+    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, importAttach, migration, autopay, ltc, offlineSaves, reportBuilder, reportSchedules, risk, caregiverSurveys,
     staffEmails, eligibility, onboarding, applications,
     reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */

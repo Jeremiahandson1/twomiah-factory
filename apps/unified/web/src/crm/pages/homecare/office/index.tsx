@@ -13,7 +13,7 @@
 import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import {
-  AlertTriangle, Award, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
+  AlertTriangle, Award, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, HeartHandshake, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
   Smartphone, ToggleLeft, TrendingUp, Upload, UserCog,
 } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
@@ -40,6 +40,9 @@ const FamilyMessages = page(() => import('./FamilyMessages'))
 const PickupRewards = page(() => import('./PickupRewards'))
 const OpenShiftOffers = page(() => import('./OpenShiftOffers'))
 const MarginReports = page(() => import('./MarginReports'))
+const ReportBuilder = page(() => import('./ReportBuilder'))
+const ReportDelivery = page(() => import('./ReportBuilder').then((m) => ({ default: m.ReportDelivery })))
+const CaregiverRetention = page(() => import('./CaregiverRetention'))
 const DataImport = page(() => import('./DataImport'))
 const MigrationRequest = page(() => import('./MigrationRequest'))
 const PayRules = page(() => import('./PayRules'))
@@ -58,6 +61,11 @@ const Home = page(() => import('./OfficeHome'))
  *   reports             care-billing:read     planning/reports.ts (the overview; other tabs ask more, the page says so)
  *   margin-reports      care-billing:read     planning/marginReports.ts: client margin asks billing AND payroll read, turnover asks
  *                                             care-hr:read; the page shows each tab only to whoever holds its permission
+ *   report-builder      care-billing:read     planning/reportBuilder.ts: the builder and the money dashboards ask billing (pay columns
+ *                                             need payroll read too), the caregiver dashboard and workforce / performance ask care-hr:read,
+ *                                             saving reports, dashboards and scheduled emails asks care-billing:update
+ *   caregiver-retention care-hr:read          hr/caregiverSurveys.ts: reading surveys, results and the at-risk list asks care-hr:read;
+ *                                             writing the survey set-up asks care-hr:update
  *   pay-rules           care-payroll:read     payroll/payRulesRoutes.ts: reading asks :read, saving and the ADP / Paychex files ask :update (the page shows those only to whoever holds it)
  *   autopay             care-billing:read     billing/autopayRoutes.ts: reading asks :read; saving a card, removing it and "Try now" ask :update (the page shows those only to whoever holds it)
  *   ltc-billing         care-billing:read     billing/ltcRoutes.ts: reading and the claim packet ask :read; saving a policy asks :update (the page shows the form's Save only to whoever holds it)
@@ -87,6 +95,8 @@ const PERMISSION: Record<string, string> = {
   '/crm/incidents': 'care-compliance:read',
   '/crm/reports': 'care-billing:read',
   '/crm/margin-reports': 'care-billing:read',
+  '/crm/report-builder': 'care-billing:read',
+  '/crm/caregiver-retention': 'care-hr:read',
   '/crm/credentials': 'care-hr:read',
   '/crm/visit-questions': 'care-clients:update',
   '/crm/visit-items': 'care-clients:update',
@@ -124,6 +134,9 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-pickup-rewards" path="pickup-rewards" element={<PickupRewards />} />,
   <Route key="hc-office-open-shift-offers" path="open-shift-offers" element={<OpenShiftOffers />} />,
   <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
+  <Route key="hc-office-report-builder" path="report-builder" element={<ReportBuilder />} />,
+  <Route key="hc-office-report-delivery" path="report-builder/deliveries/:id" element={<ReportDelivery />} />,
+  <Route key="hc-office-caregiver-retention" path="caregiver-retention" element={<CaregiverRetention />} />,
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
   <Route key="hc-office-migration" path="migration" element={<MigrationRequest />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
@@ -155,6 +168,8 @@ export const nav: NavItem[] = [
   { to: '/crm/open-shift-offers', icon: BellRing, label: 'Open shift offers', permission: PERMISSION['/crm/open-shift-offers'], features: ['care_open_shift_offers'] },
   { to: '/crm/family-messages', icon: MessageSquare, label: 'Family messages', permission: PERMISSION['/crm/family-messages'], features: ['care_family_comms'] },
   { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
+  { to: '/crm/report-builder', icon: BarChart3, label: 'Reports & dashboards', permission: PERMISSION['/crm/report-builder'], features: ['care_report_builder'] },
+  { to: '/crm/caregiver-retention', icon: HeartHandshake, label: 'Caregiver satisfaction & retention', permission: PERMISSION['/crm/caregiver-retention'], features: ['care_caregiver_surveys'] },
   { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create', 'care-billing:create', 'care-payroll:create'], features: ['care_import'] },
   { to: '/crm/migration', icon: Upload, label: 'Assisted migration', permission: PERMISSION['/crm/migration'], features: ['care_migration'] },
   { to: '/crm/pay-rules', icon: Calculator, label: 'Pay rules', permission: PERMISSION['/crm/pay-rules'], features: ['care_payroll_rules'] },

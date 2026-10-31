@@ -17,6 +17,10 @@ export function createVisitJobs(d: CrmDeps, deps: {
   medicationReminders?: { scanMedicationReminders: () => Promise<number> }
   /** Autopay's scan (item 3): optional, so a caller without it runs as before. */
   autopay?: { sweep: () => Promise<number> }
+  /** Scheduled report emails (row 12): optional, as above. */
+  reportSchedules?: { scanReportSchedules: () => Promise<number> }
+  /** Caregiver surveys and the daily retention-risk snapshot (row 13): optional, as above. */
+  caregiverSurveys?: { scanCaregiverSurveys: () => Promise<number> }
 }) {
   let started = false
   const timers: ReturnType<typeof setTimeout>[] = []
@@ -51,6 +55,10 @@ export function createVisitJobs(d: CrmDeps, deps: {
     if (deps.medicationReminders) every('medication-reminders', 30_000, () => deps.medicationReminders!.scanMedicationReminders())
     // Autopay: the safety net behind the charge on issue, and the retries after a declined card (claimed per try, so never twice).
     if (deps.autopay) every('autopay', 210_000, () => deps.autopay!.sweep())
+    // Scheduled report emails: each schedule is claimed per due day, so a 5-minute tick sends it once at or after its hour.
+    if (deps.reportSchedules) every('report-schedules', 240_000, () => deps.reportSchedules!.scanReportSchedules())
+    // Caregiver surveys: each point is asked once (the request's key), and the day's risk snapshot is written with it.
+    if (deps.caregiverSurveys) every('caregiver-surveys', 270_000, () => deps.caregiverSurveys!.scanCaregiverSurveys())
     d.logger.info('[visit-jobs] shift reminders + overtime alerts + credential reminders every 5 min')
   }
 

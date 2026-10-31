@@ -82,6 +82,8 @@ export const MENU: Array<[path: string, section: string]> = [
   ['/crm/expenses', 'Financial'],
   ['/crm/reports', 'Financial'],
   ['/crm/margin-reports', 'Financial'],
+  ['/crm/report-builder', 'Financial'],
+  ['/crm/caregiver-retention', 'Caregivers'],
   ['/crm/revenue-forecast', 'Financial'],
   ['/crm/compliance', 'Compliance'],
   ['/crm/credentials', 'Compliance'],

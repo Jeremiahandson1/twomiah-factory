@@ -10,6 +10,7 @@
 // Two routers may not share a path, so /api/optimizer is one router composing both at its root. These mounts are made
 // only for the home-care vertical, so they carry no feature.
 import { createMarginReportRoutes } from './marginReports.ts'
+import { createReportBuilderRoutes } from './reportBuilder.ts'
 import { Hono } from 'hono'
 import type { Mount } from '../../../http/registry.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -26,5 +27,6 @@ export function planningMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/optimizer', access: 'user', router: new Hono<AppEnv>().route('/', routeOptimizer).route('/', createScheduleOptimizerRoutes(d)) },
     { path: '/api/roster-optimizer', access: 'user', router: createRosterOptimizerRoutes(d) },
     { path: '/api/margin-reports', access: 'user', feature: 'care_margin_reports', router: createMarginReportRoutes(core, d) },
+    { path: '/api/report-builder', access: 'user', feature: 'care_report_builder', router: createReportBuilderRoutes(core, d) },
   ]
 }
