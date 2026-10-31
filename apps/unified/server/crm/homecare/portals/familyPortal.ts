@@ -32,6 +32,7 @@ import { createRateLimiter } from '../../../http/guards.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
+import { mimeOf, UPCOMING_DAYS } from '../core/familyContent.ts'
 import { activePlanWhere } from '../core/carePlanStatus.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -59,14 +60,16 @@ const memberColumns = {
   canViewSchedule: familyMembers.canViewSchedule,
   canViewCarePlan: familyMembers.canViewCarePlan,
   canViewMedications: familyMembers.canViewMedications,
+  canViewVitals: familyMembers.canViewVitals,
+  canViewDocuments: familyMembers.canViewDocuments,
   canMessage: familyMembers.canMessage,
   lastLogin: familyMembers.lastLoginAt,
   createdAt: familyMembers.createdAt,
   updatedAt: familyMembers.updatedAt,
 }
-type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canMessage: boolean | null } & Record<string, unknown>
+type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canViewVitals: boolean | null; canViewDocuments: boolean | null; canMessage: boolean | null } & Record<string, unknown>
 type FamilyEnv = { Variables: AppEnv['Variables'] & { familyMember: Member; familyClientId: string; familyCompanyId: string } }
-type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
+type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canMessage'
 
 /** "Mary" + "Smith" → "Mary Smith"; a single `name` is taken as given. */
 const composeName = (b: any): string =>
@@ -143,6 +146,9 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       canViewSchedule: b.canViewSchedule !== false,
       canViewCarePlan: b.canViewCarePlan !== false,
       canViewMedications: b.canViewMedications === true,
+      // Vitals have their own switch (care_family_content); a new relative who may see medicines is shown vitals too unless the office says otherwise.
+      canViewVitals: b.canViewVitals === undefined ? b.canViewMedications === true : b.canViewVitals === true,
+      canViewDocuments: b.canViewDocuments === true,
       canMessage: b.canMessage !== false,
       isPrimaryContact: b.isPrimaryContact === true,
       // The relative's yes to arrival/departure texts, recorded by the office; never assumed.
@@ -216,7 +222,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     }
     if (typeof b?.phone === 'string') patch.phone = b.phone.trim() || null
     if (typeof b?.relationship === 'string') patch.relationship = b.relationship.trim() || null
-    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage', 'isPrimaryContact'] as const) {
+    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canViewVitals', 'canViewDocuments', 'canMessage', 'isPrimaryContact'] as const) {
       if (typeof b?.[k] === 'boolean') patch[k] = b[k]
     }
     // Arrival/departure texts: turning them on needs a phone number on the relative (the one being saved, or the one on file).
@@ -394,7 +400,8 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
 
   // ════ THE FAMILY'S PORTAL ═══════════════════════════════════════════════════════════════
 
-  app.get('/portal/me', familyAuth, async (c) => one(c, c.get('familyMember')))
+  // careContent: the agency has the daily-care tabs on (care_family_content) — the portal shows them and wording like "Medicine list".
+  app.get('/portal/me', familyAuth, async (c) => one(c, { ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')) }))
 
   app.get('/portal/client', familyAuth, async (c) => {
     const companyId = c.get('familyCompanyId')
@@ -470,8 +477,10 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   })
 
   // Vitals are part of the same clinical tier as medications (the source CRM's rule): the latest 60.
+  // With care_family_content on, vitals have their own switch (canViewVitals); off, they ride on the medicines switch as before.
   app.get('/portal/vitals', familyAuth, async (c) => {
-    if (!allowed(c, 'canViewMedications')) return fail(c, 403, 'Access denied')
+    const own = await core.familyContent.enabled(c.get('familyCompanyId'))
+    if (!allowed(c, own ? 'canViewVitals' : 'canViewMedications')) return fail(c, 403, 'Access denied')
     const rows = await core.vitals.listClientVitals(c.get('familyCompanyId'), c.get('familyClientId'), 60)
     return all(c, rows.map((v: any) => ({
       id: v.id, recordedAt: v.recordedAt,
@@ -480,6 +489,44 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       weightLbs: v.weightLbs, painScale: v.painScale, painLocation: v.painLocation, notes: v.notes,
       caregiverFirst: v.caregiverFirst, caregiverLast: v.caregiverLast,
     })))
+  })
+
+  // ── Daily care, meals and documents (care_family_content, not ready) ─────────────────────────────────────────────────────────
+  // The feature is off → 404 (the routes do not exist for that agency); on, each is behind the relative's own switch.
+  const contentOff = async (c: Context<FamilyEnv>) => (await core.familyContent.enabled(c.get('familyCompanyId'))) ? null : fail(c, 404, 'Not found')
+
+  // The tasks planned for each of the next visits — only those that belong to the visit's weekday and AM/PM.
+  app.get('/portal/upcoming-tasks', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewCarePlan') || !allowed(c, 'canViewSchedule')) return fail(c, 403, 'Access denied')
+    const companyId = c.get('familyCompanyId')
+    const today = await core.time.today(companyId)
+    const visits = await familyScheduleRows(db, companyId, c.get('familyClientId'), today, addDays(today, UPCOMING_DAYS - 1))
+    return all(c, await core.familyContent.upcoming(companyId, c.get('familyClientId'), visits))
+  })
+
+  // The last 30 days: each finished visit, its tasks done or not (never the caregiver's notes), and the meals recorded.
+  app.get('/portal/task-log', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewCarePlan')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyContent.past(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+
+  app.get('/portal/documents', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewDocuments')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyContent.sharedDocuments(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+  app.get('/portal/documents/:id/download', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewDocuments')) return fail(c, 403, 'Access denied')
+    const doc = await core.familyContent.sharedDocumentFile(c.get('familyCompanyId'), c.get('familyClientId'), c.req.param('id')!)
+    if (!doc || !doc.fileData) return fail(c, 404, 'Document not found')
+    return new Response(new Uint8Array(Buffer.from(String(doc.fileData), 'base64')), { headers: {
+      'Content-Type': mimeOf(doc.fileType),
+      'Content-Disposition': `attachment; filename="${String(doc.fileName || 'document').replace(/[^\w.\- ]/g, '_')}"`,
+      'X-Content-Type-Options': 'nosniff',
+    } })
   })
 
   // Visit notes are part of the care-plan tier.

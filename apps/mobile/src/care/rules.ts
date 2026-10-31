@@ -249,3 +249,20 @@ export function reasonProblem(code: string | null | undefined, note: string | nu
 export function signatureBody(p: PendingSignature): { signature?: string; reasonCode?: string; note?: string; savedAt: string } {
   return p.signature ? { signature: p.signature, savedAt: p.savedAt } : { reasonCode: p.reasonCode, ...(p.note?.trim() ? { note: p.note.trim() } : {}), savedAt: p.savedAt }
 }
+
+// ── Meals (care_family_content) ──
+export interface MealOption { code: string; label: string }
+export interface MealRecord { id?: string; meal: string; mealLabel?: string; description: string | null; amountEaten: string; amountLabel?: string; note?: string | null }
+
+/** Why a meal is not ready to save, in plain words — or null when it is. */
+export function mealProblem(meal: string | null | undefined, description: string | null | undefined, amount: string | null | undefined): string | null {
+  if (!meal) return 'Pick the meal: breakfast, lunch, dinner or a snack.'
+  if (!String(description ?? '').trim()) return 'Write what was served.'
+  if (!amount) return 'Say how much was eaten.'
+  return null
+}
+
+/** The meal as the server takes it; `savedAt` keeps the time it was served when it is sent later. */
+export function mealBody(m: { description: string; amountEaten: string; note?: string }, savedAt: string): { description: string; amountEaten: string; note?: string; savedAt: string } {
+  return { description: m.description.trim(), amountEaten: m.amountEaten, ...(m.note?.trim() ? { note: m.note.trim() } : {}), savedAt }
+}

@@ -344,7 +344,7 @@ export async function formSubmissionOne(q: Q, companyId: string, id: string): Pr
 
 const DOC_SELECT = sql`d.id, d.entity_type, d.entity_id, d.document_type, d.document_type AS category,
   d.name, d.name AS document_name, d.description, d.file_name, d.file_type, d.file_size,
-  d.requires_signature, d.expiration_date::text AS expiration_date, d.is_confidential, d.uploaded_by_id,
+  d.requires_signature, d.expiration_date::text AS expiration_date, d.is_confidential, d.share_with_family, d.uploaded_by_id,
   d.signed_at, d.signed_by_id, d.signature_typed_name, d.created_at, d.created_at AS uploaded_at, d.updated_at,
   u.first_name AS uploaded_by_first, u.last_name AS uploaded_by_last,
   CASE d.entity_type

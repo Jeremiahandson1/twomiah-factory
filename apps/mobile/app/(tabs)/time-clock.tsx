@@ -26,6 +26,7 @@ import { SandataIdBox, SandataPromptCard, VisitSandata, SandataHelp } from '../.
 import { CareTaskChecklist, MedicationLog, VisitPhotos, VitalsForm } from '../../src/care/components/VisitParts'
 import { VisitItems } from '../../src/care/components/VisitItems'
 import { ClientSignature } from '../../src/care/components/ClientSignature'
+import { VisitMeals } from '../../src/care/components/VisitMeals'
 import { useOpenRequired, resetOpen } from '../../src/care/openRequired'
 import { clearPending, loadPending } from '../../src/care/visitSignatureStore'
 import { ConfirmSheet } from '../../src/components/ConfirmSheet'
@@ -112,6 +113,7 @@ function ActiveVisitView() {
       <CareTaskChecklist timeEntryId={a.id} />
 
       <VisitItems timeEntryId={a.id} />
+      <VisitMeals visitId={a.id} />
       <ClientSignature visitId={a.id} clientName={name} />
       <MedicationLog clientId={a.clientId} timeEntryId={a.id} />
       <VitalsForm clientId={a.clientId} timeEntryId={a.id} />

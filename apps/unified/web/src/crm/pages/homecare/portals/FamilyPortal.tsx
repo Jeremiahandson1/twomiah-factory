@@ -16,6 +16,7 @@
 //   GET  /api/family-portal/portal/vitals      a list of { id, recordedAt, systolicBp, diastolicBp, pulse, respirations,
 //                                              oxygenSaturation, temperatureF, bloodGlucose, weightLbs, painScale, notes,
 //                                              caregiverFirst, caregiverLast }
+//   GET  /api/family-portal/portal/upcoming-tasks, /task-log, /documents (+ /documents/:id/download)   care_family_content: the Daily care and Documents tabs
 //   GET  /api/family-portal/portal/messages    a list of { id, direction ('inbound' = the family's), subject, message, createdAt }
 //   POST /api/family-portal/portal/messages    { subject, message }
 // Each list arrives as { data, pagination }; the template's server sent bare arrays and snake_case vitals keys.
@@ -26,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type For
 import { formatAgencyDateTime, setAgencyTimezone, agencyToday } from '../lib/agencyClock'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { serviceLabel } from '../lib/serviceTypes'
+import { saveBlob } from '../lib/http'
 import { createPortalClient, listRows, PortalContext, SESSION_EXPIRED, usePortal } from './portalHttp'
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
 import './portals.css'
@@ -40,6 +42,10 @@ export interface FamilyMember {
   canViewSchedule?: boolean | null
   canViewCarePlan?: boolean | null
   canViewMedications?: boolean | null
+  canViewVitals?: boolean | null
+  canViewDocuments?: boolean | null
+  /** care_family_content is on for this agency: the Daily care and Documents tabs exist, and vitals have their own switch */
+  careContent?: boolean | null
   canMessage?: boolean | null
 }
 
@@ -244,7 +250,7 @@ function CarePlanView() {
 // ── Medications ───────────────────────────────────────────────
 interface Med { id: string; name: string; dosage: string | null; frequency: string | null; route: string | null; prescribedBy: string | null; instructions: string | null; isPrn: boolean | null; notes: string | null }
 
-function MedicationsView() {
+function MedicationsView({ medicineList }: { medicineList?: boolean }) {
   const portal = usePortal()
   const [meds, setMeds] = useState<Med[]>([])
   const [loading, setLoading] = useState(true)
@@ -261,7 +267,7 @@ function MedicationsView() {
 
   return (
     <div>
-      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Active Medications</h3>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>{medicineList ? 'Medicine list' : 'Active Medications'}</h3>
       {meds.map((m) => (
         <div key={m.id} style={CARD}>
           <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>
@@ -454,15 +460,125 @@ function MessagesView({ canMessage }: { canMessage: boolean }) {
   )
 }
 
+// ── Daily care (care_family_content): the tasks planned for each upcoming visit, the log of past visits, meals ──────────────────
+interface PlannedTask { taskId: string; taskName: string; allottedMinutes: number | null; weekly: boolean }
+interface UpcomingVisit { id: string; date: string; startTime: string | null; endTime: string | null; caregiverFirst: string | null; caregiverLast: string | null; tasks: PlannedTask[] }
+interface LoggedTask { taskId: string; taskName: string; state: string; stateLabel: string }
+interface LoggedMeal { id: string; mealLabel: string; description: string | null; amountLabel: string }
+interface PastVisit { timeEntryId: string; visitDate: string; startTime: string; endTime: string | null; caregiverName: string; tasks: LoggedTask[]; meals: LoggedMeal[] }
+
+function DailyCareView() {
+  const portal = usePortal()
+  const [upcoming, setUpcoming] = useState<UpcomingVisit[]>([])
+  const [past, setPast] = useState<PastVisit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [part, setPart] = useState<'upcoming' | 'past'>('upcoming')
+
+  useEffect(() => {
+    Promise.all([
+      portal.get('/api/family-portal/portal/upcoming-tasks').then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
+      portal.get('/api/family-portal/portal/task-log').then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
+    ]).finally(() => setLoading(false))
+  }, [portal])
+
+  if (loading) return <div style={MUTED}>Loading daily care...</div>
+  const tabBtn = (k: 'upcoming' | 'past', label: string) => (
+    <button key={k} onClick={() => setPart(k)} style={{ ...BADGE(part === k ? 'green' : 'blue'), border: 'none', cursor: 'pointer', padding: '6px 14px', fontSize: '0.85rem', opacity: part === k ? 1 : 0.7 }}>{label}</button>
+  )
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        {tabBtn('upcoming', 'Coming visits')}{tabBtn('past', 'Past visits')}
+      </div>
+      {part === 'upcoming' ? (
+        upcoming.length === 0 ? <div style={{ ...CARD, ...MUTED }}>No upcoming visits scheduled.</div> : upcoming.map((v) => (
+          <div key={v.id} style={{ ...CARD, borderLeft: '4px solid #3498db' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              <strong>{fmtDay(v.date, { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+              <span style={SOFT}>{String(v.startTime || '').slice(0, 5)} - {String(v.endTime || '').slice(0, 5)}</span>
+            </div>
+            {v.tasks.length === 0
+              ? <div style={SOFT}>No tasks are planned for this visit.</div>
+              : <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem' }}>{v.tasks.map((t) => (
+                <li key={t.taskId}>{t.taskName}{t.weekly && <span style={SOFT}> (once this week)</span>}{t.allottedMinutes ? <span style={SOFT}> — about {t.allottedMinutes} min</span> : null}</li>
+              ))}</ul>}
+          </div>
+        ))
+      ) : past.length === 0 ? <div style={{ ...CARD, ...MUTED }}>No visits in the last 30 days.</div> : past.map((v) => (
+        <div key={v.timeEntryId} style={{ ...CARD, borderLeft: '4px solid #27ae60' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+            <strong>{fmtDay(v.visitDate, { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+            <span style={SOFT}>{v.caregiverName}</span>
+          </div>
+          {v.tasks.length === 0 && <div style={SOFT}>No tasks were planned for this visit.</div>}
+          {v.tasks.map((t) => (
+            <div key={t.taskId} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '0.9rem', padding: '2px 0' }}>
+              <span>{t.taskName}</span><span style={BADGE(t.state === 'done' || t.state === 'done_earlier' ? 'green' : t.state === 'not_recorded' ? 'yellow' : 'blue')}>{t.stateLabel}</span>
+            </div>
+          ))}
+          {v.meals.length > 0 && (
+            <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--hc-line)' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '4px' }}>Meals</div>
+              {v.meals.map((m) => <div key={m.id} style={{ fontSize: '0.88rem' }}>{m.mealLabel}: {m.description} — <span style={SOFT}>{m.amountLabel}</span></div>)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Documents (care_family_content): what the office shared ──────────────────────────────────────────────────────────────────
+interface SharedDoc { id: string; name: string; documentType: string | null; description: string | null; fileName: string | null; createdAt: string }
+
+function DocumentsView() {
+  const portal = usePortal()
+  const [docs, setDocs] = useState<SharedDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [problem, setProblem] = useState('')
+
+  useEffect(() => {
+    portal.get('/api/family-portal/portal/documents')
+      .then((r) => { if (r) setDocs(listRows<SharedDoc>(r)) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [portal])
+
+  const open = async (d: SharedDoc) => {
+    setProblem('')
+    try { saveBlob(await portal.blob(`/api/family-portal/portal/documents/${d.id}/download`), d.fileName || d.name) }
+    catch (e) { setProblem((e as Error).message || 'That document could not be opened.') }
+  }
+
+  if (loading) return <div style={MUTED}>Loading documents...</div>
+  if (docs.length === 0) return <div style={{ ...CARD, ...MUTED }}>The care team has not shared any documents yet.</div>
+  return (
+    <div>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Documents</h3>
+      {problem && <div style={{ ...CARD, color: 'var(--hc-danger-ink)' }}>{problem}</div>}
+      {docs.map((d) => (
+        <div key={d.id} style={{ ...CARD, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>{d.name}</div>
+            <div style={SOFT}>{[d.documentType ? codeLabel(d.documentType) : '', fmtDay(d.createdAt)].filter(Boolean).join(' · ')}</div>
+            {d.description && <div style={SOFT}>{d.description}</div>}
+          </div>
+          <button onClick={() => open(d)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--hc-line)', background: 'var(--hc-surface)', color: 'var(--hc-ink)', cursor: 'pointer' }}>Open</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Overview ──────────────────────────────────────────────────
-type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'medications' | 'vitals' | 'messages'
-interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean }
+type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'messages'
+interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; careContent: boolean; canMessage: boolean }
 
 function OverviewView({ client, userName, permissions, setActiveTab }: { client: FamilyClient | null; userName: string; permissions: Permissions; setActiveTab: (k: TabKey) => void }) {
   const quickLinks: Array<{ key: TabKey; label: string; icon: string; color: string }> = []
   if (permissions.canViewSchedule) quickLinks.push({ key: 'schedule', label: 'View Schedule', icon: '📅', color: '#3498db' })
   if (permissions.canViewCarePlan) quickLinks.push({ key: 'care-plan', label: 'View Care Plan', icon: '📋', color: '#e67e22' })
-  if (permissions.canViewMedications) quickLinks.push({ key: 'medications', label: 'View Medications', icon: '💊', color: '#9b59b6' })
+  if (permissions.canViewMedications) quickLinks.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'View Medications', icon: '💊', color: '#9b59b6' })
   if (permissions.canMessage) quickLinks.push({ key: 'messages', label: 'Send Message', icon: '💬', color: '#27ae60' })
 
   const first = client?.firstName
@@ -559,6 +675,10 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
     canViewSchedule: !!member?.canViewSchedule,
     canViewCarePlan: !!member?.canViewCarePlan,
     canViewMedications: !!member?.canViewMedications,
+    // With care_family_content on, vitals and documents have their own switches; off, vitals follow medicines and there is no Documents tab.
+    careContent: !!member?.careContent,
+    canViewVitals: member?.careContent ? !!member?.canViewVitals : !!member?.canViewMedications,
+    canViewDocuments: !!member?.careContent && !!member?.canViewDocuments,
     canMessage: !!member?.canMessage,
   }
 
@@ -566,8 +686,10 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewSchedule) tabs.push({ key: 'schedule', label: 'Schedule', icon: '📅' })
   if (permissions.canViewSchedule) tabs.push({ key: 'caregivers', label: 'Caregivers', icon: '👤' })
   if (permissions.canViewCarePlan) tabs.push({ key: 'care-plan', label: 'Care Plan', icon: '📋' })
-  if (permissions.canViewMedications) tabs.push({ key: 'medications', label: 'Medications', icon: '💊' })
-  if (permissions.canViewMedications) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
+  if (permissions.careContent && permissions.canViewCarePlan && permissions.canViewSchedule) tabs.push({ key: 'daily-care', label: 'Daily care', icon: '✅' })
+  if (permissions.canViewMedications) tabs.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'Medications', icon: '💊' })
+  if (permissions.canViewVitals) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
+  if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
   if (permissions.canMessage) tabs.push({ key: 'messages', label: 'Messages', icon: '💬' })
   const tabKeys = tabs.map((t) => t.key).join()
 
@@ -584,8 +706,10 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
       case 'schedule': return permissions.canViewSchedule ? <ScheduleView /> : null
       case 'caregivers': return permissions.canViewSchedule ? <CaregiversView agencyState={agencyState} /> : null
       case 'care-plan': return permissions.canViewCarePlan ? <CarePlanView /> : null
-      case 'medications': return permissions.canViewMedications ? <MedicationsView /> : null
-      case 'vitals': return permissions.canViewMedications ? <VitalsView /> : null
+      case 'daily-care': return permissions.careContent && permissions.canViewCarePlan && permissions.canViewSchedule ? <DailyCareView /> : null
+      case 'medications': return permissions.canViewMedications ? <MedicationsView medicineList={permissions.careContent} /> : null
+      case 'vitals': return permissions.canViewVitals ? <VitalsView /> : null
+      case 'documents': return permissions.canViewDocuments ? <DocumentsView /> : null
       case 'messages': return permissions.canMessage ? <MessagesView canMessage /> : null
       default: return <OverviewView client={client} userName={userName} permissions={permissions} setActiveTab={setActiveTab} />
     }

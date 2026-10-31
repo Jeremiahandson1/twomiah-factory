@@ -32,6 +32,7 @@ import { createVisitQuestions } from './visitQuestions.ts'
 import { createVisitItems } from './visitItems.ts'
 import { createVisitSignature } from './visitSignature.ts'
 import { createTaskReport } from './taskReport.ts'
+import { createFamilyContent } from './familyContent.ts'
 import { createFamilyTexts } from './familyTexts.ts'
 import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
@@ -124,6 +125,7 @@ function buildHomecareCore(d: CrmDeps) {
   const offlineSaves = createOfflineSaves(d, { time, notify })
   const visitSignature = createVisitSignature(d, { offlineSaves })
   const taskReport = createTaskReport(d, { time })
+  const familyContent = createFamilyContent(d, { time, taskReport, offlineSaves })
   const familyTexts = createFamilyTexts(d, { time, notify, profile })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time })
@@ -138,7 +140,7 @@ function buildHomecareCore(d: CrmDeps) {
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
     invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyTexts, requiredTasks, supervisory, worcsPoll,
+    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, familyTexts, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

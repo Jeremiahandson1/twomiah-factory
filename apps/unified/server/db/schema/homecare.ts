@@ -2117,6 +2117,9 @@ export const familyMembers = pgTable('family_members', {
   canViewSchedule: boolean('can_view_schedule').default(true).notNull(),
   canViewCarePlan: boolean('can_view_care_plan').default(true).notNull(),
   canViewMedications: boolean('can_view_medications').default(false).notNull(),
+  // care_family_content: vitals have their own switch (they followed the medicines one), and so do the documents the agency shares.
+  canViewVitals: boolean('can_view_vitals').default(false).notNull(),
+  canViewDocuments: boolean('can_view_documents').default(false).notNull(),
   canMessage: boolean('can_message').default(true).notNull(),
   isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
   // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
@@ -2536,6 +2539,8 @@ export const documents = pgTable('documents', {
   requiresSignature: boolean('requires_signature').default(false).notNull(),
   expirationDate: date('expiration_date'),
   isConfidential: boolean('is_confidential').default(false).notNull(),
+  // A client's document the office chose to show relatives who may see documents (care_family_content).
+  shareWithFamily: boolean('share_with_family').default(false).notNull(),
   uploadedById: text('uploaded_by_id').references(() => user.id),
   signedAt: timestamp('signed_at'),
   signedById: text('signed_by_id').references(() => user.id),
@@ -3216,4 +3221,26 @@ export const visitSignature = pgTable('visit_signature', {
 }, (t) => [
   uniqueIndex('visit_signature_visit_idx').on(t.timeEntryId),
   index('visit_signature_company_idx').on(t.companyId, t.createdAt),
+])
+
+// A meal the caregiver recorded on a visit (row 6, care_family_content): which meal, what, how much was eaten. Relatives with the care-plan
+// switch see these under "Daily care"; the office reads them with the visit.
+export const visitMeal = pgTable('visit_meal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  meal: text('meal').notNull(), // breakfast | lunch | dinner | snack
+  description: text('description'),
+  amountEaten: text('amount_eaten').notNull(), // all | most | half | little | none
+  note: text('note'),
+  recordedById: text('recorded_by_id').references(() => user.id),
+  // when the meal was served — the phone's time if it was recorded offline
+  servedAt: timestamp('served_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_meal_visit_idx').on(t.timeEntryId),
+  index('visit_meal_client_idx').on(t.clientId, t.servedAt),
+  // one record per meal per visit; saving again replaces it
+  uniqueIndex('visit_meal_once_idx').on(t.timeEntryId, t.meal),
 ])

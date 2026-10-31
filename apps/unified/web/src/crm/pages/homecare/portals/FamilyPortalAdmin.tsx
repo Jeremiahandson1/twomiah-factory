@@ -27,12 +27,21 @@ import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
 
-type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
+type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canMessage'
 // A relative's switches: [the API's name, the label].
 const PERMISSIONS: Array<[PermKey, string]> = [
   ['canViewSchedule', 'Schedule'],
   ['canViewCarePlan', 'Care plan'],
   ['canViewMedications', 'Medications & vitals'],
+  ['canMessage', 'Messages'],
+]
+// With care_family_content on, vitals and documents are their own switches and the medicines one says so.
+const permissionsFor = (content: boolean): Array<[PermKey, string]> => !content ? PERMISSIONS : [
+  ['canViewSchedule', 'Schedule'],
+  ['canViewCarePlan', 'Care plan and daily care'],
+  ['canViewMedications', 'Medicine list'],
+  ['canViewVitals', 'View vitals'],
+  ['canViewDocuments', 'View documents'],
   ['canMessage', 'Messages'],
 ]
 
@@ -49,6 +58,8 @@ interface Member {
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
+  canViewVitals?: boolean | null
+  canViewDocuments?: boolean | null
   canMessage: boolean | null
   lastLogin: string | null
   clientFirstName: string | null
@@ -124,6 +135,7 @@ export default function FamilyPortalAdmin() {
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
   const showQuietHours = useAuth().hasFeature('care_family_texts') && can('care-portal:update')
+  const contentOn = useAuth().hasFeature('care_family_content')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<FamilyMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -396,7 +408,7 @@ export default function FamilyPortalAdmin() {
                       <td>
                         {/* What the relative can see; changed in ✏️ Edit (one door, saved together). */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                          {PERMISSIONS.map(([key, label]) => {
+                          {permissionsFor(contentOn).map(([key, label]) => {
                             const on = !!member[key]
                             return <span key={key}>{on ? '✓' : '✗'} {label}{on ? '' : ' (off)'}</span>
                           })}
@@ -592,15 +604,16 @@ export default function FamilyPortalAdmin() {
 // ── Add a relative ──
 interface AddForm {
   clientId: string; firstName: string; lastName: string; email: string; phone: string; relationship: string; password: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canMessage: boolean
 }
 
 function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[]; onSubmit: (f: AddForm) => void; onCancel: () => void }) {
   const toast = useToast()
   const [formData, setFormData] = useState<AddForm>({
     clientId: '', firstName: '', lastName: '', email: '', phone: '', relationship: 'child', password: '',
-    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canMessage: true,
+    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canViewVitals: false, canViewDocuments: false, canMessage: true,
   })
+  const contentOn = useAuth().hasFeature('care_family_content')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -612,7 +625,9 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
       toast.error('Password must be at least 8 characters')
       return
     }
-    onSubmit(formData)
+    // Feature off: the vitals and documents switches are not shown, so leave them out and the server keeps vitals with the medicines switch.
+    const { canViewVitals, canViewDocuments, ...rest } = formData
+    onSubmit((contentOn ? formData : rest) as AddForm)
   }
 
   const box = (key: PermKey, label: string) => (
@@ -677,7 +692,9 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
           {box('canViewSchedule', 'View Schedule')}
           {box('canViewCarePlan', 'View Care Plan')}
-          {box('canViewMedications', 'View Medications')}
+          {box('canViewMedications', contentOn ? 'View Medicine list' : 'View Medications')}
+          {contentOn && box('canViewVitals', 'View vitals')}
+          {contentOn && box('canViewDocuments', 'View documents')}
           {box('canMessage', 'Send Messages')}
         </div>
       </div>
@@ -694,7 +711,7 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'other']
 interface EditPatch {
   name: string; phone: string; relationship: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean; isPrimaryContact: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canMessage: boolean; isPrimaryContact: boolean
   visitTextOptIn: boolean
 }
 
@@ -707,11 +724,14 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canViewSchedule: !!member.canViewSchedule,
     canViewCarePlan: !!member.canViewCarePlan,
     canViewMedications: !!member.canViewMedications,
+    canViewVitals: !!member.canViewVitals,
+    canViewDocuments: !!member.canViewDocuments,
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
     visitTextOptIn: !!member.visitTextOptIn,
   })
   const textsOn = useAuth().hasFeature('care_family_texts')
+  const editContentOn = useAuth().hasFeature('care_family_content')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -742,7 +762,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
       <div className="form-group">
         <label>What they can see in the family portal</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-          {PERMISSIONS.map(([key, label]) => (
+          {permissionsFor(editContentOn).map(([key, label]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} />
               {label}
