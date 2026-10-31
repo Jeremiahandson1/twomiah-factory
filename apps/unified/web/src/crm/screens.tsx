@@ -37,6 +37,7 @@ import { ProposalPanel } from './proposalOptions'
 import { TextComposer } from './textComposer'
 import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
 import { QuotesAwaitingReply } from './pages/LeadPipelineStrip'
+import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
 
 const v = verticalScreens
 const client = api as any
@@ -61,6 +62,9 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <MoneyStrip api={client} hide={Own ? [] : ['overdue']} />
+      {/* The owner's "needs you today" and the crew's "my day" (crm/pages/HomePanels.tsx; each its own switch, not ready). */}
+      <OwnerDashboard />
+      <CrewDashboard />
       {Own ? <Own /> : <JobsDashboard />}
     </div>
   )
