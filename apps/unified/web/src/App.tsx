@@ -77,6 +77,8 @@ const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventor
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const TimeClockSettingsPage = page(() => import('./crm/pages/TimeClockSettingsPage'))
+const TimeKioskPage = page(() => import('./crm/pages/TimeKioskPage'))
 const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
 const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
@@ -250,6 +252,8 @@ export default function App() {
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="settings/job-reminders" element={<JobRemindersPage />} />
+                      <Route path="settings/time-clock" element={<TimeClockSettingsPage />} />
+                      <Route path="time-kiosk" element={<TimeKioskPage />} />
                       <Route path="settings/export" element={<ExportEverythingPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />

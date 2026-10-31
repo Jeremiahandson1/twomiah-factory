@@ -90,7 +90,7 @@ export function createGeofencingService(d: CrmDeps) {
 
   // ── location tracking ──────────────────────────────────────────────────────────────────────────
 
-  async function autoClockIn(userId: string, companyId: string, fence: { id: string; name: string; jobId: string | null; projectId: string | null }) {
+  async function autoClockIn(userId: string, companyId: string, fence: { id: string; name: string; jobId: string | null; projectId: string | null }, at?: { lat: number; lng: number }) {
     const [entry] = await db.insert(timeEntry).values({
       userId,
       companyId,
@@ -100,19 +100,28 @@ export function createGeofencingService(d: CrmDeps) {
       date: new Date(),
       hours: '0',
       isAutoClocked: true,
+      clockSource: 'geofence',
+      ...(at ? { clockInLat: at.lat, clockInLng: at.lng } : {}),
       description: `Auto clocked in at ${fence.name}`,
     }).returning()
     return entry
   }
 
-  async function autoClockOut(entryId: string) {
+  async function autoClockOut(entryId: string, at?: { lat: number; lng: number }) {
     const [entry] = await db.select().from(timeEntry).where(eq(timeEntry.id, entryId)).limit(1)
     if (!entry || !entry.clockIn) return null
     const endTime = new Date()
-    const totalMinutes = Math.round((endTime.getTime() - entry.clockIn.getTime()) / 60000)
+    // A break still running when the person leaves the site ends with the shift, and every break comes off the hours,
+    // exactly as a clock-out by hand does.
+    const running = entry.breakStartedAt ? Math.max(0, Math.round((endTime.getTime() - entry.breakStartedAt.getTime()) / 60000)) : 0
+    const breakTotal = (entry.breakMinutes || 0) + running
+    const totalMinutes = Math.max(0, Math.round((endTime.getTime() - entry.clockIn.getTime()) / 60000) - breakTotal)
     const hours = (Math.round((totalMinutes / 60) * 100) / 100).toFixed(2)
     const [updated] = await db.update(timeEntry).set({
       clockOut: endTime,
+      breakMinutes: breakTotal,
+      breakStartedAt: null,
+      ...(at ? { clockOutLat: at.lat, clockOutLng: at.lng } : {}),
       hours,
       description: entry.description ? `${entry.description} | Auto clocked out` : 'Auto clocked out',
       updatedAt: new Date(),
@@ -168,13 +177,13 @@ export function createGeofencingService(d: CrmDeps) {
       if (isInside && !wasInside) {
         // Entered: clock in.
         if (!activeEntry) {
-          const entry = await autoClockIn(userId, companyId, fence)
+          const entry = await autoClockIn(userId, companyId, fence, { lat, lng })
           actions.push({ type: 'clock_in', geofence: fence.name, entryId: entry.id, jobId: fence.jobId, projectId: fence.projectId })
         }
       } else if (!isInside && wasInside) {
         // Left: clock out.
         if (activeEntry && (activeEntry.jobId === fence.jobId || activeEntry.description?.includes(fence.name))) {
-          const entry = await autoClockOut(activeEntry.id)
+          const entry = await autoClockOut(activeEntry.id, { lat, lng })
           if (entry) actions.push({ type: 'clock_out', geofence: fence.name, entryId: entry.id, hours: entry.hours })
         }
       }

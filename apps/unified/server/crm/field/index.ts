@@ -23,10 +23,16 @@ import { createJobReminderRoutes } from './jobReminderRoutes.ts'
 import { createPlanReportRoutes, createTeamRevenueRoutes } from './teamReportRoutes.ts'
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
+import { createClockExtras } from './clockExtras.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
 export function fieldMounts(d: CrmDeps): Mount[] {
+  // The clock, finished (clockExtras.ts): its settings, overtime alerts, automatic timekeeping from the job's moments, the kiosk.
+  const clockExtras = createClockExtras(d)
+  d.services.onJobMoment(clockExtras.automaticStep)
+  d.services.eventJobs.overtimePass = async (now?: Date) => (await clockExtras.overtimePass(now)).alerts
+  d.services.addJob(() => { setTimeout(() => { void clockExtras.overtimePass() }, 90_000); setInterval(() => { void clockExtras.overtimePass() }, 5 * 60_000) })
   return [
     { path: '/api/takeoffs', access: 'user', feature: 'takeoff_tools', router: createTakeoffsRoutes(d) },
     { path: '/api/selections', access: 'user', feature: 'selections', router: createSelectionsRoutes(d) },
@@ -42,6 +48,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     // Where a new map opens (the business's address or service area): every map screen's, so no one map's feature.
     { path: '/api/map-center', access: 'user', router: createMapCenterRoutes(d) },
     { path: '/api/geofencing', access: 'user', feature: 'gps_tracking', router: createGeofencingRoutes(d) },
+    // Time Clock settings, overtime, the kiosk (crm/field/clockExtras.ts): part of Time Tracking.
+    { path: '/api/time-clock', access: 'user', feature: 'time_tracking', router: clockExtras.routes },
     // The forecast for a job or a project, and the weather filled into a daily log.
     { path: '/api/weather', access: 'user', feature: ['jobs', 'projects', 'daily_logs'], router: createWeatherRoutes(d) },
     // The reminder before a job the office booked: its settings (crm/field/jobReminders.ts runs the timed pass). Not ready.

@@ -607,6 +607,20 @@ export const timeEntry = pgTable('time_entry', {
   // The entry carries the time the person tapped, so the office sees it flagged "time set by phone, sent late" when approving.
   clockInLateMinutes: integer('clock_in_late_minutes'),
   clockOutLateMinutes: integer('clock_out_late_minutes'),
+  // A break is unpaid time inside the shift: the minutes taken so far, and when the open break began (null: not on a break).
+  // Clocking out subtracts them from the hours.
+  breakStartedAt: timestamp('break_started_at'),
+  breakMinutes: integer('break_minutes').default(0).notNull(),
+  // True when the time on this entry came from a moment the phone said it tapped, more than two minutes before the server
+  // heard it — the approver is shown "time set by the phone". (`clock_in_late_minutes` is the stricter, sent-late case.)
+  timeSetByPhone: boolean('time_set_by_phone').default(false).notNull(),
+  // Where the person was at each tap (the phone's location, when it was allowed) and how the clock was reached:
+  // phone | web | kiosk | job (automatic timekeeping) | geofence.
+  clockInLat: real('clock_in_lat'),
+  clockInLng: real('clock_in_lng'),
+  clockOutLat: real('clock_out_lat'),
+  clockOutLng: real('clock_out_lng'),
+  clockSource: text('clock_source'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
