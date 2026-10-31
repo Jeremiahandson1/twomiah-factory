@@ -70,16 +70,39 @@ export async function recordInstalmentPayment(d: CrmDeps, pi: { id: string; amou
   return { ok: true, duplicate: !!out.duplicate }
 }
 
-/** The instalment as the pay link and the reminders see it: what is owed on it now. */
-async function instalmentByToken(d: CrmDeps, token: string) {
-  if (!/^[0-9a-f]{48}$/.test(token)) return null
-  const [row] = await d.db.select().from(eventPayment).where(eq(eventPayment.payToken, token)).limit(1)
+/** An instalment as the pay link, the reminders and the sign-and-pay page see it: what is owed on it now. */
+export interface InstalmentModel { row: any; ev: any; ledger: any; inst: any; owed: number }
+export async function instalmentById(d: CrmDeps, paymentId: string): Promise<InstalmentModel | null> {
+  const [row] = await d.db.select().from(eventPayment).where(eq(eventPayment.id, paymentId)).limit(1)
   if (!row) return null
   const [ev] = await d.db.select().from(event).where(eq(event.id, row.eventId)).limit(1)
   const ledger = await loadEventLedger(d.db, row.companyId, row.eventId)
   const inst = ledger?.payments.find((p: any) => p.id === row.id)
   if (!ev || !ledger || !inst) return null
   return { row, ev, ledger, inst, owed: round2(inst.amount - inst.paidAmount) }
+}
+async function instalmentByToken(d: CrmDeps, token: string): Promise<InstalmentModel | null> {
+  if (!/^[0-9a-f]{48}$/.test(token)) return null
+  const [row] = await d.db.select({ id: eventPayment.id }).from(eventPayment).where(eq(eventPayment.payToken, token)).limit(1)
+  return row ? instalmentById(d, row.id) : null
+}
+/**
+ * The event's first instalment (the deposit): the one the proposal page takes at signing. Paid or not — once it is paid the page says so
+ * and still offers to keep a card for the rest, but never offers the balance. Null when nothing is scheduled or it was voided or refunded.
+ */
+export async function leadInstalment(d: CrmDeps, companyId: string, eventId: string): Promise<InstalmentModel | null> {
+  const ledger = await loadEventLedger(d.db, companyId, eventId)
+  const inst = ledger?.payments[0]
+  return inst && !['void', 'refunded'].includes(inst.state) ? instalmentById(d, inst.id) : null
+}
+/** What a payment page shows of an instalment: the amount owed and how it may be paid, with the saved card or bank account if any. */
+export async function paymentOffer(d: CrmDeps, m: InstalmentModel) {
+  const [auto] = await d.db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, m.ev.id), eq(eventAutopay.status, 'active'))).limit(1)
+  return {
+    label: m.inst.label, dueDate: m.inst.dueDate, amount: m.inst.amount, owed: m.owed, state: m.inst.state,
+    canPayByCard: await cardPaymentsFor(d)(m.row.companyId),
+    autopay: auto ? { brand: auto.brand, last4: auto.last4 } : null, autopayConsent: AUTOPAY_CONSENT,
+  }
 }
 
 export function createEventPaymentRoutes(d: CrmDeps) {
@@ -272,7 +295,6 @@ export async function runAutopay(d: CrmDeps, now = new Date()): Promise<number> 
 export function createEventPayLinkRoutes(d: CrmDeps) {
   const { db } = d
   const app = new Hono<AppEnv>()
-  const stripeOf = () => platformStripe(d.services.testStripeClient)
   // Guessing links: 20 wrong ones in 15 minutes from one address and every link from it reads "not valid" for the rest of the window.
   app.use('/:token/*', createTokenGuessGuard(15 * 60_000, 20, 'This payment link is not valid.'))
 
@@ -280,19 +302,33 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     const m = await instalmentByToken(d, c.req.param('token'))
     if (!m) return fail(c, 404, 'This payment link is not valid.')
     const [co] = await db.select().from(company).where(eq(company.id, m.row.companyId)).limit(1)
-    const [auto] = await db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, m.ev.id), eq(eventAutopay.status, 'active'))).limit(1)
     return one(c, {
       brand: { name: co?.name, phone: co?.phone, color: co?.primaryColor || null, logo: co?.logo || null },
-      event: { name: m.ev.name, dateWords: eventDayWords(m.ev.eventDate) }, label: m.inst.label, dueDate: m.inst.dueDate, amount: m.inst.amount, owed: m.owed,
-      state: m.inst.state, canPayByCard: await cardPaymentsFor(d)(m.row.companyId),
-      autopay: auto ? { brand: auto.brand, last4: auto.last4 } : null, autopayConsent: AUTOPAY_CONSENT,
+      event: { name: m.ev.name, dateWords: eventDayWords(m.ev.eventDate) }, ...(await paymentOffer(d, m)),
     })
   })
-
-  // POST /:token/intent — a PaymentIntent for what is still owed on this instalment, on the venue's own account.
-  app.post('/:token/intent', async (c) => {
+  const paying = new Hono<AppEnv>()
+  mountInstalmentPaying(paying, d, async (c) => {
     const m = await instalmentByToken(d, c.req.param('token'))
-    if (!m) return fail(c, 404, 'This payment link is not valid.')
+    return m ? { m } : { res: fail(c, 404, 'This payment link is not valid.') }
+  })
+  app.route('/:token', paying)
+  return app
+}
+
+/**
+ * Taking money for ONE instalment, whichever page asked: the pay link (/api/event-pay/<token>) and the proposal's own page after the
+ * signature (/api/proposal-links/<token>/pay — sign and pay in one flow). `resolve` says which instalment the request is for, or why
+ * not; everything below is the same for both, so a payment made from either is recorded once, on the venue's own Stripe.
+ */
+export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c: any) => Promise<{ m: InstalmentModel; via?: string } | { res: Response }>) {
+  const { db } = d
+  const stripeOf = () => platformStripe(d.services.testStripeClient)
+
+  // POST /intent — a PaymentIntent for what is still owed on this instalment, on the venue's own account.
+  app.post('/intent', async (c) => {
+    const r = await resolve(c); if ('res' in r) return r.res
+    const { m } = r
     if (EXIT_STATUSES.includes(m.ev.status)) return fail(c, 409, 'This event is no longer on the books.')
     if (m.owed <= 0.005) return fail(c, 409, 'This payment has been made. Thank you!')
     if (!(await cardPaymentsFor(d)(m.row.companyId))) return fail(c, 409, 'Card payments are not set up for this venue yet. Please pay them directly.', 'cards_off')
@@ -313,10 +349,11 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     return one(c, { clientSecret: pi.client_secret, paymentIntentId: pi.id, amount: pi.amount, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '', stripeAccount: acct })
   })
 
-  // POST /:token/confirm { paymentIntentId, saveCard?, consent? } — the browser says it paid; Stripe is asked.
-  app.post('/:token/confirm', async (c) => {
-    const m = await instalmentByToken(d, c.req.param('token'))
-    if (!m || !m.ledger.invoice) return fail(c, 404, 'This payment link is not valid.')
+  // POST /confirm { paymentIntentId, saveCard?, consent? } — the browser says it paid; Stripe is asked.
+  app.post('/confirm', async (c) => {
+    const r = await resolve(c); if ('res' in r) return r.res
+    const { m, via } = r
+    if (!m.ledger.invoice) return fail(c, 404, 'This payment link is not valid.')
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
     const stripe = stripeOf(), acct = await connectedAccount(d, m.row.companyId)
     if (!stripe || !acct || typeof body.paymentIntentId !== 'string') return fail(c, 400, 'paymentIntentId is required')
@@ -324,7 +361,7 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     // Only a PaymentIntent made for THIS instalment, and only once Stripe says the money is in.
     if (pi.metadata?.event_payment_id !== m.row.id || pi.metadata?.invoice_id !== m.ledger.invoice.id) return fail(c, 400, 'That payment is not for this link.')
     if (pi.status !== 'succeeded') return fail(c, 409, 'Stripe has not confirmed that payment yet.')
-    const rec = await recordInstalmentPayment(d, pi as any, m.ledger.invoice.id, `${m.inst.label} — paid from the pay link`)
+    const rec = await recordInstalmentPayment(d, pi as any, m.ledger.invoice.id, `${m.inst.label} — paid from ${via || 'the pay link'}`)
     if (!rec.ok) return fail(c, 409, rec.error || 'The payment could not be recorded.')
     // A card kept for the rest of the event, if the client asked: only with their consent, and only a card Stripe holds.
     if (body.saveCard === true && body.consent === true && pi.payment_method) {
@@ -333,10 +370,10 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     return one(c, { success: true, duplicate: !!rec.duplicate })
   })
 
-  // POST /:token/autopay — leave a card for the rest of the event without paying now: a SetupIntent on the venue's account.
-  app.post('/:token/autopay', async (c) => {
-    const m = await instalmentByToken(d, c.req.param('token'))
-    if (!m) return fail(c, 404, 'This payment link is not valid.')
+  // POST /autopay — leave a card for the rest of the event without paying now: a SetupIntent on the venue's account.
+  app.post('/autopay', async (c) => {
+    const r = await resolve(c); if ('res' in r) return r.res
+    const { m } = r
     if (!(await cardPaymentsFor(d)(m.row.companyId))) return fail(c, 409, 'Card payments are not set up for this venue yet.', 'cards_off')
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
     if (body.consent !== true) return fail(c, 400, 'Please agree to the terms for charging this card first.')
@@ -348,9 +385,9 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     return one(c, { clientSecret: si.client_secret, setupIntentId: si.id, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '', stripeAccount: acct })
   })
 
-  app.post('/:token/autopay/confirm', async (c) => {
-    const m = await instalmentByToken(d, c.req.param('token'))
-    if (!m) return fail(c, 404, 'This payment link is not valid.')
+  app.post('/autopay/confirm', async (c) => {
+    const r = await resolve(c); if ('res' in r) return r.res
+    const { m } = r
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
     const stripe = stripeOf(), acct = await connectedAccount(d, m.row.companyId)
     if (!stripe || !acct || typeof body.setupIntentId !== 'string') return fail(c, 400, 'setupIntentId is required')
@@ -362,16 +399,15 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
     return one(c, { success: true })
   })
 
-  // POST /:token/autopay/stop — the client takes their card off the event.
-  app.post('/:token/autopay/stop', async (c) => {
-    const m = await instalmentByToken(d, c.req.param('token'))
-    if (!m) return fail(c, 404, 'This payment link is not valid.')
+  // POST /autopay/stop — the client takes their card off the event.
+  app.post('/autopay/stop', async (c) => {
+    const r = await resolve(c); if ('res' in r) return r.res
+    const { m } = r
     const [auto] = await db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, m.ev.id), eq(eventAutopay.status, 'active'))).limit(1)
     if (!auto) return fail(c, 404, 'No card is saved for this event.')
     await stopAutopay(d, auto)
     return one(c, { success: true })
   })
-  return app
 }
 
 /** The event's autopay row, with a Stripe customer on the venue's account (made once). */

@@ -37,6 +37,7 @@ import { loadEventLedger, eventInvoiceLines, ensureEventInvoice, syncEventInvoic
 import { HELD, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords } from './eventBooking.ts'
 import { getEventSettings, featureOn } from './eventSettings.ts'
 import { dayBefore } from './eventGuarantee.ts'
+import { mountInstalmentPaying, leadInstalment, paymentOffer, type InstalmentModel } from './eventPayments.ts'
 import { cleanSigners, defaultContractTemplate, renderContract, roleLabel, type ContractContext, type SignerPlanEntry, type SignerRole } from './eventContracts.ts'
 
 const MAX_SIGNATURE_BYTES = 500_000
@@ -471,10 +472,33 @@ export function createProposalLinkRoutes(d: CrmDeps) {
       companyName: co?.name || 'The venue', contactName: s.name || 'there',
       subject: kind === 'turn' ? `${snap.event.name}: your signature is needed` : `Your date is booked: ${snap.event.name}`,
       headline: kind === 'turn' ? `It is your turn to sign the proposal for ${snap.event.name}.` : `Everyone has signed — ${snap.event.dateWords} is booked.`,
-      body: kind === 'turn' ? 'The others before you have signed. Open it to read the contract and sign.' : 'Open your proposal to download the signed copy.',
+      body: kind === 'turn' ? 'The others before you have signed. Open it to read the contract and sign.' : 'Open your proposal to download the signed copy and to pay your deposit if one is due.',
       button: kind === 'turn' ? 'Read and sign' : 'Open your proposal', path: `/event-proposal/${s.token}`,
     })
   }
+
+  /**
+   * Sign and pay in one flow (#2): once the date is booked, the CLIENT's page offers the first payment
+   * (the deposit; once it is paid the page says so and never offers the balance), on the venue's own Stripe, with the option to keep the card for the rest. Only when the venue has payment
+   * automation on (the same switch as the pay link) and has not turned off paying at signing. Everyone else's page offers nothing.
+   */
+  async function payTarget(p: any, signer: any): Promise<InstalmentModel | null> {
+    if (p.status !== 'accepted' || signer.role !== 'client') return null
+    if (!(await d.features.isFeatureEnabled(p.companyId, 'event_payment_automation'))) return null
+    if ((await getEventSettings(db, p.companyId)).payAtSigning === false) return null
+    return leadInstalment(d, p.companyId, p.eventId)
+  }
+  const withPay = async (view: Record<string, unknown>, p: any, signer: any) => {
+    const m = await payTarget(p, signer)
+    return { ...view, pay: m ? await paymentOffer(d, m) : null }
+  }
+  const payApp = new Hono<AppEnv>()
+  mountInstalmentPaying(payApp, d, async (c) => {
+    const o = await open(c); if ('res' in o) return { res: o.res as Response }
+    const m = await payTarget(o.p, o.signer)
+    return m ? { m, via: 'the proposal page' } : { res: fail(c, 409, 'There is nothing to pay on this proposal right now.', 'nothing_to_pay') }
+  })
+  app.route('/:token/pay', payApp)
 
   app.get('/:token', async (c) => {
     const { p, signer, signers, res } = await open(c); if (res) return res
@@ -483,7 +507,7 @@ export function createProposalLinkRoutes(d: CrmDeps) {
       p.status = 'viewed'
       emitToCompany(p.companyId, REFRESH, { entity: 'event' })
     }
-    return one(c, guestView(p, p.snapshot, signers, signer))
+    return one(c, await withPay(guestView(p, p.snapshot, signers, signer), p, signer))
   })
 
   app.put('/:token/choices', async (c) => {
@@ -599,7 +623,8 @@ export function createProposalLinkRoutes(d: CrmDeps) {
     } catch (err: any) { d.logger.warn('[events] signer email not sent', { proposal: p.id, error: err?.message }) }
     emitToCompany(p.companyId, REFRESH, { entity: 'event' })
     const after = await signersOf(db, result.row)
-    return one(c, guestView(result.row, result.row.snapshot, after, after.find((x: any) => x.id === signer.id) || signer))
+    const me = after.find((x: any) => x.id === signer.id) || signer
+    return one(c, await withPay(guestView(result.row, result.row.snapshot, after, me), result.row, me))
   })
 
   app.get('/:token/pdf', async (c) => {

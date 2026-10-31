@@ -26,12 +26,14 @@ export interface EventSettings {
   proposalValidDays: number
   /** The terms printed on every proposal and above the signature. */
   proposalTerms: string
+  /** After the client signs, the same page takes the first payment (and offers to keep the card for the rest). */
+  payAtSigning: boolean
 }
 
 export const EVENT_SETTINGS_DEFAULTS: EventSettings = {
   guaranteeDays: 7, guaranteeReminderDays: 3, shortfallTaxed: true,
   payRemindBeforeDays: 7, payRemindOnDue: true, payRemindOverdueDays: 3,
-  proposalValidDays: 14, proposalTerms: '',
+  proposalValidDays: 14, proposalTerms: '', payAtSigning: true,
 }
 
 const WHOLE: Array<[keyof EventSettings, string, number]> = [
@@ -54,7 +56,7 @@ export function eventSettingsRefusal(body: Record<string, unknown>): string | nu
     const v = Number(body[k])
     if (!Number.isInteger(v) || v < 0 || v > max) return `${label} must be a whole number of days from 0 to ${max}.`
   }
-  for (const k of ['shortfallTaxed', 'payRemindOnDue'] as const) if (k in body && typeof body[k] !== 'boolean') return `${k} must be true or false.`
+  for (const k of ['shortfallTaxed', 'payRemindOnDue', 'payAtSigning'] as const) if (k in body && typeof body[k] !== 'boolean') return `${k} must be true or false.`
   if ('proposalTerms' in body && (typeof body.proposalTerms !== 'string' || body.proposalTerms.length > 8000)) return 'Proposal terms must be text of 8,000 characters or fewer.'
   return null
 }

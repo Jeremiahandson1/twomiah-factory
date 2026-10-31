@@ -528,7 +528,7 @@ export function EventCalendarPage() {
 interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number }
 interface YearMonth { month: number; booked: number; lastYearBooked: number; value?: number; lastYearValue?: number }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string }
+interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string; payAtSigning: boolean }
 
 export function EventInsightsPage() {
   const { hasFeature, can } = useAuth()
@@ -592,6 +592,7 @@ export function EventInsightsPage() {
           </div>
           <div className="mt-3 space-y-2">
             {hasFeature('event_payment_automation') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payRemindOnDue} onChange={(e) => set('payRemindOnDue', e.target.checked)} />Remind on the day a payment is due</label>}
+            {hasFeature('event_payment_automation') && hasFeature('event_proposals') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payAtSigning} onChange={(e) => set('payAtSigning', e.target.checked)} />After the client signs, take the first payment on the same page</label>}
             {hasFeature('event_minimums') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.shortfallTaxed} onChange={(e) => set('shortfallTaxed', e.target.checked)} />Charge sales tax on a minimum-spend shortfall</label>}
             {hasFeature('event_proposals') && <div><label className={label}>Terms printed on every proposal</label><textarea className={input} rows={4} disabled={!maySave} value={settings.proposalTerms} onChange={(e) => set('proposalTerms', e.target.value)} /></div>}
           </div>
