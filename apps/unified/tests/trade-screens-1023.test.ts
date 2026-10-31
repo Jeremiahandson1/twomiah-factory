@@ -245,13 +245,13 @@ describe('13. a job, quote or invoice made under a project is for the project\'s
     expect(job.contactId).toBe(ids.client)
     const full = await body(await as('ownerA', 'GET', `/api/jobs/${job.id}`))
     expect(full.contact?.name).toBe('Casey Client')
-    // A job given a project later, with no customer, takes it too; a customer cleared on purpose stays cleared.
-    const bare = await body(await as('ownerA', 'POST', '/api/jobs', { title: 'Loose' }))
-    expect(bare.contactId ?? null).toBeNull()
+    // A contractor's job is for a customer (crm.jobs.requireCustomer, PR #173): one with none is refused, so a job with no
+    // customer is one from before the rule. Given a project later, it takes the project's; clearing it is refused.
+    expect((await as('ownerA', 'POST', '/api/jobs', { title: 'Loose' })).status).toBe(400)
+    const [bare] = await t.db.insert(t.schema.job).values({ companyId: ids.coA, number: 'JOB-90001', title: 'Loose' } as any).returning()
     const moved = await body(await as('ownerA', 'PUT', `/api/jobs/${bare.id}`, { projectId: ids.project }))
     expect(moved.contactId).toBe(ids.client)
-    const cleared = await body(await as('ownerA', 'PUT', `/api/jobs/${bare.id}`, { contactId: '' }))
-    expect(cleared.contactId ?? null).toBeNull()
+    expect((await as('ownerA', 'PUT', `/api/jobs/${bare.id}`, { contactId: '' })).status).toBe(400)
     // A job from before the rule (project, no customer) saved from the edit form — which posts back its empty customer —
     // takes the project's: an empty customer it never had clears nothing.
     const [legacy] = await t.db.insert(t.schema.job).values({ companyId: ids.coA, number: 'JOB-90002', title: 'Legacy', projectId: ids.project } as any).returning()

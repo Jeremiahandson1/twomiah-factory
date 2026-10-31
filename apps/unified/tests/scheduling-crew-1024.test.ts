@@ -27,7 +27,8 @@ const as = async (who: string, path: string, method = 'GET', json?: unknown) => 
   try { body = JSON.parse(text) } catch { /* not JSON */ }
   return { status: r.status, body }
 }
-const job = (fields: Record<string, unknown>) => as('owner', '/api/jobs', 'POST', { scheduledDate: DAY, estimatedHours: 1, ...fields })
+// Every job is for the customer (crm.jobs.requireCustomer, contractor PR #173), so a refusal here is about the booking.
+const job = (fields: Record<string, unknown>) => as('owner', '/api/jobs', 'POST', { scheduledDate: DAY, estimatedHours: 1, contactId: customer, ...fields })
 const assigneeIds = (j: any) => (j.assignees || []).map((a: any) => a.id)
 let customer = ''
 

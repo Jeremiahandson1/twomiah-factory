@@ -41,7 +41,9 @@ describe('1/2 · a login that holds work is deactivated, never deleted', () => {
 
   test('an invited login with a job assigned is refused (409), says what it holds, and the job keeps its person', async () => {
     const crew = await addLogin('crew@test.example', 'Test')
-    const job = await body(await x.as('POST', '/api/jobs', { title: 'Weekly mowing', assignedToId: crew }))
+    // A job is for a customer (crm.jobs.requireCustomer, contractor PR #173).
+    const contactId = (await body(await x.as('POST', '/api/contacts', { name: 'Mowing Customer', type: 'client' }))).id
+    const job = await body(await x.as('POST', '/api/jobs', { title: 'Weekly mowing', assignedToId: crew, contactId }))
     expect(job.assignedToId).toBe(crew)
     const r = await x.as('DELETE', `/api/company/users/${crew}`)
     expect(r.status).toBe(409)

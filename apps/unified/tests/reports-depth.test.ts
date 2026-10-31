@@ -181,7 +181,9 @@ describe('registered not ready', () => {
     expect(ar.hidden).toBe(true); expect(wip.hidden).toBe(true)
     const reports = FEATURE_REGISTRY.find((r: any) => r.id === 'reports') as any
     expect([...ar.templates].sort()).toEqual(reports.templates.filter((t: string) => t !== 'crm-homecare').sort())
-    expect([...wip.templates].sort()).toEqual((FEATURE_REGISTRY.find((r: any) => r.id === 'job_costing') as any).templates.sort())
+    // Roofing has Job Costing (a roof's P&L, PR #170) but its own Reports page (web/src/crm/pages/roof/jobs/ReportsPage.tsx),
+    // which has no WIP card: offered there, the feature would switch on nothing.
+    expect([...wip.templates].sort()).toEqual((FEATURE_REGISTRY.find((r: any) => r.id === 'job_costing') as any).templates.filter((t: string) => t !== 'crm-roof').sort())
     for (const t of ar.templates) expect(getAdvertisableFeaturesForTemplate(t).map((r: any) => r.id)).not.toContain('ar_aging')
   })
 })
