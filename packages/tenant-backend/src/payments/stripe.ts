@@ -581,6 +581,24 @@ export function createStripeService(deps: StripeServiceDeps) {
     }
   }
 
+  /**
+   * Give back the whole of a charge taken on a saved card (a no-show fee reversed), on the business's connected account. The idempotency key
+   * means a double click cannot refund twice; a refund Stripe already made is a success. A refusal from Stripe is a RESULT the caller shows.
+   */
+  async function refundIntent(p: { companyId: string; paymentIntentId: string; idempotencyKey: string }): Promise<{ ok: true; refundId: string } | { ok: false; message: string }> {
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
+    const stripeAccount = await connectedAccountFor(p.companyId)
+    if (!stripeAccount) throw Object.assign(new Error('This business has not connected its Stripe account'), { status: 400 })
+    try {
+      const refund = await stripe.refunds.create({ payment_intent: p.paymentIntentId }, { stripeAccount, idempotencyKey: p.idempotencyKey })
+      return { ok: true, refundId: refund.id }
+    } catch (err: any) {
+      if (/already.*refund/i.test(err?.message || '')) return { ok: true, refundId: 'already_refunded' }
+      if (err?.type === 'StripeInvalidRequestError' || err?.type === 'StripeCardError') return { ok: false, message: err.message || 'Stripe could not refund it.' }
+      throw err
+    }
+  }
+
   async function handleWebhook(event: Stripe.Event) {
     // A connected-account event carries the account it happened on; anything we do back to Stripe for
     // it (the late-deposit refund) must be scoped to that account.
@@ -1117,6 +1135,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     handleWebhook,
     createPaymentLink,
     createRefund,
+    refundIntent,
     constructWebhookEvent,
     getPublishableKey,
     // every named export is also reachable from the default import — routes call stripeService.<fn>()

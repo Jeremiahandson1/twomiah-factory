@@ -8,9 +8,9 @@
 // createCardSetupCheckout / chargeSavedCard refuse without one). A card saved on an account the salon has since replaced
 // is not charged. Twomiah holds and moves nothing, and the phone app takes no cards.
 import { Hono } from 'hono'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import { appointment, cardFeeCharge, cardPolicy, clientCard, company, contact, serviceMenu } from '../../db/schema/index.ts'
+import { appointment, appointmentItem, cardFeeCharge, cardPolicy, clientCard, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, listAll, one } from '../../http/reply.ts'
 import { whenText } from '../../booking/emails.ts'
@@ -19,6 +19,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { SalonClock } from './days.ts'
 import type { BookScope } from './bookScope.ts'
 import { isOwnChair } from './bookScope.ts'
+import { resolveFee, parseFee, hasFee, NO_FEE, type FeeLine, type FeeSetting } from './cardFees.ts'
 
 export type CardRequirement = 'off' | 'new_clients' | 'all'
 export type FeeKind = 'no_show' | 'late_cancel'
@@ -32,11 +33,23 @@ export interface CardPolicy {
   lateCancelFeePercent: number | null
   /** The salon's own words, or null = the standard sentence (policyWords). */
   policyText: string | null
+  /** The fees for a client who has never completed a visit, in whole cents or a percent (null = the regular fee). Salon parity row 4. */
+  noShowFeeNewCents: number | null
+  noShowFeeNewPercent: number | null
+  lateCancelFeeNewCents: number | null
+  lateCancelFeeNewPercent: number | null
+  /** A booking worth less than this (cents) owes no fee. Null = no minimum. */
+  minBookingValueCents: number | null
+  /** Opt-in: marking a no-show charges its fee to the card on file at once. Default off: a person confirms each fee. */
+  autoChargeNoShow: boolean
+  /** Read, not set here: does any service on the menu carry a fee of its own. It only adds a sentence to the policy words. */
+  hasServiceFees?: boolean
 }
 
 export const NO_POLICY: CardPolicy = {
   cardRequirement: 'off', noShowFeeAmount: null, noShowFeePercent: null,
   lateCancelWindowMinutes: null, lateCancelFeeAmount: null, lateCancelFeePercent: null, policyText: null,
+  noShowFeeNewCents: null, noShowFeeNewPercent: null, lateCancelFeeNewCents: null, lateCancelFeeNewPercent: null, minBookingValueCents: null, autoChargeNoShow: false,
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
@@ -57,6 +70,12 @@ export function policyWords(p: CardPolicy): string {
   if (noShow) parts.push(`If you miss your appointment without telling us, a no-show fee of ${noShow} may be charged to the card you leave on file.`)
   const late = feeWords(p.lateCancelFeeAmount, p.lateCancelFeePercent)
   if (late && p.lateCancelWindowMinutes) parts.push(`Cancelling less than ${windowWords(p.lateCancelWindowMinutes)} before your appointment may incur a late-cancellation fee of ${late}.`)
+  const newNoShow = p.noShowFeeNewCents != null ? dollars(p.noShowFeeNewCents / 100) : p.noShowFeeNewPercent != null ? `${p.noShowFeeNewPercent}% of the service price` : null
+  if (newNoShow) parts.push(`For a first visit the no-show fee is ${newNoShow}.`)
+  const newLate = p.lateCancelFeeNewCents != null ? dollars(p.lateCancelFeeNewCents / 100) : p.lateCancelFeeNewPercent != null ? `${p.lateCancelFeeNewPercent}% of the service price` : null
+  if (newLate && p.lateCancelWindowMinutes) parts.push(`For a first visit the late-cancellation fee is ${newLate}.`)
+  if (parts.length && p.hasServiceFees) parts.push('Some services have a fee of their own; it applies to those services.')
+  if (parts.length && p.minBookingValueCents != null) parts.push(`Fees apply to bookings worth ${dollars(p.minBookingValueCents / 100)} or more.`)
   if (!parts.length) return 'Your card is kept on file securely with our payment provider. It is only charged for a fee you have agreed to above, or for services you ask us to put on it.'
   return parts.join(' ')
 }
@@ -100,13 +119,34 @@ export function parsePolicy(body: any): { values: CardPolicy } | { fields: Recor
   }
   const hasLateFee = lateCancelFeeAmount != null || lateCancelFeePercent != null
   if (hasLateFee && lateCancelWindowMinutes == null && !fields.lateCancelWindowMinutes) fields.lateCancelWindowMinutes = 'Say how long before the appointment a cancellation counts as late.'
-  if (!hasLateFee && lateCancelWindowMinutes != null) fields.lateCancelFeeAmount = 'Set the late-cancel fee, or clear the window.'
+  // Row 4: the new-client fees, the minimum booking value and the opt-in automatic charge (all in cents).
+  const newNoShow = parseFee(body?.noShowFeeNewCents, body?.noShowFeeNewPercent, 'The new-client no-show fee', 'noShowFeeNewCents')
+  const newLate = parseFee(body?.lateCancelFeeNewCents, body?.lateCancelFeeNewPercent, 'The new-client late-cancel fee', 'lateCancelFeeNewCents')
+  if ('fields' in newNoShow) Object.assign(fields, newNoShow.fields)
+  if ('fields' in newLate) Object.assign(fields, newLate.fields)
+  const newNoShowFee: FeeSetting = 'value' in newNoShow ? newNoShow.value : NO_FEE, newLateFee: FeeSetting = 'value' in newLate ? newLate.value : NO_FEE
+  if (hasFee(newLateFee) && !hasLateFee && lateCancelWindowMinutes == null) fields.lateCancelWindowMinutes = 'Say how long before the appointment a cancellation counts as late.'
+  if (!hasLateFee && !hasFee(newLateFee) && lateCancelWindowMinutes != null) fields.lateCancelFeeAmount = 'Set the late-cancel fee, or clear the window.'
+  let minBookingValueCents: number | null = null
+  if (body?.minBookingValueCents != null && body.minBookingValueCents !== '') {
+    const m = Number(body.minBookingValueCents)
+    if (!Number.isInteger(m) || m < 100 || m > 1_000_000) fields.minBookingValueCents = 'The minimum booking value is between $1 and $10,000.'
+    else minBookingValueCents = m
+  }
+  if (body?.autoChargeNoShow != null && typeof body.autoChargeNoShow !== 'boolean') fields.autoChargeNoShow = 'On or off.'
+  const autoChargeNoShow = body?.autoChargeNoShow === true
+  const hasAnyNoShowFee = noShowFeeAmount != null || noShowFeePercent != null || hasFee(newNoShowFee)
+  if (autoChargeNoShow && !hasAnyNoShowFee) fields.autoChargeNoShow = 'Set a no-show fee before charging it automatically.'
   const policyText = typeof body?.policyText === 'string' && body.policyText.trim() ? body.policyText.trim().slice(0, 2000) : null
-  if (req !== 'off' && noShowFeeAmount == null && noShowFeePercent == null && !hasLateFee && !policyText) {
+  if (req !== 'off' && noShowFeeAmount == null && noShowFeePercent == null && !hasLateFee && !hasFee(newNoShowFee) && !hasFee(newLateFee) && !policyText) {
     fields.cardRequirement = 'A card needs a policy to agree to: set a no-show or late-cancel fee, or write your policy.'
   }
   if (Object.keys(fields).length) return { fields }
-  return { values: { cardRequirement: req as CardRequirement, noShowFeeAmount, noShowFeePercent, lateCancelWindowMinutes, lateCancelFeeAmount, lateCancelFeePercent, policyText } }
+  return { values: {
+    cardRequirement: req as CardRequirement, noShowFeeAmount, noShowFeePercent, lateCancelWindowMinutes, lateCancelFeeAmount, lateCancelFeePercent, policyText,
+    noShowFeeNewCents: newNoShowFee.cents, noShowFeeNewPercent: newNoShowFee.percent, lateCancelFeeNewCents: newLateFee.cents, lateCancelFeeNewPercent: newLateFee.percent,
+    minBookingValueCents, autoChargeNoShow,
+  } }
 }
 
 type CardRow = typeof clientCard.$inferSelect
@@ -128,13 +168,24 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
 
   async function policyOf(companyId: string): Promise<CardPolicy> {
     const [row] = await db.select().from(cardPolicy).where(eq(cardPolicy.companyId, companyId)).limit(1)
-    if (!row) return { ...NO_POLICY }
+    if (!row) return { ...NO_POLICY, hasServiceFees: await anyServiceFee(companyId) }
     return {
       cardRequirement: (row.cardRequirement as CardRequirement) || 'off',
       noShowFeeAmount: num(row.noShowFeeAmount), noShowFeePercent: row.noShowFeePercent,
       lateCancelWindowMinutes: row.lateCancelWindowMinutes, lateCancelFeeAmount: num(row.lateCancelFeeAmount), lateCancelFeePercent: row.lateCancelFeePercent,
       policyText: row.policyText ?? null,
+      noShowFeeNewCents: row.noShowFeeNewCents, noShowFeeNewPercent: row.noShowFeeNewPercent,
+      lateCancelFeeNewCents: row.lateCancelFeeNewCents, lateCancelFeeNewPercent: row.lateCancelFeeNewPercent,
+      minBookingValueCents: row.minBookingValueCents, autoChargeNoShow: row.autoChargeNoShow === true,
+      hasServiceFees: await anyServiceFee(companyId),
     }
+  }
+
+  /** Does any active service carry a fee of its own. */
+  async function anyServiceFee(companyId: string): Promise<boolean> {
+    const rows: Array<Record<string, number | null>> = await db.select({ a: serviceMenu.noShowFeeCents, b: serviceMenu.noShowFeePercent, c: serviceMenu.lateCancelFeeCents, e: serviceMenu.lateCancelFeePercent })
+      .from(serviceMenu).where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true)))
+    return rows.some((r) => r.a != null || r.b != null || r.c != null || r.e != null)
   }
 
   async function savePolicy(companyId: string, v: CardPolicy) {
@@ -143,6 +194,8 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
       noShowFeeAmount: v.noShowFeeAmount == null ? null : String(v.noShowFeeAmount), noShowFeePercent: v.noShowFeePercent,
       lateCancelWindowMinutes: v.lateCancelWindowMinutes, lateCancelFeeAmount: v.lateCancelFeeAmount == null ? null : String(v.lateCancelFeeAmount),
       lateCancelFeePercent: v.lateCancelFeePercent, policyText: v.policyText, updatedAt: new Date(),
+      noShowFeeNewCents: v.noShowFeeNewCents, noShowFeeNewPercent: v.noShowFeeNewPercent, lateCancelFeeNewCents: v.lateCancelFeeNewCents, lateCancelFeeNewPercent: v.lateCancelFeeNewPercent,
+      minBookingValueCents: v.minBookingValueCents, autoChargeNoShow: v.autoChargeNoShow,
     }
     const [had] = await db.select({ id: cardPolicy.id }).from(cardPolicy).where(eq(cardPolicy.companyId, companyId)).limit(1)
     if (had) await db.update(cardPolicy).set(values).where(eq(cardPolicy.id, had.id))
@@ -224,19 +277,52 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
     return p != null && p > 0 ? p : null
   }
 
+  /** Has this client completed a visit before this appointment? A client who has not is NEW for the fee (parity row 4). */
+  async function isNewClient(companyId: string, a: typeof appointment.$inferSelect): Promise<boolean> {
+    if (!a.contactId) return true
+    const [seen] = await db.select({ id: appointment.id }).from(appointment)
+      .where(and(eq(appointment.companyId, companyId), eq(appointment.contactId, a.contactId), eq(appointment.status, 'completed'), ne(appointment.id, a.id), lt(appointment.startTime, a.startTime))).limit(1)
+    return !seen
+  }
+
+  const cents = (dollarsValue: number | null) => (dollarsValue == null ? 0 : Math.round(dollarsValue * 100))
+  const own = (svc: typeof serviceMenu.$inferSelect | undefined, kind: FeeKind): FeeSetting | null => {
+    if (!svc) return null
+    const f: FeeSetting = kind === 'no_show' ? { cents: svc.noShowFeeCents, percent: svc.noShowFeePercent } : { cents: svc.lateCancelFeeCents, percent: svc.lateCancelFeePercent }
+    return hasFee(f) ? f : null
+  }
+
+  /** The services of the visit, each with its price and its own fee: one line for a single service, one per service for a visit of several. */
+  async function feeLines(companyId: string, a: typeof appointment.$inferSelect, kind: FeeKind): Promise<FeeLine[]> {
+    const items = await db.select().from(appointmentItem).where(and(eq(appointmentItem.appointmentId, a.id), eq(appointmentItem.companyId, companyId))).orderBy(appointmentItem.position)
+    const ids = [...new Set((items.length > 1 ? items.map((i: any) => i.serviceId) : [a.serviceId]).filter(Boolean) as string[])]
+    const svcs: Array<typeof serviceMenu.$inferSelect> = ids.length ? await db.select().from(serviceMenu).where(and(eq(serviceMenu.companyId, companyId), inArray(serviceMenu.id, ids))) : []
+    const byId = new Map(svcs.map((x) => [x.id, x]))
+    if (items.length > 1) return items.map((i: any) => ({ priceCents: cents(num(i.price) ?? num(byId.get(i.serviceId)?.price) ?? 0), own: own(byId.get(i.serviceId), kind) }))
+    return [{ priceCents: cents(await priceOf(companyId, a)), own: own(a.serviceId ? byId.get(a.serviceId) : undefined, kind) }]
+  }
+
+  /** What one kind of fee comes to for this appointment (in cents), and why not when it does not: service's own, new-client, salon, minimum value. */
+  async function feeOf(companyId: string, a: typeof appointment.$inferSelect, kind: FeeKind, policy: CardPolicy, isNew: boolean) {
+    const salon: FeeSetting = kind === 'no_show' ? { cents: policy.noShowFeeAmount == null ? null : cents(policy.noShowFeeAmount), percent: policy.noShowFeePercent } : { cents: policy.lateCancelFeeAmount == null ? null : cents(policy.lateCancelFeeAmount), percent: policy.lateCancelFeePercent }
+    const salonNew: FeeSetting = kind === 'no_show' ? { cents: policy.noShowFeeNewCents, percent: policy.noShowFeeNewPercent } : { cents: policy.lateCancelFeeNewCents, percent: policy.lateCancelFeeNewPercent }
+    return resolveFee({ salon, salonNew, isNewClient: isNew, minValueCents: policy.minBookingValueCents, lines: await feeLines(companyId, a, kind) }, kind === 'no_show' ? 'no-show' : 'late-cancel')
+  }
+
   /**
    * What can be charged for this appointment right now, and why not when it cannot: the screen shows these, and the
    * charge is checked against the same answer (so what the person confirmed is what the server charges).
    */
   async function optionsFor(companyId: string, a: typeof appointment.$inferSelect) {
     const policy = await policyOf(companyId)
-    const price = await priceOf(companyId, a)
+    const isNew = await isNewClient(companyId, a)
     const charges: ChargeRow[] = await db.select().from(cardFeeCharge).where(and(eq(cardFeeCharge.companyId, companyId), eq(cardFeeCharge.appointmentId, a.id))).orderBy(desc(cardFeeCharge.createdAt))
     const card = a.contactId ? (await cardsOf(companyId, a.contactId))[0] ?? null : null
-    const options = (['no_show', 'late_cancel'] as FeeKind[]).map((kind) => {
-      const fee = feeFor(kind, policy, price)
-      let why: string | null = fee.amount == null ? fee.why ?? null : null
-      if (!why && charges.some((x) => x.kind === kind && x.status === 'succeeded')) why = 'This fee has already been charged.'
+    const options = await Promise.all((['no_show', 'late_cancel'] as FeeKind[]).map(async (kind) => {
+      const fee = await feeOf(companyId, a, kind, policy, isNew)
+      let why: string | null = fee.cents == null ? fee.why ?? null : null
+      // a fee that was charged and then reversed can be charged again; one standing cannot be charged twice
+      if (!why && charges.some((x) => x.kind === kind && x.status === 'succeeded' && !x.refundedAt)) why = 'This fee has already been charged.'
       if (!why && kind === 'no_show' && a.status !== 'no_show') why = 'Mark the appointment a no-show first.'
       if (!why && kind === 'late_cancel') {
         if (a.status !== 'cancelled') why = 'Only a cancelled appointment can have a late-cancel fee.'
@@ -245,9 +331,10 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
         else if (new Date(a.startTime).getTime() - new Date(a.cancelledAt).getTime() >= policy.lateCancelWindowMinutes * 60_000) why = `It was cancelled ${windowWords(policy.lateCancelWindowMinutes)} or more ahead — not late.`
       }
       if (!why && !card) why = a.contactId ? 'This client has no card on file.' : 'This appointment has no client.'
-      return { kind, amount: fee.amount, available: !why, why }
-    })
-    return { options, card: card ? cardView(card) : null, charges }
+      const amount = fee.cents == null ? null : fee.cents / 100
+      return { kind, amount, available: !why, why, basis: fee.basis ?? null }
+    }))
+    return { options, card: card ? cardView(card) : null, charges, isNewClient: isNew }
   }
 
   /**
@@ -256,12 +343,13 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
    * (Stripe's idempotency key — a double click or a retry returns the first answer), recorded whatever Stripe said, and the
    * client is emailed a receipt when it went through.
    */
-  async function charge(companyId: string, a: typeof appointment.$inferSelect, input: { kind: FeeKind; amount: number; reason: string }, actor: { userId?: string; id?: string; companyId?: string }) {
+  async function charge(companyId: string, a: typeof appointment.$inferSelect, input: { kind: FeeKind; amount: number | null; reason: string; source?: 'manual' | 'auto' }, actor: { userId?: string; id?: string; companyId?: string }) {
     const shown = await optionsFor(companyId, a)
     const option = shown.options.find((o) => o.kind === input.kind)
     if (!option) return { refused: { status: 400 as const, error: 'Choose a no-show or a late-cancel fee.', code: 'BAD_KIND' } }
     if (!option.available || option.amount == null) return { refused: { status: 409 as const, error: option.why || 'That fee cannot be charged.', code: 'FEE_NOT_AVAILABLE' } }
-    if (round2(input.amount) !== option.amount) return { refused: { status: 409 as const, error: `The fee is ${dollars(option.amount)}, not ${dollars(input.amount)}. Check it and confirm again.`, code: 'FEE_CHANGED' } }
+    // a person confirms the amount they were shown; an automatic charge is the salon's standing instruction and takes whatever the policy says now
+    if (input.source !== 'auto' && (input.amount == null || round2(input.amount) !== option.amount)) return { refused: { status: 409 as const, error: `The fee is ${dollars(option.amount)}, not ${dollars(input.amount ?? 0)}. Check it and confirm again.`, code: 'FEE_CHANGED' } }
     const reason = String(input.reason || '').trim()
     if (reason.length < 3) return { refused: { status: 400 as const, error: 'Say why you are charging the fee.', code: 'REASON_REQUIRED' } }
     const [card] = a.contactId ? await cardsOf(companyId, a.contactId) : []
@@ -283,11 +371,11 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
     }
     const status = result.ok ? 'succeeded' : result.reason
     const [row] = await db.insert(cardFeeCharge).values({
-      companyId, contactId: card.contactId, appointmentId: a.id, cardId: card.id, kind: input.kind, amount: String(option.amount), status, reason,
+      companyId, contactId: card.contactId, appointmentId: a.id, cardId: card.id, kind: input.kind, amount: String(option.amount), status, reason, source: input.source ?? 'manual',
       paymentIntentId: result.ok ? result.paymentIntentId : result.paymentIntentId, failureMessage: result.ok ? null : result.message,
       chargedByUserId: actor.userId || actor.id || null,
     }).returning()
-    await audit.log({ action: 'create', entity: 'card_fee_charge', entityId: row.id, metadata: { kind: input.kind, amount: option.amount, status, appointmentId: a.id, reason }, companyId, req: { user: actor } })
+    await audit.log({ action: 'create', entity: 'card_fee_charge', entityId: row.id, metadata: { kind: input.kind, amount: option.amount, status, appointmentId: a.id, reason, source: input.source ?? 'manual' }, companyId, req: { user: actor } })
     live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'card_fee_charge' })
     let receipt: 'sent' | 'no_email' | 'failed' | 'not_charged' = 'not_charged'
     if (result.ok) {
@@ -306,7 +394,49 @@ export function createCardOnFile(d: CrmDeps, clock: SalonClock) {
     return { charge: row, receipt }
   }
 
-  return { db, policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, connectedAccount, onSaved }
+  /**
+   * The salon's opt-in (Settings › Card on file): marking an appointment a no-show charges its no-show fee to the card on file at once, with the
+   * same receipt and ledger row as a person's charge (source 'auto'). Never throws: the answer says what happened so the desk can be told — a client
+   * with no card, a fee under the minimum, or a decline are all a sentence, not a failure of marking the no-show.
+   */
+  async function autoNoShow(companyId: string, a: typeof appointment.$inferSelect, actor: { userId?: string; id?: string; companyId?: string }): Promise<{ charged: boolean; status: string; amount?: number; message: string | null } | null> {
+    try {
+      const policy = await policyOf(companyId)
+      if (!policy.autoChargeNoShow || a.status !== 'no_show') return null
+      const out = await charge(companyId, a, { kind: 'no_show', amount: null, reason: 'Charged automatically when the appointment was marked a no-show.', source: 'auto' }, actor)
+      if ('refused' in out && out.refused) return { charged: false, status: 'not_charged', message: out.refused.error }
+      const row = out.charge!
+      return { charged: row.status === 'succeeded', status: row.status, amount: Number(row.amount), message: row.failureMessage }
+    } catch (e: any) {
+      logger.error('[cardOnFile] automatic no-show fee failed', { error: e?.message || String(e) })
+      return { charged: false, status: 'error', message: 'The no-show fee could not be charged automatically. Charge it from the appointment.' }
+    }
+  }
+
+  /**
+   * REVERSE a fee that went through: the whole charge goes back to the client's card on the salon's own Stripe account, with who and why kept on the
+   * ledger row (which stays). Once; a reversed fee can be charged again by a person if it was wrong the other way.
+   */
+  async function reverse(companyId: string, chargeId: string, reasonText: string, actor: { userId?: string; id?: string; companyId?: string }) {
+    const [row]: ChargeRow[] = await db.select().from(cardFeeCharge).where(and(eq(cardFeeCharge.id, chargeId), eq(cardFeeCharge.companyId, companyId))).limit(1)
+    if (!row) return { refused: { status: 404 as const, error: 'That charge was not found.', code: 'NOT_FOUND' } }
+    if (row.status !== 'succeeded') return { refused: { status: 409 as const, error: 'Only a fee that went through can be reversed.', code: 'NOT_CHARGED' } }
+    if (row.refundedAt) return { refused: { status: 409 as const, error: 'This fee has already been reversed.', code: 'ALREADY_REVERSED' } }
+    if (!row.paymentIntentId) return { refused: { status: 409 as const, error: 'This charge has no Stripe payment to give back.', code: 'NO_PAYMENT' } }
+    const reason = String(reasonText || '').trim()
+    if (reason.length < 3) return { refused: { status: 400 as const, error: 'Say why you are reversing the fee.', code: 'REASON_REQUIRED' } }
+    let result
+    try { result = await stripe().refundIntent({ companyId, paymentIntentId: row.paymentIntentId, idempotencyKey: `fee-refund:${row.id}` }) }
+    catch (e: any) { return { refused: { status: (e?.status === 400 ? 409 : 503) as 409 | 503, error: e?.status === 400 ? 'Card payments are not set up for this salon.' : 'Card payments are not available right now. Nothing was reversed.', code: 'CARDS_UNAVAILABLE' } } }
+    if (!result.ok) return { refused: { status: 409 as const, error: `Stripe did not reverse it: ${result.message}`, code: 'REFUND_FAILED' } }
+    const [done]: ChargeRow[] = await db.update(cardFeeCharge).set({ refundedAt: new Date(), refundId: result.refundId, refundedByUserId: actor.userId || actor.id || null, refundReason: reason })
+      .where(and(eq(cardFeeCharge.id, row.id), isNull(cardFeeCharge.refundedAt))).returning()
+    await audit.log({ action: 'update', entity: 'card_fee_charge', entityId: row.id, metadata: { reversed: true, amount: Number(row.amount), reason, refundId: result.refundId }, companyId, req: { user: actor } })
+    live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'card_fee_charge' })
+    return { charge: done ?? row }
+  }
+
+  return { db, policyOf, savePolicy, cardsOf, startSetup, claim, optionsFor, charge, autoNoShow, reverse, connectedAccount, onSaved }
 }
 
 export type CardOnFile = ReturnType<typeof createCardOnFile>
@@ -314,6 +444,7 @@ export type CardOnFile = ReturnType<typeof createCardOnFile>
 const chargeView = (r: ChargeRow) => ({
   id: r.id, appointmentId: r.appointmentId, contactId: r.contactId, kind: r.kind, amount: Number(r.amount), status: r.status, reason: r.reason,
   failureMessage: r.failureMessage, receiptSentAt: r.receiptSentAt, createdAt: r.createdAt,
+  source: r.source, reversedAt: r.refundedAt, reversalReason: r.refundReason,
 })
 
 /** /api/card-on-file — gated by the `card_on_file` feature; each action checks its own permission. */
@@ -391,7 +522,7 @@ export function createCardOnFileRoutes(d: CrmDeps, cards: CardOnFile, book: Book
     if (!a) return fail(c, 404, 'Appointment not found')
     const u = c.get('user') as any
     const shown = await cards.optionsFor(u.companyId, a)
-    return one(c, { options: shown.options, card: shown.card, charges: shown.charges.map(chargeView) })
+    return one(c, { options: shown.options, card: shown.card, charges: shown.charges.map(chargeView), isNewClient: shown.isNewClient })
   })
 
   app.post('/appointments/:id/charge', requirePermission('invoices:update'), async (c) => {
@@ -406,6 +537,15 @@ export function createCardOnFileRoutes(d: CrmDeps, cards: CardOnFile, book: Book
     const out = await cards.charge(u.companyId, a, { kind, amount, reason: String(body.reason ?? '') }, u)
     if ('refused' in out && out.refused) return fail(c, out.refused.status, out.refused.error, out.refused.code, out.refused.code === 'REASON_REQUIRED' ? { reason: out.refused.error } : undefined)
     return one(c, { ...chargeView(out.charge!), receipt: out.receipt }, 201)
+  })
+
+  /** Reverse a fee that went through: the whole charge back to the card, with a typed reason. The seat that charges (invoices:update). */
+  app.post('/charges/:id/reverse', requirePermission('invoices:update'), async (c) => {
+    const u = c.get('user') as any
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    const out = await cards.reverse(u.companyId, c.req.param('id'), String(body.reason ?? ''), u)
+    if ('refused' in out && out.refused) return fail(c, out.refused.status, out.refused.error, out.refused.code, out.refused.code === 'REASON_REQUIRED' ? { reason: out.refused.error } : undefined)
+    return one(c, chargeView(out.charge!))
   })
 
   /** Every fee charged (or tried) for a client, newest first: the client chart. */

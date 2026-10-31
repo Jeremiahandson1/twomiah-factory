@@ -211,13 +211,22 @@ export default function AppointmentsPage() {
   };
 
   // Cancel / no-show / complete so a chair can be freed and no-shows tracked. (CC-25)
+  // Whether marking a no-show charges the fee on its own (the salon's opt-in), so the confirmation can say so.
+  const [autoNoShowFee, setAutoNoShowFee] = useState(false);
+  useEffect(() => { if (hasFeature('card_on_file')) api.get('/api/card-on-file/policy').then((p) => setAutoNoShowFee(!!p?.autoChargeNoShow)).catch(() => setAutoNoShowFee(false)); }, [hasFeature]);
   const setStatus = async (a: Appointment, status: string) => {
     if (status === 'cancelled' && !(await confirm(`Cancel ${a.clientName || 'this'} appointment? You can reopen it afterwards.`, { title: 'Cancel appointment', confirmText: 'Cancel it' }))) return;
-    if (status === 'no_show' && !(await confirm(`Mark ${a.clientName || 'this client'} as a no-show? You can reopen it afterwards.`, { title: 'Mark a no-show', confirmText: 'Mark no-show' }))) return;
+    if (status === 'no_show' && !(await confirm(`Mark ${a.clientName || 'this client'} as a no-show? ${autoNoShowFee ? 'Their card on file will be charged the no-show fee now. ' : ''}You can reopen it afterwards.`, { title: 'Mark a no-show', confirmText: autoNoShowFee ? 'Mark no-show and charge' : 'Mark no-show' }))) return;
     try {
       const res = await api.put(`/api/appointments/${a.id}`, { status });
       load();
       if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
+      // The salon's automatic no-show fee (Settings › Card on file): say what happened to the card.
+      const fee = res?.autoFee as { charged: boolean; status: string; amount?: number; message: string | null } | undefined;
+      if (fee) {
+        if (fee.charged) toast.success(`No-show fee of $${(fee.amount ?? 0).toFixed(2)} charged to the card on file`);
+        else toast.error(`No-show marked, but no fee was charged: ${fee.message || 'the card was not charged'}`);
+      }
     } catch (err) {
       toast.error((err as Error).message || 'Failed to update the appointment');
     }

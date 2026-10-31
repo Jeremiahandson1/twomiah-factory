@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Loader2, X, Scissors, Edit2, Trash2, Clock, RotateCcw, AlertTriangle } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite, useAuth } from '../../../shared'
+import { useMayWrite, useAuth, usePermissions } from '../../../shared'
 import { money as fmtMoney } from '../../../shared'
 import { useConfirm } from '../../../shared'
 import { useToast } from '../../../shared'
@@ -42,7 +42,13 @@ interface Service {
   requiresPatchTest?: boolean;
   bookableOnline?: boolean;
   active?: boolean;
+  /** This service's own no-show / late-cancel fee, whole cents or a percent (null = the salon's fee). */
+  noShowFeeCents?: number | null; noShowFeePercent?: number | null; lateCancelFeeCents?: number | null; lateCancelFeePercent?: number | null;
 }
+
+type FeeMode = 'none' | 'amount' | 'percent';
+const feeModeOf = (cents?: number | null, percent?: number | null): FeeMode => (cents != null ? 'amount' : percent != null ? 'percent' : 'none');
+const feeValueOf = (cents?: number | null, percent?: number | null) => (cents != null ? String(cents / 100) : percent != null ? String(percent) : '');
 
 // Blank stays an em dash; an amount is formatted by the one formatter that knows currency has two
 // decimals, rather than a fourth copy that renders $12.50 as "$12.5". (Salon T28 M2)
@@ -199,6 +205,13 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
   const toast = useToast();
   const { hasFeature } = useAuth();
   const showProcessing = hasFeature('processing_time');
+  // A service's own no-show / late-cancel fee (Card on file): the owner's or an admin's to set.
+  const { can, known } = usePermissions();
+  const showFees = hasFeature('card_on_file') && known && can('company:update');
+  const [fees, setFees] = useState({
+    nsMode: feeModeOf(service?.noShowFeeCents, service?.noShowFeePercent), nsValue: feeValueOf(service?.noShowFeeCents, service?.noShowFeePercent),
+    lcMode: feeModeOf(service?.lateCancelFeeCents, service?.lateCancelFeePercent), lcValue: feeValueOf(service?.lateCancelFeeCents, service?.lateCancelFeePercent),
+  });
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: service?.name || '',
@@ -240,11 +253,20 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
         payload.processingAfterMin = form.processingAfterMin === '' ? null : Number(form.processingAfterMin);
         payload.processingMin = form.processingMin === '' ? null : Number(form.processingMin);
       }
+      if (showFees) {
+        const cents = (v: string) => (v.trim() === '' ? null : Math.round(Number(v) * 100));
+        const pct = (v: string) => (v.trim() === '' ? null : Number(v));
+        payload.noShowFeeCents = fees.nsMode === 'amount' ? cents(fees.nsValue) : null;
+        payload.noShowFeePercent = fees.nsMode === 'percent' ? pct(fees.nsValue) : null;
+        payload.lateCancelFeeCents = fees.lcMode === 'amount' ? cents(fees.lcValue) : null;
+        payload.lateCancelFeePercent = fees.lcMode === 'percent' ? pct(fees.lcValue) : null;
+      }
       if (service) await api.put(`/api/service-menu/${service.id}`, payload);
       else await api.post('/api/service-menu', payload);
       onSave();
     } catch (err) {
-      toast.error((err as Error).message || 'Failed to save service');
+      const fields = (err as { data?: { fields?: Record<string, string> } }).data?.fields;
+      toast.error(fields ? Object.values(fields)[0] : (err as Error).message || 'Failed to save service');
     } finally {
       setSaving(false);
     }
@@ -310,6 +332,23 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
               Leave rebook blank for on-demand services — those never appear on the Rebooking report.
             </p>
+
+            {showFees && (
+              <fieldset className="space-y-2 rounded-lg border p-3 dark:border-slate-700">
+                <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-200">Fees for this service (instead of the salon's)</legend>
+                {([['No-show fee', 'nsMode', 'nsValue'], ['Late-cancellation fee', 'lcMode', 'lcValue']] as const).map(([label, modeKey, valueKey]) => (
+                  <div key={label} className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="w-44 text-gray-700 dark:text-slate-200">{label}</span>
+                    <select aria-label={`${label}: how it is set`} value={fees[modeKey]} onChange={(e) => setFees((f) => ({ ...f, [modeKey]: e.target.value as FeeMode }))} className="rounded-lg border px-2 py-1.5">
+                      <option value="none">The salon's fee</option>
+                      <option value="amount">A set amount ($)</option>
+                      <option value="percent">A percent of this service</option>
+                    </select>
+                    {fees[modeKey] !== 'none' && <input aria-label={`${label}: ${fees[modeKey] === 'amount' ? 'dollars' : 'percent'}`} inputMode="decimal" value={fees[valueKey]} onChange={(e) => setFees((f) => ({ ...f, [valueKey]: e.target.value }))} className="w-24 rounded-lg border px-2 py-1.5" />}
+                  </div>
+                ))}
+              </fieldset>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">

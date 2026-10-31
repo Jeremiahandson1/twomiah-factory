@@ -130,6 +130,11 @@ export const serviceMenu = pgTable('service_menu', {
   /** Processing time (colour): the stylist is free for `processingMin` minutes starting `processingAfterMin` minutes in. Null = hands-on throughout. */
   processingAfterMin: integer('processing_after_min'),
   processingMin: integer('processing_min'),
+  /** This service's own no-show / late-cancel fee (salon parity row 4): whole cents or a percent of its price; null = the salon's fee. */
+  noShowFeeCents: integer('no_show_fee_cents'),
+  noShowFeePercent: integer('no_show_fee_percent'),
+  lateCancelFeeCents: integer('late_cancel_fee_cents'),
+  lateCancelFeePercent: integer('late_cancel_fee_percent'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -222,6 +227,15 @@ export const cardPolicy = pgTable('card_policy', {
   lateCancelFeePercent: integer('late_cancel_fee_percent'),
   /** The salon's own words, shown at booking, in the confirmation and on the card page. Null = the standard sentence. */
   policyText: text('policy_text'),
+  /** The fees for a client who has never completed a visit (salon parity row 4); null = the regular fee above. Whole cents, or a percent. */
+  noShowFeeNewCents: integer('no_show_fee_new_cents'),
+  noShowFeeNewPercent: integer('no_show_fee_new_percent'),
+  lateCancelFeeNewCents: integer('late_cancel_fee_new_cents'),
+  lateCancelFeeNewPercent: integer('late_cancel_fee_new_percent'),
+  /** A booking worth less than this owes no fee (cents). Null = no minimum. */
+  minBookingValueCents: integer('min_booking_value_cents'),
+  /** Opt-in: marking an appointment a no-show charges its fee to the card on file at once. Off by default: a person confirms each fee. */
+  autoChargeNoShow: boolean('auto_charge_no_show').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -246,6 +260,13 @@ export const cardFeeCharge = pgTable('card_fee_charge', {
   failureMessage: text('failure_message'),
   chargedByUserId: text('charged_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   receiptSentAt: timestamp('receipt_sent_at'),
+  /** 'manual' (a person confirmed it) | 'auto' (charged when the appointment was marked a no-show, because the salon opted in). */
+  source: text('source').default('manual').notNull(),
+  /** Reversed: the whole charge given back on the salon's Stripe account, by whom and why. The row stays: it is the ledger. */
+  refundedAt: timestamp('refunded_at'),
+  refundId: text('refund_id'),
+  refundedByUserId: text('refunded_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  refundReason: text('refund_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('card_fee_charge_company_idx').on(t.companyId, t.createdAt),

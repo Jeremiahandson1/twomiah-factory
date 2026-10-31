@@ -13,8 +13,9 @@ const fieldClass = 'mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text
 const money = (n: number) => '$' + (Math.round(n * 100) % 100 ? n.toFixed(2) : String(Math.round(n)))
 
 export interface SavedCard { id: string; brand: string | null; last4: string | null; expMonth: number | null; expYear: number | null; consentAt: string | null; consentVia: string | null }
-export interface FeeOption { kind: 'no_show' | 'late_cancel'; amount: number | null; available: boolean; why: string | null }
-export interface FeeCharge { id: string; kind: string; amount: number; status: string; reason: string | null; failureMessage: string | null; createdAt: string }
+export interface FeeOption { kind: 'no_show' | 'late_cancel'; amount: number | null; available: boolean; why: string | null; /** Which rule set the amount: the service's own, the new-client fee, the salon's, or a mix for a visit of several. */ basis?: 'service' | 'new_client' | 'salon' | 'mixed' | null }
+export interface FeeCharge { id: string; kind: string; amount: number; status: string; reason: string | null; failureMessage: string | null; createdAt: string; source?: string; reversedAt?: string | null; reversalReason?: string | null }
+const basisWords = (b?: string | null) => (b === 'service' ? 'this service’s own fee' : b === 'new_client' ? 'the new-client fee' : b === 'mixed' ? 'the services’ own fees and the salon’s' : '')
 
 export const cardWords = (c: Pick<SavedCard, 'brand' | 'last4'>) => `${c.brand ? c.brand[0].toUpperCase() + c.brand.slice(1) : 'Card'} ending ${c.last4 || '····'}`
 const kindWords = (k: string) => (k === 'no_show' ? 'No-show fee' : 'Late-cancellation fee')
@@ -134,6 +135,11 @@ export function ChargeFeeModal({ appointmentId, clientName, onClose, onDone }: {
   const [busy, setBusy] = useState(false)
   const [fieldError, setFieldError] = useState('')
   const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null)
+  // Reversing a fee that went through: the whole charge back to the card, with a typed reason (invoices:update, as charging is).
+  const mayReverse = useMayChargeFees()
+  const [reversing, setReversing] = useState<string | null>(null)
+  const [reverseReason, setReverseReason] = useState('')
+  const [reverseError, setReverseError] = useState('')
 
   const load = useCallback(() => {
     api.get(`/api/card-on-file/appointments/${appointmentId}`).then((r: any) => {
@@ -144,6 +150,14 @@ export function ChargeFeeModal({ appointmentId, clientName, onClose, onDone }: {
   useEffect(load, [load])
 
   const chosen = data?.options.find((o) => o.kind === kind)
+  const reverse = async (c: FeeCharge) => {
+    setBusy(true); setReverseError('')
+    try {
+      await api.post(`/api/card-on-file/charges/${c.id}/reverse`, { reason: reverseReason })
+      toast.success(`Gave ${money(c.amount)} back to the card`)
+      setReversing(null); load(); onDone()
+    } catch (e: any) { setReverseError(e?.data?.fields?.reason || e?.message || 'The fee could not be reversed.') } finally { setBusy(false) }
+  }
   const charge = async () => {
     if (!chosen || chosen.amount == null) return
     setBusy(true); setFieldError('')
@@ -188,6 +202,7 @@ export function ChargeFeeModal({ appointmentId, clientName, onClose, onDone }: {
                   <input type="radio" name="fee-kind" disabled={!o.available} checked={kind === o.kind} onChange={() => setKind(o.kind)} className="mt-0.5" />
                   <span className="text-gray-900 dark:text-slate-100">
                     <strong>{kindWords(o.kind)}{o.amount != null ? ` — ${money(o.amount)}` : ''}</strong>
+                    {o.available && basisWords(o.basis) && <span className="block text-xs text-gray-700 dark:text-slate-300">From {basisWords(o.basis)}.</span>}
                     {o.why && <span className="block text-xs text-gray-700 dark:text-slate-300">{o.why}</span>}
                   </span>
                 </label>
@@ -204,8 +219,23 @@ export function ChargeFeeModal({ appointmentId, clientName, onClose, onDone }: {
             {data.charges.length > 0 && (
               <div className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-700 dark:border-slate-700 dark:text-slate-300">
                 <p className="font-medium">Already tried on this appointment</p>
-                <ul>{data.charges.map((c) => (
-                  <li key={c.id}>{momentDate(c.createdAt)} · {kindWords(c.kind)} {money(c.amount)} · {c.status === 'succeeded' ? 'charged' : c.status === 'declined' ? 'declined' : 'needed the client to approve'}</li>
+                <ul className="space-y-1">{data.charges.map((c) => (
+                  <li key={c.id}>
+                    {momentDate(c.createdAt)} · {kindWords(c.kind)} {money(c.amount)} · {c.reversedAt ? `charged, then reversed${c.reversalReason ? ` (${c.reversalReason})` : ''}` : c.status === 'succeeded' ? 'charged' : c.status === 'declined' ? 'declined' : 'needed the client to approve'}{c.source === 'auto' ? ' · automatic' : ''}
+                    {mayReverse && c.status === 'succeeded' && !c.reversedAt && reversing !== c.id && (
+                      <button onClick={() => { setReversing(c.id); setReverseReason(''); setReverseError('') }} className="ml-2 text-red-700 hover:underline dark:text-red-400">Reverse</button>
+                    )}
+                    {reversing === c.id && (
+                      <span className="mt-1 block">
+                        <input aria-label="Why are you reversing this fee?" value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} className={fieldClass} placeholder="Why are you reversing this fee?" aria-invalid={!!reverseError} />
+                        {reverseError && <span role="alert" className="block text-red-700 dark:text-red-300">{reverseError}</span>}
+                        <span className="mt-1 flex gap-2">
+                          <button onClick={() => reverse(c)} disabled={busy || reverseReason.trim().length < 3} className="rounded-lg bg-red-700 px-3 py-1 text-white hover:bg-red-800 disabled:opacity-50">Give {money(c.amount)} back</button>
+                          <button onClick={() => setReversing(null)} className="rounded-lg border px-3 py-1 hover:bg-gray-50 dark:hover:bg-slate-800">Not now</button>
+                        </span>
+                      </span>
+                    )}
+                  </li>
                 ))}</ul>
               </div>
             )}

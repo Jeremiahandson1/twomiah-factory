@@ -11,6 +11,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { processingProblem } from './segments.ts'
+import { parseServiceFees } from './cardFees.ts'
 
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
 const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'bookableOnline', 'active'] as const
@@ -32,6 +33,20 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     const problem = processingProblem(body.processingAfterMin, body.processingMin, durationMin)
     if (problem) return { problem, code: 'BAD_PROCESSING' }
     return { values: { processingAfterMin: Number(body.processingAfterMin || 0), processingMin: Number(body.processingMin) } }
+  }
+
+  /**
+   * This service's own no-show / late-cancel fee (salon parity row 4; feature `card_on_file`): the columns to write, or the refusal. Changing a fee
+   * a client can be charged is the owner's call (company:update), not the menu editor's; clearing one is always allowed to them too.
+   */
+  async function feesIn(u: any, body: any): Promise<{ values: Record<string, number | null> } | { refuse: { status: 400 | 403 | 409; message: string; code: string; fields?: Record<string, string> } }> {
+    const got = parseServiceFees(body)
+    if ('fields' in got) return { refuse: { status: 400, message: 'Check the highlighted boxes.', code: 'VALIDATION', fields: got.fields } }
+    if (!got.touched) return { values: {} }
+    const extra = await d.permissions.getExtraPermissions(u.userId)
+    if (!d.permissions.hasPermission(String(u.role || ''), 'company:update', extra)) return { refuse: { status: 403, message: 'Only the owner or an admin can set the fee a service charges for a no-show or late cancel.', code: 'FEE_NEEDS_OWNER' } }
+    if (!(await d.features.isFeatureEnabled(u.companyId, 'card_on_file'))) return { refuse: { status: 409, message: 'Card on file is not switched on for this salon.', code: 'FEATURE_OFF' } }
+    return { values: got.values }
   }
 
   // GET /service-menu — ?category=, ?includeInactive=1
@@ -57,6 +72,8 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // "abc" is not a negative price, it is not a price at all. (T20 L2)
     if (body.price != null && isNaN(Number(body.price))) return fail(c, 400, 'Price must be a number.')
     if (body.price != null && (Number(body.price) < 0 || roundsToNothing(body.price))) return fail(c, 400, 'Price cannot be negative.')
+    const feeValues = await feesIn(currentUser, body)
+    if ('refuse' in feeValues) return fail(c, feeValues.refuse.status, feeValues.refuse.message, feeValues.refuse.code, feeValues.refuse.fields)
     let processingValues: { processingAfterMin?: number | null; processingMin?: number | null } = {}
     if ('processingMin' in body || 'processingAfterMin' in body) {
       const got = await processingIn(currentUser.companyId, body, Number(body.durationMin ?? 60))
@@ -89,6 +106,7 @@ export function createServiceMenuRoutes(d: CrmDeps) {
         rebookIntervalDays: body.rebookIntervalDays ?? null,
         requiresPatchTest: body.requiresPatchTest ?? false,
         ...processingValues,
+        ...feeValues.values,
         bookableOnline: body.bookableOnline ?? false,
         active: body.active ?? true,
         companyId: currentUser.companyId,
@@ -120,6 +138,9 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    const feeValues = await feesIn(currentUser, body)
+    if ('refuse' in feeValues) return fail(c, feeValues.refuse.status, feeValues.refuse.message, feeValues.refuse.code, feeValues.refuse.fields)
+    Object.assign(updates, feeValues.values)
     if ('processingMin' in body || 'processingAfterMin' in body || ('durationMin' in body && existing.processingMin)) {
       // A shorter service must still hold its processing gap; changing nothing about the gap re-checks the old one against the new length.
       const source = 'processingMin' in body || 'processingAfterMin' in body ? body : { processingMin: existing.processingMin, processingAfterMin: existing.processingAfterMin }
