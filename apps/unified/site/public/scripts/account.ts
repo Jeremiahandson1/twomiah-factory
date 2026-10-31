@@ -252,8 +252,14 @@
     if (me.group) bits.push('<span class="account-status">' + esc(me.group) + ' prices</span>');
     if (me.points != null) bits.push('<span class="account-muted">' + esc(me.points) + ' reward points</span>');
     var credit = (me.credit || []).map(function (c) { return '<p class="account-muted">Store credit: <strong>' + money(c.balanceCents) + '</strong> — use code <code>' + esc(c.code) + '</code> at checkout.</p>'; }).join('');
+    // Gift cards they bought or were given: the balance and the code that spends it (beside the store credit above).
+    var gifts = (me.giftCards || []).map(function (g) {
+      var who = g.relation === 'given' ? 'Gift card given to you' : 'Gift card you bought';
+      return '<p class="account-muted">' + who + ': ' + (g.balanceCents > 0 ? '<strong>' + money(g.balanceCents) + '</strong> left' : '<strong>used up</strong>') +
+        (g.initialCents !== g.balanceCents ? ' of ' + money(g.initialCents) : '') + ' — code <code>' + esc(g.code) + '</code>' + (g.balanceCents > 0 ? ' at checkout.' : '.') + '</p>';
+    }).join('');
     root.innerHTML =
-      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + credit + '</div>' +
+      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + credit + gifts + '</div>' +
       '<button type="button" class="btn btn--secondary" id="account-out">Sign out</button></div>' +
       '<section class="account-section"><h2>Your orders</h2>' +
       (orders.length ? orders.map(orderHtml).join('') : '<p class="store-empty">No orders yet. <a href="/shop">Start shopping</a></p>') + '</section>' +

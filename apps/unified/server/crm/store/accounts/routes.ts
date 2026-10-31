@@ -22,6 +22,7 @@ import { groupPrice, pricingForContact } from '../catalog/groupPricing.ts'
 import { createOrderRefunds } from '../orders/refunds.ts'
 import { createStoreReturns, REASONS } from '../returns/returns.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { giftCardsForEmail } from '../../../data/storeGiftCards.ts'
 import { createShopperAccounts, SESSION_DAYS, SHOPPER_COOKIE, type ShopperAccounts, type ShopperSession } from './shopperAccounts.ts'
 
 const isProd = process.env.NODE_ENV === 'production'
@@ -106,7 +107,9 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
     const r = await signedIn(c); if ('reply' in r) return r.reply
     // Store credit from returns: shown to its owner (the card number is what spends it).
     const credit = await returnsOn(r.s.companyId) ? await giftCards.creditOf(r.s.companyId, r.s.email) : []
-    return one(c, { ...(await accounts.profile(r.s)), returns: await returnsOn(r.s.companyId), credit })
+    // Gift cards they bought or were given, with the balance and the code (beside the store credit above).
+    const cards = await giftCardsForEmail(d.db, r.s.companyId, r.s.email)
+    return one(c, { ...(await accounts.profile(r.s)), returns: await returnsOn(r.s.companyId), credit, giftCards: cards })
   })
 
   /** An order with, when returns are on, what of it can be sent back (the window, the units left). */
