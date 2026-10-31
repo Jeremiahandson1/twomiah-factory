@@ -1,8 +1,8 @@
 // The salon's raw SQL (RULEBOOK §2): the book's lock, the client's lifetime spend, the visit repairs, the win-back list,
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
-import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, saleTipSplit } from '../db/schema/index.ts'
+import { and, asc, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, salonStockLocation, saleTipSplit } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -484,4 +484,45 @@ export async function peopleNames(db: any, userIds: string[], memberIds: string[
 export async function tipsNetCents(db: any, invoiceId: string): Promise<number> {
   const [row] = await db.select({ n: sql<string>`coalesce(sum(${payment.tipAmount}::numeric), 0)` }).from(payment).where(eq(payment.invoiceId, invoiceId))
   return Math.round(Number(row?.n || 0) * 100)
+}
+
+
+// ─── Retail stock by place (salon row 12; crm/salon/retailStock.ts) ───────────────────────────────────────────────
+
+/** The salon's first stock location (stock with no place named is there). Made on first use, so every salon has one. */
+export async function defaultStockLocation(exec: any, companyId: string): Promise<string> {
+  const [first] = await exec.select({ id: salonStockLocation.id }).from(salonStockLocation).where(eq(salonStockLocation.companyId, companyId)).orderBy(asc(salonStockLocation.createdAt), asc(salonStockLocation.id)).limit(1)
+  if (first) return first.id
+  const [made] = await exec.insert(salonStockLocation).values({ companyId, name: 'Main shop' }).returning({ id: salonStockLocation.id })
+  return made.id
+}
+
+/** Units on hand per product at ONE place: stock moved there less the units sold from it (a void sale gives its units back). */
+export async function retailOnHandAt(exec: any, companyId: string, locationId: string, ids: string[] | null): Promise<Map<string, number>> {
+  const first = await defaultStockLocation(exec, companyId)
+  const here = locationId === first
+  const only = (col: AnyColumn) => (ids ? sql`${col} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})` : sql`true`)
+  const at = (col: AnyColumn) => (here ? sql`(${col} = ${locationId} or ${col} is null)` : sql`${col} = ${locationId}`)
+  const moved = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), at(salonStockMove.locationId), only(salonStockMove.productId))).groupBy(salonStockMove.productId)
+  const sold = await exec.select({ productId: salonRetailSale.productId, n: sql<string>`coalesce(sum(${salonRetailSale.quantity}), 0)` })
+    .from(salonRetailSale).innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .where(and(eq(salonRetailSale.companyId, companyId), at(salonRetailSale.locationId), sql`${invoice.status} <> 'void'`, only(salonRetailSale.productId))).groupBy(salonRetailSale.productId)
+  const out = new Map<string, number>()
+  for (const r of moved) out.set(r.productId, Number(r.n) || 0)
+  for (const r of sold) out.set(r.productId, (out.get(r.productId) || 0) - (Number(r.n) || 0))
+  return out
+}
+
+/** Units of each product already put back on the shelf after a refund, per sale. */
+export async function retailReturnedOn(exec: any, companyId: string, invoiceId: string): Promise<Map<string, number>> {
+  const rows = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), eq(salonStockMove.invoiceId, invoiceId), eq(salonStockMove.kind, 'returned'))).groupBy(salonStockMove.productId)
+  return new Map(rows.map((r: any) => [r.productId, Number(r.n) || 0]))
+}
+
+/** Products whose barcode or SKU is this code, ignoring case, spaces, dashes and any other punctuation (what a scanner may add or drop). */
+export async function retailProductsByCode(exec: any, companyId: string, code: string): Promise<Array<typeof salonRetailProduct.$inferSelect>> {
+  const norm = (col: AnyColumn) => sql`upper(regexp_replace(${col}, '[^A-Za-z0-9]', '', 'g'))`
+  return exec.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), sql`(${norm(salonRetailProduct.barcode)} = ${code} or ${norm(salonRetailProduct.sku)} = ${code})`)).limit(5)
 }

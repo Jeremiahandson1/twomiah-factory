@@ -1,8 +1,8 @@
 // Retail (server crm/salon/retail.ts, /api/salon-retail; hidden feature `salon_retail`): the products the salon sells off the shelf, the count on
 // hand, stock received and corrected (who and why), and a walk-in sale. Selling onto a client's sale happens beside the sale (ChairCheckout.tsx).
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Loader2, Plus, ShoppingBag } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Loader2, Plus, ScanLine, ShoppingBag } from 'lucide-react'
 import { api, useToast, usePermissions, money } from '../../../shared'
 import { Button, Field, Modal, inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
@@ -11,7 +11,7 @@ const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-70
 const cents = (c: number) => money(c / 100)
 const toCents = (v: string) => Math.round(Number(v) * 100)
 
-interface Product { id: string; name: string; brand: string | null; sku: string | null; priceCents: number; costCents: number | null; reorderAt: number | null; active: boolean; onHand: number; low: boolean }
+interface Product { id: string; name: string; brand: string | null; sku: string | null; barcode: string | null; category: string | null; reorderQty: number | null; supplierId: string | null; priceCents: number; costCents: number | null; reorderAt: number | null; active: boolean; onHand: number; low: boolean }
 interface History { moves: Array<{ kind: string; quantity: number; note: string | null; by: string | null; at: string }>; sales: Array<{ quantity: number; at: string; sale: string; void: boolean }> }
 
 export default function RetailPage() {
@@ -25,6 +25,16 @@ export default function RetailPage() {
   const [editing, setEditing] = useState<Product | 'new' | null>(null)
   const [stocking, setStocking] = useState<Product | null>(null)
   const [selling, setSelling] = useState(false)
+  const [scan, setScan] = useState('')
+  const [scanProblem, setScanProblem] = useState('')
+  // A keyboard / USB scanner types the barcode into this box and presses Enter: the product it finds opens for a stock change.
+  const findByCode = async () => {
+    const code = scan.trim(); if (!code) return
+    setScanProblem('')
+    try { const r = await api.get(`/api/salon-retail-stock/scan?code=${encodeURIComponent(code)}`); const hit = (products || []).find((p) => p.id === r.product.id); if (hit) setStocking(hit); else setScanProblem('That product is not in the list.') }
+    catch (e: any) { setScanProblem(e?.message || 'No product has that barcode.') }
+    setScan('')
+  }
   const load = useCallback(() => { api.get('/api/salon-retail/manage').then((r: { products: Product[] }) => { setProducts(r.products); setError('') }).catch((e: Error) => setError(e.message || 'The products could not be loaded.')) }, [])
   useEffect(load, [load])
   const low = (products || []).filter((p) => p.active && p.low)
@@ -36,11 +46,14 @@ export default function RetailPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white"><ShoppingBag className="h-6 w-6 text-teal-700 dark:text-teal-300" aria-hidden="true" /> Retail</h1>
           <p className="mt-1 text-gray-600 dark:text-slate-300">What you sell off the shelf, and how many are left. A product goes on a client's sale from the sale itself; the count goes down when it does.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link to="/crm/retail/stock" className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">Orders, suppliers and counts</Link>
           {maySell && <Button variant="secondary" onClick={() => setSelling(true)}>Sell to a walk-in</Button>}
           {mayAdd && <Button onClick={() => setEditing('new')}><Plus className="mr-2 inline h-4 w-4" aria-hidden="true" />Add a product</Button>}
         </div>
       </div>
+      <div className="relative"><ScanLine className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-500 dark:text-slate-300" aria-hidden="true" /><input aria-label="Scan a barcode" value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void findByCode() } }} placeholder="Scan or type a barcode to find a product" className={inputCls + ' pl-9'} /></div>
+      {scanProblem && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{scanProblem}</p>}
       {low.length > 0 && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">Running low: {low.map((p) => `${[p.brand, p.name].filter(Boolean).join(' ')} (${p.onHand})`).join(', ')}.</div>}
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">{error}</div>}
       {!products && !error && <div className="flex h-32 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-500 dark:text-slate-300" /></div>}
@@ -52,7 +65,7 @@ export default function RetailPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {products.map((p) => (
                 <tr key={p.id} className={'text-gray-900 dark:text-slate-100' + (p.active ? '' : ' opacity-60')}>
-                  <td className="px-4 py-2">{p.brand ? `${p.brand} ` : ''}{p.name}{!p.active && <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs dark:bg-slate-700">Off the shelf</span>}{p.sku && <span className="block text-xs text-gray-600 dark:text-slate-400">{p.sku}</span>}</td>
+                  <td className="px-4 py-2">{p.brand ? `${p.brand} ` : ''}{p.name}{!p.active && <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs dark:bg-slate-700">Off the shelf</span>}{(p.sku || p.category) && <span className="block text-xs text-gray-600 dark:text-slate-400">{[p.category, p.sku].filter(Boolean).join(' · ')}</span>}</td>
                   <td className="px-4 py-2 text-right">{cents(p.priceCents)}</td>
                   <td className="px-4 py-2 text-right">{p.costCents != null ? cents(p.costCents) : '—'}</td>
                   <td className={'px-4 py-2 text-right font-medium ' + (p.low ? 'text-amber-800 dark:text-amber-300' : '')}>{p.onHand}{p.low ? ' · low' : ''}</td>
@@ -72,14 +85,16 @@ export default function RetailPage() {
 
 function ProductModal({ product, onClose, onSaved }: { product: Product | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast()
-  const [f, setF] = useState({ name: product?.name || '', brand: product?.brand || '', sku: product?.sku || '', price: product ? (product.priceCents / 100).toFixed(2) : '', cost: product?.costCents != null ? (product.costCents / 100).toFixed(2) : '', reorderAt: product?.reorderAt != null ? String(product.reorderAt) : '', openingStock: '', active: product?.active ?? true })
+  const [f, setF] = useState({ name: product?.name || '', brand: product?.brand || '', sku: product?.sku || '', price: product ? (product.priceCents / 100).toFixed(2) : '', cost: product?.costCents != null ? (product.costCents / 100).toFixed(2) : '', reorderAt: product?.reorderAt != null ? String(product.reorderAt) : '', reorderQty: product?.reorderQty != null ? String(product.reorderQty) : '', category: product?.category || '', barcode: product?.barcode || '', supplierId: product?.supplierId || '', openingStock: '', active: product?.active ?? true })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => { api.get('/api/salon-retail-stock/suppliers').then((r: { suppliers: Array<{ id: string; name: string }> }) => setSuppliers(r.suppliers)).catch(() => setSuppliers([])) }, [])
   const set = (k: keyof typeof f, v: string | boolean) => setF((p) => ({ ...p, [k]: v }))
   const save = async () => {
     setBusy(true); setErrors({}); setProblem('')
-    const body: Record<string, unknown> = { name: f.name, brand: f.brand, sku: f.sku, priceCents: f.price ? toCents(f.price) : undefined, costCents: f.cost ? toCents(f.cost) : null, reorderAt: f.reorderAt === '' ? null : Number(f.reorderAt), active: f.active }
+    const body: Record<string, unknown> = { name: f.name, brand: f.brand, sku: f.sku, barcode: f.barcode, category: f.category, supplierId: f.supplierId || null, reorderQty: f.reorderQty === '' ? null : Number(f.reorderQty), priceCents: f.price ? toCents(f.price) : undefined, costCents: f.cost ? toCents(f.cost) : null, reorderAt: f.reorderAt === '' ? null : Number(f.reorderAt), active: f.active }
     if (!product && f.openingStock) body.openingStock = Number(f.openingStock)
     try { if (product) await api.patch(`/api/salon-retail/products/${product.id}`, body); else await api.post('/api/salon-retail/products', body); toast.success('Saved'); onSaved(); onClose() }
     catch (e: any) { setErrors(e?.data?.fields || {}); setProblem(e?.message || 'That did not save.') } finally { setBusy(false) }
@@ -94,7 +109,11 @@ function ProductModal({ product, onClose, onSaved }: { product: Product | null; 
           <Field label="Price ($)"><input inputMode="decimal" value={f.price} onChange={(e) => set('price', e.target.value)} className={inputCls} aria-invalid={!!errors.priceCents} /></Field>
           <Field label="What it cost you ($, optional)" hint="Only managers see this."><input inputMode="decimal" value={f.cost} onChange={(e) => set('cost', e.target.value)} className={inputCls} /></Field>
           <Field label="Code or SKU (optional)"><input value={f.sku} onChange={(e) => set('sku', e.target.value)} className={inputCls} /></Field>
-          <Field label="Flag as low at (units, optional)"><input inputMode="numeric" value={f.reorderAt} onChange={(e) => set('reorderAt', e.target.value)} className={inputCls} /></Field>
+          <Field label="Barcode (optional)" hint="What a scanner reads. Used at the till and when counting."><input value={f.barcode} onChange={(e) => set('barcode', e.target.value)} className={inputCls} aria-invalid={!!errors.barcode} /></Field>
+          <Field label="Category (optional)"><input value={f.category} onChange={(e) => set('category', e.target.value)} className={inputCls} /></Field>
+          <Field label="Supplier (optional)"><select value={f.supplierId} onChange={(e) => set('supplierId', e.target.value)} className={inputCls}><option value="">None</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+          <Field label="Flag as low at (units, optional)" hint="You are emailed when it reaches this."><input inputMode="numeric" value={f.reorderAt} onChange={(e) => set('reorderAt', e.target.value)} className={inputCls} /></Field>
+          <Field label="Order this many when low (optional)"><input inputMode="numeric" value={f.reorderQty} onChange={(e) => set('reorderQty', e.target.value)} className={inputCls} aria-invalid={!!errors.reorderQty} /></Field>
           {!product && <Field label="Units on the shelf now"><input inputMode="numeric" value={f.openingStock} onChange={(e) => set('openingStock', e.target.value)} className={inputCls} aria-invalid={!!errors.openingStock} /></Field>}
         </div>
         {product && <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="checkbox" checked={f.active} onChange={(e) => set('active', e.target.checked)} />On the shelf (uncheck to stop selling it; its history stays)</label>}
@@ -141,13 +160,18 @@ function StockModal({ product, onClose, onSaved }: { product: Product; onClose: 
 }
 
 function WalkInModal({ products, onClose, onSold }: { products: Product[]; onClose: () => void; onSold: (invoiceId: string) => void }) {
+  const [stylists, setStylists] = useState<Array<{ id: string; name: string }>>([])
+  const [stylistId, setStylistId] = useState('')
+  const [code, setCode] = useState('')
+  useEffect(() => { api.get('/api/team/assignable').then((r: any) => setStylists(((r?.data ?? r) as any[]).filter((m) => m && m.id).map((m) => ({ id: m.kind === 'member' ? `m:${m.id}` : `u:${m.id}`, name: m.name || [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Team member' })))).catch(() => setStylists([])) }, [])
+  const scanned = async () => { const c = code.trim(); if (!c) return; try { const r = await api.get(`/api/salon-retail-stock/scan?code=${encodeURIComponent(c)}`); setProductId(r.product.id); setProblem('') } catch (e: any) { setProblem(e?.message || 'No product has that barcode.') } setCode('') }
   const [productId, setProductId] = useState('')
   const [qty, setQty] = useState('1')
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
   const go = async () => {
     setBusy(true); setProblem('')
-    try { const r = await api.post('/api/salon-retail/sell/new', { items: [{ productId, quantity: Number(qty) || 1 }] }); onSold(r.invoiceId) }
+    try { const r = await api.post('/api/salon-retail/sell/new', { items: [{ productId, quantity: Number(qty) || 1 }], ...(stylistId.startsWith('m:') ? { stylistMemberId: stylistId.slice(2) } : stylistId ? { stylistId: stylistId.slice(2) } : {}) }); onSold(r.invoiceId) }
     catch (e: any) { setProblem(e?.message || 'That could not be sold.') } finally { setBusy(false) }
   }
   return (
@@ -155,8 +179,10 @@ function WalkInModal({ products, onClose, onSold }: { products: Product[]; onClo
       <div className="space-y-3">
         <p className="text-sm text-gray-700 dark:text-slate-300">This makes a new sale. You take the payment on the next screen, on the card reader or any other way.</p>
         {problem && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">{problem}</div>}
+        <Field label="Scan a barcode (optional)"><input aria-label="Scan a barcode" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void scanned() } }} className={inputCls} /></Field>
         <Field label="Product"><select value={productId} onChange={(e) => setProductId(e.target.value)} className={inputCls}><option value="">Choose…</option>{products.map((p) => <option key={p.id} value={p.id}>{[p.brand, p.name].filter(Boolean).join(' ')} — {cents(p.priceCents)} ({p.onHand} left)</option>)}</select></Field>
         <Field label="Quantity"><input inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} className={inputCls} /></Field>
+        <Field label="Sold by (optional)" hint="The stylist who earns the retail commission."><select value={stylistId} onChange={(e) => setStylistId(e.target.value)} className={inputCls} aria-label="Sold by"><option value="">Nobody</option>{stylists.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy || !productId}>{busy ? 'Making the sale…' : 'Make the sale'}</Button></div>
       </div>
     </Modal>

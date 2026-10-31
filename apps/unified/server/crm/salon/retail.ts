@@ -8,14 +8,13 @@
 //             lock — two desks selling the last bottle are served one after the other, and the second is told there is none.
 //   REMOVE    taking the line off an unpaid sale gives the units back.
 //
-// A retail line changed through the general invoice edit form is rewritten by that form (it keeps no product link): its units go back on the
-// shelf and the line stays as a plain one. The Sell panel is where retail is added and removed. A refund does not put units back (the
-// bottle may not be); a manager corrects the count with a stock adjustment. No money moves here: payment is taken the usual ways.
+// A retail line edited through the general invoice form keeps its product link (lineEdit, below). A refund puts units back only when the
+// person chooses (retailStock.ts returnToShelf: the bottle may not be fit to resell). A walk-in or visit sale may name the stylist it is credited to. No money moves here: payment is taken the usual ways.
 import { Hono } from 'hono'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { retotalInvoice } from '@twomiah/tenant-backend'
-import { company, contact, invoice, invoiceLineItem, salonRetailProduct, salonRetailSale, salonStockMove } from '../../db/schema/index.ts'
-import { lockRetailProduct, retailOnHand } from '../../data/salon.ts'
+import { company, contact, invoice, invoiceLineItem, salonRetailProduct, salonRetailSale, salonStockLocation, salonStockMove, salonSupplier, teamMember, user } from '../../db/schema/index.ts'
+import { defaultStockLocation, lockRetailProduct, retailOnHand, retailOnHandAt } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -44,14 +43,14 @@ function cents(v: unknown, field: string, label: string, { min = 0, required = t
   return n
 }
 
-export function createSalonRetail(d: CrmDeps, s: SalonServices) {
+export function createSalonRetail(d: CrmDeps, s: SalonServices, hooks: { afterChange?: (companyId: string) => void } = {}) {
   const { db, logger } = d
   const live = d.realtime
 
   const view = (p: RetailProduct, onHand: number, manage: boolean) => ({
-    id: p.id, name: p.name, brand: p.brand, sku: p.sku, priceCents: p.priceCents, active: p.active, onHand,
+    id: p.id, name: p.name, brand: p.brand, sku: p.sku, barcode: p.barcode, category: p.category, priceCents: p.priceCents, active: p.active, onHand,
     low: p.reorderAt != null && onHand <= p.reorderAt,
-    ...(manage ? { costCents: p.costCents, reorderAt: p.reorderAt } : {}),
+    ...(manage ? { costCents: p.costCents, reorderAt: p.reorderAt, reorderQty: p.reorderQty, supplierId: p.supplierId } : {}),
   })
 
   /** Products with their stock. `manage` adds cost and the reorder level and includes products taken off the shelf. */
@@ -72,6 +71,17 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
     }
     if (b.brand !== undefined) out.brand = text(b.brand, 80)
     if (b.sku !== undefined) out.sku = text(b.sku, 40)
+    if (b.category !== undefined) out.category = text(b.category, 60)
+    if (b.barcode !== undefined) {
+      const code = text(b.barcode, 40)
+      if (code && code.replace(/[^A-Za-z0-9]/g, '').length < 3) throw new RetailError('A barcode is at least 3 letters or digits.', 400, 'BAD_CODE', 'barcode')
+      out.barcode = code ? code.replace(/\s+/g, '') : null
+    }
+    if (b.supplierId !== undefined) out.supplierId = b.supplierId ? String(b.supplierId) : null
+    if (b.reorderQty !== undefined) {
+      if (b.reorderQty === null || b.reorderQty === '') out.reorderQty = null
+      else { const n = Number(b.reorderQty); if (!Number.isInteger(n) || n < 1 || n > 100_000) throw new RetailError('The reorder quantity is a whole number of units.', 400, 'BAD_REORDER', 'reorderQty'); out.reorderQty = n }
+    }
     if (!partial || b.priceCents !== undefined) out.priceCents = cents(b.priceCents, 'priceCents', 'a price', { min: 1 }) as number
     if (b.costCents !== undefined) out.costCents = cents(b.costCents, 'costCents', 'a cost', { required: false })
     if (b.reorderAt !== undefined) {
@@ -82,9 +92,22 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
     return out
   }
 
+  /** The supplier named is this salon's; the barcode is not another product's. */
+  async function checkLinks(companyId: string, v: Partial<typeof salonRetailProduct.$inferInsert>, selfId: string | null) {
+    if (v.supplierId) {
+      const [sup] = await db.select({ id: salonSupplier.id }).from(salonSupplier).where(and(eq(salonSupplier.id, v.supplierId), eq(salonSupplier.companyId, companyId))).limit(1)
+      if (!sup) throw new RetailError('That supplier was not found.', 404, 'NO_SUPPLIER', 'supplierId')
+    }
+    if (v.barcode) {
+      const [clash] = await db.select({ id: salonRetailProduct.id, name: salonRetailProduct.name }).from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), eq(salonRetailProduct.barcode, v.barcode))).limit(1)
+      if (clash && clash.id !== selfId) throw new RetailError(`${clash.name} already has that barcode.`, 409, 'BARCODE_TAKEN', 'barcode')
+    }
+  }
+
   async function createProduct(companyId: string, b: Record<string, unknown>, actor: any) {
     // Everything is checked before anything is written: a refused product leaves nothing behind.
     const values = readProduct(b, false)
+    await checkLinks(companyId, values, null)
     const opening = b.openingStock === undefined || b.openingStock === '' ? 0 : Number(b.openingStock)
     if (!Number.isInteger(opening) || opening < 0 || opening > 100_000) throw new RetailError('Opening stock is a whole number of units.', 400, 'BAD_QUANTITY', 'openingStock')
     return db.transaction(async (tx: Tx) => {
@@ -98,9 +121,35 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
   async function updateProduct(companyId: string, id: string, b: Record<string, unknown>) {
     const values = readProduct(b, true)
     if (!Object.keys(values).length) throw new RetailError('Nothing to change.')
+    await checkLinks(companyId, values, id)
     const [row] = await db.update(salonRetailProduct).set(values).where(and(eq(salonRetailProduct.id, id), eq(salonRetailProduct.companyId, companyId))).returning()
     if (!row) throw new RetailError('That product is gone.', 404)
     return view(row, (await retailOnHand(db, companyId, [id])).get(id) ?? 0, true)
+  }
+
+  /** A stock place the request names (checked to be this salon's), or the first. */
+  async function placeIn(tx: Tx, companyId: string, raw: unknown): Promise<string> {
+    if (raw === undefined || raw === null || raw === '') return defaultStockLocation(tx, companyId)
+    const [row] = await tx.select({ id: salonStockLocation.id, active: salonStockLocation.active }).from(salonStockLocation).where(and(eq(salonStockLocation.id, String(raw)), eq(salonStockLocation.companyId, companyId))).limit(1)
+    if (!row) throw new RetailError('That place was not found.', 404, 'NO_LOCATION', 'locationId')
+    if (!row.active) throw new RetailError('That place is not in use any more.', 409, 'LOCATION_OFF', 'locationId')
+    return row.id
+  }
+
+  /** The stylist a retail sale is credited to when named: a login of this salon, or a roster stylist. */
+  async function stylistFor(tx: Tx, companyId: string, input: { stylistId?: unknown; stylistMemberId?: unknown }): Promise<{ stylistId: string | null; stylistMemberId: string | null }> {
+    if (input.stylistId && input.stylistMemberId) throw new RetailError('Name one stylist for the sale.', 400, 'ONE_STYLIST', 'stylistId')
+    if (input.stylistId) {
+      const [u] = await tx.select({ id: user.id }).from(user).where(and(eq(user.id, String(input.stylistId)), eq(user.companyId, companyId), eq(user.isActive, true))).limit(1)
+      if (!u) throw new RetailError('That stylist was not found.', 404, 'NO_STYLIST', 'stylistId')
+      return { stylistId: u.id, stylistMemberId: null }
+    }
+    if (input.stylistMemberId) {
+      const [m] = await tx.select({ id: teamMember.id }).from(teamMember).where(and(eq(teamMember.id, String(input.stylistMemberId)), eq(teamMember.companyId, companyId))).limit(1)
+      if (!m) throw new RetailError('That stylist was not found.', 404, 'NO_STYLIST', 'stylistMemberId')
+      return { stylistId: null, stylistMemberId: m.id }
+    }
+    return { stylistId: null, stylistMemberId: null }
   }
 
   /** Stock in, or a correction (a count that did not match, breakage). Under the product's lock, so the count cannot be taken below zero by two at once. */
@@ -115,11 +164,13 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
     return db.transaction(async (tx: Tx) => {
       const product = await lockRetailProduct(tx, companyId, productId)
       if (!product) throw new RetailError('That product is gone.', 404)
-      const have = (await retailOnHand(tx, companyId, [productId])).get(productId) ?? 0
-      if (have + quantity < 0) throw new RetailError(`Only ${have} on the shelf, so the count cannot go down by ${Math.abs(quantity)}.`, 409, 'BELOW_ZERO', 'quantity')
-      await tx.insert(salonStockMove).values({ companyId, productId, quantity, kind, note, byName: nameOf(actor) })
-      return view(product, have + quantity, true)
-    })
+      const place = await placeIn(tx, companyId, b.locationId)
+      const there = (await retailOnHandAt(tx, companyId, place, [productId])).get(productId) ?? 0
+      if (there + quantity < 0) throw new RetailError(`Only ${there} on the shelf there, so the count cannot go down by ${Math.abs(quantity)}.`, 409, 'BELOW_ZERO', 'quantity')
+      await tx.insert(salonStockMove).values({ companyId, productId, quantity, kind, note, byName: nameOf(actor), locationId: place })
+      const total = (await retailOnHand(tx, companyId, [productId])).get(productId) ?? 0
+      return view(product, total, true)
+    }).then((out: ReturnType<typeof view>) => { hooks.afterChange?.(companyId); return out })
   }
 
   // ─── Selling ──────────────────────────────────────────────────────────────────────────────────
@@ -146,7 +197,7 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
    * Put products on a sale. With `invoiceId`: on that open sale (its own tax rate applies). Without: on a new sale for the client
    * (`contactId`, optional — a walk-in buys a bottle), taxed at the salon's default rate. Returns the sale and what each line cost.
    */
-  async function sell(companyId: string, input: { invoiceId?: unknown; contactId?: unknown; items: unknown }, actor: any) {
+  async function sell(companyId: string, input: { invoiceId?: unknown; contactId?: unknown; items: unknown; locationId?: unknown; stylistId?: unknown; stylistMemberId?: unknown }, actor: any) {
     const items = readItems(input.items)
     const want = new Map<string, number>()
     for (const it of items) want.set(it.productId, (want.get(it.productId) ?? 0) + it.quantity)
@@ -159,7 +210,9 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
         if (!p || !p.active) throw new RetailError('One of those products is not on sale any more.', 404, 'NO_PRODUCT')
         products.set(id, p)
       }
-      const stock = await retailOnHand(tx, companyId, ids)
+      const place = await placeIn(tx, companyId, input.locationId)
+      const seller = await stylistFor(tx, companyId, input)
+      const stock = await retailOnHandAt(tx, companyId, place, ids)
       for (const id of ids) {
         const have = stock.get(id) ?? 0, p = products.get(id)!
         if (want.get(id)! > have) throw new RetailError(have > 0 ? `Only ${have} of ${lineName(p)} on the shelf.` : `${lineName(p)} is out of stock.`, 409, 'OUT_OF_STOCK')
@@ -197,7 +250,7 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
         const [line] = await tx.insert(invoiceLineItem).values({
           invoiceId: inv.id, description: lineName(p), type: 'retail', quantity: String(it.quantity), unitPrice: (p.priceCents / 100).toFixed(2), total: total.toFixed(2), sortOrder: order++,
         } as any).returning()
-        await tx.insert(salonRetailSale).values({ companyId, productId: p.id, invoiceId: inv.id, lineItemId: line.id, quantity: it.quantity })
+        await tx.insert(salonRetailSale).values({ companyId, productId: p.id, invoiceId: inv.id, lineItemId: line.id, quantity: it.quantity, locationId: place, stylistId: seller.stylistId, stylistMemberId: seller.stylistMemberId })
         added.push({ lineId: line.id, name: lineName(p), quantity: it.quantity, totalCents: Math.round(total * 100) })
       }
       await retotal(tx, inv)
@@ -205,6 +258,7 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
       return { sale: after as typeof invoice.$inferSelect, created, added }
     })
     live.emitToCompany(companyId, outcome.created ? live.EVENTS.INVOICE_CREATED : live.EVENTS.INVOICE_UPDATED, outcome.sale)
+    hooks.afterChange?.(companyId)
     try {
       await d.audit.log({ action: outcome.created ? 'create' : 'update', entity: 'invoice', entityId: outcome.sale.id, entityName: outcome.sale.number, companyId, req: { user: actor }, metadata: { retail: outcome.added.map((a: { quantity: number; name: string }) => `${a.quantity} × ${a.name}`) } })
     } catch (e: any) { logger.warn('[salon-retail] sale not audited', { error: e?.message }) }
@@ -244,7 +298,49 @@ export function createSalonRetail(d: CrmDeps, s: SalonServices) {
     }
   }
 
-  return { list, createProduct, updateProduct, moveStock, sell, removeLine, history }
+  /**
+   * The general invoice edit rewrites every line of a sale. Retail lines keep their product link through it: before, a snapshot of what each
+   * retail line was (product, units, place, stylist); after, each is matched to the new line with the same description and price, which is
+   * made a retail line again and linked back. A units change is checked against the shelf. A retail line removed in the form is gone and its
+   * units are back on the shelf; one typed in by hand stays a plain line.
+   */
+  const lineEdit = {
+    async before(tx: Tx, invoiceId: string) {
+      return tx.select({ productId: salonRetailSale.productId, quantity: salonRetailSale.quantity, locationId: salonRetailSale.locationId, stylistId: salonRetailSale.stylistId, stylistMemberId: salonRetailSale.stylistMemberId, companyId: salonRetailSale.companyId, description: invoiceLineItem.description, unitPrice: invoiceLineItem.unitPrice })
+        .from(salonRetailSale).innerJoin(invoiceLineItem, eq(salonRetailSale.lineItemId, invoiceLineItem.id)).where(eq(salonRetailSale.invoiceId, invoiceId)).orderBy(asc(invoiceLineItem.sortOrder))
+    },
+    async after(tx: Tx, invoiceId: string, snapshot: unknown, rows: any[]): Promise<string | null> {
+      const snap = (snapshot as Array<{ productId: string; quantity: number; locationId: string | null; stylistId: string | null; stylistMemberId: string | null; companyId: string; description: string; unitPrice: string }>) || []
+      if (!snap.length) return null
+      const used = new Set<string>()
+      const matched: Array<{ s: (typeof snap)[number]; row: any; units: number }> = []
+      for (const s0 of snap) {
+        const row = rows.find((r) => !used.has(r.id) && r.description === s0.description && Number(r.unitPrice) === Number(s0.unitPrice))
+        if (!row) continue                                  // taken off in the form: its units are back on the shelf
+        used.add(row.id)
+        const units = Number(row.quantity)
+        if (!Number.isInteger(units) || units < 1 || units > MAX_UNITS_PER_LINE) return `${s0.description}: retail products are sold in whole units, 1 to ${MAX_UNITS_PER_LINE}.`
+        matched.push({ s: s0, row, units })
+      }
+      const ids = [...new Set(matched.map((m) => m.s.productId))].sort()
+      for (const id of ids) await lockRetailProduct(tx, snap[0].companyId, id)
+      for (const m of matched) {
+        if (m.units > m.s.quantity) {
+          const place = m.s.locationId ?? await defaultStockLocation(tx, m.s.companyId)
+          const have = (await retailOnHandAt(tx, m.s.companyId, place, [m.s.productId])).get(m.s.productId) ?? 0
+          // The old link is gone already, so what is on the shelf is what this sale may take.
+          if (m.units > have) return have > 0 ? `Only ${have} of ${m.s.description} on the shelf.` : `${m.s.description} is out of stock.`
+        }
+      }
+      for (const m of matched) {
+        await tx.update(invoiceLineItem).set({ type: 'retail' }).where(eq(invoiceLineItem.id, m.row.id))
+        await tx.insert(salonRetailSale).values({ companyId: m.s.companyId, productId: m.s.productId, invoiceId, lineItemId: m.row.id, quantity: m.units, locationId: m.s.locationId, stylistId: m.s.stylistId, stylistMemberId: m.s.stylistMemberId })
+      }
+      return null
+    },
+  }
+
+  return { list, createProduct, updateProduct, moveStock, sell, removeLine, history, placeIn, lineEdit }
 }
 export type SalonRetail = ReturnType<typeof createSalonRetail>
 
@@ -320,7 +416,7 @@ export function createSalonRetailRoutes(d: CrmDeps, r: SalonRetail) {
   app.post('/sell/new', mayStartSale, maySell, async (c) => {
     const u = c.get('user') as any
     const b = await body(c)
-    return act(c, 201, () => r.sell(u.companyId, { contactId: b.contactId, items: b.items }, u))
+    return act(c, 201, () => r.sell(u.companyId, { contactId: b.contactId, items: b.items, locationId: b.locationId, stylistId: b.stylistId, stylistMemberId: b.stylistMemberId }, u))
   })
   app.delete('/lines/:lineId', maySell, async (c) => {
     const u = c.get('user') as any

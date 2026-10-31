@@ -657,6 +657,60 @@ export const salonTerminalCharge = pgTable('salon_terminal_charge', {
   index('salon_terminal_charge_invoice_idx').on(t.invoiceId),
 ])
 
+/** Who the salon buys retail from. */
+export const salonSupplier = pgTable('salon_supplier', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  contactName: text('contact_name'),
+  email: text('email'),
+  phone: text('phone'),
+  notes: text('notes'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('salon_supplier_company_idx').on(t.companyId)])
+
+/** A place stock is kept (a shop, a back room). Every salon has a first one; stock moves and retail sales name theirs. */
+export const salonStockLocation = pgTable('salon_stock_location', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('salon_stock_location_company_idx').on(t.companyId)])
+
+/** A purchase order to a supplier: drafted (often from what is low), emailed, then received line by line into stock. */
+export const salonPurchaseOrder = pgTable('salon_purchase_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  supplierId: text('supplier_id').notNull().references(() => salonSupplier.id, { onDelete: 'restrict' }),
+  number: text('number').notNull(),
+  /** 'draft' | 'sent' | 'partial' | 'received' | 'cancelled' */
+  status: text('status').notNull().default('draft'),
+  /** Where received stock goes. */
+  locationId: text('location_id'),
+  note: text('note'),
+  sentAt: timestamp('sent_at'),
+  sentTo: text('sent_to'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_purchase_order_number_key').on(t.companyId, t.number),
+  index('salon_purchase_order_supplier_idx').on(t.supplierId),
+])
+
+export const salonPurchaseOrderLine = pgTable('salon_purchase_order_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => salonPurchaseOrder.id, { onDelete: 'cascade' }),
+  productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull(),
+  received: integer('received').notNull().default(0),
+  unitCostCents: integer('unit_cost_cents'),
+}, (t) => [
+  uniqueIndex('salon_purchase_order_line_key').on(t.purchaseOrderId, t.productId),
+])
+
 /** A retail product the salon sells off the shelf. Stock on hand is NOT stored: it is what came in less what sits on sales that stand (salonStockMove, salonRetailSale). */
 export const salonRetailProduct = pgTable('salon_retail_product', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -668,10 +722,17 @@ export const salonRetailProduct = pgTable('salon_retail_product', {
   costCents: integer('cost_cents'),
   /** On hand at or below this = low. Null = never flagged. */
   reorderAt: integer('reorder_at'),
+  /** How many to order when it runs low (a purchase order drafted from low stock proposes this). */
+  reorderQty: integer('reorder_qty'),
+  category: text('category'),
+  /** What a barcode scanner reads (UPC / EAN). The till and a count find the product by it. */
+  barcode: text('barcode'),
+  supplierId: text('supplier_id').references((): any => salonSupplier.id, { onDelete: 'set null' }),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('salon_retail_product_company_idx').on(t.companyId, t.active),
+  uniqueIndex('salon_retail_product_barcode_key').on(t.companyId, t.barcode),
 ])
 
 /** Stock in (+) and corrections (±) with who and why. Sales are not moves: they are salonRetailSale rows, so a void sale gives its stock back by itself. */
@@ -680,10 +741,17 @@ export const salonStockMove = pgTable('salon_stock_move', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
-  /** 'received' | 'adjust' */
+  /** 'received' | 'adjust' | 'transfer_out' | 'transfer_in' | 'returned' */
   kind: text('kind').notNull(),
   note: text('note'),
   byName: text('by_name'),
+  /** Where the stock is (null = the salon's first location). */
+  locationId: text('location_id'),
+  /** The two moves of one transfer share this. */
+  transferId: text('transfer_id'),
+  purchaseOrderId: text('purchase_order_id'),
+  /** A return to the shelf after a refund names the sale. */
+  invoiceId: text('invoice_id'),
   at: timestamp('at').defaultNow().notNull(),
 }, (t) => [
   index('salon_stock_move_product_idx').on(t.productId),
@@ -697,6 +765,11 @@ export const salonRetailSale = pgTable('salon_retail_sale', {
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
   lineItemId: text('line_item_id').notNull().references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
+  /** Where the units came off (null = the salon's first location). */
+  locationId: text('location_id'),
+  /** Who sold it when no visit names them (a walk-in): a login (user) or a roster stylist (team member). */
+  stylistId: text('stylist_id'),
+  stylistMemberId: text('stylist_member_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('salon_retail_sale_line_key').on(t.lineItemId),

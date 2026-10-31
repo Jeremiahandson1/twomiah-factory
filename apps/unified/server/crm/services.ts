@@ -93,6 +93,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // A way of paying that a refund puts back where it came from (the salon's gift card): the module hands in what puts the money back,
   // run inside the refund's own transaction (packages/tenant-backend InvoiceOptions.refundTender). Until one registers, a refund by it is refused.
   const tenderRefunds = new Map<string, (tx: any, invoice: any, amount: number) => Promise<string | null>>()
+  let lineEditHook: { before: (tx: any, invoiceId: string) => Promise<unknown>; after: (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => Promise<string | null> } | null = null
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
@@ -295,6 +296,12 @@ export function createCrmServices(deps: CrmServiceDeps) {
     creditTender: async (method: string, tx: any, invoice: any, amount: number) => {
       const doer = tenderRefunds.get(method)
       return doer ? doer(tx, invoice, amount) : 'This way of paying cannot be refunded here.'
+    },
+    /** What a vertical hangs on an invoice line (the salon's retail product link) survives the general invoice edit: the module hands in its snapshot/restore. */
+    useLineEdit(h: { before: (tx: any, invoiceId: string) => Promise<unknown>; after: (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => Promise<string | null> }) { lineEditHook = h },
+    lineEdit: {
+      before: async (tx: any, invoiceId: string) => (lineEditHook ? lineEditHook.before(tx, invoiceId) : undefined),
+      after: async (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => (lineEditHook ? lineEditHook.after(tx, invoiceId, snapshot, rows) : null),
     },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {

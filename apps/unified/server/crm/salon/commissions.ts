@@ -10,7 +10,7 @@
 // Rows are the trades' own `commission` rows, so approve, pay, void, reassign, the list and the statement are the shared ones.
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, sum } from 'drizzle-orm'
 import { commissionFor, planPeople } from '@twomiah/tenant-backend'
-import { appointment, appointmentItem, commission, commissionPlan, invoice, invoiceLineItem, user } from '../../db/schema/index.ts'
+import { appointment, appointmentItem, commission, commissionPlan, invoice, invoiceLineItem, salonRetailSale, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn, salonDayStart, createSalonClock } from './days.ts'
 
@@ -38,9 +38,12 @@ export function createSalonCommissions(d: CrmDeps) {
   const plansFor = (companyId: string) => db.select().from(commissionPlan).where(and(eq(commissionPlan.companyId, companyId), eq(commissionPlan.isActive, true)))
 
   /** What each stylist sold on this bill, by kind, after the bill's discount, before tax. */
-  async function salesOf(inv: typeof invoice.$inferSelect, appt: typeof appointment.$inferSelect) {
+  async function salesOf(inv: typeof invoice.$inferSelect, appt: typeof appointment.$inferSelect | null) {
     const lines = await db.select().from(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, inv.id)).orderBy(asc(invoiceLineItem.sortOrder))
-    const items = await db.select().from(appointmentItem).where(and(eq(appointmentItem.appointmentId, appt.id), eq(appointmentItem.companyId, appt.companyId))).orderBy(asc(appointmentItem.position))
+    const items = appt ? await db.select().from(appointmentItem).where(and(eq(appointmentItem.appointmentId, appt.id), eq(appointmentItem.companyId, appt.companyId))).orderBy(asc(appointmentItem.position)) : []
+    // A retail product sold naming a stylist (a walk-in, or on a visit) earns for THAT stylist (salon_retail_sale.stylist_id).
+    const named = new Map<string, string>((await db.select({ lineId: salonRetailSale.lineItemId, stylistId: salonRetailSale.stylistId }).from(salonRetailSale).where(eq(salonRetailSale.invoiceId, inv.id)))
+      .filter((r: any) => r.stylistId).map((r: any) => [r.lineId, r.stylistId]))
     const gross = lines.reduce((t: number, l: any) => t + Number(l.total || 0), 0)
     const net = Math.max(0, Number(inv.subtotal ?? gross) - Number(inv.discount ?? 0))
     const factor = gross > 0 ? net / gross : 0
@@ -57,8 +60,9 @@ export function createSalonCommissions(d: CrmDeps) {
     let seen = 0
     for (const l of lines as any[]) {
       const kind = kindOfLine(l.type)
-      let stylist = appt.stylistId
-      if (kind === 'services' && byItem) stylist = items[seen++]?.stylistId || appt.stylistId
+      let stylist: string | null = appt?.stylistId ?? null
+      if (kind === 'services' && byItem) stylist = items[seen++]?.stylistId || stylist
+      if (kind === 'retail' && named.has(l.id)) stylist = named.get(l.id)!
       add(stylist, kind, Number(l.total || 0) * factor)
     }
     return out
@@ -80,7 +84,12 @@ export function createSalonCommissions(d: CrmDeps) {
   async function earnForInvoice(invoiceId: string): Promise<{ earned: number; cancelled: number; reversed: number }> {
     const out = { earned: 0, cancelled: 0, reversed: 0 }
     const [inv] = await db.select().from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
-    if (!inv || !inv.appointmentId || !(await d.features.isFeatureEnabled(inv.companyId, SALON_COMMISSIONS))) return out
+    if (!inv || !(await d.features.isFeatureEnabled(inv.companyId, SALON_COMMISSIONS))) return out
+    // A bill with no visit earns only for retail that names a stylist.
+    if (!inv.appointmentId) {
+      const [named] = await db.select({ id: salonRetailSale.id }).from(salonRetailSale).where(and(eq(salonRetailSale.invoiceId, inv.id), isNotNull(salonRetailSale.stylistId))).limit(1)
+      if (!named) return out
+    }
 
     if (inv.status === 'paid' && inv.paidAt) {
       const paidAt = new Date(inv.paidAt)
@@ -89,8 +98,8 @@ export function createSalonCommissions(d: CrmDeps) {
         && p.autoSince && new Date(p.autoSince) <= paidAt
         && (!p.effectiveFrom || new Date(p.effectiveFrom) <= paidAt) && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
       if (!plans.length) return out
-      const [appt] = await db.select().from(appointment).where(and(eq(appointment.id, inv.appointmentId), eq(appointment.companyId, inv.companyId))).limit(1)
-      if (!appt) return out
+      const [appt] = inv.appointmentId ? await db.select().from(appointment).where(and(eq(appointment.id, inv.appointmentId), eq(appointment.companyId, inv.companyId))).limit(1) : [null]
+      if (!appt && inv.appointmentId) return out
       const sales = await salesOf(inv, appt)
       for (const [stylistId, sold] of sales) {
         const [person] = await db.select({ id: user.id }).from(user).where(and(eq(user.id, stylistId), eq(user.companyId, inv.companyId))).limit(1)

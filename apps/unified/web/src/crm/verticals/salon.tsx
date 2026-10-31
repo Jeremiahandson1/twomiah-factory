@@ -20,6 +20,7 @@ const IntakeFormsSettingsPage = page(() => import('../pages/salon/IntakeFormsSet
 const SalonReportsPage = page(() => import('../pages/salon/SalonReportsPage'))
 const GiftCardsPage = page(() => import('../pages/salon/GiftCards'))
 const RetailPage = page(() => import('../pages/salon/RetailPage'))
+const RetailStockPage = page(() => import('../pages/salon/RetailStock'))
 const CardReadersSettingsPage = page(() => import('../pages/salon/ChairCheckout'))
 const AutomaticMessagesSettingsPage = page(() => import('../pages/salon/AutomaticMessagesSettingsPage'))
 
@@ -41,6 +42,7 @@ export const routes: ReactElement[] = [
   <Route key="salon-reports" path="client-reports" element={<SalonReportsPage />} />,
   <Route key="salon-gift-cards" path="gift-cards" element={<GiftCardsPage />} />,
   <Route key="salon-retail" path="retail" element={<RetailPage />} />,
+  <Route key="salon-retail-stock" path="retail/stock" element={<RetailStockPage />} />,
   <Route key="salon-card-readers-settings" path="settings/card-readers" element={<CardReadersSettingsPage />} />,
   <Route key="salon-time-off" path="time-off" element={<TimeOffPage />} />,
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,

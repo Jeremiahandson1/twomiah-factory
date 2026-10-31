@@ -6,7 +6,7 @@
 // The phone app never takes a card: the card is tapped on the reader. Every right is also checked by the server.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Loader2, ShoppingBag, Trash2 } from 'lucide-react'
+import { CreditCard, Loader2, ScanLine, ShoppingBag, Trash2 } from 'lucide-react'
 import { api, useAuth, useToast, usePermissions, useConfirm, usePrompt, money } from '../../../shared'
 import { Button, inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
 
@@ -196,6 +196,7 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
   const [qty, setQty] = useState('1')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
+  const [code, setCode] = useState('')
   const on = hasFeature('salon_retail') && known && (can('invoices:update') || can('retail:sell')) && !CLOSED.has(status)
   const load = useCallback(() => { api.get('/api/salon-retail').then((r: { products: Product[] }) => setProducts(r.products)).catch(() => setProducts([])) }, [])
   useEffect(() => { if (on) load() }, [on, load])
@@ -207,6 +208,16 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
     try { await api.post('/api/salon-retail/sell', { invoiceId, items: [{ productId, quantity: Number(qty) || 1 }] }); toast.success('Added to the sale'); setQty('1'); load(); reload?.() }
     catch (e: any) { setProblem(e?.message || 'That could not be added.') } finally { setBusy(false) }
   }
+  // A keyboard / USB scanner types the barcode and presses Enter: the product it finds is put on the sale (one unit; scan again for another).
+  const scanOn = async () => {
+    const c = code.trim(); if (!c) return
+    setBusy(true); setProblem('')
+    try {
+      const r = await api.get(`/api/salon-retail-stock/scan?code=${encodeURIComponent(c)}`)
+      await api.post('/api/salon-retail/sell', { invoiceId, items: [{ productId: r.product.id, quantity: 1 }] })
+      toast.success(`${[r.product.brand, r.product.name].filter(Boolean).join(' ')} added`); load(); reload?.()
+    } catch (e: any) { setProblem(e?.message || 'That could not be added.') } finally { setBusy(false); setCode('') }
+  }
   const remove = async (lineId: string) => {
     setBusy(true); setProblem('')
     try { await api.delete(`/api/salon-retail/lines/${lineId}`); toast.success('Taken off the sale'); load(); reload?.() }
@@ -216,6 +227,7 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
   return (
     <section aria-label="Sell retail" className={box} data-testid="retail-panel">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><ShoppingBag className="h-4 w-4 text-teal-700 dark:text-teal-300" aria-hidden="true" />Sell retail</h2>
+      <div className="relative mt-2"><ScanLine className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-500 dark:text-slate-300" aria-hidden="true" /><input aria-label="Scan a barcode" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void scanOn() } }} placeholder="Scan a barcode to add it" className={inputCls + ' pl-9'} disabled={busy} /></div>
       {products === null ? <Loader2 className="mt-2 h-5 w-5 animate-spin text-gray-500" /> : inStock.length === 0 ? <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{products.length ? 'Everything is out of stock.' : 'No retail products yet.'}</p> : (
         <div className="mt-2 flex flex-wrap items-end gap-2 text-sm text-gray-900 dark:text-slate-100">
           <label className="min-w-0 flex-1">Product<select value={productId} onChange={(e) => setProductId(e.target.value)} className={inputCls + ' mt-1'}><option value="">Choose…</option>{inStock.map((p) => <option key={p.id} value={p.id}>{[p.brand, p.name].filter(Boolean).join(' ')} — {cents(p.priceCents)} ({p.onHand} left)</option>)}</select></label>
@@ -229,6 +241,42 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
           {retailLines.map((l) => <li key={l.id} className="flex items-center justify-between gap-2 py-1.5"><span>{l.quantity} × {l.description}</span><button type="button" aria-label={`Take ${l.description} off the sale`} onClick={() => remove(l.id)} disabled={busy} className="rounded p-1 text-gray-600 hover:text-red-700 dark:text-slate-300"><Trash2 className="h-4 w-4" aria-hidden="true" /></button></li>)}
         </ul>
       )}
+    </section>
+  )
+}
+
+/**
+ * After a refund: the retail products on the sale, and a choice of which units go back on the shelf (a returned bottle may not be fit to resell).
+ * The server refuses more than were sold, anything before a refund, and a second return of the same unit.
+ */
+export function ReturnToShelfPanel({ invoiceId, refunded, reload }: { invoiceId: string; refunded: boolean; reload?: () => void }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const [lines, setLines] = useState<Array<{ productId: string; name: string; sold: number; returned: number; canReturn: number }> | null>(null)
+  const [qty, setQty] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  const on = hasFeature('salon_retail') && known && (can('payments:delete') || can('inventory:update')) && refunded
+  const load = useCallback(() => { api.get(`/api/salon-retail-stock/sales/${invoiceId}/retail`).then((r: { lines: NonNullable<typeof lines> }) => setLines(r.lines)).catch(() => setLines([])) }, [invoiceId])
+  useEffect(() => { if (on) load() }, [on, load])
+  if (!on || !lines || !lines.length) return null
+  const go = async () => {
+    const items = lines.filter((l) => Number(qty[l.productId]) > 0).map((l) => ({ productId: l.productId, quantity: Number(qty[l.productId]) }))
+    if (!items.length) { setProblem('Say how many go back on the shelf.'); return }
+    setBusy(true); setProblem('')
+    try { const r = await api.post(`/api/salon-retail-stock/sales/${invoiceId}/return-to-shelf`, { items }); setLines(r.lines); setQty({}); toast.success('Back on the shelf'); reload?.() }
+    catch (e: any) { setProblem(e?.message || 'That did not save.') } finally { setBusy(false) }
+  }
+  return (
+    <section aria-label="Put units back on the shelf" className={box} data-testid="return-shelf-panel">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><ShoppingBag className="h-4 w-4 text-teal-700 dark:text-teal-300" aria-hidden="true" />Put units back on the shelf?</h2>
+      <p className="mt-1 text-xs text-gray-700 dark:text-slate-300">A refund does not change the shelf count by itself. Choose what is fit to sell again.</p>
+      <ul className="mt-2 divide-y divide-gray-100 text-sm text-gray-900 dark:divide-slate-800 dark:text-slate-100">
+        {lines.map((l) => <li key={l.productId} className="flex items-center justify-between gap-2 py-1.5"><span>{l.name}<span className="block text-xs text-gray-600 dark:text-slate-400">{l.sold} sold · {l.returned} back on the shelf</span></span>{l.canReturn > 0 ? <input inputMode="numeric" aria-label={`Back on the shelf: ${l.name}`} value={qty[l.productId] || ''} onChange={(e) => setQty((p) => ({ ...p, [l.productId]: e.target.value }))} placeholder={`0–${l.canReturn}`} className={inputCls + ' w-24'} /> : <span className="text-xs">All back</span>}</li>)}
+      </ul>
+      {problem && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{problem}</p>}
+      <Button className="mt-2" variant="secondary" onClick={go} disabled={busy}>Put back on the shelf</Button>
     </section>
   )
 }

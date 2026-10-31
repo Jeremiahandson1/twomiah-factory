@@ -96,6 +96,15 @@ export interface InvoiceOptions {
    */
   refundTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
   /**
+   * The general invoice edit rewrites every line. A vertical that hangs something on a line (the salon's retail product link) takes a
+   * snapshot of it BEFORE the lines are replaced and puts it back on the new rows AFTER, inside the same transaction. `after` returns a
+   * reason to refuse the edit (nothing is saved) or null.
+   */
+  lineEdit?: {
+    before: (tx: any, invoiceId: string) => Promise<unknown>
+    after: (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => Promise<string | null>
+  }
+  /**
    * A condition on the invoice table that is TRUE for an invoice that counts as revenue. An invoice that fails it still lists, opens
    * and takes payments as any other, but its money is left out of the list's money totals (/stats: totalAmount, paidAmount,
    * outstanding, refundedAmount) — the salon passes "not the sale of a gift card", because a card sold is a liability and its money
@@ -920,14 +929,23 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       // ever counted it.
       update.paidAt = update.status === 'paid' ? (existing.paidAt ?? new Date()) : (update.status === 'partial' ? null : existing.paidAt ?? null)
     }
+    let refusedEdit: string | null = null
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.invoice).set(update).where(eq(t.invoice.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {
+        const lineEdit = deps.options?.lineEdit
+        const snapshot = lineEdit ? await lineEdit.before(tx, id) : undefined
         items = await replaceInvoiceLines(tx, t, id, data.lineItems)
+        if (lineEdit) {
+          refusedEdit = await lineEdit.after(tx, id, snapshot, items)
+          if (refusedEdit) throw new Error('LINE_EDIT_REFUSED')
+          items = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
+        }
       } else items = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
       return { ...updated, lineItems: items }
-    })
+    }).catch((e: any) => { if (refusedEdit) return null; throw e })
+    if (refusedEdit || !result) return c.json({ error: refusedEdit || 'That edit could not be saved.' }, 409)
     emitToCompany(cid, EVENTS.INVOICE_UPDATED, result)
     // The BEFORE total as well as the after: "edited INV-00204" says nothing, "900.00 → 125.50" does.
     logMoney(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', result, { totalBefore: money2(existing.total) })

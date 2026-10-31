@@ -24,6 +24,7 @@ import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
 import { createGiftShop } from './giftShop.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
+import { createRetailStock, createRetailStockRoutes } from './retailStock.ts'
 import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
 import { createLateTips } from './lateTip.ts'
 import { createSaleReceipts } from './saleReceipt.ts'
@@ -35,6 +36,7 @@ import { createCardOnFileRoutes } from './cardOnFile.ts'
 import { createMemberCardRoutes } from './cardPages.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
+import { asc } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { pricesOnlyForMoneySeats } from './prices.ts'
 import { canSeeWith } from '../deps.ts'
@@ -78,6 +80,23 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     const tick = () => settleMembershipsForAll(d)
     setTimeout(() => { void tick() }, 5 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
+  })
+  // Retail: products, stock by place, suppliers and purchase orders (retail.ts, retailStock.ts). A product reaching its level emails the salon.
+  const retailStock = createRetailStock(d)
+  const retail = createSalonRetail(d, s, { afterChange: (companyId) => { void retailStock.alertLow(companyId) } })
+  d.services.useLineEdit?.(retail.lineEdit)
+  ;(d.services as any).retailStockJobs = { alertLow: retailStock.alertLow, weeklySummary: retailStock.weeklySummary }
+  // Timed: products at their level that nobody was told about yet (a stock change from outside a sale), and the Monday summary. Boot only, never in tests.
+  d.services.addJob(() => {
+    const tick = async () => {
+      try {
+        const [co] = await d.db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
+        if (!co) return
+        await retailStock.alertLow(co.id); await retailStock.weeklySummary(co.id)
+      } catch (e: any) { d.logger.warn('[salon-retail] timed pass failed', { error: e?.message }) }
+    }
+    setTimeout(() => { void tick() }, 5 * 60_000)
+    setInterval(() => { void tick() }, 15 * 60_000)
   })
   // Stylist commissions: the stylist of a paid visit earns by themselves (not ready: owner tests it first).
   const retention = createRetention(d, s)
@@ -128,7 +147,8 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     // Client retention, rebook-rate and retail reports (not ready: owner tests it first).
     { path: '/api/salon-reports', access: 'user', feature: 'salon_reports', router: createSalonReportRoutes(d, createSalonReports(d)) } as Mount,
     // Retail products with stock, sold onto a sale (not ready: owner tests it first).
-    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
+    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, retail) } as Mount,
+    { path: '/api/salon-retail-stock', access: 'user', feature: 'salon_retail', router: createRetailStockRoutes(d, retailStock) } as Mount,
     // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
     { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts, afterPaid: giftCards.activateRecorded })) } as Mount,
     // The receipt's private tip page (404 while Checkout at the chair is off).

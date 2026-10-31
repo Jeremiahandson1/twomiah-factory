@@ -355,6 +355,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
       // A gift card's sale is not revenue (data/salon.ts notGiftCardSale): the list's money totals leave it out, as Reports do.
       ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
+      // The salon's retail product link survives a general invoice edit (crm/salon/retail.ts lineEdit).
+      ...(v.invoices?.giftCardTender ? { lineEdit: s.lineEdit } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
