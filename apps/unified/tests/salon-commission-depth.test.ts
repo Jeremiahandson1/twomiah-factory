@@ -286,7 +286,7 @@ describe('salon: commission depth — through the app', () => {
     await made({ name: 'Chi services 35', salesKind: 'services', percentRate: 35, userIds: [chi] })
     await made({ name: 'Chi retail 10', salesKind: 'retail', percentRate: 10, userIds: [chi] })
     const bill = await visit(colour, chi)                                                                   // the visit's stylist is Chi, who has no login
-    expect((await t.db.select().from(t.schema.appointment).where(eq(t.schema.appointment.id, (await invoiceOf(bill)).appointmentId)))[0].stylistMemberId).toBe(chi)
+    expect((await t.db.select().from(t.schema.appointment).where(eq(t.schema.appointment.id, String((await invoiceOf(bill)).appointmentId))))[0].stylistMemberId).toBe(chi)
     await pay(bill)
     expect(await rowsOf(chi, bill)).toEqual([[200, 70, 'Chi services 35']])                                  // 35% of 200
     const walkIn = await as('owner', '/api/salon-retail/sell/new', 'POST', { items: [{ productId: mask, quantity: 1 }], stylistMemberId: chi })
