@@ -5,7 +5,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Plus, Lock } from 'lucide-react'
 import { companyDayKey, companyMinutes, companyMoment, whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
-import { PX_PER_MIN, piecesFor, gridRange, lanes, movedStart, resizedEnd, columnAt, hhmm, serviceHue, snap, type Piece } from './bookGridMath'
+import { piecesFor, gridRange, lanes, movedStart, resizedEnd, columnAt, hhmm, serviceHue, snap, type Piece } from './bookGridMath'
+import { pxPerMinFor, DEFAULT_SLOT_MIN } from './bookViews'
 
 export interface GridItem { id: string; serviceName?: string; stylistId?: string | null; stylistFirstName?: string; startOffsetMin: number; durationMin: number; processingAfterMin?: number | null; processingMin?: number | null }
 export interface GridAppt {
@@ -65,8 +66,10 @@ function fill(cols: GridColumn[], appts: GridAppt[], blocks: GridBlock[], weekMo
   return { cards, blocked }
 }
 
-export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove, mayBook, onPick, onMove, onResize, onEmptySlot, onBlock }: {
+export default function BookGrid({ cols, appts, blocks, weekMode, today, slotMin = DEFAULT_SLOT_MIN, mayMove, mayBook, onPick, onMove, onResize, onEmptySlot, onBlock }: {
   cols: GridColumn[]; appts: GridAppt[]; blocks: GridBlock[]; weekMode: boolean; today: string
+  /** Minutes per time slot (5, 10, 15, 30): how tall the grid is drawn, and the step a drag moves by. */
+  slotMin?: number
   mayMove: boolean; mayBook: boolean
   onPick: (a: GridAppt) => void
   onMove: (a: GridAppt, to: { start: Date; end: Date; stylistId?: string; itemised: boolean }) => void
@@ -74,6 +77,7 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
   onEmptySlot: (col: GridColumn, startMin: number) => void
   onBlock: (b: GridBlock) => void
 }) {
+  const PX_PER_MIN = pxPerMinFor(slotMin)
   const { cards, blocked } = useMemo(() => fill(cols, appts, blocks, weekMode), [cols, appts, blocks, weekMode])
   const range = useMemo(() => {
     const spans: Array<{ start: number; end: number }> = []
@@ -83,6 +87,8 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
   }, [cards, blocked])
   const height = (range.to - range.from) * PX_PER_MIN
   const hours = Array.from({ length: (range.to - range.from) / 60 + 1 }, (_, i) => range.from + i * 60)
+  // a faint line for every slot, a firmer one on the hour
+  const slotLines = Array.from({ length: Math.floor((range.to - range.from) / slotMin) + 1 }, (_, i) => range.from + i * slotMin)
   const colRefs = useRef<Array<HTMLDivElement | null>>([])
   const [drag, setDrag] = useState<null | { card: Card; mode: 'move' | 'resize'; y0: number; moved: boolean; start: number; end: number; col: number; from: number }>(null)
 
@@ -98,8 +104,8 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
       if (!cur.moved && Math.abs(dy) < 4 && Math.abs(ev.clientX - e.clientX) < 4) return
       const spans = colRefs.current.map((el) => { const r = el?.getBoundingClientRect(); return { left: r?.left ?? 0, right: r?.right ?? 0 } })
       cur = mode === 'move'
-        ? { ...cur, moved: true, start: movedStart(card.start, card.end - card.start, dy), end: 0, col: columnAt(ev.clientX, spans) }
-        : { ...cur, moved: true, end: resizedEnd(card.start, card.end, dy) }
+        ? { ...cur, moved: true, start: movedStart(card.start, card.end - card.start, dy, PX_PER_MIN, slotMin), end: 0, col: columnAt(ev.clientX, spans) }
+        : { ...cur, moved: true, end: resizedEnd(card.start, card.end, dy, PX_PER_MIN, slotMin) }
       if (mode === 'move') cur.end = cur.start + (card.end - card.start)
       setDrag(cur)
     }
@@ -148,9 +154,9 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
                 onClick={(e) => {
                   if (!mayBook || e.target !== e.currentTarget) return
                   const r = e.currentTarget.getBoundingClientRect()
-                  onEmptySlot(col, Math.max(range.from, Math.min(range.to - 15, snap(range.from + (e.clientY - r.top) / PX_PER_MIN, 15))))
+                  onEmptySlot(col, Math.max(range.from, Math.min(range.to - slotMin, snap(range.from + (e.clientY - r.top) / PX_PER_MIN, slotMin))))
                 }}>
-                {hours.map((h) => <div key={h} className="pointer-events-none absolute inset-x-0 border-t border-gray-100 dark:border-slate-800" style={{ top: (h - range.from) * PX_PER_MIN }} />)}
+                {slotLines.map((m) => <div key={m} className={`pointer-events-none absolute inset-x-0 border-t ${m % 60 === 0 ? 'border-gray-200 dark:border-slate-700' : 'border-gray-100 border-dotted dark:border-slate-800'}`} style={{ top: (m - range.from) * PX_PER_MIN }} />)}
                 {(blocked.get(col.key) || []).map(({ b, start, end }) => (
                   <button key={b.id + col.key} type="button" onClick={() => mayMove && onBlock(b)} disabled={!mayMove}
                     className="absolute inset-x-0 z-10 overflow-hidden border-y border-gray-300 px-1 text-left text-[11px] text-gray-600 dark:border-slate-600 dark:text-slate-300"
@@ -196,7 +202,7 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, mayMove
         })}
       </div>
       <p className="border-t px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
-        {mayMove ? 'Drag a card to move it, drag its bottom edge to change its length. ' : ''}Hatched colour is processing time — the stylist is free. Grey bars are blocked time.
+        {mayMove ? `Drag a card to move it, drag its bottom edge to change its length — in steps of ${slotMin} minutes. ` : ''}Hatched colour is processing time — the stylist is free. Grey bars are blocked time.
       </p>
     </div>
   )

@@ -10,6 +10,7 @@ import { useToast, usePermissions, useAuth } from '../../../shared'
 import { roleWord } from '../../viewAs'
 import type { BookScope } from './bookScope'
 import BlockTypesSection from './BlockTypesSection'
+import TeamOrderSection from './TeamOrderSection'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -125,6 +126,7 @@ export default function BookSettingsPage() {
         </p>
       </section>
 
+      {hasFeature('book_grid') && <TeamOrderSection />}
       {hasFeature('book_grid') && <BlockTypesSection mayEdit={mayEdit} />}
 
       {pick !== null && (

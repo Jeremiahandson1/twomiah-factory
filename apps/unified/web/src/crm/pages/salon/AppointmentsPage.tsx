@@ -12,10 +12,12 @@ import { useToast } from '../../../shared'
 import { useConfirm, useMayWrite, useAuth, usePermissions } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
-import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
+import { isDayComplete, weekHeading, byDay } from './bookWeek'
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
 import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
 import BookGrid, { type GridColumn, type GridBlock } from './BookGrid'
+import BookMonth from './BookMonth'
+import { spanDays, shiftSpan, spanBounds, spanHeading, asSlot, SLOT_CHOICES, DEFAULT_SLOT_MIN, type BookSpan } from './bookViews'
 import { addMinutesToWall } from './blockRepeatForm'
 
 /**
@@ -124,11 +126,17 @@ export default function AppointmentsPage() {
   const [day, setDay] = useState<string>(todayStr());
   const { hasFeature } = useAuth();
   const gridOn = hasFeature('book_grid');
-  const [view, setView] = useState<'day' | 'week' | 'grid'>('day');
+  const [view, setView] = useState<'day' | 'three' | 'week' | 'month' | 'grid'>('day');
+  // The grid with a stylist picked shows her days: a week, or three.
+  const [gridSpan, setGridSpan] = useState<'week' | 'three'>('week');
+  // The slot the grid is drawn and dragged in, kept for this login on the server (/api/book-blocks/preferences).
+  const [slotMin, setSlotMin] = useState<number>(DEFAULT_SLOT_MIN);
   // One chair's book, or everyone's (''): the stylists come from the appointments on screen, roster-only ones included.
   const [stylistFilter, setStylistFilter] = useState<string>('');
   // The grid shows one stylist's week when a stylist is picked, else the day with a column per stylist.
-  const weekish = view === 'week' || (view === 'grid' && !!stylistFilter);
+  const span: BookSpan = view === 'grid' ? (stylistFilter ? gridSpan : 'day') : view;
+  // Columns (or cards) are days: three days or a week.
+  const weekish = span === 'week' || span === 'three';
   const [blocks, setBlocks] = useState<GridBlock[]>([]);
   const [blockFor, setBlockFor] = useState<null | { block?: GridBlock; stylistId?: string; date?: string; start?: string }>(null);
   const [newAt, setNewAt] = useState<null | { stylistId?: string; date?: string; time?: string }>(null);
@@ -144,9 +152,14 @@ export default function AppointmentsPage() {
   // The heading for the day whose rows are actually on screen — held while a new date is being typed.
   const [shownHeading, setShownHeading] = useState<string>(() => dayHeading(todayStr(), todayStr()) ?? "Today's chairs");
   useEffect(() => {
-    const h = weekish ? weekHeading(day) : dayHeading(day, todayStr());
+    const h = span === 'week' ? weekHeading(day) : span === 'day' ? dayHeading(day, todayStr()) : spanHeading(span, day);
     if (h) setShownHeading(h);
-  }, [day, weekish]);
+  }, [day, span]);
+  useEffect(() => { if (gridOn) api.get('/api/book-blocks/preferences').then((r) => setSlotMin(asSlot(r?.slotMin))).catch(() => {}); }, [gridOn]);
+  const chooseSlot = (v: string) => {
+    const n = asSlot(v); setSlotMin(n);
+    api.put('/api/book-blocks/preferences', { slotMin: n }).catch((e) => toast.error((e as Error).message || 'Could not remember the time slot'));
+  };
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
@@ -166,7 +179,7 @@ export default function AppointmentsPage() {
     if (!isDayComplete(day)) return;
     setLoading(true);
     try {
-      const { from, to } = viewBounds(weekish ? 'week' : 'day', day);
+      const { from, to } = spanBounds(span, day);
       const res = await api.get(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const rows: Appointment[] = res.data || [];
       rows.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
@@ -180,7 +193,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [day, weekish, view, gridOn]);
+  }, [day, span, view, gridOn]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -210,11 +223,14 @@ export default function AppointmentsPage() {
     }
   };
 
+  // The team's order is the salon's own (Settings › The Book › Team order): /api/team/assignable already sends it in that order, so the
+  // people it names come first, in its order; anyone else with a booking on screen follows by name.
+  const teamRank = (id: string) => { const i = staff.findIndex((u) => u.id === id); return i < 0 ? staff.length : i; };
   // The picker: who holds a chair (the same list the booking form offers), and anyone else with a booking on screen.
   const stylists = Array.from(new Map([
     ...staff.map((u) => [u.id, staffName(u)] as [string, string]),
     ...appts.filter((a) => a.stylistId).map((a) => [a.stylistId as string, stylistName(a) || 'Stylist'] as [string, string]),
-  ]).entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  ]).entries()).sort((a, b) => teamRank(a[0]) - teamRank(b[0]) || a[1].localeCompare(b[1]));
   const shown = stylistFilter ? appts.filter((a) => a.stylistId === stylistFilter) : appts;
 
   const booked = shown.filter((a) => !CLOSED.has(a.status || 'scheduled')).length;
@@ -270,10 +286,11 @@ export default function AppointmentsPage() {
   const clientLink = (a: Appointment) => a.contactId
     ? <Link to={`/crm/clients/${a.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{a.clientName || 'Client'}</Link>
     : <>{a.clientName || 'Walk-in'}</>;
-  const days = weekOf(isDayComplete(day) ? day : todayStr());
+  const days = spanDays(span === 'three' ? 'three' : 'week', isDayComplete(day) ? day : todayStr());
   const week = byDay(shown, days);
   const today = todayStr();
-  const heading = weekish ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+  const heading = span === 'week' ? (weekHeading(day) ?? shownHeading) : span === 'day' ? (dayHeading(day, today) ?? shownHeading) : (spanHeading(span, day) ?? shownHeading);
+  const spanName = span === 'three' ? '3 days' : span === 'month' ? 'month' : span;
 
   // The grid's columns: a day is a column per stylist (and one for unassigned bookings, if any); a stylist's week is a column per day.
   const gridCols: GridColumn[] = weekish
@@ -329,24 +346,39 @@ export default function AppointmentsPage() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Show the book by">
-          {([...(['day', 'week'] as const), ...(gridOn ? (['grid'] as const) : [])]).map((v) => (
+          {([...(gridOn ? (['day', 'three', 'week', 'month', 'grid'] as const) : (['day', 'week'] as const))]).map((v) => (
             <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === v ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-              {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Grid'}
+              {v === 'day' ? 'Day' : v === 'three' ? '3 days' : v === 'week' ? 'Week' : v === 'month' ? 'Month' : 'Grid'}
             </button>
           ))}
         </div>
-        {(weekish || view === 'grid') && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? -7 : -1))} aria-label={weekish ? 'Previous week' : 'Previous day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
+        {(span !== 'day' || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(shiftSpan(span, day, -1))} aria-label={`Previous ${spanName}`} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
         )}
         <div className="relative">
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={weekish ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={span === 'day' ? 'Day to show' : `A day in the ${spanName} to show`} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        {(weekish || view === 'grid') && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? 7 : 1))} aria-label={weekish ? 'Next week' : 'Next day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
+        {(span !== 'day' || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(shiftSpan(span, day, 1))} aria-label={`Next ${spanName}`} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
         )}
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
+        {view === 'grid' && (
+          <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">Time slots
+            <select value={slotMin} onChange={(e) => chooseSlot(e.target.value)} aria-label="Time slot length" className="px-2 py-2 border rounded-lg text-sm">
+              {SLOT_CHOICES.map((m) => <option key={m} value={m}>{m} min</option>)}
+            </select>
+          </label>
+        )}
+        {view === 'grid' && stylistFilter && (
+          <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">Days
+            <select value={gridSpan} onChange={(e) => setGridSpan(e.target.value === 'three' ? 'three' : 'week')} aria-label="Days shown" className="px-2 py-2 border rounded-lg text-sm">
+              <option value="week">Week</option>
+              <option value="three">3 days</option>
+            </select>
+          </label>
+        )}
         {scope.ownOnly ? (
           <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200"><User className="w-4 h-4" /> Your appointments</span>
         ) : (
@@ -366,15 +398,17 @@ export default function AppointmentsPage() {
         </div>
       ) : view === 'grid' ? (
         <BookGrid
-          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today}
+          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today} slotMin={slotMin}
           mayMove={mayMove} mayBook={mayBook}
           onPick={(a) => setPicked(a as Appointment)}
           onMove={moveOnGrid} onResize={resizeOnGrid}
           onEmptySlot={(col, startMin) => setNewAt({ stylistId: col.stylistId, date: weekish ? col.day : day, time: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` })}
           onBlock={(b) => { if (b.kind && b.kind !== 'block') navigate('/crm/time-off'); else setBlockFor({ block: b }); }}
         />
-      ) : view === 'week' ? (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+      ) : view === 'month' ? (
+        <BookMonth day={isDayComplete(day) ? day : todayStr()} appts={shown} today={today} onOpenDay={(d) => { setDay(d); setView('day'); }} onPick={(a) => setPicked(a as Appointment)} />
+      ) : view === 'week' || view === 'three' ? (
+        <div className={`grid grid-cols-1 gap-2 ${view === 'three' ? 'md:grid-cols-3' : 'md:grid-cols-7'}`}>
           {days.map((d) => (
             <section key={d} aria-label={dateWords(d, { weekday: 'long', month: 'long', day: 'numeric' })} className="bg-white rounded-xl border min-w-0 dark:bg-slate-900">
               {/* A day's heading opens that day in the day view, where the whole row of each booking is. */}

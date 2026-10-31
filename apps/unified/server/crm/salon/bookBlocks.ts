@@ -14,6 +14,7 @@ import { isOwnChair, type OwnChair } from './bookScope.ts'
 import type { SalonServices } from './services.ts'
 import { expandRepeat, repeatRefusal, type RepeatRule } from './bookRepeat.ts'
 import { createTimeOffRoutes, findOff, offSpans } from './timeOff.ts'
+import { createBookLayoutRoutes } from './bookLayout.ts'
 
 const MAX_BLOCK_MS = 14 * 86400_000     // a fortnight's holiday; longer is a mistake
 const MAX_REPEAT_WEEKS = 26
@@ -113,6 +114,7 @@ export function createBookBlockRoutes(d: CrmDeps, salon: SalonServices) {
 
   // Team time off, closed periods and the paid/unpaid hours report (timeOff.ts): /time-off, /closed, /hours — before /:id below.
   app.route('/', createTimeOffRoutes(d, salon))
+  app.route('/', createBookLayoutRoutes(d, salon))
 
   // ─── Types: the preset kinds of blocked time the owner keeps (name, colour, usual length, paid or unpaid) ───────────────────────────────
   const typeOut = (t: typeof bookBlockType.$inferSelect) => ({ id: t.id, name: t.name, color: t.color, defaultMin: t.defaultMin, paid: t.paid })

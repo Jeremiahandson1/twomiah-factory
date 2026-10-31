@@ -53,15 +53,18 @@ export function lanes<T extends { start: number; end: number }>(items: T[]): Arr
   return out
 }
 
-/** Dragging a card `dy` pixels: its new start, snapped, kept inside the day. */
-export function movedStart(startMin: number, lengthMin: number, dy: number, pxPerMin = PX_PER_MIN): number {
-  const next = snap(startMin + dy / pxPerMin)
-  return Math.min(Math.max(0, next), 24 * 60 - Math.max(lengthMin, MIN_CARD_MIN))
+/** The least a card can be when dragged short: a slot, up to the usual 15 minutes. */
+export const minCardFor = (step: number) => Math.min(MIN_CARD_MIN, step)
+
+/** Dragging a card `dy` pixels: its new start, snapped to the slot (`step`, default 15), kept inside the day. */
+export function movedStart(startMin: number, lengthMin: number, dy: number, pxPerMin = PX_PER_MIN, step = SNAP_MIN): number {
+  const next = snap(startMin + dy / pxPerMin, step)
+  return Math.min(Math.max(0, next), 24 * 60 - Math.max(lengthMin, minCardFor(step)))
 }
 
-/** Dragging a card's bottom edge `dy` pixels: its new end, snapped, never shorter than the least a card can be. */
-export function resizedEnd(startMin: number, endMin: number, dy: number, pxPerMin = PX_PER_MIN): number {
-  return Math.min(24 * 60, Math.max(startMin + MIN_CARD_MIN, snap(endMin + dy / pxPerMin)))
+/** Dragging a card's bottom edge `dy` pixels: its new end, snapped to the slot, never shorter than the least a card can be. */
+export function resizedEnd(startMin: number, endMin: number, dy: number, pxPerMin = PX_PER_MIN, step = SNAP_MIN): number {
+  return Math.min(24 * 60, Math.max(startMin + minCardFor(step), snap(endMin + dy / pxPerMin, step)))
 }
 
 /** The column under a pointer: the one whose horizontal span holds `x`, else the nearest end. */

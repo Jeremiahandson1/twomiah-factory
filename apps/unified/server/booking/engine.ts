@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, isNotNull, notExists } from 'drizzle-orm'
-import { addDays, businessHoursOf, businessHoursWindows, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
+import { addDays, businessHoursOf, businessHoursWindows, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork, orderTeam } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
@@ -91,7 +91,7 @@ export interface BookingAddOn {
    * Customers may pick the person they book with (the salon's "choose your stylist" option). `enabled` says whether this business offers it;
    * the people are those with hours of their own (Settings › Booking hours) who can be given work. Absent, or not enabled: bookings go to whoever is free, as before.
    */
-  people?: { enabled(companyId: string): Promise<boolean>; /** The customer must choose a named person: "anyone" is not offered. Absent = optional. */ required?(companyId: string): Promise<boolean> }
+  people?: { enabled(companyId: string): Promise<boolean>; /** The customer must choose a named person: "anyone" is not offered. Absent = optional. */ required?(companyId: string): Promise<boolean>; /** The business's own order for its people (ids, first to last); absent = by name. */ order?(companyId: string): Promise<string[]> }
   /**
    * Forms the business asks a client to fill in for a booking (the salon's intake and consent forms), offered on the booking's own page.
    * `pending` is what applies to this booking and has not been answered; `submit` keeps the answers and returns the sentence to show if they are not acceptable.
@@ -410,9 +410,11 @@ export function createBookingEngine(deps: EngineDeps) {
       db.select({ id: user.id, first: user.firstName, last: user.lastName }).from(user).where(eq(user.companyId, companyId)),
     ])
     const withHours = new Set(week.windows.filter((w: any) => w.userId && bookable.has(w.userId)).map((w: any) => w.userId))
-    return rows.filter((r: any) => withHours.has(r.id))
+    const list = rows.filter((r: any) => withHours.has(r.id))
       .map((r: any) => ({ id: r.id as string, name: [r.first, String(r.last || '').trim().slice(0, 1) && String(r.last).trim().slice(0, 1) + '.'].filter(Boolean).join(' ') || 'Stylist' }))
       .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    // then the salon's own team order, where it has saved one (the stylists it names first, in its order)
+    return deps.addOn.people.order ? orderTeam(list, await deps.addOn.people.order(companyId).catch(() => [])) : list
   }
   /** The forms this booking still asks its client to fill in (empty: none, or the booking is over). */
   async function formsPending(b: BookingRow) {

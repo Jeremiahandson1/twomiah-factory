@@ -18,9 +18,9 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createStripeLinkInternalRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money, createAccountBalanceStore, documentLinkPath,
+  money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { asc, desc, eq as eqCol } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -419,6 +419,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
+      // The order the salon dragged its team into (Settings › The Book › Team order) — every picker that reads this follows it.
+      teamOrder: async (companyId: string) => readTeamOrder((await db.select({ settings: company.settings }).from(company).where(eqCol(company.id, companyId)).limit(1))[0]?.settings),
       // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).
       // The unified job table carries assigned_to_member_id for every vertical, so jobs are counted too (the salon copy's
       // job table had no such column); the appointment comes first, so the reply speaks of appointments.

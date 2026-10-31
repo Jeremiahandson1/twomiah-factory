@@ -15,7 +15,7 @@ Not reached: Fresha's "Create and manage blocked time in your calendar" (576) re
 
 | Capability | Here | Status |
 |---|---|---|
-| Day view and week view (Fresha: Day, 3 days, Week, Month) | Day, Week (unchanged cards) and a new **Grid** view | **Matches day and week; no 3-day or month** |
+| Day view and week view (Fresha: Day, 3 days, Week, Month) | Day, **3 days**, Week, **Month** and the **Grid**. 3 days and the week are day cards; the month is the month's whole weeks with each day's count and first appointments, a day opening in the day view; the arrows step 3 days, a week or a month; each fetches the company's own days (`bookViews.ts`). The Grid with a stylist picked shows her week or three days | **Matches** (10/31, parity row 1) |
 | A column per team member (Fresha) | Grid, no stylist picked: one column per stylist for the day, plus "Unassigned" when there are such bookings | **Matches** |
 | One stylist's week (the brief's "week per stylist") | Grid with a stylist picked: seven day columns for that stylist | **Matches** |
 | Drag a card to a new time slot or team member on the Day view (Fresha) | Drag in the grid: to a new time (15-minute steps) or, in the day grid, another stylist's column. The same PUT as the Reschedule button, so the server's clash, own-chair and blocked-time checks decide; a clash is refused in words | **Matches** |
@@ -25,8 +25,8 @@ Not reached: Fresha's "Create and manage blocked time in your calendar" (576) re
 | Click a free time slot to start an appointment (Square) | Click an empty part of a column: New Appointment opens at that time and stylist | **Matches** |
 | Processing time drawn as a faded segment (Fresha) | Hatched stretch inside the card, in the service's colour | **Matches** |
 | Colour-coding appointments (Fresha) | Card tint by status, left stripe by service (a steady colour per service name) | **Matches in spirit** — the Fresha colour page was not read |
-| Zoom / time-slot interval (Fresha) | Fixed scale, 15-minute steps; hours stretch to hold early or late bookings | **Not built** — no zoom control |
-| Team order dragged by the user (Fresha) | Alphabetical | **Not built** |
+| Zoom / time-slot interval (Fresha) | Grid › Time slots: 5, 10, 15 or 30 minutes. The grid is drawn taller for finer slots, a faint line marks every slot, drags and resizes and a click on a free time step by the slot; kept per login on the server (`book_preference`), so it follows a person to another screen. Hours still stretch to hold early or late bookings | **Matches** (10/31, parity row 1) |
+| Team order dragged by the user (Fresha) | Settings › The Book › Team order: drag the names (or use the arrows), saved once for the salon. The Book's columns, the stylist pickers (`/api/team/assignable`) and the stylists a client may choose online follow it; someone added later sits after those named; "Back to name order" clears it. A manager (owner, admin, manager) changes it; everyone else reads it | **Matches** (10/31, parity row 1) |
 | Blocked time for a team member, recurring (Square personal events: assigned to a staff member, "Set repetition") | Blocked time per stylist or for the whole salon, with a reason. Repeat: daily or every N weeks, on chosen weekdays, until a date or for N times (`bookRepeat.ts`, on the company's clock so 12:00 stays 12:00 across daylight saving); a series can be removed from one block on ("this and later") | **Matches** (10/31, parity row 2) |
 | Blocking is what removes booking availability; clients never see the event (Square) | Online booking never offers or takes a blocked time, and shows no reason | **Matches** |
 | Blocked time types with a preset reason and a paid/unpaid mark (Fresha) | Settings › The Book › Blocked time types: name, colour, usual length, paid/unpaid. A block picks a type (its length fills in) or a free reason; the Book draws the type's colour | **Matches** (10/31, parity row 2) |

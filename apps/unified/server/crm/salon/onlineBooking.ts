@@ -22,6 +22,7 @@
 import { and, eq, gt, gte, inArray, isNull, lt, ne, notExists, notInArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { findOff, offSpans } from './timeOff.ts'
+import { readTeamOrder } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, bookBlock, booking, bookingService, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import { findStylistConflict } from './held.ts'
 import { piecesOf } from './segments.ts'
@@ -98,6 +99,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
         if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
         return stylistPickOn(await settingsOf(opts.db, companyId))
       },
+      // The salon's own team order (Settings › The Book › Team order): the stylists a client may choose between follow it.
+      async order(companyId) { return opts.db ? readTeamOrder(await settingsOf(opts.db, companyId)) : [] },
       // "Choice required": the client must pick a named stylist; "anyone" is not offered (Settings › The Book).
       async required(companyId) {
         if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false

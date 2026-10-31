@@ -321,6 +321,18 @@ export const bookBlockType = pgTable('book_block_type', {
   uniqueIndex('book_block_type_company_name_idx').on(t.companyId, t.name),
 ])
 
+/** How one person likes the Book drawn (salon parity row 1): the time-slot interval, remembered per login so it follows them to another screen. */
+export const bookPreference = pgTable('book_preference', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Minutes per slot on the Book grid: 5, 10, 15 or 30. Drags step by it and the grid is drawn taller or shorter to match. */
+  slotMin: integer('slot_min').default(15).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('book_preference_user_idx').on(t.userId),
+])
+
 /** Time a chair is not bookable (lunch, training): one stylist's, or the whole salon's when no stylist is named. */
 export const bookBlock = pgTable('book_block', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

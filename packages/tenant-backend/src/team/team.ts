@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, asc, ilike, or, inArray, notInArray } from 'drizzle-orm'
 import { NOT_GIVEN_WORK_ROLES } from './work'
+import { orderTeam } from './order'
 import { isValidPhone } from '../contacts/contacts'
 import { isRealCalendarDay } from '../invoicing/money'
 import { withinHorizon } from '../dateInput'
@@ -39,6 +40,8 @@ export interface TeamDeps {
    */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   options?: { maxLimit?: number; assignedWork?: AssignedWork[] }
+  /** The salon's saved team order (ids, first to last), when the vertical keeps one: the people pickers follow it (./order.ts). */
+  teamOrder?: (companyId: string) => Promise<string[]>
 }
 
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
@@ -265,9 +268,11 @@ export function createTeamRoutes(deps: TeamDeps) {
       if (m.email && seen.has(String(m.email).toLowerCase())) continue
       data.push({ id: m.id, name: m.name, email: m.email, role: m.role, active: true, kind: 'member' as const } as any)
     }
-    if (seesRoster) return c.json({ data })
+    // The order the salon dragged its team into, where it has saved one; everyone else keeps the order above.
+    const ordered = deps.teamOrder ? orderTeam(data as Array<{ id: string }>, await deps.teamOrder(user.companyId).catch(() => [])) as typeof data : data
+    if (seesRoster) return c.json({ data: ordered })
     // a booker, not a roster reader: who, not how to reach them
-    return c.json({ data: data.map(({ email, ...rest }: any) => rest) })
+    return c.json({ data: ordered.map(({ email, ...rest }: any) => rest) })
   })
 
   app.get('/:id', requirePermission('team:read'), async (c) => {

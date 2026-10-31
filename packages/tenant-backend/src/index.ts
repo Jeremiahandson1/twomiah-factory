@@ -196,6 +196,7 @@ export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, 
 // Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
 export { createTeamRoutes, teamMemberSchema } from './team/team'
 export { NOT_GIVEN_WORK_ROLES, mayBeGivenWork } from './team/work'
+export { TEAM_ORDER_KEY, TEAM_ORDER_MAX, readTeamOrder, orderTeam } from './team/order'
 export { resolveCustomer, VENDOR_NOT_CUSTOMER } from './contacts/customer'
 export type { TeamDeps, TeamTables } from './team/team'
 export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
