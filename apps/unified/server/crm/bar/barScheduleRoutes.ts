@@ -7,6 +7,8 @@
 //     PUT    /time-off/:id { status: approved | denied }
 //   Availability and shift swaps (restaurant-bar-depth #10), each behind its own not-ready feature:
 //     bar_availability   GET/PUT /availability/mine (bar:read)    ·  GET /availability, PUT /availability/:userId, POST /availability/:userId/decision (bar:update)
+//     bar_availability   GET/POST /availability/dates/mine, DELETE /availability/dates/mine/:id (bar:read)  ·  GET /availability/dates, PUT /availability/dates/user/:userId, POST /availability/dates/:id/decision, DELETE /availability/dates/:id (bar:update)   one-day availability
+//     bar_shift_swaps    GET/PUT /swap-settings (bar:update)   approval off for swaps / pick-ups, and when a request lapses
 //     bar_shift_swaps    GET /swaps/mine, POST /swaps, POST /swaps/:id/claim|accept|decline|cancel (bar:read)  ·  GET /swaps, PUT /swaps/:id (bar:update)
 //   Everyone signed in (bar:read):
 //     GET    /published?day=       this week and next, as published
@@ -19,7 +21,6 @@ import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { RotaError } from './barSchedule.ts'
-import { worksWithin } from './barAvailability.ts'
 import { TIME_OFF_TILES } from './tileConditions.ts'
 import type { BarServices } from './services.ts'
 
@@ -57,8 +58,8 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
       const w = await loadWeek(a.companyId, c.req.query('day') || null)
       if (!(await availabilityOn(a.companyId))) return w
       // A shift outside what the person said they can work is flagged, never blocked.
-      const av = await sr.approvedFor(a.companyId, [...new Set(w.shifts.map((s) => s.userId))])
-      return { ...w, shifts: w.shifts.map((s) => ({ ...s, outsideAvailability: !worksWithin(av.get(s.userId) || [], s.day, s.start, s.end) })) }
+      const av = await sr.rulesFor(a.companyId, [...new Set(w.shifts.map((s) => s.userId))])
+      return { ...w, shifts: w.shifts.map((s) => ({ ...s, outsideAvailability: !sr.fits(av, s) })) }
     })
   })
   app.post('/shifts', ...manage, async (c) => {
@@ -78,8 +79,10 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
     const a = await actorOf(c); const b = await body(c)
     return run(c, async () => {
       const r = await publishWeek(a, String(b.day || ''))
+      // A swap or pick-up whose shift this publish changed is cancelled, and the people in it told (bar_shift_swaps).
+      const cancelled = (await d.features.isFeatureEnabled(a.companyId, 'bar_shift_swaps')) ? await sr.cancelChanged(a.companyId, r.weekStart) : 0
       audit.log({ req: c, action: 'update', entity: 'bar_schedule_week', entityName: `Week of ${r.weekStart}`, changes: { published: true, shifts: r.shifts } })
-      return r
+      return { ...r, swapsCancelled: cancelled }
     })
   })
   // The team's time-off requests (a manager's). ?tile=pending is the home screen's "Time off to decide": the dashboard's
@@ -98,6 +101,20 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   // ── Availability (bar_availability) ──
   app.get('/availability/mine', ...read, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.mineAvailability(a)) })
   app.put('/availability/mine', ...read, avail, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, () => sr.submitAvailability(a, b.windows)) })
+  // One-day availability (the same feature). The fixed paths come first so ":userId" never swallows them.
+  app.get('/availability/dates/mine', ...read, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.mineDates(a)) })
+  app.post('/availability/dates/mine', ...read, avail, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ entry: await sr.submitDate(a, b) })) })
+  app.delete('/availability/dates/mine/:id', ...read, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.withdrawDate(a, c.req.param('id'))) })
+  app.get('/availability/dates', ...manage, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.allDates(a.companyId)) })
+  app.put('/availability/dates/user/:userId', ...manage, avail, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => { const entry = await sr.setDate(a, c.req.param('userId'), b); audit.log({ req: c, action: 'update', entity: 'bar_availability', entityId: c.req.param('userId'), entityName: 'One-day availability', changes: { day: entry.day, mode: entry.mode } }); return { entry } })
+  })
+  app.post('/availability/dates/:id/decision', ...manage, avail, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => { const r = await sr.decideDate(a, c.req.param('id'), b.status); audit.log({ req: c, action: 'update', entity: 'bar_availability', entityId: c.req.param('id'), entityName: 'One-day availability', changes: { decision: b.status } }); return r })
+  })
+  app.delete('/availability/dates/:id', ...manage, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.removeDate(a, c.req.param('id'))) })
   app.get('/availability', ...manage, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.allAvailability(a.companyId)) })
   app.put('/availability/:userId', ...manage, avail, async (c) => {
     const a = await actorOf(c); const b = await body(c)
@@ -111,10 +128,20 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   // ── Shift swaps and pick-ups (bar_shift_swaps) ──
   app.get('/swaps/mine', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.mine(a)) })
   app.post('/swaps', ...read, swaps, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ request: await sr.createRequest(a, b) })) })
-  app.post('/swaps/:id/claim', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ request: await sr.claim(a, c.req.param('id')) })) })
-  app.post('/swaps/:id/accept', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ request: await sr.respond(a, c.req.param('id'), true) })) })
-  app.post('/swaps/:id/decline', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ request: await sr.respond(a, c.req.param('id'), false) })) })
+  app.post('/swaps/:id/claim', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.claim(a, c.req.param('id'))) })
+  app.post('/swaps/:id/accept', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.respond(a, c.req.param('id'), true)) })
+  app.post('/swaps/:id/decline', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.respond(a, c.req.param('id'), false)) })
   app.post('/swaps/:id/cancel', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ request: await sr.cancel(a, c.req.param('id')) })) })
+  // What the manager decided about swaps: approval on or off for swaps and for pick-ups, and how long before a shift a request lapses.
+  app.get('/swap-settings', ...manage, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ settings: await sr.swapSettings(a.companyId) })) })
+  app.put('/swap-settings', ...manage, swaps, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const r = await sr.setSwapSettings(a.companyId, b)
+      audit.log({ req: c, action: 'update', entity: 'bar_shift_swap_settings', entityName: 'Shift swap rules', changes: audit.diff(r.before as any, r.settings as any) })
+      return { settings: r.settings }
+    })
+  })
   app.get('/swaps', ...manage, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.toDecide(a.companyId, c.req.query('tile') === 'pending')) })
   app.put('/swaps/:id', ...manage, swaps, async (c) => {
     const a = await actorOf(c); const b = await body(c)

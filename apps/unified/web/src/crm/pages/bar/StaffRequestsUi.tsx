@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../../../api';
 import { useAuth, useMayWrite } from '../../../shared';
 import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
@@ -79,18 +79,75 @@ export function MyAvailability() {
         {data.pending && <p className={`text-sm mb-2 ${MUTED}`} role="status">A change is waiting for a manager. Until it is approved the schedule uses what was approved before.</p>}
         <AvailabilityEditor initial={data.pending ?? data.approved} onSave={async (windows) => { await api.put('/api/schedule/availability/mine', { windows }); await load(); }} />
       </>)}
+      <MyDates />
+    </div>
+  );
+}
+
+export interface DateEntry { id: string; userId: string; name?: string; day: string; mode: 'off' | 'free' | 'between'; start: string | null; end: string | null; note: string | null; status: 'approved' | 'pending' }
+const MODE_WORDS: Record<DateEntry['mode'], string> = { off: 'Cannot work', free: 'Can work any time', between: 'Only between' };
+/** What a one-day entry says, in words ("Cannot work", "Only between 10 AM and 2 PM"). */
+export const describeDate = (e: Pick<DateEntry, 'mode' | 'start' | 'end'>) => (e.mode === 'between' && e.start && e.end ? `Only between ${clock12(e.start)} and ${clock12(e.end)}` : MODE_WORDS[e.mode]);
+
+/** One day that is different from the weekly pattern: the form, shared by the person asking and by a manager setting it. */
+export function DateForm({ onSave, saveLabel }: { onSave: (b: { day: string; mode: string; start?: string; end?: string; note?: string }) => Promise<void>; saveLabel: string }) {
+  const uid = useId();
+  const [day, setDay] = useState('');
+  const [mode, setMode] = useState<DateEntry['mode']>('off');
+  const [start, setStart] = useState('17:00');
+  const [end, setEnd] = useState('23:59');
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(''); try { await onSave({ day, mode, ...(mode === 'between' ? { start, end } : {}), ...(note.trim() ? { note: note.trim() } : {}) }); setDay(''); setNote(''); } catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(false); } }}>
+      <div><label className={LABEL} htmlFor={`${uid}-day`}>Day</label><input id={`${uid}-day`} type="date" required min={companyTodayKey()} className={`${INPUT} max-w-[11rem]`} value={day} onChange={(e) => setDay(e.target.value)} /></div>
+      <div><label className={LABEL} htmlFor={`${uid}-mode`}>That day I</label>
+        <select id={`${uid}-mode`} className={`${INPUT} max-w-[12rem]`} value={mode} onChange={(e) => setMode(e.target.value as DateEntry['mode'])}><option value="off">Cannot work</option><option value="free">Can work any time</option><option value="between">Can only work between</option></select></div>
+      {mode === 'between' && (<>
+        <div><label className={LABEL} htmlFor={`${uid}-from`}>From</label><input id={`${uid}-from`} type="time" className={`${INPUT} max-w-[9rem]`} value={start} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><label className={LABEL} htmlFor={`${uid}-to`}>Until</label><input id={`${uid}-to`} type="time" className={`${INPUT} max-w-[9rem]`} value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+      </>)}
+      <div className="min-w-[10rem] flex-1"><label className={LABEL} htmlFor={`${uid}-note`}>Note (optional)</label><input id={`${uid}-note`} className={INPUT} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+      <button type="submit" className={`${BTN} ${ON}`} disabled={busy || !day}>{busy ? 'Saving…' : saveLabel}</button>
+      <FormError message={err} />
+    </form>
+  );
+}
+
+/** My one-day availability: for a date, this replaces my weekly pattern. A manager approves it, like the weekly one. */
+function MyDates() {
+  const [data, setData] = useState<{ approved: DateEntry[]; pending: DateEntry[] } | null>(null);
+  const [err, setErr] = useState('');
+  const load = useCallback(async () => { try { setData(await api.get('/api/schedule/availability/dates/mine')); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load your one-day changes.')); } }, []);
+  useEffect(() => { load(); }, [load]);
+  const rows = [...(data?.pending ?? []), ...(data?.approved ?? [])].sort((a, b) => a.day.localeCompare(b.day));
+  return (
+    <div className="mt-5 pt-4 border-t border-gray-100 dark:border-slate-800 space-y-2" aria-label="One-day changes">
+      <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">One day that is different</p>
+      <p className={`text-xs ${MUTED}`}>For that date only, this replaces your weekly pattern. A manager approves it first.</p>
+      <FormError message={err} />
+      {rows.length > 0 && (
+        <ul className="space-y-1">{rows.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900 dark:text-slate-100">
+            <span>{dayLabel(r.day)} · {describeDate(r)}{r.note ? ` · ${r.note}` : ''} · <span className={MUTED}>{r.status === 'pending' ? 'Waiting for a manager' : 'Approved'}</span></span>
+            {r.status === 'pending' && <button className={`${BTN} ${OFF} min-h-[40px]`} onClick={async () => { try { await api.delete(`/api/schedule/availability/dates/mine/${r.id}`); await load(); } catch (e) { setErr(errorText(e, 'That did not go through.')); } }}>Take it back</button>}
+          </li>))}</ul>
+      )}
+      <DateForm saveLabel="Send for approval" onSave={async (b) => { await api.post('/api/schedule/availability/dates/mine', b); await load(); }} />
     </div>
   );
 }
 
 interface Req { id: string; kind: 'give' | 'swap'; status: string; note: string | null; fromName: string; toName: string | null; fromUserId: string; shift: { id: string; day: string; start: string; end: string; position: string | null } | null; withShift: { day: string; start: string; end: string; position: string | null } | null }
-const STATUS: Record<string, string> = { open: 'Waiting for someone to take it', offered: 'Waiting for their answer', pending: 'Waiting for a manager', approved: 'Approved', denied: 'Denied', declined: 'Declined', cancelled: 'Taken back' };
+const STATUS: Record<string, string> = { open: 'Waiting for someone to take it', offered: 'Waiting for their answer', pending: 'Waiting for a manager', approved: 'Approved', denied: 'Denied', declined: 'Declined', cancelled: 'Taken back', expired: 'Ran out of time before the shift', schedule_changed: 'Cancelled: the schedule changed' };
+interface SwapSettings { approveSwaps: boolean; approvePickups: boolean; expireHoursBefore: number }
 
 /** Give a shift away, swap it, answer a swap, take a shift on offer — for me. `published` is the schedule staff see. */
 export function MySwaps({ published, meId }: { published: any[]; meId: string | null }) {
   const { hasFeature } = useAuth();
   const mayAsk = useMayWrite('bar:read');   // POST /api/schedule/swaps and its answers ask bar:read
-  const [data, setData] = useState<{ mine: Req[]; forMe: Req[]; onOffer: Req[] } | null>(null);
+  const [data, setData] = useState<{ mine: Req[]; forMe: Req[]; onOffer: Req[]; settings?: SwapSettings } | null>(null);
   const [swapFor, setSwapFor] = useState<any | null>(null);
   const [err, setErr] = useState('');
   const load = useCallback(async () => { try { setData(await api.get('/api/schedule/swaps/mine')); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load your requests.')); } }, []);
@@ -121,7 +178,7 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
                 <span>{r.fromName}: {span(r.shift)}{r.note ? ` · ${r.note}` : ''}</span>
                 <button className={`${BTN} ${ON} min-h-[40px]`} onClick={() => act(() => api.post(`/api/schedule/swaps/${r.id}/claim`, {}), 'Someone may have just taken it.')}>I&rsquo;ll take it</button>
               </li>))}</ul>
-            <p className={`text-xs mt-1 ${MUTED}`}>A manager approves before it is yours.</p></section>
+            <p className={`text-xs mt-1 ${MUTED}`}>{data.settings?.approvePickups === false ? 'It is yours as soon as you take it.' : 'A manager approves before it is yours.'}</p></section>
         )}
         <section aria-label="My shifts"><p className="text-sm font-semibold text-gray-900 dark:text-slate-100">My coming shifts</p>
           {mineShifts.length === 0 ? <p className={`text-sm ${MUTED}`}>Nothing coming up on the published schedule.</p> : (
@@ -164,13 +221,17 @@ export function ManagerRequests() {
   const swapsOn = hasFeature('bar_shift_swaps'), availOn = hasFeature('bar_availability');
   const [swaps, setSwaps] = useState<{ pending: Req[]; open: Req[] } | null>(null);
   const [people, setPeople] = useState<Array<{ userId: string; name: string; windows: Window[]; pending: Window[] | null }>>([]);
+  const [dates, setDates] = useState<{ pending: DateEntry[]; approved: DateEntry[] }>({ pending: [], approved: [] });
+  const [swapRules, setSwapRules] = useState<SwapSettings | null>(null);
+  const [savedRules, setSavedRules] = useState(false);
+  const [dateWho, setDateWho] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [note, setNote] = useState('');
   const load = useCallback(async () => {
     try {
-      if (swapsOn) setSwaps(await api.get('/api/schedule/swaps'));
-      if (availOn) setPeople((await api.get('/api/schedule/availability')).people);
+      if (swapsOn) { setSwaps(await api.get('/api/schedule/swaps')); setSwapRules((await api.get('/api/schedule/swap-settings')).settings); }
+      if (availOn) { setPeople((await api.get('/api/schedule/availability')).people); setDates(await api.get('/api/schedule/availability/dates')); }
     } catch (e) { setErr(errorText(e, 'Could not load the requests.')); }
   }, [swapsOn, availOn]);
   useEffect(() => { load(); }, [load]);
@@ -182,6 +243,21 @@ export function ManagerRequests() {
     <div className="space-y-3">
       <FormError message={err} />
       {note && <p role="status" className="text-sm text-amber-900 dark:text-amber-200">{note}</p>}
+      {swapsOn && swapRules && (
+        <div className={CARD}>
+          <p className={`${LABEL} mb-2`}>Rules for swaps</p>
+          <div className="space-y-2 text-sm text-gray-900 dark:text-slate-100">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={swapRules.approvePickups} onChange={(e) => setSwapRules({ ...swapRules, approvePickups: e.target.checked })} />A manager approves a shift someone picks up</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={swapRules.approveSwaps} onChange={(e) => setSwapRules({ ...swapRules, approveSwaps: e.target.checked })} />A manager approves a swap two people agree on</label>
+            <p className={`text-xs ${MUTED}`}>With a box cleared, that kind of change is made the moment the other person says yes. It still will not double-book anyone or land on a day off.</p>
+            <label className="flex flex-wrap items-center gap-2">A request lapses<input aria-label="Hours before the shift" type="number" min={0} max={72} className={`${INPUT} w-20`} value={swapRules.expireHoursBefore} onChange={(e) => setSwapRules({ ...swapRules, expireHoursBefore: Math.max(0, Math.min(72, Math.floor(Number(e.target.value) || 0))) })} />hours before its shift starts (0 = when it starts)</label>
+            <div className="flex items-center gap-3">
+              <button className={`${BTN} ${ON} min-h-[40px]`} onClick={async () => { setErr(''); setSavedRules(false); try { setSwapRules((await api.put('/api/schedule/swap-settings', swapRules)).settings); setSavedRules(true); } catch (e) { setErr(errorText(e, 'The rules did not save.')); } }}>Save the rules</button>
+              {savedRules && <span role="status" className="text-sm text-green-800 dark:text-green-300">Saved.</span>}
+            </div>
+          </div>
+        </div>
+      )}
       {swapsOn && swaps && (swaps.pending.length > 0 || swaps.open.length > 0) && (
         <div className={CARD}>
           <p className={`${LABEL} mb-2`}>Shift swaps</p>
@@ -204,12 +280,30 @@ export function ManagerRequests() {
                 <span>{p.name} asks for: {describe(p.pending)}</span>
                 <span className="flex gap-2"><button className={`${BTN} ${ON} min-h-[40px]`} onClick={() => decide(() => api.post(`/api/schedule/availability/${p.userId}/decision`, { status: 'approved' }))}>Approve</button><button className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => decide(() => api.post(`/api/schedule/availability/${p.userId}/decision`, { status: 'denied' }))}>Deny</button></span>
               </li>))}
+            {dates.pending.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900 dark:text-slate-100">
+                <span>{e.name} asks for {dayLabel(e.day)}: {describeDate(e).toLowerCase()}{e.note ? ` · ${e.note}` : ''}</span>
+                <span className="flex gap-2"><button className={`${BTN} ${ON} min-h-[40px]`} onClick={() => decide(() => api.post(`/api/schedule/availability/dates/${e.id}/decision`, { status: 'approved' }))}>Approve</button><button className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => decide(() => api.post(`/api/schedule/availability/dates/${e.id}/decision`, { status: 'denied' }))}>Deny</button></span>
+              </li>))}
             {people.map((p) => (
               <li key={`all-${p.userId}`} className="text-sm text-gray-900 dark:text-slate-100">
                 <div className="flex flex-wrap items-center justify-between gap-2"><span>{p.name}: {describe(p.windows)}</span><button className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => setEditing(editing === p.userId ? null : p.userId)}>{editing === p.userId ? 'Close' : 'Change'}</button></div>
                 {editing === p.userId && <div className="mt-2"><AvailabilityEditor initial={p.windows} saveLabel="Save" onSave={async (windows) => { await api.put(`/api/schedule/availability/${p.userId}`, { windows }); setEditing(null); await load(); }} /></div>}
               </li>))}
           </ul>
+          {dates.approved.length > 0 && (
+            <div className="mt-3"><p className="text-sm font-semibold text-gray-900 dark:text-slate-100">One-day changes in force</p>
+              <ul className="space-y-1 mt-1">{dates.approved.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900 dark:text-slate-100">
+                  <span>{e.name} · {dayLabel(e.day)} · {describeDate(e)}</span>
+                  <button className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => decide(() => api.delete(`/api/schedule/availability/dates/${e.id}`))}>Remove</button>
+                </li>))}</ul></div>
+          )}
+          <div className="mt-3"><p className="text-sm font-semibold text-gray-900 dark:text-slate-100">Set one day for someone</p>
+            <div className="flex flex-wrap items-end gap-2 mt-1">
+              <div><label className={LABEL} htmlFor="od-who">Who</label><select id="od-who" className={`${INPUT} max-w-[12rem]`} value={dateWho} onChange={(e) => setDateWho(e.target.value)}><option value="">Pick a person</option>{people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}</select></div>
+              <DateForm saveLabel="Save" onSave={async (b) => { if (!dateWho) throw new Error('Pick the person first.'); await api.put(`/api/schedule/availability/dates/user/${dateWho}`, b); await load(); }} />
+            </div></div>
         </div>
       )}
     </div>

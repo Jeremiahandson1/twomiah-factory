@@ -27,6 +27,16 @@ import { createBarFoodPublicRoutes } from './barFoodPublicRoutes.ts'
 
 export function barMounts(d: CrmDeps): Mount[] {
   const bar = createBarServices(d)
+  // Timed work, hourly like the events module's, started with the CRM's other jobs (never in a test, which calls the passes itself):
+  //   · a shift swap or pick-up whose shift is about to start is ended (restaurant-bar parity #10);
+  Object.assign(d.services.eventJobs, {
+    runShiftExpiry: (now?: Date) => bar.staffRequests.runExpiry(now, (companyId) => d.features.isFeatureEnabled(companyId, 'bar_shift_swaps')),
+  })
+  d.services.addJob(() => {
+    const expiry = () => bar.staffRequests.runExpiry(new Date(), (companyId) => d.features.isFeatureEnabled(companyId, 'bar_shift_swaps')).catch((err: any) => d.logger.error('[schedule] swap expiry failed', { error: err?.message }))
+    setTimeout(expiry, 210_000)
+    setInterval(expiry, 60 * 60 * 1000)
+  })
   const { registerRoutes, kitchenRoutes } = createBarRegisterRoutes(d, bar)
   return [
     { path: '/api/bar', access: 'user', feature: ['bar_menu', 'bar_tonight'], router: createBarRoutes(d, bar) },
