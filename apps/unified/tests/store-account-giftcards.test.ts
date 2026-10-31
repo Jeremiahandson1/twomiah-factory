@@ -3,7 +3,8 @@
 //   · a card whose purchaser OR recipient email is the shopper's (any capitals, any spaces) is theirs, and only theirs;
 //   · bought and given are told apart; a card they bought and were also sent shows once, as bought;
 //   · a spent card is shown as used up (so it is not thought lost); a voided card and store credit from a return are not here;
-//   · the page itself draws them (the served script says so) — a signed-out visitor is refused, as before.
+//   · the page itself draws them (the served script says so) — a signed-out visitor is refused, as before;
+//   · the same page shows the shopper's reward points when they are a loyalty member (the old parity note said they were not shown).
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootStore } from './storeKit.ts'
@@ -72,5 +73,14 @@ describe('gift cards on the account page', () => {
     expect(script.status).toBe(200)
     expect(script.text).toContain('Gift card given to you')
     expect(script.text).toContain('used up')
+  })
+
+  test('reward points: a loyalty member sees their balance on the account page; a shopper who is not a member sees none', async () => {
+    await db().insert(k.S.loyaltyMember).values({ companyId: k.companyId, contactId: ann.id, pointsBalance: 120, lifetimePoints: 300 })
+    const mine = await k.pub('GET', `${A}/me`, undefined, { cookie: await signIn('ann@example.com', ann) })
+    expect(mine.json.points).toBe(120)
+    const other = await k.pub('GET', `${A}/me`, undefined, { cookie: await signIn('bob@example.com', bob) })
+    expect(other.json.points).toBeNull()
+    expect((await k.pub('GET', '/scripts/account.js')).text).toContain('reward points')
   })
 })
