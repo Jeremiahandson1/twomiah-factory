@@ -25,7 +25,11 @@ describe('basic', () => {
 
   test("a job's photos are photo_capture's (the copy's index.ts gate)", async () => {
     expect((await features(['contacts', 'jobs'])).status).toBe(200)
-    const job = await (await as('/api/jobs', { method: 'POST', json: { title: 'Studio deep clean' } })).json()
+    // A job is for a customer (crm.jobs.requireCustomer, contractor PR #173).
+    const contactId = (await (await as('/api/contacts', { method: 'POST', json: { name: 'Studio Client', type: 'client' } })).json()).id
+    const made = await as('/api/jobs', { method: 'POST', json: { title: 'Studio deep clean', contactId } })
+    expect(made.status).toBe(201)
+    const job = await made.json()
     const off = await as(`/api/jobs/${job.id}/photos`)
     expect(off.status).toBe(403)
     expect((await off.json()).code).toBe('FEATURE_NOT_ENABLED')

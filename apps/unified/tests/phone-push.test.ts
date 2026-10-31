@@ -32,6 +32,8 @@ beforeAll(async () => {
   for (const who of ['owner', 'tech', 'tech2', 'office']) {
     expect((await as(who, '/api/push/expo-token', { method: 'POST', json: { token: phone(who), platform: 'ios' } })).status).toBe(201)
   }
+  // A contractor's job is for a customer (crm.jobs.requireCustomer, contractor PR #173).
+  ids.customer = (await (await as('owner', '/api/contacts', { method: 'POST', json: { name: 'Deck Customer', type: 'client' } })).json()).id
   await scan(); sentSince()
 })
 
@@ -44,7 +46,7 @@ describe('the phone token, for a trade', () => {
 
 describe('jobs', () => {
   test('a job assigned to the tech tells the tech, once', async () => {
-    const r = await as('owner', '/api/jobs', { method: 'POST', json: { title: 'Fix deck', assignedToId: ids.tech, scheduledDate: '2026-10-21', scheduledTime: '09:00' } })
+    const r = await as('owner', '/api/jobs', { method: 'POST', json: { contactId: ids.customer, title: 'Fix deck', assignedToId: ids.tech, scheduledDate: '2026-10-21', scheduledTime: '09:00' } })
     expect(r.status).toBe(201)
     ids.job = (await r.json()).id
     expect(await scan()).toBe(1)
@@ -75,7 +77,7 @@ describe('jobs', () => {
   })
 
   test("migration 0015's fill is the scan's own reading: filled from existing jobs, nobody is told", async () => {
-    const j = await (await as('owner', '/api/jobs', { method: 'POST', json: { title: 'Old work', assignedToId: ids.tech, scheduledDate: '2026-11-03' } })).json()
+    const j = await (await as('owner', '/api/jobs', { method: 'POST', json: { contactId: ids.customer, title: 'Old work', assignedToId: ids.tech, scheduledDate: '2026-11-03' } })).json()
     await t.db.execute(sql`DELETE FROM job_push_state`)
     const file = fs.readFileSync(path.join(import.meta.dir, '../server/db/migrations/0015_job_push_state.sql'), 'utf8')
     const fill = file.slice(file.indexOf('INSERT INTO "job_push_state"'))
