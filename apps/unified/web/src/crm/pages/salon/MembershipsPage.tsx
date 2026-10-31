@@ -68,6 +68,12 @@ function cycleLabel(c?: string): string {
   return '/mo';
 }
 
+interface FailedCharge {
+  enrollmentId: string; invoiceId: string; invoiceNumber?: string; clientName?: string; planName?: string; amount: string | number;
+  attempt: number; tries: number; status: string; reason?: string | null; backupTried: boolean; paused: boolean; triesLeft: number; nextTryAt: string | null; canRetryNow: boolean;
+}
+interface RetryCfg { tries: number; intervalDays: number; mayChange: boolean; limits: { tries: { min: number; max: number }; intervalDays: { min: number; max: number } } }
+
 export default function MembershipsPage() {
   // Plans: POST pricebook:create, PUT/DELETE pricebook:update. Enrolments: POST contacts:create, cancel (PUT) and
   // "Use a credit" contacts:update (memberships.ts). (T43 viewer round, T68)
@@ -90,14 +96,24 @@ export default function MembershipsPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editing, setEditing] = useState<Plan | null>(null);
   const [enrolling, setEnrolling] = useState<boolean>(false);
+  // Declined cards (salon parity row 6): the list, and how the salon chases them (tries and days between).
+  const [failed, setFailed] = useState<FailedCharge[]>([]);
+  const [retryCfg, setRetryCfg] = useState<RetryCfg | null>(null);
+  const [retryForm, setRetryForm] = useState<{ tries: string; intervalDays: string } | null>(null);
+  const [retryErr, setRetryErr] = useState<Record<string, string>>({});
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [plansRes, enrollRes] = await Promise.all([
+      const [plansRes, enrollRes, failedRes, cfgRes] = await Promise.all([
         api.get('/api/memberships?includeInactive=1'),
         api.get('/api/memberships/enrollments', { limit: 500 }).catch(() => ({ data: [], pagination: { total: 0 } })),
+        api.get('/api/memberships/failed-charges').catch(() => ({ data: [] })),
+        api.get('/api/memberships/retry-settings').catch(() => null),
       ]);
+      setFailed(failedRes?.data || []);
+      setRetryCfg(cfgRes ? ((cfgRes as any).data ?? cfgRes) : null);
       setPlans(plansRes.data || []);
       setEnrollments(enrollRes.data || []);
       setEnrollmentTotal(Number(enrollRes.pagination?.total ?? (enrollRes.data || []).length));
@@ -154,6 +170,36 @@ export default function MembershipsPage() {
     }
   };
 
+  // "Retry now": the next try of a declined charge without waiting out the days between tries.
+  const retryNow = async (enrollmentId: string, who?: string | null) => {
+    setRetrying(enrollmentId);
+    try {
+      const r: any = await api.post(`/api/memberships/enrollments/${enrollmentId}/retry`, {});
+      const result = r?.data?.retryResult ?? r?.retryResult;
+      if (result === 'paid') toast.success(`${who || 'The member'}'s card was charged`);
+      else toast.error('The card was declined again.');
+      load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not try the card again');
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const saveRetry = async () => {
+    if (!retryForm) return;
+    setRetryErr({});
+    try {
+      await api.put('/api/memberships/retry-settings', { tries: Number(retryForm.tries), intervalDays: Number(retryForm.intervalDays) });
+      setRetryForm(null);
+      toast.success('Saved');
+      load();
+    } catch (err: any) {
+      setRetryErr(err?.data?.fields || {});
+      toast.error((err as Error).message || 'Could not save');
+    }
+  };
+
   const redeem = async (e: Enrollment) => {
     try {
       await api.post(`/api/memberships/enrollments/${e.id}/redeem`);
@@ -188,6 +234,60 @@ export default function MembershipsPage() {
           </button>}
         </div>
       </div>
+
+      {!loading && retryCfg && (
+        <section className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-700" aria-labelledby="declined-heading">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 id="declined-heading" className="font-semibold text-gray-900 dark:text-slate-100">When a card is declined</h2>
+              <p className="text-sm text-gray-600 dark:text-slate-300" data-testid="retry-summary">
+                The charge is tried up to {retryCfg.tries} time{retryCfg.tries === 1 ? '' : 's'} in all, {retryCfg.intervalDays} day{retryCfg.intervalDays === 1 ? '' : 's'} apart. A backup card on the client's chart is tried straight away when the main card is declined. Staff who can see payments are emailed every time.
+              </p>
+            </div>
+            {retryCfg.mayChange && !retryForm && (
+              <button onClick={() => setRetryForm({ tries: String(retryCfg.tries), intervalDays: String(retryCfg.intervalDays) })} className="text-sm text-teal-700 hover:underline dark:text-teal-300">Change</button>
+            )}
+          </div>
+          {retryForm && (
+            <div className="mt-3 flex items-end gap-3 flex-wrap">
+              <label className="text-sm">
+                <span className="block text-gray-700 dark:text-slate-200">Tries in all (the first charge counts)</span>
+                <input type="number" min={retryCfg.limits.tries.min} max={retryCfg.limits.tries.max} value={retryForm.tries} onChange={(e) => setRetryForm({ ...retryForm, tries: e.target.value })} className="w-24 px-3 py-2 border rounded-lg" />
+                {retryErr.tries && <span className="block text-xs text-red-700 dark:text-red-300" role="alert">{retryErr.tries}</span>}
+              </label>
+              <label className="text-sm">
+                <span className="block text-gray-700 dark:text-slate-200">Days between tries</span>
+                <input type="number" min={retryCfg.limits.intervalDays.min} max={retryCfg.limits.intervalDays.max} value={retryForm.intervalDays} onChange={(e) => setRetryForm({ ...retryForm, intervalDays: e.target.value })} className="w-24 px-3 py-2 border rounded-lg" />
+                {retryErr.intervalDays && <span className="block text-xs text-red-700 dark:text-red-300" role="alert">{retryErr.intervalDays}</span>}
+              </label>
+              <button onClick={saveRetry} className="px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Save</button>
+              <button onClick={() => { setRetryForm(null); setRetryErr({}); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+            </div>
+          )}
+          {failed.length > 0 && (
+            <div className="mt-4" data-testid="failed-charges">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Cards that failed ({failed.length})</h3>
+              <ul className="divide-y">
+                {failed.map((f) => (
+                  <li key={f.invoiceId} className="py-2 flex items-center justify-between gap-3 flex-wrap text-sm">
+                    <div>
+                      <span className="font-medium text-gray-900 dark:text-slate-100">{f.clientName || 'Member'}</span>
+                      <span className="text-gray-600 dark:text-slate-300"> · {f.planName || 'Membership'} · {fmtMoney(f.amount)} · invoice {f.invoiceNumber}</span>
+                      <span className="block text-xs text-amber-800 dark:text-amber-200">
+                        {f.status === 'needs_action' ? 'Needs the client to approve the charge' : 'Declined'} — try {f.attempt} of {f.tries}{f.backupTried ? ', backup card tried too' : ''}.
+                        {f.paused ? ' The membership is paused: resume it once they have a new card.' : f.nextTryAt ? ` Next automatic try ${fmtDate(f.nextTryAt)}.` : ''}
+                      </span>
+                    </div>
+                    {f.canRetryNow && mayAutoCharge && (
+                      <button onClick={() => retryNow(f.enrollmentId, f.clientName)} disabled={retrying === f.enrollmentId} className="text-sm text-teal-700 hover:underline disabled:opacity-50 dark:text-teal-300">{retrying === f.enrollmentId ? 'Trying…' : 'Retry now'}</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -295,6 +395,9 @@ export default function MembershipsPage() {
                           )}
                           {mayAutoCharge && e.status === 'active' && !e.autoCharge && (
                             <button onClick={() => setAutoCharge(e, true)} className="ml-3 text-xs text-teal-700 hover:underline dark:text-teal-300">Charge card automatically</button>
+                          )}
+                          {mayAutoCharge && e.status === 'active' && e.autoCharge && e.lastCharge && (e.lastCharge.status === 'declined' || e.lastCharge.status === 'needs_action') && failed.some((f) => f.enrollmentId === e.id && f.canRetryNow) && (
+                            <button onClick={() => retryNow(e.id, e.clientName)} disabled={retrying === e.id} className="ml-3 text-xs text-teal-700 hover:underline disabled:opacity-50 dark:text-teal-300">Retry now</button>
                           )}
                           {mayAutoCharge && e.status === 'paused' && (
                             <button onClick={() => resume(e)} className="ml-3 text-xs text-teal-700 hover:underline dark:text-teal-300">Resume</button>

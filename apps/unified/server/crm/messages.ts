@@ -528,6 +528,24 @@ ${data.disclosure}`,
     `,
     text: `${data.clientName}'s ${data.plan} membership was paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. Resume it in Memberships once it is sorted out.`,
   }),
+  // To staff who hold the payments permission: a member's card was declined (every decline, not only the last).
+  membershipDeclinedStaff: (data, b) => ({
+    subject: `Card declined — ${data.clientName}'s ${data.plan} membership (try ${data.attempt} of ${data.tries})`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A membership card was declined</h2>
+          <p>${escHtml(data.clientName)}'s card was declined for <strong>$${escHtml(data.amount)}</strong> (${escHtml(data.plan)} membership, invoice ${escHtml(data.invoiceNumber)}). This was try ${escHtml(data.attempt)} of ${escHtml(data.tries)}.</p>
+          <p>${escHtml(data.reason)} ${escHtml(data.backup)}</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s card was declined for $${data.amount} (${data.plan} membership, invoice ${data.invoiceNumber}), try ${data.attempt} of ${data.tries}. ${data.reason} ${data.backup} ${data.next}`,
+  }),
   // A membership charge that did not go through: what happened, and what happens next.
   membershipPaymentFailed: (data, b) => ({
     subject: `We could not charge your card — ${b.companyName}`,

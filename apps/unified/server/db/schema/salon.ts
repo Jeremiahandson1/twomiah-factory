@@ -296,6 +296,10 @@ export const membershipCharge = pgTable('membership_charge', {
   status: text('status').notNull(),
   paymentIntentId: text('payment_intent_id'),
   failureMessage: text('failure_message'),
+  /** The main card was declined and a backup card on file paid (or was tried): salon parity row 6. */
+  backupTried: boolean('backup_tried').default(false).notNull(),
+  /** "Retry now": the person who asked for this try before the wait was over. Null = the timed retry or the first charge. */
+  retriedByUserId: text('retried_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -327,6 +331,24 @@ export const appointmentItem = pgTable('appointment_item', {
 }, (t) => [
   index('appointment_item_appointment_id_idx').on(t.appointmentId),
   index('appointment_item_stylist_idx').on(t.companyId, t.stylistId),
+])
+
+/**
+ * The shares of ONE sale's tip when the salon set its own (salon parity row 10): one row per person, `share_bp` in hundredths of a percent
+ * (10000 = 100%), replacing the default split by service value. No rows = the default. Edited at checkout and afterwards; the Tips report
+ * reads these for every tip and every tip given back on the sale.
+ */
+export const saleTipSplit = pgTable('sale_tip_split', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
+  shareBp: integer('share_bp').notNull(),
+  setByUserId: text('set_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('sale_tip_split_invoice_idx').on(t.invoiceId),
 ])
 
 /** A preset kind of blocked time the owner keeps (salon parity row 2; Fresha's blocked time types): a name, a colour, a usual length, paid or not. */

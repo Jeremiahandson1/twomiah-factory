@@ -5,10 +5,12 @@
 import { Hono } from 'hono'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { MEMBERSHIP_TILES, activeEnrollmentCondition } from './tileConditions.ts'
-import { and, count, desc, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing } from '@twomiah/tenant-backend'
-import { membershipPlan, membershipEnrollment, membershipCharge, contact } from '../../db/schema/index.ts'
+import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, company } from '../../db/schema/index.ts'
+import { MEMBERSHIP_RETRY_KEY, RETRY_DEFAULTS, RETRY_LIMITS, nextTryAt, parseRetry, readRetry } from './membershipRetry.ts'
+import { settingsOf } from './patchTest.ts'
 import { takeMembershipCredit } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -196,6 +198,72 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     await audit.log({ action: 'update', entity: 'membership_enrollment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
     refresh(currentUser.companyId, 'membership_enrollment')
     return one(c, updated)
+  })
+
+  // ── When a card is declined (salon parity row 6) ──
+  const mayCharge = async (c: any) => { const u = c.get('user') as any; return may(u.role, 'invoices:update', u.userId || u.id) }
+
+  // GET /memberships/retry-settings — how many tries and how many days between them (defaults 3 and 3).
+  app.get('/retry-settings', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user') as any
+    const mayChange = d.permissions.hasPermission(String(u.role || ''), 'company:update', await d.permissions.getExtraPermissions(u.userId || u.id))
+    return one(c, { ...readRetry(await settingsOf(db, u.companyId)), mayChange, limits: RETRY_LIMITS, defaults: RETRY_DEFAULTS })
+  })
+  // PUT /memberships/retry-settings — the owner's or an admin's call: it decides how long a member's card is chased.
+  app.put('/retry-settings', requirePermission('company:update'), async (c) => {
+    const u = c.get('user') as any
+    const got = parseRetry(await c.req.json().catch(() => null))
+    if ('fields' in got) return fail(c, 400, 'Check the highlighted boxes.', 'VALIDATION', got.fields)
+    const settings: any = (await settingsOf(db, u.companyId)) ?? {}
+    const before = readRetry(settings)
+    await db.update(company).set({ settings: { ...settings, [MEMBERSHIP_RETRY_KEY]: got.values }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'membership_retry_settings', entityId: u.companyId, changes: audit.diff(before, got.values), req: { user: u } })
+    refresh(u.companyId, 'membership_enrollment')
+    return one(c, { ...got.values, mayChange: true, limits: RETRY_LIMITS, defaults: RETRY_DEFAULTS })
+  })
+
+  // GET /memberships/failed-charges — charges that were declined (or wait for the member's approval) and whose invoice is still open.
+  app.get('/failed-charges', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user') as any
+    const retry = readRetry(await settingsOf(db, u.companyId))
+    const rows: any[] = await db.select({
+      enrollmentId: membershipCharge.enrollmentId, invoiceId: membershipCharge.invoiceId, attempt: membershipCharge.attempt, status: membershipCharge.status,
+      failureMessage: membershipCharge.failureMessage, at: membershipCharge.updatedAt, backupTried: membershipCharge.backupTried, amount: membershipCharge.amount,
+      clientName: contact.name, planName: membershipPlan.name, enrollmentStatus: membershipEnrollment.status, invoiceNumber: invoice.number,
+    }).from(membershipCharge)
+      .innerJoin(invoice, eq(invoice.id, membershipCharge.invoiceId))
+      .innerJoin(membershipEnrollment, eq(membershipEnrollment.id, membershipCharge.enrollmentId))
+      .leftJoin(membershipPlan, eq(membershipPlan.id, membershipEnrollment.planId))
+      .leftJoin(contact, eq(contact.id, membershipCharge.contactId))
+      .where(and(eq(membershipCharge.companyId, u.companyId), inArray(membershipCharge.status, ['declined', 'needs_action']), notInArray(invoice.status, ['paid', 'void', 'refunded'])))
+      .orderBy(desc(membershipCharge.createdAt), desc(membershipCharge.attempt))
+    const seen = new Set<string>()
+    const data = rows.filter((r) => (seen.has(r.invoiceId) ? false : (seen.add(r.invoiceId), true))).map((r) => {
+      const paused = r.enrollmentStatus === 'paused'
+      const triesLeft = Math.max(0, retry.tries - r.attempt)
+      return {
+        enrollmentId: r.enrollmentId, invoiceId: r.invoiceId, invoiceNumber: r.invoiceNumber, clientName: r.clientName, planName: r.planName, amount: r.amount,
+        attempt: r.attempt, tries: retry.tries, status: r.status, reason: r.failureMessage, backupTried: r.backupTried, at: r.at,
+        paused, triesLeft,
+        nextTryAt: paused || triesLeft === 0 ? null : nextTryAt(new Date(r.at), retry.intervalDays).toISOString(),
+        canRetryNow: !paused && triesLeft > 0 && r.enrollmentStatus === 'active',
+      }
+    })
+    return listAll(c, data)
+  })
+
+  // POST /memberships/enrollments/:id/retry — "Retry now": the next try of a declined charge without waiting out the interval. Spending
+  // money, so it asks for what taking a payment asks for. Before the last try only; a paused membership is Resumed instead.
+  app.post('/enrollments/:id/retry', requirePermission('invoices:update'), async (c) => {
+    const u = c.get('user') as any
+    const out = await billing.retryNow(c.req.param('id'), u.companyId, u.userId || u.id || null)
+    if (!out) return fail(c, 404, 'Enrollment not found')
+    if (out.outcome === 'not_active') return fail(c, 409, out.status === 'paused' ? 'This membership is paused — use Resume.' : 'Only an active membership can be charged.', 'NOT_ACTIVE')
+    if (out.outcome === 'no_invoice') return fail(c, 409, 'There is no declined charge to try again.', 'NOTHING_TO_RETRY')
+    if (out.outcome === 'no_tries_left') return fail(c, 409, 'Every try has been used. Resume the membership once the client has a new card.', 'NO_TRIES_LEFT')
+    refresh(u.companyId, 'membership_enrollment')
+    const [row] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, c.req.param('id'))).limit(1)
+    return one(c, { ...row, retryResult: out.outcome })
   })
 
   // POST /memberships/enrollments/:id/resume — start a membership paused for a declined card again; billing restarts and the

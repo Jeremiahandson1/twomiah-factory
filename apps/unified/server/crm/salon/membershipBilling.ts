@@ -7,13 +7,15 @@
 // period and only matches a row not yet billed for it, so two runs can only produce one invoice per period.
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, notInArray, or } from 'drizzle-orm'
 import { dueDateFromTerms, addMonthsClamped, recordInvoicePayment } from '@twomiah/tenant-backend'
-import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, invoiceLineItem, payment, company } from '../../db/schema/index.ts'
+import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, invoiceLineItem, payment, company, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonClock } from './days.ts'
 import type { SalonCheckout } from './checkout.ts'
 import { cardWords, type CardOnFile } from './cardOnFile.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { readRetry } from './membershipRetry.ts'
+import { settingsOf } from './patchTest.ts'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -42,7 +44,7 @@ export type BilledOne = { enrollmentId: string; invoiceId: string; number: strin
 /** What an automatic card charge came to: paid, or why not. 'skipped' = auto-charge was not asked for or not available; nothing was tried. */
 export type CollectOutcome = 'paid' | 'declined' | 'needs_action' | 'no_card' | 'waiting' | 'busy' | 'unavailable' | 'skipped'
 
-/** A declined card is tried again after this long, up to MAX_TRIES in all; then auto-charge is switched off for that member. */
+/** The defaults for a declined card: tried again after this long, up to MAX_TRIES in all (the salon's own numbers replace them: membershipRetry.ts). */
 export const MAX_TRIES = 3
 export const RETRY_AFTER_MS = 3 * 86_400_000
 /** A try claimed but never answered for this long died half-way: it is resumed under the same number (the same Stripe key), not charged anew. */
@@ -124,12 +126,13 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
   /**
    * Charge a period's invoice to the member's card on file, when the salon and the member asked for that (auto_charge) and
    * Card on File is on. One try per call, claimed in membership_charge BEFORE Stripe is asked, on the salon's own Stripe
-   * account only. A decline is tried again after RETRY_AFTER_MS, MAX_TRIES in all; after the last, the membership is
+   * account only. A decline is tried again after the salon's wait (default 3 days), its number of tries in all (default 3); a backup card on
+   * file is tried in the same try when the main card declines; after the last try, the membership is
    * PAUSED (no credits while unpaid), the invoice stays open, the member is emailed a private link to give a new card and the
    * salon is told. Resuming starts it again. The member is emailed each time. `now` is a seam for tests; `fresh` is a resume's
    * own new round (the waits and the try limit do not apply to it).
    */
-  async function collect(enrollmentId: string, invoiceId: string, now: Date = new Date(), fresh = false): Promise<CollectOutcome> {
+  async function collect(enrollmentId: string, invoiceId: string, now: Date = new Date(), fresh = false, opts: { early?: boolean; userId?: string | null } = {}): Promise<CollectOutcome> {
     const [enr]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, enrollmentId)).limit(1)
     if (!enr || !enr.autoCharge || enr.status !== 'active') return 'skipped'
     const companyId = enr.companyId
@@ -146,13 +149,30 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
       try { await d.services.emailService.send(ct.email, template, { contactName: ct.name || 'there', plan: planName, invoiceNumber: inv.number, ...data }) }
       catch (e: any) { d.logger.warn('[memberships] charge email not sent', { error: e?.message || String(e) }) }
     }
+    // Every decline is told to the staff who hold the payments permission (Settings › Users): who, how much, which try, what happens next.
+    const tellStaff = async (data: Record<string, string>) => {
+      try {
+        const people: any[] = await db.select({ id: user.id, email: user.email, role: user.role }).from(user).where(and(eq(user.companyId, companyId), eq(user.isActive, true)))
+        const sent = new Set<string>()
+        for (const p of people) {
+          if (!p.email || sent.has(p.email.toLowerCase())) continue
+          const extra = await d.permissions.getExtraPermissions(p.id)
+          if (!d.permissions.hasPermission(String(p.role || ''), 'payments:read', extra)) continue
+          sent.add(p.email.toLowerCase())
+          await d.services.emailService.send(p.email, 'membershipDeclinedStaff', { clientName: ct?.name || 'A member', plan: planName, invoiceNumber: inv.number, amount: owed.toFixed(2), ...data })
+        }
+      } catch (e: any) { d.logger.warn('[memberships] staff decline notice not sent', { error: e?.message || String(e) }) }
+    }
     const switchOff = async (why: string) => {
       await db.update(membershipEnrollment).set({ autoCharge: false, updatedAt: new Date() }).where(eq(membershipEnrollment.id, enr.id))
       await d.audit.log({ action: 'update', entity: 'membership_enrollment', entityId: enr.id, metadata: { autoCharge: false, why }, companyId })
       d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
     }
 
-    const [card] = await cards.cardsOf(companyId, enr.contactId)
+    // The salon's own tries and wait (Memberships › When a card is declined); the cards are tried newest first: the main card, then the backups.
+    const retry = readRetry(await settingsOf(db, companyId))
+    const waitMs = retry.intervalDays * 86_400_000
+    const [card, ...backups] = await cards.cardsOf(companyId, enr.contactId)
     if (!card) {
       await switchOff('no card on file')
       await say('membershipPaymentFailed', { amount: owed.toFixed(2), card: 'card', next: 'We have no card on file for you, so your membership will not be charged automatically.' })
@@ -168,8 +188,9 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
         if (now.getTime() - new Date(last.updatedAt).getTime() < STALE_PENDING_MS) return 'busy'
         attempt = last.attempt; resume = true
       } else {
-        if (!fresh && last.attempt >= MAX_TRIES) return 'waiting'
-        if (!fresh && now.getTime() - new Date(last.updatedAt).getTime() < RETRY_AFTER_MS) return 'waiting'
+        if (!fresh && last.attempt >= retry.tries) return 'waiting'
+        // "Retry now" skips the wait, never the number of tries.
+        if (!fresh && !opts.early && now.getTime() - new Date(last.updatedAt).getTime() < waitMs) return 'waiting'
         attempt = last.attempt + 1
       }
     }
@@ -178,46 +199,61 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
     } else {
       const claimed = await db.insert(membershipCharge).values({
         companyId, enrollmentId: enr.id, invoiceId, contactId: enr.contactId, cardId: card.id,
-        period: enr.lastBilledFor || (await today(companyId)), attempt, amount: String(owed), status: 'pending',
+        period: enr.lastBilledFor || (await today(companyId)), attempt, amount: String(owed), status: 'pending', retriedByUserId: opts.early ? (opts.userId ?? null) : null,
       }).onConflictDoNothing().returning({ id: membershipCharge.id })
       if (!claimed.length) return 'busy'
     }
 
-    let result
+    // The main card first; when it is DECLINED a backup card on file is tried in the same try (a card that needs the client's own
+    // approval stops there). Each card has its own Stripe key, so a repeated run cannot charge any of them twice.
+    let result: Awaited<ReturnType<typeof d.services.stripeService.chargeSavedCard>> | undefined
+    let paidWith = card
+    let backupTried = false
     try {
-      result = await d.services.stripeService.chargeSavedCard({
-        companyId, customerId: card.stripeCustomerId, paymentMethodId: card.paymentMethodId, amount: owed,
-        description: `Membership — ${planName}${inv.number ? ` (invoice ${inv.number})` : ''}`,
-        metadata: { kind: 'membership', invoice_id: invoiceId, enrollment_id: enr.id, contact_id: enr.contactId, company_id: companyId },
-        idempotencyKey: `membership:${invoiceId}:${attempt}`,
-      })
+      for (const [i, c] of [card, ...backups].entries()) {
+        result = await d.services.stripeService.chargeSavedCard({
+          companyId, customerId: c.stripeCustomerId, paymentMethodId: c.paymentMethodId, amount: owed,
+          description: `Membership — ${planName}${inv.number ? ` (invoice ${inv.number})` : ''}`,
+          metadata: { kind: 'membership', invoice_id: invoiceId, enrollment_id: enr.id, contact_id: enr.contactId, company_id: companyId, ...(i ? { backup_card: '1' } : {}) },
+          idempotencyKey: i ? `membership:${invoiceId}:${attempt}:${c.id}` : `membership:${invoiceId}:${attempt}`,
+        })
+        paidWith = c
+        if (i) backupTried = true
+        if (result.ok || result.reason !== 'declined') break
+      }
     } catch (e: any) {
       // Stripe or the salon's Stripe link is not there right now: nothing was charged and the try is not used up.
       d.logger.warn('[memberships] auto-charge unavailable', { error: e?.message || String(e) })
       if (!resume) await db.delete(membershipCharge).where(and(eq(membershipCharge.invoiceId, invoiceId), eq(membershipCharge.attempt, attempt)))
       return 'unavailable'
     }
+    if (!result) return 'unavailable'
 
     const setLedger = (status: string, extra: Record<string, unknown> = {}) =>
       db.update(membershipCharge).set({ status, updatedAt: new Date(), ...extra }).where(and(eq(membershipCharge.invoiceId, invoiceId), eq(membershipCharge.attempt, attempt)))
 
     if (result.ok) {
-      await setLedger('succeeded', { paymentIntentId: result.paymentIntentId })
+      await setLedger('succeeded', { paymentIntentId: result.paymentIntentId, cardId: paidWith.id, backupTried })
       // Recorded now, once per PaymentIntent: Stripe's own payment_intent.succeeded finds it there and adds nothing.
       const outcome = await recordInvoicePayment(db, { invoice, payment }, false, {
         invoiceId, companyId, amount: owed, method: 'card', reference: result.paymentIntentId,
-        notes: `Membership auto-charge — ${cardWords(card)}`, allowOverpayment: true, idempotentByReference: true,
+        notes: `Membership auto-charge${backupTried ? ' (backup card)' : ''} — ${cardWords(paidWith)}`, allowOverpayment: true, idempotentByReference: true,
       })
       if (!outcome.ok) d.logger.error('[memberships] card charged but payment not recorded', { invoiceId, paymentIntentId: result.paymentIntentId, error: outcome.error })
-      await d.audit.log({ action: 'create', entity: 'membership_charge', entityId: enr.id, metadata: { invoiceId, amount: owed, status: 'succeeded', attempt }, companyId })
+      await d.audit.log({ action: 'create', entity: 'membership_charge', entityId: enr.id, metadata: { invoiceId, amount: owed, status: 'succeeded', attempt, ...(backupTried ? { backupCard: true } : {}) }, companyId })
       d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
-      await say('membershipCharged', { amount: owed.toFixed(2), card: cardWords(card) })
+      await say('membershipCharged', { amount: owed.toFixed(2), card: cardWords(paidWith) })
       return 'paid'
     }
 
-    await setLedger(result.reason, { paymentIntentId: result.paymentIntentId, failureMessage: result.message })
+    await setLedger(result.reason, { paymentIntentId: result.paymentIntentId, failureMessage: result.message, backupTried, cardId: paidWith.id })
     await d.audit.log({ action: 'create', entity: 'membership_charge', entityId: enr.id, metadata: { invoiceId, amount: owed, status: result.reason, attempt, message: result.message }, companyId })
-    const last_try = attempt >= MAX_TRIES
+    const last_try = attempt >= retry.tries
+    await tellStaff({
+      attempt: String(attempt), tries: String(retry.tries), reason: result.message || (result.reason === 'needs_action' ? 'The card needs the client to approve it.' : 'The card was declined.'),
+      backup: backups.length ? (backupTried ? `The main card and ${backups.length === 1 ? 'the backup card' : `${backups.length} backup cards`} were tried.` : 'The card needs the client to approve it, so no backup was tried.') : 'There is no backup card on file.',
+      next: last_try ? 'That was the last try: the membership is paused and the client has been emailed a link to give a new card.' : `Next automatic try in ${retry.intervalDays} day${retry.intervalDays === 1 ? '' : 's'}. You can use Retry now in Memberships.`,
+    })
     if (last_try) {
       // Every try failed: the membership is paused (no credits while unpaid), the member gets a private link to give a new
       // card, and the salon is told. The invoice stays open. Resuming starts it again.
@@ -233,7 +269,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
       }
     } else {
       d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
-      await say('membershipPaymentFailed', { amount: owed.toFixed(2), card: cardWords(card), next: 'We will try again in a few days.' })
+      await say('membershipPaymentFailed', { amount: owed.toFixed(2), card: cardWords(card), next: `We will try again in ${retry.intervalDays} day${retry.intervalDays === 1 ? '' : 's'}.` })
     }
     return result.reason
   }
@@ -254,6 +290,25 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
       if (out === 'paid' || out === 'declined' || out === 'needs_action') tried++
     }
     return tried
+  }
+
+  /**
+   * "Retry now": the next try of a declined charge, without waiting out the interval. Only before the last try is used up (after it the
+   * membership is paused: that is Resume). One try per call, counted like any other.
+   */
+  async function retryNow(enrollmentId: string, companyId: string, userId: string | null): Promise<{ ok: boolean; outcome: CollectOutcome | 'no_invoice' | 'not_active' | 'no_tries_left'; status: string } | null> {
+    const [enr]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(and(eq(membershipEnrollment.id, enrollmentId), eq(membershipEnrollment.companyId, companyId))).limit(1)
+    if (!enr) return null
+    if (enr.status !== 'active') return { ok: false, outcome: 'not_active', status: enr.status }
+    const open: any[] = await db.select({ invoiceId: membershipCharge.invoiceId, attempt: membershipCharge.attempt, status: membershipCharge.status })
+      .from(membershipCharge).innerJoin(invoice, eq(invoice.id, membershipCharge.invoiceId))
+      .where(and(eq(membershipCharge.enrollmentId, enr.id), inArray(membershipCharge.status, ['declined', 'needs_action']), notInArray(invoice.status, ['paid', 'void', 'refunded'])))
+      .orderBy(desc(membershipCharge.createdAt), desc(membershipCharge.attempt)).limit(1)
+    if (!open.length) return { ok: false, outcome: 'no_invoice', status: enr.status }
+    if (open[0].attempt >= readRetry(await settingsOf(db, companyId)).tries) return { ok: false, outcome: 'no_tries_left', status: enr.status }
+    const outcome = await collect(enr.id, open[0].invoiceId, new Date(), false, { early: true, userId })
+    const [after]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, enr.id)).limit(1)
+    return { ok: outcome === 'paid', outcome, status: after?.status || enr.status }
   }
 
   /**
@@ -354,7 +409,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
     return { ...one, charge }
   }
 
-  return { settleMembershipBilling, billFirstPeriod, collect, retryDeclined, resume }
+  return { settleMembershipBilling, billFirstPeriod, collect, retryDeclined, retryNow, resume }
 }
 
 export type MembershipBilling = ReturnType<typeof createMembershipBilling>
