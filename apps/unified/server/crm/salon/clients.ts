@@ -21,8 +21,9 @@ import { isClient } from './people.ts'
 import type { SalonServices } from './services.ts'
 import { withVisitPhotos } from './visitPhotos.ts'
 import { inOwnChair } from './bookScope.ts'
+import { patchTestState } from './patchTest.ts'
 
-const PROFILE_EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
+const PROFILE_EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'patchTestResult', 'preferences', 'pronouns', 'birthday', 'notes'] as const
 // Hair type is a short label on a client card; the longer free-text fields keep their own ceilings. (Salon T28 L4)
 const FIELD_MAX: Record<string, number> = { hairType: 120, pronouns: 40, scalpNotes: 2000, allergies: 2000, preferences: 2000, notes: 5000 }
 
@@ -169,6 +170,8 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
     return one(c, {
       contact: withoutPortalCredential(ct),
       profile: profile || null,
+      // Where the client stands on a patch test today (./patchTest.ts): none, passed, failed or expired.
+      patchTest: patchTestState(profile?.patchTestAt ?? null, profile?.patchTestResult ?? null, await clock.salonToday(companyId)),
       serviceRecords,
       photos,
       appointments,
@@ -201,7 +204,17 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
       if (v.slice(0, 10) > today) return fail(c, 400, `${label} cannot be in the future.`)
     }
 
+    if (body.patchTestResult != null && body.patchTestResult !== '' && !['passed', 'failed'].includes(body.patchTestResult)) return fail(c, 400, 'A patch test result is passed or failed.', 'VALIDATION', { patchTestResult: 'Choose passed or failed.' })
     const [existing] = await db.select().from(clientProfile).where(and(eq(clientProfile.contactId, contactId), eq(clientProfile.companyId, currentUser.companyId))).limit(1)
+    // A result belongs to a test that was done, on its date: no date, no result; a NEW date with no result given is a new
+    // test whose result is not recorded (counts as passed, as dates did before results were kept); the same date keeps its result.
+    if ('patchTestAt' in body) {
+      const was = existing?.patchTestAt ? String(existing.patchTestAt).slice(0, 10) : null
+      const now = body.patchTestAt ? String(body.patchTestAt).slice(0, 10) : null
+      if (!now || (now !== was && !('patchTestResult' in body))) body.patchTestResult = null
+    } else if (body.patchTestResult && !existing?.patchTestAt) {
+      return fail(c, 400, 'Give the date of the patch test with its result.', 'VALIDATION', { patchTestAt: 'Enter the date of the test.' })
+    }
     let saved: typeof clientProfile.$inferSelect
     if (existing) {
       const updates: Record<string, unknown> = { updatedAt: new Date() }

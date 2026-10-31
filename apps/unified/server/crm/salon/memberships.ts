@@ -5,14 +5,14 @@
 import { Hono } from 'hono'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { MEMBERSHIP_TILES, activeEnrollmentCondition } from './tileConditions.ts'
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing } from '@twomiah/tenant-backend'
-import { membershipPlan, membershipEnrollment, contact } from '../../db/schema/index.ts'
+import { membershipPlan, membershipEnrollment, membershipCharge, contact } from '../../db/schema/index.ts'
 import { takeMembershipCredit } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
 import type { SalonServices } from './services.ts'
 
 const ENROLLMENT_EDITABLE = ['planId', 'contactId', 'status', 'creditsRemaining', 'startDate', 'renewsAt', 'cancelledAt'] as const
@@ -53,6 +53,22 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
   const { memberships: billing, clock } = salon
   const app = new Hono<AppEnv>()
 
+  const may = canSeeWith(d.permissions)
+
+  /**
+   * Turning on "charge their card automatically" is agreeing to take money on a schedule, so it sits with the seat that
+   * charges (invoices:update), needs Card on File on, a card on the client, and the client's agreement (kept with who
+   * recorded it). Null = fine to turn on; otherwise the refusal to send.
+   */
+  async function refuseAutoCharge(c: any, user: any, contactId: string, body: any) {
+    if (!(await may(user.role, 'invoices:update', user.userId || user.id))) return fail(c, 403, 'Only someone who can take payments may set a member up for automatic card payments.')
+    if (body.clientAgreed !== true) return fail(c, 400, 'Confirm the client has agreed to be charged automatically each period.', 'CONSENT_REQUIRED', { clientAgreed: 'Tick that the client agreed.' })
+    if (!(await d.features.isFeatureEnabled(user.companyId, 'card_on_file'))) return fail(c, 409, 'Card on file is not switched on for this salon.', 'FEATURE_OFF')
+    const [card] = await salon.cards.cardsOf(user.companyId, contactId)
+    if (!card) return fail(c, 409, 'This client has no card on file. Add one on their chart first.', 'NO_CARD')
+    return null
+  }
+
   // ── Enrolments (before the plan /:id routes, so '/enrollments' isn't read as a plan id) ──
 
   // GET /memberships/enrollments — ?contactId=, ?status=. Reading settles what has come due. (T20 H4)
@@ -86,7 +102,15 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
       .orderBy(desc(membershipEnrollment.createdAt))
       .limit(limit)
       .offset((page - 1) * limit)
-    const rows = data.map((r) => ({ ...r.enrollment, planName: r.planName, planPrice: r.planPrice, billingCycle: r.billingCycle, clientName: r.clientName, clientPhone: r.clientPhone }))
+    // The latest automatic card charge for each member who has had one: what happened, never an amount or a card id.
+    const tries: any[] = data.length
+      ? await db.select({ enrollmentId: membershipCharge.enrollmentId, status: membershipCharge.status, attempt: membershipCharge.attempt, failureMessage: membershipCharge.failureMessage, at: membershipCharge.updatedAt })
+        .from(membershipCharge).where(and(eq(membershipCharge.companyId, currentUser.companyId), inArray(membershipCharge.enrollmentId, data.map((r) => r.enrollment.id))))
+        .orderBy(desc(membershipCharge.createdAt), desc(membershipCharge.attempt))
+      : []
+    const lastTry = new Map<string, any>()
+    for (const t of tries) if (!lastTry.has(t.enrollmentId)) lastTry.set(t.enrollmentId, { status: t.status, attempt: t.attempt, failureMessage: t.failureMessage, at: t.at })
+    const rows = data.map((r) => ({ ...r.enrollment, planName: r.planName, planPrice: r.planPrice, billingCycle: r.billingCycle, clientName: r.clientName, clientPhone: r.clientPhone, lastCharge: lastTry.get(r.enrollment.id) ?? null }))
     const [{ total }] = await db.select({ total: count() }).from(membershipEnrollment).where(and(...conditions))
     return list(c, rows, { page, limit, total: Number(total) })
   })
@@ -114,8 +138,18 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
       return fail(c, 409, `${ct.name || 'This client'} is already on ${plan.name}${existingEnrolment.startDate ? ` (since ${String(existingEnrolment.startDate).slice(0, 10)})` : ''}. Cancel that membership first if they are starting a new one.`, 'ALREADY_ENROLLED')
     }
 
+    let autoCharge = false
+    if (body.autoCharge === true) {
+      const refused = await refuseAutoCharge(c, currentUser, body.contactId, body)
+      if (refused) return refused
+      autoCharge = true
+    }
+
     const [created] = await db.insert(membershipEnrollment).values({
       id: createId(),
+      autoCharge,
+      autoChargeConsentAt: autoCharge ? new Date() : null,
+      autoChargeConsentUserId: autoCharge ? (currentUser.userId || currentUser.id || null) : null,
       planId: body.planId,
       contactId: body.contactId,
       status: body.status || 'active',
@@ -132,7 +166,7 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
 
     await audit.log({ action: 'create', entity: 'membership_enrollment', entityId: created.id, metadata: created, req: { user: currentUser } })
     refresh(currentUser.companyId, 'membership_enrollment')
-    return one(c, { ...(withBilling || created), invoiceId: firstCharge?.invoiceId ?? null, invoiceNumber: firstCharge?.number ?? null }, 201)
+    return one(c, { ...(withBilling || created), invoiceId: firstCharge?.invoiceId ?? null, invoiceNumber: firstCharge?.number ?? null, autoChargeResult: firstCharge?.charge ?? null }, 201)
   })
 
   // POST /memberships/billing/run — bill every membership that has come due.
@@ -140,6 +174,40 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
     const currentUser = c.get('user') as any
     const billed = await billing.settleMembershipBilling(currentUser.companyId)
     return one(c, { billed: billed.length, invoices: billed })
+  })
+
+  // PUT /memberships/enrollments/:id/auto-charge — { on, clientAgreed } — charge this member's card on file each period, or stop.
+  // Stopping needs no agreement and is open to whoever may update the member.
+  app.put('/enrollments/:id/auto-charge', requirePermission('contacts:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const id = c.req.param('id')
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    if (typeof body.on !== 'boolean') return fail(c, 400, 'Say whether automatic card payments are on.', 'VALIDATION', { on: 'Choose on or off.' })
+    const [existing] = await db.select().from(membershipEnrollment).where(and(eq(membershipEnrollment.id, id), eq(membershipEnrollment.companyId, currentUser.companyId))).limit(1)
+    if (!existing) return fail(c, 404, 'Enrollment not found')
+    if (body.on) {
+      if (existing.status !== 'active') return fail(c, 409, 'Only an active membership can be charged automatically.', 'NOT_ACTIVE')
+      const refused = await refuseAutoCharge(c, currentUser, existing.contactId, body)
+      if (refused) return refused
+    }
+    const [updated] = await db.update(membershipEnrollment).set(body.on
+      ? { autoCharge: true, autoChargeConsentAt: new Date(), autoChargeConsentUserId: currentUser.userId || currentUser.id || null, updatedAt: new Date() }
+      : { autoCharge: false, updatedAt: new Date() }).where(eq(membershipEnrollment.id, id)).returning()
+    await audit.log({ action: 'update', entity: 'membership_enrollment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+    refresh(currentUser.companyId, 'membership_enrollment')
+    return one(c, updated)
+  })
+
+  // POST /memberships/enrollments/:id/resume — start a membership paused for a declined card again; billing restarts and the
+  // unpaid invoice is charged to the card on file now. Spending money, so it asks for what taking a payment asks for.
+  app.post('/enrollments/:id/resume', requirePermission('invoices:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const out = await billing.resume(c.req.param('id'), currentUser.companyId)
+    if (!out) return fail(c, 404, 'Enrollment not found')
+    if (out.status === 'not_paused') return fail(c, 409, 'Only a membership paused for a declined card can be resumed.', 'NOT_PAUSED')
+    refresh(currentUser.companyId, 'membership_enrollment')
+    const [row] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, c.req.param('id'))).limit(1)
+    return one(c, { ...row, resumeResult: out.outcome })
   })
 
   app.put('/enrollments/:id', requirePermission('contacts:update'), async (c) => {
@@ -151,7 +219,11 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
 
     const updates: Record<string, any> = { updatedAt: new Date() }
     for (const k of ENROLLMENT_EDITABLE) if (k in body) updates[k] = body[k]
+    // The agreement to be charged was given by THIS client: moving the membership to another client ends it.
+    if (body.contactId && body.contactId !== existing.contactId && existing.autoCharge) updates.autoCharge = false
     if (updates.cancelledAt) updates.cancelledAt = new Date(updates.cancelledAt)
+    // Any status change ends the pause for a card: the private card link stops working and the note on it is cleared.
+    if (existing.status === 'paused' && 'status' in body && body.status !== 'paused') { updates.pausedForPaymentAt = null; updates.cardUpdateToken = null }
     if (body.status === 'cancelled' && !existing.cancelledAt && !updates.cancelledAt) updates.cancelledAt = new Date()
 
     const [updated] = await db.update(membershipEnrollment).set(updates).where(eq(membershipEnrollment.id, id)).returning()

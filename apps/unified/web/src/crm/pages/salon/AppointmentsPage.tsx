@@ -1,7 +1,7 @@
 // Moved from templates/crm-salon/frontend/src/pages/salon/AppointmentsPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors, AlertTriangle, RotateCcw, CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors, AlertTriangle, RotateCcw, CalendarClock, ChevronLeft, ChevronRight, Lock } from 'lucide-react'
 import { api } from '../../../api'
 import ClientPicker from './ClientPicker';
 import ServiceRecordEditorModal from './ServiceRecordEditorModal';
@@ -9,11 +9,13 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
-import { useConfirm, useMayWrite } from '../../../shared'
+import { useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
+import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
+import BookGrid, { type GridColumn, type GridBlock } from './BookGrid'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -63,6 +65,8 @@ interface Appointment {
   stylistFirstName?: string;
   stylistMemberName?: string;
   stylistLastName?: string;
+  /** A visit with several services (salon #5): each with its own stylist and place in the visit. */
+  items?: Array<{ id: string; serviceName?: string; stylistFirstName?: string; stylistLastName?: string; startOffsetMin: number; durationMin: number }>;
 }
 interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number; requiresPatchTest?: boolean }
 interface ClientProfileLite { allergies?: string | null; patchTestAt?: string | null }
@@ -111,12 +115,22 @@ export default function AppointmentsPage() {
   const mayMove = useMayWrite('schedule:update');
   // The front desk checks clients in without being able to move or cancel them (schedule:check-in).
   const mayCheckIn = useMayWrite('schedule:update') || useMayWrite('schedule:check-in');
+  // A no-show or late-cancel fee on the client's card on file: Card on File on, and a seat that may charge (invoices:update).
+  const mayChargeFees = useMayChargeFees();
+  const [feeFor, setFeeFor] = useState<Appointment | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
-  const [view, setView] = useState<'day' | 'week'>('day');
+  const { hasFeature } = useAuth();
+  const gridOn = hasFeature('book_grid');
+  const [view, setView] = useState<'day' | 'week' | 'grid'>('day');
   // One chair's book, or everyone's (''): the stylists come from the appointments on screen, roster-only ones included.
   const [stylistFilter, setStylistFilter] = useState<string>('');
+  // The grid shows one stylist's week when a stylist is picked, else the day with a column per stylist.
+  const weekish = view === 'week' || (view === 'grid' && !!stylistFilter);
+  const [blocks, setBlocks] = useState<GridBlock[]>([]);
+  const [blockFor, setBlockFor] = useState<null | { block?: GridBlock; stylistId?: string; date?: string; start?: string }>(null);
+  const [newAt, setNewAt] = useState<null | { stylistId?: string; date?: string; time?: string }>(null);
   // The week's card that was clicked: its actions open over the week.
   const [picked, setPicked] = useState<Appointment | null>(null);
   const [appts, setAppts] = useState<Appointment[]>([]);
@@ -129,9 +143,9 @@ export default function AppointmentsPage() {
   // The heading for the day whose rows are actually on screen — held while a new date is being typed.
   const [shownHeading, setShownHeading] = useState<string>(() => dayHeading(todayStr(), todayStr()) ?? "Today's chairs");
   useEffect(() => {
-    const h = view === 'week' ? weekHeading(day) : dayHeading(day, todayStr());
+    const h = weekish ? weekHeading(day) : dayHeading(day, todayStr());
     if (h) setShownHeading(h);
-  }, [day, view]);
+  }, [day, weekish]);
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
@@ -151,17 +165,21 @@ export default function AppointmentsPage() {
     if (!isDayComplete(day)) return;
     setLoading(true);
     try {
-      const { from, to } = viewBounds(view, day);
+      const { from, to } = viewBounds(weekish ? 'week' : 'day', day);
       const res = await api.get(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const rows: Appointment[] = res.data || [];
       rows.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       setAppts(rows);
+      // Blocked time (lunch, training) rides with the grid.
+      if (gridOn && view === 'grid') {
+        try { setBlocks(((await api.get(`/api/book-blocks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)).data || []) as GridBlock[]); } catch { setBlocks([]); }
+      }
     } catch (error) {
       console.error('Failed to load appointments:', error);
     } finally {
       setLoading(false);
     }
-  }, [day, view]);
+  }, [day, weekish, view, gridOn]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -229,6 +247,11 @@ export default function AppointmentsPage() {
           <RotateCcw className="w-4 h-4" /> Reopen
         </button>
       )}
+      {mayChargeFees && a.contactId && mayHaveFee(a.status) && (
+        <button onClick={() => { then(); setFeeFor(a); }} className="flex items-center gap-1 px-3 py-1.5 border border-amber-300 dark:border-amber-600 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 text-sm" title="Charge the client's card on file">
+          Charge a fee
+        </button>
+      )}
       {mayMove && !CLOSED.has(a.status || 'scheduled') && (
         <>
           <button onClick={() => { then(); setStatus(a, 'completed'); }} className="px-3 py-1.5 border border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 text-sm">Complete</button>
@@ -249,7 +272,31 @@ export default function AppointmentsPage() {
   const days = weekOf(isDayComplete(day) ? day : todayStr());
   const week = byDay(shown, days);
   const today = todayStr();
-  const heading = view === 'week' ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+  const heading = weekish ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+
+  // The grid's columns: a day is a column per stylist (and one for unassigned bookings, if any); a stylist's week is a column per day.
+  const gridCols: GridColumn[] = weekish
+    ? days.map((d) => ({ key: d, day: d, label: dateWords(d, { weekday: 'short' }), sub: dateWords(d, { month: 'short', day: 'numeric' }) }))
+    : [
+        ...stylists.filter(([id]) => (scope.ownOnly ? scope.ownStylistIds.includes(id) : true)).map(([id, name]) => ({ key: id, stylistId: id, label: name })),
+        ...(shown.some((a) => !a.stylistId) && !scope.ownOnly ? [{ key: 'none', stylistId: '', label: 'Unassigned' }] : []),
+      ];
+
+  // Moving a card on the grid is the Reschedule button's PUT; a clash is refused by the server in words, and a blocked time asks first.
+  const putMove = async (a: { id: string }, payload: Record<string, unknown>) => {
+    try {
+      await api.put(`/api/appointments/${a.id}`, payload);
+    } catch (err) {
+      const code = (err as { data?: { code?: string } }).data?.code;
+      if (code === 'BOOK_BLOCKED' && await confirm(`${(err as Error).message}`, { title: 'Blocked time', confirmText: 'Book it anyway', danger: false })) {
+        try { await api.put(`/api/appointments/${a.id}`, { ...payload, overrideBlock: true }); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
+      } else if (code !== 'BOOK_BLOCKED') toast.error((err as Error).message || 'Could not move it');
+    }
+    load();
+  };
+  const moveOnGrid = (a: { id: string }, to: { start: Date; end: Date; stylistId?: string; itemised: boolean }) =>
+    putMove(a, { startTime: to.start.toISOString(), endTime: to.end.toISOString(), ...(to.stylistId !== undefined ? { stylistId: to.stylistId } : {}) });
+  const resizeOnGrid = (a: { id: string }, end: Date) => putMove(a, { endTime: end.toISOString() });
 
   return (
     <div className="space-y-6">
@@ -260,29 +307,34 @@ export default function AppointmentsPage() {
               rendering "Chairs on Invalid Date" over the previous day's rows. (T20 M5) */}
           <p className="text-gray-500 dark:text-slate-400">{heading}</p>
         </div>
-        {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
-          <Plus className="w-4 h-4" /> New Appointment
-        </button>}
+        <div className="flex items-center gap-2">
+          {mayBook && gridOn && <button onClick={() => setBlockFor({ date: isDayComplete(day) ? day : todayStr() })} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
+            <Lock className="w-4 h-4" /> Block time
+          </button>}
+          {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+            <Plus className="w-4 h-4" /> New Appointment
+          </button>}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Show the book by">
-          {(['day', 'week'] as const).map((v) => (
+          {([...(['day', 'week'] as const), ...(gridOn ? (['grid'] as const) : [])]).map((v) => (
             <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === v ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-              {v === 'day' ? 'Day' : 'Week'}
+              {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Grid'}
             </button>
           ))}
         </div>
-        {view === 'week' && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, -7))} aria-label="Previous week" className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
+        {(weekish || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? -7 : -1))} aria-label={weekish ? 'Previous week' : 'Previous day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
         )}
         <div className="relative">
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={view === 'week' ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={weekish ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        {view === 'week' && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, 7))} aria-label="Next week" className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
+        {(weekish || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? 7 : 1))} aria-label={weekish ? 'Next week' : 'Next day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
         )}
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
         {scope.ownOnly ? (
@@ -302,6 +354,15 @@ export default function AppointmentsPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
+      ) : view === 'grid' ? (
+        <BookGrid
+          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today}
+          mayMove={mayMove} mayBook={mayBook}
+          onPick={(a) => setPicked(a as Appointment)}
+          onMove={moveOnGrid} onResize={resizeOnGrid}
+          onEmptySlot={(col, startMin) => setNewAt({ stylistId: col.stylistId, date: weekish ? col.day : day, time: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` })}
+          onBlock={(b) => setBlockFor({ block: b })}
+        />
       ) : view === 'week' ? (
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
           {days.map((d) => (
@@ -345,7 +406,9 @@ export default function AppointmentsPage() {
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">{clientLink(a)}</p>
                 <p className="text-sm text-gray-500 flex items-center gap-2 flex-wrap dark:text-slate-400">
-                  {a.serviceName && <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.serviceName}</span>}
+                  {a.items && a.items.length > 1
+                    ? <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.items.map((i) => `${i.serviceName || 'Service'}${i.stylistFirstName ? ` (${i.stylistFirstName})` : ''}`).join(' + ')}</span>
+                    : a.serviceName && <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.serviceName}</span>}
                   {(a.clientMobile || a.clientPhone) && (
                     <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {a.clientMobile || a.clientPhone}</span>
                   )}
@@ -390,12 +453,21 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {showForm && (
+      {(showForm || newAt) && (
         <NewAppointmentModal
-          defaultDay={day}
+          defaultDay={newAt?.date || day}
+          defaultTime={newAt?.time}
+          defaultStylistId={newAt?.stylistId}
           scope={scope}
-          onSave={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
+          onSave={() => { setShowForm(false); setNewAt(null); load(); }}
+          onClose={() => { setShowForm(false); setNewAt(null); }}
+        />
+      )}
+      {blockFor && (
+        <BlockTimeModal
+          block={blockFor.block} defaultDay={blockFor.date || day} defaultStylistId={blockFor.stylistId}
+          stylists={scope.ownOnly ? stylists.filter(([id]) => scope.ownStylistIds.includes(id)) : stylists} ownOnly={scope.ownOnly}
+          onSave={() => { setBlockFor(null); load(); }} onClose={() => setBlockFor(null)}
         />
       )}
       {closing && closing.contactId && (
@@ -406,6 +478,9 @@ export default function AppointmentsPage() {
           onSave={(saved) => { setClosing(null); load(); offerCheckout(saved?.invoiceId as string | undefined); }}
           onClose={() => setClosing(null)}
         />
+      )}
+      {feeFor && (
+        <ChargeFeeModal appointmentId={feeFor.id} clientName={feeFor.clientName} onClose={() => setFeeFor(null)} onDone={load} />
       )}
       {resched && (
         <RescheduleModal appt={resched} onSave={() => { setResched(null); load(); }} onClose={() => setResched(null)} />
@@ -508,9 +583,13 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 
 /* ---------------- New Appointment Modal ---------------- */
 
-function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDay: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
+function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope, onSave, onClose }: { defaultDay: string; defaultTime?: string; defaultStylistId?: string; scope: BookScope; onSave: () => void; onClose: () => void }) {
   // A stylist is not shown prices (the server leaves them out too); the booking takes the menu price.
   const maySeePrices = useMayWrite('invoices:read');
+  const { hasFeature } = useAuth();
+  const several = hasFeature('multi_service_visits');
+  // More services in this visit, after the first one above: each with its own stylist ('' = the visit's).
+  const [more, setMore] = useState<Array<{ serviceId: string; stylistId: string }>>([]);
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -518,8 +597,8 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
   const [contactId, setContactId] = useState<string>('');
   const [profile, setProfile] = useState<ClientProfileLite | null>(null);
   const [form, setForm] = useState({
-    serviceId: '', stylistId: '',
-    date: defaultDay, startTime: '09:00', endTime: '',
+    serviceId: '', stylistId: defaultStylistId || '',
+    date: defaultDay, startTime: defaultTime || '09:00', endTime: '',
     station: '', quotedPrice: '', notes: '',
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -577,9 +656,12 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
     });
   };
 
+  const [needsReason, setNeedsReason] = useState<string>('');
+  const [overrideReason, setOverrideReason] = useState<string>('');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactId) { toast.error('A client is required'); return; }
+    if (needsReason && overrideReason.trim().length < 3) { toast.error('Say why you are booking it anyway'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -589,14 +671,23 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
       };
       if (form.serviceId) payload.serviceId = form.serviceId;
       if (form.stylistId) payload.stylistId = form.stylistId;
+      const extra = more.filter((m) => m.serviceId);
+      if (several && form.serviceId && extra.length > 0) {
+        // One visit, one service after another; the server works out the end and the price from the services.
+        payload.items = [{ serviceId: form.serviceId, ...(form.stylistId ? { stylistId: form.stylistId } : {}) }, ...extra.map((m) => ({ serviceId: m.serviceId, ...(m.stylistId ? { stylistId: m.stylistId } : {}) }))];
+      }
       // Left blank, the backend derives the end from the service duration.
-      if (form.endTime) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
+      if (form.endTime && !payload.items) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
       if (form.station) payload.station = form.station;
-      if (form.quotedPrice !== '') payload.quotedPrice = Number(form.quotedPrice);
+      if (form.quotedPrice !== '' && !payload.items) payload.quotedPrice = Number(form.quotedPrice);
       if (form.notes) payload.notes = form.notes;
+      // The salon's patch-test rule: a service that needs a passing test is booked only with a reason, kept on the appointment.
+      if (overrideReason.trim()) payload.patchTestOverrideReason = overrideReason.trim();
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
+      const data = (err as { data?: { code?: string } }).data;
+      if (data?.code === 'PATCH_TEST_NEEDED') { setNeedsReason((err as Error).message || 'This service needs a patch test first.'); return; }
       toast.error((err as Error).message || 'Failed to create appointment');
     } finally {
       setSaving(false);
@@ -640,6 +731,27 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
                 </select>
               </div>
             </div>
+            {several && form.serviceId && (
+              <div className="space-y-2">
+                {more.map((m, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                    <select aria-label={`Service ${i + 2}`} value={m.serviceId} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, serviceId: e.target.value } : x))} className="w-full px-3 py-2 border rounded-lg">
+                      <option value="">Then this service...</option>
+                      {services.map((sv) => <option key={sv.id} value={sv.id}>{sv.name || 'Untitled'}</option>)}
+                    </select>
+                    <select aria-label={`Stylist for service ${i + 2}`} value={m.stylistId} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, stylistId: e.target.value } : x))} className="w-full px-3 py-2 border rounded-lg" disabled={scope.ownOnly}>
+                      <option value="">Same stylist</option>
+                      {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+                    </select>
+                    <button type="button" aria-label={`Remove service ${i + 2}`} onClick={() => setMore((l) => l.filter((_, j) => j !== i))} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {more.length < 7 && (
+                  <button type="button" onClick={() => setMore((l) => [...l, { serviceId: '', stylistId: '' }])} className="text-sm text-teal-700 hover:underline dark:text-teal-300">+ Add another service to this visit</button>
+                )}
+                {more.some((m) => m.serviceId) && <p className="text-xs text-gray-500 dark:text-slate-400">The services run one after another; the end time and price come from them.</p>}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
@@ -670,6 +782,14 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {needsReason && (
+              <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="text-sm text-amber-900 dark:text-amber-100">{needsReason}</p>
+                <label className="mt-2 block text-sm font-medium text-gray-800 dark:text-slate-100">Book it anyway because
+                  <input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Tested in person today" />
+                </label>
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
@@ -678,6 +798,94 @@ function NewAppointmentModal({ defaultDay, scope, onSave, onClose }: { defaultDa
             </div>
           </form>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ---------------- Blocked time ---------------- */
+
+// Lunch, training, a day off: a stylist's chair (or everyone's) closed to bookings (server crm/salon/bookBlocks.ts, feature book_grid).
+function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly, onSave, onClose }: {
+  block?: GridBlock; defaultDay: string; defaultStylistId?: string; stylists: Array<[string, string]>; ownOnly: boolean; onSave: () => void; onClose: () => void
+}) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const startParts = block ? companyWall(new Date(block.startTime)) : { date: defaultDay, time: '12:00' };
+  const endParts = block ? companyWall(new Date(block.endTime)) : { date: defaultDay, time: '13:00' };
+  const [stylistId, setStylistId] = useState<string>(block ? (block.stylistId || '') : (defaultStylistId ?? (ownOnly && stylists[0] ? stylists[0][0] : '')));
+  const [startDate, setStartDate] = useState(startParts.date);
+  const [start, setStart] = useState(startParts.time);
+  const [endDate, setEndDate] = useState(endParts.date);
+  const [end, setEnd] = useState(endParts.time);
+  const [reason, setReason] = useState(block?.reason || '');
+  const [repeat, setRepeat] = useState('0');
+  const [saving, setSaving] = useState(false);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        startTime: companyMoment(startDate, start).toISOString(), endTime: companyMoment(endDate, end).toISOString(),
+        reason: reason.trim() || null, stylistId: stylistId || null,
+      };
+      if (block) await api.put(`/api/book-blocks/${block.id}`, payload);
+      else {
+        if (Number(repeat) > 0) payload.repeatWeeks = Number(repeat);
+        const made = await api.post('/api/book-blocks', payload);
+        if (made?.appointmentsInside > 0) toast.warning?.(`${made.appointmentsInside} appointment${made.appointmentsInside === 1 ? ' is' : 's are'} already booked in that time — they stay until you move them.`);
+      }
+      onSave();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not save the blocked time');
+    } finally { setSaving(false); }
+  };
+  const remove = async () => {
+    if (!block || !(await confirm('Remove this blocked time? The hours open up for booking again.', { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
+    try { await api.delete(`/api/book-blocks/${block.id}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <form onSubmit={save} role="dialog" aria-modal="true" aria-label="Blocked time" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">{block ? 'Blocked time' : 'Block time'}</h2>
+            <button type="button" aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200" htmlFor="block-who">Whose chair</label>
+            <select id="block-who" value={stylistId} onChange={(e) => setStylistId(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              {!ownOnly && <option value="">Everyone (the whole salon)</option>}
+              {stylists.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">From (day)<input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (endDate < e.target.value) setEndDate(e.target.value); }} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">From (time)<input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (day)<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (time)<input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
+          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Reason (only your team sees it)
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lunch, training, day off" className="mt-1 w-full px-3 py-2 border rounded-lg" maxLength={200} />
+          </label>
+          {!block && (
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Repeat every week for
+              <select value={repeat} onChange={(e) => setRepeat(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
+                <option value="0">Just this once</option>
+                {[1, 2, 3, 4, 8, 12, 26].map((n) => <option key={n} value={n}>{n} more week{n === 1 ? '' : 's'}</option>)}
+              </select>
+            </label>
+          )}
+          <div className="flex gap-3 pt-2">
+            {block && <button type="button" onClick={remove} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
       </div>
     </div>
   );

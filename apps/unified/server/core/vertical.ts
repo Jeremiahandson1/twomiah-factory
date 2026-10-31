@@ -137,7 +137,8 @@ export interface CrmSettings {
   /** The field view's end-of-visit checklist. */
   tech: { checklistType: string; checklistTitle: string; legacyChecklistTypes?: string[] }
   /** Customer-portal sections this vertical doesn't offer. */
-  portal: { disable: string[] }
+  /** Customer-portal sections this vertical doesn't offer; `appointments`: the portal lists the client's upcoming appointments (salon; seen only with the `portal_appointments` feature on). */
+  portal: { disable: string[]; appointments?: boolean }
   /**
    * What /api/dashboard answers: 'events' is the private-events dashboard (the book ahead, the pipeline by status,
    * the rooms, the money owed — server/crm/restaurant/eventsDashboard.ts), which templates/crm-restaurant and
@@ -225,6 +226,14 @@ export interface CrmSettings {
     tips?: boolean
     /** A client's account balance is a way to pay and a place to refund to (client_account_entry; salon). */
     accountBalance?: boolean
+    /** A gift card is a way to pay, and a refund by it goes back onto the card (salon_gift_card; the salon's `salon_gift_cards` feature switches it on per business). */
+    giftCardTender?: boolean
+    /**
+     * The sale of a gift card is a liability, not revenue: the invoice that sold a card is left out of every invoice-based money total
+     * (Reports, the invoice list's stats, a client's lifetime spend) and the money counts when the card is spent (salon; crm/salon
+     * data `notGiftCardSale`). Where no card was ever sold this changes nothing.
+     */
+    giftCardSalesAreLiability?: boolean
     /**
      * Which clock decides an invoice's day: 'booking' is the zone the booking calendar is set to (America/Chicago when
      * Booking was never set up), the salon's own clock (templates/crm-salon utils/salonDate.ts). Absent: the company's

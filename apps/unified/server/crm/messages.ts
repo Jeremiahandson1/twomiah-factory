@@ -455,6 +455,98 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.`,
   }),
+  // The receipt for a no-show or late-cancellation fee charged to the card a client keeps on file (salon/cardOnFile.ts).
+  cardFeeReceipt: (data, b) => ({
+    subject: `Receipt: ${data.label} — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Receipt</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We charged a ${escHtml(String(data.label).toLowerCase())} of <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your appointment on ${escHtml(data.when)}.</p>
+          <div class="highlight"><p style="margin:0;"><strong>Why:</strong> ${escHtml(data.reason)}</p></div>
+          <p>If you think this is a mistake, please reply to this email or contact us and we will look into it.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we charged a ${String(data.label).toLowerCase()} of $${data.amount} to your ${data.card} for your appointment on ${data.when}. Why: ${data.reason}. If you think this is a mistake, reply to this email or contact ${b.companyName}.`,
+  }),
+  // A membership period charged to the client's card on file (salon/membershipBilling.ts).
+  membershipCharged: (data, b) => ({
+    subject: `Receipt: ${data.plan} — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Receipt</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We charged <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your ${escHtml(data.plan)} membership (invoice ${escHtml(data.invoiceNumber)}).</p>
+          <p>If you think this is a mistake, please reply to this email or contact us and we will look into it.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we charged $${data.amount} to your ${data.card} for your ${data.plan} membership (invoice ${data.invoiceNumber}). If you think this is a mistake, reply to this email or contact ${b.companyName}.`,
+  }),
+  // The membership was paused because the card was declined on every try: a private link to give a new card.
+  membershipPaused: (data, b) => ({
+    subject: `Your membership is paused — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your membership is paused</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We could not charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your ${escHtml(data.plan)} membership (invoice ${escHtml(data.invoiceNumber)}), so it is paused and visits cannot be taken from it until it is paid.</p>
+          <p style="text-align:center;margin:24px 0;"><a href="${escHtml(data.link)}" style="background:#0f766e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Update my card</a></p>
+          <p>Once a new card is saved we will charge the invoice and your membership starts again.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we could not charge $${data.amount} to your ${data.card} for your ${data.plan} membership (invoice ${data.invoiceNumber}), so it is paused. Update your card here: ${data.link} — once it is saved we will charge the invoice and your membership starts again.`,
+  }),
+  // To the salon: a member's membership was paused for a declined card.
+  membershipPausedSalon: (data, b) => ({
+    subject: `Membership paused for a declined card — ${data.clientName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A membership was paused</h2>
+          <p>${escHtml(data.clientName)}'s ${escHtml(data.plan)} membership was paused after their card was declined on every try (invoice ${escHtml(data.invoiceNumber)}, $${escHtml(data.amount)}). They have been emailed a link to give a new card. Their visits are not taken from the membership until it is resumed.</p>
+          <p>Open Memberships to resume it once it is sorted out.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s ${data.plan} membership was paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. Resume it in Memberships once it is sorted out.`,
+  }),
+  // A membership charge that did not go through: what happened, and what happens next.
+  membershipPaymentFailed: (data, b) => ({
+    subject: `We could not charge your card — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your membership payment</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We tried to charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your ${escHtml(data.plan)} membership (invoice ${escHtml(data.invoiceNumber)}), but it did not go through.</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+          <p>Please get in touch with us and we will sort it out.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we tried to charge $${data.amount} to your ${data.card} for your ${data.plan} membership (invoice ${data.invoiceNumber}), but it did not go through. ${data.next} Please contact ${b.companyName}.`,
+  }),
 }
 
 /**

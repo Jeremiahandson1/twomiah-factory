@@ -18,7 +18,7 @@ export interface PortalSummary {
   activeProjects?: number
   pendingQuotes: number; totalInvoices: number; outstandingBalance: number
   /** vet: the animals on the account, what is overdue, and when they are next seen (T12 H6) */
-  pets?: number; vaccinationsDue?: number; nextAppointment?: string | null
+  pets?: number; vaccinationsDue?: number; nextAppointment?: string | null; upcomingAppointments?: number
 }
 
 export interface PortalContextValue {

@@ -4,6 +4,7 @@
 // the simulated reader's present_payment_method test helper, cancel_action, PaymentIntents, Checkout Sessions and
 // Refunds — over the SDK's fetch transport. Nothing leaves the machine (noLiveKeys.ts blanks every real key first).
 import { eq } from 'drizzle-orm'
+import Stripe from 'stripe'
 import { bootTenant, seedOwner } from './harness.ts'
 
 export interface StripeCall { method: string; path: string; params: URLSearchParams; account: string | null }
@@ -19,6 +20,8 @@ export function terminalStripeFake() {
   const readers = new Map<string, any>()
   const intents = new Map<string, any>()
   const sessions = new Map<string, any>()
+  // Every refund, as Stripe keeps them: GET /v1/refunds?payment_intent= lists them (newest first, as Stripe does).
+  const refunds: any[] = []
   const setups = new Map<string, any>()
   const detached: string[] = []
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_test' } })
@@ -118,7 +121,13 @@ export function terminalStripeFake() {
       Object.assign(pi, { status: 'succeeded', amount_received: want, amount_capturable: 0 })
       return json(pi)
     }
-    if (p === '/v1/refunds' && method === 'POST') return json({ id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(param(params, 'amount')), payment_intent: param(params, 'payment_intent') })
+    if (p === '/v1/refunds' && method === 'POST') {
+      const metadata: Record<string, string> = {}
+      for (const [k, v] of params) { const mm = k.match(/^metadata[(.+)]$/); if (mm) metadata[mm[1]] = v }
+      const r = { id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(param(params, 'amount')), payment_intent: param(params, 'payment_intent'), metadata, created: Math.floor(Date.now() / 1000) + state.n }
+      refunds.push(r); return json(r)
+    }
+    if (p === '/v1/refunds' && method === 'GET') return json({ object: 'list', has_more: false, data: refunds.filter((r) => r.payment_intent === u.searchParams.get('payment_intent')).slice().reverse() })
     if (p === '/v1/checkout/sessions' && method === 'POST') {
       const id = `cs_test_${++state.n}`
       const s = { id, object: 'checkout.session', url: `https://checkout.stripe.com/c/pay/${id}`, payment_status: 'unpaid', status: 'open', amount_total: 0, payment_intent: null as string | null, metadata: {} as Record<string, string> }
@@ -138,10 +147,16 @@ export function terminalStripeFake() {
   const completeSetup = (id: string, pm: string) => { Object.assign(setups.get(id), { status: 'succeeded', payment_method: pm }) }
   /** The cardholder paid a PaymentIntent in the browser. */
   const succeedIntent = (id: string, pm = 'pm_card') => { const pi = intents.get(id); Object.assign(pi, { status: 'succeeded', amount_received: pi.amount, payment_method: pm }) }
-  return { calls, state, readers, intents, sessions, setups, detached, completeSetup, succeedIntent, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
+  /** A refund made in Stripe's own dashboard (not through this app): no metadata. */
+  const dashboardRefund = (paymentIntent: string, amount: number) => { const r = { id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount, payment_intent: paymentIntent, metadata: {}, created: Math.floor(Date.now() / 1000) + state.n }; refunds.push(r); return r }
+  return { calls, state, readers, intents, sessions, setups, refunds, dashboardRefund, detached, completeSetup, succeedIntent, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
 }
 
-export async function bootFood(opts: { vertical?: string; features: string[]; adminDist?: string }) {
+/**
+ * `sharedStripe`: give the app the platform Stripe client as production has it (the payments module's — webhooks such as a
+ * charge refunded in Stripe's own dashboard), pointed at the fake above. Off: the module has none, as these suites always ran.
+ */
+export async function bootFood(opts: { vertical?: string; features: string[]; adminDist?: string; sharedStripe?: boolean }) {
   const stripe = terminalStripeFake()
   const realFetch = globalThis.fetch
   globalThis.fetch = (async (input: any, init?: any) => {
@@ -149,7 +164,7 @@ export async function bootFood(opts: { vertical?: string; features: string[]; ad
     if (url.startsWith('https://api.stripe.com/')) return stripe.handle(url, init)
     return realFetch(input, init)
   }) as any
-  const t = await bootTenant({ vertical: opts.vertical ?? 'bar', ...(opts.adminDist ? { adminDist: opts.adminDist } : {}) })
+  const t = await bootTenant({ vertical: opts.vertical ?? 'bar', ...(opts.adminDist ? { adminDist: opts.adminDist } : {}), ...(opts.sharedStripe ? { stripe: new Stripe('sk_test_food_service', { apiVersion: '2023-10-16' as any, httpClient: Stripe.createFetchHttpClient() }) } : {}) })
   // A stand-in platform key (the harness blanked the real ones): the SDK only reaches the fake above.
   process.env.STRIPE_SECRET_KEY = 'sk_test_food_service'
   process.env.SITE_URL = 'https://bar.test'

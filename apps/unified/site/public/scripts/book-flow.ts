@@ -61,7 +61,11 @@
   var loadedAt = String(Date.now())
   root.querySelectorAll('input[name="t"]').forEach(function (i) { i.value = loadedAt })
 
+  var whoSelect = document.getElementById('book-who')
+  var who = function () { return whoSelect ? whoSelect.value : '' }
   var zip = function () { return zipInput ? zipInput.value.trim() : '' }
+  // The stylist asked for, as a query string piece (the server offers only that person's days and times).
+  var whoQuery = function (first) { return who() ? (first ? '?' : '&') + 'who=' + encodeURIComponent(who()) : '' }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] }) }
   // A YYYY-MM-DD is a calendar day, not an instant: format it as the day itself, whatever the visitor's zone.
   var day = function (iso, opts) { var p = iso.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).toLocaleDateString('en-US', Object.assign({ timeZone: 'UTC' }, opts)) }
@@ -81,7 +85,7 @@
   }
   function postJson(url, data) {
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(data) }).then(function (r) {
-      return r.json().catch(function () { return {} }).then(function (body) { if (!r.ok) { var e = new Error(body.error || 'Something went wrong.'); e.code = body.code; throw e } return body })
+      return r.json().catch(function () { return {} }).then(function (body) { if (!r.ok) { var e = new Error(body.error || 'Something went wrong.'); e.code = body.code; e.fields = body.fields; throw e } return body })
     })
   }
   function showError(el, msg) { if (!el) return; el.textContent = msg; el.hidden = !msg }
@@ -89,7 +93,7 @@
   function loadDates() {
     stepSlot.hidden = true; stepForm.hidden = true; step('date')
     datesEl.innerHTML = '<p class="book-loading">Finding open days…</p>'
-    getJson(api + '/dates' + (zip() ? '?zip=' + encodeURIComponent(zip()) : '')).then(function (body) {
+    getJson(api + '/dates' + (zip() ? '?zip=' + encodeURIComponent(zip()) + whoQuery(false) : whoQuery(true))).then(function (body) {
       var dates = body.data || []
       if (!dates.length) {
         datesEl.innerHTML = '<p class="book-empty">No open days right now.</p>'
@@ -106,7 +110,7 @@
   function loadTimes() {
     stepSlot.hidden = false; stepForm.hidden = true; step('slot')
     slotsEl.innerHTML = '<div class="book-slots-skeleton">' + new Array(9).join('<div class="book-slot-skel"></div>') + '</div>'
-    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + (token ? '&token=' + encodeURIComponent(token) : '')
+    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + whoQuery(false) + (token ? '&token=' + encodeURIComponent(token) : '')
     getJson(api + '/times' + q).then(function (body) {
       var times = body.data || []
       slotsEl.innerHTML = times.length
@@ -131,6 +135,7 @@
     stepForm.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
   if (zipInput) zipInput.addEventListener('change', loadDates)
+  if (whoSelect) whoSelect.addEventListener('change', loadDates)
 
   var tipRow = root.querySelector('.book-tip-row')
   if (tipRow) tipRow.addEventListener('click', function (e) {
@@ -153,6 +158,7 @@
     } else {
       new FormData(form).forEach(function (v, k) { data[k] = v })
       data.zip = zip()
+      if (who()) data.who = who()
       try {
         var ref = document.referrer ? new URL(document.referrer) : null
         data.sourcePath = ref && ref.origin === window.location.origin ? ref.pathname : ''
@@ -161,12 +167,22 @@
       request = postJson(api, data).then(function (body) {
         // A deposit is owed: on to Stripe's own payment page (it comes back to the booking's page); otherwise booked.
         var pay = body.deposit && body.deposit.url
+        // A card is asked for first (the salon's policy): on to the booking's own page, which shows the policy and the card button.
+        if (body.needsCard) { window.location.href = '/booking/' + encodeURIComponent(body.token) + (embed ? '?embed=1' : ''); return }
         if (embed) window.location.href = (pay ? '/booking/' : '/book/done?token=') + encodeURIComponent(body.token) + (pay ? '?embed=1' : '&embed=1')
         else window.location.href = typeof pay === 'string' && pay.indexOf('https://checkout.stripe.com/') === 0 ? pay : '/book/done?token=' + encodeURIComponent(body.token)
       })
     }
     request.catch(function (err) {
       showError(errorEl, err.message)
+      // A service that needs a patch test first: the salon's own patch-test appointment is offered to book instead.
+      if (errorEl && err.code === 'patch_test' && err.fields && err.fields.offerSlug) {
+        var a = document.createElement('a')
+        a.href = '/book/' + encodeURIComponent(err.fields.offerSlug) + (embed ? '?embed=1' : '')
+        a.textContent = 'Book ' + (err.fields.offerName || 'a patch test') + ' first'
+        a.className = 'book-error__offer'
+        errorEl.appendChild(document.createTextNode(' ')); errorEl.appendChild(a)
+      }
       submit.disabled = false; submit.textContent = label
       // The time went while they were typing: show the day as it is now.
       if (err.code === 'taken' || err.code === 'notice') loadTimes()

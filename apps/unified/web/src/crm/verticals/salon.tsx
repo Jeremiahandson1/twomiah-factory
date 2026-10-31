@@ -2,7 +2,7 @@
 // their menu items, each gated by the template's features so no other vertical sees them (docs/UNIFIED_MOVE_GUIDE.md).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BellRing, Calendar, CreditCard, Gift, Scissors, Users } from 'lucide-react'
+import { BarChart3, BellRing, Calendar, ClipboardList, CreditCard, DollarSign, Gift, MessageSquareText, Scissors, ShoppingBag, Ticket, Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -14,6 +14,13 @@ const ServiceMenuPage = page(() => import('../pages/salon/ServiceMenuPage'))
 const MembershipsPage = page(() => import('../pages/salon/MembershipsPage'))
 const LoyaltyPage = page(() => import('../pages/salon/LoyaltyPage'))
 const BookSettingsPage = page(() => import('../pages/salon/BookSettingsPage'))
+const CardOnFileSettingsPage = page(() => import('../pages/salon/CardOnFileSettingsPage'))
+const IntakeFormsSettingsPage = page(() => import('../pages/salon/IntakeFormsSettingsPage'))
+const SalonReportsPage = page(() => import('../pages/salon/SalonReportsPage'))
+const GiftCardsPage = page(() => import('../pages/salon/GiftCards'))
+const RetailPage = page(() => import('../pages/salon/RetailPage'))
+const CardReadersSettingsPage = page(() => import('../pages/salon/ChairCheckout'))
+const AutomaticMessagesSettingsPage = page(() => import('../pages/salon/AutomaticMessagesSettingsPage'))
 
 /**
  * The salon's own dashboard (the book today, the month by chair, who is due back), shown at /crm/dashboard in place of
@@ -30,7 +37,14 @@ export const routes: ReactElement[] = [
   <Route key="salon-service-menu" path="service-menu" element={<ServiceMenuPage />} />,
   <Route key="salon-memberships" path="memberships" element={<MembershipsPage />} />,
   <Route key="salon-loyalty" path="loyalty" element={<LoyaltyPage />} />,
+  <Route key="salon-reports" path="client-reports" element={<SalonReportsPage />} />,
+  <Route key="salon-gift-cards" path="gift-cards" element={<GiftCardsPage />} />,
+  <Route key="salon-retail" path="retail" element={<RetailPage />} />,
+  <Route key="salon-card-readers-settings" path="settings/card-readers" element={<CardReadersSettingsPage />} />,
   <Route key="salon-book-settings" path="settings/book" element={<BookSettingsPage />} />,
+  <Route key="salon-card-on-file-settings" path="settings/card-on-file" element={<CardOnFileSettingsPage />} />,
+  <Route key="salon-intake-forms-settings" path="settings/intake-forms" element={<IntakeFormsSettingsPage />} />,
+  <Route key="salon-automatic-messages-settings" path="settings/automatic-messages" element={<AutomaticMessagesSettingsPage />} />,
 ]
 
 /**
@@ -40,6 +54,14 @@ export const routes: ReactElement[] = [
  */
 export const SETTINGS_EXTRA = [
   { to: '/crm/settings/book', label: 'The Book', icon: Calendar, permission: 'company:update', feature: 'salon_booking' },
+  // Card on file: the no-show / late-cancel fees (PUT /api/card-on-file/policy asks company:update, behind `card_on_file`).
+  { to: '/crm/settings/card-on-file', label: 'Card on file', icon: CreditCard, permission: 'company:update', feature: 'card_on_file' },
+  // Intake and consent forms (/api/intake-forms writes ask company:update, behind `intake_forms`).
+  { to: '/crm/settings/intake-forms', label: 'Intake & consent forms', icon: ClipboardList, permission: 'company:update', feature: 'intake_forms' },
+  // Automatic rebooking / birthday / win-back / next-visit messages (/api/retention writes ask company:update, behind `retention_sends`).
+  { to: '/crm/settings/automatic-messages', label: 'Automatic messages', icon: MessageSquareText, permission: 'company:update', feature: 'retention_sends' },
+  // Card readers for checkout at the chair (/api/chair-checkout pairing asks company:update, behind `chair_checkout`).
+  { to: '/crm/settings/card-readers', label: 'Card readers', icon: CreditCard, permission: 'company:update', feature: 'chair_checkout' },
 ]
 
 /**
@@ -53,4 +75,12 @@ export const nav: NavItem[] = [
   { to: '/crm/service-menu', icon: Scissors, label: 'Service Menu', features: ['service_menu'], permission: 'contacts:read' },
   { to: '/crm/memberships', icon: CreditCard, label: 'Memberships', features: ['salon_memberships'], permission: 'contacts:read' },
   { to: '/crm/loyalty', icon: Gift, label: 'Loyalty', features: ['loyalty_rewards'], permission: 'loyalty:read' },
+  // Stylist commissions: the shared Commissions screen, behind the salon's own hidden feature (the server mounts /api/commissions on it).
+  // Gift cards sold at the desk and spent at checkout (/api/salon-gift-cards reads ask invoices:read, behind `salon_gift_cards`).
+  { to: '/crm/gift-cards', icon: Ticket, label: 'Gift cards', features: ['salon_gift_cards'], permission: 'invoices:read' },
+  // Retail products with stock (/api/salon-retail/manage asks inventory:read, behind `salon_retail`).
+  { to: '/crm/retail', icon: ShoppingBag, label: 'Retail', features: ['salon_retail'], permission: 'inventory:read' },
+  // Retention, rebook-rate and retail reports (/api/salon-reports ask reports:read, behind `salon_reports`).
+  { to: '/crm/client-reports', icon: BarChart3, label: 'Client reports', features: ['salon_reports'], permission: 'reports:read' },
+  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['salon_commissions'], permission: 'commissions:read' },
 ]

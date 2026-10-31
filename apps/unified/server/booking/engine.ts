@@ -21,7 +21,7 @@ import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
 import { recordConsent } from '../site/smsConsent.ts'
 
 export class BookingError extends Error {
-  constructor(message: string, public status = 400, public code?: string) { super(message); this.name = 'BookingError' }
+  constructor(message: string, public status = 400, public code?: string, public fields?: Record<string, string>) { super(message); this.name = 'BookingError' }
 }
 
 export type BookingRow = typeof booking.$inferSelect
@@ -66,7 +66,7 @@ export type BookingLinks = Partial<Pick<BookingRow, 'appointmentId'>>
 export interface BookingAddOn {
   questions: BookingQuestion[]
   /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
-  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string> }): Promise<BookingLinks | void>
+  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string>; /** Who made it: a customer on the public page, or staff (a desk booking, which may carry its own override). */ by?: 'customer' | 'staff' }): Promise<BookingLinks | void>
   /** After the booking was moved ('moved') or its status changed ('status'), in the same transaction: keep the add-on's record in step. */
   changed?(exec: any, b: BookingRow, change: 'moved' | 'status'): Promise<void>
   /**
@@ -82,6 +82,32 @@ export interface BookingAddOn {
    * nothing, and /book offered a separate list the menu never saw, so a booking carried no menu item, price or rebook.
    */
   serviceList?: { name: string }
+  /**
+   * A customer's booking that waits for a card before it stands (the salon's card on file, owner's setting). It is held like a
+   * deposit is — pending, for the business's hold minutes, then released — and confirmed when the card is saved (cardSaved).
+   * Nothing is charged by this step: it only keeps the card, on the business's own payment account, for the policy shown.
+   */
+  /**
+   * Customers may pick the person they book with (the salon's "choose your stylist" option). `enabled` says whether this business offers it;
+   * the people are those with hours of their own (Settings › Booking hours) who can be given work. Absent, or not enabled: bookings go to whoever is free, as before.
+   */
+  people?: { enabled(companyId: string): Promise<boolean> }
+  /**
+   * Forms the business asks a client to fill in for a booking (the salon's intake and consent forms), offered on the booking's own page.
+   * `pending` is what applies to this booking and has not been answered; `submit` keeps the answers and returns the sentence to show if they are not acceptable.
+   */
+  forms?: {
+    pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }): Promise<Array<{ id: string; name: string; kind: string; intro: string | null; questions: any[] }>>
+    submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string): Promise<string | null>
+  }
+  card?: {
+    /** Before the booking's transaction (it reads the business's own settings and payment link): does THIS customer, by email, have to leave a card? False when the option is off or cards can't be taken. */
+    needed(a: { companyId: string; email: string; service: ServiceRow }): Promise<boolean>
+    /** The policy the customer agrees to, in words, shown beside the button. */
+    terms(companyId: string): Promise<string>
+    /** The payment provider's own page for the card (a new one each time); null = can't now. */
+    page(a: { companyId: string; contactId: string; token: string }): Promise<string | null>
+  }
 }
 
 export interface EngineDeps {
@@ -125,6 +151,8 @@ export interface BookInput {
   answers?: Record<string, unknown> | null
   /** The customer ticked "Text me about my booking" (site/smsConsent.ts): the booking's texts go to them. */
   smsConsent?: boolean
+  /** The person the customer chose to book with (BookingAddOn.people); null/absent = whoever is free. */
+  who?: string | null
 }
 
 const ACTIVE = ['pending', 'confirmed'] as const
@@ -372,6 +400,39 @@ export function createBookingEngine(deps: EngineDeps) {
     return new Set(rows.filter(mayBeGivenWork).map((r: any) => r.id))
   }
   /**
+   * The people a customer may choose between: empty unless the business offers it (BookingAddOn.people). Only people who have hours of
+   * their own — a booking with them has to fall inside those — and can be given work; shown by first name and last initial.
+   */
+  async function people(companyId: string): Promise<Array<{ id: string; name: string }>> {
+    if (!deps.addOn?.people || !(await deps.addOn.people.enabled(companyId))) return []
+    const [week, bookable, rows] = await Promise.all([
+      weekOf(companyId), companyUserIds(companyId),
+      db.select({ id: user.id, first: user.firstName, last: user.lastName }).from(user).where(eq(user.companyId, companyId)),
+    ])
+    const withHours = new Set(week.windows.filter((w: any) => w.userId && bookable.has(w.userId)).map((w: any) => w.userId))
+    return rows.filter((r: any) => withHours.has(r.id))
+      .map((r: any) => ({ id: r.id as string, name: [r.first, String(r.last || '').trim().slice(0, 1) && String(r.last).trim().slice(0, 1) + '.'].filter(Boolean).join(' ') || 'Stylist' }))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name))
+  }
+  /** The forms this booking still asks its client to fill in (empty: none, or the booking is over). */
+  async function formsPending(b: BookingRow) {
+    if (!deps.addOn?.forms || !b.contactId || b.status === 'cancelled' || b.status === 'no_show') return []
+    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    return deps.addOn.forms.pending({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null })
+  }
+  async function formSubmit(b: BookingRow, formId: string, answers: Record<string, unknown>, signedName: string): Promise<string | null> {
+    if (!deps.addOn?.forms || !b.contactId) return 'Forms are not available for this booking.'
+    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    return deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null, token: b.token }, formId, answers, signedName)
+  }
+  /** The chosen person, if the business offers choosing and they are one of the people offered; else a refusal. */
+  async function chosenPerson(companyId: string, who: string | null | undefined): Promise<string | null> {
+    if (!who) return null
+    if (!(await people(companyId)).some((p) => p.id === who)) throw new BookingError('That person can’t be booked online.', 400, 'person')
+    return who
+  }
+
+  /**
    * The week bookings can start in, and whose it is — ONE rule, for every vertical (salon live test, 2026-10-25: the
    * owner set the shop's hours Tue–Sat in Settings › Company and bookings stayed on the Mon–Fri rows provisioning had
    * seeded, so the two disagreed):
@@ -617,7 +678,7 @@ export function createBookingEngine(deps: EngineDeps) {
   })
 
   /** One day's times, three ways: every time the hours offer, the free ones, and the free ones a customer may still book. */
-  function dayTimes(range: Range, svc: ServiceRow, s: SettingsRow, date: string, zip?: string | null) {
+  function dayTimes(range: Range, svc: ServiceRow, s: SettingsRow, date: string, zip?: string | null, who?: string | null) {
     const busy: Busy[] = []
     for (const r of range.bookings) {
       const d = onDay(r.b.startAt, r.b.endAt, date, range.tz)
@@ -633,7 +694,8 @@ export function createBookingEngine(deps: EngineDeps) {
       zones: range.zones.map((z: any) => ({ userId: z.userId, zips: Array.isArray(z.zips) ? z.zips.map(String) : [] })), customerZip: zip,
     }
     const offered = freeSlots({ ...base, busy: [] })
-    const free = freeSlots({ ...base, busy })
+    // A customer who chose a person is offered only the times that person can take.
+    const free = freeSlots({ ...base, busy }).filter((x) => !who || x.who.includes(who))
     const earliest = now() + s.leadTimeMinutes * 60_000
     const bookable = free.filter((x) => zonedWallTimeToUtc(date, hm(x.startMinute), range.tz).getTime() >= earliest)
     return { offered, free, bookable }
@@ -652,20 +714,21 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   /** The days in the window with at least one bookable time (a full day isn't offered). */
-  async function availableDates(companyId: string, slug: string, zip?: string | null) {
+  async function availableDates(companyId: string, slug: string, zip?: string | null, who?: string | null) {
     const s = await settingsOf(companyId)
     if (!s.enabled) return []
     await expireHolds(companyId, s)
     const svc = await activeService(companyId, slug)
     const w = window(s)
+    const person = await chosenPerson(companyId, who)
     const range = await loadRange(companyId, s, w.first, w.last, db)
     const out: string[] = []
-    for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip).bookable.length) out.push(d)
+    for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip, person).bookable.length) out.push(d)
     return out
   }
 
   /** The bookable times on one day. `except`: the booking being moved (it doesn't block itself). */
-  async function availableTimes(companyId: string, slug: string, date: string, zip?: string | null, except?: string) {
+  async function availableTimes(companyId: string, slug: string, date: string, zip?: string | null, except?: string, who?: string | null) {
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
     if (!isRealDate(date)) throw new BookingError(`${date} is not a real date — check the month and day.`)
     const s = await settingsOf(companyId)
@@ -674,8 +737,9 @@ export function createBookingEngine(deps: EngineDeps) {
     const svc = await activeService(companyId, slug, db, !!except)
     const w = window(s)
     if (date < w.first || date > w.last) return []
+    const person = await chosenPerson(companyId, who)
     const range = await loadRange(companyId, s, date, date, db, except)
-    return dayTimes(range, svc, s, date, zip).bookable.map(slotOut(date, range.tz))
+    return dayTimes(range, svc, s, date, zip, person).bookable.map(slotOut(date, range.tz))
   }
 
   /**
@@ -766,13 +830,17 @@ export function createBookingEngine(deps: EngineDeps) {
       bookingRules(s, { by: 'staff', phone, zip: typedZip, dates: followOn ? [] : [input.date], outside: opts.override })
       if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
-    if (opts.assignedUserId && !(await companyUserIds(companyId)).has(opts.assignedUserId)) throw new BookingError(NOT_BOOKABLE)
+    // A customer's own choice of person (only where the business offers it), checked before the day is locked.
+    const chosen = customer ? await chosenPerson(companyId, input.who) : null
+    const assignedUserId = opts.assignedUserId ?? chosen
+    if (assignedUserId && !(await companyUserIds(companyId)).has(assignedUserId)) throw new BookingError(NOT_BOOKABLE)
 
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(input.date, input.time, tz)
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
     const depositOwed = svc.depositAmount != null ? dollars(svc.depositAmount) : svc.depositPercent != null ? dollars(svc.price) * svc.depositPercent / 100 : 0
     const takeDeposit = customer && depositOwed > 0 && !!deps.deposits
+    const cardHold = customer && !takeDeposit && !!deps.addOn?.card && await deps.addOn.card.needed({ companyId, email, service: svc })
     const tipPercent = input.tipPercent != null && Array.isArray(svc.tipPresets) && (svc.tipPresets as number[]).includes(Number(input.tipPercent)) ? Number(input.tipPercent) : null
     const tip = tipPercent && svc.price != null ? dollars(svc.price) * tipPercent / 100 : null
 
@@ -780,24 +848,24 @@ export function createBookingEngine(deps: EngineDeps) {
     const external = opts.override ? [] : await externalFor(companyId, s, input.date, input.date)
     const row: BookingRow = await db.transaction(async (tx: any) => {
       const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external })
-      if (opts.assignedUserId && !opts.override && !who.includes(opts.assignedUserId) && !who.includes(null)) throw new BookingError("That person isn't free then.", 409, 'taken')
+      if (assignedUserId && !opts.override && !who.includes(assignedUserId) && (chosen || !who.includes(null))) throw new BookingError(chosen ? 'That time has just been taken — please pick another.' : "That person isn't free then.", 409, 'taken')
       const contactId = await contactFor(tx, companyId, { name, email, phone, address, zip })
       const [made] = await tx.insert(booking).values({
         companyId, serviceId: svc.id, contactId, seriesId: opts.seriesId ?? null, seriesIndex: opts.seriesIndex ?? null,
         startAt, endAt, customerName: name, customerEmail: email, customerPhone: phone, customerAddress: address, customerZip: zip,
         customerNotes: String(input.notes || '').trim().slice(0, 2000) || null,
-        status: takeDeposit ? 'pending' : 'confirmed',
-        assignedUserId: opts.assignedUserId ?? pickWho(who),
+        status: takeDeposit || cardHold ? 'pending' : 'confirmed',
+        assignedUserId: assignedUserId ?? pickWho(who),
         source: opts.source ?? (customer ? 'public' : 'staff'),
         sourcePath: text(input.sourcePath, 500) ?? null, sourceReferrer: text(input.sourceReferrer, 1000) ?? null, sourceVariant: text(input.sourceVariant, 60) ?? null,
         token: newToken(),
-        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit ? 'pending' : 'none',
+        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit || cardHold ? 'pending' : 'none',
         tipAmount: tip ? money(tip) : null,
         ...overrideMark(opts),
         // The engine's clock, not the database's: the deposit hold is measured from it.
         createdAt: new Date(now()), updatedAt: new Date(now()),
       }).returning()
-      const links = deps.addOn ? await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers }) : undefined
+      const links = deps.addOn ? await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers, by: opts.by }) : undefined
       if (links && Object.keys(links).length) {
         const [linked] = await tx.update(booking).set(links).where(eq(booking.id, made.id)).returning()
         return linked
@@ -820,7 +888,7 @@ export function createBookingEngine(deps: EngineDeps) {
       }
     }
     if (final.status === 'confirmed') await emit({ event: 'booking.created', booking: final, service: svc, settings: s, by: opts.by })
-    return { booking: final, service: svc, deposit }
+    return { booking: final, service: svc, deposit, card: cardHold }
   }
 
   /** The provider's page for a booking's deposit (its amount and tip as booked), open until the hold runs out. */
@@ -891,6 +959,41 @@ export function createBookingEngine(deps: EngineDeps) {
     // Confirmed by hand, or already happened, while the customer paid: the money is recorded on it.
     await db.update(booking).set(paid).where(eq(booking.id, b.id))
     return 'done'
+  }
+
+  /** A booking waiting for a card (not a deposit): pending, deposit pending, no amount. */
+  const waitingForCard = (b: BookingRow) => b.status === 'pending' && b.depositStatus === 'pending' && b.depositAmount == null
+
+  /** The words the customer agrees to before the card page, when this booking waits for a card. */
+  async function cardTerms(b: BookingRow): Promise<string | null> {
+    return waitingForCard(b) && deps.addOn?.card ? deps.addOn.card.terms(b.companyId) : null
+  }
+
+  /** The payment provider's page for the card a booking waits for (a new one each time). Null when it isn't waiting, the hold ran out, or the page can't open. */
+  async function cardPage(companyId: string, b: BookingRow): Promise<string | null> {
+    const s = await settingsOf(companyId)
+    await expireHolds(companyId, s)
+    const [cur]: BookingRow[] = await db.select().from(booking).where(and(eq(booking.id, b.id), eq(booking.companyId, companyId))).limit(1)
+    if (!cur || !waitingForCard(cur) || !deps.addOn?.card || !cur.contactId) return null
+    return deps.addOn.card.page({ companyId, contactId: cur.contactId, token: cur.token }).catch(() => null)
+  }
+
+  /**
+   * The card was saved (the payment provider's event, told by the vertical): a booking waiting for it stands. Told twice, once.
+   * A hold that ran out first is not brought back — the card stays kept on the customer, the time was offered to others.
+   */
+  async function cardSaved(companyId: string, token: string): Promise<'confirmed' | 'already' | 'gone'> {
+    const b = await byToken(companyId, token)
+    if (!b) return 'gone'
+    if (b.status === 'confirmed' || b.status === 'completed') return 'already'
+    if (!waitingForCard(b)) return 'gone'
+    const s = await settingsOf(b.companyId)
+    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    const [u]: BookingRow[] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'none', updatedAt: new Date(now()) }).where(and(eq(booking.id, b.id), eq(booking.status, 'pending'))).returning()
+    if (!u) return 'gone'
+    await mirror(db, u, 'status')
+    await emit({ event: 'booking.created', booking: u, service: svc, settings: s, by: 'customer' })
+    return 'confirmed'
   }
 
   /** The refund depositPaid asked for, made: recorded on the booking. */
@@ -1096,8 +1199,8 @@ export function createBookingEngine(deps: EngineDeps) {
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
-    availableDates, availableTimes, expireHolds,
-    book, depositPaid, depositRefunded, depositPage, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
+    availableDates, availableTimes, expireHolds, people, formsPending, formSubmit,
+    book, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,
     isBanned, emit,
   }

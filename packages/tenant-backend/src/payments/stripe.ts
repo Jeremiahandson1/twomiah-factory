@@ -473,6 +473,114 @@ export function createStripeService(deps: StripeServiceDeps) {
     return { paymentIntentId: intent.id, status: intent.status }
   }
 
+  // ============================================
+  // CARD ON FILE (salon no-show / late-cancel fees, memberships) — the business's CONNECTED account only
+  // ============================================
+
+  /**
+   * Save a card without charging it, on Stripe's own page (Checkout, setup mode), on the business's CONNECTED account
+   * only: the card, the customer and every later charge are theirs, never the platform's. No connected account → null
+   * (nothing is saved). The page comes back to successUrl; the card reaches the app as checkout.session.completed
+   * (kind card_on_file) through the Connect forwarder, where retrieveCardSetup reads it.
+   */
+  async function createCardSetupCheckout(params: {
+    companyId: string
+    contactRow: any
+    successUrl: string
+    cancelUrl: string
+    /** Extra keys carried back on the event (the app's own references); kind, company_id and contact_id are always set. */
+    metadata?: Record<string, string>
+  }): Promise<{ url: string; sessionId: string; stripeAccount: string } | null> {
+    if (!stripe) return null
+    const stripeAccount = await connectedAccountFor(params.companyId)
+    if (!stripeAccount) return null
+    const customer = await getOrCreateCustomer(params.contactRow, stripeAccount)
+    const metadata = { ...(params.metadata || {}), kind: 'card_on_file', company_id: params.companyId, contact_id: params.contactRow.id }
+    const session = await stripe.checkout.sessions.create({
+      mode: 'setup',
+      customer: customer.id,
+      payment_method_types: ['card'],
+      setup_intent_data: { metadata },
+      metadata,
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+    }, requestOpts(stripeAccount))
+    if (!session.url) return null
+    return { url: session.url, sessionId: session.id, stripeAccount }
+  }
+
+  /** The card a finished setup page saved: Stripe's ids and the brand/last four — never a number. Null when none was saved. */
+  async function retrieveCardSetup(sessionId: string, stripeAccount: string | null) {
+    if (!stripe) return null
+    const session: any = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['setup_intent.payment_method'] }, requestOpts(stripeAccount))
+    const setup = session?.setup_intent
+    const method = setup && typeof setup === 'object' ? setup.payment_method : null
+    if (!method || typeof method !== 'object' || method.type !== 'card') return null
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
+    if (!customerId) return null
+    return {
+      customerId: customerId as string,
+      paymentMethodId: method.id as string,
+      brand: (method.card?.brand as string | undefined) ?? null,
+      last4: (method.card?.last4 as string | undefined) ?? null,
+      expMonth: (method.card?.exp_month as number | undefined) ?? null,
+      expYear: (method.card?.exp_year as number | undefined) ?? null,
+      metadata: (session.metadata || {}) as Record<string, string>,
+    }
+  }
+
+  /**
+   * Charge a saved card with the customer not present, on the business's connected account. The idempotency key means a
+   * double click (or a retry) can never charge twice: Stripe answers the second call with the first one's result.
+   * A declined card, or one that needs the customer to confirm, is a RESULT, not an error — the caller records it.
+   */
+  async function chargeSavedCard(p: {
+    companyId: string
+    customerId: string
+    paymentMethodId: string
+    amount: number
+    description: string
+    metadata: Record<string, string>
+    idempotencyKey: string
+  }): Promise<
+    | { ok: true; paymentIntentId: string }
+    | { ok: false; reason: 'declined' | 'needs_action'; message: string; paymentIntentId: string | null }
+  > {
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
+    const stripeAccount = await connectedAccountFor(p.companyId)
+    if (!stripeAccount) throw Object.assign(new Error('This business has not connected its Stripe account'), { status: 400 })
+    const amount = Math.round(p.amount * 100)
+    if (!(amount > 0)) throw Object.assign(new Error('Amount must be greater than 0'), { status: 400 })
+    // The connected-account scope every money call here carries (check-connect-charging), with this charge's idempotency key beside it.
+    const requestOpts = (account: string) => ({ stripeAccount: account, idempotencyKey: p.idempotencyKey })
+    try {
+      const intent = await stripe.paymentIntents.create({
+        amount,
+        currency: 'usd',
+        customer: p.customerId,
+        payment_method: p.paymentMethodId,
+        off_session: true,
+        confirm: true,
+        description: p.description,
+        metadata: p.metadata,
+      }, requestOpts(stripeAccount))
+      if (intent.status === 'succeeded') return { ok: true, paymentIntentId: intent.id }
+      return {
+        ok: false, reason: intent.status === 'requires_action' ? 'needs_action' : 'declined',
+        message: intent.last_payment_error?.message || 'The card was not charged.', paymentIntentId: intent.id,
+      }
+    } catch (err: any) {
+      // A decline (or a card that wants its owner to confirm) is Stripe saying no, not a fault of ours.
+      if (err?.type === 'StripeCardError' || err?.code === 'authentication_required') {
+        return {
+          ok: false, reason: err.code === 'authentication_required' ? 'needs_action' : 'declined',
+          message: err.message || 'The card was declined.', paymentIntentId: err.payment_intent?.id ?? err.raw?.payment_intent?.id ?? null,
+        }
+      }
+      throw err
+    }
+  }
+
   async function handleWebhook(event: Stripe.Event) {
     // A connected-account event carries the account it happened on; anything we do back to Stripe for
     // it (the late-deposit refund) must be scoped to that account.
@@ -741,10 +849,25 @@ export function createStripeService(deps: StripeServiceDeps) {
     let recorded = 0
     let duplicates = 0
     const errors: string[] = []
-    for (const refund of listed.data) {
+    // A refund made in Stripe's own dashboard on a charge with a tip (10/30, salon PR #167 follow-up): it returns what is left of
+    // the sale first, and anything beyond that is the tip — so a full refund there gives the tip back too, as the app's own
+    // refund does. A refund this app issued names its tip (metadata.tip_cents). Oldest first, so each sees what was left.
+    const tipped = Number(paymentRow.tipAmount || 0) > 0.005
+    let saleLeft = round2(Number(paymentRow.amount))
+    let tipLeft = round2(Number(paymentRow.tipAmount || 0))
+    const inOrder = [...listed.data].sort((a, b) => (a.created || 0) - (b.created || 0))
+    for (const refund of inOrder) {
       // Money that never went back is not a refund; pending card refunds settle on their own.
       if (refund.status === 'failed' || refund.status === 'canceled') continue
-      const outcome = await recordStripeRefund(refund, paymentRow)
+      let split: { sale: number; tip: number } | undefined
+      if (tipped) {
+        const total = round2(refund.amount / 100)
+        const named = refund.metadata?.tip_cents !== undefined ? round2(Number(refund.metadata.tip_cents) / 100) : null
+        const tip = named ?? Math.min(tipLeft, Math.max(0, round2(total - saleLeft)))
+        split = { sale: round2(total - tip), tip }
+        saleLeft = round2(saleLeft - split.sale); tipLeft = round2(tipLeft - tip)
+      }
+      const outcome = await recordStripeRefund(refund, paymentRow, split)
       if (!outcome.ok) {
         console.error(`[Stripe] Refund ${refund.id} on invoice ${paymentRow.invoiceId} NOT recorded: ${outcome.error}`)
         errors.push(`${refund.id}: ${outcome.error}`)
@@ -826,10 +949,13 @@ export function createStripeService(deps: StripeServiceDeps) {
    * balance and only a fully returned sale reads 'refunded'), dated at Stripe's timestamp, refunded the
    * way the money came in, once per refund id.
    */
-  async function recordStripeRefund(refund: Stripe.Refund, paymentRow: any) {
+  async function recordStripeRefund(refund: Stripe.Refund, paymentRow: any, split?: { sale: number; tip: number }) {
     return recordInvoiceRefund(db, { invoice, payment }, {
       invoiceId: paymentRow.invoiceId,
-      amount: round2(refund.amount / 100),
+      // A charge that carried a tip (a salon's card reader: the payment row holds the sale, its tip beside it, and Stripe charged
+      // both) is split by handleChargeRefunded: the sale part leaves the invoice, the tip part goes back as a negative tip.
+      amount: split ? split.sale : round2(refund.amount / 100),
+      ...(split && split.tip > 0.005 ? { tips: { amount: split.tip } } : {}),
       method: paymentRow.method || 'card',
       reference: refund.id,
       notes: refund.reason ? `Stripe refund (${String(refund.reason).replace(/_/g, ' ')})` : 'Stripe refund',
@@ -922,6 +1048,9 @@ export function createStripeService(deps: StripeServiceDeps) {
     createSetupIntent,
     listSavedPaymentMethods,
     chargeInvoiceOffSession,
+    createCardSetupCheckout,
+    retrieveCardSetup,
+    chargeSavedCard,
   }
 }
 

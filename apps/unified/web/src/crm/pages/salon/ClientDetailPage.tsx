@@ -13,6 +13,8 @@ import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { ClientLoyaltyCard } from './loyaltyTiers'
+import { ClientCardOnFile } from './CardOnFile'
+import { ClientIntakeResponses } from './IntakeResponses'
 import { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
 import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 import { RECORD_VIEW_PARAM } from '@twomiah/tenant-ui/src/contacts/types'
@@ -54,6 +56,7 @@ interface Profile {
   scalpNotes?: string;
   allergies?: string;
   patchTestAt?: string;
+  patchTestResult?: string | null;
   preferences?: string;
   pronouns?: string;
   birthday?: string;
@@ -98,6 +101,7 @@ interface HistoryPhoto {
 interface Detail {
   contact?: Contact;
   profile?: Profile | null;
+  patchTest?: { state: 'none' | 'passed' | 'failed' | 'expired'; ageDays: number | null };
   serviceRecords?: ServiceRecord[];
   photos?: HistoryPhoto[];
   appointments?: Appointment[];
@@ -274,6 +278,11 @@ export default function ClientDetailPage() {
           </div>
         </div>
 
+        {detail.patchTest && detail.patchTest.state !== 'none' && (
+          <p className="mt-2 text-sm text-gray-700 dark:text-slate-300" data-testid="patch-test-status">
+            Patch test: {detail.patchTest.state === 'passed' ? 'passed' : detail.patchTest.state === 'failed' ? 'failed' : 'run out'} ({detail.patchTest.ageDays} days ago)
+          </p>
+        )}
         {profile.allergies && (
           <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -281,7 +290,7 @@ export default function ClientDetailPage() {
               <p className="font-semibold">Allergy / sensitivity</p>
               <p className="text-sm">{profile.allergies}</p>
               <p className="text-xs mt-1">
-                Last patch test: {fmtDate(profile.patchTestAt)}
+                Last patch test: {fmtDate(profile.patchTestAt)}{profile.patchTestAt && profile.patchTestResult ? ` — ${profile.patchTestResult}` : ''}
               </p>
             </div>
           </div>
@@ -367,6 +376,10 @@ export default function ClientDetailPage() {
         {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{profile.notes}</p>}
         {/* Points, punch card and tier — with the perk the desk honours (Loyalty Program on, loyalty:read held). */}
         <ClientLoyaltyCard contactId={ct.id} />
+        {/* The card kept for no-show / late-cancel fees (Card on File on, contacts:read held). */}
+        <ClientCardOnFile contactId={ct.id} />
+        {/* Their answers to the salon's intake and consent forms (Intake forms on, contacts:read held). */}
+        <ClientIntakeResponses contactId={ct.id} />
       </div>
 
       {/* Tabs */}
@@ -654,6 +667,7 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
     scalpNotes: profile.scalpNotes || '',
     allergies: profile.allergies || '',
     patchTestAt: profile.patchTestAt || '',
+    patchTestResult: profile.patchTestResult || '',
     preferences: profile.preferences || '',
     pronouns: profile.pronouns || '',
     birthday: profile.birthday || '',
@@ -730,6 +744,14 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patch Test</label>
                 <input type="date" value={form.patchTestAt} onChange={(e) => set('patchTestAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patch test result</label>
+                <select value={form.patchTestResult} disabled={!form.patchTestAt} onChange={(e) => set('patchTestResult', e.target.value)} className="w-full px-3 py-2 border rounded-lg" aria-label="Patch test result">
+                  <option value="">Not recorded</option>
+                  <option value="passed">Passed</option>
+                  <option value="failed">Failed</option>
+                </select>
               </div>
             </div>
             <div>

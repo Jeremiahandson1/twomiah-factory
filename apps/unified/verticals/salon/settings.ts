@@ -77,7 +77,11 @@ const salon: VerticalSettings = {
     field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send', 'loyalty:enroll', 'loyalty:redeem'],
     // The front desk checks clients in (schedule:check-in opens exactly that route — owner's decision 2026-10-29), and can
     // not move, complete or cancel an appointment (schedule:update).
-    viewer: ['loyalty:enroll', 'loyalty:redeem', 'schedule:read-all', 'schedule:check-in'],
+    // The till (owner's decision, PR #167 follow-up 10/30): the front desk sells gift cards and takes them as payment (giftcards:sell), takes a
+    // card on the reader (cardreader:use) and sells retail (retail:sell) — three narrow rights, each asked by exactly the routes that do that.
+    // It gets NO general invoice editing (invoices:create / invoices:update), no refunds or voids (payments:delete), no catalogue or stock
+    // (inventory:*), no reader pairing or settings (company:update). A stylist (field) holds none of the three.
+    viewer: ['loyalty:enroll', 'loyalty:redeem', 'schedule:read-all', 'schedule:check-in', 'giftcards:sell', 'cardreader:use', 'retail:sell'],
   },
   // An online booking is at the salon: no address asked unless the owner says so, and it lands in The Book as an
   // appointment (templates/crm-salon routes/booking.ts: appointmentCalendar; server/crm/salon/onlineBooking.ts).
@@ -85,12 +89,12 @@ const salon: VerticalSettings = {
   crm: {
     documents: { markup: false, types: DOC_TYPES },
     tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
-    portal: { disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'collaborators', 'myJobs', 'service'] },
+    portal: { disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'collaborators', 'myJobs', 'service'], appointments: true },
     dashboard: 'salon',
     leads: { platforms: LEAD_PLATFORMS.map((p) => p.value), contactType: 'client' },
     contacts: { guards: ['appointment', 'serviceRecord', 'membershipEnrollment'] },
     team: { assignedWork: ['appointment'] },
-    invoices: { tips: true, accountBalance: true, clock: 'booking' },
+    invoices: { tips: true, accountBalance: true, giftCardTender: true, giftCardSalesAreLiability: true, clock: 'booking' },
     expenses: { categories: EXPENSE_CATEGORIES, categoryLabels: EXPENSE_LABELS },
     reports: { teamProductivity: 'serviceRecords' },
     reviews: { subject: 'visit' },
@@ -176,15 +180,25 @@ const salon: VerticalSettings = {
     team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Senior Stylist', subtitle: 'The people who work in your salon.', department: false },
     agreements: {},
     fleet: {},
-    commissions: {},
+    // Stylist commissions (hidden feature salon_commissions): paid on services and/or retail, tiered by the month's sales, earned from the visit's stylist.
+    commissions: { roleWords: { technician: 'Stylist', sales_rep: 'Front desk', manager: 'Manager', all: 'Everyone' }, planExample: 'Stylist standard', salesKinds: true },
     portal: {
       providerNoun: 'salon',
-      clientNav: ['invoices', 'paymentMethods', 'messages'],
+      clientNav: ['appointments', 'invoices', 'paymentMethods', 'messages'],
       collaboratorNav: ['sharedDocuments', 'messages'],
       reviewerNav: ['messages'],
     },
     leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client inquiries arrive: Google, Meta, Yelp, booking apps and your website' },
-    marketing: { contactTypes: CONTACT_TYPES },
+    // The follow-up sequence form offers "starts after a completed visit / after a lapse" only where the salon has switched on the
+    // automatic messages (hidden feature `retention_sends`); screens.tsx Marketing() drops the choice otherwise.
+    marketing: {
+      contactTypes: CONTACT_TYPES,
+      sequenceTriggersFeature: 'retention_sends',
+      sequenceTriggers: [
+        { value: 'visit_completed', label: 'After a visit is completed' },
+        { value: 'lapsed', label: 'When a client has not been in for a while' },
+      ],
+    },
     messages: {},
     reviews: {},
     // Bookings in the salon's words and places (web/src/crm/vertical.ts VerticalScreens.booking): online bookings land in
@@ -195,7 +209,7 @@ const salon: VerticalSettings = {
     settings: {
       roles: [
         // Front Desk holds loyalty:enroll and loyalty:redeem (extraRolePermissions): "change nothing" was untrue (salon run 10/25).
-        { value: 'viewer', label: 'Viewer', description: 'the front desk: opens the book and records, checks clients in, signs clients up for loyalty and redeems their rewards; changes nothing else' },
+        { value: 'viewer', label: 'Viewer', description: 'the front desk: opens the book and records, checks clients in, signs clients up for loyalty and redeems their rewards; sells gift cards, takes a card on the reader and sells retail; changes nothing else' },
         { value: 'field', label: 'Stylist', description: 'the book, clients and service records; no invoices, prices or settings' },
         { value: 'manager', label: 'Manager', description: 'everything staff can do plus invoices, reports and the team; not company settings' },
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },

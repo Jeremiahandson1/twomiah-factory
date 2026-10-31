@@ -9,6 +9,8 @@ import { usePermissions } from '../shared'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { FinancingPanel } from './financing'
 import { ClientLoyaltyCard } from './pages/salon/loyaltyTiers'
+import { GiftCardPayPanel } from './pages/salon/GiftCards'
+import { ChairCheckoutPanel, RetailSellPanel } from './pages/salon/ChairCheckout'
 import { verticalScreens } from './vertical'
 
 interface Entry { kind: string; step: string; status: string; sentTo: string | null; detail: string | null; at: string }
@@ -60,11 +62,14 @@ export function InvoiceRemindersPanel({ invoiceId, status }: { invoiceId: string
 const isSalon = () => { const h = verticalScreens().home; return typeof h === 'string' && h === 'salon' }
 
 /** The quote's and the invoice's aside, as InvoiceDetailPage and QuoteDetailPage render it. */
-export function DocumentAside({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) {
+export function DocumentAside({ kind, record, reload }: { kind: 'quote' | 'invoice'; record: Record<string, any>; reload?: () => void }) {
   return (
     <>
       <FinancingPanel kind={kind} record={record} />
       {kind === 'invoice' && record?.id && <InvoiceRemindersPanel invoiceId={String(record.id)} status={String(record.status || '')} />}
+      {kind === 'invoice' && isSalon() && record?.id && <RetailSellPanel invoiceId={String(record.id)} status={String(record.status || '')} lines={record.lineItems} reload={reload} />}
+      {kind === 'invoice' && isSalon() && record?.id && <ChairCheckoutPanel invoiceId={String(record.id)} status={String(record.status || '')} balance={record.balance} reload={reload} />}
+      {kind === 'invoice' && isSalon() && record?.id && <GiftCardPayPanel invoiceId={String(record.id)} status={String(record.status || '')} balance={record.balance} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.contactId && <ClientLoyaltyCard contactId={String(record.contactId)} compact />}
     </>
   )

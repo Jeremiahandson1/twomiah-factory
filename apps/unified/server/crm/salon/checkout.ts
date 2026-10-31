@@ -23,6 +23,8 @@ export interface VisitSale {
   appointmentId?: string | null
   serviceName?: string | null
   price: number
+  /** A visit with several services: one bill line each (their prices add up to `price`). Absent: the one line above. */
+  lines?: Array<{ description: string; price: number }> | null
   /** Who raised the bill, for the audit row (T58). Optional so a scheduled caller can still be logged. */
   actor?: { userId?: string; id?: string; companyId?: string } | null
 }
@@ -131,10 +133,10 @@ export function createSalonCheckout(d: CrmDeps) {
       throw e
     }
 
-    await db.insert(invoiceLineItem).values({
-      invoiceId: created.id, description: v.serviceName || 'Salon service', quantity: '1',
-      unitPrice: price.toString(), total: price.toString(), sortOrder: 0,
-    } as any)
+    const lines = (v.lines || []).filter((l) => Number.isFinite(Number(l.price)) && Number(l.price) >= 0)
+    await db.insert(invoiceLineItem).values(lines.length > 1
+      ? lines.map((l, i) => ({ invoiceId: created.id, description: l.description || 'Salon service', quantity: '1', unitPrice: round2(Number(l.price)).toString(), total: round2(Number(l.price)).toString(), sortOrder: i }))
+      : [{ invoiceId: created.id, description: v.serviceName || 'Salon service', quantity: '1', unitPrice: price.toString(), total: price.toString(), sortOrder: 0 }] as any[]) as any
 
     live.emitToCompany(v.companyId, live.EVENTS.INVOICE_CREATED, created)
     // The sale, in the log, after the line item so the row describes a bill that is whole.

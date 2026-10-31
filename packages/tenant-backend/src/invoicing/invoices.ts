@@ -88,6 +88,20 @@ export interface InvoiceOptions {
    * what is left of its quote (apps/unified/server/crm/billing/quoteBilling.ts).
    */
   checkTotal?: (existing: any, total: number) => Promise<string | null>
+  /**
+   * A way of paying that holds money the business owes back to somebody else's balance (the salon's gift card): when a refund
+   * goes back by `method`, `credit` runs INSIDE the refund's transaction under the invoice lock, puts the money back where it
+   * was taken from, and a returned message refuses the refund. Absent: a refund by any method moves nothing but the invoice,
+   * exactly as before. (Salon gift cards, apps/unified crm/salon/giftCards.ts)
+   */
+  refundTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
+  /**
+   * A condition on the invoice table that is TRUE for an invoice that counts as revenue. An invoice that fails it still lists, opens
+   * and takes payments as any other, but its money is left out of the list's money totals (/stats: totalAmount, paidAmount,
+   * outstanding, refundedAmount) — the salon passes "not the sale of a gift card", because a card sold is a liability and its money
+   * is revenue when it is spent. Absent: every invoice counts, exactly as before. Reports take the same condition (ReportingOptions.revenueOnly).
+   */
+  revenueOnly?: any
   accountBalance?: {
     /** Take `amount` off the invoice's client. A returned message refuses the payment. */
     spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
@@ -347,10 +361,21 @@ export interface RecordRefundInput {
    * the software deciding on the client's behalf.
    */
   creditToAccount?: (tx: any, invoice: any, amount: number) => Promise<string | null>
+  /** InvoiceOptions.refundTender: a refund by this method puts the money back where the tender took it from, in this transaction. */
+  creditToTender?: { method: string; credit: (tx: any, invoice: any, amount: number) => Promise<string | null> }
+  /**
+   * Gratuity (the salon: payment.tipAmount). Present → this refund also takes tips back, written on the refund row as a NEGATIVE tip
+   * so the stylist's tips net down by it. The tips not yet given back are summed under the invoice lock (every tip taken, less every
+   * tip already returned), so two refunds at once cannot return one tip twice.
+   *   amount      the exact tip (dollars) that goes back with this refund (refused above what is left to return)
+   *   partialToo  no `amount`: a refund that returns everything collected gives back every tip left; a partial one only when this is true
+   * Absent: a refund moves no tip, exactly as before.
+   */
+  tips?: { amount?: number; partialToo?: boolean }
 }
 
 export type RecordRefundOutcome =
-  | { ok: true; refund: any; invoice: any; row: any; newStatus: string; duplicate: boolean }
+  | { ok: true; refund: any; invoice: any; row: any; newStatus: string; duplicate: boolean; tipReturned?: number }
   | { ok: false; status: 400 | 404; error: string }
 
 /**
@@ -394,9 +419,23 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
       }
       const refusal = await input.creditToAccount(tx, row, amount)
       if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
+    } else if (input.creditToTender && method === input.creditToTender.method) {
+      const refusal = await input.creditToTender.credit(tx, row, amount)
+      if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
     }
     const values: any = { invoiceId: id, amount: (-amount).toString(), method, reference: input.reference || null, notes: input.notes || 'Refund' }
     if (input.paidAt) values.paidAt = input.paidAt
+    // Tips that go back with it (InvoiceOptions.tips / RecordRefundInput.tips): decided under the lock, written as a negative tip.
+    let tipBack = 0
+    if (input.tips) {
+      const [tp] = await tx.select({ n: sql<string>`coalesce(sum(${t.payment.tipAmount}::numeric), 0)` }).from(t.payment).where(eq(t.payment.invoiceId, id))
+      const unreturned = Math.max(0, round2(Number(tp?.n || 0)))
+      if (input.tips.amount !== undefined) {
+        tipBack = round2(input.tips.amount)
+        if (tipBack > unreturned + 0.005) { outcome = { ok: false, status: 400, error: `Only ${money(unreturned)} of tips can still go back on this sale.` }; return }
+      } else tipBack = amount >= net - 0.005 || input.tips.partialToo ? unreturned : 0
+      if (tipBack > 0.005) values.tipAmount = (-tipBack).toString(); else tipBack = 0
+    }
     const [refund] = await tx.insert(t.payment).values(values).returning()
     const newRefunded = round2(refunded + amount)
     // 'refunded' (closed, $0 owed) only when the WHOLE sale is returned (refunded ≥ total). Refunding a
@@ -404,7 +443,7 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
     // drops back to its billed state, not 'refunded'. (professional refund model)
     const newStatus = recomputeStatus({ total: row.total, amountPaid: row.amount_paid, amountRefunded: newRefunded }, row.status)
     const [updated] = await tx.update(t.invoice).set({ amountRefunded: newRefunded.toString(), status: newStatus, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
-    outcome = { ok: true, refund, invoice: updated, row, newStatus, duplicate: false }
+    outcome = { ok: true, refund, invoice: updated, row, newStatus, duplicate: false, ...(input.tips ? { tipReturned: tipBack } : {}) }
   })
   return outcome
 }
@@ -729,12 +768,13 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // visit and not the second. (T62; owner's decision 2026-10-09)
   app.get('/stats', requirePermission('invoices:read'), requirePermission('revenue:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
+    const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, ...(deps.options?.revenueOnly ? { isRevenue: sql<boolean>`${deps.options.revenueOnly}` } : {}) }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
     const tz = await zoneOf(currentUser.companyId)
-    for (const inv of invoices) {
-      const s = derive(inv, tz)
-      stats[s] = (stats[s] || 0) + 1
+    // The invoice tallies count every invoice, a gift card's sale included; the money below counts only invoices that are revenue
+    // (InvoiceOptions.revenueOnly — a card's sale is a liability, its money is revenue when it is spent).
+    for (const inv of invoices) { const s = derive(inv, tz); stats[s] = (stats[s] || 0) + 1 }
+    for (const inv of invoices.filter((i: any) => i.isRevenue !== false)) {
       if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
       if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
@@ -1054,12 +1094,14 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
      * until it costs somebody an audit trail. `reason` is accepted as a synonym rather than renaming
      * `notes`, which the screens and the Stripe paths already send.
      */
-    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional(), reason: z.string().optional() })
+    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(deps.options?.refundTender ? [...PAYMENT_METHODS, deps.options.refundTender.method] as [string, ...string[]] : PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional(), reason: z.string().optional(), returnTip: z.boolean().optional() })
     const data = refundSchema.parse(await c.req.json())
     const amount = round2(data.amount)
     const why = (data.notes ?? data.reason)?.trim() || undefined
     // The locked write lives in recordInvoiceRefund (shared with the Stripe refund paths).
-    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit })
+    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit, creditToTender: deps.options?.refundTender,
+      // A salon's refund takes the tip back too when it returns everything collected; a partial one only when the person ticks it (`returnTip`).
+      ...(tips ? { tips: { partialToo: data.returnTip === true } } : {}) })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
     logMoney(c, 'refund', outcome.invoice, {
@@ -1067,7 +1109,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       refundedToDate: money2(outcome.invoice?.amountRefunded),
     })
     afterMoney(id)
-    return c.json({ refund: outcome.refund, invoice: outcome.invoice })
+    return c.json({ refund: outcome.refund, invoice: outcome.invoice, ...(tips ? { tipReturned: outcome.tipReturned ?? 0 } : {}) })
   })
 
   // ---------------------------------------------------------------- credit

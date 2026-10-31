@@ -10,6 +10,7 @@ import { keepOnlineService } from './onlineBooking.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { processingProblem } from './segments.ts'
 
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
 const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'bookableOnline', 'active'] as const
@@ -19,6 +20,19 @@ export function createServiceMenuRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const refresh = (companyId: string) => d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'service_menu' })
   const app = new Hono<AppEnv>()
+
+  /**
+   * The processing gap in a body (salon "processing time"; feature `processing_time`): the two numbers to store, or the sentence
+   * that refuses them. Clearing it (both empty) is always allowed; setting one needs the feature on.
+   */
+  async function processingIn(companyId: string, body: any, durationMin: number): Promise<{ values: { processingAfterMin: number | null; processingMin: number | null } } | { problem: string; code: string }> {
+    const empty = (v: unknown) => v === null || v === undefined || v === ''
+    if (empty(body.processingMin) && empty(body.processingAfterMin)) return { values: { processingAfterMin: null, processingMin: null } }
+    if (!(await d.features.isFeatureEnabled(companyId, 'processing_time'))) return { problem: 'Processing time is not switched on for this salon.', code: 'FEATURE_OFF' }
+    const problem = processingProblem(body.processingAfterMin, body.processingMin, durationMin)
+    if (problem) return { problem, code: 'BAD_PROCESSING' }
+    return { values: { processingAfterMin: Number(body.processingAfterMin || 0), processingMin: Number(body.processingMin) } }
+  }
 
   // GET /service-menu — ?category=, ?includeInactive=1
   app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -43,6 +57,12 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // "abc" is not a negative price, it is not a price at all. (T20 L2)
     if (body.price != null && isNaN(Number(body.price))) return fail(c, 400, 'Price must be a number.')
     if (body.price != null && (Number(body.price) < 0 || roundsToNothing(body.price))) return fail(c, 400, 'Price cannot be negative.')
+    let processingValues: { processingAfterMin?: number | null; processingMin?: number | null } = {}
+    if ('processingMin' in body || 'processingAfterMin' in body) {
+      const got = await processingIn(currentUser.companyId, body, Number(body.durationMin ?? 60))
+      if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { processingMin: got.problem })
+      processingValues = got.values
+    }
     if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1 || Number(body.durationMin) > 720)) {
       return fail(c, 400, 'Duration must be between 1 and 720 minutes.')
     }
@@ -68,6 +88,7 @@ export function createServiceMenuRoutes(d: CrmDeps) {
         priceIsFrom: body.priceIsFrom ?? false,
         rebookIntervalDays: body.rebookIntervalDays ?? null,
         requiresPatchTest: body.requiresPatchTest ?? false,
+        ...processingValues,
         bookableOnline: body.bookableOnline ?? false,
         active: body.active ?? true,
         companyId: currentUser.companyId,
@@ -99,6 +120,13 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    if ('processingMin' in body || 'processingAfterMin' in body || ('durationMin' in body && existing.processingMin)) {
+      // A shorter service must still hold its processing gap; changing nothing about the gap re-checks the old one against the new length.
+      const source = 'processingMin' in body || 'processingAfterMin' in body ? body : { processingMin: existing.processingMin, processingAfterMin: existing.processingAfterMin }
+      const got = await processingIn(currentUser.companyId, source, Number(body.durationMin ?? existing.durationMin))
+      if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { processingMin: got.problem })
+      Object.assign(updates, got.values)
+    }
 
     // Unticked "Bookable online", or taken off the menu: off /book in the same write; a rename, a new length or price:
     // /book shows it at once. Bookings already made keep their time (keepOnlineService).

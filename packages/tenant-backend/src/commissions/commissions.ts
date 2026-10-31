@@ -49,6 +49,11 @@ export interface CommissionRoutesDeps {
    * included — their margin is the job's own profit, known to the app that turns this on. Off (absent): such a plan is refused.
    */
   salesRepAutoEarn?: boolean
+  /**
+   * A plan can be paid on services, on retail or on both (commission_plan.sales_kind), and can pay the stylist of a visit by itself
+   * (autoEarn 'visit_stylist'). Off — the default — a plan is exactly what it was; the salon turns it on.
+   */
+  salesKinds?: boolean
 }
 
 /**
@@ -77,6 +82,10 @@ export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as c
  * gross profit. The invoice-by-invoice earner below never pays it.
  */
 export const COMMISSION_AUTO_EARN_SALES_REP = 'job_sales_rep' as const
+/** Where a business offers it (CommissionRoutesDeps.salesKinds): the stylist of the visit the invoice was raised from. */
+export const VISIT_STYLIST = 'visit_stylist'
+/** What a plan is paid on, where the business offers the choice. */
+export const COMMISSION_SALES_KINDS = ['all', 'services', 'retail'] as const
 
 const planSchema = z.object({
   name: z.string().trim().min(1, 'A plan needs a name'),
@@ -95,6 +104,12 @@ const planSchema = z.object({
    * Where the table has no column for it (a template's own schema), it is not offered.
    */
   userIds: z.array(z.string().min(1).max(64)).max(500).optional(),
+})
+
+/** The plan's fields for a business that offers sales kinds: the same, plus what it is paid on and the visit's stylist as who it pays. */
+const salonPlanSchema = planSchema.extend({
+  salesKind: z.enum(COMMISSION_SALES_KINDS).optional(),
+  autoEarn: z.enum([...COMMISSION_AUTO_EARN, VISIT_STYLIST]).optional(),
 })
 
 const commissionSchema = z.object({
@@ -176,6 +191,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   const { db, tables: t, authenticate, requirePermission, canSee } = deps
   const app = new Hono()
   app.use('*', authenticate)
+  const planShape: typeof planSchema = (deps.salesKinds ? salonPlanSchema : planSchema) as any
 
   const owned = async (table: any, id: string, companyId: string) => {
     const [row] = await db.select().from(table).where(and(eq(table.id, id), eq(table.companyId, companyId))).limit(1)
@@ -217,10 +233,12 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       ? 'A margin plan cannot pay automatically — its margin has to be entered when the commission is recorded.'
       : null
   }
-  const planValues = (data: Partial<z.infer<typeof planSchema>>) => {
+  // Either shape: the base plan (roofing's seller choice included) or the salon's (its sales kind and the visit's stylist).
+  const planValues = (data: Partial<Omit<z.infer<typeof planSchema>, 'autoEarn'>> & { autoEarn?: string; salesKind?: (typeof COMMISSION_SALES_KINDS)[number] }) => {
     const v: Record<string, any> = { ...data }
     if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
     if (!t.commissionPlan.userIds) delete v.userIds
+    if (!deps.salesKinds || !t.commissionPlan.salesKind) delete v.salesKind
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
@@ -230,7 +248,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
 
   app.post('/plans', requirePermission('commissions:create'), async (c) => {
     const currentUser = c.get('user') as any
-    const parsed = planSchema.safeParse(await c.req.json().catch(() => ({})))
+    const parsed = planShape.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const data = parsed.data
     const refusal = autoRefusal(data.planType, data.autoEarn)
@@ -251,7 +269,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   app.put('/plans/:id', requirePermission('commissions:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const parsed = partialOf(planSchema).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = partialOf(planShape).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const existing = await owned(t.commissionPlan, id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Commission plan not found' }, 404)

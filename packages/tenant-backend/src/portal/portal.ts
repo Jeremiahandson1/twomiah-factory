@@ -56,6 +56,12 @@ export interface PortalOptions {
   /** Status a portal service request is created in. Default 'pending' (unscheduled, waiting for the office). */
   serviceRequestStatus?: string
   /** Endpoint groups to leave unmounted even though their tables exist. */
+  /**
+   * A client's upcoming appointments (the salon). Absent = no such section, as before. Present: the tables to read and how to word a
+   * private link to manage a booking made online (the booking's own page, which moves or cancels it under the salon's rules).
+   * Offered only where the business has the `portal_appointments` feature on — never on a silent default.
+   */
+  appointments?: { appointment: any; service?: any; stylist?: any; booking?: any; manageUrl?: (bookingToken: string) => string }
   disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits' | 'jobFiles'>
 }
 /**
@@ -167,6 +173,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   // shown a Payment Method tab. Same shape as equipment/agreements in T26 M7. (Field Service T29 M1)
   paymentMethods: ['online_payments'],
   visits: ['visit_reports'],
+  // The client's own appointments: only where the business switched this on (a hidden feature until the owner has tried it).
+  appointments: ['portal_appointments'],
 }
 /** One id: is it on. A nested list: is ANY of them on. */
 const featureSatisfied = (need: string | string[], enabled: string[]): boolean =>
@@ -236,7 +244,11 @@ export function createPortalRoutes(deps: PortalDeps) {
     pets: !!t.patient && !off('pets'),
     // landscaping: the visits that are done (deps.visits supplies them)
     visits: !!deps.visits && !off('visits'),
+    // salon: the client's upcoming appointments. NEVER on from what is mounted: it is offered only where the business has the
+    // `portal_appointments` feature switched on (sectionsFor adds it), so a missing lookup or an empty list is not a yes.
+    appointments: false,
   }
+  const appointmentsConfigured = !!o.appointments?.appointment
   const app = new Hono()
   const portalUrlFor = (token: string) => `${frontendUrl()}/portal/${token}`
 
@@ -561,6 +573,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const needed = SECTION_FEATURES[section]
       if (needed && !needed.every((f) => featureSatisfied(f, enabled))) out[section] = false
     }
+    out.appointments = appointmentsConfigured && enabled.includes('portal_appointments')
     return out
   }
   /** Taking a module out of the nav has to close its endpoints too — hiding a module used to leave its API wide open (#167). */
@@ -599,6 +612,15 @@ export function createPortalRoutes(deps: PortalDeps) {
         : [undefined]
       pets = { pets: ids.length, vaccinationsDue: Number(due?.value || 0), nextAppointment: next?.startTime ? new Date(next.startTime).toISOString() : null }
     }
+    // salon: how many appointments are coming and when the next is (names and times only).
+    let coming: { upcomingAppointments: number; nextAppointment: string | null } | null = null
+    if (sections.appointments && o.appointments) {
+      const a = o.appointments.appointment
+      const rows = await db.select({ startTime: a.startTime }).from(a)
+        .where(and(eq(a.companyId, contact.companyId), eq(a.contactId, contact.id), gte(a.startTime, new Date()), notInArray(a.status, ['cancelled', 'no_show', 'completed'])))
+        .orderBy(asc(a.startTime), asc(a.id)).limit(50)
+      coming = { upcomingAppointments: rows.length, nextAppointment: rows[0]?.startTime ? new Date(rows[0].startTime).toISOString() : null }
+    }
     return c.json({
       contact: { name: contact.name, email: contact.email, type: contact.type || 'client' },
       company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone, timeZone: company.timeZone },
@@ -608,6 +630,7 @@ export function createPortalRoutes(deps: PortalDeps) {
         ...(sections.projects ? { activeProjects: Number(projectCount.value) } : {}),
         pendingQuotes: Number(quoteCount.value), totalInvoices: Number(invoiceCount.value), outstandingBalance: Number(balance?.total || 0),
         ...(pets || {}),
+        ...(coming || {}),
       },
       sections,
     })
@@ -620,6 +643,36 @@ export function createPortalRoutes(deps: PortalDeps) {
       const rows = await deps.visits!({ companyId: contact.companyId, contactId: contact.id })
       if (rows === null) return c.json({ error: 'This section is not available on your account.', code: 'FEATURE_NOT_ENABLED' }, 404)
       return c.json(rows)
+    })
+  }
+  // ---- appointments (salon)
+  // The client's own upcoming appointments, read-only: when, what and with whom (first name) — never a price, a note or a formula.
+  // One booked online carries the link to its own page, where the salon's rules decide whether it can still be moved or cancelled.
+  if (appointmentsConfigured && o.appointments) {
+    const cfg = o.appointments
+    app.get('/p/:token/appointments', portalAuth, gate('appointments'), async (c) => {
+      const { contact } = P(c)
+      const a = cfg.appointment
+      const rows = await db.select({ id: a.id, startTime: a.startTime, endTime: a.endTime, status: a.status, serviceId: a.serviceId, stylistId: a.stylistId }).from(a)
+        .where(and(eq(a.companyId, contact.companyId), eq(a.contactId, contact.id), gte(a.startTime, new Date()), notInArray(a.status, ['cancelled', 'no_show', 'completed'])))
+        .orderBy(asc(a.startTime), asc(a.id)).limit(50)
+      const serviceIds = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
+      const stylistIds = [...new Set(rows.map((r: any) => r.stylistId).filter(Boolean))] as string[]
+      const apptIds = rows.map((r: any) => r.id) as string[]
+      const [services, stylists, bookings] = await Promise.all([
+        serviceIds.length && cfg.service ? db.select({ id: cfg.service.id, name: cfg.service.name }).from(cfg.service).where(and(eq(cfg.service.companyId, contact.companyId), inArray(cfg.service.id, serviceIds))) : [],
+        stylistIds.length && cfg.stylist ? db.select({ id: cfg.stylist.id, firstName: cfg.stylist.firstName }).from(cfg.stylist).where(and(eq(cfg.stylist.companyId, contact.companyId), inArray(cfg.stylist.id, stylistIds))) : [],
+        apptIds.length && cfg.booking && cfg.manageUrl ? db.select({ appointmentId: cfg.booking.appointmentId, token: cfg.booking.token, status: cfg.booking.status }).from(cfg.booking).where(and(eq(cfg.booking.companyId, contact.companyId), inArray(cfg.booking.appointmentId, apptIds), notInArray(cfg.booking.status, ['cancelled']))) : [],
+      ])
+      return c.json(rows.map((r: any) => {
+        const link = bookings.find((b: any) => b.appointmentId === r.id)
+        return {
+          id: r.id, startTime: r.startTime, endTime: r.endTime, status: r.status,
+          service: services.find((s: any) => s.id === r.serviceId)?.name ?? null,
+          with: stylists.find((s: any) => s.id === r.stylistId)?.firstName ?? null,
+          manageUrl: link && cfg.manageUrl ? cfg.manageUrl(link.token) : null,
+        }
+      }))
     })
   }
 

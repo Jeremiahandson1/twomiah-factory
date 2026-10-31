@@ -30,10 +30,11 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
 } from '../db/schema/index.ts'
+import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
-import { salonTeamProductivity } from '../data/salon.ts'
+import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
@@ -336,7 +337,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
     loadPdf: loadInvoicePdf, audit,
     options: {
-      timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.commissionEarner.earnForInvoice(invoiceId); await s.afterInvoicePaid(invoiceId) },
+      timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.earnCommission(invoiceId); await s.afterInvoicePaid(invoiceId) },
       // A deposit, progress or final invoice is never edited above what is left of its quote (crm/billing/quoteBilling.ts).
       checkTotal: (existing: any, total: number) => quoteBilling.checkTotal(existing, total),
       // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
@@ -353,6 +354,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // salon's own clock (templates/crm-salon routes/invoices.ts, Salon T27 H1).
       ...(v.invoices?.tips ? { tips: true } : {}),
       ...(v.invoices?.clock === 'booking' ? { timeZoneFor: (companyId: string) => salonClock.salonTimezone(companyId) } : {}),
+      // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
+      // A gift card's sale is not revenue (data/salon.ts notGiftCardSale): the list's money totals leave it out, as Reports do.
+      ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
+      ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
         // inside the invoice's own transaction.
@@ -463,7 +468,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       db, tables: { job, jobAssignee, crewLogin, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
-    { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof } as any) },
+    // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -492,6 +498,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       db, tables: { invoice, payment, job, project, quote, timeEntry, user, contact, teamMember, location }, authenticate, requirePermission,
       options: {
         featuresFor: features.enabledFeaturesFor,
+        // The same condition the invoice list's totals use: the sale of a gift card is a liability, not revenue.
+        ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
         // A chair is measured by the services it performed and what they took (templates/crm-salon routes/reporting.ts, Salon T28 M6).
         ...(v.reports?.teamProductivity === 'serviceRecords' ? { teamProductivity: (companyId: string, range: { gte?: Date; lte?: Date }) => salonTeamProductivity(db, companyId, range) } : {}),
       },
@@ -566,7 +574,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: v.portal.disable },
+      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: { appointment, service: serviceMenu, stylist: user, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}` } } : {}) },
     } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },

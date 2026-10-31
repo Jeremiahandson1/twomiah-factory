@@ -11,7 +11,7 @@ import { useTheme } from '../shell/hooks'
 export const SECTION_ICONS: Record<PortalSection, React.ComponentType<{ className?: string }>> = {
   projects: FolderKanban, quotes: FileText, invoices: Receipt, paymentMethods: CreditCard, changeOrders: ClipboardList, selections: Palette,
   messages: MessageSquare, myJobs: Hammer, lienWaivers: FileSignature, submittals: FileCheck2, rfis: HelpCircle, sharedDocuments: FolderOpen,
-  equipment: Wrench, agreements: CalendarCheck, serviceRequest: LifeBuoy, pets: PawPrint, visits: Camera, jobFiles: Images,
+  equipment: Wrench, agreements: CalendarCheck, serviceRequest: LifeBuoy, pets: PawPrint, visits: Camera, jobFiles: Images, appointments: CalendarCheck,
 }
 
 /** The sections this visitor gets, in nav order: the role's configured list, minus anything the backend did not mount. */

@@ -1,8 +1,8 @@
 // The salon's raw SQL (RULEBOOK §2): the book's lock, the client's lifetime spend, the visit repairs, the win-back list,
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
-import { and, eq, gte, lte, lt, isNotNull, or, sql } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact } from '../db/schema/index.ts'
+import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -15,6 +15,10 @@ export async function lockAppointmentBook(tx: any, companyId: string): Promise<v
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':appt'}))`)
 }
 
+/** The visit whose id is in `apptId` has a service (an appointment_item row) matching `cond` — a visit with several services (salon #5). */
+export const visitHasService = (apptId: AnyColumn, cond: SQL): SQL =>
+  sql`exists (select 1 from ${appointmentItem} where ${appointmentItem.appointmentId} = ${apptId} and ${cond})`
+
 /** A service already on this menu by the same name, case aside. (SALON-M5) */
 export async function serviceNamedOnMenu(db: any, companyId: string, name: string): Promise<string | null> {
   const [dupe] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
@@ -22,12 +26,22 @@ export async function serviceNamedOnMenu(db: any, companyId: string, name: strin
   return dupe?.id ?? null
 }
 
-/** Money the client actually paid, net of refunds, across every live invoice (Salon T27 N9). */
+/**
+ * THE one definition of "this invoice is not revenue": it is the sale of a gift card. Selling a card is a liability (money owed to the
+ * holder), not income; the income is counted when the card is SPENT, as a payment by gift card on the service or product it paid for.
+ * Without this a $50 card sold and then spent on a $50 service read as $100 in every invoice-based total. Every place that adds
+ * invoices up uses this one condition (follow-up 10/30 to PR #167): the shared Reports and the invoice list's stats are handed it by
+ * the salon vertical (CrmSettings.invoices.giftCardSalesAreLiability), and the client's lifetime spend below uses it directly. It reads
+ * the card's own row (salon_gift_card.invoice_id), not the invoice's lines, so editing a sale's lines cannot turn it back into revenue.
+ */
+export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id})`
+
+/** Money the client actually paid, net of refunds, across every live invoice that is revenue (Salon T27 N9; gift-card sales are not, follow-up 10/30). */
 export async function clientLifetimePaid(db: any, companyId: string, contactId: string): Promise<number> {
   const [row] = await db
     .select({ paid: sql<string>`COALESCE(SUM(GREATEST(0, COALESCE(${invoice.amountPaid}::numeric, 0) - COALESCE(${invoice.amountRefunded}::numeric, 0))), 0)` })
     .from(invoice)
-    .where(and(eq(invoice.contactId, contactId), eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('draft', 'void')`))
+    .where(and(eq(invoice.contactId, contactId), eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('draft', 'void')`, notGiftCardSale))
   return Math.round(Number(row?.paid || 0) * 100) / 100
 }
 
@@ -244,4 +258,150 @@ export async function salonTeamProductivity(db: any, companyId: string, range: {
     })
   }
   return out.sort((a, b) => b.revenue - a.revenue || b.servicesCompleted - a.servicesCompleted)
+}
+
+// ─── Retention sends (crm/salon/retention.ts) ─────────────────────────────────────────────────────────────────────────
+
+/** Clients whose most recent visit was on or after `from` and before `to` — the ones who crossed a lapse line in that stretch. */
+export async function clientsLastSeenBetween(db: any, companyId: string, from: string, to: string, cap: number) {
+  const rows = await db.select({ contactId: contact.id, lastVisit: sql<string | null>`max(${serviceRecord.performedAt})` })
+    .from(contact)
+    .innerJoin(serviceRecord, eq(serviceRecord.contactId, contact.id))
+    .where(and(eq(contact.companyId, companyId), eq(serviceRecord.companyId, companyId)))
+    .groupBy(contact.id)
+    .having(sql`max(${serviceRecord.performedAt}) >= ${from} and max(${serviceRecord.performedAt}) < ${to}`)
+    .limit(cap)
+  return rows as Array<{ contactId: string; lastVisit: string | null }>
+}
+
+/** The active follow-up sequences a trigger starts (marketing's drip_sequence, trigger 'visit_completed' or 'lapsed'). */
+export async function activeSequencesForTrigger(db: any, companyId: string, trigger: string): Promise<string[]> {
+  const res: any = await db.execute(sql`SELECT id FROM drip_sequence WHERE company_id = ${companyId} AND trigger = ${trigger} AND active = true`)
+  const rows: any[] = res?.rows ?? (Array.isArray(res) ? res : [])
+  return rows.map((r) => String(r.id))
+}
+
+// ─── Gift cards (salon #10) ──────────────────────────────────────────────────────────────────────────
+
+/** Take cents off a salon gift card. The row is locked by the caller; the `balance >= cents` guard is the second belt. False = it was not there to take. */
+export async function takeFromSalonCard(tx: any, cardId: string, cents: number): Promise<boolean> {
+  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}` })
+    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents))).returning({ id: salonGiftCard.id })
+  return out.length > 0
+}
+
+/** Put cents back on a salon gift card (the row is locked by the caller). */
+export async function putBackOnSalonCard(tx: any, cardId: string, cents: number): Promise<void> {
+  await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} + ${cents}` }).where(eq(salonGiftCard.id, cardId))
+}
+
+// ─── Reports (salon #11; crm/salon/reports.ts) ───────────────────────────────────────────────────────────────────────
+
+/** The most visits one report reads. A bigger window answers with `truncated`, never a quiet partial count. */
+export const REPORT_VISIT_CAP = 50_000
+
+/**
+ * Every completed visit (service record) in [from, to), with whether the client LEFT WITH A NEXT APPOINTMENT: another appointment
+ * after this visit, not cancelled or a no-show, that was booked no later than 24 hours after the visit (or long before it).
+ */
+export async function visitsForReport(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    id: serviceRecord.id, contactId: serviceRecord.contactId, stylistId: serviceRecord.stylistId, stylistMemberId: serviceRecord.stylistMemberId,
+    firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name, performedAt: serviceRecord.performedAt,
+    rebooked: sql<boolean>`exists (select 1 from ${appointment} rb where rb.company_id = ${serviceRecord.companyId} and rb.contact_id = ${serviceRecord.contactId}
+      and rb.status not in ('cancelled', 'no_show') and rb.start_time > ${serviceRecord.performedAt}
+      and rb.created_at <= ${serviceRecord.performedAt} + interval '24 hours' and (${serviceRecord.appointmentId} is null or rb.id <> ${serviceRecord.appointmentId}))`,
+  }).from(serviceRecord)
+    .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+    .orderBy(serviceRecord.performedAt).limit(REPORT_VISIT_CAP + 1)
+  return rows as Array<{ id: string; contactId: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; rebooked: boolean }>
+}
+
+/** The clients who had a visit in [from, to). */
+export async function visitorsBetween(db: any, companyId: string, from: Date, to: Date): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ contactId: serviceRecord.contactId }).from(serviceRecord)
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+  return new Set(rows.map((r: any) => r.contactId))
+}
+
+/** Each client's first visit, last visit and how many visits they have had, ever. */
+export async function visitSpans(db: any, companyId: string): Promise<Array<{ contactId: string; first: Date; last: Date; n: number }>> {
+  const rows = await db.select({
+    contactId: serviceRecord.contactId, first: sql<Date>`min(${serviceRecord.performedAt})`, last: sql<Date>`max(${serviceRecord.performedAt})`, n: sql<number>`count(*)`,
+  }).from(serviceRecord).where(eq(serviceRecord.companyId, companyId)).groupBy(serviceRecord.contactId)
+  return rows.map((r: any) => ({ contactId: r.contactId as string, first: new Date(r.first), last: new Date(r.last), n: Number(r.n) }))
+}
+
+/** Clients who hold an appointment from `now` on that is not cancelled or a no-show. */
+export async function clientsWithFutureBooking(db: any, companyId: string, now: Date): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ contactId: appointment.contactId }).from(appointment)
+    .where(and(eq(appointment.companyId, companyId), isNotNull(appointment.contactId), gte(appointment.startTime, now), sql`${appointment.status} not in ('cancelled', 'no_show')`))
+  return new Set(rows.map((r: any) => r.contactId).filter(Boolean))
+}
+
+/** Retail lines on paid sales whose payment completed in [from, to), with the stylist of the visit the sale closed. */
+export async function retailSold(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    description: invoiceLineItem.description, qty: sql<string>`sum(${invoiceLineItem.quantity}::numeric)`, total: sql<string>`sum(${invoiceLineItem.total}::numeric)`,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(invoiceLineItem)
+    .innerJoin(invoice, eq(invoiceLineItem.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), eq(invoice.status, 'paid'), eq(invoiceLineItem.type, 'retail'), gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+    .groupBy(invoiceLineItem.description, appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
+  return rows as Array<{ description: string; qty: string; total: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
+}
+
+// ─── Retail stock and tips (salon #7; crm/salon/retail.ts, reports.ts) ───────────────────────────────────────────────
+
+/** Lock one retail product for the length of the caller's transaction: two sales of the last unit are taken one after the other. */
+export async function lockRetailProduct(tx: any, companyId: string, productId: string) {
+  const [row] = await tx.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.id, productId), eq(salonRetailProduct.companyId, companyId))).limit(1).for('update')
+  return row as typeof salonRetailProduct.$inferSelect | undefined
+}
+
+/**
+ * Units on hand per product: stock received and corrected, less the units on sales that stand. A void sale gives its units back by itself
+ * (nothing is "returned" by a second write that could be missed). `ids` null = every product of the salon.
+ */
+export async function retailOnHand(exec: any, companyId: string, ids: string[] | null): Promise<Map<string, number>> {
+  const only = (col: AnyColumn) => (ids ? sql`${col} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})` : sql`true`)
+  const moved = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), only(salonStockMove.productId))).groupBy(salonStockMove.productId)
+  const sold = await exec.select({ productId: salonRetailSale.productId, n: sql<string>`coalesce(sum(${salonRetailSale.quantity}), 0)` })
+    .from(salonRetailSale).innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .where(and(eq(salonRetailSale.companyId, companyId), sql`${invoice.status} <> 'void'`, only(salonRetailSale.productId))).groupBy(salonRetailSale.productId)
+  const out = new Map<string, number>()
+  for (const r of moved) out.set(r.productId, Number(r.n) || 0)
+  for (const r of sold) out.set(r.productId, (out.get(r.productId) || 0) - (Number(r.n) || 0))
+  return out
+}
+
+/** The tips on a sale not yet given back: every tip taken, less every tip a refund returned (a refund line carries its tip as a negative). Dollars. */
+export async function tipsOutstanding(db: any, invoiceId: string): Promise<number> {
+  const [row] = await db.select({ n: sql<string>`coalesce(sum(${payment.tipAmount}::numeric), 0)` }).from(payment).where(eq(payment.invoiceId, invoiceId))
+  return Math.max(0, Math.round(Number(row?.n || 0) * 100) / 100)
+}
+
+/**
+ * Tips in [from, to), NET of tips given back, with the stylist of the visit the sale closed (a sale with no visit has none). A refund that
+ * returned a tip carries it as a negative tip on its own line, dated when it was refunded, so it comes off the stylist's tips in the period
+ * of the refund (follow-up 10/30); `payments` counts only the payments that took a tip.
+ */
+export async function tipsReceived(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*) FILTER (WHERE ${payment.tipAmount}::numeric > 0)`,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(payment)
+    .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
+    .groupBy(appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
+  return rows as Array<{ tips: string; payments: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
 }

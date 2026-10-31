@@ -13,7 +13,7 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'fieldservice' })
   const s = await seedOwner(t)
   const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken as string
-  as = (path, init = {}) => t.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
+  as = async (path, init = {}) => t.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
   expect((await as('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs'] } })).status).toBe(200)
   // A new job is for a customer in field service (contractor PR #173: crm.jobs.requireCustomer).
   customer = (await (await as('/api/contacts', { method: 'POST', json: { name: 'Job Customer', type: 'client' } })).json() as any).id

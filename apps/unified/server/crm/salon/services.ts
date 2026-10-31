@@ -11,11 +11,13 @@ import { createMembershipBilling } from './membershipBilling.ts'
 import { createRebookingDue } from './rebookingDue.ts'
 import { createVisitClosing } from './visit.ts'
 import { createBookScope } from './bookScope.ts'
+import { createCardOnFile } from './cardOnFile.ts'
 
 export function createSalonServices(d: CrmDeps) {
   const clock = createSalonClock(d.db)
   const checkout = createSalonCheckout(d)
   const loyalty = createLoyaltyAward(d.db)
+  const cards = createCardOnFile(d, clock)
   return {
     clock,
     checkout,
@@ -23,10 +25,12 @@ export function createSalonServices(d: CrmDeps) {
     loyalty,
     /** Closing a visit, one way, for the appointment and the logged service (visit.ts). */
     visits: createVisitClosing(d, checkout, loyalty),
-    memberships: createMembershipBilling(d, clock, checkout),
+    memberships: createMembershipBilling(d, clock, checkout, cards),
     rebooking: createRebookingDue(d.db, clock),
     /** Whose chairs a seat sees in The Book: the owner's "own appointments only" switch (bookScope.ts). */
     book: createBookScope(d.db, d.permissions),
+    /** Cards kept on file and the no-show / late-cancel fees charged to them (cardOnFile.ts). */
+    cards,
   }
 }
 

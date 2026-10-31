@@ -16,10 +16,20 @@ import { createSalonServices, type SalonServices } from './services.ts'
 import { createClientRoutes } from './clients.ts'
 import { createServiceMenuRoutes } from './serviceMenu.ts'
 import { createAppointmentRoutes } from './appointments.ts'
+import { createBookBlockRoutes } from './bookBlocks.ts'
+import { createIntakeFormRoutes } from './intakeForms.ts'
+import { createSalonCommissions } from './commissions.ts'
+import { createRetention, createRetentionRoutes } from './retention.ts'
+import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
+import { createSalonReports, createSalonReportRoutes } from './reports.ts'
+import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
+import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
+import { createCardOnFileRoutes } from './cardOnFile.ts'
+import { createMemberCardRoutes } from './cardPages.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
 import { Hono } from 'hono'
@@ -66,6 +76,20 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     setTimeout(() => { void tick() }, 5 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
+  // Stylist commissions: the stylist of a paid visit earns by themselves (not ready: owner tests it first).
+  const retention = createRetention(d, s)
+  // The timed pass: every 15 minutes, for each salon with automatic sends on (retention.ts). Boot only, never in tests.
+  if (salonBook) d.services.addJob(() => { setTimeout(() => { void retention.passForAll() }, 3 * 60_000); setInterval(() => { void retention.passForAll() }, 15 * 60_000) })
+  const commissions = createSalonCommissions(d)
+  // Gift cards sold at the desk and spent at checkout (not ready); a refund by gift card goes back onto the card, inside the refund's own transaction.
+  const giftCards = createSalonGiftCards(d, s)
+  d.services.useTenderRefund('gift_card', giftCards.creditBack)
+  d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
+  // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
+  d.services.useConnectedEvents?.(s.cards.claim)
+  // The card an online booking waited for: saved, so the booking stands (booking/engine.ts cardSaved).
+  d.services.bookingCard.cards = s.cards
+  s.cards.onSaved(async ({ companyId, metadata }) => { if (metadata.booking_token) await d.services.bookingCard.confirm?.(companyId, metadata.booking_token) })
   return [
     // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
     ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: priced(createClientRoutes(d, s)) } as Mount]),
@@ -74,8 +98,26 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     { path: '/api/memberships', access: 'user', feature: 'salon_memberships', router: priced(createMembershipRoutes(d, s)) },
     ...(salonBook ? [
       { path: '/api/appointments', access: 'user', feature: 'salon_booking', router: priced(createAppointmentRoutes(d, s)) },
+      // Blocked time (lunch, training) in the Book's time grid (not ready: owner tests it first).
+      { path: '/api/book-blocks', access: 'user', feature: 'book_grid', router: createBookBlockRoutes(d, s) },
+      // Intake and consent forms the salon builds, answered on a booking's page and shown on the client's chart (not ready).
+      { path: '/api/intake-forms', access: 'user', feature: 'intake_forms', router: createIntakeFormRoutes(d) },
       { path: '/api/reminders', access: 'user', feature: 'rebooking_reminders', router: priced(createReminderRoutes(d, s)) },
     ] as Mount[] : []),
+    // Client retention, rebook-rate and retail reports (not ready: owner tests it first).
+    { path: '/api/salon-reports', access: 'user', feature: 'salon_reports', router: createSalonReportRoutes(d, createSalonReports(d)) } as Mount,
+    // Retail products with stock, sold onto a sale (not ready: owner tests it first).
+    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
+    // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
+    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d)) } as Mount,
+    // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
+    { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
+    // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
+    ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
+    // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
+    ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
+    // The paused member's private card page, linked from the email (404 while Card on file is off).
+    ...(salonBook ? [{ path: '/api/member-card', access: 'public', feature: 'card_on_file', router: createMemberCardRoutes(d, s.cards) } as Mount] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]
 }

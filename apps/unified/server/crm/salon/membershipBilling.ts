@@ -5,12 +5,15 @@
 // arrived and rolls it forward, catching up period by period. It runs from the enrolment reads and from
 // POST /api/memberships/billing/run. Every charge is CLAIMED first: the UPDATE that sets last_billed_for names the
 // period and only matches a row not yet billed for it, so two runs can only produce one invoice per period.
-import { and, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm'
-import { dueDateFromTerms, addMonthsClamped } from '@twomiah/tenant-backend'
-import { membershipPlan, membershipEnrollment, contact, invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, notInArray, or } from 'drizzle-orm'
+import { dueDateFromTerms, addMonthsClamped, recordInvoicePayment } from '@twomiah/tenant-backend'
+import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, invoiceLineItem, payment, company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonClock } from './days.ts'
 import type { SalonCheckout } from './checkout.ts'
+import { cardWords, type CardOnFile } from './cardOnFile.ts'
+import { siteOrigin } from '../../booking/happenings.ts'
+import { createId } from '@paralleldrive/cuid2'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -36,7 +39,16 @@ export function nextRenewal(from: string, cycle: string, anchor: string = from):
 
 export type BilledOne = { enrollmentId: string; invoiceId: string; number: string; period: string; amount: number }
 
-export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout: SalonCheckout) {
+/** What an automatic card charge came to: paid, or why not. 'skipped' = auto-charge was not asked for or not available; nothing was tried. */
+export type CollectOutcome = 'paid' | 'declined' | 'needs_action' | 'no_card' | 'waiting' | 'busy' | 'unavailable' | 'skipped'
+
+/** A declined card is tried again after this long, up to MAX_TRIES in all; then auto-charge is switched off for that member. */
+export const MAX_TRIES = 3
+export const RETRY_AFTER_MS = 3 * 86_400_000
+/** A try claimed but never answered for this long died half-way: it is resumed under the same number (the same Stripe key), not charged anew. */
+const STALE_PENDING_MS = 5 * 60_000
+
+export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout: SalonCheckout, cards: CardOnFile) {
   const { db } = d
   /** Every date this writes is a calendar day on the shop's wall. (Salon T25 N2) */
   const today = (companyId: string) => clock.salonToday(companyId)
@@ -110,6 +122,171 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
   }
 
   /**
+   * Charge a period's invoice to the member's card on file, when the salon and the member asked for that (auto_charge) and
+   * Card on File is on. One try per call, claimed in membership_charge BEFORE Stripe is asked, on the salon's own Stripe
+   * account only. A decline is tried again after RETRY_AFTER_MS, MAX_TRIES in all; after the last, the membership is
+   * PAUSED (no credits while unpaid), the invoice stays open, the member is emailed a private link to give a new card and the
+   * salon is told. Resuming starts it again. The member is emailed each time. `now` is a seam for tests; `fresh` is a resume's
+   * own new round (the waits and the try limit do not apply to it).
+   */
+  async function collect(enrollmentId: string, invoiceId: string, now: Date = new Date(), fresh = false): Promise<CollectOutcome> {
+    const [enr]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, enrollmentId)).limit(1)
+    if (!enr || !enr.autoCharge || enr.status !== 'active') return 'skipped'
+    const companyId = enr.companyId
+    if (!(await d.features.isFeatureEnabled(companyId, 'card_on_file'))) return 'skipped'
+    const [inv]: any[] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.companyId, companyId))).limit(1)
+    if (!inv || ['paid', 'void', 'refunded'].includes(inv.status)) return 'skipped'
+    const owed = round2(Number(inv.total) - Number(inv.amountPaid || 0))
+    if (!(owed > 0)) return 'skipped'
+    const [ct]: any[] = await db.select().from(contact).where(eq(contact.id, enr.contactId)).limit(1)
+    const [plan]: PlanRow[] = await db.select().from(membershipPlan).where(eq(membershipPlan.id, enr.planId)).limit(1)
+    const planName = plan?.name || 'Membership'
+    const say = async (template: string, data: Record<string, string>) => {
+      if (!ct?.email) return
+      try { await d.services.emailService.send(ct.email, template, { contactName: ct.name || 'there', plan: planName, invoiceNumber: inv.number, ...data }) }
+      catch (e: any) { d.logger.warn('[memberships] charge email not sent', { error: e?.message || String(e) }) }
+    }
+    const switchOff = async (why: string) => {
+      await db.update(membershipEnrollment).set({ autoCharge: false, updatedAt: new Date() }).where(eq(membershipEnrollment.id, enr.id))
+      await d.audit.log({ action: 'update', entity: 'membership_enrollment', entityId: enr.id, metadata: { autoCharge: false, why }, companyId })
+      d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
+    }
+
+    const [card] = await cards.cardsOf(companyId, enr.contactId)
+    if (!card) {
+      await switchOff('no card on file')
+      await say('membershipPaymentFailed', { amount: owed.toFixed(2), card: 'card', next: 'We have no card on file for you, so your membership will not be charged automatically.' })
+      return 'no_card'
+    }
+
+    const [last]: any[] = await db.select().from(membershipCharge).where(eq(membershipCharge.invoiceId, invoiceId)).orderBy(desc(membershipCharge.attempt)).limit(1)
+    let attempt = 1
+    let resume = false
+    if (last) {
+      if (last.status === 'succeeded') return 'paid'
+      if (last.status === 'pending') {
+        if (now.getTime() - new Date(last.updatedAt).getTime() < STALE_PENDING_MS) return 'busy'
+        attempt = last.attempt; resume = true
+      } else {
+        if (!fresh && last.attempt >= MAX_TRIES) return 'waiting'
+        if (!fresh && now.getTime() - new Date(last.updatedAt).getTime() < RETRY_AFTER_MS) return 'waiting'
+        attempt = last.attempt + 1
+      }
+    }
+    if (resume) {
+      await db.update(membershipCharge).set({ updatedAt: now }).where(eq(membershipCharge.id, last.id))
+    } else {
+      const claimed = await db.insert(membershipCharge).values({
+        companyId, enrollmentId: enr.id, invoiceId, contactId: enr.contactId, cardId: card.id,
+        period: enr.lastBilledFor || (await today(companyId)), attempt, amount: String(owed), status: 'pending',
+      }).onConflictDoNothing().returning({ id: membershipCharge.id })
+      if (!claimed.length) return 'busy'
+    }
+
+    let result
+    try {
+      result = await d.services.stripeService.chargeSavedCard({
+        companyId, customerId: card.stripeCustomerId, paymentMethodId: card.paymentMethodId, amount: owed,
+        description: `Membership — ${planName}${inv.number ? ` (invoice ${inv.number})` : ''}`,
+        metadata: { kind: 'membership', invoice_id: invoiceId, enrollment_id: enr.id, contact_id: enr.contactId, company_id: companyId },
+        idempotencyKey: `membership:${invoiceId}:${attempt}`,
+      })
+    } catch (e: any) {
+      // Stripe or the salon's Stripe link is not there right now: nothing was charged and the try is not used up.
+      d.logger.warn('[memberships] auto-charge unavailable', { error: e?.message || String(e) })
+      if (!resume) await db.delete(membershipCharge).where(and(eq(membershipCharge.invoiceId, invoiceId), eq(membershipCharge.attempt, attempt)))
+      return 'unavailable'
+    }
+
+    const setLedger = (status: string, extra: Record<string, unknown> = {}) =>
+      db.update(membershipCharge).set({ status, updatedAt: new Date(), ...extra }).where(and(eq(membershipCharge.invoiceId, invoiceId), eq(membershipCharge.attempt, attempt)))
+
+    if (result.ok) {
+      await setLedger('succeeded', { paymentIntentId: result.paymentIntentId })
+      // Recorded now, once per PaymentIntent: Stripe's own payment_intent.succeeded finds it there and adds nothing.
+      const outcome = await recordInvoicePayment(db, { invoice, payment }, false, {
+        invoiceId, companyId, amount: owed, method: 'card', reference: result.paymentIntentId,
+        notes: `Membership auto-charge — ${cardWords(card)}`, allowOverpayment: true, idempotentByReference: true,
+      })
+      if (!outcome.ok) d.logger.error('[memberships] card charged but payment not recorded', { invoiceId, paymentIntentId: result.paymentIntentId, error: outcome.error })
+      await d.audit.log({ action: 'create', entity: 'membership_charge', entityId: enr.id, metadata: { invoiceId, amount: owed, status: 'succeeded', attempt }, companyId })
+      d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
+      await say('membershipCharged', { amount: owed.toFixed(2), card: cardWords(card) })
+      return 'paid'
+    }
+
+    await setLedger(result.reason, { paymentIntentId: result.paymentIntentId, failureMessage: result.message })
+    await d.audit.log({ action: 'create', entity: 'membership_charge', entityId: enr.id, metadata: { invoiceId, amount: owed, status: result.reason, attempt, message: result.message }, companyId })
+    const last_try = attempt >= MAX_TRIES
+    if (last_try) {
+      // Every try failed: the membership is paused (no credits while unpaid), the member gets a private link to give a new
+      // card, and the salon is told. The invoice stays open. Resuming starts it again.
+      const token = createId() + createId()
+      await db.update(membershipEnrollment).set({ status: 'paused', pausedForPaymentAt: new Date(), cardUpdateToken: token, updatedAt: new Date() }).where(eq(membershipEnrollment.id, enr.id))
+      await d.audit.log({ action: 'update', entity: 'membership_enrollment', entityId: enr.id, metadata: { status: 'paused', why: 'card declined on every try', invoiceId }, companyId })
+      d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
+      await say('membershipPaused', { amount: owed.toFixed(2), card: cardWords(card), link: `${siteOrigin()}/api/member-card/${token}` })
+      const [co]: any[] = await db.select({ email: company.email }).from(company).where(eq(company.id, companyId)).limit(1)
+      if (co?.email) {
+        try { await d.services.emailService.send(co.email, 'membershipPausedSalon', { clientName: ct?.name || 'A member', plan: planName, invoiceNumber: inv.number, amount: owed.toFixed(2) }) }
+        catch (e: any) { d.logger.warn('[memberships] salon notice not sent', { error: e?.message || String(e) }) }
+      }
+    } else {
+      d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
+      await say('membershipPaymentFailed', { amount: owed.toFixed(2), card: cardWords(card), next: 'We will try again in a few days.' })
+    }
+    return result.reason
+  }
+
+  /** Declined charges whose wait is over: tried again (collect decides which are due and which have run out of tries). */
+  async function retryDeclined(companyId: string, now: Date = new Date()): Promise<number> {
+    const rows: any[] = await db.select({ enrollmentId: membershipCharge.enrollmentId, invoiceId: membershipCharge.invoiceId })
+      .from(membershipCharge)
+      .innerJoin(invoice, eq(invoice.id, membershipCharge.invoiceId))
+      .where(and(eq(membershipCharge.companyId, companyId), inArray(membershipCharge.status, ['declined', 'needs_action', 'pending']), notInArray(invoice.status, ['paid', 'void', 'refunded'])))
+      .orderBy(asc(membershipCharge.createdAt))
+    const seen = new Set<string>()
+    let tried = 0
+    for (const r of rows) {
+      if (seen.has(r.invoiceId)) continue
+      seen.add(r.invoiceId)
+      const out = await collect(r.enrollmentId, r.invoiceId, now).catch((e: any) => { d.logger.error('[memberships] retry failed', { error: e?.message }); return 'skipped' as CollectOutcome })
+      if (out === 'paid' || out === 'declined' || out === 'needs_action') tried++
+    }
+    return tried
+  }
+
+  /**
+   * Start a paused membership again: active, billing restarts from the next renewal (the paused months are not back-billed),
+   * and the open invoice that caused the pause is charged to the card now. A card that fails again pauses it again.
+   */
+  async function resume(enrollmentId: string, companyId: string): Promise<{ ok: boolean; outcome: CollectOutcome | 'no_invoice'; status: string } | null> {
+    const [enr]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(and(eq(membershipEnrollment.id, enrollmentId), eq(membershipEnrollment.companyId, companyId))).limit(1)
+    if (!enr) return null
+    if (enr.status !== 'paused') return { ok: false, outcome: 'skipped', status: 'not_paused' }
+    const [plan]: PlanRow[] = await db.select().from(membershipPlan).where(eq(membershipPlan.id, enr.planId)).limit(1)
+    const today_ = await today(companyId)
+    const next = nextRenewal(today_, cycleOf(plan), enr.startDate || today_)
+    const keep = enr.renewsAt && enr.renewsAt > today_ ? enr.renewsAt : next
+    await db.update(membershipEnrollment).set({ status: 'active', pausedForPaymentAt: null, cardUpdateToken: null, renewsAt: keep, updatedAt: new Date() }).where(eq(membershipEnrollment.id, enr.id))
+    await d.audit.log({ action: 'update', entity: 'membership_enrollment', entityId: enr.id, metadata: { status: 'active', why: 'resumed' }, companyId })
+    // The invoice that went unpaid: the latest one a charge was tried for that is still owed.
+    const tried: any[] = await db.select({ invoiceId: membershipCharge.invoiceId }).from(membershipCharge).innerJoin(invoice, eq(invoice.id, membershipCharge.invoiceId))
+      .where(and(eq(membershipCharge.enrollmentId, enr.id), notInArray(invoice.status, ['paid', 'void', 'refunded']))).orderBy(desc(membershipCharge.createdAt)).limit(1)
+    d.realtime.emitToCompany(companyId, d.realtime.EVENTS.REFRESH, { entity: 'membership_enrollment' })
+    if (!tried.length) return { ok: true, outcome: 'no_invoice', status: 'active' }
+    const outcome = await collect(enr.id, tried[0].invoiceId, new Date(), true)
+    const [after]: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, enr.id)).limit(1)
+    return { ok: outcome === 'paid', outcome, status: after?.status || 'active' }
+  }
+
+  // A new card given through the member's private link: a membership paused for the card starts again.
+  cards.onSaved(async ({ companyId, metadata }) => {
+    const id = metadata.membership_enrollment_id
+    if (id) await resume(id, companyId)
+  })
+
+  /**
    * Give a renewal date to active enrolments that never got one, from TODAY — the periods never charged are not
    * back-billed (a pile of surprise invoices is not a decision this should make on its own). (Salon T20 H4)
    */
@@ -135,6 +312,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
   /** Bill every active enrolment that has come due, one period at a time, up to a ceiling per run. */
   async function settleMembershipBilling(companyId?: string, maxPeriodsPerEnrollment = 12): Promise<BilledOne[]> {
     await adoptUnscheduled(companyId)
+    if (companyId) await retryDeclined(companyId).catch((e: any) => d.logger.error('[memberships] retry pass failed', { error: e?.message }))
     const billed: BilledOne[] = []
     const due: EnrollmentRow[] = await db.select().from(membershipEnrollment).where(and(
       eq(membershipEnrollment.status, 'active'),
@@ -149,7 +327,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
         const period = cursor.renewsAt
         if (!period || period > (await today(row.companyId))) break
         const one = await billPeriod(cursor, period)
-        if (one) billed.push(one)
+        if (one) { billed.push(one); await collect(one.enrollmentId, one.invoiceId).catch((e: any) => d.logger.error('[memberships] auto-charge failed', { error: e?.message })) }
         const [fresh] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, row.id)).limit(1)
         if (!fresh || fresh.renewsAt === cursor.renewsAt) break // nothing moved — don't spin
         cursor = fresh
@@ -160,7 +338,7 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
   }
 
   /** Enrolling bills the first period straight away, so a membership sold today is invoiced today. */
-  async function billFirstPeriod(enrollment: EnrollmentRow): Promise<BilledOne | null> {
+  async function billFirstPeriod(enrollment: EnrollmentRow): Promise<(BilledOne & { charge?: CollectOutcome }) | null> {
     const start = enrollment.startDate || (await today(enrollment.companyId))
     const one = await billPeriod(enrollment, start)
     if (!one) {
@@ -170,10 +348,13 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
         .set({ renewsAt: nextRenewal(start, cycleOf(plan)), updatedAt: new Date() })
         .where(and(eq(membershipEnrollment.id, enrollment.id), isNull(membershipEnrollment.renewsAt)))
     }
-    return one
+    if (!one) return null
+    // Sold with auto-charge: the first period is charged to the card now.
+    const charge = enrollment.autoCharge ? await collect(enrollment.id, one.invoiceId).catch((e: any) => { d.logger.error('[memberships] auto-charge failed', { error: e?.message }); return 'skipped' as CollectOutcome }) : undefined
+    return { ...one, charge }
   }
 
-  return { settleMembershipBilling, billFirstPeriod }
+  return { settleMembershipBilling, billFirstPeriod, collect, retryDeclined, resume }
 }
 
 export type MembershipBilling = ReturnType<typeof createMembershipBilling>

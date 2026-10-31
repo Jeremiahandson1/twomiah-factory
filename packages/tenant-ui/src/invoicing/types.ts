@@ -74,7 +74,7 @@ export interface InvoicingConfig {
    * An app's own panel at the top of the quote's or invoice's side column (the unified app's customer financing), given
    * the record as loaded. Absent: nothing.
    */
-  aside?: (doc: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => import('react').ReactNode
+  aside?: (doc: { kind: 'quote' | 'invoice'; record: Record<string, any>; /** Load the document again (after the aside changed it, e.g. a gift card was applied). */ reload?: () => void }) => import('react').ReactNode
   /**
    * A quote line may be OPTIONAL (offered, counted only once ticked — tenant-backend invoicing/quoteOptions.ts) and a quote
    * may ask a DEPOSIT on approval. Only for an app whose quote tables have the columns (the unified app); absent, the

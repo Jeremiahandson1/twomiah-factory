@@ -81,13 +81,24 @@ export function createCrmServices(deps: CrmServiceDeps) {
     // The job an invoice names first (invoice.job_id, everyone's column now), then the job raised from its quote.
     db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'jobId',
   } as any)
+  // Commissions a vertical earns in its own way beside the job-based engine (the salon pays the stylist of a visit): each module hands in
+  // what it earns for a bill (and its sweep); every door that records money earns through earnCommission.
+  const commissionHooks: Array<{ earn: (invoiceId: string) => Promise<unknown>; sweep?: () => Promise<unknown> }> = []
+  const earnCommission = async (invoiceId: string) => {
+    await commissionEarner.earnForInvoice(invoiceId)
+    for (const h of commissionHooks) await h.earn(invoiceId).catch((e: any) => logger.warn('[commissions] earn failed', { invoiceId, error: e?.message || String(e) }))
+  }
+  // A way of paying that a refund puts back where it came from (the salon's gift card): the module hands in what puts the money back,
+  // run inside the refund's own transaction (packages/tenant-backend InvoiceOptions.refundTender). Until one registers, a refund by it is refused.
+  const tenderRefunds = new Map<string, (tx: any, invoice: any, amount: number) => Promise<string | null>>()
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
-  // The store's orders on the connected account (crm/store/checkout/paymentNotices.ts): its module mounts after these
-  // services and hands its claim in with useConnectedEvents. Until then (and for every vertical without the store) an
+  // The store's orders on the connected account (crm/store/checkout/paymentNotices.ts) and the salon's saved cards
+  // (crm/salon/cardOnFile.ts): each module mounts after these services and hands its claim in with useConnectedEvents.
+  // They are asked in turn; the first to answer owns the event. Until then (and for every vertical with neither) an
   // event is the invoices' as before.
-  let connectedEvents: ConnectedEventClaim | null = null
+  const connectedEvents: ConnectedEventClaim[] = []
   // What a module does once an invoice is paid in full-or-part (roofing collects the job): registered when the module
   // mounts, run by BOTH ways money arrives — a payment typed in on the screen (invoice routes' afterMoney) and a card or
   // bank payment on the business's Stripe (afterInvoicePayment below). One failing step never stops the others.
@@ -97,15 +108,21 @@ export function createCrmServices(deps: CrmServiceDeps) {
       try { await step(invoiceId) } catch (err) { logger.warn?.('[invoices] an after-payment step failed', { invoiceId, error: (err as Error)?.message }) }
     }
   }
+  // The salon's card step at online booking: the salon module hands in its cards service, the app hands in the booking
+  // engine's "card saved" (the booking module is made after these services).
+  const bookingCard: { cards: any | null; confirm: ((companyId: string, token: string) => Promise<unknown>) | null } = { cards: null, confirm: null }
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
       bookingCalendarKind: 'job',
       onBookingDeposit: (p: DepositPayment) => (bookingDeposits ? bookingDeposits.paid(p) : Promise.resolve('unknown' as const)),
       onBookingDepositRefunded: async (p: DepositPayment) => { await bookingDeposits?.refunded(p) },
-      claimConnectedEvent: (event: Stripe.Event, stripeAccount: string) => (connectedEvents ? connectedEvents(event, stripeAccount) : Promise.resolve(null)),
+      claimConnectedEvent: async (event: Stripe.Event, stripeAccount: string) => {
+        for (const claim of connectedEvents) { const answer = await claim(event, stripeAccount); if (answer) return answer }
+        return null
+      },
       afterInvoicePayment: async (invoiceId: string) => {
-        await commissionEarner.earnForInvoice(invoiceId)
+        await earnCommission(invoiceId)
         await afterInvoicePaid(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
         // confirmed; a held room is only logged, the money is already taken — then the due date moves to the next
@@ -264,8 +281,19 @@ export function createCrmServices(deps: CrmServiceDeps) {
     onInvoicePaid(step: (invoiceId: string) => Promise<unknown>) { invoicePaidSteps.push(step) },
     /** Runs those steps: commissions' sibling for a payment typed in on the screen. */
     afterInvoicePaid,
-    /** Who claims a connected-account event before the invoices see it (the store's orders). */
-    useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents = claim },
+    /** The salon's card step at online booking (crm/salon/onlineBooking.ts, booking/engine.ts cardSaved). */
+    bookingCard,
+    /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
+    useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
+    /** A vertical's own way of earning commission on a paid bill (the salon's stylist commissions). */
+    useCommissionEarner(h: { earn: (invoiceId: string) => Promise<unknown>; sweep?: () => Promise<unknown> }) { commissionHooks.push(h) },
+    earnCommission,
+    /** A refund by a way of paying that holds money (a gift card) puts it back; the owning module registers the doer. */
+    useTenderRefund(method: string, doer: (tx: any, invoice: any, amount: number) => Promise<string | null>) { tenderRefunds.set(method, doer) },
+    creditTender: async (method: string, tx: any, invoice: any, amount: number) => {
+      const doer = tenderRefunds.get(method)
+      return doer ? doer(tx, invoice, amount) : 'This way of paying cannot be refunded here.'
+    },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()
@@ -278,6 +306,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       })
       recurring.startRecurringProcessor()
       commissionEarner.startCommissionEarner()
+      for (const h of commissionHooks) if (h.sweep) { setTimeout(() => { void h.sweep!() }, 120_000); setInterval(() => { void h.sweep!() }, 5 * 60_000) }
       // Recurring service agreements make their next visits: at boot, then every 6 hours (the field-service CRMs' index.ts).
       if (settings.agreements?.recurrence) {
         const scan = () => (agreements as any).scanAndGenerateJobs().catch((err: any) => logger.error('[agreements] next-visit scan failed', { error: err?.message }))

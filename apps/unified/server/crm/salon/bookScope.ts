@@ -13,7 +13,8 @@
 // (appointment.stylistMemberId): the card the Team page links to the login (crew_login.team_member_id), and the card
 // carrying the login's email — the match /api/team/assignable uses to offer someone with both once, as their login.
 import { and, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm'
-import { appointment, company, crewLogin, teamMember, user } from '../../db/schema/index.ts'
+import { visitHasService } from '../../data/salon.ts'
+import { appointment, appointmentItem, company, crewLogin, teamMember, user } from '../../db/schema/index.ts'
 
 /** Holding it, a seat sees the whole book whatever the switch says. */
 export const SEE_WHOLE_BOOK = 'schedule:read-all'
@@ -80,7 +81,10 @@ export type BookScope = ReturnType<typeof createBookScope>
 /** The condition on `appointment` for a narrowed seat's own chair. */
 export function inOwnChair(own: OwnChair): SQL {
   const mine = eq(appointment.stylistId, own.userId)
-  return own.memberIds.length ? or(mine, inArray(appointment.stylistMemberId, own.memberIds))! : mine
+  // A visit with several services is also in the chair of whoever does one of them (salon #5); no rows, no change.
+  const mineItem = own.memberIds.length ? or(eq(appointmentItem.stylistId, own.userId), inArray(appointmentItem.stylistMemberId, own.memberIds))! : eq(appointmentItem.stylistId, own.userId)
+  const inItems = visitHasService(appointment.id, mineItem)
+  return own.memberIds.length ? or(mine, inArray(appointment.stylistMemberId, own.memberIds), inItems)! : or(mine, inItems)!
 }
 
 /** Is this appointment row (or the stylist being written onto one) in the seat's own chair? */

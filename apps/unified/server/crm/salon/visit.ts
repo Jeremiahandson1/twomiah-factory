@@ -2,9 +2,9 @@
 // appointment and logging a service against it both close the visit; the service log had its own copy that raised the
 // sale and the review and never awarded loyalty — the salon live test's first client never joined (2026-10-25).
 // Never throws: the status change already happened, and none of this may undo it.
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { appointment, serviceMenu, serviceRecord } from '../../db/schema/index.ts'
+import { appointment, appointmentItem, serviceMenu, serviceRecord } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import { AUTO_VISIT_NOTE } from './formulas.ts'
 import type { createSalonCheckout } from './checkout.ts'
@@ -30,8 +30,24 @@ export function createVisitClosing(d: CrmDeps, checkout: ReturnType<typeof creat
       }
     } catch (e) { warn('service menu not read', e) }
 
+    // A visit with several services (salon #5): one bill line each, the visit's price their sum — unless the stylist logged a total.
+    let lines: Array<{ description: string; price: number }> | null = null
     try {
-      const inv = await checkout.ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price, actor })
+      const items = await db.select({ name: serviceMenu.name, price: appointmentItem.price, menuPrice: serviceMenu.price }).from(appointmentItem)
+        .leftJoin(serviceMenu, eq(serviceMenu.id, appointmentItem.serviceId))
+        .where(and(eq(appointmentItem.appointmentId, row.id), eq(appointmentItem.companyId, row.companyId))).orderBy(asc(appointmentItem.position))
+      if (items.length > 1) {
+        const parts = items.map((i: any) => ({ description: i.name || 'Salon service', price: Number(i.price ?? i.menuPrice) || 0 }))
+        const sum = Math.round(parts.reduce((t: number, l: { price: number }) => t + l.price, 0) * 100) / 100
+        lines = parts
+        if (!(Number(charged) > 0)) price = sum
+        else if (Math.abs(sum - price) > 0.005) lines = null     // a total typed over the parts: one line at that total
+        serviceName = serviceName || items[0]?.name || null
+      }
+    } catch (e) { warn('visit services not read', e) }
+
+    try {
+      const inv = await checkout.ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price, lines, actor })
       invoiceId = inv?.id || null
     } catch (e) { warn('sale not created', e) }
     // A completed appointment IS a visit: write the service record once (a logged service already wrote it).
