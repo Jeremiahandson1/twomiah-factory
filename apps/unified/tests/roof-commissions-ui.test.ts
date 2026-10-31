@@ -198,3 +198,69 @@ describe('the job’s commission people card', () => {
     root.unmount(); undo()
   })
 })
+
+const pick = async (select: HTMLSelectElement, value: string) => {
+  await act(async () => { select.value = value; select.dispatchEvent(new win.Event('change', { bubbles: true })) })
+  await settle()
+}
+const selectWith = (value: string) => (Array.from(document.querySelectorAll('select')) as HTMLSelectElement[]).find((s) => Array.from(s.options).some((o) => o.value === value))!
+
+describe('earlier triggers and draws (row 3)', () => {
+  test('the plan form says when a plan is ready, offers $0 balance only for an early one, and sends both', async () => {
+    const { api, calls } = fakeApi({ ...BASE_ROUTES, '/api/roof-money/settings': { minProfit: null }, 'POST /api/commissions/plans': (b: any) => ({ id: 'p1', ...b }) })
+    const root = await mount(api)
+    await click(tab('Plans'))
+    await click(Array.from(document.querySelectorAll('button')).find((b) => /New plan/.test(b.textContent || '')))
+    await pick(selectWith('job_sales_rep'), 'job_sales_rep')
+    const when = selectWith('approved')
+    expect(Array.from(when.options).map((o) => o.value)).toEqual(['collected', 'invoiced', 'completed', 'approved'])
+    expect(text()).not.toContain('Only when nothing is owing')
+    await pick(when, 'invoiced')
+    expect(text()).toContain('Only when nothing is owing')
+    await click(document.querySelector('input[type=checkbox][class=""], label input[type=checkbox]:not([value])') as Element)
+    await inputValue(document.querySelector('input[required]:not([type=number])'), 'On invoice')
+    await submit('Create')
+    const post = calls.find((c) => c.method === 'POST' && c.path === '/api/commissions/plans')
+    expect(post?.body).toMatchObject({ autoEarn: 'job_sales_rep', triggerOn: 'invoiced', zeroBalanceOnly: true })
+    root.unmount()
+  })
+
+  test('a plan on profit is not offered Approved', async () => {
+    const { api } = fakeApi({ ...BASE_ROUTES, '/api/roof-money/settings': { minProfit: null } })
+    const root = await mount(api)
+    await click(tab('Plans'))
+    await click(Array.from(document.querySelectorAll('button')).find((b) => /New plan/.test(b.textContent || '')))
+    await pick(selectWith('job_sales_rep'), 'job_sales_rep')
+    await pick(selectWith('gross_profit'), 'gross_profit')
+    expect(Array.from(selectWith('invoiced').options).map((o) => o.value)).toEqual(['collected', 'invoiced', 'completed'])
+    root.unmount()
+  })
+
+  test('Give a draw sends the job, person, plan and amount to the draws route', async () => {
+    const { api, calls } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/commissions/plans': { data: [{ id: 'pl1', name: 'Rep 8%', planType: 'percent_of_invoice', percentRate: '8', autoEarn: 'job_sales_rep', isActive: true, userIds: [] }] },
+      '/api/company/users': { data: [{ id: 'u1', firstName: 'Rita', lastName: 'Seat', isActive: true, role: 'field' }] },
+      '/api/jobs': { data: [{ id: 'j1', number: 'J-1', title: 'Roof' }] },
+      '/api/roof-money/settings': { minProfit: null },
+      'POST /api/commission-draws': (b: any) => ({ id: 'd1', ...b }),
+    })
+    const root = await mount(api)
+    await click(Array.from(document.querySelectorAll('button')).find((b) => /Give a draw/.test(b.textContent || '')))
+    await pick(selectWith('j1'), 'j1')
+    await pick(selectWith('u1'), 'u1')
+    await pick(selectWith('pl1'), 'pl1')
+    await inputValue(document.querySelector('input[min="0.01"]'), '300')
+    await submit('Give draw')
+    const post = calls.find((c) => c.method === 'POST' && c.path === '/api/commission-draws')
+    expect(post?.body).toEqual({ jobId: 'j1', userId: 'u1', planId: 'pl1', amount: 300 })
+    root.unmount()
+  })
+
+  test('a seat that cannot create commissions is not offered a draw', async () => {
+    const { api } = fakeApi({ ...BASE_ROUTES, '/api/roof-money/settings': { minProfit: null } })
+    const root = await mount(api, ['commissions:read'])
+    expect(text()).not.toContain('Give a draw')
+    root.unmount()
+  })
+})

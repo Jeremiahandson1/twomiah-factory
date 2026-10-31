@@ -42,7 +42,7 @@ import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
 import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
 import { loadPipelineConfig, stageLabelFor } from './pipeline.ts'
-import { createRoofCommissions } from './commissions.ts'
+import { TRIGGER_STAGE, createRoofCommissions } from './commissions.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -212,10 +212,11 @@ export function createRoofJobRoutes(d: CrmDeps) {
   // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
   // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
   const { companyFeatures, stageReached, textHomeowner } = createStageEffects(d)
-  // The rep is paid when the job is Collected (commissions.ts) — also when the office moves it there by hand.
+  // The people are paid when the job reaches the stage a plan waits for — Approved, Completed, Invoiced or Collected (commissions.ts,
+  // TRIGGER_STAGE) — also when the office moves it there by hand.
   const roofCommissions = createRoofCommissions(d)
   const payRep = async (companyId: string, jobId: string, stage: string) => {
-    if (stage !== 'collected') return
+    if (!Object.values(TRIGGER_STAGE).includes(stage)) return
     try { await roofCommissions.earnForJob(companyId, jobId) } catch (err) { d.logger?.warn?.('[roof] commission not earned', { error: (err as Error).message }) }
   }
 

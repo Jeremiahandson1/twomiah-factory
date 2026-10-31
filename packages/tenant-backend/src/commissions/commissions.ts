@@ -93,6 +93,14 @@ export const COMMISSION_JOB_ROLES = ['sales_rep', 'estimator', 'canvasser', 'off
 export type CommissionJobRole = (typeof COMMISSION_JOB_ROLES)[number]
 /** The people named on a job besides its sales rep (job_person.role). */
 export const JOB_PERSON_ROLES = COMMISSION_JOB_ROLES.filter((r) => r !== 'sales_rep') as Exclude<CommissionJobRole, 'sales_rep'>[]
+/**
+ * WHEN A JOB'S COMMISSION IS READY TO BE EARNED (roofing parity row 3 — AccuLynx lets a commission be requested on a job status:
+ * Approved, Completed or Invoiced, optionally only with a $0 balance). 'approved' is the contract signed, 'completed' the work done
+ * (final inspection), 'invoiced' the bill gone out, 'collected' the job paid — what every plan did before, and still the default.
+ * The app that knows the job's stages maps each to its own (apps/unified server/crm/roof/commissions.ts TRIGGER_STAGE).
+ */
+export const COMMISSION_TRIGGERS = ['approved', 'completed', 'invoiced', 'collected'] as const
+export type CommissionTrigger = (typeof COMMISSION_TRIGGERS)[number]
 /** The roles in the words a person reads (the screens, the notes on a commission). */
 export const COMMISSION_JOB_ROLE_WORDS: Record<CommissionJobRole, string> = {
   sales_rep: 'Sales rep', estimator: 'Estimator', canvasser: 'Canvasser', office: 'Office', production_manager: 'Production manager', sales_manager: 'Sales manager',
@@ -139,6 +147,10 @@ const planSchema = z.object({
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
   autoEarn: z.enum([...COMMISSION_AUTO_EARN, ...COMMISSION_AUTO_EARN_JOB_ROLES]).optional(),
+  /** When the commission is ready to be earned: the job reaches Approved / Completed / Invoiced, or is paid (the default). */
+  triggerOn: z.enum(COMMISSION_TRIGGERS).optional(),
+  /** Hold an earlier trigger until every invoice that went out is paid in full ($0 balance). */
+  zeroBalanceOnly: z.boolean().optional(),
   /** What the rate (or each bracket) is read against — the contract, or the job's gross profit. Only where the app pays a job's people. */
   measuredOn: z.enum(COMMISSION_MEASURED_ON).optional(),
   /**
@@ -272,6 +284,14 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     measuredOn && measuredOn !== 'contract' && !jobRoleOfAutoEarn(autoEarn)
       ? 'A plan measured on the job\u2019s profit has to pay a person on the job automatically \u2014 the profit is worked out when the job is paid.'
       : null
+  /** An earlier trigger is for a plan that pays a person on the job; and profit is not known when the contract is only signed. */
+  const triggerRefusal = (data: { triggerOn?: string; zeroBalanceOnly?: boolean; measuredOn?: string; planType?: string }, autoEarn: string | undefined) => {
+    const early = (data.triggerOn && data.triggerOn !== 'collected') || data.zeroBalanceOnly
+    if (early && !jobRoleOfAutoEarn(autoEarn)) return 'An earlier trigger is for a plan that pays a person on the job automatically.'
+    const onProfit = (data.measuredOn && data.measuredOn !== 'contract') || data.planType === 'percent_of_margin'
+    if (data.triggerOn === 'approved' && onProfit) return 'A plan measured on profit cannot be earned when the contract is signed \u2014 the job\u2019s costs are not known yet. Choose Completed, Invoiced or Paid.'
+    return null
+  }
   const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) => {
     if (jobRoleOfAutoEarn(autoEarn)) {
       return deps.salesRepAutoEarn ? null : 'This business does not pay the job\u2019s people automatically.'
@@ -287,6 +307,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!t.commissionPlan.userIds) delete v.userIds
     if (!deps.salesKinds || !t.commissionPlan.salesKind) delete v.salesKind
     if (!deps.salesRepAutoEarn || !t.commissionPlan.measuredOn) delete v.measuredOn
+    if (!deps.salesRepAutoEarn || !t.commissionPlan.triggerOn) { delete v.triggerOn; delete v.zeroBalanceOnly }
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
@@ -299,7 +320,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const parsed = planShape.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const data = parsed.data
-    const refusal = autoRefusal(data.planType, data.autoEarn) || measuredRefusal(data.measuredOn, data.autoEarn)
+    const refusal = autoRefusal(data.planType, data.autoEarn) || measuredRefusal(data.measuredOn, data.autoEarn) || triggerRefusal(data, data.autoEarn)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, data.userIds)
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
@@ -323,7 +344,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!existing) return c.json({ error: 'Commission plan not found' }, 404)
     const nextType = parsed.data.planType ?? existing.planType
     const nextAuto = parsed.data.autoEarn ?? existing.autoEarn
-    const refusal = autoRefusal(nextType, nextAuto) || measuredRefusal(parsed.data.measuredOn ?? existing.measuredOn, nextAuto)
+    const nextMeasured = parsed.data.measuredOn ?? existing.measuredOn
+    const refusal = autoRefusal(nextType, nextAuto) || measuredRefusal(nextMeasured, nextAuto)
+      || triggerRefusal({ triggerOn: parsed.data.triggerOn ?? existing.triggerOn, zeroBalanceOnly: parsed.data.zeroBalanceOnly ?? existing.zeroBalanceOnly, measuredOn: nextMeasured, planType: nextType }, nextAuto)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, parsed.data.userIds, Array.isArray(existing.userIds) ? existing.userIds : [])
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)

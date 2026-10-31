@@ -69,12 +69,19 @@ const PLAN_TYPE_WORDS: Record<string, string> = {
 const listOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [])
 type TierRow = { min: string; max: string; rate: string }
 const blankTiers = (): TierRow[] => [{ min: '0', max: '5000', rate: '40' }, { min: '5000.01', max: '1000000', rate: '45' }]
-const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', measuredOn: 'contract', tiers: blankTiers() })
+const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', measuredOn: 'contract', triggerOn: 'collected', zeroBalanceOnly: false, tiers: blankTiers() })
 /** What a plan's rate (or each bracket) is read against — the server's COMMISSION_MEASURED_ON. */
 const MEASURED_ON_WORDS: Record<string, string> = {
   contract: 'Total sales (the contract, billed before tax)',
   gross_profit: 'Gross profit (the contract less what the job cost)',
   net_profit: 'Net profit (gross profit less what the other plans pay out)',
+}
+/** When a roofing plan is ready to pay — the server's COMMISSION_TRIGGERS. */
+const TRIGGER_WORDS: Record<string, string> = {
+  collected: 'Collected (every invoice is paid)',
+  invoiced: 'Invoiced (the job is moved to Invoiced)',
+  completed: 'Completed (final inspection done)',
+  approved: 'Approved (the contract is signed)',
 }
 const SALES_KIND_WORDS: Record<string, string> = { all: 'Services and retail', services: 'Services only', retail: 'Retail only' }
 /** The people a plan names (commission_plan.user_ids) — empty when it names nobody. */
@@ -95,12 +102,12 @@ const AUTO_WORDS: Record<string, string> = {
 }
 /** Offered only where the config says the trade pays the job's seller (CommissionsConfig.salesRepAutoEarn). */
 const SALES_REP_AUTO_WORDS: Record<string, string> = {
-  job_sales_rep: "Yes — the job’s sales rep, when the whole job is paid",
-  job_estimator: 'Yes — the job’s estimator, when the whole job is paid',
-  job_canvasser: 'Yes — the job’s canvasser, when the whole job is paid',
-  job_office: 'Yes — the job’s office person, when the whole job is paid',
-  job_production_manager: 'Yes — the job’s production manager, when the whole job is paid',
-  job_sales_manager: 'Yes — the job’s sales manager, when the whole job is paid',
+  job_sales_rep: "Yes — the job’s sales rep",
+  job_estimator: 'Yes — the job’s estimator',
+  job_canvasser: 'Yes — the job’s canvasser',
+  job_office: 'Yes — the job’s office person',
+  job_production_manager: 'Yes — the job’s production manager',
+  job_sales_manager: 'Yes — the job’s sales manager',
 }
 /** The people on a job a plan can pay, in the words a plan card uses ("Pays the job’s estimator"). */
 const JOB_ROLE_CARD_WORDS: Record<string, string> = {
@@ -156,6 +163,9 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [invoices, setInvoices] = useState<any[]>([])
   const [jobs, setJobs] = useState<any[]>([])
   // Reassign: the commission being moved, and to whom.
+  // A draw (roofing): part of a commission paid in advance when a job is turned in, taken off the commission when its plan pays it.
+  const [drawOpen, setDrawOpen] = useState(false)
+  const [drawForm, setDrawForm] = useState({ jobId: '', userId: '', planId: '', amount: '', notes: '' })
   const [moving, setMoving] = useState<any | null>(null)
   const [moveTo, setMoveTo] = useState('')
 
@@ -203,7 +213,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true); loadPeople() }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
-    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', measuredOn: p.measuredOn || 'contract', tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
+    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', measuredOn: p.measuredOn || 'contract', triggerOn: p.triggerOn || 'collected', zeroBalanceOnly: !!p.zeroBalanceOnly, tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
     setPlanOpen(true)
     loadPeople()
   }
@@ -213,6 +223,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: autoFor(planForm.planType, planForm.autoEarn), userIds: planForm.userIds }
     if (config.salesKinds) body.salesKind = planForm.salesKind
     if (salesRepAuto && paysJobRole(autoFor(planForm.planType, planForm.autoEarn)) && planForm.planType !== 'flat_rate') body.measuredOn = planForm.planType === 'percent_of_margin' ? 'gross_profit' : planForm.measuredOn
+    if (salesRepAuto && paysJobRole(autoFor(planForm.planType, planForm.autoEarn))) {
+      // Profit cannot be read before the costs are in: Approved is only for a plan on total sales (the server refuses it otherwise).
+      const onProfit = planForm.planType === 'percent_of_margin' || (planForm.planType !== 'flat_rate' && planForm.measuredOn !== 'contract')
+      body.triggerOn = onProfit && planForm.triggerOn === 'approved' ? 'completed' : planForm.triggerOn
+      body.zeroBalanceOnly = planForm.triggerOn !== 'collected' && planForm.zeroBalanceOnly
+    }
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else if (planForm.planType === 'tiered') body.tiers = planForm.tiers.map((t) => ({ min: Number(t.min), max: Number(t.max), rate: Number(t.rate) }))
     else body.percentRate = Number(planForm.percentRate || 0)
@@ -241,6 +257,23 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) }
     try { setInvoices(listOf(await api.get('/api/invoices', { limit: 100 })).filter((i: any) => !['draft', 'void', 'voided', 'cancelled'].includes(String(i.status)))) } catch { setInvoices([]) }
     try { setJobs(listOf(await api.get('/api/jobs', { limit: 100 }))) } catch { setJobs([]) }
+  }
+  const openDraw = async () => {
+    setDrawForm({ jobId: '', userId: '', planId: '', amount: '', notes: '' })
+    setDrawOpen(true)
+    try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) }
+    try { setJobs(listOf(await api.get('/api/jobs', { limit: 100 }))) } catch { setJobs([]) }
+  }
+  const drawPlans = plans.filter((p) => p.isActive !== false && paysJobRole(p.autoEarn) && (!drawForm.userId || paysPerson(p, drawForm.userId, plans)))
+  const saveDraw = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await api.post('/api/commission-draws', { jobId: drawForm.jobId, userId: drawForm.userId, planId: drawForm.planId, amount: Number(drawForm.amount || 0), ...(drawForm.notes.trim() ? { notes: drawForm.notes.trim() } : {}) })
+      toast.success('Draw recorded')
+      setDrawOpen(false)
+      load()
+    } catch (err) { toast.error(errMsg(err, 'The draw could not be recorded')) } finally { setBusy(false) }
   }
   const plan = plans.find((p) => p.id === recordForm.planId)
   /** The plans that can pay the chosen person (all of them before anyone is chosen). */
@@ -406,7 +439,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
         subtitle="How commission is worked out, and what has been earned"
         action={tab === 'plans'
           ? (mayCreate ? <Button onClick={openNewPlan}><Plus className="w-4 h-4" />New plan</Button> : null)
-          : (mayCreate ? <Button onClick={openRecord}><Plus className="w-4 h-4" />Record commission</Button> : null)}
+          : (mayCreate ? (
+            <div className="flex gap-2">
+              {config.moneyRules && <Button variant="secondary" onClick={openDraw}><DollarSign className="w-4 h-4" />Give a draw</Button>}
+              <Button onClick={openRecord}><Plus className="w-4 h-4" />Record commission</Button>
+            </div>
+          ) : null)}
       />
 
       <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-slate-700" role="tablist">
@@ -487,7 +525,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 {config.salesKinds && <> · {SALES_KIND_WORDS[p.salesKind || 'all']}</>}
               </div>
               {paysJobRole(p.autoEarn)
-                ? <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays the job&rsquo;s {JOB_ROLE_CARD_WORDS[p.autoEarn]}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when the whole job is paid</p>
+                ? <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays the job&rsquo;s {JOB_ROLE_CARD_WORDS[p.autoEarn]}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically {p.triggerOn && p.triggerOn !== 'collected' ? `when the job is ${({ approved: 'Approved', completed: 'Completed', invoiced: 'Invoiced' } as Record<string, string>)[p.triggerOn]}${p.zeroBalanceOnly ? ' and nothing is owing' : ''}` : 'when the whole job is paid'}</p>
                 : p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'visit_stylist' ? 'the stylist of the visit' : p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</p>}
               {p.isActive === false
                 ? (mayUpdate && <button onClick={() => restorePlan(p)} className="mt-3 text-sm text-gray-700 underline dark:text-slate-300">Bring back</button>)
@@ -525,6 +563,21 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 {Object.entries(MEASURED_ON_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
               </select>
             </Field>
+          )}
+ {salesRepAuto && paysJobRole(autoFor(planForm.planType, planForm.autoEarn)) && (
+            <>
+              <Field label="Ready to pay when" hint="Collected is when every invoice is paid. An earlier stage pays on the contract, or on the profit once the work is Completed (profit cannot be read before the costs are in, so Approved is for plans on total sales). Only for jobs started after the plan was switched on.">
+                <select value={planForm.triggerOn} onChange={(e) => setPlanForm((prev) => ({ ...prev, triggerOn: e.target.value }))} className={inputCls}>
+                  {Object.entries(TRIGGER_WORDS).filter(([value]) => value !== 'approved' || planForm.planType === 'flat_rate' || (planForm.planType !== 'percent_of_margin' && planForm.measuredOn === 'contract')).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
+                </select>
+              </Field>
+              {planForm.triggerOn !== 'collected' && (
+                <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
+                  <input type="checkbox" checked={planForm.zeroBalanceOnly} onChange={(e) => setPlanForm((prev) => ({ ...prev, zeroBalanceOnly: e.target.checked }))} />
+                  Only when nothing is owing (every invoice that went out is paid)
+                </label>
+              )}
+            </>
           )}
           {config.salesKinds && (
             <Field label="Paid on" hint="Make one plan for services and another for retail to pay them at different rates.">
@@ -586,6 +639,36 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setMoving(null)}>Cancel</Button>
             <Button type="submit" disabled={busy || !moveTo}>Reassign</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={drawOpen} onClose={() => setDrawOpen(false)} title="Give a draw">
+        <form onSubmit={saveDraw} className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-slate-300">Part of a commission paid in advance, once the job is signed. It comes off the commission when the plan pays it.</p>
+          <Field label="Job">
+            <select required value={drawForm.jobId} onChange={(e) => setDrawForm((prev) => ({ ...prev, jobId: e.target.value }))} className={inputCls}>
+              <option value="">Choose a job…</option>
+              {jobs.map((j) => <option key={j.id} value={j.id}>{j.number} — {j.title || j.propertyAddress}</option>)}
+            </select>
+          </Field>
+          <Field label="Who is drawing">
+            <select required value={drawForm.userId} onChange={(e) => setDrawForm((prev) => ({ ...prev, userId: e.target.value, planId: '' }))} className={inputCls}>
+              <option value="">Choose a person…</option>
+              {people.filter((u) => u.isActive !== false).map((u) => <option key={u.id} value={u.id}>{personName(u)}</option>)}
+            </select>
+          </Field>
+          <Field label="Against the plan" hint="A plan that pays someone on the job automatically.">
+            <select required value={drawForm.planId} onChange={(e) => setDrawForm((prev) => ({ ...prev, planId: e.target.value }))} className={inputCls}>
+              <option value="">Choose a plan…</option>
+              {drawPlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Draw ($)"><input type="number" min="0.01" step="0.01" required value={drawForm.amount} onChange={(e) => setDrawForm((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Notes (optional)"><textarea rows={2} value={drawForm.notes} onChange={(e) => setDrawForm((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} /></Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setDrawOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={busy}><DollarSign className="w-4 h-4" />Give draw</Button>
           </div>
         </form>
       </Modal>

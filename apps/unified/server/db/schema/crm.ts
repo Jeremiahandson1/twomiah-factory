@@ -12,7 +12,7 @@ import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { crew, measurementReport } from './roof.ts'
 import { company, user } from './core.ts'
-import { commissionIsAuto, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
+import { commissionHasEarnKey, commissionIsAuto, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
 
 export const contact = pgTable('contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -1036,6 +1036,12 @@ export const commissionPlan = pgTable('commission_plan', {
   // paid (roofing): 'contract' (billed before tax — what every plan was) or 'gross_profit' (the contract less what the job cost).
   // commissions.ts measuredOnOf; the work is in apps/unified server/crm/roof/commissions.ts.
   measuredOn: text('measured_on').default('contract').notNull(),
+  // WHEN a plan that pays a job's people is ready to be earned (roofing parity row 3 — AccuLynx's "ready to request"): 'approved' (the
+  // contract is signed), 'completed' (the work is done — final inspection), 'invoiced' (the bill has gone out) or 'collected' (the
+  // job is paid; what every plan did). zero_balance_only holds an earlier trigger until every invoice that went out is paid.
+  // commissions.ts COMMISSION_TRIGGERS; the work is in apps/unified server/crm/roof/commissions.ts.
+  triggerOn: text('trigger_on').default('collected').notNull(),
+  zeroBalanceOnly: boolean('zero_balance_only').default(false).notNull(),
   // Which sales the plan is paid on, where the business offers the choice (salon): 'all', 'services' or 'retail'. Others leave it 'all'.
   salesKind: text('sales_kind').default('all').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -1064,6 +1070,9 @@ export const commission = pgTable('commission', {
   // earning already paid out, when the invoice was refunded in full).
   source: text('source').default('manual').notNull(),
   reversalOf: text('reversal_of'),
+  // What a roofing job's commission was made for — 'job:<job>:<plan>:<person>' — so however often the job is followed up, and
+  // from however many places at once, it is made once (roof/commissions.ts). Null on every other commission.
+  earnKey: text('earn_key'),
   // A commission recorded in error is VOIDED, not deleted (status 'void'): the row stays, with why, when and by whom, so
   // the history of what was owed is never rewritten (contractor live re-test 3, 2026-10-24). packages/tenant-backend
   // commissions.ts POST /:id/void.
@@ -1079,6 +1088,7 @@ export const commission = pgTable('commission', {
   // An invoice earns a plan's commission for a person ONCE, however many times the sweep or a webhook sees it paid.
   uniqueIndex('commission_auto_once').on(t.invoiceId, t.planId, t.userId).where(commissionIsAuto),
   uniqueIndex('commission_reversal_once').on(t.reversalOf).where(commissionIsReversal),
+  uniqueIndex('commission_earn_key_once').on(t.earnKey).where(commissionHasEarnKey),
 ])
 
 export const staffAccountEntry = pgTable('staff_account_entry', {
