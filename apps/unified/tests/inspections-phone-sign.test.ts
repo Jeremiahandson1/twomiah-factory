@@ -36,6 +36,10 @@ describe('the customer signs', () => {
     const [row] = await x.t.db.select().from(x.t.schema.inspection).where(eq(x.t.schema.inspection.id, x.v.id))
     expect(row.signature).toBe(INK)
     expect(row.signatureHash).toMatch(/^[0-9a-f]{64}$/)
+    // the fingerprint is of exactly what the customer was shown: this visit, and each line with its answer and note
+    const shown = (await x.lines(x.v.id)).map((l: any) => ({ label: l.label, result: l.result, note: l.note }))
+    const { createHash } = await import('node:crypto')
+    expect(row.signatureHash).toBe(createHash('sha256').update(JSON.stringify({ inspectionId: row.id, number: row.number, type: row.type, items: shown })).digest('hex'))
     expect(row.consentAt).toBeTruthy()
     // the crew seat reading the visit later still does not get the evidence; the office does
     const crewView = await json(await x.crew.call(`/api/inspection-checklists/${x.v.id}`))

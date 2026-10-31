@@ -19,6 +19,11 @@ describe('switched off', () => {
     expect((await x.lines(v.id)).length).toBe(0)
     const [row] = await x.t.db.select().from(x.t.schema.inspectionTemplate)
     expect(row.autoAttach).toBe(false)
+    // even a checklist that is marked in the database (a switch turned off afterwards) is left alone
+    await x.ins(x.t.schema.inspectionTemplate, { companyId: x.companyId, name: 'Marked earlier', type: 'Slab', autoAttach: true })
+    const marked = await x.visit({ type: 'Slab' })
+    expect(marked.checklistAttached).toBeUndefined()
+    expect((await x.lines(marked.id)).length).toBe(0)
   }, 120_000)
 
   test('with Inspection Checklists off, nothing is attached even to a checklist that is marked', async () => {
@@ -67,13 +72,15 @@ describe('switched on', () => {
     expect((await x.lines(v.id)).map((l: any) => l.label)).toEqual(['Site is clean'])
   }, 120_000)
 
-  test('two that fit are put on together in name order, a line in both once', async () => {
+  test('several that fit are put on together in name order, a line in more than one once', async () => {
     const x = await sharedBoot(AUTO)
-    await x.template({ name: 'B list', type: 'Punch', items: ['Site is clean', 'Permit posted'], autoAttach: true })
-    await x.template({ name: 'A list', type: 'Punch', items: ['Permit posted', 'Hangers'], autoAttach: true })
+    // made out of order on purpose: the order on the visit is by name, not by when they were made
+    for (const [name, items] of [['D list', ['Site is clean', 'Last']], ['B list', ['Permit posted', 'Second']], ['E list', ['Fifth']], ['A list', ['Permit posted', 'First']], ['C list', ['Third', 'Site is clean']]] as const) {
+      await x.template({ name, type: 'Punch', items: [...items], autoAttach: true })
+    }
     const v = await x.visit({ type: 'Punch' })
-    expect(v.checklistAttached).toEqual(['A list', 'B list'])
-    expect((await x.lines(v.id)).map((l: any) => l.label)).toEqual(['Permit posted', 'Hangers', 'Site is clean'])
+    expect(v.checklistAttached).toEqual(['A list', 'B list', 'C list', 'D list', 'E list'])
+    expect((await x.lines(v.id)).map((l: any) => l.label)).toEqual(['Permit posted', 'First', 'Second', 'Third', 'Site is clean', 'Last', 'Fifth'])
   }, 120_000)
 
   test('the settings can be changed later; kinds are kept once each', async () => {
