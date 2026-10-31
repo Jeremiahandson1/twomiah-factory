@@ -362,6 +362,9 @@ export const quote = pgTable('quote', {
   taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
   taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  // The part of `discount` that comes from the chosen Good / Better / Best option's own discount (0061): `discount` is what is
+  // taken off in all (so the invoice, the page and the PDF agree), and `discount - option_discount` is the one the office typed.
+  optionDiscount: decimal('option_discount', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   notes: text('notes'),
   terms: text('terms'),
@@ -445,6 +448,9 @@ export const quoteLineItem = pgTable('quote_line_item', {
   // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
   // exactly while its option is the one the customer chose. Null for the lines every option shares.
   proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),
+  // What a line of an option is: null = the option's own line (ticked when the option is chosen); 'upgrade' = an add-on that
+  // belongs to the option, offered only once that option is chosen and ticked by the customer on its own (0061).
+  optionRole: text('option_role'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -469,6 +475,10 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   chosen: boolean('chosen').default(false).notNull(),
   chosenAt: timestamp('chosen_at'),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // One discount per option (0061), taken off while this option is the one chosen: a fixed amount in cents, or a percent of
+  // the option's price before its upgrades. At most one of the two is set.
+  discountCents: integer('discount_cents').default(0).notNull(),
+  discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }).default('0').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),

@@ -38,8 +38,8 @@ option with no change of their own.
 | 10 | The chosen package's price flows into the contract (Leap states "price from each package populated into the contract"; whether it reaches the job is not stated) | The chosen option is the quote's total, the roof job's value (`estimated_value` and the job list's quoted figure), the invoice, the deposit and progress billing. An option nobody chose is on none of them | **Beats** (on what the pages state) |
 | 11 | Options from the catalogue (Roofr catalogue items; Leap packages) | "Build options" turns a pricebook item's Good / Better / Best tiers into the options in one step | **Matches** |
 | 12 | The office can build it live in the house or on the phone (Roofr) | The office edits options on the quote; "Choose for the customer" records a yes given by phone, then Mark approved | **Matches** |
-| 13 | Upgrades (add-ons) inside an option; the customer chooses the option first (Roofr) | The quote's optional lines still exist, but they belong to the quote, not to one option, and the customer is not made to choose an option first | **Not doing** — parity needs optional lines that belong to an option |
-| 14 | A discount per option (Roofr, one per option) | One discount on the quote, applied to every option | **Not doing** |
+| 13 | Upgrades (add-ons) inside an option; the customer chooses the option first (Roofr) | Upgrades (`quote_line_item.option_role = 'upgrade'`) belong to one option: not ticked by choosing it, offered after it is chosen (`/choose-upgrade`, the office's `/proposal/upgrade`), cleared when another option is chosen, refused for an option not chosen or once signed. The quote's plain optional lines still belong to the quote | **Matches** 10/31 (row 6): an option carries upgrades; the customer chooses the option first, then ticks its upgrades |
+| 14 | A discount per option (Roofr, one per option) | One discount on the quote (the office's), plus ONE discount per option (a dollar amount or a percent of the option before its upgrades) taken off while that option is chosen; the two together are the quote's discount | **Matches** 10/31 (row 6) |
 | 15 | Initials on terms; in-line sections; a cosigner for the insurance carrier (Roofr) | Not built | **Not doing** |
 | 16 | Cover page, About Us, attached PDFs, option order flipped (Roofr) | Options show in the order the office sets; no cover page or About Us | **Not doing** |
 | 17 | Financing shown beside the quote (Roofr, Leap) | Consumer Financing is a separate, not-ready feature | **Not doing** (owner's) |
@@ -54,9 +54,15 @@ option with no change of their own.
 - Feature `quote_proposals` ("Proposal Options"), registered **not ready** and offered to `crm-roof`; the server refuses building options without it.
 
 ## Still needed for full parity (not in this change)
-Rows 13 (upgrades inside an option), 14 (a discount per option), 15, 16 (brochures and cover page), the photo markup in row 4.
+Rows 15, 16 (brochures and cover page), the photo markup in row 4.
 Row 17 is the owner's. Also not done: a photo upload from the options editor itself (photos come from the job's photos or an
 address), and the quote's PDF, which shows only the chosen option once one is chosen and the shared lines before.
 
 ## One switch, both sides (owner follow-up 10/30)
 With `quote_proposals` off, a quote behaves exactly as it did before options existed: the homeowner's page and `/d/<token>` link show no options, the pick is refused (404, like a path that is not there), the quote email lists the quote's own lines, signing asks for no pick, and the office cannot pick for the customer. A quote whose option was already chosen keeps that option's lines on the page (they are in its total). Building options still needs the switch. The office and the customer sides ask one rule (`proposalsLive` in `quoteOptions.ts`). Tested off and on in `tests/roof-gbb-proposals.test.ts` (last section).
+
+## Upgrades and a discount per option (row 6, 10/31)
+- Migration `0061_proposal_upgrades_discount`: `quote_line_item.option_role`, `quote_proposal_option.discount_cents` / `discount_percent`, `quote.option_discount` (no new table).
+- `quote.discount` stays the whole discount taken off (so the invoice, the page, the PDF and the signature fingerprint agree with the total); `quote.option_discount` is the part that is the chosen option's, and the office reads `discount` as the one it typed, with `optionDiscount` and `discountTotal` beside it (`withProposal`).
+- A percent discount is a percent of the option's price before its upgrades (the shared lines plus the option's own); upgrades are full price. It is worked out again whenever the shared lines change.
+- Tested in `tests/roof-gbb-upgrades.test.ts` (upgrades, discount, rules, the invoice, the PDF, the office route, feature off, a plain quote unchanged).

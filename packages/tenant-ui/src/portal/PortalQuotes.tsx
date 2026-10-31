@@ -30,11 +30,15 @@ export interface ProposalOption {
   photos?: string[]; recommended?: boolean; chosen?: boolean; price: string
   /** The deposit asked on approval if this option is chosen ('0.00' when the quote asks none). */
   deposit?: string
+  /** What this option's own discount takes off ('0.00' when none). */
+  discount?: string
   lines?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number }>
+  /** Add-ons that belong to this option alone: offered once it is chosen, ticked one by one. */
+  upgrades?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; selected?: boolean }>
 }
 
 /** The options of a quote, side by side: photos, brand, warranty, what is in each, the whole job's price — and the choice. */
-function ProposalOptions({ proposal, canRespond, busy, onChoose }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string) => void }) {
+function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string) => void; onUpgrade: (lineItemId: string, selected: boolean) => void }) {
   const options = proposal.options
   return (
     <div className="p-6 border-b dark:border-slate-700" data-testid="quote-options">
@@ -59,6 +63,21 @@ function ProposalOptions({ proposal, canRespond, busy, onChoose }: { proposal: N
               {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
               {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
               {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
+              {Number(op.discount || 0) > 0 && <p className="mt-2 text-sm font-medium text-green-800 dark:text-green-300" data-testid="option-discount">Includes a {moneyShort(op.discount)} discount</p>}
+              {/* The customer chooses the option first; its upgrades are offered after that, and are ticked one by one. */}
+              {op.upgrades && op.upgrades.length > 0 && (
+                <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60" data-testid="option-upgrades">
+                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Upgrades for {op.name}</p>
+                  {op.chosen && canRespond
+                    ? <ul className="mt-1 space-y-1">{op.upgrades.map((u, i) => <li key={u.id || i}><label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="checkbox" className="mt-1" checked={!!u.selected} disabled={busy || !u.id} onChange={(e) => u.id && onUpgrade(u.id, e.target.checked)} aria-label={`Add ${u.description}`} /><span className="flex-1">{u.description}</span><span>{moneyShort(u.total)}</span></label></li>)}</ul>
+                    : op.chosen
+                      ? <ul className="mt-1 text-sm text-gray-800 dark:text-slate-200">{op.upgrades.filter((u) => u.selected).map((u, i) => <li key={u.id || i} className="flex justify-between"><span>{u.description}</span><span>{moneyShort(u.total)}</span></li>)}</ul>
+                      : <>
+                        <ul className="mt-1 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.upgrades.map((u, i) => <li key={u.id || i}>{u.description} ({moneyShort(u.total)})</li>)}</ul>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Choose this option first; you pick its upgrades after.</p>
+                      </>}
+                </div>
+              )}
               <div className="mt-auto pt-4">
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{moneyShort(op.price)}</p>
                 {Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
@@ -155,6 +174,12 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
     try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not choose that option: ' + (e as Error).message) } finally { setBusy(false) }
   }
+  // Tick or untick an upgrade of the option already chosen: the server answers the quote with its new total.
+  const chooseUpgrade = async (lineItemId: string, selected: boolean) => {
+    setBusy(true); setError('')
+    try { const res = await portalFetch(`/quotes/${quoteId}/choose-upgrade`, { method: 'POST', body: JSON.stringify({ lineItemId, selected }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    catch (e) { setError('Could not change that upgrade: ' + (e as Error).message) } finally { setBusy(false) }
+  }
   const decline = async () => {
     setBusy(true); setError('')
     try { await portalFetch(`/quotes/${quoteId}/reject`, { method: 'POST', body: JSON.stringify({ reason: reason || null }) }); setQuote((q) => ({ ...(q as PortalQuoteData), status: 'rejected' })); setShowDecline(false) }
@@ -185,7 +210,7 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           </div>
           {quote.expiryDate && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Valid until {formatDate(quote.expiryDate)}</p>}
         </div>
-        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} />}
+        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} onUpgrade={chooseUpgrade} />}
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           {proposal && quote.lineItems && quote.lineItems.length > 0 && <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">{canRespond ? 'Included with every option' : 'Included'}</h3>}
           <table className="w-full">

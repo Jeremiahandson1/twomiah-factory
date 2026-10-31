@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -202,9 +202,9 @@ const MAX_SIGNATURE_BYTES = 500_000
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance'] as const
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'optionRole'] as const
 // What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
-const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit'] as const
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit', 'discount'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -798,6 +798,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       options: await Promise.all(view.options.map(async (op) => ({
         ...pick(op, PORTAL_OPTION_FIELDS),
         lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+        // The option's upgrades: offered once the option is chosen (the customer ticks the ones they want).
+        upgrades: (await customerLines(db, companyId, op.upgrades)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
       }))),
     } : null
     return {
@@ -837,6 +839,21 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (refused) return c.json({ error: refused }, 400)
     const body = await c.req.json().catch(() => ({}))
     const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId)
+    if ('error' in r) return c.json({ error: r.error }, r.status)
+    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
+    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
+  }
+  /** The customer ticks or unticks an upgrade of the option they chose; the total follows. */
+  const chooseUpgrade = async (c: any) => {
+    const { contact, company } = P(c)
+    const quoteId = c.req.param('quoteId')
+    const found = await visibleQuote(quoteId, contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    if (!(await proposalsLive(t, deps.proposalsEnabled, contact.companyId))) return c.json({ error: 'Quote not found' }, 404)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
+    if (refused) return c.json({ error: refused }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r: any = await chooseOptionUpgrade(db, t, contact.companyId, quoteId, body?.lineItemId, body?.selected)
     if ('error' in r) return c.json({ error: r.error }, r.status)
     emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
@@ -927,7 +944,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // customer has yet to choose, the lines every option shares and each option at its whole price.
     const lineItems = includedLines<any>(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
     const view = (await proposalsLive(t, deps.proposalsEnabled, contact.companyId)) ? await proposalView(db, t, found) : null
-    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines) }))) : undefined
+    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines), upgrades: await customerLines(db, contact.companyId, op.upgrades) }))) : undefined
     const generate = await loadQuotePdf()
     const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options } : {}) }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
@@ -998,6 +1015,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
   app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
   app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseProposal)
+  app.post('/p/:token/quotes/:quoteId/choose-upgrade', portalAuth, chooseUpgrade)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -1013,6 +1031,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
   app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
   app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
+  app.post('/d/:token/quotes/:quoteId/choose-upgrade', docAuth, onlyLinked('quote', 'quoteId'), chooseUpgrade)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)

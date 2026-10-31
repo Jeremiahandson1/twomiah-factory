@@ -428,6 +428,13 @@
       "when": 1793472678259,
       "tag": "0060_job_books",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793473552056,
+      "tag": "0061_proposal_upgrades_discount",
+      "breakpoints": true
     }
   ]
 }

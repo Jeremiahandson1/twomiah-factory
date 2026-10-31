@@ -18,11 +18,18 @@ const MAX_PHOTOS = 6
 interface OptionView {
   id: string; name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null
   photos: string[]; recommended: boolean; chosen: boolean; price: string; lines: Array<LineItemInput & { id?: string; total?: string }>
+  upgrades?: Array<LineItemInput & { id?: string; total?: string; selected?: boolean }>
+  discount?: string; discountCents?: number; discountPercent?: number
 }
-interface Draft { name: string; tier: string; brand: string; warranty: string; description: string; photos: string[]; recommended: boolean; lines: LineItemInput[] }
+/** One discount per option: nothing, a dollar amount (kept as cents when saved) or a percent of the option's price before upgrades. */
+interface Draft { name: string; tier: string; brand: string; warranty: string; description: string; photos: string[]; recommended: boolean; lines: LineItemInput[]; upgrades: LineItemInput[]; discountType: '' | 'amount' | 'percent'; discountValue: string }
 
-const blank = (tier = ''): Draft => ({ name: tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '', tier, brand: '', warranty: '', description: '', photos: [], recommended: false, lines: [{ description: '', quantity: 1, unitPrice: 0 }] })
+const blank = (tier = ''): Draft => ({ name: tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '', tier, brand: '', warranty: '', description: '', photos: [], recommended: false, lines: [{ description: '', quantity: 1, unitPrice: 0 }], upgrades: [], discountType: '', discountValue: '' })
+const cleanLine = (l: LineItemInput & { id?: string }): LineItemInput => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined && l.unitCost !== null ? { unitCost: Number(l.unitCost) } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })
 const fromView = (o: OptionView): Draft => ({
+  upgrades: (o.upgrades || []).map(cleanLine),
+  discountType: o.discountCents ? 'amount' : o.discountPercent ? 'percent' : '',
+  discountValue: o.discountCents ? (o.discountCents / 100).toFixed(2) : o.discountPercent ? String(o.discountPercent) : '',
   name: o.name, tier: o.tier || '', brand: o.brand || '', warranty: o.warranty || '', description: o.description || '', photos: o.photos || [], recommended: o.recommended,
   lines: o.lines.map((l) => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined && l.unitCost !== null ? { unitCost: Number(l.unitCost) } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })),
 })
@@ -45,6 +52,12 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
     try { await client.post(`/api/quotes/${record.id}/proposal/choose`, { optionId }); toast.success('Option chosen'); reload() }
     catch (e) { toast.error(errMsg(e, 'Could not choose that option')); setBusy(false) }
   }
+  // The office ticks an upgrade of the chosen option for a customer who asked by phone.
+  const upgrade = async (lineItemId: string, selected: boolean) => {
+    setBusy(true)
+    try { await client.post(`/api/quotes/${record.id}/proposal/upgrade`, { lineItemId, selected }); reload() }
+    catch (e) { toast.error(errMsg(e, 'Could not change that upgrade')); setBusy(false) }
+  }
   return (
     <section aria-label="Options" data-testid="proposal-panel" className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
       <h2 className="font-semibold mb-3 flex items-center gap-2"><Layers className="w-4 h-4" aria-hidden="true" />Options to choose from</h2>
@@ -59,7 +72,10 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
                   <div className="min-w-0">
                     <p className="font-medium">{o.name}{o.recommended ? <span className="ml-2 text-xs text-orange-700 dark:text-orange-200">Recommended</span> : null}{o.chosen ? <span className="ml-2 text-xs text-green-800 dark:text-green-300">Chosen</span> : null}</p>
                     {(o.brand || o.warranty) && <p className="text-xs text-gray-600 dark:text-slate-300">{[o.brand, o.warranty].filter(Boolean).join(' · ')}</p>}
-                    <p className="text-xs text-gray-600 dark:text-slate-300">{o.lines.length} line{o.lines.length === 1 ? '' : 's'}{o.photos.length ? `, ${o.photos.length} photo${o.photos.length === 1 ? '' : 's'}` : ''}</p>
+                    <p className="text-xs text-gray-600 dark:text-slate-300">{o.lines.length} line{o.lines.length === 1 ? '' : 's'}{o.photos.length ? `, ${o.photos.length} photo${o.photos.length === 1 ? '' : 's'}` : ''}{(o.upgrades || []).length ? `, ${o.upgrades!.length} upgrade${o.upgrades!.length === 1 ? '' : 's'}` : ''}{Number(o.discount) > 0 ? `, ${money(o.discount)} off` : ''}</p>
+                    {o.chosen && (o.upgrades || []).length > 0 && (
+                      <ul className="mt-1 space-y-0.5 text-xs">{o.upgrades!.map((u) => <li key={u.id}><label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!u.selected} disabled={!mayChoose || busy} onChange={(e) => upgrade(u.id!, e.target.checked)} aria-label={`Include ${u.description}`} /> Upgrade: {u.description} ({money(u.total)})</label></li>)}</ul>
+                    )}
                   </div>
                   <div className="text-right shrink-0"><p className="font-semibold">{money(o.price)}</p>
                     {mayChoose && !o.chosen && <button type="button" disabled={busy} onClick={() => choose(o.id)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">Choose for the customer</button>}
@@ -74,6 +90,13 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
       {editing && <OptionsEditor quote={record} initial={options.map(fromView)} onClose={() => setEditing(false)} onSaved={reload} />}
     </section>
   )
+}
+
+/** The discount as the server takes it: whole cents for a dollar amount, a percent otherwise; none when not asked for. */
+const discountOf = (d: Draft) => {
+  const v = Number(d.discountValue)
+  if (!d.discountType || !(v > 0)) return null
+  return d.discountType === 'amount' ? { type: 'amount' as const, cents: Math.round(v * 100) } : { type: 'percent' as const, percent: v }
 }
 
 function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<string, any>; initial: Draft[]; onClose: () => void; onSaved: () => void }) {
@@ -98,9 +121,13 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
   const body = () => drafts.map((d) => ({
     name: d.name, tier: d.tier || null, brand: d.brand || null, warranty: d.warranty || null, description: d.description || null,
     photos: d.photos, recommended: d.recommended,
-    lines: d.lines.filter((l) => l.description.trim()).map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined ? { unitCost: l.unitCost } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })),
+    lines: d.lines.filter((l) => l.description.trim()).map(cleanLine),
+    upgrades: d.upgrades.filter((l) => l.description.trim()).map(cleanLine),
+    discount: discountOf(d),
   }))
   const save = async () => {
+    const bad = drafts.findIndex((d) => d.discountType && !(Number(d.discountValue) > 0))
+    if (bad >= 0) { setError(`Option ${bad + 1}: enter the discount, or choose "No discount".`); return }
     setSaving(true); setError('')
     try { await client.put(`/api/quotes/${quote.id}/proposal`, { options: body() }); toast.success('Options saved'); onSaved() }
     catch (e) { setError(errMsg(e, 'Could not save the options')); setSaving(false) }
@@ -151,6 +178,19 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
                 onChange={(e) => patch(i, { photos: [...d.photos.filter((p) => jobPhotos.some((j) => j.url === p)), ...e.target.value.split('\n').map((x) => x.trim()).filter(Boolean)].slice(0, MAX_PHOTOS) })} />
             </Field>
             <LineItemsEditor items={d.lines} onChange={(lines) => patch(i, { lines })} />
+            <div className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+              <p className="text-sm font-medium">Upgrades for this option</p>
+              <p className="text-xs text-gray-600 dark:text-slate-300">Add-ons the customer can tick after they choose this option, such as copper valleys. They are not in the option's price until ticked.</p>
+              <LineItemsEditor items={d.upgrades} onChange={(upgrades) => patch(i, { upgrades })} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Discount on this option">
+                <select className={inputCls} value={d.discountType} onChange={(e) => patch(i, { discountType: e.target.value as Draft['discountType'], discountValue: e.target.value ? d.discountValue : '' })} aria-label={`Option ${i + 1} discount type`}><option value="">No discount</option><option value="amount">A dollar amount</option><option value="percent">A percent of the option</option></select>
+              </Field>
+              {d.discountType && <Field label={d.discountType === 'amount' ? 'Dollars off' : 'Percent off'} hint="Taken off the option's price before its upgrades; shown to the customer on the option.">
+                <input className={inputCls} type="number" min="0" step={d.discountType === 'amount' ? '0.01' : '0.1'} max={d.discountType === 'percent' ? 100 : undefined} value={d.discountValue} onChange={(e) => patch(i, { discountValue: e.target.value })} aria-label={`Option ${i + 1} discount`} />
+              </Field>}
+            </div>
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.recommended} onChange={(e) => change(drafts.map((x, j) => ({ ...x, recommended: j === i ? e.target.checked : false })))} /> Recommended</label>
               {drafts.length > 2 && <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => change(drafts.filter((_, j) => j !== i))}>Remove this option</button>}

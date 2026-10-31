@@ -65,7 +65,7 @@ export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/st
 export { createQuoteRoutes } from './invoicing/quotes'
 export { isIncluded, includedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
 export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
-export { proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
+export { proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
 export { SIGNING_EVIDENCE, withoutSigningEvidence } from './invoicing/signingEvidence'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.

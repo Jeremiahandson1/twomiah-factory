@@ -119,6 +119,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
                 <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">{money(quote.subtotal)}</td></tr>
                 {Number(quote.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(quote.discount)}</td></tr>}
+                {Number((quote as any).optionDiscount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount on the chosen option</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money((quote as any).optionDiscount)}</td></tr>}
                 {Number(quote.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax ({Number(quote.taxRate)}%)</td><td className="px-4 py-2 text-right">{money(quote.taxAmount)}</td></tr>}
                 <tr className="font-bold text-base"><td colSpan={3} className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right">{money(quote.total)}</td></tr>
                 {hasOptional && <tr><td colSpan={4} className="px-4 pb-3 text-right text-xs text-gray-600 dark:text-slate-300">Optional lines count only when included.</td></tr>}

@@ -109,6 +109,13 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
       if (detail) doc.fillColor('#555').text(detail, 72, doc.y, { width: 468 }).fillColor('black')
       if (op.description) doc.text(String(op.description), 72, doc.y, { width: 468 })
       for (const l of op.lines || []) doc.text(`• ${l.description}${Number(l.quantity) !== 1 ? ` (${Number(l.quantity)})` : ''}`, 84, doc.y, { width: 456 })
+      // The option's own discount, taken off its price above; and the add-ons that belong to it alone.
+      if (Number(op.discount) > 0) doc.fillColor('#555').text(`Discount on this option: -${money(Number(op.discount))}`, 72, doc.y, { width: 468 }).fillColor('black')
+      const upgrades: any[] = Array.isArray(op.upgrades) ? op.upgrades : []
+      if (upgrades.length) {
+        doc.fillColor('#555').text('Optional upgrades, offered once this option is chosen:', 72, doc.y, { width: 468 }).fillColor('black')
+        for (const u of upgrades) doc.text(`+ ${u.description}${Number(u.quantity) !== 1 ? ` (${Number(u.quantity)})` : ''}: ${money(Number(u.total ?? Number(u.quantity) * Number(u.unitPrice)))}`, 84, doc.y, { width: 456 })
+      }
       if (Number(op.deposit) > 0) doc.fillColor('#555').text(`Deposit on approval: ${money(Number(op.deposit))}`, 72, doc.y, { width: 468 }).fillColor('black')
       doc.moveDown(0.6)
     }
