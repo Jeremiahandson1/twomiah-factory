@@ -351,6 +351,13 @@
       "when": 1793413980207,
       "tag": "0049_salon_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793446116511,
+      "tag": "0050_quote_options_one",
+      "breakpoints": true
     }
   ]
 }

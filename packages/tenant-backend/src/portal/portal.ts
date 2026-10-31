@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, chooseOptionGroup, optionChoiceProblem, optionTotals, hasOptions, pickedOption, optionNames, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -201,11 +201,10 @@ const MAX_SIGNATURE_BYTES = 500_000
  */
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
-// section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). optionGroup: the
-// good / better / best option a line belongs to. Never cost or markup.
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'optionGroup'] as const
-// What a customer is shown of a proposal option: no cost, no item code.
-const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount'] as const
+// section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance'] as const
+// What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -808,14 +807,6 @@ export function createPortalRoutes(deps: PortalDeps) {
         : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
       ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
-      // Good / better / best: what each option costs in full (and its deposit), and which one is picked.
-      ...(hasOptions(lineItems) ? { options: {
-        names: optionNames(lineItems), picked: pickedOption(lineItems),
-        totals: optionTotals(lineItems, found.taxRate, found.discount).map((x) => ({
-          name: x.name, subtotal: x.subtotal.toFixed(2), taxAmount: x.taxAmount.toFixed(2), total: x.total.toFixed(2),
-          ...('depositType' in found ? { deposit: depositAmount({ depositType: found.depositType, depositValue: found.depositValue, total: x.total }).toFixed(2) } : {}),
-        })),
-      } } : {}),
       company: { name: company.name, email: company.email, phone: company.phone },
     }
   }
@@ -834,20 +825,6 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
 
-  /** The customer picks good / better / best while the quote is still theirs to answer; the totals and the deposit follow. */
-  const chooseGroup = async (c: any) => {
-    const { contact, company } = P(c)
-    const quoteId = c.req.param('quoteId')
-    const found = await visibleQuote(quoteId, contact.id)
-    if (!found) return c.json({ error: 'Quote not found' }, 404)
-    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
-    if (refused) return c.json({ error: refused }, 400)
-    const body = await c.req.json().catch(() => ({}))
-    const r: any = await chooseOptionGroup(db, t, contact.companyId, quoteId, body?.group)
-    if ('error' in r) return c.json({ error: r.error }, r.status)
-    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
-    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
-  }
   /** The customer chooses one of a quote's options while the quote is theirs to answer; the price follows. */
   const chooseProposal = async (c: any) => {
     const { contact, company } = P(c)
@@ -864,16 +841,6 @@ export function createPortalRoutes(deps: PortalDeps) {
     emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
-  /**
-   * One address for the customer's pick (10/30 integration): field service's options are named lines (`group`, quote_options),
-   * roofing's are proposal options (`optionId`, quote_proposals). Both are hidden until the two are made one (see
-   * docs/parity/quote-options-unify.md); until then the pick goes to the one the request names.
-   */
-  const pickOption = async (c: any) => {
-    const body = await c.req.json().catch(() => ({}))
-    return body && typeof body.optionId === 'string' ? chooseProposal(c) : chooseGroup(c)
-  }
-
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
   function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
     const signature = body?.signature
@@ -918,14 +885,11 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (refused) return c.json({ error: refused }, 400)
     // A quote with options is signed for ONE of them: the customer chooses before they sign.
     const optionsLive = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
-    if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST }, 400)
+    if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST, code: CHOOSE_FIRST_CODE }, 400)
     const view = optionsLive ? await proposalView(db, t, found) : null
     const chosenOption = view?.options.find((op) => op.chosen) || null
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
     const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
-    // A quote that is a choice is signed with one option picked: the signature is for that option and its price.
-    const choice = optionChoiceProblem(allLines)
-    if (choice) return c.json({ error: choice, code: 'option_required' }, 400)
     const lineItems = includedLines(allLines)
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
     const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
@@ -959,9 +923,13 @@ export function createPortalRoutes(deps: PortalDeps) {
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
-    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    // What the page shows: the included lines (an optional line nobody ticked is not printed as bought) and, while the
+    // customer has yet to choose, the lines every option shares and each option at its whole price.
+    const lineItems = includedLines<any>(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
+    const view = (await proposalsLive(t, deps.proposalsEnabled, contact.companyId)) ? await proposalView(db, t, found) : null
+    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines) }))) : undefined
     const generate = await loadQuotePdf()
-    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, lineItems), contact }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options } : {}) }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   }
 
@@ -1029,7 +997,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
   app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
-  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, pickOption)
+  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseProposal)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -1044,7 +1012,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
   app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
-  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), pickOption)
+  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)

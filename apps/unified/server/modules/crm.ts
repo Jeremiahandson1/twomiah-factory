@@ -278,8 +278,6 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
-      // Good / better / best (feature `quote_options`, NOT READY): option names are only accepted for a business that has it on.
-      optionsOn: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_options'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),

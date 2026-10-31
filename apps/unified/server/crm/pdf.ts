@@ -90,6 +90,33 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.moveDown()
   }
 
+  // A quote whose customer has yet to choose (Good / Better / Best, tenant-backend invoicing/quoteOptions.ts): the lines above
+  // are in every option; each option follows with its own lines and what the whole job comes to with it.
+  const options: any[] = Array.isArray(data.options) ? data.options : []
+  if (options.length) {
+    doc.fontSize(12).font('Helvetica-Bold').text('Options — choose one', 72, doc.y, { width: 468 })
+    doc.font('Helvetica').fontSize(10)
+    if (items.length) doc.fillColor('#555').text('The lines above are included with every option.', { width: 468 }).fillColor('black')
+    doc.moveDown(0.5)
+    for (const op of options) {
+      const y = doc.y
+      doc.font('Helvetica-Bold').text(`${op.name}${op.recommended ? ' (recommended)' : ''}`, 72, y, { width: 360 })
+      const nameEnd = doc.y
+      doc.text(money(Number(op.price)), 456, y, { width: 84, align: 'right' })
+      doc.font('Helvetica')
+      doc.y = Math.max(nameEnd, y + 14)
+      const detail = [op.brand, op.warranty ? `Warranty: ${op.warranty}` : ''].filter(Boolean).join(' · ')
+      if (detail) doc.fillColor('#555').text(detail, 72, doc.y, { width: 468 }).fillColor('black')
+      if (op.description) doc.text(String(op.description), 72, doc.y, { width: 468 })
+      for (const l of op.lines || []) doc.text(`• ${l.description}${Number(l.quantity) !== 1 ? ` (${Number(l.quantity)})` : ''}`, 84, doc.y, { width: 456 })
+      if (Number(op.deposit) > 0) doc.fillColor('#555').text(`Deposit on approval: ${money(Number(op.deposit))}`, 72, doc.y, { width: 468 }).fillColor('black')
+      doc.moveDown(0.6)
+    }
+    const lowest = Math.min(...options.map((op) => Number(op.price)))
+    doc.fontSize(12).text(`Total: from ${money(lowest)}, depending on the option chosen`, 72, doc.y, { width: 468, align: 'right' })
+    return
+  }
+
   // Full money breakdown, not just a bare Total. (R2-03)
   doc.fontSize(10)
   if (data.subtotal != null) doc.text(`Subtotal: ${money(Number(data.subtotal))}`, { align: 'right' })

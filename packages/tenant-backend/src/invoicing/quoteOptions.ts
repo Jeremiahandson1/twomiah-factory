@@ -6,12 +6,6 @@
 // quote's totals count a line only when it is included, and only included lines carry into the job and the invoice.
 // A template whose quote_line_item has no `optional` column has none: every line is included, exactly as before.
 //
-// OPTIONS (good / better / best). Lines that share an `optionGroup` name are one alternative; a quote with two or more such names
-// is a choice. Exactly one option is picked — by the customer on the quote's link before signing, or by the office — and then only
-// that option's lines count, with the quote's own non-option lines; the totals, the signed document, the job, the invoice and the
-// deposit all follow what was picked. A quote whose lines have no option name is unchanged. An option line is optional by definition,
-// so the one rule above (`isIncluded`) still decides what counts.
-//
 // DEPOSIT. A quote may ask a deposit on approval: a percent of its total, or a fixed amount (never more than the total).
 //
 // PROPOSAL OPTIONS (Good / Better / Best — Roofr's multi-option proposals, a price guide). A quote may carry two to six
@@ -19,6 +13,8 @@
 // the quote's link and signs; the quote's price is the lines every option shares plus the chosen option's lines. An
 // option's lines ARE optional lines (above) ticked together, so the totals, the job, the invoice and the billing count
 // only the chosen option with no change of their own. Nothing here runs on a template whose tables have no such table.
+// Every trade with quotes has them (one feature, `quote_proposals`): the deposit follows the option chosen (each option shows
+// its own), a deposit bigger than the cheapest option is refused, and the office may choose for a customer who says so by phone.
 import { and, asc, eq, isNotNull } from 'drizzle-orm'
 import { calcTotals, round2 } from './money'
 
@@ -86,63 +82,6 @@ export async function chooseOptionalLine(db: any, t: { quote: any; quoteLineItem
   return r ?? { error: 'Quote not found', status: 404 }
 }
 
-// ── good / better / best ────────────────────────────────────────────────────────────────────────────────────────────
-
-/** The option names on a quote's lines, in the order they first appear. */
-export const optionNames = (lines: Array<{ optionGroup?: string | null }>): string[] => {
-  const seen: string[] = []
-  for (const l of lines || []) if (l?.optionGroup && !seen.includes(l.optionGroup)) seen.push(l.optionGroup)
-  return seen
-}
-/** Is this quote a choice between options? Two or more names. */
-export const hasOptions = (lines: Array<{ optionGroup?: string | null }>): boolean => optionNames(lines).length >= 2
-
-/** The option that is picked now, or null. */
-export const pickedOption = (lines: Array<{ optionGroup?: string | null; selected?: boolean | null }>): string | null =>
-  optionNames(lines).find((n) => lines.some((l) => l.optionGroup === n && l.selected)) ?? null
-
-/** Why this quote cannot be signed or approved yet for want of a choice — or null. */
-export const optionChoiceProblem = (lines: Array<{ optionGroup?: string | null; selected?: boolean | null }>): string | null =>
-  hasOptions(lines) && !pickedOption(lines) ? `Choose one of the options first: ${optionNames(lines).join(', ')}.` : null
-
-/** Why these lines, as the office wrote them, are not a valid set of options — or null. */
-export function optionLinesProblem(lines: Array<{ optionGroup?: string | null; selected?: boolean | null; optional?: boolean | null }>): string | null {
-  const names = optionNames(lines)
-  if (names.length === 0) return null
-  if (names.length < 2) return 'A choice needs at least two options (for example Good and Better). Give the lines two option names, or clear the option name.'
-  if (names.length > 5) return 'At most five options.'
-  const picked = names.filter((n) => lines.some((l) => l.optionGroup === n && l.selected))
-  if (picked.length > 1) return 'Only one option can be chosen at a time.'
-  return null
-}
-
-/** What the quote would cost under each option: the non-option lines plus that option's lines, with the quote's tax and discount. */
-export function optionTotals(lines: Array<{ optionGroup?: string | null; optional?: boolean | null; selected?: boolean | null; quantity: unknown; unitPrice: unknown }>, taxRate: unknown, discount: unknown) {
-  return optionNames(lines).map((name) => {
-    const counted = lines.filter((l) => (l.optionGroup ? l.optionGroup === name : isIncluded(l)))
-      .map((l) => ({ quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) }))
-    const calc = calcTotals(counted, Number(taxRate), Number(discount))
-    return { name, subtotal: calc.subtotal, taxAmount: calc.taxAmount, total: calc.total }
-  })
-}
-
-/**
- * Pick one option: its lines are ticked, the other options' lines are not, and the totals are worked out again. The caller has
- * decided the quote is open. Refuses a name the quote does not have.
- */
-export async function chooseOptionGroup(db: any, t: { quote: any; quoteLineItem: any }, companyId: string, quoteId: string, group: unknown):
-  Promise<{ error: string; status: 400 | 404 } | { quote: any; lineItems: any[] }> {
-  if (!t.quoteLineItem?.optionGroup) return { error: 'This quote has no options.', status: 400 }
-  if (typeof group !== 'string' || !group) return { error: 'Say which option.', status: 400 }
-  const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, quoteId), eq(t.quote.companyId, companyId))).limit(1)
-  if (!q) return { error: 'Quote not found', status: 404 }
-  const lines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId))
-  if (!optionNames(lines).includes(group)) return { error: `This quote has no option called “${group}”.`, status: 404 }
-  for (const l of lines) if (l.optionGroup) await db.update(t.quoteLineItem).set({ selected: l.optionGroup === group }).where(eq(t.quoteLineItem.id, l.id))
-  const r = await retotalQuote(db, t, companyId, quoteId)
-  return r ?? { error: 'Quote not found', status: 404 }
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 // PROPOSAL OPTIONS
 
@@ -171,11 +110,27 @@ export type ProposalOptionView = {
   photos: string[]; recommended: boolean; chosen: boolean; sortOrder: number
   /** What the whole quote comes to if this is the option chosen: the shared lines plus this option's, tax and discount as the quote has them. */
   price: string; subtotal: string; taxAmount: string
+  /** The deposit the quote asks if this is the option chosen ('0.00' when it asks none). */
+  deposit: string
   lines: any[]
 }
 
-/** A quote's options with their lines and the price of each — null when it has none. `quote` supplies the tax rate and discount. */
-export async function proposalView(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption?: any }, quote: { id: string; taxRate?: unknown; discount?: unknown }): Promise<{ options: ProposalOptionView[]; chosenOptionId: string | null; needsChoice: boolean } | null> {
+/** What the whole quote comes to under each option: `shared` (the lines every option shares, as counted) plus that option's lines. */
+export function optionPrices(shared: Array<{ quantity: unknown; unitPrice: unknown }>, optionLines: Array<{ proposalOptionId?: string | null; quantity: unknown; unitPrice: unknown }>, taxRate: unknown, discount: unknown): Map<string, ReturnType<typeof calcTotals>> {
+  const out = new Map<string, ReturnType<typeof calcTotals>>()
+  const ids = [...new Set(optionLines.map((l) => l.proposalOptionId).filter((x): x is string => !!x))]
+  for (const id of ids) {
+    const own = optionLines.filter((l) => l.proposalOptionId === id)
+    out.set(id, calcTotals([...shared, ...own].map((l) => ({ quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })), Number(taxRate) || 0, Number(discount) || 0))
+  }
+  return out
+}
+
+/** The cheapest option's whole price — the most a deposit may be while any option can still be the one chosen — or null without options. */
+export const cheapestOption = (prices: Map<string, { total: number }>): number | null => (prices.size ? Math.min(...[...prices.values()].map((p) => p.total)) : null)
+
+/** A quote's options with their lines and the price of each — null when it has none. `quote` supplies the tax rate, discount and deposit. */
+export async function proposalView(db: any, t: { quote: any; quoteLineItem: any; quoteProposalOption?: any }, quote: { id: string; taxRate?: unknown; discount?: unknown; depositType?: string | null; depositValue?: unknown }): Promise<{ options: ProposalOptionView[]; chosenOptionId: string | null; needsChoice: boolean } | null> {
   if (!hasProposalTables(t)) return null
   const options = await db.select().from(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, quote.id)).orderBy(asc(t.quoteProposalOption.sortOrder), asc(t.quoteProposalOption.id))
   if (!options.length) return null
@@ -188,7 +143,8 @@ export async function proposalView(db: any, t: { quote: any; quoteLineItem: any;
     return {
       id: o.id, name: o.name, tier: o.tier ?? null, brand: o.brand ?? null, warranty: o.warranty ?? null, description: o.description ?? null,
       photos: Array.isArray(o.photos) ? o.photos.filter(isPhotoAddress) : [], recommended: !!o.recommended, chosen: !!o.chosen, sortOrder: o.sortOrder,
-      price: p.total.toFixed(2), subtotal: p.subtotal.toFixed(2), taxAmount: p.taxAmount.toFixed(2), lines: own,
+      price: p.total.toFixed(2), subtotal: p.subtotal.toFixed(2), taxAmount: p.taxAmount.toFixed(2),
+      deposit: depositAmount({ depositType: quote.depositType, depositValue: quote.depositValue, total: p.total }).toFixed(2), lines: own,
     }
   })
   const chosen = views.find((v) => v.chosen)
@@ -203,6 +159,8 @@ export async function proposalNeedsChoice(db: any, t: { quoteProposalOption?: an
 }
 
 export const CHOOSE_FIRST = 'Choose one of the options before you approve this quote.'
+/** The code a refusal for want of a choice carries, so a screen can open the options instead of showing an error. */
+export const CHOOSE_FIRST_CODE = 'option_required'
 
 /**
  * Make one option the choice: its lines are ticked, every other option's lines are not, and the quote's totals are worked

@@ -18,7 +18,7 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
-import { includedLines, depositProblem, chooseOptionalLine, chooseOptionGroup, optionLinesProblem, optionChoiceProblem, optionTotals, hasOptions, pickedOption, optionNames, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './quoteOptions'
+import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, optionPrices, cheapestOption, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
 import { applyMarkups, sectionSummary } from './quoteSections'
 
@@ -63,11 +63,6 @@ export interface QuoteOptions {
    * reason hasDeclinedAt and hasConvertedToJobId are flags.
    */
   hasLineCost?: boolean
-  /**
-   * Is good / better / best switched on for this business? The column exists on every quote, so this is what keeps the feature
-   * off until the owner has it (feature `quote_options`, NOT READY). Without it, writing an option name is refused.
-   */
-  optionsOn?: (companyId: string) => Promise<boolean>
   /** Which conversions this vertical offers. Default both. */
   conversions?: Array<'invoice' | 'job'>
   numbering?: { quote?: NumberingOptions; invoice?: NumberingOptions; job?: NumberingOptions }
@@ -191,8 +186,6 @@ const lineItemSchema = z.object({
   markupPct: z.number().min(0, 'Markup cannot be negative').max(1000, 'Markup cannot be more than 1000%').optional(),
   allowance: z.boolean().optional(),
   costCode: z.string().trim().max(60, 'A cost code is 60 characters or fewer').optional(),
-  // Good / better / best: lines with the same name are one option (quoteOptions.ts). Kept only where the column exists.
-  optionGroup: z.string().trim().max(40, 'An option name is at most 40 characters').nullish().transform((v) => (v ? v : undefined)),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
@@ -206,9 +199,8 @@ const EDITABLE = OPEN_QUOTE_STATUSES
 /** The statuses an edit may set by hand: 'viewed' is the customer's act, never typed in. */
 const SETTABLE = ['draft', 'sent']
 
-const isOpt = (i: { optional?: boolean; optionGroup?: string }) => !!i.optional || !!i.optionGroup
-const OPTIONS_OFF = 'Good / better / best options are not switched on for your business.'
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasGroups = false) => items.map((item, i) => ({
+const isOpt = (i: { optional?: boolean }) => !!i.optional
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false) => items.map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -231,7 +223,6 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
     allowance: !!item.allowance,
     costCode: item.costCode || null,
   } : {}),
-  ...(hasGroups ? { optionGroup: item.optionGroup ?? null } : {}),
 }))
 /** The lines that count, for a quote whose lines may be optional (quoteOptions.ts) — every line where none can be. */
 const counted = (items: z.infer<typeof lineItemSchema>[], hasOptional: boolean) => (hasOptional ? includedLines(items.map((i) => ({ ...i, optional: isOpt(i), selected: isOpt(i) ? !!i.selected : true }))) : items)
@@ -310,7 +301,6 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   // Optional lines and a deposit on approval (quoteOptions.ts): where the table has the columns, as documentLinks.ts
   // decides a quote's own link by its public_token column. A template's tables have neither and keep what they had.
   const hasOptional = !!t.quoteLineItem?.optional
-  const hasGroups = hasOptional && !!t.quoteLineItem?.optionGroup
   const hasDeposit = !!t.quote?.depositType
   // Sections, markup, allowances and cost codes on a quote's lines: where the table has the columns (migration 0041).
   const hasSections = !!t.quoteLineItem?.section
@@ -462,8 +452,6 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // defaulted on its way into the payload, so its bare name never appears. Measured live on
     // ctrtest, basictest and lndtest — owner and manager both received a working portalToken.
     const out: any = { ...withInvoice(found, await invoicedAs(c, cid, [found.id])), contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
-    // Good / better / best: what the quote costs under each option, and which is picked (quoteOptions.ts).
-    if (hasGroups && hasOptions(lineItems)) out.options = { names: optionNames(lineItems), picked: pickedOption(lineItems), totals: optionTotals(lineItems, found.taxRate, found.discount) }
     if (extra.has('equipmentId')) out.equipment = eq_[0] || null
     if (extra.has('siteId')) out.site = st[0] || null
     return c.json(forCaller(await withProposal(out), await may(c, 'margin:read'), await may(c, 'quotes:update')))
@@ -491,12 +479,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // A quote is a priced offer: it needs something on it, and an expiry date that hasn't already passed — a $0.00
     // quote with no lines and one expiring in 2020 both saved. (Landscaping T14 L14)
     if (!data.lineItems.length) return c.json({ error: 'Add at least one line item.' }, 400)
-    // …and something that is not optional: a quote of nothing but options is no offer until one is ticked.
-    // (two or more options are an offer by themselves: the customer picks one)
-    if (hasOptional && !data.lineItems.some((l: any) => !isOpt(l)) && optionNames(data.lineItems).length < 2) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
-    if (data.lineItems.some((l: any) => l.optionGroup) && !(hasGroups && (await o.optionsOn?.(cid)))) return c.json({ error: OPTIONS_OFF }, 400)
-    const optionProblem = hasGroups ? optionLinesProblem(data.lineItems) : null
-    if (optionProblem) return c.json({ error: optionProblem }, 400)
+    // …and something that is not optional: a quote of nothing but optional lines is no offer until one is ticked.
+    // (Good / Better / Best options are added to the saved quote: PUT /:id/proposal.)
+    if (hasOptional && !data.lineItems.some((l: any) => !isOpt(l))) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
     // TODAY on the business's own calendar. This was `startOfToday()`, which is the UTC day, so from
@@ -508,8 +493,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const settings = await companySettings(cid)
     const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
     const totals = calcTotals(counted(data.lineItems, hasOptional), taxRate, data.discount)
-    // With options and none picked yet, a deposit must fit the cheapest option — any of them can be the one chosen.
-    const deposit = depositValues(data, null, hasGroups && hasOptions(data.lineItems) ? Math.min(...optionTotals(data.lineItems, taxRate, data.discount).map((x) => x.total)) : totals.total)
+    const deposit = depositValues(data, null, totals.total)
     if ('error' in deposit) return c.json({ error: deposit.error }, 400)
     // A blank expiry means "use our usual validity", exactly as a blank due date on an invoice means "use our
     // payment terms" — the form sends `expiryDate: form.expiryDate || null` for both. It used to land as a
@@ -525,7 +509,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections, hasGroups)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
@@ -587,11 +571,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const keptOptionLines = hasProposal && data.lineItems !== undefined
         ? (await lineRows(id)).filter((li: any) => li.proposalOptionId).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), optional: true, selected: li.selected !== false }))
         : []
-      const lines: z.infer<typeof lineItemSchema>[] = data.lineItems !== undefined ? [...data.lineItems, ...keptOptionLines] : (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), optional: !!li.optional, selected: li.selected !== false, optionGroup: li.optionGroup ?? undefined }))
-      if (hasOptional && data.lineItems && data.lineItems.length && !data.lineItems.some((l: any) => !isOpt(l)) && optionNames(data.lineItems).length < 2) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
-      if (data.lineItems?.some((l: any) => l.optionGroup) && !(hasGroups && (await o.optionsOn?.(cid)))) return c.json({ error: OPTIONS_OFF }, 400)
-      const optionProblem = hasGroups && data.lineItems ? optionLinesProblem(data.lineItems) : null
-      if (optionProblem) return c.json({ error: optionProblem }, 400)
+      const lines: z.infer<typeof lineItemSchema>[] = data.lineItems !== undefined ? [...data.lineItems, ...keptOptionLines] : (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), optional: !!li.optional, selected: li.selected !== false }))
+      // A quote with Good / Better / Best options is an offer by its options: the lines they share may be none, or optional.
+      if (hasOptional && data.lineItems && data.lineItems.length && !data.lineItems.some((l: any) => !isOpt(l)) && !keptOptionLines.length) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
       const taxRate = data.taxRate ?? Number(existing.taxRate)
       const discount = data.discount ?? Number(existing.discount)
       const subtotalRaw = rawSubtotal(counted(lines, hasOptional))
@@ -599,11 +581,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const calc = calcTotals(counted(lines, hasOptional), taxRate, discount)
       Object.assign(update, { subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(), discount: calc.effectiveDiscount.toString(), total: calc.total.toString() })
     }
-    // The deposit is checked against the total the quote will have once this edit is saved.
+    // The deposit is checked against the total the quote will have once this edit is saved — with Good / Better / Best options,
+    // against the cheapest of them as this edit prices it: any of them can still be the one chosen.
     let depositBase = Number(update.total ?? existing.total)
-    if (hasGroups) {
-      const now: any[] = data.lineItems ?? await lineRows(id)
-      if (hasOptions(now)) depositBase = Math.min(...optionTotals(now, data.taxRate ?? existing.taxRate, data.discount ?? existing.discount).map((x) => x.total))
+    if (hasProposal) {
+      const rows = await lineRows(id)
+      const shared: any[] = data.lineItems !== undefined ? counted(data.lineItems, hasOptional) : includedLines<any>(rows.filter((li: any) => !li.proposalOptionId))
+      const cheapest = cheapestOption(optionPrices(shared, rows.filter((li: any) => li.proposalOptionId), data.taxRate ?? existing.taxRate, data.discount ?? existing.discount))
+      if (cheapest !== null) depositBase = cheapest
     }
     const deposit = depositValues(data, existing, depositBase)
     if ('error' in deposit) return c.json({ error: deposit.error }, 400)
@@ -614,7 +599,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (data.lineItems !== undefined) {
         // The lines every option shares are replaced; a proposal option's own lines are not (PUT /:id/proposal changes those).
         await tx.delete(t.quoteLineItem).where(hasProposal ? and(eq(t.quoteLineItem.quoteId, id), isNull(t.quoteLineItem.proposalOptionId)) : eq(t.quoteLineItem.quoteId, id))
-        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections, hasGroups))
+        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections))
         items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
@@ -787,16 +772,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     return c.json({ ...r.updated, approveOnline })
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
-    // A quote that is a choice between options is approved with one picked.
-    if (hasGroups) {
-      const choice = optionChoiceProblem(await lineRows(c.req.param('id')))
-      if (choice) return c.json({ error: choice, code: 'option_required' }, 400)
-    }
     // A quote with options is approved for ONE of them: the customer's (or, on the phone, the office's) pick comes first.
     if (hasProposal) {
       const cid = (c.get('user') as any).companyId
       const q = await findOwn(cid, c.req.param('id'))
-      if (q && q.status !== 'approved' && (await proposalAllowed(cid)) && (await proposalNeedsChoice(db, t, q.id))) return c.json({ error: CHOOSE_FIRST }, 400)
+      if (q && q.status !== 'approved' && (await proposalAllowed(cid)) && (await proposalNeedsChoice(db, t, q.id))) return c.json({ error: CHOOSE_FIRST, code: CHOOSE_FIRST_CODE }, 400)
     }
     const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
     if (!r.updated) return r
@@ -807,22 +787,6 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     }
     return c.json({ ...r.updated, ...(o.onApproved ? { deposit } : {}) })
   })
-  // Pick the option (good / better / best) while the quote is open: its lines are ticked, the others' are not, the totals follow.
-  if (hasGroups) {
-    app.post('/:id/choose-option', requirePermission('quotes:update'), async (c: any) => {
-      const cid = (c.get('user') as any).companyId
-      const id = c.req.param('id')
-      if (!(await o.optionsOn?.(cid))) return c.json({ error: OPTIONS_OFF }, 403)
-      const existing = await findOwn(cid, id)
-      if (!existing) return c.json({ error: 'Quote not found' }, 404)
-      if (!EDITABLE.includes(existing.status)) return c.json({ error: `This quote is ${existing.status}: its option can no longer change.` }, 400)
-      const body = await c.req.json().catch(() => ({}))
-      const r: any = await chooseOptionGroup(db, t, cid, id, body?.group)
-      if ('error' in r) return c.json({ error: r.error }, r.status)
-      emitToCompany(cid, EVENTS.QUOTE_UPDATED, forBroadcast({ ...r.quote, lineItems: r.lineItems }))
-      return c.json(forCaller({ ...r.quote, lineItems: r.lineItems }, await may(c, 'margin:read'), await may(c, 'quotes:update')))
-    })
-  }
   // Tick or untick an optional line while the quote is open (quoteOptions.ts): the totals are worked out again.
   if (hasOptional) {
     app.post('/:id/options', requirePermission('quotes:update'), async (c: any) => {
@@ -860,6 +824,16 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const saveProposal = async (cid: string, id: string, options: OptionInput[]): Promise<{ error: string; status: 400 } | { quote: any; lineItems: any[] }> => {
       if (options.length === 1) return { error: 'A proposal needs at least two options to choose between.', status: 400 }
       for (const op of options) if (op.photos.some((x) => !isPhotoAddress(x))) return { error: `"${op.name}": a photo is an https address or one of your own /media files.`, status: 400 }
+      // A deposit the quote already asks must fit every option, since the customer may choose any of them.
+      if (hasDeposit && options.length) {
+        const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
+        if (q?.depositType) {
+          const shared = includedLines<any>((await lineRows(id)).filter((li: any) => !li.proposalOptionId))
+          const optionLines = options.flatMap((op, i) => op.lines.map((l) => ({ ...l, proposalOptionId: String(i) })))
+          const problem = depositProblem(q.depositType, q.depositValue, cheapestOption(optionPrices(shared, optionLines, q.taxRate, q.discount)) ?? 0)
+          if (problem) return { error: `${problem} The cheapest option sets the limit — lower the deposit on the quote first.`, status: 400 }
+        }
+      }
       const out = await db.transaction(async (tx: any) => {
         await tx.delete(t.quoteLineItem).where(and(eq(t.quoteLineItem.quoteId, id), isNotNull(t.quoteLineItem.proposalOptionId)))
         await tx.delete(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, id))
@@ -1108,7 +1082,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ])
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it
     // one is how it ends up in a file somebody emails.
-    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems }, co)
+    // A quote whose customer has yet to choose prints the lines every option shares and each option at its whole price.
+    const view = hasProposal ? await proposalView(db, t as any, found) : null
+    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines) }))) : undefined
+    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options } : {}) }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   })
 

@@ -113,7 +113,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       ...(li.type ? { type: li.type } : {}),
       ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
       ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
-      ...(li.optionGroup ? { optionGroup: li.optionGroup, selected: !!li.selected } : li.optional ? { optional: true, selected: !!li.selected } : {}),
+      ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
       // Estimating fields must survive the round trip too: PUT replaces every line.
       ...(li.section ? { section: li.section } : {}),
       ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
@@ -274,7 +274,6 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
               estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes } : undefined}
-              optionGroups={!!cfg.optionGroups}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (

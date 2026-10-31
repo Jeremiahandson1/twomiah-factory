@@ -420,9 +420,6 @@ export const quoteLineItem = pgTable('quote_line_item', {
   markupPct: decimal('markup_pct', { precision: 7, scale: 2 }),
   allowance: boolean('allowance').default(false).notNull(),
   costCode: text('cost_code'),
-  // Good / better / best (0044): lines that share an option name are ONE choice; the customer picks one option and only its lines
-  // (with the quote's other, non-option lines) count. A line with an option name is optional by definition. Null: not part of a choice.
-  optionGroup: text('option_group'),
   // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
   // exactly while its option is the one the customer chose. Null for the lines every option shares.
   proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),
