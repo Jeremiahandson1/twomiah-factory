@@ -51,6 +51,14 @@ interface ShiftReview {
   status: string
   flagReason: string | null
   resolutionNotes: string | null
+  /** care_payroll_rules (rows 19–20): travel to this visit, the breaks, a sleepover. */
+  travelPaid?: boolean | null
+  travelMinutes?: number | null
+  travelMiles?: string | number | null
+  mealBreakMinutes?: number | null
+  mealWaived?: boolean
+  restBreakMissed?: boolean
+  isSleepover?: boolean
   caregiverFirstName: string | null
   caregiverLastName: string | null
   clientFirstName: string | null
@@ -166,6 +174,9 @@ export default function PayrollProcessing() {
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [resolveShift, setResolveShift] = useState<ShiftReview | null>(null)
   const [resolveForm, setResolveForm] = useState({ status: 'manual_entry', payableMinutes: '' as string | number, resolutionNotes: '' })
+  // care_payroll_rules (rows 19–20): the pay details of a visit — travel, breaks, sleepover — edited with the resolution.
+  const payRulesOn = useAuth().hasFeature('care_payroll_rules')
+  const [payDetail, setPayDetail] = useState({ travelPaid: '' as '' | 'yes' | 'no', travelMinutes: '' as string | number, travelMiles: '' as string | number, mealBreakMinutes: '' as string | number, mealWaived: false, restBreakMissed: false, isSleepover: false })
 
   // Payroll settings
   const [settings, setSettings] = useState({
@@ -303,6 +314,7 @@ export default function PayrollProcessing() {
   const openResolveModal = (shift: ShiftReview) => {
     setResolveShift(shift)
     setResolveForm({ status: 'manual_entry', payableMinutes: shift.scheduledMinutes || '', resolutionNotes: '' })
+    setPayDetail({ travelPaid: shift.travelPaid == null ? '' : shift.travelPaid ? 'yes' : 'no', travelMinutes: shift.travelMinutes ?? '', travelMiles: shift.travelMiles ?? '', mealBreakMinutes: shift.mealBreakMinutes ?? '', mealWaived: !!shift.mealWaived, restBreakMissed: !!shift.restBreakMissed, isSleepover: !!shift.isSleepover })
     setShowResolveModal(true)
   }
 
@@ -312,6 +324,13 @@ export default function PayrollProcessing() {
     await handleShiftAction(resolveShift.id, resolveForm.status, {
       payableMinutes: resolveForm.status === 'excused' ? 0 : parseInt(String(resolveForm.payableMinutes)) || 0,
       resolutionNotes: resolveForm.resolutionNotes,
+      ...(payRulesOn ? {
+        travelPaid: payDetail.travelPaid === '' ? null : payDetail.travelPaid === 'yes',
+        travelMinutes: payDetail.travelMinutes === '' ? null : Number(payDetail.travelMinutes),
+        travelMiles: payDetail.travelMiles === '' ? null : Number(payDetail.travelMiles),
+        mealBreakMinutes: payDetail.mealBreakMinutes === '' ? null : Number(payDetail.mealBreakMinutes),
+        mealWaived: payDetail.mealWaived, restBreakMissed: payDetail.restBreakMissed, isSleepover: payDetail.isSleepover,
+      } : {}),
     })
     setShowResolveModal(false)
     setResolveShift(null)
@@ -1228,6 +1247,20 @@ export default function PayrollProcessing() {
                 <label>Resolution Notes</label>
                 <textarea value={resolveForm.resolutionNotes} onChange={(e) => setResolveForm({ ...resolveForm, resolutionNotes: e.target.value })} rows={3} placeholder="Explain the resolution..." />
               </div>
+              {payRulesOn && (
+                <fieldset className="form-group" style={{ border: '1px solid var(--hc-line)', borderRadius: 8, padding: '0.5rem' }}>
+                  <legend style={{ fontSize: '0.8rem' }}>Pay details (Pay rules)</legend>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
+                    <label>Travel to this visit paid<br /><select value={payDetail.travelPaid} onChange={(e) => setPayDetail({ ...payDetail, travelPaid: e.target.value as '' | 'yes' | 'no' })}><option value="">By the agency's rule</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+                    <label>Travel minutes (blank = estimate)<br /><input type="number" min="0" max="240" value={payDetail.travelMinutes} onChange={(e) => setPayDetail({ ...payDetail, travelMinutes: e.target.value })} /></label>
+                    <label>Travel miles<br /><input type="number" min="0" step="0.1" value={payDetail.travelMiles} onChange={(e) => setPayDetail({ ...payDetail, travelMiles: e.target.value })} /></label>
+                    <label>Meal break taken (minutes)<br /><input type="number" min="0" max="240" value={payDetail.mealBreakMinutes} onChange={(e) => setPayDetail({ ...payDetail, mealBreakMinutes: e.target.value })} /></label>
+                    <label><input type="checkbox" checked={payDetail.mealWaived} onChange={(e) => setPayDetail({ ...payDetail, mealWaived: e.target.checked })} /> Meal break waived in writing</label>
+                    <label><input type="checkbox" checked={payDetail.restBreakMissed} onChange={(e) => setPayDetail({ ...payDetail, restBreakMissed: e.target.checked })} /> A rest break was missed</label>
+                    <label><input type="checkbox" checked={payDetail.isSleepover} onChange={(e) => setPayDetail({ ...payDetail, isSleepover: e.target.checked })} /> Sleepover (payable minutes are the awake time)</label>
+                  </div>
+                </fieldset>
+              )}
               <div className="modal-actions">
                 <button type="submit" className="hc-btn hc-btn-primary">Resolve</button>
                 <button type="button" className="hc-btn hc-btn-secondary" onClick={() => setShowResolveModal(false)}>Cancel</button>

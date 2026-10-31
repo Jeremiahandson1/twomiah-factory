@@ -19,6 +19,7 @@ import { createCaregiverRateRoutes } from './caregiverRates.ts'
 import { createCaregiverCareTypeRateRoutes } from './caregiverCareTypeRates.ts'
 import { createPtoRoutes } from './pto.ts'
 import { createPayRulesRoutes } from './payRulesRoutes.ts'
+import { createPayrollProviderRoutes } from './providersRoutes.ts'
 
 export function payrollMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   return [
@@ -34,5 +35,7 @@ export function payrollMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/pto', access: 'user', router: createPtoRoutes(d) },
     // item 2: overtime rules, paid travel, ADP / Paychex files (not ready)
     { path: '/api/pay-rules', access: 'user', feature: 'care_payroll_rules', router: createPayRulesRoutes(core, d) },
+    // row 21: live pushes to ADP, Paychex, Gusto and the embedded full-service provider (not ready)
+    { path: '/api/payroll-providers', access: 'user', feature: 'care_payroll_providers', router: createPayrollProviderRoutes(core, d) },
   ]
 }

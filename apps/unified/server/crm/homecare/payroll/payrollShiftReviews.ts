@@ -179,6 +179,19 @@ export function createPayrollShiftReviewRoutes(core: HomecareCore, d: CrmDeps) {
     if (body.payableMinutes !== undefined) updates.payableMinutes = body.payableMinutes
     if (body.flagReason !== undefined) updates.flagReason = body.flagReason
     if (body.resolutionNotes !== undefined) updates.resolutionNotes = body.resolutionNotes
+    // Rows 19–20 (care_payroll_rules): travel to this visit (paid? minutes typed over the estimate, miles), the meal break, a waived
+    // meal, a missed rest break, a sleepover. Only an agency with the feature can set them.
+    if (['travelPaid', 'travelMinutes', 'travelMiles', 'mealBreakMinutes', 'mealWaived', 'restBreakMissed', 'isSleepover'].some((k) => body[k] !== undefined)) {
+      if (!(await core.payroll.payRules.enabled(me.companyId))) return fail(c, 403, 'Pay rules are not on for this agency', 'feature_off')
+      const int = (v: unknown, max: number) => (v === null || v === '' ? null : Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= max ? Number(v) : undefined)
+      if (body.travelPaid !== undefined) updates.travelPaid = body.travelPaid === null ? null : body.travelPaid === true
+      if (body.travelMinutes !== undefined) { const v = int(body.travelMinutes, 240); if (v === undefined) return fail(c, 400, 'Travel minutes are 0 to 240, or blank for the estimate.', 'bad_travel'); updates.travelMinutes = v }
+      if (body.travelMiles !== undefined) { const v = body.travelMiles === null || body.travelMiles === '' ? null : Number(body.travelMiles); if (v !== null && (!Number.isFinite(v) || v < 0 || v > 999)) return fail(c, 400, 'Travel miles are 0 to 999, or blank.', 'bad_travel'); updates.travelMiles = v === null ? null : v.toFixed(2) }
+      if (body.mealBreakMinutes !== undefined) { const v = int(body.mealBreakMinutes, 240); if (v === undefined) return fail(c, 400, 'The meal break is 0 to 240 minutes, or blank.', 'bad_break'); updates.mealBreakMinutes = v }
+      if (body.mealWaived !== undefined) updates.mealWaived = body.mealWaived === true
+      if (body.restBreakMissed !== undefined) updates.restBreakMissed = body.restBreakMissed === true
+      if (body.isSleepover !== undefined) updates.isSleepover = body.isSleepover === true
+    }
     if (REVIEWED.includes(body.status)) {
       updates.reviewedBy = me.userId
       updates.reviewedAt = new Date()

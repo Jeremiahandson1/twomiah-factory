@@ -435,6 +435,13 @@
       "when": 1793475549846,
       "tag": "0061_care_open_shift_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793478355233,
+      "tag": "0062_care_pay_rules_finished",
+      "breakpoints": true
     }
   ]
 }

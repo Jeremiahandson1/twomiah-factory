@@ -18,12 +18,16 @@ import { Hono } from 'hono'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { gustoEmployeeMap, gustoSyncLog, user } from '../../../db/schema/index.ts'
 import { gustoExportWarnings, personByEmailOrName } from '../../../data/homecarePayrollRoutes.ts'
+import { mileageByKind } from '../../../data/homecarePayRules.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { sendGustoHoursCsv } from '../../payrollExport/gustoHours.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { bonusNotInFile } from './pickupBonusFiles.ts'
+import { DEFAULT_FILE_SETTINGS, mergeFileSettings } from './payRulesRoutes.ts'
+import { company } from '../../../db/schema/index.ts'
+import { addDays } from '../core/agencyTime.ts'
 
 const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
 
@@ -66,9 +70,12 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
         id: l.caregiverId, firstName: l.firstName, lastName: l.lastName, email: l.email,
         gustoEmployeeId: m?.gustoEmployeeId ?? null, gustoMapped: !!m?.isSynced,
         shiftCount: l.shifts,
-        totalHours: l.totalHours.toFixed(2), regularHours: l.regularHours.toFixed(2),
+        totalHours: l.totalHours.toFixed(2), regularHours: Math.max(0, l.regularHours - (l.holidayHours ?? 0)).toFixed(2),
         overtimeHours: l.overtimeHours.toFixed(2), doubleTimeHours: l.doubleTimeHours.toFixed(2), weekendHours: l.weekendHours.toFixed(2),
         hourlyRate: l.baseRate.toFixed(2), overtimeRate: l.otRate.toFixed(2), grossPay: l.grossPay.toFixed(2), pickupBonus: (l.bonusPay ?? 0).toFixed(2),
+        // row 21: what the file's extra columns carry (care_payroll_rules)
+        holidayHours: (l.holidayHours ?? 0).toFixed(2),
+        workweeks: l.weeks.map((w) => ({ start: w.weekStart, end: addDays(w.weekStart, 6), hours: w.hours, earnings: w.pay ?? Math.round((w.regularHours * l.baseRate + w.overtimeHours * l.otRate + (w.doubleTimeHours ?? 0) * l.baseRate * 2) * 100) / 100 })),
       }
     })
   }
@@ -167,11 +174,22 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
     if (!isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
     const result = await gustoRows(me.companyId, startDate!, endDate!)
-    const noBonus = bonusNotInFile(result, 'Gusto hours file')
+    // Row 21 (care_payroll_rules): the bonus rides in its own column, mileage as a reimbursement, and the Workweeks column when the agency wants it.
+    const rules = await core.payroll.payRules.forCompany(me.companyId)
+    const noBonus = bonusNotInFile(result, 'Gusto hours file', !!rules)
     if (noBonus) return fail(c, 400, noBonus, 'pickup_bonus_not_in_file')
+    let workweeks = false
+    const rows = result.map((r) => ({ ...r, bonusDollars: rules ? r.pickupBonus : undefined }))
+    if (rules) {
+      const [row] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, me.companyId)).limit(1)
+      const merged = mergeFileSettings(DEFAULT_FILE_SETTINGS, (row?.settings as any)?.payrollFiles)
+      workweeks = ('files' in merged ? merged.files : DEFAULT_FILE_SETTINGS).gustoWorkweeks
+      const byKind = await mileageByKind(db, me.companyId, startDate!, endDate!)
+      for (const r of rows as any[]) r.reimbursementDollars = Math.round(byKind.filter((k) => k.caregiverId === r.id).reduce((t, k) => t + Number(k.amount), 0) * 100) / 100
+    }
 
     // The file, its sync-log row and its audit row are the shared builder's (server/crm/payrollExport/gustoHours.ts).
-    return sendGustoHoursCsv(c, d, startDate!, endDate!, result)
+    return sendGustoHoursCsv(c, d, startDate!, endDate!, rows, { workweeks })
   })
 
   // GET /sync-log — the last 20.

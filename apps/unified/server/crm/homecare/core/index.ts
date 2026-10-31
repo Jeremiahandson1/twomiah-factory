@@ -63,6 +63,8 @@ import { createCarePlanSchedule } from './carePlanSchedule.ts'
 import { createInvoiceEngine } from './invoiceEngine.ts'
 import { createClaimsEngine } from './claimsEngine.ts'
 import { createPayrollPay } from './payrollPay.ts'
+import { createVisitMileage } from './visitMileage.ts'
+import { createPayrollProviders } from './payrollProviders.ts'
 import { createIncidentPdf } from './incidentPdf.ts'
 
 // Home care's email messages are registered once per email service (register refuses a name twice).
@@ -108,6 +110,8 @@ function buildHomecareCore(d: CrmDeps) {
   const invoices = createInvoiceEngine(d, { time })
   const claims = createClaimsEngine(d)
   const payroll = createPayrollPay(d)
+  const visitMileage = createVisitMileage(d, { mileage })
+  const payrollProviders = createPayrollProviders(d)
   const margin = createMargin(d, { invoices })
   const csvImport = createCsvImport(d, { time })
   const ltc = createLtc(d)
@@ -146,7 +150,7 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
+    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
     reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */

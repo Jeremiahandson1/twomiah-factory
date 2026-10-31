@@ -15,13 +15,14 @@ import { Hono } from 'hono'
 import { and, asc, desc, eq, gt, gte, inArray, lte } from 'drizzle-orm'
 import { clients, expenses, gustoSyncLog, mileageEntries, payrollRecords, payrollShiftReviews, timeEntries, user } from '../../../db/schema/index.ts'
 import { allottedPunchesOnAgencyDays } from '../../../data/homecarePayrollRoutes.ts'
+import { mileageByKind, replacePayHourAudit } from '../../../data/homecarePayRules.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { isYmd } from '../core/agencyTime.ts'
 import { parseMileageRate } from '../core/mileageRate.ts'
-import { FALLBACK_PAY_RATE, PAYABLE_REVIEW_STATUSES, payCents } from '../core/payrollPay.ts'
+import { FALLBACK_PAY_RATE, PAYABLE_REVIEW_STATUSES, auditRowsOf, payCents } from '../core/payrollPay.ts'
 import { VARIANCE_GRACE_MINUTES } from '../core/punchRules.ts'
 import { csvEscape, isCompanyPerson } from './shared.ts'
 
@@ -145,6 +146,9 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // POST /calculate — the period's pay from payable shift reviews (weekly overtime), plus mileage at the agency's rate.
+  // With care_payroll_rules (rows 19–20): the state rule, holidays, breaks, sleepovers, limits and travel (core/payrollPay.ts); mileage is
+  // travel miles and errand miles apart, at each trip's own rate (the caregiver's per-mile rate, else the agency's), and when the
+  // agency asked, the miles between completed visits are worked out first (core/visitMileage.ts).
   app.post('/calculate', async (c) => {
     const { companyId } = c.get('user')
     const { startDate, endDate, otThreshold = 40, otMultiplier = 1.5, mileageRate: askedRate } = await c.req.json().catch(() => ({})) as any
@@ -153,6 +157,8 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
     if (!startDate || !endDate) return fail(c, 400, 'startDate and endDate required')
     if (!goodRange(startDate, endDate)) return fail(c, 400, DATES)
 
+    const rules = await core.payroll.payRules.forCompany(companyId)
+    if (rules?.travel.mileageFromVisits) await core.visitMileage.compute(companyId, startDate, endDate)
     const lines = await core.payroll.payrollForRange(companyId, startDate, endDate, { otThresholdHours: Number(otThreshold), otMultiplier: Number(otMultiplier) })
 
     const mileageRows = await db.select({ caregiverId: mileageEntries.caregiverId, miles: mileageEntries.miles })
@@ -160,6 +166,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       .where(and(eq(mileageEntries.companyId, companyId), gte(mileageEntries.date, startDate), lte(mileageEntries.date, endDate)))
     const mileageByCaregiver: Record<string, number> = {}
     for (const m of mileageRows as any[]) mileageByCaregiver[m.caregiverId] = (mileageByCaregiver[m.caregiverId] || 0) + Number(m.miles || 0)
+    const byKind = rules ? await mileageByKind(db, companyId, startDate, endDate) : []
 
     // Where each caregiver's payroll for this period stands (approved / processed), if it has a record.
     const records = await db.select({ id: payrollRecords.id, caregiverId: payrollRecords.caregiverId, status: payrollRecords.status })
@@ -169,11 +176,20 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
 
     const payroll = lines.map((l) => {
       const totalMiles = Math.round((mileageByCaregiver[l.caregiverId] || 0) * 100) / 100
-      const mileageCents = Math.round(totalMiles * mileageRate * 100)
+      let mileageCents = Math.round(totalMiles * mileageRate * 100)
+      let travelMiles = 0, errandMiles = 0
+      if (rules) {
+        // each trip at its own rate: the caregiver's per-mile rate (or the office's on the trip), else the agency's
+        const mine = byKind.filter((k) => k.caregiverId === l.caregiverId)
+        mileageCents = mine.reduce((t, k) => t + Math.round(Number(k.amount) * 100), 0)
+        travelMiles = Math.round(mine.filter((k) => k.kind === 'travel').reduce((t, k) => t + Number(k.miles), 0) * 100) / 100
+        errandMiles = Math.round(mine.filter((k) => k.kind === 'errand').reduce((t, k) => t + Number(k.miles), 0) * 100) / 100
+      }
       const rec = recordBy.get(l.caregiverId)
       return {
         ...l,
         totalMiles,
+        travelMiles, errandMiles,
         mileageReimbursement: mileageCents / 100,
         // Wages + mileage. Mileage is a reimbursement, not wages: wagesPay is what payroll taxes apply to.
         wagesPay: l.grossPay,
@@ -184,7 +200,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       }
     })
     const unresolved = await core.payroll.unresolvedReviewCount(companyId, startDate, endDate)
-    return one(c, { payPeriodStart: startDate, payPeriodEnd: endDate, otThreshold, otMultiplier, mileageRate, payroll, unresolvedReviews: unresolved })
+    return one(c, { payPeriodStart: startDate, payPeriodEnd: endDate, otThreshold, otMultiplier, mileageRate, payroll, unresolvedReviews: unresolved, ruleId: rules?.overtimeRule ?? null })
   })
 
   // PUT /:caregiverId/approve — approve a caregiver's payroll for the period (the same numbers Calculate shows).
@@ -202,6 +218,8 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
 
     const [line] = await core.payroll.payrollForRange(me.companyId, startDate, endDate, { caregiverId })
     if (!line) return fail(c, 400, 'No approved hours for this caregiver in this period')
+    // Row 19: the agency's limits in block mode hold the approval until the hours or the rule change.
+    if (line.limitBlocked) return fail(c, 409, `Over the agency's limit: ${line.limitWarnings!.join('; ')}. Change the hours or the limit (Pay rules) before approving.`, 'over_limit')
 
     const [existing] = await db.select().from(payrollRecords)
       .where(and(
@@ -222,6 +240,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       overtimeRate: line.otRate.toFixed(2),
       grossPay: line.grossPay.toFixed(2),
       bonusPay: (line.bonusPay ?? 0).toFixed(2),
+      holidayHours: (line.holidayHours ?? 0).toFixed(2),
     }
 
     let record
@@ -242,6 +261,8 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
         approvedById: me.userId,
       }).returning()
     }
+    // Row 19: the audit trail of how each hour was classified, as approved.
+    if (line.hours) await replacePayHourAudit(db, me.companyId, caregiverId, startDate, endDate, auditRowsOf(line))
     return one(c, record)
   })
 
@@ -349,6 +370,16 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
           const dtMinutes = Math.round(l.doubleTimeHours * 60)
           rows.push(`${name},"Double time premium",${endDate},${l.doubleTimeHours.toFixed(2)},${l.baseRate.toFixed(2)},${((Math.round(l.doubleTimePay * 100) - payCents(dtMinutes, rateCents)) / 100).toFixed(2)}`)
         }
+        // Rows 19–20: when a week blends rates (a care-type or travel rate) the straight-time lines above are at the base rate; this line
+        // carries the difference so the file still adds up to the wages. Holiday, break and sleepover pay are their own lines.
+        const straight = (shifts as any[]).filter((x) => x.caregiverId === l.caregiverId).reduce((t, x) => t + payCents(Number(x.payableMinutes) || 0, rateCents), 0)
+          + payCents(Math.round(l.travelHours * 60), rateCents) + (l.overtimeHours > 0 ? Math.round(l.overtimePay * 100) - payCents(Math.round(l.overtimeHours * 60), rateCents) : 0) + (l.bonusPay ? Math.round(l.bonusPay * 100) : 0)
+          + (l.doubleTimeHours > 0 ? Math.round(l.doubleTimePay * 100) - payCents(Math.round(l.doubleTimeHours * 60), rateCents) : 0)
+        const wagesC = Math.round((l.regularPay + l.overtimePay + l.doubleTimePay + (l.bonusPay ?? 0)) * 100)
+        if (wagesC !== straight) rows.push(`${name},"Rate difference (care-type or travel rate, blended overtime)",${endDate},,,${((wagesC - straight) / 100).toFixed(2)}`)
+        if ((l.holidayPremiumPay ?? 0) > 0) rows.push(`${name},"Holiday premium",${endDate},${(l.holidayHours ?? 0).toFixed(2)},,${l.holidayPremiumPay!.toFixed(2)}`)
+        if ((l.breakPremiumPay ?? 0) > 0) rows.push(`${name},"Meal and rest break premiums (${l.mealPremiums} meal, ${l.restPremiums} rest)",${endDate},,,${l.breakPremiumPay!.toFixed(2)}`)
+        if ((l.sleepoverPay ?? 0) > 0) rows.push(`${name},"Sleepovers (${l.sleepovers})",${endDate},,,${l.sleepoverPay!.toFixed(2)}`)
       }
       c.header('Content-Type', 'text/csv')
       c.header('Content-Disposition', `attachment; filename="payroll_${startDate}_${endDate}.csv"`)
@@ -373,6 +404,9 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       if (l.overtimeHours > 0) csvRows.push(`"${name}",Overtime,${l.overtimeHours.toFixed(2)},${l.otRate.toFixed(2)},${l.overtimePay.toFixed(2)}`)
       if (l.doubleTimeHours > 0) csvRows.push(`"${name}","Double time",${l.doubleTimeHours.toFixed(2)},${(l.baseRate * 2).toFixed(2)},${l.doubleTimePay.toFixed(2)}`)
       if ((l.bonusPay ?? 0) > 0) csvRows.push(`"${name}","Pickup bonus",,,${l.bonusPay!.toFixed(2)}`)
+      if ((l.holidayPremiumPay ?? 0) > 0) csvRows.push(`"${name}","Holiday premium",${(l.holidayHours ?? 0).toFixed(2)},,${l.holidayPremiumPay!.toFixed(2)}`)
+      if ((l.breakPremiumPay ?? 0) > 0) csvRows.push(`"${name}","Break premiums",,,${l.breakPremiumPay!.toFixed(2)}`)
+      if ((l.sleepoverPay ?? 0) > 0) csvRows.push(`"${name}","Sleepovers",,,${l.sleepoverPay!.toFixed(2)}`)
     }
     c.header('Content-Type', 'text/csv')
     c.header('Content-Disposition', `attachment; filename="quickbooks_payroll_${startDate}_${endDate}.csv"`)

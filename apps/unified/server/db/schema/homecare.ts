@@ -33,6 +33,10 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   evvWorkerId: text('evv_worker_id'),
   // Item 2 (care_payroll_rules): this caregiver's id in the agency's payroll provider — the ADP file number / the Paychex worker id.
   payrollWorkerId: text('payroll_worker_id'),
+  // Row 20 (care_payroll_rules): this caregiver's own rate per mile (null = the agency's). Row 19: facility staff are paid under the
+  // agency's facility thresholds (payRules.facility) instead of the state rule's.
+  mileageRate: decimal('mileage_rate', { precision: 5, scale: 3 }),
+  isFacilityStaff: boolean('is_facility_staff').default(false).notNull(),
   medicaidProviderId: text('medicaid_provider_id'),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
   smsEnabled: boolean('sms_enabled').default(true),
@@ -1615,6 +1619,8 @@ export const careTypes = pgTable('care_types', {
   requiresEvv: boolean('requires_evv').default(true),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops it.
   requiredCertifications: json('required_certifications').default([]),
+  // Row 19 (care_payroll_rules): hours of this service never count toward overtime (HHAeXchange's per-pay-code switch).
+  excludeFromOvertime: boolean('exclude_from_overtime').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('care_types_company_id_idx').on(t.companyId),
@@ -1876,10 +1882,16 @@ export const mileageEntries = pgTable('mileage_entries', {
   amount: decimal('amount', { precision: 8, scale: 2 }),
   clientId: text('client_id').references(() => clients.id),
   notes: text('notes'),
+  // Row 20 (care_payroll_rules): travel miles (between visits) or errand miles (for a client); a trip the product worked out between
+  // two completed visits' addresses names its review, once — recomputing never doubles it.
+  kind: text('kind').default('travel').notNull(),
+  source: text('source').default('entered').notNull(),
+  reviewId: text('review_id').references(() => payrollShiftReviews.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('mileage_entries_company_id_idx').on(t.companyId),
   index('mileage_entries_caregiver_idx').on(t.caregiverId),
+  uniqueIndex('mileage_entries_review_idx').on(t.reviewId),
 ])
 
 export const prospectAppointments = pgTable('prospect_appointments', {
@@ -2241,6 +2253,17 @@ export const payrollShiftReviews = pgTable('payroll_shift_reviews', {
   actualMinutes: integer('actual_minutes'),
   // What gets paid
   payableMinutes: integer('payable_minutes'),
+  // Rows 19-20 (care_payroll_rules). Travel: whether travel to this visit is paid (null = the agency's rule), the travel minutes the
+  // office typed over the estimate, and the miles driven to it. Breaks (California Labor Code 512 / 226.7): the meal break taken,
+  // whether it was waived in writing, and a rest break the caregiver could not take. A sleepover (29 CFR 785.22) is a worked day
+  // whose awake minutes are the payable minutes.
+  travelPaid: boolean('travel_paid'),
+  travelMinutes: integer('travel_minutes'),
+  travelMiles: decimal('travel_miles', { precision: 7, scale: 2 }),
+  mealBreakMinutes: integer('meal_break_minutes'),
+  mealWaived: boolean('meal_waived').default(false).notNull(),
+  restBreakMissed: boolean('rest_break_missed').default(false).notNull(),
+  isSleepover: boolean('is_sleepover').default(false).notNull(),
   // Status: pending, verified, approved, flagged, missing_punch, excused, manual_entry
   status: text('status').default('pending').notNull(),
   flagReason: text('flag_reason'),
@@ -2441,6 +2464,51 @@ export const payrollRecords = pgTable('payroll_records', {
   index('payroll_records_caregiver_id_idx').on(t.caregiverId),
   index('payroll_records_period_idx').on(t.periodStart, t.periodEnd),
   uniqueIndex('payroll_records_caregiver_period_idx').on(t.caregiverId, t.periodStart, t.periodEnd),
+])
+
+// Row 19 (care_payroll_rules): how each hour of an approved pay run was classified — one row per visit (or travel) segment, with the
+// rule, the rate and the reason in words. Written when a caregiver's period is approved; the live version is GET /api/pay-rules/audit.
+export const payHourAudit = pgTable('pay_hour_audit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  reviewId: text('review_id'),
+  segmentKind: text('segment_kind').notNull(),
+  segmentDate: date('segment_date').notNull(),
+  minutes: integer('minutes').notNull(),
+  regularMinutes: integer('regular_minutes').default(0).notNull(),
+  overtimeMinutes: integer('overtime_minutes').default(0).notNull(),
+  doubleTimeMinutes: integer('double_time_minutes').default(0).notNull(),
+  unpaidMinutes: integer('unpaid_minutes').default(0).notNull(),
+  isHoliday: boolean('is_holiday').default(false).notNull(),
+  rateCents: integer('rate_cents').default(0).notNull(),
+  ruleId: text('rule_id').notNull(),
+  reasons: json('reasons').default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('pay_hour_audit_company_id_idx').on(t.companyId),
+  index('pay_hour_audit_caregiver_period_idx').on(t.caregiverId, t.periodStart, t.periodEnd),
+])
+
+// Row 21 (care_payroll_providers): every push of a pay run to a payroll provider (ADP, Paychex, Gusto, or the embedded full-service
+// provider), with what was sent and what came back.
+export const payrollPush = pgTable('payroll_push', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  status: text('status').notNull(),
+  people: integer('people').default(0).notNull(),
+  request: json('request'),
+  response: json('response'),
+  error: text('error'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('payroll_push_company_id_idx').on(t.companyId),
 ])
 
 export const payrollLineItems = pgTable('payroll_line_items', {

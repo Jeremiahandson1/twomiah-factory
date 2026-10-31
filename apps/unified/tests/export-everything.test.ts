@@ -102,7 +102,7 @@ describe('export everything', () => {
   test('every table of the schema is exported, scoped or deliberately left out', () => {
     const plan = exportPlan()
     expect(plan.filter((p) => p.how === 'unclassified')).toEqual([])
-    expect(plan.length).toBe(479) // 10/30: +saved_request, contractor #173, field service #169, restaurant-bar #171, store #174, landscaping #168, roofing #170, home care #172, salon #167; 10/31: +client_billing_splits, +client_credential, +client_credential_reminder, +medication_dose_reminder, +visit_question, +visit_answer, +visit_item, +visit_item_log, +visit_signature, +visit_meal, +family_request, +open_shift_pickup, +reward_point, +reward_item, +reward_redemption, +family_push_subscription, +family_alert_rule, +alert_rule_log, +open_shift_response, +open_shift_message
+    expect(plan.length).toBe(481) // 10/30: +saved_request, contractor #173, field service #169, restaurant-bar #171, store #174, landscaping #168, roofing #170, home care #172, salon #167; 10/31: +client_billing_splits, +client_credential, +client_credential_reminder, +medication_dose_reminder, +visit_question, +visit_answer, +visit_item, +visit_item_log, +visit_signature, +visit_meal, +family_request, +open_shift_pickup, +reward_point, +reward_item, +reward_redemption, +family_push_subscription, +family_alert_rule, +alert_rule_log, +open_shift_response, +open_shift_message, +pay_hour_audit, +payroll_push
   })
 })
 

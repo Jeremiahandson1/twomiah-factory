@@ -27,3 +27,4 @@ export function createMileageRate(d: CrmDeps) {
   }
   return { agencyMileageRate }
 }
+export type MileageRateModule = ReturnType<typeof createMileageRate>
