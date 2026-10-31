@@ -11,6 +11,7 @@
 //   DELETE /orders/:id/price             take the supplier's pricing off the order                       inventory:update
 //   GET    /orders/:id/send              what the send box starts with: recipients last used for this supplier, subject, message  inventory:update
 //   POST   /orders/:id/send              email the order (PDF attached) to the supplier; marks it Sent    inventory:update
+//   GET    /supplier-apis                ABC / QXO / SRS: what each would give and what is missing; none connected (partner step)  inventory:read
 //   POST   /orders/send                  the same for several orders of one supplier, one email each      inventory:update
 //
 // What a supplier charges the business is the business's cost, so the price lists are for a seat that may see costs (margin:read),
@@ -28,6 +29,7 @@ import { clearPricing, dollarsToCents, parsePriceCsv, priceLines, sameSupplier, 
 import { withoutMaterialMoney } from './materials.ts'
 import { buildOrderDocument, defaultOrderSubject, DEFAULT_ORDER_MESSAGE, orderEmailBody, orderFileName, renderOrderPdf } from './materialOrderDocument.ts'
 import { materialStatusLabel } from '../materialStatus.ts'
+import { describeSupplierApi, supplierApiFor, SUPPLIER_APIS } from '../supplierApis.ts'
 import { appendSendLog, isSendable, MAX_BULK, MAX_CC, MAX_TO, parseRecipients, type SendLogEntry } from '../orderSend.ts'
 
 const MAX_ITEMS = 5000
@@ -263,6 +265,12 @@ export function createMaterialSupplyRoutes(d: CrmDeps) {
     return { ok: true, order: saved }
   }
 
+  app.get('/supplier-apis', requirePermission('inventory:read'), async (c) => {
+    const me = c.get('user')
+    const rows = SUPPLIER_APIS.map((a) => describeSupplierApi(a, me.companyId))
+    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+  })
+
   // Declared before the single-order route so "send" is never read as an order id.
   app.post('/orders/send', requirePermission('inventory:update'), async (c) => {
     const me = c.get('user')
@@ -294,7 +302,8 @@ export function createMaterialSupplyRoutes(d: CrmDeps) {
       .map((o: any) => o.sendLog[o.sendLog.length - 1] as SendLogEntry).sort((a: SendLogEntry, b: SendLogEntry) => b.at.localeCompare(a.at))[0]
     return one(c, {
       to: last?.to ?? [], cc: last?.cc ?? [], subject: defaultOrderSubject(doc), message: DEFAULT_ORDER_MESSAGE,
-      attachment: orderFileName(doc), sendable: isSendable(order.orderStatus), status: order.orderStatus, statusLabel: materialStatusLabel(order.orderStatus),
+      attachment: orderFileName(doc), supplierApi: supplierApiFor(order.supplier) ? describeSupplierApi(supplierApiFor(order.supplier)!, me.companyId) : null,
+      sendable: isSendable(order.orderStatus), status: order.orderStatus, statusLabel: materialStatusLabel(order.orderStatus),
     })
   })
 

@@ -303,3 +303,28 @@ describe('the shared sender', () => {
     }
   })
 })
+
+describe('the supplier APIs (ABC / QXO / SRS) up to the partner step', () => {
+  test('all three are listed by name, none connected, each with what it would give and the steps that are missing', async () => {
+    const r = await call('mgr', 'GET', '/api/material-supply/supplier-apis')
+    expect(r.status).toBe(200)
+    expect(r.body.data.map((a: any) => a.key)).toEqual(['abc', 'qxo', 'srs'])
+    for (const a of r.body.data) {
+      expect(a.connected).toBe(false)
+      expect(a.sendsBy).toBe('email')
+      expect(a.wouldGive.length).toBe(3)
+      expect(a.steps.some((s: any) => s.who === 'owner' && /partner/i.test(s.step))).toBe(true)
+    }
+    expect(r.body.data[1].label).toContain('Beacon')
+  })
+  test('the send box says which of those a supplier is, by any spelling, and nothing for a supply house with no API', async () => {
+    const job = await makeJob('31 Soffit Ln')
+    const beacon = await order(job, { supplier: 'Beacon Roofing Supply' })
+    expect((await call('mgr', 'GET', `/api/material-supply/orders/${beacon}/send`)).body.supplierApi).toMatchObject({ key: 'qxo', connected: false })
+    const local = await order(job, { supplier: 'Smith Lumber' })
+    expect((await call('mgr', 'GET', `/api/material-supply/orders/${local}/send`)).body.supplierApi).toBeNull()
+  })
+  test('a seat without inventory access does not see the list', async () => {
+    expect((await call('rep', 'GET', '/api/material-supply/supplier-apis')).status).toBe(403)
+  })
+})
