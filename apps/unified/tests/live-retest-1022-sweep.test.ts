@@ -35,8 +35,8 @@ describe('2 · overdue on the company’s clock, everywhere the admin reads it',
     const inv = await json(await x.owner('/api/invoices', { method: 'POST', json: { contactId: ct.id, dueDate: '2026-10-22', lineItems: [{ description: 'Mowing', quantity: 1, unitPrice: 100 }] } }))
     invoiceId = inv.id
     expect((await x.owner(`/api/invoices/${invoiceId}/send`, { method: 'POST' })).status).toBe(200)
-    // A job due on the 22nd, still open.
-    jobId = (await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Hedge', scheduledDate: '2026-10-22' } }))).id
+    // A job due on the 22nd, still open (for a customer: crm.jobs.requireCustomer).
+    jobId = (await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Hedge', scheduledDate: '2026-10-22', contactId: ct.id } }))).id
   })
   afterAll(() => { setSystemTime() })
 

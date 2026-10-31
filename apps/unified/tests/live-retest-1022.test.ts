@@ -30,10 +30,15 @@ async function tenant(vertical: string, features: string[], extra: Record<string
 // ── 1 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 describe('1 · a job repeats, and every visit is on the calendar', () => {
   let x: Awaited<ReturnType<typeof tenant>>
-  beforeAll(async () => { x = await tenant('landscaping', ['contacts', 'jobs', 'scheduling']) })
+  let cust = ''
+  // A landscaping job is for a customer (crm.jobs.requireCustomer, contractor PR #173).
+  beforeAll(async () => {
+    x = await tenant('landscaping', ['contacts', 'jobs', 'scheduling'])
+    cust = (await json(await x.owner('/api/contacts', { method: 'POST', json: { name: 'Repeat Customer', type: 'client' } }))).id
+  })
 
   test('every week, 4 times: four visit jobs a week apart, numbered, in one series', async () => {
-    const r = await x.owner('/api/jobs', { method: 'POST', json: { title: 'Weekly mowing', scheduledDate: '2026-11-03', scheduledTime: '09:00', repeat: { frequency: 'weekly', interval: 1, count: 4 } } })
+    const r = await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Weekly mowing', scheduledDate: '2026-11-03', scheduledTime: '09:00', repeat: { frequency: 'weekly', interval: 1, count: 4 } } })
     expect(r.status).toBe(201)
     const first = await json(r)
     expect(first.series.made).toBe(4)
@@ -46,27 +51,27 @@ describe('1 · a job repeats, and every visit is on the calendar', () => {
   })
 
   test('every 2 weeks until a date, and every month: the same stepping', async () => {
-    const two = await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Fortnightly', scheduledDate: '2026-11-02', repeat: { frequency: 'weekly', interval: 2, until: '2026-12-01' } } }))
+    const two = await json(await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Fortnightly', scheduledDate: '2026-11-02', repeat: { frequency: 'weekly', interval: 2, until: '2026-12-01' } } }))
     const dates = (await x.t.db.select().from(x.t.schema.job).where(eq(x.t.schema.job.seriesId, two.series.id)).orderBy(asc(x.t.schema.job.seriesIndex))).map((j: any) => j.scheduledDate.toISOString().slice(0, 10))
     expect(dates).toEqual(['2026-11-02', '2026-11-16', '2026-11-30'])
-    const monthly = await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Monthly', scheduledDate: '2027-01-31', repeat: { frequency: 'monthly', count: 3 } } }))
+    const monthly = await json(await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Monthly', scheduledDate: '2027-01-31', repeat: { frequency: 'monthly', count: 3 } } }))
     const m = (await x.t.db.select().from(x.t.schema.job).where(eq(x.t.schema.job.seriesId, monthly.series.id)).orderBy(asc(x.t.schema.job.seriesIndex))).map((j: any) => j.scheduledDate.toISOString().slice(0, 10))
     expect(m).toEqual(['2027-01-31', '2027-02-28', '2027-03-31'])
   })
 
   test('a repeat with no first day or no end is refused in words; nothing is made', async () => {
     const before = (await x.t.db.select().from(x.t.schema.job)).length
-    const noDay = await x.owner('/api/jobs', { method: 'POST', json: { title: 'X', repeat: { frequency: 'weekly', count: 3 } } })
+    const noDay = await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'X', repeat: { frequency: 'weekly', count: 3 } } })
     expect(noDay.status).toBe(400)
     expect((await json(noDay)).error).toContain('scheduled date')
-    const noEnd = await x.owner('/api/jobs', { method: 'POST', json: { title: 'X', scheduledDate: '2026-11-03', repeat: { frequency: 'weekly' } } })
+    const noEnd = await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'X', scheduledDate: '2026-11-03', repeat: { frequency: 'weekly' } } })
     expect(noEnd.status).toBe(400)
     expect((await json(noEnd)).error).toContain('end')
     expect((await x.t.db.select().from(x.t.schema.job)).length).toBe(before)
   })
 
   test('the job page says which visit of how many; Stop cancels only the later open visits', async () => {
-    const first = await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Hedge trim', scheduledDate: '2026-11-04', repeat: { frequency: 'weekly', count: 5 } } }))
+    const first = await json(await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Hedge trim', scheduledDate: '2026-11-04', repeat: { frequency: 'weekly', count: 5 } } }))
     const rows = await x.t.db.select().from(x.t.schema.job).where(eq(x.t.schema.job.seriesId, first.series.id)).orderBy(asc(x.t.schema.job.seriesIndex))
     const second = rows[1]
     const page = await json(await x.owner(`/api/jobs/${second.id}`))
@@ -83,9 +88,9 @@ describe('1 · a job repeats, and every visit is on the calendar', () => {
   })
 
   test('a day the assignee is already booked is listed back, not double-booked', async () => {
-    const busy = await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Busy', scheduledDate: '2026-12-08', scheduledTime: '10:00', assignedToId: x.ownerId } }))
+    const busy = await json(await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Busy', scheduledDate: '2026-12-08', scheduledTime: '10:00', assignedToId: x.ownerId } }))
     expect(busy.id).toBeTruthy()
-    const r = await json(await x.owner('/api/jobs', { method: 'POST', json: { title: 'Leaves', scheduledDate: '2026-12-01', scheduledTime: '10:00', assignedToId: x.ownerId, repeat: { frequency: 'weekly', count: 3 } } }))
+    const r = await json(await x.owner('/api/jobs', { method: 'POST', json: { contactId: cust, title: 'Leaves', scheduledDate: '2026-12-01', scheduledTime: '10:00', assignedToId: x.ownerId, repeat: { frequency: 'weekly', count: 3 } } }))
     expect(r.series.made).toBe(2)
     expect(r.series.skipped).toEqual([{ date: '2026-12-08', reason: expect.stringContaining(busy.number) }])
   })

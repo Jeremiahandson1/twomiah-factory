@@ -91,6 +91,9 @@ const store: VerticalSettings = {
       '/crm/product-reviews': 'Customers',
       '/crm/google-reviews': 'Customers',
       '/crm/email': 'Customers',
+      // Email marketing and review requests (opt-in for the store): both are sent to its customers.
+      '/crm/marketing': 'Customers',
+      '/crm/reviews': 'Customers',
       '/crm/payments': 'Money',
       '/crm/disputes': 'Money',
       '/crm/discounts': 'Money',
