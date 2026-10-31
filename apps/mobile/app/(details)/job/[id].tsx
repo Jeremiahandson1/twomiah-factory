@@ -40,6 +40,8 @@ import { PhotoGallery } from '../../../src/components/PhotoGallery'
 import { useOfflineQueue } from '../../../src/offline/OfflineContext'
 import { useOfflineApi } from '../../../src/offline/useOfflineApi'
 import { JobFlowCard } from '../../../src/jobflow/JobFlowCard'
+import { JobInspections } from '../../../src/inspections/JobInspections'
+import { showsInspections } from '../../../src/inspections/rules'
 import { useJobFlowData } from '../../../src/jobflow/useJobFlowData'
 import { effectiveStatus, jobKey } from '../../../src/jobflow/flow'
 
@@ -59,7 +61,7 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
-  const { vertical } = useVertical()
+  const { vertical, hasFeature } = useVertical()
   const { stageName } = useStageName()
   const { can } = useAuth()
   const isRoof = vertical === 'roofing'
@@ -344,6 +346,13 @@ export default function JobDetailScreen() {
             <PhotoGallery jobId={id!} canAdd={canAddPhotos} />
           </View>
         </AnimatedCard>
+
+        {/* The project's inspections — Inspections on the Phone */}
+        {job.projectId && showsInspections(hasFeature, can) ? (
+          <AnimatedCard index={5}>
+            <JobInspections jobId={String(id)} projectId={String(job.projectId)} />
+          </AnimatedCard>
+        ) : null}
 
         {/* Notes */}
         <AnimatedCard index={6}>

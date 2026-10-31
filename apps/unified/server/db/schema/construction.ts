@@ -288,6 +288,19 @@ export const inspection = pgTable('inspection', {
   resultedBy: text('resulted_by'),
   /** Photos taken at the visit — the same list shape as a daily log's or a punch item's (siteRecords/recordPhotos.ts). */
   photos: json('photos').default([]).notNull(),
+  /**
+   * The customer's sign-off on the checklist as it stood (feature inspection_signature, migration 0056). The same evidence a signed
+   * quote carries — signature image, who typed their name, when, from where, on what device, a fingerprint of exactly what they saw
+   * and that they agreed to sign electronically — under the same column names, so the shared "who may see the evidence" rule
+   * (tenant-backend withoutSigningEvidence) applies unchanged. Null on every visit nobody signed.
+   */
+  signature: text('signature'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  consentAt: timestamp('consent_at'),
+  signatureHash: text('signature_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -312,6 +325,12 @@ export const inspectionTemplate = pgTable('inspection_template', {
   name: text('name').notNull(),
   /** The inspection type it is meant for ("Framing"); only used to suggest it when that type is picked. */
   type: text('type'),
+  /**
+   * Feature inspection_auto_checklists (migration 0056): a template with this on puts its lines on a new visit by itself — when the
+   * visit's type fits (`type`, or any when null) and the project has a job of one of `jobTypes` (any project when the list is empty).
+   */
+  autoAttach: boolean('auto_attach').default(false).notNull(),
+  jobTypes: json('job_types').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('inspection_template_company_id_idx').on(t.companyId),

@@ -393,6 +393,13 @@
       "when": 1793462536679,
       "tag": "0055_lead_lost_site_visit",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793465930358,
+      "tag": "0056_inspection_phone_signature_auto_attach",
+      "breakpoints": true
     }
   ]
 }
