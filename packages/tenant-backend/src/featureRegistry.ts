@@ -289,7 +289,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'portal_job_files', name: 'Homeowner Photos & Documents', description: 'The photos and documents you choose to share with a homeowner, in their portal', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
   // Not ready (owner tests it first): the held-depreciation reminder when a job is done, and mortgage-company check tracking.
-  { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, and tracks mortgage-company checks through endorsement', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, tracks mortgage-company checks through endorsement, and gives supplements your own statuses and a tracker across every claim', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // Not ready (owner tests it first): rename the pipeline stages and keep separate Retail and Insurance boards. Display names only.
   { id: 'pipeline_boards', name: 'Pipeline Stages & Boards', description: 'Rename the pipeline stages and keep separate Retail and Insurance boards', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is

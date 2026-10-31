@@ -32,6 +32,8 @@
 //     an edit could move an adjuster to another company (companyId), or store the phone "abcdefghij" the create refuses;
 //   · supplement numbering and the claim's supplement total are worked out with the claim row locked, so two at once
 //     can't both be SUP-002, or write a total that misses the other's approval.
+//   · the company's own supplement status (./supplementStatuses.ts, roofing parity row 10) sits on top of the fixed four: submit,
+//     approve and deny keep it only where it still fits the new fixed status, and never read it for any decision.
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, desc, eq, ne } from 'drizzle-orm'
@@ -43,6 +45,7 @@ import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { email as emailField, money, optional, phone as phoneField } from '../validation.ts'
+import { customStatusAfter } from './supplementStatuses.ts'
 import { SCOPE_FILES, generateXactimateScopeDocument, scopeKey, type ScopeFile } from './xactimate.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
@@ -376,7 +379,9 @@ export function createInsuranceRoutes(d: CrmDeps) {
     if (!sup) return fail(c, 404, 'Supplement not found')
     if (!SUBMITTABLE.includes(sup.status)) return fail(c, 400, wrongStateMessage(sup, 'submitted', SUBMITTABLE), 'supplement_wrong_status')
 
-    const [updated] = await db.update(supplement).set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() })
+    // The company's own status (supplementStatuses.ts) stays only where it still sits under the new fixed status.
+    const keep = await customStatusAfter(db, sup, 'submitted')
+    const [updated] = await db.update(supplement).set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date(), ...keep })
       .where(and(eq(supplement.id, id), eq(supplement.companyId, me.companyId))).returning()
     await db.insert(claimActivity).values({
       companyId: me.companyId, jobId: sup.jobId, claimId: sup.claimId, userId: me.userId, activityType: 'supplement',
@@ -425,6 +430,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
         denialReason: null,
         respondedAt: new Date(),
         updatedAt: new Date(),
+        ...(await customStatusAfter(tx, sup, 'approved')),
       }).where(eq(supplement.id, id)).returning()
 
       await tx.update(insuranceClaim).set({ supplementAmount: String(await approvedTotal(tx, sup.claimId)), updatedAt: new Date() })
@@ -467,6 +473,7 @@ export function createInsuranceRoutes(d: CrmDeps) {
         approvedAmount: null,
         respondedAt: new Date(),
         updatedAt: new Date(),
+        ...(await customStatusAfter(tx, sup, 'denied')),
       }).where(eq(supplement.id, id)).returning()
 
       // Denying one that had been approved takes its money back off the claim.

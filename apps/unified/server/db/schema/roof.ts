@@ -184,11 +184,36 @@ export const supplement = pgTable('supplement', {
   approvedAmount: decimal('approved_amount', { precision: 10, scale: 2 }),
   denialReason: text('denial_reason'),
   notes: text('notes'),
+  // The company's own status on top of the fixed four (supplement_status): which one, and when it was set. Null: none.
+  customStatusId: text('custom_status_id').references(() => supplementStatus.id, { onDelete: 'set null' }),
+  customStatusAt: timestamp('custom_status_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('supplement_company_id_idx').on(t.companyId),
   index('supplement_claim_id_idx').on(t.claimId),
+])
+
+/**
+ * A company's own supplement status (roofing parity, row 10; AccuLynx's pre-set supplement statuses: "under review",
+ * "pending re-inspection", "need more information"). It sits ON TOP of the fixed four on `supplement.status` (draft / submitted
+ * / approved / denied), which everything — the claim's money, the Xactimate scope, the follow-ups — stays keyed on: a custom
+ * status never changes the fixed one. `baseStatus` is the fixed status it sits under, and it can be put only on a supplement
+ * that is in it; when the fixed status moves, a custom status that no longer fits is cleared. `archivedAt`: kept on the
+ * supplements that carry it, offered to no new one.
+ */
+export const supplementStatus = pgTable('supplement_status', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  baseStatus: text('base_status').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  archivedAt: timestamp('archived_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('supplement_status_company_id_idx').on(t.companyId),
+  uniqueIndex('supplement_status_company_name_idx').on(t.companyId, t.name),
 ])
 
 export const adjusterContact = pgTable('adjuster_contact', {
