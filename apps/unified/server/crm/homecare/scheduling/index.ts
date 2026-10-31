@@ -24,6 +24,7 @@ import { createCaregiverAvailabilityRoutes } from './caregiverAvailability.ts'
 import { createMatchingRoutes } from './matching.ts'
 import { createNoShowRoutes } from './noShow.ts'
 import { createForecastRoutes } from './forecast.ts'
+import { createPickupRewardsRoutes } from './pickupRewards.ts'
 
 export function schedulingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   const shared = createSchedulingShared(d)
@@ -46,5 +47,6 @@ export function schedulingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/matching', access: 'user', router: createMatchingRoutes(core, d) },
     { path: '/api/no-show', access: 'user', router: createNoShowRoutes(core, d) },
     { path: '/api/forecast', access: 'user', router: createForecastRoutes(core, d) },
+    { path: '/api/care-rewards', access: 'user', feature: 'care_pickup_rewards', router: createPickupRewardsRoutes(core, d) },
   ]
 }

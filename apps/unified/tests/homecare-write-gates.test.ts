@@ -29,6 +29,7 @@ const SELF: Record<string, string> = {
   'POST /api/emergency/client-unavailable': 'I cancel only my own visit (client refused / not home)',
   'POST /api/scheduling/time-off': 'I file my own time-off request, always pending',
   'POST /api/open-shifts/:id/claim': 'I claim an offered shift for myself',
+  'POST /api/care-rewards/redeem': 'I ask for a reward with my own points (care_pickup_rewards)',
   'POST /api/shift-swaps': 'I ask to swap my own shift',
   'PUT /api/shift-swaps/:id/respond': 'only the caregiver asked answers',
   'PUT /api/shift-swaps/:id/cancel': 'only the caregiver who asked withdraws',

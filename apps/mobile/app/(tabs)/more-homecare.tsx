@@ -3,9 +3,9 @@
  * requests, call-outs and incidents, documents to sign, mileage, notifications, clients, visit
  * history, payday verification, Sandata help, and reaching the office.
  */
-import React from 'react'
+import React, { useCallback, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Alert } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -14,6 +14,7 @@ import { useHaptics } from '../../src/hooks/useHaptics'
 import { useToast } from '../../src/components/ToastProvider'
 import { useCare } from '../../src/care/CareContext'
 import { needsSandata } from '../../src/care/sandata'
+import { careGet } from '../../src/care/careApi'
 import { Badge, SOLID } from '../../src/care/ui'
 
 interface Item { icon: string; label: string; desc: string; to?: string; onPress?: () => void; badge?: number }
@@ -25,6 +26,9 @@ export default function MoreHomecareScreen() {
   const haptics = useHaptics()
   const toast = useToast()
   const care = useCare()
+  // care_pickup_rewards: the points page answers only for an agency that has it, so the two entries show only then.
+  const [points, setPoints] = useState<number | null>(null)
+  useFocusEffect(useCallback(() => { careGet<any>('/api/care-rewards/me').then((r) => setPoints(r.ok && r.data && typeof r.data.balance === 'number' ? r.data.balance : null)) }, []))
 
   const email = (company as any)?.email as string | undefined
   const phone = (company as any)?.phone as string | undefined
@@ -33,6 +37,10 @@ export default function MoreHomecareScreen() {
       title: 'Shifts',
       items: [
         { icon: 'briefcase-outline', label: 'Open shifts', desc: 'Pick up extra visits', to: '/(care)/open-shifts' },
+        ...(points !== null ? [
+          { icon: 'calendar-outline', label: 'My hours & time off', desc: 'Hours you want, days you can work, time off', to: '/(care)/availability' },
+          { icon: 'gift-outline', label: 'Points & rewards', desc: `${points} point${points === 1 ? '' : 's'} — ask for a reward`, to: '/(care)/rewards' },
+        ] : []),
         { icon: 'swap-horizontal', label: 'Shift swaps', desc: 'Swaps you asked for and swaps asked of you', to: '/(care)/swaps', badge: care.incomingSwaps.length },
         { icon: 'git-compare-outline', label: 'Requests', desc: 'Visits you asked to move, and client requests', to: '/(care)/requests', badge: care.clientRequests.length },
         { icon: 'alert-circle-outline', label: "Can't make a shift", desc: 'Tell the office so they can find coverage', to: '/(care)/shift-action?kind=miss' },

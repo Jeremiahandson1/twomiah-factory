@@ -23,6 +23,7 @@ import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { sendGustoHoursCsv } from '../../payrollExport/gustoHours.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { bonusNotInFile } from './pickupBonusFiles.ts'
 
 const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
 
@@ -67,7 +68,7 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
         shiftCount: l.shifts,
         totalHours: l.totalHours.toFixed(2), regularHours: l.regularHours.toFixed(2),
         overtimeHours: l.overtimeHours.toFixed(2), doubleTimeHours: l.doubleTimeHours.toFixed(2), weekendHours: l.weekendHours.toFixed(2),
-        hourlyRate: l.baseRate.toFixed(2), overtimeRate: l.otRate.toFixed(2), grossPay: l.grossPay.toFixed(2),
+        hourlyRate: l.baseRate.toFixed(2), overtimeRate: l.otRate.toFixed(2), grossPay: l.grossPay.toFixed(2), pickupBonus: (l.bonusPay ?? 0).toFixed(2),
       }
     })
   }
@@ -166,6 +167,8 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
     if (!isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
     const result = await gustoRows(me.companyId, startDate!, endDate!)
+    const noBonus = bonusNotInFile(result, 'Gusto hours file')
+    if (noBonus) return fail(c, 400, noBonus, 'pickup_bonus_not_in_file')
 
     // The file, its sync-log row and its audit row are the shared builder's (server/crm/payrollExport/gustoHours.ts).
     return sendGustoHoursCsv(c, d, startDate!, endDate!, result)

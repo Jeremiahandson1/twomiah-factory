@@ -38,6 +38,15 @@ export function createCaregiverAvailabilityRoutes(_core: HomecareCore, d: CrmDep
     const caregiverId = c.req.param('id')!
     const { id: _id, caregiverId: _cg, companyId: _co, createdAt: _ca, updatedAt: _ua, ...body } = await c.req.json().catch(() => ({})) as any
 
+    // "Hours I want" belongs to care_pickup_rewards: an agency without it answers 403 and the field is never stored.
+    if (body.hoursWanted !== undefined && !(await d.features.isFeatureEnabled(companyId, 'care_pickup_rewards'))) return fail(c, 403, 'Hours wanted is not turned on for this agency', 'FEATURE_NOT_ENABLED')
+    // Hours a week (care_pickup_rewards: the phone's "hours I want"): whole hours, 0 to 168; null clears the wish.
+    for (const [key, label] of [['hoursWanted', 'Hours wanted'], ['maxHoursPerWeek', 'The most hours a week']] as const) {
+      if (body[key] === undefined || (key === 'hoursWanted' && body[key] === null)) continue
+      const n = typeof body[key] === 'string' && body[key].trim() !== '' ? Number(body[key]) : body[key]
+      if (!Number.isInteger(n) || n < 0 || n > 168) return fail(c, 400, `${label} must be a whole number of hours from 0 to 168.`)
+      body[key] = n
+    }
     const [existing] = await db.select({ id: caregiverAvailability.id, companyId: caregiverAvailability.companyId }).from(caregiverAvailability)
       .where(eq(caregiverAvailability.caregiverId, caregiverId)).limit(1)
     if (existing) {

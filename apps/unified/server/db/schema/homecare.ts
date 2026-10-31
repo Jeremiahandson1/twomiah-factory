@@ -49,6 +49,8 @@ export const caregiverAvailability = pgTable('caregiver_availability', {
   caregiverId: text('caregiver_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
   status: text('status').default('available').notNull(),
   maxHoursPerWeek: integer('max_hours_per_week').default(40).notNull(),
+  // care_pickup_rewards: the hours a week the caregiver WANTS (maxHoursPerWeek is the most they will do); null until they say.
+  hoursWanted: integer('hours_wanted'),
   weeklyAvailability: json('weekly_availability'),
   notes: text('notes'),
   // Per-day availability
@@ -2312,6 +2314,66 @@ export const familyRequest = pgTable('family_request', {
   index('family_request_client_idx').on(t.clientId),
 ])
 
+// care_pickup_rewards — an open shift taken by a caregiver: the bonus it carried (integer cents, paid through the pay run once the
+// visit is worked), and the one row that earns the "extra shift" points. One row per posting; a re-fill moves it to the new caregiver.
+export const openShiftPickup = pgTable('open_shift_pickup', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  clientId: text('client_id'),
+  shiftDate: date('shift_date').notNull(),
+  bonusCents: integer('bonus_cents').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('open_shift_pickup_shift_idx').on(t.openShiftId),
+  index('open_shift_pickup_caregiver_idx').on(t.companyId, t.caregiverId, t.shiftDate),
+])
+
+// The points ledger: signed whole points, one row per thing earned (the reference makes each earn once), spent or adjusted.
+export const rewardPoint = pgTable('reward_point', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // extra_shift | on_time | min_hours | adjustment | redeemed | refund
+  points: integer('points').notNull(),
+  reference: text('reference').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('reward_point_ref_idx').on(t.companyId, t.caregiverId, t.kind, t.reference),
+  index('reward_point_caregiver_idx').on(t.companyId, t.caregiverId, t.createdAt),
+])
+
+export const rewardItem = pgTable('reward_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  costPoints: integer('cost_points').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('reward_item_company_idx').on(t.companyId, t.isActive),
+])
+
+export const rewardRedemption = pgTable('reward_redemption', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  rewardItemId: text('reward_item_id').references(() => rewardItem.id, { onDelete: 'set null' }),
+  name: text('name').notNull(), // the reward's name when it was asked for
+  points: integer('points').notNull(),
+  status: text('status').default('requested').notNull(), // requested | fulfilled | declined
+  handledById: text('handled_by_id').references(() => user.id),
+  handledNote: text('handled_note'),
+  handledAt: timestamp('handled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('reward_redemption_company_idx').on(t.companyId, t.status, t.createdAt),
+  index('reward_redemption_caregiver_idx').on(t.caregiverId),
+])
+
 export const payrollRecords = pgTable('payroll_records', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -2327,6 +2389,8 @@ export const payrollRecords = pgTable('payroll_records', {
   overtimeRate: decimal('overtime_rate', { precision: 8, scale: 2 }),
   grossPay: decimal('gross_pay', { precision: 12, scale: 2 }),
   mileageReimbursement: decimal('mileage_reimbursement', { precision: 8, scale: 2 }).default('0'),
+  // care_pickup_rewards: the open-shift pickup bonuses inside grossPay.
+  bonusPay: decimal('bonus_pay', { precision: 10, scale: 2 }).default('0'),
   status: text('status').default('draft').notNull(),
   approvedAt: timestamp('approved_at'),
   approvedById: text('approved_by_id').references(() => user.id),

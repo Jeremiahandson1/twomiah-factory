@@ -266,3 +266,64 @@ export function mealProblem(meal: string | null | undefined, description: string
 export function mealBody(m: { description: string; amountEaten: string; note?: string }, savedAt: string): { description: string; amountEaten: string; note?: string; savedAt: string } {
   return { description: m.description.trim(), amountEaten: m.amountEaten, ...(m.note?.trim() ? { note: m.note.trim() } : {}), savedAt }
 }
+
+// ── Hours wanted, time off and rewards (care_pickup_rewards) ──
+export const DAYS = [
+  { key: 'monday', label: 'Monday' }, { key: 'tuesday', label: 'Tuesday' }, { key: 'wednesday', label: 'Wednesday' }, { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' }, { key: 'saturday', label: 'Saturday' }, { key: 'sunday', label: 'Sunday' },
+] as const
+export const TIME_OFF_TYPES = [
+  { code: 'vacation', label: 'Vacation' }, { code: 'sick', label: 'Sick' }, { code: 'personal', label: 'Personal day' }, { code: 'unpaid', label: 'Unpaid time off' },
+] as const
+export const TIME_OFF_STATUS: Record<string, string> = { pending: 'Waiting for the office', approved: 'Approved', denied: 'Declined', rejected: 'Declined' }
+
+const wholeHours = (text: string): number | null => (/^\d{1,3}$/.test(text.trim()) && Number(text) <= 168 ? Number(text) : null)
+const clock = (t: string) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(t.trim())
+const mins = (t: string) => Number(t.trim().split(':')[0]) * 60 + Number(t.trim().split(':')[1])
+
+export interface DayChoice { available: boolean; start: string; end: string }
+
+/** Why the availability is not ready to save, in plain words — or null when it is. Blank hours wanted is allowed (clears it). */
+export function availabilityProblem(hoursWanted: string, maxHours: string, days: Record<string, DayChoice>): string | null {
+  if (hoursWanted.trim() && wholeHours(hoursWanted) === null) return 'Hours you want a week must be a whole number from 0 to 168.'
+  if (maxHours.trim() && wholeHours(maxHours) === null) return 'The most hours a week must be a whole number from 0 to 168.'
+  if (hoursWanted.trim() && maxHours.trim() && Number(hoursWanted) > Number(maxHours)) return 'You cannot want more hours than the most you will work.'
+  for (const d of DAYS) {
+    const c = days[d.key]
+    if (!c?.available) continue
+    if (!clock(c.start) || !clock(c.end)) return `${d.label}: enter the times as HH:MM, like 08:00 and 16:00.`
+    if (mins(c.end) <= mins(c.start)) return `${d.label}: the end must be after the start.`
+  }
+  return null
+}
+
+/** The availability as the server takes it. A day that is off keeps its times out of the body. */
+export function availabilityBody(hoursWanted: string, maxHours: string, days: Record<string, DayChoice>): Record<string, unknown> {
+  const body: Record<string, unknown> = { hoursWanted: hoursWanted.trim() ? Number(hoursWanted) : null }
+  if (maxHours.trim()) body.maxHoursPerWeek = Number(maxHours)
+  for (const d of DAYS) {
+    const c = days[d.key]
+    if (!c) continue
+    body[`${d.key}Available`] = !!c.available
+    if (c.available) { body[`${d.key}StartTime`] = c.start.trim(); body[`${d.key}EndTime`] = c.end.trim() }
+  }
+  return body
+}
+
+/** Why a time-off request is not ready, in plain words — or null. `today` is the agency's day (YYYY-MM-DD). */
+export function timeOffProblem(start: string, end: string, type: string | null, today: string): string | null {
+  if (!type) return 'Pick what kind of time off it is.'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return 'Pick the first and last day.'
+  if (end < start) return 'The last day cannot be before the first.'
+  if (end < today) return 'That is already in the past — tell the office instead.'
+  return null
+}
+
+export function timeOffBody(start: string, end: string, type: string, reason: string): { startDate: string; endDate: string; type: string; reason?: string } {
+  return { startDate: start, endDate: end, type, ...(reason.trim() ? { reason: reason.trim() } : {}) }
+}
+
+/** What a reward costs against what the caregiver has, in words. */
+export function rewardAffordText(balance: number, cost: number): string {
+  return balance >= cost ? `${cost} points` : `${cost} points — ${cost - balance} more to go`
+}

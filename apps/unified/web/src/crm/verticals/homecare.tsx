@@ -52,6 +52,7 @@ export const MENU: Array<[path: string, section: string]> = [
   ['/crm/no-show-alerts', 'Scheduling'],
   ['/crm/shift-approvals', 'Scheduling'],
   ['/crm/route-optimizer', 'Scheduling'],
+  ['/crm/pickup-rewards', 'Scheduling'],
   ['/crm/company-optimizer', 'Scheduling'],
   ['/crm/adl', 'Daily care'],
   ['/crm/medications', 'Daily care'],

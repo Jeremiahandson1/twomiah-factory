@@ -20,6 +20,7 @@ import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { isYmd } from '../core/agencyTime.ts'
 import { OVERTIME_RULES, sanitizeRules } from '../core/payRules.ts'
+import { bonusNotInFile } from './pickupBonusFiles.ts'
 import { isCompanyPerson } from './shared.ts'
 
 export interface PayrollFileSettings {
@@ -127,10 +128,11 @@ export function createPayRulesRoutes(core: HomecareCore, d: CrmDeps) {
     const files = await fileSettings(companyId)
     const lines = await core.payroll.payrollForRange(companyId, startDate, endDate)
     if (!lines.length) return { res: fail(c, 400, 'No approved hours in these dates.', 'no_hours') }
+    const noBonus = bonusNotInFile(lines, needs === 'adp' ? 'ADP file' : 'Paychex file')
+    if (noBonus) return { res: fail(c, 400, noBonus, 'pickup_bonus_not_in_file') }
     const ids = await payrollWorkerIds(d.db, companyId, lines.map((l) => l.caregiverId))
     const missing = lines.filter((l) => !ids.has(l.caregiverId))
     if (missing.length) return { res: fail(c, 400, `${missing.length} caregiver(s) have no payroll id: ${missing.map((l) => `${l.firstName} ${l.lastName}`).join(', ')}. Set one on each in Pay rules.`, 'missing_worker_ids', Object.fromEntries(missing.map((l) => [l.caregiverId, `${l.firstName} ${l.lastName}`]))) }
-    void needs
     return { companyId, startDate: startDate as string, endDate: endDate as string, files, lines, ids }
   }
 

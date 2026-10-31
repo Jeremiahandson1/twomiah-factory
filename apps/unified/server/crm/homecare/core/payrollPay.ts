@@ -13,6 +13,7 @@
 // Change: the company's reviews, caregivers and rates only (companyId first).
 import { payableReviewWeeks, caregiverPayRates, reviewCountWithStatus } from '../../../data/homecarePayroll.ts'
 import { payableVisits, type PayableVisit } from '../../../data/homecarePayRules.ts'
+import { pickupsInRange } from '../../../data/homecareRewards.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { OT_WEEKLY_HOURS as WEEKLY_CAP, workweekStartOn, companyWorkWeek } from '../../payrollExport/workWeek.ts'
 import { addDays } from './agencyTime.ts'
@@ -58,6 +59,9 @@ export interface PayrollLine {
   doubleTimeHours: number
   doubleTimePay: number
   travelHours: number
+  /** care_pickup_rewards: the open-shift pickup bonuses of worked visits in the range, already inside grossPay (zero without the feature). */
+  bonusPay?: number
+  bonusShifts?: number
   baseRate: number
   otRate: number
   regularPay: number
@@ -127,6 +131,35 @@ export function createPayrollPay(d: CrmDeps) {
    * YYYY-MM-DD), or one caregiver's. Sorted by last name, first name.
    */
   async function payrollForRange(companyId: string, startDate: string, endDate: string, opts: {
+    caregiverId?: string | null; otThresholdHours?: number; otMultiplier?: number
+  } = {}): Promise<PayrollLine[]> {
+    const lines = await hoursPayroll(companyId, startDate, endDate, opts)
+    return withPickupBonuses(companyId, startDate, endDate, opts.caregiverId || null, lines)
+  }
+
+  /**
+   * An open shift's pickup bonus is paid through the pay run (care_pickup_rewards): once the visit it was posted for has been worked
+   * (a payable review of that caregiver, that client, that day), the bonus is added to that caregiver's line in the pay period holding
+   * the shift's date — separately shown (bonusPay) and inside grossPay, so Calculate, the approval and every export carry it. It is a flat
+   * amount: it never changes the hours or the overtime split.
+   */
+  async function withPickupBonuses(companyId: string, startDate: string, endDate: string, caregiverId: string | null, lines: PayrollLine[]): Promise<PayrollLine[]> {
+    if (!lines.length || !(await d.features.isFeatureEnabled(companyId, 'care_pickup_rewards'))) return lines
+    const pickups = (await pickupsInRange(d.db, companyId, startDate, endDate, caregiverId, PAYABLE_REVIEW_STATUSES)).filter((p) => p.reviewId && p.bonusCents > 0)
+    if (!pickups.length) return lines
+    const byCaregiver = new Map<string, { cents: number; shifts: number }>()
+    for (const p of pickups) {
+      const cur = byCaregiver.get(p.caregiverId) ?? { cents: 0, shifts: 0 }
+      byCaregiver.set(p.caregiverId, { cents: cur.cents + Number(p.bonusCents), shifts: cur.shifts + 1 })
+    }
+    return lines.map((l) => {
+      const b = byCaregiver.get(l.caregiverId)
+      if (!b) return l
+      return { ...l, bonusPay: b.cents / 100, bonusShifts: b.shifts, grossPay: (cents(l.grossPay) + b.cents) / 100 }
+    })
+  }
+
+  async function hoursPayroll(companyId: string, startDate: string, endDate: string, opts: {
     caregiverId?: string | null; otThresholdHours?: number; otMultiplier?: number
   } = {}): Promise<PayrollLine[]> {
     const threshold = Number.isFinite(Number(opts.otThresholdHours)) && Number(opts.otThresholdHours) > 0 ? Number(opts.otThresholdHours) : OT_WEEKLY_HOURS

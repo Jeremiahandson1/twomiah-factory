@@ -69,6 +69,9 @@ interface PayrollLine {
   doubleTimeHours?: number
   doubleTimePay?: number
   travelHours?: number
+  /** care_pickup_rewards only: open-shift pickup bonuses of worked visits, already inside wagesPay and grossPay. */
+  bonusPay?: number
+  bonusShifts?: number
   baseRate: number
   otRate: number
   regularPay: number
@@ -337,6 +340,8 @@ export default function PayrollProcessing() {
           doubleTimeHours: Number(p.doubleTimeHours) || 0,
           doubleTimePay: Number(p.doubleTimePay) || 0,
           travelHours: Number(p.travelHours) || 0,
+          bonusPay: Number(p.bonusPay) || 0,
+          bonusShifts: Number(p.bonusShifts) || 0,
           baseRate: Number(p.baseRate) || 0,
           otRate: Number(p.otRate) || 0,
           totalMiles: Number(p.totalMiles) || 0,
@@ -998,6 +1003,14 @@ export default function PayrollProcessing() {
                         <td style={stubNum}>{selectedPayroll.doubleTimeHours?.toFixed(2)}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.baseRate * 2)}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.doubleTimePay || 0)}</td>
+                      </tr>
+                    )}
+                    {(selectedPayroll.bonusPay || 0) > 0 && (
+                      <tr>
+                        <td style={stubCell}>Pickup bonus ({selectedPayroll.bonusShifts || 1} open shift{(selectedPayroll.bonusShifts || 1) === 1 ? '' : 's'})</td>
+                        <td style={stubNum}></td>
+                        <td style={stubNum}></td>
+                        <td style={stubNum}>{formatCurrency(selectedPayroll.bonusPay || 0)}</td>
                       </tr>
                     )}
                     {(selectedPayroll.ptoHours || 0) > 0 && (

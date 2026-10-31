@@ -697,6 +697,13 @@ export async function markFilled(q: Q, companyId: string, id: string, approverId
       ${claimedBy ? sql`claimed_by_id = ${claimedBy}, claimed_at = NOW(),` : sql``}
       approved_by_id = ${approverId}, approved_at = NOW(), updated_at = NOW()
     WHERE id = ${id} AND company_id = ${companyId}`)
+  // Every fill (first-to-accept, approval, smart-fill, auto-fill) ends here, so this is the one place a pickup is recorded: the bonus
+  // in whole cents as it was when the posting was filled, and who took it (a re-fill moves it). Pay and points read it later.
+  await q.execute(sql`INSERT INTO open_shift_pickup (id, company_id, open_shift_id, caregiver_id, client_id, shift_date, bonus_cents, created_at)
+    SELECT ${createId()}, company_id, id, claimed_by_id, client_id, date, GREATEST(0, ROUND(COALESCE(bonus_amount, 0) * 100))::int, NOW()
+      FROM open_shifts WHERE id = ${id} AND company_id = ${companyId} AND claimed_by_id IS NOT NULL
+    ON CONFLICT (open_shift_id) DO UPDATE SET caregiver_id = EXCLUDED.caregiver_id, client_id = EXCLUDED.client_id,
+      shift_date = EXCLUDED.shift_date, bonus_cents = EXCLUDED.bonus_cents`)
 }
 
 /** Approve this caregiver's claims on a shift. */

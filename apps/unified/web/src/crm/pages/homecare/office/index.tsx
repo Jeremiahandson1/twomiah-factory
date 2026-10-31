@@ -13,7 +13,7 @@
 import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import {
-  AlertTriangle, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
+  AlertTriangle, Award, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
   Smartphone, ToggleLeft, TrendingUp, Upload, UserCog,
 } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
@@ -37,6 +37,7 @@ const VisitQuestions = page(() => import('./VisitQuestions'))
 const VisitItems = page(() => import('./VisitItems'))
 const VisitTaskReport = page(() => import('./VisitTaskReport'))
 const FamilyMessages = page(() => import('./FamilyMessages'))
+const PickupRewards = page(() => import('./PickupRewards'))
 const MarginReports = page(() => import('./MarginReports'))
 const DataImport = page(() => import('./DataImport'))
 const PayRules = page(() => import('./PayRules'))
@@ -86,6 +87,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/visit-items': 'care-clients:update',
   '/crm/visit-tasks': 'care-clients:update',
   '/crm/family-messages': 'care-portal:update',
+  '/crm/pickup-rewards': 'care-schedule:update',
   '/crm/data-import': 'care-clients:create',
   '/crm/pay-rules': 'care-payroll:read',
   '/crm/autopay': 'care-billing:read',
@@ -112,6 +114,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-visit-items" path="visit-items" element={<VisitItems />} />,
   <Route key="hc-office-visit-tasks" path="visit-tasks" element={<VisitTaskReport />} />,
   <Route key="hc-office-family-messages" path="family-messages" element={<FamilyMessages />} />,
+  <Route key="hc-office-pickup-rewards" path="pickup-rewards" element={<PickupRewards />} />,
   <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
@@ -139,6 +142,7 @@ export const nav: NavItem[] = [
   { to: '/crm/visit-questions', icon: ClipboardList, label: 'Clock-in questions', permission: PERMISSION['/crm/visit-questions'], features: ['care_visit_questions'] },
   { to: '/crm/visit-items', icon: ClipboardList, label: 'In-visit items', permission: PERMISSION['/crm/visit-items'], features: ['care_visit_items'] },
   { to: '/crm/visit-tasks', icon: ClipboardList, label: 'Visit tasks & signatures', permission: PERMISSION['/crm/visit-tasks'], features: ['care_required_tasks', 'care_visit_signature'] },
+  { to: '/crm/pickup-rewards', icon: Award, label: 'Pickup bonus & rewards', permission: PERMISSION['/crm/pickup-rewards'], features: ['care_pickup_rewards'] },
   { to: '/crm/family-messages', icon: MessageSquare, label: 'Family messages', permission: PERMISSION['/crm/family-messages'], features: ['care_family_comms'] },
   { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
   { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create'], features: ['care_import'] },
