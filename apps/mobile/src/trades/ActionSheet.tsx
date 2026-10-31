@@ -40,9 +40,15 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
     for (const inp of action.inputs || []) if (inp.options) sent[inp.id] = offered[inp.id]?.map[values[inp.id]] ?? ''
     const req = action.request(row, sent)
     const keep = action.offline?.(row)
-    const r: any = keep
-      ? await ({ POST: offline.post, PUT: offline.put, PATCH: offline.patch, DELETE: (p: string, _b: unknown, o: any) => offline.del(p, o) } as const)[req.method](req.path, req.body, { recordKey: keep.key, label: keep.label })
-      : await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
+    let r: any
+    try {
+      r = keep
+        ? await ({ POST: offline.post, PUT: offline.put, PATCH: offline.patch, DELETE: (p: string, _b: unknown, o: any) => offline.del(p, o) } as const)[req.method](req.path, req.body, { recordKey: keep.key, label: keep.label })
+        : await api(req.path, { method: req.method, body: req.body === undefined ? undefined : JSON.stringify(req.body) })
+    } catch {
+      // A save that is not kept for later (no `offline`) and could not reach the server: said as not done, never as saved.
+      r = { ok: false, error: 'No signal. This needs a connection and was not saved. Try again when you have signal.' }
+    }
     setBusy(false)
     if (!r.ok) { toast.show(r.error || 'That did not go through', 'error'); return }
     // Kept on the phone, not done yet: said as waiting, never as done.

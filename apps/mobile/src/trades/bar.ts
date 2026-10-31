@@ -9,6 +9,7 @@
 import type { TileDef } from '../home/tiles'
 import { type ScreenSpec, type Row, words, calDay, hhmm, dayOnly, join } from './kit'
 import { EVENT_TILES } from './restaurant'
+import { lineRows, lineChoice, fixBody, type ScanLine } from './invoiceScan'
 import { DAY_NAMES, WEEK_CHOICES, DATE_CHOICES, STATUS, STATUS_TONE, weekAfter, windowWords, dateBody, dateWords, shiftWords, swapRows, mayTakeBack, swapChoices, choiceLabel, localDay } from './shiftRequests'
 
 const STATS = '/api/dashboard/stats'
@@ -98,6 +99,8 @@ export const BAR: ScreenSpec[] = [
     list: { path: '/api/stock/count' }, pick: (b) => b?.stock || [],
     rows: (i) => ({ id: i.id, key: i.id, title: i.name, subtitle: join(words(i.category), i.packName && i.packSize ? `${i.packName} of ${i.packSize}` : i.packName) }),
     empty: { title: 'No stock items', body: 'A manager adds stock items on the desktop.' },
+    // Receiving from the supplier's invoice (restaurant-bar parity #7): a manager photographs it here; the same routes as the Stock page's Invoices tab.
+    links: [{ label: 'Scan a supplier invoice', route: '/(details)/t/bar-invoices', icon: 'document-text', any: ['bar:update'], feature: 'bar_invoice_scan' }],
     actions: [{ id: 'finish-count', label: 'Finish the count', icon: 'checkmark-done', any: ['bar:register'],
       confirm: { title: 'Finish this count?', body: () => 'This closes the count. A new one starts the next time someone counts.', button: 'Finish count' }, request: () => ({ method: 'POST', path: '/api/stock/count/finish' }), done: 'Count finished' }],
     detail: {
@@ -158,6 +161,51 @@ export const BAR: ScreenSpec[] = [
       actions: [
         { id: 'approve', label: 'Approve', icon: 'checkmark-circle', any: ['bar:update'], request: (d) => ({ method: 'PUT', path: `/api/schedule/time-off/${d.id}`, body: { status: 'approved' } }), done: 'Approved' },
         { id: 'deny', label: 'Deny', icon: 'close-circle', any: ['bar:update'], confirm: { title: 'Deny this request?', body: (d) => `${d.name || 'They'} will see it was denied.`, button: 'Deny' }, request: (d) => ({ method: 'PUT', path: `/api/schedule/time-off/${d.id}`, body: { status: 'denied' } }), done: 'Denied' },
+      ],
+    },
+  },
+  // ── Invoices read from a photo (restaurant-bar parity #7). The photo needs signal (it is not queued); the reading, the fixes and Receive are the server's.
+  {
+    id: 'bar-invoices', title: 'Supplier invoices', any: ['bar:update'], feature: 'bar_invoice_scan',
+    list: { path: '/api/stock/invoices' },
+    rows: (i) => ({ id: i.id, key: i.id, title: i.supplierName || i.vendorName || 'Invoice', subtitle: join(i.invoiceNumber, `${i.lineCount} lines`, i.status === 'review' ? (i.needsAttention ? `${i.needsAttention} to check` : 'ready to receive') : undefined), meta: dayOnly(i.confirmedAt || i.createdAt),
+      badge: i.status === 'confirmed' ? 'Received' : 'To check', tone: i.status === 'confirmed' ? 'success' : 'warning' }),
+    empty: { title: 'No invoices scanned', body: 'Tap + to photograph a supplier invoice. Nothing changes your counts or prices until you receive it.' },
+    create: { label: 'Scan an invoice', route: '/(details)/stock-invoice', any: ['bar:update'] },
+    detail: {
+      path: (id) => `/api/stock/invoices/${id}`, title: (d) => d.supplierName || d.vendorName || 'Invoice', subtitle: (d) => join(d.invoiceNumber, dayOnly(d.createdAt)),
+      badge: (d) => (d.status === 'confirmed' ? 'Received' : d.needsAttention ? `${d.needsAttention} to check` : 'Ready to receive'),
+      sections: [
+        { fields: [
+          { label: 'Supplier', get: (d) => d.vendorName || d.supplierName }, { label: 'Invoice number', get: (d) => d.invoiceNumber }, { label: 'Invoice date', get: (d) => calDay(d.invoiceDate) },
+          { label: 'The invoice says', get: (d) => (d.totalCents == null ? undefined : money(d.totalCents / 100)) }, { label: 'The lines add up to', get: (d) => money((d.linesTotalCents || 0) / 100) },
+          { label: 'The reader said', get: (d) => d.notes },
+          { label: 'Heads up', get: (d) => (d.duplicateOf ? `Already received${d.duplicateOf.number ? ` as order #${d.duplicateOf.number}` : ''}. Receive again only on the desktop, if this is another delivery.` : undefined) },
+        ] },
+        { title: 'Lines', rows: (d) => lineRows(d), empty: 'No lines.' },
+      ],
+      actions: [
+        { id: 'match-line', label: 'Pick the item for a line', icon: 'create', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [
+            { id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } },
+            { id: 'item', label: 'It is this stock item', required: true, options: { path: () => '/api/stock/items', pick: (b) => b?.stock || [], label: (s: any) => `${s.name} (${s.packName})`.slice(0, 60), value: (s: any) => s.id, none: 'No stock items yet.', loading: 'Getting your stock…' } },
+          ],
+          request: (d, v) => ({ method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: { lines: [{ n: Number(v.line), stockItemId: v.item }] } }), done: 'Matched' },
+        { id: 'fix-line', label: 'Fix how many or the price', icon: 'pencil', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [
+            { id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } },
+            { id: 'qty', label: 'How many came (leave empty to keep)', kind: 'number' }, { id: 'price', label: 'Price of one, in dollars (leave empty to keep)', kind: 'number' },
+          ],
+          request: (d, v) => { const f = fixBody(v); return { method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: 'body' in f ? f.body : { lines: [] } } }, done: 'Fixed' },
+        { id: 'skip-line', label: 'Skip a line', icon: 'close-circle', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [{ id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } }],
+          request: (d, v) => ({ method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: { lines: [{ n: Number(v.line), skip: true }] } }), done: 'Skipped' },
+        { id: 'receive-invoice', label: 'Receive into stock', icon: 'checkmark-done', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          confirm: { title: 'Receive this invoice?', body: (d) => `${(d.lines || []).filter((l: ScanLine) => !l.skip).length} lines come into your stock now: the counts and the prices of these items change, the same as marking an order as arrived. It is done once, and it needs signal.`, button: 'Receive it' },
+          request: (d) => ({ method: 'POST', path: `/api/stock/invoices/${d.id}/confirm`, body: {} }), done: 'Received into stock' },
+        { id: 'discard-invoice', label: 'Throw it away', icon: 'trash', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          confirm: { title: 'Throw this scan away?', body: () => 'Nothing was received from it, so no count or price changes. The photo is deleted.', button: 'Throw it away' },
+          request: (d) => ({ method: 'POST', path: `/api/stock/invoices/${d.id}/discard`, body: {} }), done: 'Thrown away' },
       ],
     },
   },
