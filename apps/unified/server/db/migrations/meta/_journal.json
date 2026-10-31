@@ -484,6 +484,13 @@
       "when": 1793481778527,
       "tag": "0068_material_list_template",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793482507198,
+      "tag": "0069_supplier_pricing_and_send",
+      "breakpoints": true
     }
   ]
 }

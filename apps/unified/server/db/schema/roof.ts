@@ -2,7 +2,7 @@
 // activity, storms and storm radar, canvassing, and the measurement providers. Column for column from
 // templates/crm-roof/backend/db/schema.ts (docs/UNIFIED_ROOF_PLAN.md decision 7). A roofing job, its customer, quotes
 // and invoices are the CRM's own tables (crm.ts), with roofing's columns on `job` (decision 2).
-import { pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, job } from './crm.ts'
@@ -55,6 +55,38 @@ export const measurementReport = pgTable('measurement_report', {
   index('measurement_report_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A supplier's price list as the roofer holds it (0069): what ABC Supply, SRS, a local yard charges the business for its items.
+ * An order priced from a list is locked to it (server/crm/roof/supplierPricing.ts) — Roofr's "created locked to that supplier",
+ * "change supplier clears pricing". Money is integer cents. These are the business's costs: read with margin:read.
+ */
+export const supplierPriceList = pgTable('supplier_price_list', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  supplier: text('supplier').notNull(),
+  name: text('name').notNull(),
+  active: boolean('active').default(true).notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('supplier_price_list_company_id_idx').on(t.companyId),
+])
+
+export const supplierPriceItem = pgTable('supplier_price_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  priceListId: text('price_list_id').notNull().references(() => supplierPriceList.id, { onDelete: 'cascade' }),
+  /** Which kind of line on our material list this is the price of (shingles, starter, ridge-cap…), so a list-made order prices itself. */
+  code: text('code'),
+  sku: text('sku'),
+  description: text('description').notNull(),
+  unit: text('unit').default('ea').notNull(),
+  unitPriceCents: integer('unit_price_cents').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('supplier_price_item_price_list_id_idx').on(t.priceListId),
+])
+
 export const material = pgTable('material', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -74,6 +106,10 @@ export const material = pgTable('material', {
   contactName: text('contact_name'),
   contactPhone: text('contact_phone'),
   contactEmail: text('contact_email'),
+  // The supplier price list the order's prices came from (0069): while set, the prices are locked to it and to the supplier; a
+  // different supplier clears them. And each time the order was sent to the supplier: who, to whom, what was said.
+  priceListId: text('price_list_id').references((): AnyPgColumn => supplierPriceList.id, { onDelete: 'set null' }),
+  sendLog: json('send_log'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

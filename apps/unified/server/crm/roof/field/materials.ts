@@ -16,7 +16,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, eq, gte, lt } from 'drizzle-orm'
 import { companyTimeZone, isIsoDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
-import { job, material } from '../../../db/schema/index.ts'
+import { job, material, supplierPriceItem } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
@@ -24,6 +24,7 @@ import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { lineItemInput, materialOrderStatus, normaliseLineItems, optional } from '../validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { clearPricing, relock, sameSupplier, totalOf, type OrderLine, type PriceItem } from '../supplierPricing.ts'
 import { MATERIAL_SORTS, materialOrderBy, type MaterialSort } from '../../../data/materialOrders.ts'
 
 const MATERIAL_MONEY = ['totalCost'] as const
@@ -187,10 +188,26 @@ export function createMaterialRoutes(d: CrmDeps) {
     if (deliveryDate.value !== undefined) updateData.deliveryDate = deliveryDate.value
     // Same rule as create: an edit that changes the lines recomputes the total; the client's totalCost is never stored.
     delete updateData.totalCost
-    if (data.lineItems) {
-      const { lineItems, total } = normaliseLineItems(data.lineItems)
-      updateData.lineItems = lineItems
-      updateData.totalCost = total.toFixed(2)
+    let lines: OrderLine[] | null = null
+    if (data.lineItems) lines = normaliseLineItems(data.lineItems).lineItems as OrderLine[]
+    // An order priced from a supplier's list is locked to it (supplierPricing.ts; Roofr's "created locked to that supplier"): the
+    // prices cannot be typed over, and a different supplier takes every price off.
+    if (before.priceListId) {
+      if (data.supplier !== undefined && !sameSupplier(data.supplier, before.supplier)) {
+        if (!['not_ordered', 'ready_to_send', 'rejected'].includes(before.orderStatus)) return fail(c, 409, `This order has already gone to ${before.supplier} at its prices. Make a new order for another supplier.`, 'supplier_locked')
+        lines = clearPricing(lines ?? ((before.lineItems as OrderLine[]) || []))
+        updateData.priceListId = null
+        updateData.totalCost = totalOf(lines).toFixed(2)
+      } else if (lines) {
+        const items: PriceItem[] = (await db.select().from(supplierPriceItem).where(eq(supplierPriceItem.priceListId, before.priceListId)))
+          .map((i: any) => ({ id: i.id, code: i.code, sku: i.sku, description: i.description, unit: i.unit, unitPriceCents: i.unitPriceCents }))
+        lines = relock(lines, (before.lineItems as OrderLine[]) || [], items, before.priceListId)
+        updateData.totalCost = totalOf(lines).toFixed(2)
+      }
+    }
+    if (lines) {
+      updateData.lineItems = lines
+      if (updateData.totalCost === undefined) updateData.totalCost = totalOf(lines).toFixed(2)
     }
     const [updated] = await db.update(material).set(updateData as any).where(and(eq(material.id, id), eq(material.companyId, companyId))).returning()
     return one(c, updated)

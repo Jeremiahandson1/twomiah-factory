@@ -300,6 +300,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'material_supply', name: 'Supplier Ordering', description: 'Send a material order to the supplier by email, with the supplier\'s own price list locked to it — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'roof_permits', name: 'Permits', description: 'Track the permits on a job — type, number, fee and status — and see every job\'s permits on one board — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'roof_work_orders', name: 'Crew & Sub Work Orders', description: 'Text a crew or subcontractor a work order they accept, reject or complete from a private link — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },

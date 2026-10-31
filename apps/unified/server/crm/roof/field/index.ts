@@ -20,6 +20,7 @@ import { createCrewRoutes } from './crews.ts'
 import { createMaterialRoutes } from './materials.ts'
 import { createMaterialListRoutes } from './materialListRoutes.ts'
 import { createMaterialListTemplateRoutes } from './materialListTemplates.ts'
+import { createMaterialSupplyRoutes } from './materialSupplyRoutes.ts'
 import { createStormMapRoutes } from './stormMap.ts'
 import { createTerritoryRoutes } from './territories.ts'
 import { createStormData } from './stormData.ts'
@@ -34,7 +35,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/crews', access: 'user', feature: 'crews', router: createCrewRoutes(d) }, // the Crews switch's, as its menu item and the job pages' crew pickers are (2026-10-22)
     { path: '/api/materials', access: 'user', feature: 'materials', router: createMaterialRoutes(d) },
     { path: '/api/material-list/templates', access: 'user', feature: 'roof_material_list', router: createMaterialListTemplateRoutes(d) }, // saved assumption sets (not ready)
-    { path: '/api/material-list', access: 'user', feature: 'roof_material_list', router: createMaterialListRoutes(d) }, // the squares → material list calculator (not ready)
+    { path: '/api/material-list', access: 'user', feature: 'roof_material_list', router: createMaterialListRoutes(d) },
+    { path: '/api/material-supply', access: 'user', feature: 'material_supply', router: createMaterialSupplyRoutes(d) }, // supplier price lists, ordering from the supplier (not ready) // the squares → material list calculator (not ready)
     // Roofing depth gap 9 (not ready): past customers in a storm's path + "check NOAA now"; drawn canvass territories.
     { path: '/api/storm-map', access: 'user', feature: 'storm_customer_map', router: createStormMapRoutes(d) },
     { path: '/api/territories', access: 'user', feature: 'canvass_territories', router: createTerritoryRoutes(d) },
