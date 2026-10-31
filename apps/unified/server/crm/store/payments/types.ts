@@ -43,6 +43,12 @@ export type CreateCheckoutInput = {
    * Checkout opens with the address filled in and the shopper can still change it). Only Stripe uses it.
    */
   prefill?: { name: string; shipping: { name: string; address: Address } }
+  /**
+   * A signed-in shopper's Stripe customer on the merchant's own account (store_fast_checkout). With `saveCard` the payment page
+   * asks Stripe to keep the card on that customer for next time — the shopper ticked the consent box first.
+   */
+  customerId?: string
+  saveCard?: boolean
   // Correlates the provider session back to our pending order row.
   clientReferenceId: string
   metadata?: Record<string, string>
@@ -148,8 +154,37 @@ export type RefundResult = {
  */
 export class RefundRefused extends Error {}
 
+/** A card kept on the merchant's own customer: what the shopper is shown ("Visa ending 4242") and what is charged. */
+export type SavedCard = { paymentMethodId: string; brand: string; last4: string; expMonth: number; expYear: number }
+
+/** One tap: charge a saved card now. 'requires_action' = the bank wants the shopper to confirm (3-D Secure) at `redirectUrl`. */
+export type ChargeSavedCardInput = {
+  customerId: string; paymentMethodId: string; amountCents: number; currency: string
+  /** Our order: a charge is made once per order whatever is retried. */
+  orderId: string; idempotencyKey: string
+  receiptEmail?: string; description?: string
+  shipping?: { name: string; address: Address }
+  returnUrl: string
+}
+export type ExpressIntentInput = {
+  amountCents: number; currency: string; orderId: string; receiptEmail?: string; description?: string
+  shipping?: { name: string; address: Address }
+}
+export type ChargeSavedCardResult =
+  | { status: 'succeeded'; paymentIntentId: string }
+  | { status: 'requires_action'; paymentIntentId: string; redirectUrl: string }
+  | { status: 'declined'; message: string }
+
 export interface PaymentProvider {
   readonly name: 'stripe' | 'square' | 'paypal'
+  /** Saved cards, express wallets (store_fast_checkout): only Stripe has them. */
+  ensureCustomer?(input: { email: string; name?: string | null; existingId?: string | null; shipping?: { name: string; address: Address } }): Promise<string>
+  savedCardOf?(paymentIntentId: string, customerId: string): Promise<SavedCard | null>
+  forgetCard?(paymentMethodId: string): Promise<void>
+  chargeSavedCard?(input: ChargeSavedCardInput): Promise<ChargeSavedCardResult>
+  /** Apple Pay / Google Pay / Link buttons: a PaymentIntent the browser confirms, and the keys Stripe.js is started with. */
+  createExpressIntent?(input: ExpressIntentInput): Promise<{ paymentIntentId: string; clientSecret: string }>
+  expressKeys?(): { publishableKey: string; stripeAccount: string | null } | null
   createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult>
   verifyAndParseWebhook(input: WebhookVerifyInput): Promise<WebhookResult>
   // Fetch a session's final state directly from the provider — used by the

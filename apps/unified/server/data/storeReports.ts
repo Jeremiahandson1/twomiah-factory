@@ -81,6 +81,43 @@ export async function topProducts(db: any, companyId: string, w: Window, limit =
   return rows.map((r: any) => ({ productId: r.productId ?? null, name: String(r.name), units: Number(r.units), salesCents: Number(r.salesCents), costedSalesCents: Number(r.costedSalesCents), costCents: r.costCents == null ? null : Number(r.costCents) }))
 }
 
+export interface VariantSales {
+  variantId: string | null; productId: string | null; productName: string; variantName: string; sku: string
+  units: number; salesCents: number
+  /** Sales and cost of the units that carried a cost; cost null = none of them did. */
+  costedSalesCents: number; costCents: number | null
+}
+
+/**
+ * Sales cut by variant (size, colour…): the same lines and the same rules as topProducts — returned units off, shipping, tax and
+ * discount codes not shared out, the cost the line kept when it sold — but one row per option. A variant removed since is still
+ * listed, by the names and SKU it had when it sold (grouped on its SKU then). Most sold first, then by name.
+ */
+export async function salesByVariant(db: any, companyId: string, w: Window, limit = 50): Promise<VariantSales[]> {
+  const kept = sql`(${storeOrderItem.quantity} - ${storeOrderItem.refundedQuantity})`
+  const key = sql`coalesce(${storeOrderItem.variantId}, ${storeOrderItem.sku})`
+  const rows = await db.select({
+    variantId: sql<string | null>`max(${storeOrderItem.variantId})`,
+    productId: sql<string | null>`max(${storeOrderItem.productId})`,
+    productName: sql<string>`max(${storeOrderItem.productName})`,
+    variantName: sql<string>`max(${storeOrderItem.variantName})`,
+    sku: sql<string>`max(${storeOrderItem.sku})`,
+    units: sql<number>`coalesce(sum(${kept}), 0)`,
+    salesCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0)`,
+    costedSalesCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null), 0)`,
+    costCents: sql<number | null>`sum(${storeOrderItem.unitCostCents} * ${kept}) filter (where ${storeOrderItem.unitCostCents} is not null)`,
+  }).from(storeOrderItem).innerJoin(storeOrder, sql`${storeOrder.id} = ${storeOrderItem.orderId}`)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
+    .groupBy(key)
+    .having(sql`coalesce(sum(${kept}), 0) > 0`)
+    .orderBy(sql`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0) desc`, sql`max(${storeOrderItem.productName}) asc`, sql`max(${storeOrderItem.variantName}) asc`)
+    .limit(limit)
+  return rows.map((r: any) => ({
+    variantId: r.variantId ?? null, productId: r.productId ?? null, productName: String(r.productName), variantName: String(r.variantName), sku: String(r.sku),
+    units: Number(r.units), salesCents: Number(r.salesCents), costedSalesCents: Number(r.costedSalesCents), costCents: r.costCents == null ? null : Number(r.costCents),
+  }))
+}
+
 export interface Repeat {
   /** Shoppers who ordered in the window. */
   customers: number

@@ -21,6 +21,8 @@ interface Report {
   series: Point[]
   /** costCents / profitCents are sent only to a seat that sees what things cost (margin:read); null = the product has no cost. */
   topProducts: { productId: string | null; name: string; units: number; salesCents: number; costCents?: number | null; profitCents?: number | null }[]
+  /** Sales cut by option (size, colour…); cost, profit and margin are sent only to a seat that sees costs, null = no cost stored. */
+  variants: { variantId: string | null; productName: string; variantName: string; sku: string; units: number; salesCents: number; costCents?: number | null; profitCents?: number | null; marginPercent?: number | null }[]
   profit?: { productSalesCents: number; costedSalesCents: number; costCents: number; profitCents: number }
   discountCodes: { code: string; orders: number; discountCents: number; netCents: number }[]
   repeat: { customers: number; repeat: number; firstTime: number; repeatNetCents: number; repeatRate: number; top: { customerId: string; name: string | null; email: string; orders: number; netCents: number }[] }
@@ -40,7 +42,7 @@ function dayLabel(period: string, bucket: Report['bucket']): string {
   return bucket === 'month' ? `${month} ${y}` : `${month} ${d}`
 }
 const percent = (n: number) => `${Math.round(n * 100)}%`
-const EXPORTS = [{ report: 'sales', label: 'Sales by day' }, { report: 'products', label: 'Products' }, { report: 'discounts', label: 'Discount codes' }] as const
+const EXPORTS = [{ report: 'sales', label: 'Sales by day' }, { report: 'products', label: 'Products' }, { report: 'variants', label: 'Variants' }, { report: 'discounts', label: 'Discount codes' }] as const
 
 export default function SalesPage() {
   const [range, setRange] = useState<{ from?: string; to?: string }>({})
@@ -212,6 +214,35 @@ export default function SalesPage() {
               )}
             </section>
           </div>
+
+
+          <section className="card p-4 sm:p-6" aria-labelledby="sales-by-variant">
+            <h2 id="sales-by-variant" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Sales by option</h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400">The same sales, one row for each size or colour. Returned items are taken off{report.profit ? '; profit counts only the items that have a cost' : ''}.</p>
+            {report.variants.length === 0 ? <p className="mt-3 text-gray-500 dark:text-slate-400">Nothing sold in these days.</p> : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 font-medium">Product</th><th className="py-2 font-medium">Option</th><th className="py-2 font-medium">SKU</th><th className="py-2 font-medium text-right">Sold</th><th className="py-2 font-medium text-right">Net sales</th>{report.profit && <><th className="py-2 font-medium text-right">Cost</th><th className="py-2 font-medium text-right">Profit</th><th className="py-2 font-medium text-right">Margin</th></>}</tr></thead>
+                  <tbody>
+                    {report.variants.map((v) => (
+                      <tr key={v.variantId ?? v.sku} className="border-t border-gray-100 dark:border-slate-700 text-gray-900 dark:text-slate-100">
+                        <td className="py-2 pr-3">{v.productName}</td>
+                        <td className="py-2 pr-3">{v.variantName}</td>
+                        <td className="py-2 pr-3 font-mono text-xs">{v.sku}</td>
+                        <td className="py-2 text-right">{v.units}</td>
+                        <td className="py-2 text-right font-medium">{cents(v.salesCents)}</td>
+                        {report.profit && <>
+                          <td className="py-2 text-right">{v.costCents == null ? <span className="text-gray-500 dark:text-slate-400">no cost</span> : cents(v.costCents)}</td>
+                          <td className="py-2 text-right">{v.profitCents == null ? <span className="text-gray-500 dark:text-slate-400">no cost</span> : cents(v.profitCents)}</td>
+                          <td className="py-2 text-right">{v.marginPercent == null ? <span className="text-gray-500 dark:text-slate-400">no cost</span> : `${v.marginPercent}%`}</td>
+                        </>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
           <section className="card p-4 sm:p-6" aria-labelledby="discount-codes">
             <h2 id="discount-codes" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Discount codes</h2>

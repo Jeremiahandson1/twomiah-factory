@@ -46,6 +46,8 @@ export const storeProduct = pgTable('products', {
   /** The owner's own picks for "Frequently bought together" and "You may also like" (product ids, in order). */
   boughtTogetherIds: json('bought_together_ids').$type<string[]>(),
   alsoLikeIds: json('also_like_ids').$type<string[]>(),
+  /** A consumable: the replenishment reminder goes out this many days after the order arrives (null = never). */
+  replenishAfterDays: integer('replenish_after_days'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -77,6 +79,10 @@ export const storeProductVariant = pgTable('product_variants', {
   lowStockAt: integer('low_stock_at'),
   /** What one unit costs the shop (the owner types it; margin:read sees it). Sales reports work profit out from it; null = no cost. */
   costCents: integer('cost_cents'),
+  /** Who the shop buys this option from (store_reorders): the draft reorder groups low options by this. null = none chosen. */
+  supplierId: text('supplier_id'),
+  /** "Order up to": a reorder brings the stock back to this many. null = twice the low-stock level. */
+  reorderToQty: integer('reorder_to_qty'),
   /** The feeds' identifiers, sent when present. */
   gtin: text('gtin'),
   mpn: text('mpn'),
@@ -152,6 +158,8 @@ export const storeOrder = pgTable('orders', {
   disputeStatus: text('dispute_status'),
   readyForPickupAt: timestamp('ready_for_pickup_at'),
   pickedUpAt: timestamp('picked_up_at'),
+  /** When the order reached the shopper (marked delivered, or picked up): the follow-up emails count their days from here. */
+  deliveredAt: timestamp('delivered_at'),
   /** The QuickBooks sales receipt this paid order became (store/books.ts): set once it is sent, so it is never sent twice. */
   qbSalesReceiptId: text('qb_sales_receipt_id'),
   qbSyncedAt: timestamp('qb_synced_at'),
@@ -551,3 +559,220 @@ export const aiDraftUse = pgTable('ai_draft_uses', {
   feature: text('feature').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('ai_draft_uses_company_idx').on(t.companyId, t.feature, t.createdAt)])
+
+// ── Customer segments (store_segments, 2026-10-31) ───────────────────────────────────────────────────────────────────
+/**
+ * What a saved segment asks of a customer. Every part is optional but one must be set; they all have to hold (AND).
+ *   spend / orders: what they paid (less refunds) / how many orders, over the period; `period` also bounds what "bought" means.
+ *   bought / notBought: bought at least one of these products or anything in these categories (notBought: none of them).
+ * A `period` is the last N days, or a stretch of the shop's own days; none = all time.
+ */
+export type SegmentDefinition = {
+  spend?: { minCents?: number; maxCents?: number }
+  orders?: { min?: number; max?: number }
+  period?: { days: number } | { from: string; to?: string }
+  bought?: { productIds?: string[]; categories?: string[] }
+  notBought?: { productIds?: string[]; categories?: string[] }
+}
+/** A named segment the owner saved, for campaigns, the follow-up emails and the audience export. */
+export const storeSegment = pgTable('store_segments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  definition: json('definition').$type<SegmentDefinition>().notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_segments_company_name_unique').on(t.companyId, t.name)])
+
+/**
+ * The store's post-purchase emails (parity row 3; Shopify Email's automations): one row per shop, everything off until the
+ * owner switches it on. Sent through the shared Email Marketing sender, so an unsubscribed customer is never mailed.
+ */
+export const storeFollowup = pgTable('store_followups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** When set, only the customers in this saved segment get the emails. */
+  segmentId: text('segment_id').references(() => storeSegment.id, { onDelete: 'set null' }),
+  firstOrderOn: boolean('first_order_on').notNull().default(false),
+  firstOrderDays: integer('first_order_days').notNull().default(3),
+  firstOrderSubject: text('first_order_subject'),
+  firstOrderBody: text('first_order_body'),
+  crossSellOn: boolean('cross_sell_on').notNull().default(false),
+  crossSellDays: integer('cross_sell_days').notNull().default(14),
+  crossSellSubject: text('cross_sell_subject'),
+  crossSellBody: text('cross_sell_body'),
+  replenishOn: boolean('replenish_on').notNull().default(false),
+  replenishSubject: text('replenish_subject'),
+  replenishBody: text('replenish_body'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_followups_company_unique').on(t.companyId)])
+
+/** Someone the shop buys stock from (store_reorders, 2026-10-31, parity row 4). Not the dropship providers of supplier_config. */
+export const storeSupplier = pgTable('store_suppliers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_suppliers_company_name_unique').on(t.companyId, t.name)])
+
+/** A purchase order to a supplier: draft (the owner edits) → sent (emailed) → partly_received | received; cancelled from draft or sent. */
+export const storePurchaseOrder = pgTable('store_purchase_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  number: text('number').notNull(),
+  supplierId: text('supplier_id').notNull().references(() => storeSupplier.id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('draft'), // draft | sent | partly_received | received | cancelled
+  notes: text('notes'),
+  /** The day the owner expects it (a date on the shop's calendar, YYYY-MM-DD). */
+  expectedOn: text('expected_on'),
+  sentAt: timestamp('sent_at'),
+  sentTo: text('sent_to'),
+  receivedAt: timestamp('received_at'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_purchase_orders_company_number_unique').on(t.companyId, t.number),
+  index('store_purchase_orders_company_status_idx').on(t.companyId, t.status),
+])
+
+/** A line: the option as it was named when ordered, how many, the supplier's cost for one (cents), and how many have come in. */
+export const storePurchaseOrderLine = pgTable('store_purchase_order_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => storePurchaseOrder.id, { onDelete: 'cascade' }),
+  variantId: text('variant_id').references(() => storeProductVariant.id, { onDelete: 'set null' }),
+  sku: text('sku').notNull(),
+  name: text('name').notNull(),
+  quantity: integer('quantity').notNull(),
+  unitCostCents: integer('unit_cost_cents').notNull().default(0),
+  receivedQuantity: integer('received_quantity').notNull().default(0),
+}, (t) => [index('store_purchase_order_lines_po_idx').on(t.purchaseOrderId)])
+
+/**
+ * A signed-in shopper's card kept on the MERCHANT'S OWN Stripe customer (store_fast_checkout, 2026-10-31, parity row 6; Shop Pay's
+ * saved card, within one shop). `consentAt` is when they ticked "save my card"; until a paid order has left a card attached to
+ * the customer, the card columns are empty. Removing the card detaches it at Stripe and clears these columns and consentAt.
+ */
+export const storeShopperCard = pgTable('store_shopper_cards', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  paymentMethodId: text('payment_method_id'),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  consentAt: timestamp('consent_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_shopper_cards_company_contact_unique').on(t.companyId, t.contactId)])
+
+/**
+ * Audiences and purchase tags (store_audiences, 2026-10-31, parity row 7; Shopify Audiences / the Facebook & Google channels,
+ * within one shop). One row per shop. Secrets are encrypted (core/crypto) and never read back to the screen. The Meta pixel id is
+ * the Website settings' own (one source, so the browser pixel and the server event share it and de-duplicate).
+ */
+export const storeAudienceSetting = pgTable('store_audience_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }).unique(),
+  /** The browser tags: a `purchase` event for Tag Manager (dataLayer) and a Meta pixel Purchase, on the order-received page. */
+  purchaseEventsOn: boolean('purchase_events_on').notNull().default(false),
+  /** Meta Conversions API: the same purchase, sent from the server when the order is paid. */
+  metaCapiOn: boolean('meta_capi_on').notNull().default(false),
+  metaCapiTokenEnc: text('meta_capi_token_enc'),
+  metaTestEventCode: text('meta_test_event_code'),
+  /** Meta Marketing API, for sending a segment as a Custom Audience. */
+  metaAdAccountId: text('meta_ad_account_id'),
+  metaAccessTokenEnc: text('meta_access_token_enc'),
+  /** Google Ads API, for sending a segment as a Customer Match list. */
+  googleCustomerId: text('google_customer_id'),
+  googleLoginCustomerId: text('google_login_customer_id'),
+  googleDeveloperTokenEnc: text('google_developer_token_enc'),
+  googleClientId: text('google_client_id'),
+  googleClientSecretEnc: text('google_client_secret_enc'),
+  googleRefreshTokenEnc: text('google_refresh_token_enc'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+/** What was exported or sent: a download, a push of a segment to a platform, or a purchase event — and how it ended. */
+export const storeAudienceLog = pgTable('store_audience_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  segmentId: text('segment_id').references(() => storeSegment.id, { onDelete: 'set null' }),
+  /** meta | google | meta_capi */
+  platform: text('platform').notNull(),
+  /** download | push | event */
+  kind: text('kind').notNull(),
+  people: integer('people').notNull().default(0),
+  status: text('status').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('store_audience_log_company_idx').on(t.companyId, t.createdAt)])
+
+/**
+ * Outgoing webhooks (store_webhooks, 2026-10-31, parity row 8; Shopify's webhook subscriptions). One row per address the shop posts
+ * its events to. The signing secret is encrypted (core/crypto); it is shown to the owner once, at creation, and can be replaced.
+ */
+export const storeWebhook = pgTable('store_webhooks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secretEnc: text('secret_enc').notNull(),
+  /** ['order.paid', …] — never empty; a webhook that wants everything lists them all. */
+  events: json('events').$type<string[]>().notNull(),
+  active: boolean('active').notNull().default(true),
+  lastDeliveryAt: timestamp('last_delivery_at'),
+  lastStatus: integer('last_status'),
+  /** Deliveries in a row that did not end well; reset by one that did. */
+  failureCount: integer('failure_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [index('store_webhooks_company_idx').on(t.companyId)])
+
+/**
+ * One event owed to one webhook — the delivery log, and the queue the retries read. `eventId` is the same for every attempt (and
+ * for every webhook the event went to), so a receiver can ignore one it already handled.
+ */
+export const storeWebhookDelivery = pgTable('store_webhook_deliveries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  webhookId: text('webhook_id').notNull().references(() => storeWebhook.id, { onDelete: 'cascade' }),
+  eventId: text('event_id').notNull(),
+  event: text('event').notNull(),
+  /** The exact JSON body that is signed and posted. */
+  payload: text('payload').notNull(),
+  /** pending (next attempt due) | delivered | dead (out of attempts) | stopped (the webhook was switched off or its address refused) */
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  responseStatus: integer('response_status'),
+  error: text('error'),
+  nextAttemptAt: timestamp('next_attempt_at'),
+  lastAttemptAt: timestamp('last_attempt_at'),
+  deliveredAt: timestamp('delivered_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  index('store_webhook_deliveries_webhook_idx').on(t.webhookId, t.createdAt),
+  index('store_webhook_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+])
+
+/**
+ * Public store API keys (store_api, 2026-10-31, parity row 8; Shopify's Admin API access tokens, within one shop). Only the hash of
+ * the key is kept: the key is shown once, at creation. `prefix` is its first characters, to tell keys apart on the screen.
+ */
+export const storeApiKey = pgTable('store_api_keys', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  prefix: text('prefix').notNull(),
+  keyHash: text('key_hash').notNull().unique(),
+  /** products:read, orders:read, customers:read, inventory:read, inventory:write */
+  scopes: json('scopes').$type<string[]>().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('store_api_keys_company_idx').on(t.companyId)])

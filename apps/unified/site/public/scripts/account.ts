@@ -139,6 +139,7 @@
       '<ul>' + items + '</ul>' + track +
       '<p class="account-total">Total ' + money(o.totalCents) + (o.refundedCents ? ' <span class="account-muted">(' + money(o.refundedCents) + ' refunded)</span>' : '') + '</p>' +
       '<button type="button" class="btn btn--secondary" data-again="' + esc(o.id) + '">Order again</button>' +
+      (keptCard && o.fulfillment !== 'digital' ? ' <button type="button" class="btn btn--primary" data-pay-again="' + esc(o.id) + '">Reorder and pay with ' + esc(cardName(keptCard)) + '</button>' : '') +
       '<span class="account-note" data-again-note="' + esc(o.id) + '" role="status"></span>' +
       returnFormHtml(o) +
       '</article>';
@@ -247,14 +248,31 @@
       '<button type="button" class="btn btn--secondary" data-remove="' + esc(a.id) + '">Remove</button></div>';
   }
 
+  // The card kept for one-tap payment (store_fast_checkout): brand and last four only.
+  var keptCard = null;
+  function cardName(c) {
+    var b = String(c.brand || 'card');
+    b = b === 'amex' ? 'American Express' : b.charAt(0).toUpperCase() + b.slice(1);
+    return b + ' ending ' + c.last4;
+  }
+
   function draw(me, orders, addresses, returns) {
+    keptCard = me.savedCard || null;
     var bits = [];
     if (me.group) bits.push('<span class="account-status">' + esc(me.group) + ' prices</span>');
     if (me.points != null) bits.push('<span class="account-muted">' + esc(me.points) + ' reward points</span>');
     var credit = (me.credit || []).map(function (c) { return '<p class="account-muted">Store credit: <strong>' + money(c.balanceCents) + '</strong> — use code <code>' + esc(c.code) + '</code> at checkout.</p>'; }).join('');
+    // Gift cards they bought or were given: the balance and the code that spends it (beside the store credit above).
+    var gifts = (me.giftCards || []).map(function (g) {
+      var who = g.relation === 'given' ? 'Gift card given to you' : 'Gift card you bought';
+      return '<p class="account-muted">' + who + ': ' + (g.balanceCents > 0 ? '<strong>' + money(g.balanceCents) + '</strong> left' : '<strong>used up</strong>') +
+        (g.initialCents !== g.balanceCents ? ' of ' + money(g.initialCents) : '') + ' — code <code>' + esc(g.code) + '</code>' + (g.balanceCents > 0 ? ' at checkout.' : '.') + '</p>';
+    }).join('');
     root.innerHTML =
-      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + credit + '</div>' +
+      '<div class="account-head"><div><h2>' + esc(me.name || 'Hello') + '</h2><p class="account-muted">' + esc(me.email) + '</p>' + bits.join(' ') + credit + gifts + '</div>' +
       '<button type="button" class="btn btn--secondary" id="account-out">Sign out</button></div>' +
+      (keptCard ? '<section class="account-section"><h2>Your saved card</h2><p>' + esc(cardName(keptCard)) + ', expires ' + esc(String(keptCard.expMonth).padStart(2, '0')) + '/' + esc(keptCard.expYear) + '. It is kept by Stripe, not by this shop, and used only when you choose to pay with it.</p>' +
+        '<button type="button" class="btn btn--secondary" id="account-card-remove">Remove my card</button> <span class="account-note" id="account-card-note" role="status"></span></section>' : '') +
       '<section class="account-section"><h2>Your orders</h2>' +
       (orders.length ? orders.map(orderHtml).join('') : '<p class="store-empty">No orders yet. <a href="/shop">Start shopping</a></p>') + '</section>' +
       (me.returns && returns.length ? '<section class="account-section"><h2>Your returns</h2>' + returns.map(returnHtml).join('') + '</section>' : '') +
@@ -277,6 +295,16 @@
       api('POST', '/sign-out', {}).then(function () { showSignIn('You are signed out.'); });
     });
     wireReturns();
+    var removeCard = document.getElementById('account-card-remove');
+    if (removeCard) removeCard.addEventListener('click', function () {
+      api('DELETE', '/card', {}).then(function (r) {
+        if (!r.ok) return say(document.getElementById('account-card-note'), errText(r.json, 'Your card could not be removed.'), true);
+        load();
+      });
+    });
+    root.querySelectorAll('[data-pay-again]').forEach(function (btn) {
+      btn.addEventListener('click', function () { payAgain(btn); });
+    });
     root.querySelectorAll('[data-again]').forEach(function (btn) {
       btn.addEventListener('click', function () { orderAgain(btn.getAttribute('data-again')); });
     });
@@ -298,6 +326,19 @@
         if (!r.ok) return say(note, errText(r.json, 'That address could not be saved.'), true);
         load();
       });
+    });
+  }
+
+  // Reorder and pay in one tap: the same lines at today's prices, charged to the kept card, to the saved address. If anything about
+  // the order changed (sold out, price group, address) the server says so and nothing is charged — the shopper orders it again by hand.
+  function payAgain(btn) {
+    var id = btn.getAttribute('data-pay-again'), note = root.querySelector('[data-again-note="' + id + '"]');
+    btn.disabled = true;
+    say(note, 'Paying…');
+    api('POST', '/orders/' + id + '/pay-again', {}).then(function (r) {
+      if (r.ok && r.json && r.json.url) { window.location.href = r.json.url; return; }
+      btn.disabled = false;
+      say(note, errText(r.json, 'That order could not be paid just now. Use Order again instead.'), true);
     });
   }
 

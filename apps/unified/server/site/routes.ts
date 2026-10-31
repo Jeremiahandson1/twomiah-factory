@@ -450,7 +450,8 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       if (!ctx) return c.notFound()
       const sessionId = c.req.query('session_id') || '', ref = c.req.query('ref') || ''
       const order = sessionId || ref ? await shop.orderSummary(ctx.companyId, { sessionId: sessionId || null, ref: ref || null }).catch(() => null) : null
-      return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order } }], { title: 'Order received', metaDescription: 'Thank you for your order.' })
+      const tags = order ? await shop.purchaseTags(ctx.companyId).catch(() => false) : false
+      return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order, tags } }], { title: 'Order received', metaDescription: 'Thank you for your order.' })
     })
   }
 

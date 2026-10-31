@@ -202,11 +202,11 @@ function useMergeFields(api: MarketingApi) {
 }
 
 function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClose }: { api: MarketingApi; toast: MarketingToast; campaign: Campaign | null; contactTypes: Array<{ value: string; label: string }>; look: EditorLook; onSaved: () => void; onClose: () => void }) {
-  const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string; tag?: string; customerGroupId?: string; inactiveDays?: number } | null) || null
-  const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10), segmentTag: existing?.tag || '', segmentGroup: existing?.customerGroupId || '', segmentInactive: existing?.inactiveDays ? String(existing.inactiveDays) : '' })
+  const existing = (campaign?.audienceFilter as { type?: string; createdAfter?: string; tag?: string; customerGroupId?: string; segmentId?: string; inactiveDays?: number } | null) || null
+  const [form, setForm] = useState({ name: campaign?.name || '', subject: campaign?.subject || '', body: campaign?.content || '', audienceType: campaign?.audienceType === 'segment' ? 'segment' : 'all', segmentType: existing?.type || '', segmentCreatedAfter: (existing?.createdAfter || '').slice(0, 10), segmentTag: existing?.tag || '', segmentGroup: existing?.customerGroupId || '', segmentSaved: existing?.segmentId || '', segmentInactive: existing?.inactiveDays ? String(existing.inactiveDays) : '' })
   // What else the audience can be narrowed by here: the tags in use, the business's own groups, and "not back in N days".
-  const [options, setOptions] = useState<{ tags: string[]; groups: Array<{ id: string; name: string }>; inactive: boolean; activityWord: string } | null>(null)
-  useEffect(() => { api.get('/api/marketing/audience/options').then((o: any) => setOptions({ tags: o?.tags || [], groups: o?.groups || [], inactive: !!o?.inactive, activityWord: o?.activityWord || 'visit' })).catch(() => setOptions(null)) }, [api])
+  const [options, setOptions] = useState<{ tags: string[]; groups: Array<{ id: string; name: string }>; segments: Array<{ id: string; name: string }>; inactive: boolean; activityWord: string } | null>(null)
+  useEffect(() => { api.get('/api/marketing/audience/options').then((o: any) => setOptions({ tags: o?.tags || [], groups: o?.groups || [], segments: o?.segments || [], inactive: !!o?.inactive, activityWord: o?.activityWord || 'visit' })).catch(() => setOptions(null)) }, [api])
   const unsaved = useUnsaved(form, onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -216,14 +216,14 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
   const inactiveDays = Number(form.segmentInactive)
   const audienceFilter = form.audienceType === 'segment' ? {
     ...(form.segmentType ? { type: form.segmentType } : {}), ...(form.segmentCreatedAfter ? { createdAfter: form.segmentCreatedAfter } : {}),
-    ...(form.segmentTag ? { tag: form.segmentTag } : {}), ...(form.segmentGroup ? { customerGroupId: form.segmentGroup } : {}),
+    ...(form.segmentTag ? { tag: form.segmentTag } : {}), ...(form.segmentGroup ? { customerGroupId: form.segmentGroup } : {}), ...(form.segmentSaved ? { segmentId: form.segmentSaved } : {}),
     ...(form.segmentInactive.trim() ? { inactiveDays } : {}),
   } : null
   useEffect(() => {
     let cancelled = false; setAudience(null)
     const t = setTimeout(async () => { try { const p = await api.post('/api/marketing/audience/preview', { audienceType: form.audienceType, audienceFilter }); if (!cancelled) setAudience(Number(p?.count ?? 0)) } catch { if (!cancelled) setAudience(0) } }, 300)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [form.audienceType, form.segmentType, form.segmentCreatedAfter, form.segmentTag, form.segmentGroup, form.segmentInactive])
+  }, [form.audienceType, form.segmentType, form.segmentCreatedAfter, form.segmentTag, form.segmentGroup, form.segmentSaved, form.segmentInactive])
   const save = async () => {
     if (!form.name.trim()) { setError('Campaign name is required'); return }
     if (form.audienceType === 'segment' && form.segmentInactive.trim() && !(Number.isInteger(inactiveDays) && inactiveDays >= 1)) { setError('Enter a whole number of days'); return }
@@ -248,6 +248,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
               <Field label={copy.segmentType}><select value={form.segmentType} onChange={(e) => setForm((f) => ({ ...f, segmentType: e.target.value }))} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
               <Field label="Added on or after"><input type="date" value={form.segmentCreatedAfter} onChange={(e) => setForm((f) => ({ ...f, segmentCreatedAfter: e.target.value }))} className={inputCls} /></Field>
               {!!options?.tags.length && <Field label="Tagged"><select value={form.segmentTag} onChange={(e) => setForm((f) => ({ ...f, segmentTag: e.target.value }))} className={inputCls}><option value="">Any tag</option>{options.tags.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>}
+              {!!options?.segments.length && <Field label="Saved segment"><select value={form.segmentSaved} onChange={(e) => setForm((f) => ({ ...f, segmentSaved: e.target.value }))} className={inputCls}><option value="">Not a saved segment</option>{options.segments.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>}
               {!!options?.groups.length && <Field label={copy.segmentGroup}><select value={form.segmentGroup} onChange={(e) => setForm((f) => ({ ...f, segmentGroup: e.target.value }))} className={inputCls}><option value="">Any group</option>{options.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>}
               {options?.inactive && <Field label={`No ${options.activityWord} in the last (days)`}><input type="number" min={1} inputMode="numeric" placeholder="Leave blank for everyone" value={form.segmentInactive} onChange={(e) => setForm((f) => ({ ...f, segmentInactive: e.target.value }))} className={inputCls} /></Field>}
             </div>
@@ -264,8 +265,8 @@ function CampaignForm({ api, toast, campaign, contactTypes, look, onSaved, onClo
 }
 
 // ─── automatic emails ─────────────────────────────────────────────────────────
-interface AutoCard { available: boolean; subject: string; body: string }
-interface Automations { winBack: AutoCard & { word: string; days: number | null }; welcome: AutoCard & { on: boolean } }
+interface AutoCard { available: boolean; subject: string; body: string; segmentId: string | null }
+interface Automations { winBack: AutoCard & { word: string; days: number | null }; welcome: AutoCard & { on: boolean }; segments: Array<{ id: string; name: string }> }
 
 /** The win-back and welcome emails: each off until the owner switches it on; each has the owner's own words once edited. */
 function AutomationsTab({ api, toast, look }: { api: MarketingApi; toast: MarketingToast; look: EditorLook }) {
@@ -273,10 +274,10 @@ function AutomationsTab({ api, toast, look }: { api: MarketingApi; toast: Market
   const copy = marketingCopy()
   const fields = useMergeFields(api)
   const [data, setData] = useState<Automations | null>(null)
-  const [form, setForm] = useState({ winBackOn: false, days: '60', winBackSubject: '', winBackBody: '', welcomeOn: false, welcomeSubject: '', welcomeBody: '' })
+  const [form, setForm] = useState({ winBackOn: false, days: '60', winBackSubject: '', winBackBody: '', winBackSegment: '', welcomeOn: false, welcomeSubject: '', welcomeBody: '', welcomeSegment: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const fill = (a: Automations) => { setData(a); setForm({ winBackOn: a.winBack.days !== null, days: String(a.winBack.days ?? 60), winBackSubject: a.winBack.subject, winBackBody: a.winBack.body, welcomeOn: a.welcome.on, welcomeSubject: a.welcome.subject, welcomeBody: a.welcome.body }) }
+  const fill = (a: Automations) => { setData({ ...a, segments: a.segments || [] }); setForm({ winBackOn: a.winBack.days !== null, days: String(a.winBack.days ?? 60), winBackSubject: a.winBack.subject, winBackBody: a.winBack.body, winBackSegment: a.winBack.segmentId || '', welcomeOn: a.welcome.on, welcomeSubject: a.welcome.subject, welcomeBody: a.welcome.body, welcomeSegment: a.welcome.segmentId || '' }) }
   useEffect(() => { api.get('/api/marketing/automations').then(fill).catch((e) => setError(errMsg(e, 'Failed to load automatic emails'))) }, [api])
   if (!data) return error ? <ErrorBox msg={error} /> : <Spinner />
   const save = async () => {
@@ -285,8 +286,10 @@ function AutomationsTab({ api, toast, look }: { api: MarketingApi; toast: Market
     setSaving(true); setError('')
     try {
       const body: Record<string, unknown> = {}
-      if (data.winBack.available) Object.assign(body, { winBackDays: form.winBackOn ? days : null, winBackSubject: form.winBackSubject, winBackBody: form.winBackBody })
-      if (data.welcome.available) Object.assign(body, { welcomeOn: form.welcomeOn, welcomeSubject: form.welcomeSubject, welcomeBody: form.welcomeBody })
+      // A segment is sent only where the business has saved segments to pick from (the store); the API refuses one elsewhere.
+      const segments = data.segments.length > 0
+      if (data.winBack.available) Object.assign(body, { winBackDays: form.winBackOn ? days : null, winBackSubject: form.winBackSubject, winBackBody: form.winBackBody, ...(segments ? { winBackSegmentId: form.winBackSegment || null } : {}) })
+      if (data.welcome.available) Object.assign(body, { welcomeOn: form.welcomeOn, welcomeSubject: form.welcomeSubject, welcomeBody: form.welcomeBody, ...(segments ? { welcomeSegmentId: form.welcomeSegment || null } : {}) })
       fill(await api.put('/api/marketing/automations', body)); toast.success('Saved')
     } catch (e) { setError(errMsg(e, 'Failed to save')) } finally { setSaving(false) }
   }
@@ -298,6 +301,7 @@ function AutomationsTab({ api, toast, look }: { api: MarketingApi; toast: Market
           <label className="flex items-center gap-2 font-medium text-gray-900 dark:text-slate-100"><input type="checkbox" disabled={!mayUpdate} checked={form.welcomeOn} onChange={(e) => setForm((f) => ({ ...f, welcomeOn: e.target.checked }))} /> Welcome email on a first order</label>
           <p className="text-sm text-gray-500 dark:text-slate-400">Sent once, when a {copy.customerOne} pays for their first order. {copy.unsubscribedExcluded}</p>
           {form.welcomeOn && <>
+            {data.segments.length > 0 && <Field label={`Only ${copy.customerMany} in a saved segment`}><select disabled={!mayUpdate} value={form.welcomeSegment} onChange={(e) => setForm((f) => ({ ...f, welcomeSegment: e.target.value }))} className={inputCls}><option value="">Every {copy.customerOne}</option>{data.segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
             <Field label="Subject line"><input disabled={!mayUpdate} value={form.welcomeSubject} onChange={(e) => setForm((f) => ({ ...f, welcomeSubject: e.target.value }))} className={inputCls} /></Field>
             <Field label="Email"><EmailEditor value={form.welcomeBody} onChange={(welcomeBody) => setForm((f) => ({ ...f, welcomeBody }))} fields={fields} subject={form.welcomeSubject} brand={look.brand} pickImage={look.pickImage} /></Field>
           </>}
@@ -309,6 +313,7 @@ function AutomationsTab({ api, toast, look }: { api: MarketingApi; toast: Market
           <p className="text-sm text-gray-500 dark:text-slate-400">Sent once to a {copy.customerOne} who has had no {data.winBack.word} for the number of days you choose. It goes only to those who reach that many days from now on; {copy.customerMany} who have been gone longer are not emailed. {copy.unsubscribedExcluded}</p>
           {form.winBackOn && <>
             <Field label={`Days without a ${data.winBack.word}`}><input type="number" min={14} max={730} inputMode="numeric" disabled={!mayUpdate} value={form.days} onChange={(e) => setForm((f) => ({ ...f, days: e.target.value }))} className={inputCls} /></Field>
+            {data.segments.length > 0 && <Field label={`Only ${copy.customerMany} in a saved segment`}><select disabled={!mayUpdate} value={form.winBackSegment} onChange={(e) => setForm((f) => ({ ...f, winBackSegment: e.target.value }))} className={inputCls}><option value="">Every {copy.customerOne}</option>{data.segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
             <Field label="Subject line"><input disabled={!mayUpdate} value={form.winBackSubject} onChange={(e) => setForm((f) => ({ ...f, winBackSubject: e.target.value }))} className={inputCls} /></Field>
             <Field label="Email"><EmailEditor value={form.winBackBody} onChange={(winBackBody) => setForm((f) => ({ ...f, winBackBody }))} fields={fields} subject={form.winBackSubject} brand={look.brand} pickImage={look.pickImage} /></Field>
           </>}

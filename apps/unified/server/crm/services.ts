@@ -35,6 +35,7 @@ import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
 import { createInventoryLowStockDigest } from './inventory/lowStock.ts'
+import { segmentAudience } from './store/segments/filter.ts'
 import { startLowStockDigest } from './lowStockDigest.ts'
 import { billOnComplete } from '../data/routeBilling.ts'
 import { stampVisitStart, recordVisitTime } from '../data/routeVisits.ts'
@@ -160,12 +161,13 @@ export function createCrmServices(deps: CrmServiceDeps) {
   } as any)
   // The drips keep sending with either Email Marketing or the dealership's Follow-Up switch; a scheduled campaign needs
   // Email Marketing itself (templates/crm-rv services/marketing.ts, RV T19 M6; only crm-rv is offered follow_up_sequences).
+  const storeSegments = segmentAudience(db, isFeatureEnabled)
   const marketing = createMarketingService({
     db, tables: { campaign, contact, emailLog, automation: marketingAutomation, automationSend: marketingAutomationSend }, sendRaw: email.sendRaw, isFeatureEnabled,
     // Win-back and "not back in N days" read the trade's own idea of a visit (data/marketingActivity.ts); the store adds its
     // customer groups as an audience and a welcome on a first order.
     lastActivity: lastActivityFor(deps.featureSet),
-    ...(deps.featureSet === 'crm-store' ? { welcome: true, audienceFilters: { customerGroupId: inCustomerGroup }, audienceOptions: async (companyId: string) => ({ groups: await customerGroupOptions(db, companyId) }) } : {}),
+    ...(deps.featureSet === 'crm-store' ? { welcome: true, audienceFilters: { customerGroupId: inCustomerGroup, segmentId: storeSegments.filter }, audienceOptions: async (companyId: string) => ({ groups: await customerGroupOptions(db, companyId), segments: await storeSegments.options(companyId) }) } : {}),
     sequencesEnabled: (companyId: string) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']),
     // "You are receiving this because you are a guest of ours" on a bar's email, not "a customer or contact" (salon
     // live test, 2026-10-25: the page's words come from the vocabulary; the email it sends says the same).

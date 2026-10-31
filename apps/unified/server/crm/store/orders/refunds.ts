@@ -233,7 +233,8 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
   }
   /** settleRefund, saying whether THIS call was the one that settled it (only that one tells the shopper). */
   async function settleRefundOnce(orderId: string, companyId: string, money: MoneyBack, by?: Who): Promise<{ restocked: number; settled: boolean }> {
-    return db.transaction(async (tx: any) => {
+    const stocked: string[] = []
+    const result = await db.transaction(async (tx: any): Promise<{ restocked: number; settled: boolean }> => {
       const [before] = await tx.select({ refundedCents: storeOrder.refundedCents }).from(storeOrder)
         .where(and(eq(storeOrder.id, orderId), eq(storeOrder.companyId, companyId))).limit(1)
       const cleared = await clearRefundStamp(tx, orderId, companyId, money.kind === 'refunded' ? { refundId: money.refundId, refundedAt: new Date() } : {})
@@ -248,7 +249,7 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
         await tx.update(storeOrderItem).set({ refundedQuantity: it.quantity }).where(eq(storeOrderItem.id, it.id))
         if (!it.variantId) continue
         restocked += left
-        await restockVariant(tx, it.variantId, left)
+        if (await restockVariant(tx, it.variantId, left)) stocked.push(it.variantId)
       }
       const amount = cleared.totalCents - (before?.refundedCents ?? 0)
       if (amount > 0 || lines.length) {
@@ -263,6 +264,9 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
       }
       return { restocked, settled: true }
     })
+    // Told to the shop's webhooks (store_webhooks) once the refund is written — only by the call that settled it.
+    if (result.settled) { await core.events.order(companyId, 'order.refunded', orderId); await core.events.stock(companyId, stocked) }
+    return result
   }
 
   /**
@@ -362,6 +366,7 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
         return true
       })
       if (!recorded) return 'ignored'
+      await core.events.order(companyId, 'order.refunded', o.id)
       await log(companyId, {
         action: 'update', entity: 'order', entityId: o.id, entityName: o.orderNumber,
         metadata: { description: `Partly refunded in ${where}: ${amount(extra)} (${amount(refundedCents)} of ${amount(chargeCents)} back so far) — no units restocked` },
@@ -432,25 +437,34 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
 
   /** Settle a part refund the provider has answered (or that is only recorded). Exactly once: WHERE status = 'pending'. */
   async function settlePart(refundId: string, money: MoneyBack): Promise<{ restocked: number; closed: boolean } | null> {
-    return db.transaction(async (tx: any) => {
+    const stocked: string[] = []
+    let orderId: string | null = null
+    const result = await db.transaction(async (tx: any): Promise<{ restocked: number; closed: boolean } | null> => {
       const [row]: RefundRow[] = await tx.update(storeOrderRefund).set({
         status: money.kind === 'refunded' ? 'refunded' : 'recorded', moneyBack: money.kind, error: null, settledAt: new Date(),
         providerRefundId: money.kind === 'refunded' ? money.refundId : null,
       }).where(and(eq(storeOrderRefund.id, refundId), eq(storeOrderRefund.status, 'pending'))).returning()
       if (!row) return null
+      orderId = row.orderId
       let restocked = 0
       if (row.restock) {
         for (const l of row.items) {
           const [it] = await tx.select({ variantId: storeOrderItem.variantId }).from(storeOrderItem)
             .where(and(eq(storeOrderItem.id, l.orderItemId), eq(storeOrderItem.orderId, row.orderId))).limit(1)
           if (!it?.variantId) continue
-          if (await restockVariant(tx, it.variantId, l.quantity)) restocked += l.quantity
+          if (await restockVariant(tx, it.variantId, l.quantity)) { restocked += l.quantity; stocked.push(it.variantId) }
         }
       }
       // Nothing left to send back: the order is refunded, as a whole refund would have left it.
       const closed = await closeFullyRefunded(tx, row.orderId, money.kind === 'refunded' ? { refundId: money.refundId, refundedAt: new Date() } : {})
       return { restocked, closed }
     })
+    // Told to the shop's webhooks (store_webhooks) once the part refund is written (a part refund is an order.refunded too).
+    if (result && orderId) {
+      const [o] = await db.select({ companyId: storeOrder.companyId }).from(storeOrder).where(eq(storeOrder.id, orderId)).limit(1)
+      if (o) { await core.events.order(o.companyId, 'order.refunded', orderId); await core.events.stock(o.companyId, stocked) }
+    }
+    return result
   }
 
   /** A refusal: the reservation is given back and the row reads failed. Exactly once: WHERE status = 'pending'. */

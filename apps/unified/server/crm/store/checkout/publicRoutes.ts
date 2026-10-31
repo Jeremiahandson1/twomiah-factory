@@ -88,6 +88,9 @@ const checkoutSchema = z.object({
   giftCardCode: z.string().trim().min(4).max(40).optional(),
   // Ship it, or collect it from the shop (offered when the store has pickup on). A cart of gift cards needs neither.
   delivery: z.enum(['ship', 'pickup']).optional(),
+  // Accelerated checkout (store_fast_checkout) — honoured only for a signed-in shopper: "keep my card" and "pay with my kept card".
+  saveCard: z.boolean().optional(),
+  useSavedCard: z.boolean().optional(),
 })
 
 const reviewSchema = z.object({
@@ -264,7 +267,8 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     // A signed-in shopper (their account's own cookie, never the typed email): their group's prices, their address ready.
     const shopper = await signedInShopper(c, s.co.id)
     // The origin the shopper is actually on — from the request, never the body (see the header).
-    const r = await starter.start({ ...parsed.data, companyId: s.co.id, origin: requestOrigin(c), ...(shopper ? { shopper } : {}) })
+    const { saveCard, useSavedCard, ...cart } = parsed.data
+    const r = await starter.start({ ...cart, companyId: s.co.id, origin: requestOrigin(c), ...(shopper ? { shopper, fast: { saveCard, useSavedCard } } : {}) })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     return one(c, { url: r.url, ...(r.paidByGiftCard ? { paidByGiftCard: true } : {}) })
   })
@@ -313,7 +317,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       trackingNumber: result.trackingNumber,
       updatedAt: new Date(),
     }).where(moves ? and(eq(storeOrder.id, order.id), mine, eq(storeOrder.status, order.status)) : and(eq(storeOrder.id, order.id), mine)).returning()
-    if (moves && updated) void core.notifyShipped(updated)
+    if (moves && updated) { void core.notifyShipped(updated); await core.events.order(updated.companyId, 'order.fulfilled', updated.id) }
     if (!moves && order.status !== 'shipped') logger.warn('[store] supplier shipped an order that is not open to ship', { order: order.id, status: order.status })
     return done(c)
   })

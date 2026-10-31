@@ -206,7 +206,7 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
         const move: Record<string, unknown> = { status: 'shipped', updatedAt: new Date() }
         if (!order.fulfilledAt) move.fulfilledAt = new Date()
         const [moved]: Order[] = await db.update(storeOrder).set(move).where(and(mine, eq(storeOrder.status, order.status))).returning()
-        if (moved) { updated = moved; shipped = true; void core.notifyShipped(moved) }
+        if (moved) { updated = moved; shipped = true; void core.notifyShipped(moved); if (!order.fulfilledAt) await core.events.order(moved.companyId, 'order.fulfilled', moved.id) }
       }
 
       // In the log as what it was — not the floor's "Created — order": who bought which service, for how much, and the tracking.

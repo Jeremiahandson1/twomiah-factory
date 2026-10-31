@@ -35,6 +35,8 @@ import { emailItems, emailOrder } from '../emails.ts'
 import { createStoreGiftCards, GIFT_CARD_TAX_CODE, HOLD_EXPIRY_MS } from '../giftCards.ts'
 import type { PaymentProvider, WebhookResult } from '../payments/types.ts'
 import { checkoutImageUrl } from './placeOrder.ts'
+import { keepCardAfterPaid } from './fastCheckout.ts'
+import { sendPurchaseEvent } from '../audiences/audiences.ts'
 import { formatCents } from '../lib/money.ts'
 
 /** Cancel only well after the reminder has had a chance to work (the abandoned-cart reminder needs room). */
@@ -156,6 +158,11 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       }
     }
 
+    // A shopper who ticked "save my card" has the card the payment left on their customer kept (store_fast_checkout). Never blocks.
+    await keepCardAfterPaid(d, core, paid)
+    // The Purchase for Meta's Conversions API, when the shop switched it on (store_audiences). One try; never blocks the order.
+    await sendPurchaseEvent(d as any, paid)
+
     // Count discount-code usage exactly once (only the winning finalize reaches here).
     if (order.discountCode) {
       try { await countDiscountUse(db, companyId, order.discountCode) } catch { /* non-blocking */ }
@@ -180,6 +187,12 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       if (!it.variantId) continue
       await decrementStock(db, it.variantId, it.quantity)
     }
+
+    // Told to the shop's webhooks (store_webhooks): the order exists from here — a checkout nobody paid for is not an order and says
+    // nothing — then its stock. Never blocks, never waits on the receiver.
+    await core.events.order(companyId, 'order.created', order.id)
+    await core.events.order(companyId, 'order.paid', order.id)
+    await core.events.stock(companyId, items.map((it) => it.variantId))
 
     // Notify the buyer (confirmation) + the merchant (new order). Non-blocking — never fail the order because email
     // is down or unconfigured (core.mail never throws).

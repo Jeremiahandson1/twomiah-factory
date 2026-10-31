@@ -380,13 +380,21 @@
           '<p class="cart-summary__note">' + (shopSettings && shopSettings.automaticTax
             ? (deliveryChoice === 'pickup' ? 'Sales tax is worked out at checkout from your billing address.' : 'Shipping is worked out from your region; sales tax at checkout, from your address.')
             : (deliveryChoice === 'pickup' ? 'No shipping charge for pickup; final total shown at checkout.' : 'Enter your region for accurate shipping &amp; tax; final total shown at checkout.')) + '</p>' +
-          '<button type="button" class="btn btn--primary btn--lg btn--block" data-checkout>Checkout</button>' +
+          (fastAccount && fastAccount.savedCard
+            ? '<button type="button" class="btn btn--primary btn--lg btn--block" data-pay-saved>Pay with ' + esc(cardLabel(fastAccount.savedCard)) + '</button>'
+            : '') +
+          '<button type="button" class="btn ' + (fastAccount && fastAccount.savedCard ? 'btn--secondary' : 'btn--primary') + ' btn--lg btn--block" data-checkout>' + (fastAccount && fastAccount.savedCard ? 'Pay with another card' : 'Checkout') + '</button>' +
+          (fastAccount && fastAccount.fastCheckout && !fastAccount.savedCard
+            ? '<label class="cart-summary__note"><input type="checkbox" data-save-card' + (saveCardChoice ? ' checked' : '') + ' /> Keep my card for next time. It is stored by Stripe, not by this shop, and you can remove it from your account at any time.</label>'
+            : '') +
+          '<div data-express-cart></div>' +
           '<div class="cart-summary__error" data-checkout-error style="display:none"></div>' +
           '<a href="/shop" class="cart-summary__continue">Continue shopping</a>' +
         '</aside>' +
       '</div>' +
       '<div data-cart-upsell></div>';
     refreshUpsell(cart);
+    mountExpress(document.querySelector('[data-express-cart]'), function () { return cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }); }, function () { return deliveryChoice === 'pickup' ? 'pickup' : 'ship'; });
 
     // The panel was just wiped with the rest of the summary, and the subtotal it was priced against
     // may have changed — a reward with a minimum spend can become claimable (or stop being) purely
@@ -418,11 +426,13 @@
         setQty(sku, (Number(inp2.value) || 1) + 1);
         return;
       }
+      if (e.target.closest('[data-pay-saved]')) { doCheckout(e.target.closest('[data-pay-saved]'), true); return; }
       if (e.target.closest('[data-checkout]')) { doCheckout(e.target.closest('[data-checkout]')); }
       if (e.target.closest('[data-gift-apply]')) { applyGiftCard(); }
     });
 
     root.addEventListener('change', function (e) {
+      if (e.target.closest('[data-save-card]')) { saveCardChoice = !!e.target.closest('[data-save-card]').checked; return; }
       var choice = e.target.closest('[data-delivery]');
       if (choice) { deliveryChoice = choice.value === 'pickup' ? 'pickup' : 'ship'; renderCartPage(); return; }
       var qtyInput = e.target.closest('[data-line-qty]');
@@ -574,7 +584,7 @@
   }
 
   // ── checkout ─────────────────────────────────────────────────────────────
-  function doCheckout(btn) {
+  function doCheckout(btn, useSaved) {
     var cart = readCart();
     if (!cart.length) return;
     var errBox = document.querySelector('[data-checkout-error]');
@@ -582,7 +592,7 @@
 
     var original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Redirecting…';
+    btn.textContent = useSaved ? 'Paying…' : 'Redirecting…';
 
     var discountEl = document.querySelector('[data-discount-code]');
     var countryEl = document.querySelector('[data-ship-country]');
@@ -595,6 +605,9 @@
     if (country || state) body.shipTo = { country: country, state: state };
     if (deliveryChoice === 'pickup') body.delivery = 'pickup';
     if (giftCode && giftBalance !== null) body.giftCardCode = giftCode;
+    // Accelerated checkout: only a signed-in shopper is offered it (the server ignores these for anyone else).
+    if (useSaved) body.useSavedCard = true;
+    else if (saveCardChoice && fastAccount && fastAccount.fastCheckout) body.saveCard = true;
 
     // Loyalty: the email identifies the shopper, the reward id says which one they picked. Only the
     // id travels — what it is worth is decided by the server against this cart, because the browser
@@ -634,12 +647,144 @@
     try { localStorage.removeItem(CART_KEY); } catch (e) {}
   }
 
+
+  // ── accelerated checkout (store_fast_checkout) ───────────────────────────
+  // A signed-in shopper's kept card (brand, last four, expiry — nothing chargeable travels here) is offered as one tap; a shopper
+  // without one is asked, with a plain sentence, whether to keep the card they are about to use. Wallet buttons (Apple Pay,
+  // Google Pay, Link) are Stripe's own, mounted under the Checkout button and beside Add to cart.
+  var fastAccount = null;
+  var saveCardChoice = false;
+
+  function cardLabel(c) {
+    var b = String(c.brand || 'card');
+    b = b === 'amex' ? 'American Express' : b.charAt(0).toUpperCase() + b.slice(1);
+    return b + ' ending ' + c.last4;
+  }
+
+  var expressConfig = undefined;   // undefined = not asked yet, null = not available
+  var stripeJs = null;
+  var expressMounted = [];
+
+  function loadExpressConfig() {
+    if (expressConfig !== undefined) return Promise.resolve(expressConfig);
+    return fetch('/api/public/express/config', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (c) { expressConfig = c && c.available ? c : null; return expressConfig; })
+      .catch(function () { expressConfig = null; return null; });
+  }
+
+  function loadStripeJs() {
+    if (window.Stripe) return Promise.resolve(window.Stripe);
+    return new Promise(function (resolve, reject) {
+      var tag = document.createElement('script');
+      tag.src = 'https://js.stripe.com/v3/';
+      tag.onload = function () { resolve(window.Stripe); };
+      tag.onerror = function () { reject(new Error('Stripe.js did not load')); };
+      document.head.appendChild(tag);
+    });
+  }
+
+  function postJson(url, body) {
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); });
+  }
+
+  // The wallet sheet. `getItems()` is the cart it pays for (read when the button is pressed, so a changed quantity is the one paid);
+  // `getDelivery()` is 'ship' or 'pickup'. The total shown in the sheet is the SERVER's (/express/quote) for the address the sheet
+  // shows; the browser's own sum is only the first guess before an address is known.
+  function mountExpress(box, getItems, getDelivery) {
+    if (!box) return;
+    loadExpressConfig().then(function (cfg) {
+      if (!cfg || !box.isConnected) return;
+      var items = getItems();
+      if (!items.length) return;
+      return loadStripeJs().then(function (StripeFn) {
+        if (!box.isConnected) return;
+        var stripe = stripeJs || (stripeJs = StripeFn(cfg.publishableKey, cfg.stripeAccount ? { stripeAccount: cfg.stripeAccount } : undefined));
+        var shipping = null;
+        var quote = null;
+        function ask(address) {
+          var body = { items: getItems(), delivery: getDelivery() };
+          if (address) body.shipping = address;
+          return postJson('/api/public/express/quote', body).then(function (r) { return r.ok ? r.data : null; });
+        }
+        return ask(null).then(function (q) {
+          if (!q || !box.isConnected) return;
+          quote = q;
+          var elements = stripe.elements({ mode: 'payment', amount: q.totalCents, currency: cfg.currency || 'usd' });
+          var button = elements.create('expressCheckout', { buttonHeight: 44 });
+          box.innerHTML = '';
+          button.mount(box);
+          expressMounted.push(button);
+          button.on('click', function (event) {
+            var ship = getDelivery() !== 'pickup';
+            event.resolve(Object.assign({ emailRequired: true }, ship ? {
+              shippingAddressRequired: true, allowedShippingCountries: ['US'],
+              shippingRates: [{ id: 'shipping', displayName: 'Shipping', amount: quote.shippingCents }]
+            } : {}));
+          });
+          button.on('shippingaddresschange', function (event) {
+            var a = event.address || {};
+            shipping = { name: event.name || 'Customer', address: { line1: 'Address to be confirmed', city: a.city || '', state: a.state || '', postalCode: a.postal_code || '', country: a.country } };
+            ask(shipping).then(function (q2) {
+              if (!q2) { event.reject(); return; }
+              quote = q2;
+              elements.update({ amount: q2.totalCents });
+              event.resolve({ shippingRates: [{ id: 'shipping', displayName: 'Shipping', amount: q2.shippingCents }] });
+            });
+          });
+          button.on('confirm', function (event) {
+            var sa = event.shippingAddress;
+            var body = { items: getItems(), delivery: getDelivery(), email: event.billingDetails && event.billingDetails.email };
+            if (sa) body.shipping = { name: sa.name, address: { line1: sa.address.line1, line2: sa.address.line2 || undefined, city: sa.address.city, state: sa.address.state, postalCode: sa.address.postal_code, country: sa.address.country } };
+            elements.submit().then(function (sub) {
+              if (sub.error) { event.paymentFailed({ reason: 'fail' }); return; }
+              return postJson('/api/public/express/intent', body).then(function (r) {
+                if (!r.ok || !r.data.clientSecret) { event.paymentFailed({ reason: 'fail' }); return; }
+                return stripe.confirmPayment({ elements: elements, clientSecret: r.data.clientSecret, confirmParams: { return_url: r.data.returnUrl } })
+                  .then(function (res) { if (res && res.error) event.paymentFailed({ reason: 'fail' }); });
+              });
+            }).catch(function () { event.paymentFailed({ reason: 'fail' }); });
+          });
+        });
+      });
+    }).catch(function () { /* the wallet buttons are an extra: the cart and Checkout work without them */ });
+  }
+
+  // On a product page: the buttons pay for the option and quantity showing now. They are recreated when either changes.
+  function wireProductExpress() {
+    var addBtn = document.querySelector('[data-product-add]');
+    if (!addBtn || document.querySelector('[data-express-product]')) return;
+    var box = document.createElement('div');
+    box.setAttribute('data-express-product', '');
+    addBtn.parentNode.insertBefore(box, addBtn.nextSibling);
+    function current() {
+      var qtyInput = document.querySelector('[data-qty-input]');
+      return [{ sku: addBtn.getAttribute('data-sku') || '', quantity: Math.max(1, Number(qtyInput && qtyInput.value) || 1) }];
+    }
+    var key = '';
+    function refresh() {
+      var now = JSON.stringify(current());
+      if (now === key || !current()[0].sku) return;
+      key = now;
+      box.innerHTML = '';
+      mountExpress(box, current, function () { return 'ship'; });
+    }
+    refresh();
+    document.addEventListener('click', function () { setTimeout(refresh, 80); });
+    document.addEventListener('change', function () { setTimeout(refresh, 80); });
+  }
+
   // ── init ─────────────────────────────────────────────────────────────────
   // Shopper accounts (when the owner has them on): the header's Account link, and a signed-in wholesale shopper's prices.
   function loadAccount() {
     fetch('/api/public/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
       if (!s || !s.accounts) return;
       document.querySelectorAll('[data-account-link]').forEach(function (el) { el.hidden = false; });
+      // The kept card (and whether the shop offers keeping one): only a signed-in shopper gets an answer.
+      fetch('/api/public/account/me', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
+        if (me && me.fastCheckout) { fastAccount = { fastCheckout: true, savedCard: me.savedCard || null }; renderCartPage(); }
+      }).catch(function () {});
       var cart = readCart();
       if (!document.getElementById('cart-root') || !cart.length) return;
       var skus = cart.map(function (i) { return encodeURIComponent(i.sku); }).join(',');
@@ -659,6 +804,7 @@
     wireGallery();
     renderCartPage();
     wireCartPageEvents();
+    wireProductExpress();
     if (document.getElementById('cart-root')) loadShopSettings();
   }
 

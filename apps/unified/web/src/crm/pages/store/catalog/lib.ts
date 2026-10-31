@@ -18,6 +18,8 @@ export interface ProductVariant {
   lowStockAt?: number | null
   /** What a unit costs the shop. Absent for a seat that may not see it (margin:read); null = none entered. */
   costCents?: number | null
+  /** Who the shop buys it from, and the count a reorder brings it back to (store_reorders). */
+  supplierId?: string | null; reorderToQty?: number | null
 }
 export interface Product {
   id: string; slug: string; name: string; tagline: string | null; description: string | null
@@ -26,6 +28,8 @@ export interface Product {
   /** physical | gift_card; the feeds' brand and condition; the upsells' category and the owner's picks. */
   kind?: 'physical' | 'gift_card'; brand?: string | null; condition?: 'new' | 'refurbished' | 'used'; category?: string | null
   boughtTogetherIds?: string[] | null; alsoLikeIds?: string[] | null
+  /** Days after an order arrives that the post-purchase "time to reorder" email goes out; null = none. */
+  replenishAfterDays?: number | null
   images: ProductImage[]; variants: ProductVariant[]
 }
 export interface DiscountCode {
