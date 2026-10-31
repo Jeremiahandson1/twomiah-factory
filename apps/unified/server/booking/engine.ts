@@ -91,7 +91,7 @@ export interface BookingAddOn {
    * Customers may pick the person they book with (the salon's "choose your stylist" option). `enabled` says whether this business offers it;
    * the people are those with hours of their own (Settings › Booking hours) who can be given work. Absent, or not enabled: bookings go to whoever is free, as before.
    */
-  people?: { enabled(companyId: string): Promise<boolean> }
+  people?: { enabled(companyId: string): Promise<boolean>; /** The customer must choose a named person: "anyone" is not offered. Absent = optional. */ required?(companyId: string): Promise<boolean> }
   /**
    * Forms the business asks a client to fill in for a booking (the salon's intake and consent forms), offered on the booking's own page.
    * `pending` is what applies to this booking and has not been answered; `submit` keeps the answers and returns the sentence to show if they are not acceptable.
@@ -425,9 +425,17 @@ export function createBookingEngine(deps: EngineDeps) {
     const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
     return deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null, token: b.token }, formId, answers, signedName)
   }
+  /** Must the customer choose a named person? Only where choosing is offered, someone can be chosen, and the business said so. */
+  async function peopleRequired(companyId: string): Promise<boolean> {
+    if (!deps.addOn?.people?.required || !(await deps.addOn.people.required(companyId))) return false
+    return (await people(companyId)).length > 0
+  }
   /** The chosen person, if the business offers choosing and they are one of the people offered; else a refusal. */
-  async function chosenPerson(companyId: string, who: string | null | undefined): Promise<string | null> {
-    if (!who) return null
+  async function chosenPerson(companyId: string, who: string | null | undefined, forBooking = false): Promise<string | null> {
+    if (!who) {
+      if (forBooking && await peopleRequired(companyId)) throw new BookingError('Please choose your stylist.', 400, 'person')
+      return null
+    }
     if (!(await people(companyId)).some((p) => p.id === who)) throw new BookingError('That person can’t be booked online.', 400, 'person')
     return who
   }
@@ -721,6 +729,8 @@ export function createBookingEngine(deps: EngineDeps) {
     const svc = await activeService(companyId, slug)
     const w = window(s)
     const person = await chosenPerson(companyId, who)
+    // Where a named stylist is required, no day is offered until one is chosen.
+    if (!person && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, w.first, w.last, db)
     const out: string[] = []
     for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip, person).bookable.length) out.push(d)
@@ -738,6 +748,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const w = window(s)
     if (date < w.first || date > w.last) return []
     const person = await chosenPerson(companyId, who)
+    if (!person && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, date, date, db, except)
     return dayTimes(range, svc, s, date, zip, person).bookable.map(slotOut(date, range.tz))
   }
@@ -831,7 +842,7 @@ export function createBookingEngine(deps: EngineDeps) {
       if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
     // A customer's own choice of person (only where the business offers it), checked before the day is locked.
-    const chosen = customer ? await chosenPerson(companyId, input.who) : null
+    const chosen = customer ? await chosenPerson(companyId, input.who, true) : null
     const assignedUserId = opts.assignedUserId ?? chosen
     if (assignedUserId && !(await companyUserIds(companyId)).has(assignedUserId)) throw new BookingError(NOT_BOOKABLE)
 
@@ -1199,7 +1210,7 @@ export function createBookingEngine(deps: EngineDeps) {
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
-    availableDates, availableTimes, expireHolds, people, formsPending, formSubmit,
+    availableDates, availableTimes, expireHolds, people, peopleRequired, formsPending, formSubmit,
     book, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,
     isBanned, emit,

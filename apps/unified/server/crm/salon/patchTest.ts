@@ -14,6 +14,14 @@ export function stylistPickOn(settings: unknown): boolean {
   return !!(s && typeof s === 'object' && s[ONLINE_STYLIST_PICK] === true)
 }
 
+/** Settings › The Book: the client MUST choose a named stylist — "anyone" is not offered (salon parity row 17; Timely). Only means anything with the pick on. */
+export const ONLINE_STYLIST_REQUIRED = 'onlineStylistPickRequired'
+export function stylistRequiredOn(settings: unknown): boolean {
+  let s: any = settings
+  if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = {} } }
+  return !!(s && typeof s === 'object' && s[ONLINE_STYLIST_PICK] === true && s[ONLINE_STYLIST_REQUIRED] === true)
+}
+
 export const PATCH_TEST_RULE = 'patchTestRule'
 /** The menu service a held client is offered online instead (their patch-test appointment); optional, the salon's pick. */
 export const PATCH_TEST_SERVICE = 'patchTestServiceId'

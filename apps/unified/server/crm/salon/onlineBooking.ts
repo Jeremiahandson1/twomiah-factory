@@ -31,7 +31,7 @@ import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.t
 import { policyWords, type CardOnFile } from './cardOnFile.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
 import { createIntakeForms } from './intakeForms.ts'
-import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, stylistPickOn } from './patchTest.ts'
+import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, stylistPickOn, stylistRequiredOn } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
@@ -97,6 +97,11 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       async enabled(companyId) {
         if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
         return stylistPickOn(await settingsOf(opts.db, companyId))
+      },
+      // "Choice required": the client must pick a named stylist; "anyone" is not offered (Settings › The Book).
+      async required(companyId) {
+        if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
+        return stylistRequiredOn(await settingsOf(opts.db, companyId))
       },
     },
 

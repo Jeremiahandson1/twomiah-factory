@@ -30,7 +30,7 @@ import type { SalonServices } from './services.ts'
 import { calendarDayWords } from '../../core/dayWords.ts'
 import { OWN_BOOK_SETTING, inOwnChair, isOwnChair, ownBookOnlyFrom } from './bookScope.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from './visitPhotos.ts'
-import { ONLINE_STYLIST_PICK, stylistPickOn, PATCH_TEST_RULE, PATCH_TEST_SERVICE, offeredServiceId, settingsOf, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
+import { ONLINE_STYLIST_PICK, ONLINE_STYLIST_REQUIRED, stylistPickOn, stylistRequiredOn, PATCH_TEST_RULE, PATCH_TEST_SERVICE, offeredServiceId, settingsOf, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -134,17 +134,25 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   // changed by whoever changes the company.
   app.get('/online-stylist-pick', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
-    return one(c, { [ONLINE_STYLIST_PICK]: stylistPickOn(await settingsOf(db, u.companyId)) })
+    const settings = await settingsOf(db, u.companyId)
+    return one(c, { [ONLINE_STYLIST_PICK]: stylistPickOn(settings), [ONLINE_STYLIST_REQUIRED]: stylistRequiredOn(settings) })
   })
+  // { onlineStylistPick?: boolean, onlineStylistPickRequired?: boolean } — "required" means the client must choose a named stylist ("anyone" is not
+  // offered); it needs the pick on, so turning it on turns the pick on and turning the pick off turns it off.
   app.put('/online-stylist-pick', requirePermission('company:update'), async (c) => {
     const u = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-    if (typeof body[ONLINE_STYLIST_PICK] !== 'boolean') return fail(c, 400, 'Say whether clients choose their stylist online: on or off.', 'BAD_SETTING', { [ONLINE_STYLIST_PICK]: 'On or off.' })
+    const hasPick = typeof body[ONLINE_STYLIST_PICK] === 'boolean', hasReq = typeof body[ONLINE_STYLIST_REQUIRED] === 'boolean'
+    if (!hasPick && !hasReq) return fail(c, 400, 'Say whether clients choose their stylist online: on or off, and whether they must.', 'BAD_SETTING', { [ONLINE_STYLIST_PICK]: 'On or off.' })
     const settings: any = await settingsOf(db, u.companyId)
-    const before = stylistPickOn(settings)
-    await db.update(company).set({ settings: { ...settings, [ONLINE_STYLIST_PICK]: body[ONLINE_STYLIST_PICK] }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
-    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [ONLINE_STYLIST_PICK]: { before, after: body[ONLINE_STYLIST_PICK] } }, req: { user: u } })
-    return one(c, { [ONLINE_STYLIST_PICK]: body[ONLINE_STYLIST_PICK] })
+    const before = { [ONLINE_STYLIST_PICK]: stylistPickOn(settings), [ONLINE_STYLIST_REQUIRED]: stylistRequiredOn(settings) }
+    let pick = hasPick ? body[ONLINE_STYLIST_PICK] : before[ONLINE_STYLIST_PICK]
+    let required = hasReq ? body[ONLINE_STYLIST_REQUIRED] : (settings?.[ONLINE_STYLIST_REQUIRED] === true)
+    if (hasReq && required) pick = true
+    if (!pick) required = false
+    await db.update(company).set({ settings: { ...settings, [ONLINE_STYLIST_PICK]: pick, [ONLINE_STYLIST_REQUIRED]: required }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [ONLINE_STYLIST_PICK]: { before: before[ONLINE_STYLIST_PICK], after: pick }, [ONLINE_STYLIST_REQUIRED]: { before: before[ONLINE_STYLIST_REQUIRED], after: required } }, req: { user: u } })
+    return one(c, { [ONLINE_STYLIST_PICK]: pick, [ONLINE_STYLIST_REQUIRED]: required })
   })
 
   /** The service, if it is on THIS salon's menu — an unknown id is named, not a foreign-key 409. (Salon T27 N17) */
