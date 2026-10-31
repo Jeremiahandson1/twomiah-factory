@@ -290,7 +290,7 @@ export const job = pgTable('job', {
   // A moved visit clears it — they confirmed the old time.
   confirmedAt: timestamp('confirmed_at'),
   confirmedVia: text('confirmed_via'),
-  // The private link a reminder carries to confirm this one visit (/visit/<token>); minted the first time one goes out.
+  // The private link a reminder carries to confirm this one visit (/confirm-visit/<token>); minted the first time one goes out.
   confirmToken: text('confirm_token'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),

@@ -129,7 +129,7 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         const token = (await row(j.id)).confirmToken
         expect(token).toMatch(/^[0-9a-f]{64}$/)
         expect(texts[0].msg.message).toContain('Reply Y to confirm.')
-        expect(mails[0].data.confirmPath).toBe(`/visit/${token}`)
+        expect(mails[0].data.confirmPath).toBe(`/confirm-visit/${token}`)
         texts.length = 0; mails.length = 0
         await t.db.delete(t.schema.reminderLog); await t.db.delete(t.schema.job)
         await setRules({ askConfirm: false })

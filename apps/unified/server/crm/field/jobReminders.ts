@@ -151,7 +151,8 @@ type Mode = 'reminder' | 'moved' | 'manual'
 
 /** The app's address, for a link in a text. Without one the text carries "Reply Y" and no link. */
 const appBase = () => String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
-export const confirmPathFor = (token: string) => `/visit/${token}`
+// Not /visit/<token>: a bar website has its own /visit page (Find us), and an admin page at /visit/* took it over (bar-site test, 10/31).
+export const confirmPathFor = (token: string) => `/confirm-visit/${token}`
 const newConfirmToken = () => crypto.randomBytes(32).toString('hex')
 
 /** The steps a job has under these settings, soonest first: when each is due and the key that makes it once-only. */

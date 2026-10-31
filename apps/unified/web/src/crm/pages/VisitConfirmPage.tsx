@@ -1,4 +1,4 @@
-// /visit/<token>: the page behind the link in a visit reminder (server crm/field/jobConfirm.ts, /api/visit-confirm/<token>).
+// /confirm-visit/<token>: the page behind the link in a visit reminder (server crm/field/jobConfirm.ts, /api/visit-confirm/<token>).
 // The customer sees the one visit and presses Confirm — no sign-in, nothing else of theirs is reachable from here.
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'

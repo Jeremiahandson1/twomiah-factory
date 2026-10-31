@@ -284,7 +284,7 @@ export default function App() {
                     <Route path="/w/:token" element={<CrewLinkPage />} />
 
                     {/* The link in a visit reminder: one visit and a Confirm button (no sign-in, no shell). */}
-                    <Route path="/visit/:token" element={<VisitConfirmPage />} />
+                    <Route path="/confirm-visit/:token" element={<VisitConfirmPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

@@ -1,5 +1,5 @@
 // The customer confirms a visit (Jobber's "Confirm" on the Client Hub and "reply Y / C"): three doors, one rule.
-//   · the private link in a reminder — /visit/<token>, one visit and nothing else of the customer's (public, no sign-in);
+//   · the private link in a reminder — /confirm-visit/<token>, one visit and nothing else of the customer's (public, no sign-in);
 //   · the customer portal's "Upcoming visits" (the same rule, by the portal's own link);
 //   · a text back: Y, YES, C or CONFIRM to the reminder confirms the soonest visit they were reminded of.
 // A confirmation is job.confirmed_at (and confirmed_via: link, portal or text). It only means something for a visit still to
