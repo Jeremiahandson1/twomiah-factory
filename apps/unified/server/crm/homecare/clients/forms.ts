@@ -34,7 +34,7 @@ export const isEmptyAnswer = (f: any, v: unknown) => isMultiCheck(f)
   ? !(Array.isArray(v) && v.length)
   : (f?.type === 'checkbox' ? !v : (v == null || String(v).trim() === ''))
 
-const parseFields = (raw: unknown): any[] => {
+export const parseFields = (raw: unknown): any[] => {
   if (Array.isArray(raw)) return raw
   if (typeof raw === 'string') { try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] } }
   return []

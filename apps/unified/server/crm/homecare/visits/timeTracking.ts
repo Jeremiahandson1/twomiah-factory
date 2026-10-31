@@ -502,14 +502,30 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
         'required_tasks_pending', Object.fromEntries(openRequired.map((t) => [t.taskId, t.taskName])))
     }
 
+    // Forms, interventions, goals and tasks for every visit (care_visit_items): a required one waits, like a required task; one that is
+    // still open when a clock-out arrives from the phone's offline queue is recorded and flagged. And the agency's visit-note rule.
+    const openItems = await core.visitItems.pendingFor(companyId, entry)
+    if (openItems.length && !endAt) {
+      const names = openItems.map((i) => i.name)
+      return fail(c, 409, `Finish ${names.length === 1 ? 'this' : 'these'} before clocking out: ${names.join(', ')}. Mark ${names.length === 1 ? 'it' : 'each'} done, or skip it and say why.`,
+        'required_items_pending', Object.fromEntries(openItems.map((i) => [i.id, i.name])))
+    }
+    const noteMissing = !String(notes || entry.notes || '').trim() && await core.visitItems.noteRequired(companyId)
+    if (noteMissing && !endAt) return fail(c, 400, 'This agency needs a visit note to clock out. Please add a short note about the visit.', 'note_required')
+
     // Questions at clock-out (care_visit_questions): the same rule as at clock-in.
     const asked = await core.visitQuestions.gate(companyId, 'clock_out', b.answers, !endAt)
     if (Object.keys(asked.problems).length) return questionsRefusal(c, asked)
 
     const dec = decideBilling({ durationSeconds: (end.getTime() - entry.startTime.getTime()) / 1000, allottedMinutes: entry.allottedMinutes, isPrivatePay: isPrivate(payer) })
     const baseFlag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
-    const flag = openRequired.length
-      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}`].filter(Boolean).join(' · ') }
+    const flagged = [
+      openRequired.length ? `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}` : '',
+      openItems.length ? `Required items not recorded: ${openItems.map((i) => i.name).join(', ')}` : '',
+      noteMissing ? 'No visit note' : '',
+    ].filter(Boolean)
+    const flag = flagged.length
+      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, ...flagged].filter(Boolean).join(' · ') }
       : baseFlag
     const outLoc = latitude && longitude
       ? (endAt ? { lat: latitude, lng: longitude, source: 'offline', captured_at: endAt.toISOString() } : { lat: latitude, lng: longitude })

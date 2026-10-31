@@ -184,3 +184,28 @@ export function unansweredRequired(questions: VisitQuestion[], answers: VisitAns
 export function answersBody(questions: VisitQuestion[], answers: VisitAnswers): { questionId: string; answer: string }[] {
   return questions.filter((q) => String(answers[q.id] ?? '').trim()).map((q) => ({ questionId: q.id, answer: String(answers[q.id]).trim() }))
 }
+
+
+// ─── In-visit forms, interventions and goals (care_visit_items) ───────────────────────────────────
+
+/** A field of a form template (GET /api/forms/templates/:id). */
+export interface FormField { id: string; type: string; label?: string; options?: string[]; required?: boolean }
+
+/** The labels of the required fields still unanswered (a checkbox with options needs one pick; one without needs the box ticked). */
+export function formMissing(fields: FormField[], data: Record<string, unknown>): string[] {
+  const blank = (f: FormField) => {
+    const v = data[f.id]
+    if (f.type === 'checkbox') return Array.isArray(f.options) && f.options.length ? !(Array.isArray(v) && v.length) : !v
+    return v === undefined || v === null || String(v).trim() === ''
+  }
+  return fields.filter((f) => f.required && f.type !== 'section' && blank(f)).map((f) => f.label || f.id)
+}
+
+export const GOAL_RATINGS: { value: 'progress' | 'no_change' | 'declined'; label: string }[] = [
+  { value: 'progress', label: 'Progress' }, { value: 'no_change', label: 'No change' }, { value: 'declined', label: 'Declined' },
+]
+
+/** What a note must say before the phone sends a skip or a refusal: the reason is needed for a refusal and for a required item. */
+export function reasonNeeded(status: 'skipped' | 'refused', required: boolean): boolean {
+  return status === 'refused' || required
+}

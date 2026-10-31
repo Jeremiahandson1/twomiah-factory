@@ -3155,3 +3155,42 @@ export const visitAnswer = pgTable('visit_answer', {
   uniqueIndex('visit_answer_once_idx').on(t.timeEntryId, t.questionId, t.phase),
   index('visit_answer_company_idx').on(t.companyId, t.createdAt),
 ])
+
+// What a caregiver works through inside a visit besides the client's care tasks (item 4, care_visit_items): forms to fill in,
+// interventions (what to do for a goal), goals (progress is noted each visit) and tasks for every visit. A row with no client applies to
+// every visit; one with a client, to that client's visits only.
+export const visitItem = pgTable('visit_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'form' | 'intervention' | 'goal' | 'general_task'
+  name: text('name').notNull(),
+  detail: text('detail'),
+  goalId: text('goal_id'), // an intervention: the goal it is for
+  formTemplateId: text('form_template_id').references(() => formTemplates.id, { onDelete: 'cascade' }),
+  required: boolean('required').default(false).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_item_company_client_idx').on(t.companyId, t.clientId),
+])
+
+// One item at one visit: done, skipped or refused with a note; a goal also carries how it went; a form points at the filled-in submission.
+export const visitItemLog = pgTable('visit_item_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => visitItem.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(), // 'done' | 'skipped' | 'refused'
+  rating: text('rating'), // a goal: 'progress' | 'no_change' | 'declined'
+  note: text('note'),
+  formSubmissionId: text('form_submission_id').references(() => formSubmissions.id, { onDelete: 'set null' }),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_item_log_once_idx').on(t.timeEntryId, t.itemId),
+  index('visit_item_log_company_idx').on(t.companyId),
+])

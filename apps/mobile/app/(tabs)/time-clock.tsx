@@ -24,6 +24,7 @@ import { CareScreen, fullAddress, openDirections } from '../../src/care/screen'
 import { Banner, BannerText, Button, Card, Field, SectionTitle, SOLID, useTone } from '../../src/care/ui'
 import { SandataIdBox, SandataPromptCard, VisitSandata, SandataHelp } from '../../src/care/components/Sandata'
 import { CareTaskChecklist, MedicationLog, VisitPhotos, VitalsForm } from '../../src/care/components/VisitParts'
+import { VisitItems } from '../../src/care/components/VisitItems'
 import { ConfirmSheet } from '../../src/components/ConfirmSheet'
 import { needsSandata } from '../../src/care/sandata'
 import { VisitQuestionFields, useVisitQuestions } from '../../src/care/components/VisitQuestions'
@@ -62,6 +63,7 @@ function ActiveVisitView() {
       if (r.code === 'questions_required') { setOutMissing(outQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
       haptics.error()
       // A note the server or the offline rule requires: keep the sheet open and say why.
+      if (r.code === 'required_items_pending') { setOutOpen(false); Alert.alert('Finish these first', r.error || ''); return }
       if (r.code === 'va_note_required' || r.code === 'note_required') { setNoteError(r.error || 'A visit note is required.'); return }
       setOutOpen(false)
       Alert.alert('Clock-out failed', r.error || 'Please try again.')
@@ -99,6 +101,7 @@ function ActiveVisitView() {
       <SectionTitle>Care tasks</SectionTitle>
       <CareTaskChecklist timeEntryId={a.id} />
 
+      <VisitItems timeEntryId={a.id} />
       <MedicationLog clientId={a.clientId} timeEntryId={a.id} />
       <VitalsForm clientId={a.clientId} timeEntryId={a.id} />
       <VisitPhotos />
