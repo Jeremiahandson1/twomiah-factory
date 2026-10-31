@@ -12,7 +12,7 @@
 // ({ data, pagination }), deletes are { success: true }.
 import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ne } from 'drizzle-orm'
-import { refreshMenu, servingNow, windowRefusal, windowWords, menuDaypartsOn } from './menuDay.ts'
+import { cleanWindows, refreshMenu, servingNow, windowRefusal, windowWords, menuDaypartsOn } from './menuDay.ts'
 import { barSettings, barStatus, barTap, barSpecial, barGame, barEvent, barMenuSection, barMenuItem, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
@@ -325,11 +325,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   // ─── menu ─────────────────────────────────────────────────────────────────────────────────────────
   // A section's serving window (menu_dayparts, not ready): taken only where the venue has switched it on.
   async function windowInput(companyId: string, body: any): Promise<{ error?: string; value: Record<string, unknown> }> {
-    const keys = ['availableFrom', 'availableTo', 'availableDays'].filter((k) => body[k] !== undefined)
+    const keys = ['availableFrom', 'availableTo', 'availableDays', 'availableWindows'].filter((k) => body[k] !== undefined)
     if (!keys.length) return { value: {} }
     if (!(await menuDaypartsOn(db, companyId))) return { error: 'Serving a section only at certain hours is not switched on for this business.', value: {} }
     const refusal = windowRefusal(body); if (refusal) return { error: refusal, value: {} }
-    return { value: { availableFrom: body.availableFrom || null, availableTo: body.availableTo || null, ...(body.availableDays !== undefined ? { availableDays: body.availableDays } : {}) } }
+    // Several windows (parity row 12): the first in the three columns, the rest in the list.
+    return { value: { availableFrom: body.availableFrom || null, availableTo: body.availableTo || null, ...(body.availableDays !== undefined ? { availableDays: body.availableDays } : {}), ...(body.availableWindows !== undefined ? { availableWindows: cleanWindows(body.availableWindows) } : {}) } }
   }
 
   app.get('/menu', requireEnabledFeature('bar_menu'), requirePermission('bar:read'), async (c) => {

@@ -26,7 +26,7 @@ interface Item {
 /** An add-on as the form edits it: the price typed in dollars. */
 type ModRow = { id?: string; name: string; price: string };
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; availableFrom?: string | null; availableTo?: string | null; availableDays?: number[]; items: Item[] }
+interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; availableFrom?: string | null; availableTo?: string | null; availableDays?: number[]; availableWindows?: Array<{ from: string; to: string; days: number[] }>; items: Item[] }
 
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
 const LBL = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
@@ -61,7 +61,7 @@ export default function MenuPage() {
     setSaving(true); setFormErr('');
     try {
       const body = { name: sectionForm.name, description: sectionForm.description ?? null, kind: sectionForm.kind || 'food', isActive: sectionForm.isActive !== false,
-        ...(byTime ? { availableFrom: sectionForm.availableFrom || null, availableTo: sectionForm.availableTo || null, availableDays: sectionForm.availableFrom ? sectionForm.availableDays || [] : [] } : {}) };
+        ...(byTime ? { availableFrom: sectionForm.availableFrom || null, availableTo: sectionForm.availableTo || null, availableDays: sectionForm.availableFrom ? sectionForm.availableDays || [] : [], availableWindows: (sectionForm.availableWindows || []).filter((w) => w.from && w.to) } : {}) };
       if (sectionForm.id) await api.put(`/api/bar/menu/sections/${sectionForm.id}`, body);
       else await api.post('/api/bar/menu/sections', body);
       setSectionForm(null); await load();
@@ -138,7 +138,7 @@ export default function MenuPage() {
             <div className="flex items-start justify-between gap-2 p-4 border-b border-gray-100 dark:border-slate-800">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{s.name} <span className="text-xs font-normal text-gray-500 dark:text-slate-400">{s.kind === 'drink' ? 'Drinks' : 'Food'}{s.isActive ? '' : ' · hidden'}</span></h2>
-                {byTime && s.availableFrom && s.availableTo && <p className="text-sm text-gray-600 dark:text-slate-300">Served {s.availableFrom} to {s.availableTo}{s.availableDays?.length && s.availableDays.length < 7 ? ' ' + s.availableDays.map((d) => DAYS[d]).join(', ') : ''}</p>}
+                {byTime && (s.availableFrom && s.availableTo || s.availableWindows?.length) && <p className="text-sm text-gray-600 dark:text-slate-300">Served {[...(s.availableFrom && s.availableTo ? [{ from: s.availableFrom, to: s.availableTo, days: s.availableDays || [] }] : []), ...(s.availableWindows || [])].map((w) => `${w.from} to ${w.to}${w.days.length && w.days.length < 7 ? ' ' + w.days.map((d) => DAYS[d]).join(', ') : ''}`).join('; ')}</p>}
                 {s.description && <p className="text-sm text-gray-500 dark:text-slate-400">{s.description}</p>}
               </div>
               {mayEdit && (
@@ -200,7 +200,23 @@ export default function MenuPage() {
                   {DAYS.map((d, n) => { const on = (sectionForm.availableDays || []).includes(n); return (
                     <button type="button" key={d} aria-pressed={on} onClick={() => setSectionForm({ ...sectionForm, availableDays: on ? (sectionForm.availableDays || []).filter((x) => x !== n) : [...(sectionForm.availableDays || []), n].sort() })} className={`px-2.5 py-1 rounded-lg text-sm border ${on ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-800 border-gray-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700'}`}>{d}</button>) })}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-slate-400">No days picked means every day. A window that runs past midnight counts as the day it started.</p>
+                {/* More windows (parity row 12): happy hour, late night, each with its own days. */}
+                {(sectionForm.availableWindows || []).map((w, i) => (
+                  <div key={i} className="space-y-1 border-t border-gray-100 dark:border-slate-800 pt-2">
+                    <div className="flex gap-2 items-center">
+                      <input aria-label={`Window ${i + 2} from`} type="time" className={INPUT} value={w.from} onChange={(e) => setSectionForm({ ...sectionForm, availableWindows: (sectionForm.availableWindows || []).map((x, n) => (n === i ? { ...x, from: e.target.value } : x)) })} />
+                      <span className="text-sm text-gray-600 dark:text-slate-300">to</span>
+                      <input aria-label={`Window ${i + 2} until`} type="time" className={INPUT} value={w.to} onChange={(e) => setSectionForm({ ...sectionForm, availableWindows: (sectionForm.availableWindows || []).map((x, n) => (n === i ? { ...x, to: e.target.value } : x)) })} />
+                      <button type="button" aria-label={`Remove window ${i + 2}`} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300" onClick={() => setSectionForm({ ...sectionForm, availableWindows: (sectionForm.availableWindows || []).filter((_, n) => n !== i) })}>Remove</button>
+                    </div>
+                    <div className="flex flex-wrap gap-1" role="group" aria-label={`Window ${i + 2} days`}>
+                      {DAYS.map((d, n) => { const on = (w.days || []).includes(n); return (
+                        <button type="button" key={d} aria-pressed={on} onClick={() => setSectionForm({ ...sectionForm, availableWindows: (sectionForm.availableWindows || []).map((x, k) => (k === i ? { ...x, days: on ? (x.days || []).filter((y) => y !== n) : [...(x.days || []), n].sort() } : x)) })} className={`px-2.5 py-1 rounded-lg text-sm border ${on ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-800 border-gray-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700'}`}>{d}</button>) })}
+                    </div>
+                  </div>
+                ))}
+                {(sectionForm.availableWindows || []).length < 7 && <button type="button" className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100" onClick={() => setSectionForm({ ...sectionForm, availableWindows: [...(sectionForm.availableWindows || []), { from: '16:00', to: '18:00', days: [] }] })}>Add another window</button>}
+                <p className="text-xs text-gray-500 dark:text-slate-400">No days picked means every day. A window that runs past midnight counts as the day it started. The section is served in any of its windows.</p>
               </fieldset>
             )}
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={sectionForm.isActive !== false} onChange={(e) => setSectionForm({ ...sectionForm, isActive: e.target.checked })} /> Show on the website</label>

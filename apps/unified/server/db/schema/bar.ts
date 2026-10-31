@@ -316,6 +316,8 @@ export const barMenuSection = pgTable('bar_menu_section', {
   availableFrom: text('available_from'),
   availableTo: text('available_to'),
   availableDays: json('available_days').default([]).notNull(),
+  /** Any number of windows beside the first (parity row 12, Toast): [{ from, to, days }] - breakfast, lunch, happy hour, late night, each with its own days. */
+  availableWindows: json('available_windows').$type<Array<{ from: string; to: string; days: number[] }>>().default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

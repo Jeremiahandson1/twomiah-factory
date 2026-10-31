@@ -414,6 +414,13 @@
       "when": 1793474421754,
       "tag": "0058_bar_invoice_scan",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793474603818,
+      "tag": "0060_bar_menu_section_windows",
+      "breakpoints": true
     }
   ]
 }

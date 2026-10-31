@@ -2,9 +2,11 @@
 // item availability). Behind the 'menu_dayparts' feature (not ready): off, every section shows all day and an 86 stays
 // until someone puts it back, exactly as before.
 //
-//   · A SECTION can be served only in a window — lunch 11:00 to 15:00 Monday to Friday, brunch on weekends. Outside it
-//     the section leaves the website, the kiosk and online ordering and the register's picker, and the register refuses
-//     a line from it (a manager can always change the window).
+//   · A SECTION can be served only in its windows — lunch 11:00 to 15:00 Monday to Friday, brunch on weekends, happy hour
+//     16:00 to 18:00, late night 22:00 to 02:00 (parity row 12: any number of windows, each with its own days; the first
+//     is kept in available_from / available_to / available_days as it always was, the rest in available_windows). Outside
+//     every window the section leaves the website, the kiosk and online ordering and the register's picker, and the
+//     register refuses a line from it (a manager can always change the windows).
 //   · An ITEM put out "until we open" comes back by itself the next time the business opens: its kitchen hours, else its
 //     bar hours, else 5 AM, on the business's own clock. Put back by hand sooner, it simply is.
 import { and, eq, isNotNull, lte } from 'drizzle-orm'
@@ -13,6 +15,7 @@ import { addDays, localDateString, localParts, localToUtc, rangesFor, type Hours
 import { createBarLive } from './barLive.ts'
 
 const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/
+export const MAX_WINDOWS = 8
 
 export async function menuDaypartsOn(db: any, companyId: string): Promise<boolean> {
   const [co] = await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -21,36 +24,66 @@ export async function menuDaypartsOn(db: any, companyId: string): Promise<boolea
 
 const minutes = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
 
-export interface Window { availableFrom: string | null; availableTo: string | null; availableDays: unknown }
+export interface Window { availableFrom: string | null; availableTo: string | null; availableDays: unknown; availableWindows?: unknown }
+export interface OneWindow { from: string; to: string; days: number[] }
 
-/** The refusal for a window typed in; null when it is fine (both times or neither, the end after the start or wrapping midnight, days 0 to 6). */
-export function windowRefusal(b: Record<string, unknown>): string | null {
-  const from = b.availableFrom || null, to = b.availableTo || null
+/** Every window a section has: the first (the old three columns) and the rest. None = served all day, every day. */
+export function allWindows(w: Window): OneWindow[] {
+  const out: OneWindow[] = []
+  if (w.availableFrom && w.availableTo) out.push({ from: w.availableFrom, to: w.availableTo, days: Array.isArray(w.availableDays) ? (w.availableDays as number[]) : [] })
+  if (Array.isArray(w.availableWindows)) for (const x of w.availableWindows as any[]) if (x && x.from && x.to) out.push({ from: String(x.from), to: String(x.to), days: Array.isArray(x.days) ? x.days : [] })
+  return out
+}
+
+const oneRefusal = (from: unknown, to: unknown, days: unknown): string | null => {
   if (!!from !== !!to) return 'A time window needs both a first and a last time.'
   if ((from && !TIME.test(String(from))) || (to && !TIME.test(String(to)))) return 'Times look like 11:00.'
   if (from && from === to) return 'The window has to be longer than that.'
-  if (b.availableDays !== undefined && !(Array.isArray(b.availableDays) && b.availableDays.every((n) => Number.isInteger(n) && n >= 0 && n <= 6))) return 'Days are numbers from 0 (Sunday) to 6 (Saturday).'
+  if (days !== undefined && !(Array.isArray(days) && days.every((n) => Number.isInteger(n) && n >= 0 && n <= 6))) return 'Days are numbers from 0 (Sunday) to 6 (Saturday).'
   return null
 }
 
-/** Is a section served at this moment on the business's clock? Windows that cross midnight belong to the day they started. */
-export function servedAt(w: Window, now: Date, tz: string): boolean {
-  if (!w.availableFrom || !w.availableTo) return true
-  const days = Array.isArray(w.availableDays) ? (w.availableDays as number[]) : []
-  const p = localParts(now, tz)
-  const t = p.h * 60 + p.mi, from = minutes(w.availableFrom), to = minutes(w.availableTo)
-  const dayOk = (dow: number) => !days.length || days.includes(dow)
+/** The refusal for the windows typed in; null when fine (each: both times or neither, the end after the start or wrapping midnight, days 0 to 6; up to MAX_WINDOWS). */
+export function windowRefusal(b: Record<string, unknown>): string | null {
+  const first = oneRefusal(b.availableFrom || null, b.availableTo || null, b.availableDays)
+  if (first) return first
+  if (b.availableWindows === undefined) return null
+  if (!Array.isArray(b.availableWindows)) return 'Send the windows as a list.'
+  if (b.availableWindows.length > MAX_WINDOWS - 1) return `Up to ${MAX_WINDOWS} windows for one section.`
+  for (const x of b.availableWindows as any[]) {
+    if (!x || !x.from || !x.to) return 'Each window needs a first and a last time.'
+    const r = oneRefusal(x.from, x.to, x.days); if (r) return r
+  }
+  return null
+}
+
+/** The extra windows, cleaned for keeping. */
+export function cleanWindows(raw: unknown): OneWindow[] {
+  return (Array.isArray(raw) ? raw : []).filter((x: any) => x && x.from && x.to).map((x: any) => ({ from: String(x.from), to: String(x.to), days: Array.isArray(x.days) ? [...new Set((x.days as number[]).map(Number))].sort() : [] }))
+}
+
+const inWindow = (w: OneWindow, p: { dow: number; h: number; mi: number }): boolean => {
+  const t = p.h * 60 + p.mi, from = minutes(w.from), to = minutes(w.to)
+  const dayOk = (dow: number) => !w.days.length || w.days.includes(dow)
   if (from < to) return dayOk(p.dow) && t >= from && t < to
   // Across midnight: the evening part belongs to today, the small hours to yesterday.
   return (dayOk(p.dow) && t >= from) || (dayOk((p.dow + 6) % 7) && t < to)
 }
 
-/** "Served 11:00 to 15:00" in words, for the screen that says why a section is not showing. */
+/** Is a section served at this moment on the business's clock? Any of its windows will do; none means always. */
+export function servedAt(w: Window, now: Date, tz: string): boolean {
+  const windows = allWindows(w)
+  if (!windows.length) return true
+  const p = localParts(now, tz)
+  return windows.some((x) => inWindow(x, p))
+}
+
+/** "Served 11:00 to 15:00 Mon, Tue; 22:00 to 02:00 Fri" in words, for the screen that says why a section is not showing. */
 export function windowWords(w: Window): string | null {
-  if (!w.availableFrom || !w.availableTo) return null
+  const windows = allWindows(w)
+  if (!windows.length) return null
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const days = Array.isArray(w.availableDays) ? (w.availableDays as number[]) : []
-  return `Served ${w.availableFrom} to ${w.availableTo}${days.length && days.length < 7 ? ' ' + days.map((d) => names[d]).join(', ') : ''}`
+  return 'Served ' + windows.map((x) => `${x.from} to ${x.to}${x.days.length && x.days.length < 7 ? ' ' + x.days.map((d) => names[d]).join(', ') : ''}`).join('; ')
 }
 
 /** The first moment the business opens after `after`: kitchen hours, else bar hours, else 5 AM, looking up to a week ahead. */
