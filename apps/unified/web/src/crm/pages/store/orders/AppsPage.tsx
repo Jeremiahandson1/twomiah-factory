@@ -6,6 +6,7 @@
 //     (store_webhooks, /api/admin/store-webhooks).
 // Behind integrations:update (the server asks it of all three). A panel appears only when its own feature is on. Not shown, and why: other
 // companies' apps — that is an outside party's marketplace (the note on the page says so).
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plug } from 'lucide-react'
@@ -19,7 +20,7 @@ interface Hook { id: string; url: string; events: Array<{ id: string; label: str
 interface Delivery { id: string; webhookId: string; event: string; eventLabel: string; status: string; statusLabel: string; attempts: number; responseStatus: number | null; error: string | null; nextAttemptAt: string | null; createdAt: string }
 
 const BADGE = { connected: 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300', not_connected: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300', off: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300' } as const
-const when = (t: string | null) => (t ? new Date(t).toLocaleString() : 'Never')
+const when = (t: string | null) => (t ? whenDateTime(t) : 'Never')
 const field = 'input mt-1 w-full'
 
 export default function AppsPage() {

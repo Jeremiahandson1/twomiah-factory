@@ -7,6 +7,7 @@
 //   · nothing readable leaves the shop: the files and the pushes carry hashes; customers who unsubscribed are left out and counted;
 //   · a secret is never shown again — "Saved" says it is there; leave the box empty to keep it;
 //   · a failed read, save, download or send says so in words, with the platform's own sentence.
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useCallback, useEffect, useState } from 'react'
 import { Megaphone } from 'lucide-react'
 import { api } from '../../../../api'
@@ -194,7 +195,7 @@ export default function AudiencesPage() {
                 {view.log.map((l) => (
                   <li key={l.id} className="py-2 flex flex-wrap justify-between gap-2">
                     <span className="text-gray-800 dark:text-slate-200">{PLATFORM[l.platform] ?? l.platform} — {KIND[l.kind] ?? l.kind}{l.people ? `, ${l.people} ${l.people === 1 ? 'person' : 'people'}` : ''}{l.detail ? ` — ${l.detail}` : ''}</span>
-                    <span className={l.status === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>{l.status === 'ok' ? 'Done' : 'Failed'} · {new Date(l.createdAt).toLocaleString()}</span>
+                    <span className={l.status === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>{l.status === 'ok' ? 'Done' : 'Failed'} · {whenDateTime(l.createdAt)}</span>
                   </li>
                 ))}
               </ul>

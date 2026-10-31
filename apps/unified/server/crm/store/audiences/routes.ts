@@ -9,7 +9,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
-import { companyRowTimeZone } from '@twomiah/tenant-backend'
+import { companyRowTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
 import { storeSegment } from '../../../db/schema/store.ts'
 import { audiencePeople } from '../../../data/storeAudiences.ts'
@@ -84,7 +84,7 @@ export function createAudienceRoutes(d: CrmDeps) {
     if (platform === 'meta' ? !meta : !google) return fail(c, 409, platform === 'meta' ? 'Connect your Meta ad account first (ad account id and access token).' : 'Connect Google Ads first (customer id, developer token, OAuth client and refresh token).', 'not_connected')
     const r = await rowsFor(c, platform); if ('reply' in r) return r.reply
     if (!r.rows.length) return fail(c, 409, 'Nobody in this segment can be sent: they have no email or phone, or have unsubscribed.', 'empty_audience')
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = storeDateString(new Date(), await zoneOf(own(c))) // the shop's day, not UTC's
     const name = `${r.seg.name} — ${stamp}`
     try {
       const out = platform === 'meta'
