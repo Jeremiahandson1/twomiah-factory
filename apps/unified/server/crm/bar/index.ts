@@ -22,6 +22,7 @@ import { createBarLoyaltyRoutes } from './barLoyaltyRoutes.ts'
 import { createBarStockRoutes } from './barStockRoutes.ts'
 import { createBarScheduleRoutes } from './barScheduleRoutes.ts'
 import { createBarTipRoutes } from './barTipRoutes.ts'
+import { createBarTipSourceRoutes, createBarTipSourceReturnRoutes } from './barTipSourceRoutes.ts'
 import { createBarFoodRoutes } from './barFoodRoutes.ts'
 import { createBarFoodPublicRoutes } from './barFoodPublicRoutes.ts'
 
@@ -37,6 +38,15 @@ export function barMounts(d: CrmDeps): Mount[] {
     setTimeout(expiry, 210_000)
     setInterval(expiry, 60 * 60 * 1000)
   })
+  //   · tonight's and last night's tips are read from the venue's Toast or Square (restaurant-bar parity #17).
+  Object.assign(d.services.eventJobs, {
+    runTipImport: (now?: Date) => bar.tipSources.runImports(now ?? new Date(), (companyId) => d.features.isFeatureEnabled(companyId, 'bar_tip_import')),
+  })
+  d.services.addJob(() => {
+    const pass = () => bar.tipSources.runImports(new Date(), (companyId) => d.features.isFeatureEnabled(companyId, 'bar_tip_import')).catch((err: any) => d.logger.error('[tips] import from another register failed', { error: err?.message }))
+    setTimeout(pass, 330_000)
+    setInterval(pass, 60 * 60 * 1000)
+  })
   const { registerRoutes, kitchenRoutes } = createBarRegisterRoutes(d, bar)
   return [
     { path: '/api/bar', access: 'user', feature: ['bar_menu', 'bar_tonight'], router: createBarRoutes(d, bar) },
@@ -46,6 +56,9 @@ export function barMounts(d: CrmDeps): Mount[] {
     { path: '/api/stock', access: 'user', feature: 'bar_stock', router: createBarStockRoutes(d, bar) },
     { path: '/api/schedule', access: 'user', feature: 'bar_schedule', router: createBarScheduleRoutes(d, bar) },
     { path: '/api/tips', access: 'user', feature: 'bar_tip_pooling', router: createBarTipRoutes(d, bar) },
+    { path: '/api/tip-sources', access: 'user', feature: 'bar_tip_import', router: createBarTipSourceRoutes(d, bar) },
+    // No sign-in: Square sends the browser back here after the owner allows it; the signed state proves it is ours.
+    { path: '/api/tip-sources-return', access: 'public', feature: 'bar_tip_import', router: createBarTipSourceReturnRoutes(d, bar) },
     ...(d.settings?.loyalty === 'bar' ? [{ path: '/api/loyalty', access: 'user' as const, feature: 'loyalty_rewards', router: createBarLoyaltyRoutes(d, bar) }] : []),
     // No sign-in: public fields only, read by the bar's website server. Each path answers 404 with its feature off.
     { path: '/api/public/bar', access: 'public', router: createBarPublicRoutes(d, bar) },

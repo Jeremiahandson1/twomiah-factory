@@ -5,6 +5,7 @@ import { api } from '../../../api';
 import FormError, { errorText } from '../../ui/FormError';
 import { useAuth, useMayWrite } from '../../../shared';
 import { DeclaredTipsView } from './DeclaredTipsUi';
+import TipSourcesView from './TipSourcesUi';
 import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money } from './registerUi';
@@ -50,7 +51,7 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
 export default function TipsPage() {
   const may = useMayWrite('bar:manage');
   const { hasFeature } = useAuth();
-  const [tab, setTab] = useState<'night' | 'rules' | 'report' | 'cash'>('night');
+  const [tab, setTab] = useState<'night' | 'rules' | 'report' | 'cash' | 'sources'>(new URLSearchParams(window.location.search).has('register') && hasFeature('bar_tip_import') ? 'sources' : 'night');
   return (
     <div className="space-y-4 max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -58,11 +59,12 @@ export default function TipsPage() {
         <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center`}>Close-out</Link>
       </div>
       <div className="flex gap-2" role="tablist">
-        {([['night', 'A night'], ['report', 'Report'], ...(hasFeature('bar_declared_tips') ? [['cash', 'Cash tips']] : []), ['rules', 'Rules']] as Array<readonly [typeof tab, string]>).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`${BTN} ${tab === k ? ON : OFF}`} onClick={() => setTab(k)}>{l}</button>)}
+        {([['night', 'A night'], ['report', 'Report'], ...(hasFeature('bar_declared_tips') ? [['cash', 'Cash tips']] : []), ...(hasFeature('bar_tip_import') && may ? [['sources', 'Other register']] : []), ['rules', 'Rules']] as unknown as Array<readonly [typeof tab, string]>).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`${BTN} ${tab === k ? ON : OFF}`} onClick={() => setTab(k)}>{l}</button>)}
       </div>
       {tab === 'night' && <NightView />}
       {tab === 'report' && <ReportView />}
       {tab === 'cash' && <DeclaredTipsView />}
+      {tab === 'sources' && <TipSourcesView />}
       {tab === 'rules' && <RulesView may={may} />}
     </div>
   );

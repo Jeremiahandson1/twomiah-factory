@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Loader2, Delete } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
+import { useAuth } from '../../../shared'
 import { BTN, ON, OFF, CARD, LABEL, MUTED, INPUT, centsFrom, money } from './registerUi';
 
 /**
