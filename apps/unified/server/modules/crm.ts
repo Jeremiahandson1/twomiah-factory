@@ -36,6 +36,7 @@ import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
+import { createSalonPortalHooks } from '../crm/salon/portalHooks.ts'
 import { createSalonPayees, createSalonPlanClash } from '../crm/salon/commissionPlans.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
@@ -579,7 +580,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: { appointment, service: serviceMenu, stylist: user, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}` } } : {}) },
+      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: {
+        appointment, service: serviceMenu, stylist: user, member: teamMember, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}`,
+        // Past visits with "Book again", the account page, moving a desk booking and booking inside the portal (crm/salon/portalHooks.ts).
+        salon: createSalonPortalHooks({ db, isFeatureEnabled: features.isFeatureEnabled, engine: s.bookingEngine }),
+      } } : {}) },
     } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },

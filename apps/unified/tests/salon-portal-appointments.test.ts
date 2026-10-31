@@ -69,7 +69,7 @@ describe('salon: appointments in the client portal', () => {
     const list = await get(token, '/appointments')
     expect(list.status).toBe(200)
     expect(list.body).toHaveLength(1)
-    expect(Object.keys(list.body[0]).sort()).toEqual(['endTime', 'id', 'manageUrl', 'startTime', 'status', 'service', 'with'].sort())
+    expect(Object.keys(list.body[0]).sort()).toEqual(['canManage', 'endTime', 'id', 'manageUrl', 'startTime', 'status', 'service', 'with'].sort())
     expect(list.body[0]).toMatchObject({ service: 'Cut', with: 'Ana', status: 'scheduled', manageUrl: null })   // made at the desk: no private link
     expect(JSON.stringify(list.body)).not.toContain('private note')
     // someone else's portal shows theirs

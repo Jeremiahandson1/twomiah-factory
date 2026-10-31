@@ -39,6 +39,36 @@ import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, styli
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
 
+/**
+ * A change made at the desk to an appointment that has a booking behind it (booked online, or given a booking page by the client portal) is
+ * carried to the booking: cancelled or no-show frees the time, and a new time or stylist moves it. Without this the booking went on holding the
+ * old time online and its page offered to move or cancel an appointment that was already gone. Completed is left alone (the salon's own review
+ * and rebook messages cover a finished visit). Never throws: the desk's change has been made.
+ */
+export async function carryToBooking(exec: any, appt: { id: string; companyId: string; status: string; startTime: Date; endTime: Date | null; stylistId: string | null; cancelledAt?: Date | null }) {
+  try {
+    const rows = await exec.select().from(booking).where(and(eq(booking.companyId, appt.companyId), eq(booking.appointmentId, appt.id), inArray(booking.status, ['pending', 'confirmed'])))
+    for (const b of rows as any[]) {
+      if (appt.status === 'cancelled' || appt.status === 'no_show') {
+        await exec.update(booking).set({
+          status: appt.status, updatedAt: new Date(),
+          ...(appt.status === 'cancelled' ? { cancelledAt: appt.cancelledAt ?? new Date(), cancelledReason: 'staff', depositStatus: b.depositStatus === 'pending' || b.depositStatus === 'forms' ? 'expired' : b.depositStatus } : {}),
+        }).where(eq(booking.id, b.id))
+      } else if (['scheduled', 'confirmed'].includes(appt.status)) {
+        const start = new Date(appt.startTime), end = appt.endTime ? new Date(appt.endTime) : null
+        const moved = start.getTime() !== new Date(b.startAt).getTime() || (end && end.getTime() !== new Date(b.endAt).getTime())
+        const person = appt.stylistId && appt.stylistId !== b.assignedUserId
+        if (moved || person) {
+          await exec.update(booking).set({
+            startAt: start, ...(end ? { endAt: end } : {}), ...(person ? { assignedUserId: appt.stylistId } : {}),
+            ...(moved ? { reminderEmailSentAt: null, reminderSmsSentAt: null } : {}), updatedAt: new Date(),
+          }).where(eq(booking.id, b.id))
+        }
+      }
+    }
+  } catch { /* the desk's change stands */ }
+}
+
 type MenuItem = typeof serviceMenu.$inferSelect
 
 /**

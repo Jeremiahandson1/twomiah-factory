@@ -15,6 +15,7 @@ import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord
 import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { findBlock } from './bookBlocks.ts'
+import { carryToBooking } from './onlineBooking.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -692,6 +693,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (e instanceof ApptConflict) return fail(c, 409, e.sentence, e.code)
       throw e
     }
+    await carryToBooking(db, updated)
     await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), ...(overrodeClash ? { metadata: { overrodeClash: overridingClash } } : {}), req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     // Completing raises the sale; already completed (five of six simultaneous requests) still answers with the bill.
@@ -749,6 +751,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     { const own = await book.ownChairOf(currentUser); if (own && !isOwnChair(own, existing)) return notInBook(c) }
 
     const [updated] = await db.update(appointment).set({ status: 'cancelled', updatedAt: new Date(), ...(existing.status !== 'cancelled' ? { cancelledAt: new Date() } : {}) }).where(eq(appointment.id, id)).returning()
+    await carryToBooking(db, updated)
     // Cancelling from the book and from the list are the same act. (LY0928 M1)
     if (existing.status === 'completed') await onVisitUncompleted(updated)
 

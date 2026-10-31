@@ -7,19 +7,30 @@
 
 Searches for Fresha, Vagaro, Boulevard and GlossGenius pages on a client account/portal returned no help-centre page I could read, so **nothing below claims a match against those four.** The two pages above are other salon products, used only to say what a client portal commonly offers.
 
-## Where this stands
+## Where this stands (row 21 built)
 
 | Capability | Here | Status |
 |---|---|---|
-| A client sees their upcoming appointments after signing in to their private portal link | Portal › Appointments: service, day and time, and the stylist's first name, soonest first (up to 50) | **Matches** |
+| Upcoming appointments after signing in to the private link | Portal › Appointments › Upcoming: service, day and time, the stylist's first name, soonest first (up to 50) | **Matches** |
 | Home page shows how many are coming and when the next is | "Upcoming Appointments" and "Next Appointment" tiles | **Matches** |
-| Move or cancel from the portal (Altegio: reschedule or cancel; Slick: cancel only, subject to the salon's policy) | A booking made **online** shows "Move or cancel", which opens its own booking page — where the salon's own notice rules decide whether it can still be changed. A desk booking says "please call us" | **Matches for online bookings; desk bookings are call-only** |
-| Prices, notes, formulas, other clients | Never in the payload (proved in the test) | **By rule** |
-| Past appointments tab with "repeat" (Altegio) | Not shown | **Not built** |
-| Memberships, gift cards and loyalty balances in the same account (Altegio) | Not in the portal | **Not built** |
-| Cancelled, no-show and completed appointments | Not shown | — |
-| Book a new appointment from the portal | Not built (the booking page is the way) | **Not doing** |
-| A chair-only stylist (a Team member with no login) | Their name is not shown ("with" is empty) | **Not built** |
+| Move or cancel, online bookings (Altegio: reschedule or cancel; Slick: cancel, subject to the salon's policy) | "Move or cancel" opens the booking's own page, where the salon's notice rules decide | **Matches** |
+| Move or cancel, bookings the desk made | The same page is made for the appointment when the client asks (`POST /p/:token/appointments/:id/manage`), so the notice cutoff, availability, late-cancel note and calendar sync are the booking engine's own | **Matches, with limits below** |
+| Past appointments tab with "Book again" (Altegio "repeat") | Past tab: completed visits, newest first; "Book again" opens the Book tab on that service when it can be booked online | **Matches** |
+| Memberships (credits left), gift-card balances and loyalty points in the portal (Altegio) | My Account: plan, credits left of total, renewal day, a paused-for-payment note; gift cards by last four digits with what can be spent now (a lapsed bonus is left out); loyalty points, tier, next tier, punch card | **Matches** |
+| A chair-only stylist's first name | Shown (a Team member with no login), upcoming and past | **Matches** |
+| Book a new appointment from inside the portal | Book tab: the booking page's own services, people, days and times; the client's name, email and phone are the portal client's, never typed | **Matches, with limits below** |
+| Prices, notes, formulas, other clients | Never in the payload (proved in the tests) | **By rule** |
+
+### Row 21 limits (stated, not hidden)
+
+- A desk booking can be moved or cancelled in the portal only when the booking engine can move it faithfully. Otherwise the client is told in words to call: the visit has several services, the stylist is chair-only, the service is not bookable online, the client has no email on file, or it is inside the salon's notice window.
+- Moving a desk booking adopts it into the booking engine, which then applies its own rules (length of the one service, its own availability).
+- A booking made in the portal that needs a deposit, a card on file or intake forms is held and the client is sent to the booking page link for that step; the portal does not take those itself.
+- If the client has no phone on file the booking page's rule asks for one, and the portal asks for it in words; if there is no email the client is told to call.
+- Services with custom booking questions are not asked in the portal.
+- "Completed" is not carried from the desk appointment to the adopted booking.
+- Not seen in a real browser or on a real phone: the portal pages are typechecked and built, and the API behind them is tested.
+- Tests: `apps/unified/tests/salon-portal-depth.test.ts` (9; 7 of the first 8 fail without the change) and `salon-portal-appointments.test.ts` (4).
 
 ## Switches
 

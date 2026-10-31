@@ -107,6 +107,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const bookings = createBookingModule({ db, vertical, email, logger, permissions, isFeatureEnabled: features.isFeatureEnabled, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms, (co, phone) => hasConsent(db, co, phone)), bookingCard: crm.bookingCard, storage: crm.storage, bookingForms: crm.bookingForms })
   crm.bookingCard.confirm = (co, token) => bookings.engine.cardSaved(co, token)
   crm.bookingForms.released = (co, contactId) => bookings.engine.formsReleased(co, contactId)
+  crm.bookingEngine.current = bookings.engine
   crm.useBookingDeposits({
     paid: (p) => bookings.engine.depositPaid(p.companyId, p.bookingId, p.paymentIntentId),
     refunded: (p) => bookings.engine.depositRefunded(p.companyId, p.bookingId, p.paymentIntentId),
