@@ -37,7 +37,8 @@ describe('boot', () => {
     // reader payments and kiosk and website orders (0035: bar_reader, bar_terminal_charge, bar_order). 10/30 integration: +saved_request;
     // contractor PR #173; field service PR #169; restaurant-bar PR #171's seven (event_space_minimum, event_waitlist, event_proposal,
     // event_autopay, bar_tip_payout, bar_availability, bar_shift_request); store PR #174's nine; landscaping PR #168's seven; roofing PR #170's seven; home care PR #172's eight (its saved_request is core's); salon PR #167's sixteen. 10/31: home care's split billing rules (0051, client_billing_splits).
-    expect(declared.length).toBe(462)
+    // 10/31 fieldservice parity item 12: a live AI call's session and transcript turns (0059: ai_call_session, ai_call_turn).
+    expect(declared.length).toBe(464)
     for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure', 'crew_login', 'job_assignee', 'scheduled_text', 'bar_reader', 'bar_terminal_charge', 'bar_order']) expect(declared).toContain(name)
   })
 

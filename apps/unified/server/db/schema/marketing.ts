@@ -460,7 +460,52 @@ export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
   greetingText: text('greeting_text'),
   forwardingNumber: text('forwarding_number'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  /**
+   * Live AI call answering (crm/comms/aiCallAnswering*.ts, feature `ai_call_answering`): the owner's on/off, when it
+   * answers, booking limits, service area, transfer rules and every line it may speak (callDialogue.ts Wording). Null =
+   * never saved: off, with the default wording shown on the settings page.
+   */
+  callAnswering: json('call_answering'),
 })
+
+/**
+ * One live call the AI answers (crm/comms/aiCallAnsweringService.ts): the dialogue's state between the provider's
+ * turns (each caller utterance is its own signed webhook), and how the call ended. One per provider call id.
+ */
+export const aiCallSession = pgTable('ai_call_session', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  callLogId: text('call_log_id').notNull().references(() => callLog.id, { onDelete: 'cascade' }),
+  providerCallId: text('provider_call_id').notNull(),
+  /** live, ended */
+  status: text('status').default('live').notNull(),
+  /** booked, message, transferred, answered, no_answer, hung_up, abandoned — set when the call ends. */
+  outcome: text('outcome'),
+  /** The dialogue engine's state (callDialogue.ts DialogueState). */
+  state: json('state').notNull(),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_call_session_company_id_idx').on(t.companyId),
+  uniqueIndex('ai_call_session_provider_call_idx').on(t.companyId, t.providerCallId),
+])
+
+/** One line of a live AI call's transcript: what the caller said, or what the assistant spoke, in order. */
+export const aiCallTurn = pgTable('ai_call_turn', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  callLogId: text('call_log_id').notNull().references(() => callLog.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(),
+  /** caller, assistant */
+  speaker: text('speaker').notNull(),
+  text: text('text').notNull(),
+  /** What the engine read the caller's line as (book, message, hours, …); null on the assistant's lines. */
+  intent: text('intent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_call_turn_call_log_id_idx').on(t.callLogId),
+])
 
 export const dripSequence = pgTable('drip_sequence', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

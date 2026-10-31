@@ -8,17 +8,24 @@ import type { Mount } from '../../http/registry.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingRoutes } from './calltracking.ts'
 import { createAiReceptionistRoutes } from './aiReceptionist.ts'
+import { createAiCallAnsweringRoutes } from './aiCallAnswering.ts'
+import { createAiCallAnsweringService } from './aiCallAnsweringService.ts'
+import { twilioVoiceProvider } from './voiceProvider.ts'
 import { createCommentsRoutes } from './comments.ts'
 import { createSearchRoutes } from './search.ts'
 import { createSupportRoutes } from './support.ts'
 import { createPlatformSupportRoutes } from './platformSupport.ts'
 
 export function commsMounts(d: CrmDeps): Mount[] {
+  const callAnswering = createAiCallAnsweringService({ ...d, provider: twilioVoiceProvider })
   return [
     // Public doors inside (the providers' signed webhooks); each router signs people in and checks its feature
     // (call_tracking, ai_receptionist) itself after them, so calls are still logged with the module switched off.
     { path: '/api/calltracking', access: 'public', router: createCalltrackingRoutes(d) },
-    { path: '/api/ai-receptionist', access: 'public', router: createAiReceptionistRoutes(d) },
+    // The receptionist's voice webhook hands a call to the live assistant when it is answering (one service, one provider).
+    { path: '/api/ai-receptionist', access: 'public', router: createAiReceptionistRoutes(d, { callAnswering, provider: twilioVoiceProvider }) },
+    // Live AI call answering's turn webhooks (signed) and the owner's settings (ai_call_answering, checked inside).
+    { path: '/api/ai-call-answering', access: 'public', router: createAiCallAnsweringRoutes(d, { service: callAnswering, provider: twilioVoiceProvider }) },
     // Ungated, as in the template: no screen gates comments or search; /api/support also serves the ungated Help
     // page's knowledge base and AI chat (the Support screen itself is gated by support_tickets); Contact Twomiah is
     // on every tenant's menu.

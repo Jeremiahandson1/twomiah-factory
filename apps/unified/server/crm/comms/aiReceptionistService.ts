@@ -7,7 +7,7 @@
 // business. That is CrmSettings.callers ('clients'), read here.
 import { eq, and, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { aiReceptionistRule, aiReceptionistSettings, clients, company, contact } from '../../db/schema/index.ts'
+import { aiCallSession, aiReceptionistRule, aiReceptionistSettings, clients, company, contact } from '../../db/schema/index.ts'
 import * as q from '../../data/aiReceptionist.ts'
 import { companyRowTimeZone, formatPhoneE164 } from '@twomiah/tenant-backend'
 import { clientByPhone } from '../../data/calltracking.ts'
@@ -323,6 +323,10 @@ export function createAiReceptionistService(d: CrmDeps) {
       logger.info('[AIReceptionist] No call log found for CallSid', { callSid: payload.CallSid })
       return
     }
+    // A call the live assistant answered (ai_call_answering): the recording is filed on it and that is all — its transcript
+    // is already written turn by turn, and no missed-call or voicemail rule applies to a call that was answered.
+    const [live] = await db.select({ id: aiCallSession.id }).from(aiCallSession).where(and(eq(aiCallSession.companyId, companyId), eq(aiCallSession.providerCallId, payload.CallSid))).limit(1)
+    if (live) { await q.setCallRecording(db, callRow.id, recordingUrl); return }
     // A message was left: the call is a voicemail (the receptionist logged it 'missed' when nobody picked up).
     if (callRow.status === 'missed' || callRow.status === 'ringing') { await q.setCallStatus(db, callRow.id, 'voicemail'); callRow.status = 'voicemail' }
     const transcription = await transcribeRecording(recordingUrl)

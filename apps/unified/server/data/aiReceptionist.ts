@@ -37,6 +37,11 @@ export async function setCallTranscription(db: any, callId: string, transcriptio
   }
 }
 
+/** File a call's recording (a call the live assistant answered: its transcript is already written turn by turn). */
+export async function setCallRecording(db: any, callId: string, recordingUrl: string) {
+  await db.execute(sql`UPDATE call_log SET recording_url = ${recordingUrl} WHERE id = ${callId}`)
+}
+
 /** Store the AI's summary of a call. */
 export async function setCallSummary(db: any, callId: string, summary: string) {
   await db.execute(sql`UPDATE call_log SET ai_summary = ${summary} WHERE id = ${callId}`)

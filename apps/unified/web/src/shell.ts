@@ -6,7 +6,7 @@ import {
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
   ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy, Radio, FileSignature, Box,
-  BookMarked, LocateFixed, Paintbrush, Landmark,
+  BookMarked, LocateFixed, Paintbrush, Landmark, PhoneCall,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 import { verticalScreens } from './crm/vertical'
@@ -63,6 +63,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], permission: 'calltracking:read' },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
+  // The line answered live by the assistant (ai_call_answering, not ready): the AI Receptionist's own permission on the server.
+  { to: '/crm/ai-call-answering', icon: PhoneCall, label: 'AI Call Answering', features: ['ai_call_answering'], permission: 'ai-receptionist:read' },
   // Invoices on a schedule (the registry names recurring_jobs Recurring Invoices: it never made jobs).
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring Invoices', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'], permission: 'takeoffs:read' },
