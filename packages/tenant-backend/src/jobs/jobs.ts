@@ -950,7 +950,7 @@ export function createJobRoutes(deps: JobDeps) {
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
     let clash: any = null
     // A repeating job's visits that could not be booked for their assignee, listed back rather than silently made.
-    const skipped: Array<{ date: string; reason: string }> = []
+    const skipped: Array<{ date: string; reason: string; code?: string }> = []
     let seriesRow: any = null
     let made = 0
     const madeRows: any[] = []
@@ -993,6 +993,13 @@ export function createJobRoutes(deps: JobDeps) {
         for (const day of days) {
           const other = await assigneeConflict(currentUser.companyId, everyone, day.date, data.scheduledTime, undefined, tx, data.estimatedHours)
           if (other) { clash = clash || other; skipped.push({ date: day.date, reason: `already booked on ${other.number}${other.scheduledTime ? ` at ${other.scheduledTime}` : ''}` }); continue }
+          // Each visit is checked against the person's hours and time off too (JobOptions.availability): a visit on a
+          // day they are off is listed back, not made — unless the office said "book anyway", which is recorded.
+          if (o.availability) {
+            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx)
+            if (away && !bookAnyway) { skipped.push({ date: day.date, reason: String(away.short || away.message), code: away.code }); continue }
+            if (away) travel = travel || away
+          }
           const row = await insertOne(tx, day.date, { seriesId: seriesRow.id, seriesIndex: day.index })
           await writeOthers(tx, currentUser.companyId, row.id, crew.others)
           made++
@@ -1018,7 +1025,11 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash) return c.json({ error: await clashSentence(currentUser.companyId, clash, everyone.length > 1), conflictId: clash.id }, 409)
     if (!created && travel && !bookAnyway) return travelRefusal(c, travel)
     if (created && travel) recordOverride(c, created, travel)
-    if (!created && repeat && 'spec' in repeat) return c.json({ error: `None of the visits could be booked: that person is ${skipped[0]?.reason || 'already booked'}. Pick another time or assignee.` }, 409)
+    if (!created && repeat && 'spec' in repeat) {
+      // A day off reads as its own sentence ("Tia Tech is off on Nov 10."); a clash reads as "that person is already booked on…".
+      const why = skipped[0]?.code === 'unavailable' ? skipped[0].reason : `that person is ${skipped[0]?.reason || 'already booked'}.`
+      return c.json({ error: `None of the visits could be booked: ${why} Pick another time or assignee.`, ...(skipped[0]?.code === 'unavailable' ? { code: 'unavailable', canBookAnyway: true } : {}) }, 409)
+    }
     if (created && o.onCreate) for (const row of madeRows) await runHook(o.onCreate, row, currentUser)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)

@@ -14,7 +14,7 @@ import { whenTime } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
 import { vocabulary, capital } from '../labels/vocabulary'
 
-interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null; timeSetByPhone?: boolean; breakMinutes?: number | null; breakStartedAt?: string | null; clockInLat?: number | null; clockInLng?: number | null; clockOutLat?: number | null; clockOutLng?: number | null; clockSource?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null; timeSetByPhone?: boolean; breakMinutes?: number | null; breakStartedAt?: string | null; clockInLat?: number | null; clockInLng?: number | null; clockOutLat?: number | null; clockOutLng?: number | null; clockSource?: string | null; timeOffId?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 
 /** "clock-in sent 3 h 0 min late; clock-out sent 30 min late" — for the flag's tooltip. */
 const lateFor = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`)
@@ -179,7 +179,8 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
         {row.clockSource && SOURCE[row.clockSource] ? <span className="mt-0.5 block text-xs text-gray-600 dark:text-slate-400">{SOURCE[row.clockSource]}</span> : null}
       </>
     ) },
-    { key: 'description', label: 'Description', render: (v: any) => v || '-' },
+    // An entry made from time off (the unified app's Hours & Time Off, time_entry.time_off_id) says so to the approver.
+    { key: 'description', label: 'Description', render: (v: any, row: Entry) => <>{row.timeOffId ? <span data-testid="time-off-tag" className="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-slate-800 dark:text-slate-300">Time off</span> : null}{v || '-'}</> },
     ...(config?.billable === false ? [] : [{ key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) }]),
     { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
   ]
