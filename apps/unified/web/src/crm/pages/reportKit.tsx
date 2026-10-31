@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bookmark, Columns3, Download, Mail, Trash2 } from 'lucide-react'
 import { api } from '../../api'
-import { useConfirm } from '../../shared'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { useConfirm, useMayWrite } from '../../shared'
 import { money, card, th, td, tdNum, Loading, Empty } from './reportBits'
 
 export type Kind = 'text' | 'money' | 'number' | 'date' | 'datetime' | 'percent'
@@ -18,7 +19,7 @@ export const btn = 'inline-flex items-center gap-2 rounded-lg border border-gray
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 export const hourWords = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' : 'PM'}`
 export const day = (iso: string) => new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-export const stamp = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+export const stamp = (iso: string) => whenDateTime(iso, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 export const queryOf = (p: Record<string, any>) => Object.entries(p).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `${k}=${encodeURIComponent(Array.isArray(v) ? v.join(',') : String(v))}`).join('&')
 
 export function cellText(c: Col, v: unknown): string {
@@ -142,6 +143,9 @@ export function SavedReports({ base, params, disabled, describe, onOpen, onError
   onOpen: (p: Record<string, any>) => void; onError: (message: string) => void
 }) {
   const confirm = useConfirm()
+  // Both saved-report kinds (plan reports, team revenue: crm/field/planReportRoutes.ts, teamReportRoutes.ts) ask reports:read
+  // on every route, reading and writing alike; the write controls are drawn only for a seat that holds it.
+  const mayWrite = useMayWrite('reports:read')
   const [saved, setSaved] = useState<Saved[]>([])
   const [form, setForm] = useState<{ id: string | null; name: string; scheduled: boolean; schedule: Schedule; recipients: string } | null>(null)
   const [notice, setNotice] = useState('')
@@ -206,7 +210,7 @@ export function SavedReports({ base, params, disabled, describe, onOpen, onError
       <section className={card} aria-label="Saved reports">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Saved reports</h2>
-          <button type="button" className={btn} onClick={() => openForm()} disabled={disabled}><Bookmark className="h-4 w-4" aria-hidden />Save this report</button>
+          {mayWrite && <button type="button" className={btn} onClick={() => openForm()} disabled={disabled}><Bookmark className="h-4 w-4" aria-hidden />Save this report</button>}
         </div>
         {saved.length === 0 ? <Empty text="Nothing saved yet. Set up a view above and choose “Save this report”." /> : (
           <ul className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -221,9 +225,9 @@ export function SavedReports({ base, params, disabled, describe, onOpen, onError
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" className={btn} onClick={() => openForm(s)}>Edit</button>
-                  <button type="button" className={btn} onClick={() => sendNow(s)}><Mail className="h-4 w-4" aria-hidden />Send now</button>
-                  <button type="button" className={btn} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}><Trash2 className="h-4 w-4" aria-hidden /></button>
+                  {mayWrite && <button type="button" className={btn} onClick={() => openForm(s)}>Edit</button>}
+                  {mayWrite && <button type="button" className={btn} onClick={() => sendNow(s)}><Mail className="h-4 w-4" aria-hidden />Send now</button>}
+                  {mayWrite && <button type="button" className={btn} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}><Trash2 className="h-4 w-4" aria-hidden /></button>}
                 </div>
               </li>
             ))}

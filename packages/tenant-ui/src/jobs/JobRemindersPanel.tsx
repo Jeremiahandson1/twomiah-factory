@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { BellRing, Check, Mail, MessageSquare } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import { whenTime } from '../time/companyClock'
+import { codeLabel } from '../labels/codes'
 
 interface Api { get: (p: string, q?: any) => Promise<any>; post: (p: string, b?: any) => Promise<any> }
 interface Toast { success: (m: string) => void; error: (m: string) => void }
@@ -47,7 +48,7 @@ export function JobRemindersPanel({ api, toast, jobId, mayUpdate, open }: { api:
       {panel.notices.length > 0 && (
         <ul className="space-y-1 text-sm text-gray-700 dark:text-slate-300">
           {panel.notices.map((n) => (
-            <li key={n.id}>{n.what} by {n.channel.toLowerCase()} — <span className={n.status === 'Sent' ? '' : 'text-amber-700 dark:text-amber-300'}>{n.status}</span>{n.detail ? ` (${n.detail})` : ''} <span className="text-xs text-gray-500 dark:text-slate-400">{whenTime(n.at)}{n.manual ? ' · by a team member' : ''}</span></li>
+            <li key={n.id}>{n.what} by {n.channel.toLowerCase()} — <span className={n.status === 'Sent' ? '' : 'text-amber-700 dark:text-amber-300'}>{codeLabel(n.status)}</span>{n.detail ? ` (${n.detail})` : ''} <span className="text-xs text-gray-500 dark:text-slate-400">{whenTime(n.at)}{n.manual ? ' · by a team member' : ''}</span></li>
           ))}
         </ul>
       )}

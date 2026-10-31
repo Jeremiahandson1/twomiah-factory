@@ -3,9 +3,9 @@
 // written on the screen and clears itself.
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Delete } from 'lucide-react'
+import { Delete as Backspace } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth } from '../../shared'
+import { useAuth, useMayWrite } from '../../shared'
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 const key = 'h-16 rounded-xl border border-gray-300 bg-white text-2xl font-semibold text-gray-900 hover:bg-gray-50 active:bg-gray-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
@@ -23,13 +23,15 @@ const said = (r: { name: string; action: string; hours?: number; message?: strin
 
 export default function TimeKioskPage() {
   const { user } = useAuth() as any
+  // The kiosk punches through POST /api/time-clock/kiosk/punch (time:create): the signed-in manager must hold it.
+  const mayPunch = useMayWrite('time:create')
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
 
-  if (user && !MANAGER.has(String(user.role))) {
+  if ((user && !MANAGER.has(String(user.role))) || !mayPunch) {
     return <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">A manager has to sign in on this tablet to run the kiosk.</div>
   }
 
@@ -55,7 +57,7 @@ export default function TimeKioskPage() {
         {KEYS.map((k) => <button key={k} type="button" className={key} onClick={() => setPin((p) => (p.length < 8 ? p + k : p))}>{k}</button>)}
         <button type="button" className={key} aria-label="Clear" onClick={() => setPin('')}>C</button>
         <button type="button" className={key} onClick={() => setPin((p) => (p.length < 8 ? p + '0' : p))}>0</button>
-        <button type="button" className={key} aria-label="Delete the last digit" onClick={() => setPin((p) => p.slice(0, -1))}><Delete className="mx-auto h-6 w-6" aria-hidden /></button>
+        <button type="button" className={key} aria-label="Remove the last digit" onClick={() => setPin((p) => p.slice(0, -1))}><Backspace className="mx-auto h-6 w-6" aria-hidden /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button type="button" className="h-14 rounded-xl bg-blue-700 text-lg font-semibold text-white hover:bg-blue-800 disabled:opacity-50" disabled={pin.length < 4 || busy} onClick={() => send(false)}>Clock in / out</button>

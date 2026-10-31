@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, PhoneCall } from 'lucide-react'
 import { api } from '../../api'
+import { moneyCents } from '@twomiah/tenant-ui/src/money'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useToast, usePermissions, ModuleNotEnabled, featureNotEnabled } from '../../shared'
 
 type When = 'always' | 'business_hours' | 'outside_business_hours' | 'custom'
@@ -40,8 +42,8 @@ const label = 'block text-sm font-medium text-gray-800 dark:text-slate-200'
 const hint = 'mt-1 text-xs text-gray-600 dark:text-slate-300'
 const errText = 'mt-1 text-xs text-red-700 dark:text-red-300'
 const check = 'flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100'
-const money = (cents: number) => (cents % 100 === 0 ? `$${(cents / 100).toLocaleString('en-US')}` : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+const money = (cents: number) => moneyCents(cents, cents % 100 === 0 ? 0 : 2)
+const when = (iso: string) => whenDateTime(iso, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 const lines = (list: string[]) => list.join(', ')
 const parseList = (s: string) => s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
 

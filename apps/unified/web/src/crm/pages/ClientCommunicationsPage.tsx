@@ -5,13 +5,15 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { api } from '../../api'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { PeriodPicker, periodQuery, card, th, td, Loading, Problem, Empty, type PeriodId } from './reportBits'
 
 interface Row { id: string; at: string; what: string; channel: string; status: string; detail: string; to: string; sentBy: string; jobId: string; jobNumber: string; jobTitle: string; contactId: string | null; customer: string; confirmed: boolean }
 interface Reply { at: string; customer: string; body: string }
 interface Report { summary: { sent: number; notSent: number; failed: number; waiting: number; visitsConfirmed: number; visitsReminded: number; replies: number }; rows: Row[]; replies: Reply[] }
 
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+const when = (iso: string) => whenDateTime(iso, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 const sel = 'rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
 
 export default function ClientCommunicationsPage() {
@@ -82,7 +84,7 @@ export default function ClientCommunicationsPage() {
                       <td className={td}>{r.contactId ? <Link className="underline" to={`/crm/contacts/${r.contactId}`}>{r.customer || 'Customer'}</Link> : r.customer}</td>
                       <td className={td}><Link className="underline" to={`/crm/jobs/${r.jobId}`}>{r.jobNumber} {r.jobTitle}</Link></td>
                       <td className={td}>{r.what} · {r.channel}</td>
-                      <td className={td}>{r.status}{r.detail ? <span className="block text-xs text-gray-600 dark:text-slate-400">{r.detail}</span> : null}</td>
+                      <td className={td}>{codeLabel(r.status)}{r.detail ? <span className="block text-xs text-gray-600 dark:text-slate-400">{r.detail}</span> : null}</td>
                       <td className={td}>{r.sentBy}</td>
                       <td className={td}>{r.confirmed ? 'Yes' : 'No'}</td>
                     </tr>
