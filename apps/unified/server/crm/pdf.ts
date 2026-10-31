@@ -1,9 +1,33 @@
 // Invoice and quote PDFs, moved from templates/crm*/backend/src/services/pdf.ts.
 import PDFDocument from 'pdfkit'
+import { PDFDocument as MergeDocument } from 'pdf-lib'
 import { money, groupBySection, hasStructure } from '@twomiah/tenant-backend'
 
 function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: any) {
   const companyName = company?.name || company?.companyName || 'Company'
+  const pd = title === 'QUOTE' ? data.proposalDocument : null
+  const printSections = (placement: string) => {
+    for (const sec of (pd?.sections || []).filter((x: any) => x.placement === placement)) {
+      doc.moveDown(0.4).fontSize(12).font('Helvetica-Bold').text(String(sec.title), 72, doc.y, { width: 468 })
+      doc.font('Helvetica').fontSize(10).text(String(sec.body), 72, doc.y, { width: 468 })
+      doc.moveDown(0.6)
+    }
+  }
+  // The proposal's cover page, then About Us (proposal pages: tenant-backend invoicing/quoteDocument.ts).
+  if (pd && (pd.coverTitle || pd.coverSubtitle || data.coverPhoto)) {
+    doc.fontSize(12).fillColor('#555').text(companyName, 72, 110, { width: 468, align: 'center' })
+    if (data.coverPhoto) { try { doc.image(data.coverPhoto, 106, doc.y + 20, { fit: [400, 260], align: 'center' }); doc.y += 290 } catch { /* an unreadable picture leaves the cover without it */ } }
+    doc.fillColor('black').fontSize(28).font('Helvetica-Bold').text(String(pd.coverTitle || data.name || 'Proposal'), 72, data.coverPhoto ? doc.y : 260, { width: 468, align: 'center' })
+    if (pd.coverSubtitle) doc.moveDown(0.5).fontSize(14).font('Helvetica').fillColor('#555').text(String(pd.coverSubtitle), 72, doc.y, { width: 468, align: 'center' })
+    doc.fillColor('black').font('Helvetica')
+    doc.addPage()
+  }
+  if (pd?.aboutUs) {
+    doc.fontSize(14).font('Helvetica-Bold').text(`About ${companyName}`, 72, doc.y, { width: 468 })
+    doc.font('Helvetica').fontSize(10).text(String(pd.aboutUs), 72, doc.y + 4, { width: 468 })
+    doc.moveDown()
+  }
+  printSections('top')
 
   doc.fontSize(20).text(companyName, { align: 'left' })
   // Who the business IS — address, phone, email, website. The whole company row already reaches this
@@ -93,6 +117,42 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   // A quote whose customer has yet to choose (Good / Better / Best, tenant-backend invoicing/quoteOptions.ts): the lines above
   // are in every option; each option follows with its own lines and what the whole job comes to with it.
   const options: any[] = Array.isArray(data.options) ? data.options : []
+  printSections('before_options')
+  // Everything that follows the money: the sections after the options, the terms with the customer's initials, the signatures,
+  // and the names of the files attached (their pages follow this one).
+  const closing = () => {
+    printSections('after_options')
+    printSections('before_terms')
+    if (title !== 'QUOTE') return
+    const clauses: any[] = pd?.clauses || []
+    if (clauses.length || data.terms) {
+      doc.moveDown().fontSize(12).font('Helvetica-Bold').text('Terms', 72, doc.y, { width: 468 })
+      doc.font('Helvetica').fontSize(10)
+      if (data.terms) doc.text(String(data.terms), 72, doc.y, { width: 468 })
+      clauses.forEach((cl: any, i: number) => {
+        const y = doc.y + 4
+        doc.text(`${i + 1}. ${cl.text}`, 72, y, { width: 400 })
+        const end = doc.y
+        doc.font('Helvetica-Bold').text(cl.initials ? `Initials: ${cl.initials}` : 'Initials: ______', 480, y, { width: 60 })
+        doc.font('Helvetica')
+        doc.y = Math.max(end, y + 12)
+      })
+    }
+    if (pd?.attachmentNames?.length) {
+      doc.moveDown().fontSize(10).font('Helvetica-Bold').text('Attached', 72, doc.y, { width: 468 })
+      doc.font('Helvetica')
+      for (const n of pd.attachmentNames) doc.text(`• ${n}`, 84, doc.y, { width: 456 })
+    }
+    const sign = (label: string, name: string | null, image: string | null, at: any) => {
+      doc.moveDown().fontSize(10).font('Helvetica-Bold').text(label, 72, doc.y, { width: 468 })
+      doc.font('Helvetica')
+      if (image && /^data:image\/(png|jpeg);base64,/.test(image)) { try { doc.image(Buffer.from(image.split(',')[1], 'base64'), 72, doc.y + 2, { fit: [180, 60] }); doc.y += 66 } catch { /* an unreadable image leaves the name */ } }
+      if (name) doc.text(`${name}${at ? `, ${fmtDate(at)}` : ''}`, 72, doc.y, { width: 468 })
+    }
+    if (data.signature) sign('Signed by the customer', data.signedBy || null, data.signature, data.signedAt)
+    if (data.cosignature) sign(`Cosigned${pd?.cosigner?.role ? ` (${pd.cosigner.role})` : ''}`, data.cosignature.name || null, data.cosignature.signature || null, data.cosignature.signedAt)
+    else if (pd?.cosigner && data.signature) doc.moveDown().text(`Cosigner: ${pd.cosigner.name}${pd.cosigner.role ? ` (${pd.cosigner.role})` : ''}`, 72, doc.y, { width: 468 })
+  }
   if (options.length) {
     doc.fontSize(12).font('Helvetica-Bold').text('Options — choose one', 72, doc.y, { width: 468 })
     doc.font('Helvetica').fontSize(10)
@@ -121,6 +181,7 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     }
     const lowest = Math.min(...options.map((op) => Number(op.price)))
     doc.fontSize(12).text(`Total: from ${money(lowest)}, depending on the option chosen`, 72, doc.y, { width: 468, align: 'right' })
+    closing()
     return
   }
 
@@ -135,6 +196,7 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     if (Number(data.amountRefunded) > 0) doc.fontSize(10).text(`Refunded: ${Number(data.amountRefunded).toFixed(2)}`, { align: 'right' })
     doc.fontSize(12).text(`Balance Due: ${money((Number(data.total) - Number(data.amountPaid)))}`, { align: 'right' })
   }
+  closing()
 }
 
 export async function generateInvoicePDF(invoice: any, company: any): Promise<Buffer> {
@@ -149,8 +211,20 @@ export async function generateInvoicePDF(invoice: any, company: any): Promise<Bu
   })
 }
 
+/** The PDFs attached to a proposal, their pages following the proposal's own. One that cannot be read is left out. */
+async function withAttachedPdfs(main: Buffer, files: Buffer[]): Promise<Buffer> {
+  const merged = await MergeDocument.load(main)
+  for (const bytes of files) {
+    try {
+      const other = await MergeDocument.load(bytes, { ignoreEncryption: true })
+      for (const page of await merged.copyPages(other, other.getPageIndices())) merged.addPage(page)
+    } catch { /* an attachment that is not a readable PDF is skipped */ }
+  }
+  return Buffer.from(await merged.save())
+}
+
 export async function generateQuotePDF(quote: any, company: any): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+  const made = await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 72 })
     const chunks: Buffer[] = []
     doc.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -159,4 +233,5 @@ export async function generateQuotePDF(quote: any, company: any): Promise<Buffer
     buildPDF('QUOTE', doc, quote, company)
     doc.end()
   })
+  return Array.isArray(quote?.attachmentFiles) && quote.attachmentFiles.length ? withAttachedPdfs(made, quote.attachmentFiles) : made
 }

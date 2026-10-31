@@ -19,6 +19,7 @@ import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
 import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
+import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 
@@ -27,6 +28,8 @@ export interface PortalTables {
   quote: any; quoteLineItem: any; invoice: any; invoiceLineItem: any; payment: any
   /** The unified app's proposal options (invoicing/quoteOptions.ts): a quote the customer chooses one option of. */
   quoteProposalOption?: any
+  /** The proposal's cover, sections, initialed terms and cosigner, and the marks made on it (invoicing/quoteDocument.ts). */
+  quoteProposalDocument?: any; quoteProposalMark?: any
   message: any; auditLog: any
   activity?: any
   project?: any; job?: any; changeOrder?: any; changeOrderLineItem?: any
@@ -204,7 +207,7 @@ const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'exp
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
 const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'optionRole'] as const
 // What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
-const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit', 'discount'] as const
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'deposit', 'discount', 'attachments'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -787,6 +790,21 @@ export function createPortalRoutes(deps: PortalDeps) {
     }
     return c.json({ ...(await customerQuote(contact.companyId, found, lineItems, company)), project: projectInfo })
   }
+  /** The proposal's pages as the customer reads them (no cosigner address, no cosigner link). */
+  const proposalDocumentFor = async (quoteId: string) => {
+    if (!hasDocumentTables(t)) return null
+    const doc = await loadDocument(db, t, quoteId)
+    return doc ? documentForCustomer(doc, await loadMarks(db, t, quoteId)) : null
+  }
+  /** Has the customer signed and the cosigner not yet? Then the proposal is theirs no more to change. */
+  const awaitingCosigner = async (quoteId: string): Promise<{ name: string } | null> => {
+    if (!hasDocumentTables(t)) return null
+    const doc = await loadDocument(db, t, quoteId)
+    if (!cosignerRequired(doc)) return null
+    const marks = await loadMarks(db, t, quoteId)
+    return marks.customer && !marks.cosigner ? { name: doc.cosignerName } : null
+  }
+  const HELD = (who: { name: string }) => `You have signed. ${who.name} still has to sign before this is approved, so it can no longer be changed.`
   /** The customer's copy of a quote: named fields, lines without item codes, the deposit it asks and — approved — its invoice. */
   const customerQuote = async (companyId: string, found: any, lineItems: any[], company: any) => {
     const asks = 'depositType' in found ? depositAmount(found) : 0
@@ -802,8 +820,11 @@ export function createPortalRoutes(deps: PortalDeps) {
         upgrades: (await customerLines(db, companyId, op.upgrades)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
       }))),
     } : null
+    // The pages around the options: cover, About Us, sections, the terms to initial, the cosigner — with the options' switch.
+    const doc = view || (await proposalsLive(t, deps.proposalsEnabled, companyId)) ? await proposalDocumentFor(found.id) : null
     return {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
+      ...(doc ? { document: doc } : {}),
       lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId)
         // Options off: an option nobody chose is not on the page; the lines of one that was chosen are in the total, so they stay.
         : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
@@ -820,6 +841,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
+    const held = await awaitingCosigner(quoteId)
+    if (held) return c.json({ error: HELD(held) }, 400)
     const body = await c.req.json().catch(() => ({}))
     const r: any = await chooseOptionalLine(db, t, contact.companyId, quoteId, body?.lineItemId, body?.selected)
     if ('error' in r) return c.json({ error: r.error }, r.status)
@@ -837,6 +860,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!(await proposalsLive(t, deps.proposalsEnabled, contact.companyId))) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
+    const held = await awaitingCosigner(quoteId)
+    if (held) return c.json({ error: HELD(held) }, 400)
     const body = await c.req.json().catch(() => ({}))
     const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId)
     if ('error' in r) return c.json({ error: r.error }, r.status)
@@ -852,6 +877,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!(await proposalsLive(t, deps.proposalsEnabled, contact.companyId))) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
+    const held = await awaitingCosigner(quoteId)
+    if (held) return c.json({ error: HELD(held) }, 400)
     const body = await c.req.json().catch(() => ({}))
     const r: any = await chooseOptionUpgrade(db, t, contact.companyId, quoteId, body?.lineItemId, body?.selected)
     if ('error' in r) return c.json({ error: r.error }, r.status)
@@ -870,12 +897,12 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
   const documentFingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null }) {
+  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null; action?: string; extra?: Record<string, unknown> }) {
     try {
       await db.insert(t.auditLog).values({
-        companyId: params.companyId, action: `${params.entity}.signed`, entity: params.entity, entityId: params.entityId, entityName: params.entityName,
+        companyId: params.companyId, action: params.action || `${params.entity}.signed`, entity: params.entity, entityId: params.entityId, entityName: params.entityName,
         ipAddress: params.ip, userAgent: params.userAgent, userName: params.signerName, userEmail: params.signerEmail || null,
-        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, ...(params.option ? { option: params.option } : {}), consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
+        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, ...(params.option ? { option: params.option } : {}), ...(params.extra || {}), consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
       })
     } catch (err) { log.error('[esign] audit write failed', { error: (err as Error).message }) }
   }
@@ -888,6 +915,33 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (status === 'expired') return `This quote expired on ${expiryDay(found.expiryDate)}. Please contact ${companyName || 'us'} for an updated quote.`
     if (!QUOTE_RESPONDABLE.includes(status)) return `This quote is ${status} and can no longer be ${verb}`
     return null
+  }
+
+  /** What was signed: the document fingerprint (the lines included, the option, the terms and the initials) — one rule for the customer and the cosigner. */
+  const signedDocument = async (found: any, optionsLive: boolean, initials: Map<string, string> | null, clauses: any[]) => {
+    const quoteId = found.id
+    const view = optionsLive ? await proposalView(db, t, found) : null
+    const chosenOption = view?.options.find((op) => op.chosen) || null
+    // What they signed is what is included: an optional line they left unticked is not part of the agreement.
+    const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    const lineItems = includedLines(allLines)
+    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), ...(clauses.length ? { clauses: clauses.map((cl: any) => ({ id: cl.id, text: cl.text, initials: initials?.get(cl.id) ?? null })) } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
+    return { chosenOption, documentHash }
+  }
+
+  /** The approval itself: the quote becomes approved with the customer's signature, the audit row, the company is told, the deposit is raised. */
+  const finishApproval = async (a: { found: any; contact: any; signature: string; signerName: string; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; approvedAt: Date; chosenOption: any; notes?: string | null; cosigner?: string | null }) => {
+    const { found, contact, chosenOption } = a
+    const quoteId = found.id
+    const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: a.approvedAt, signature: a.signature, signedAt: a.signedAt, signedBy: a.signerName, signedIp: a.ip, signedUserAgent: a.userAgent, signatureHash: a.documentHash, consentAt: a.signedAt, updatedAt: a.approvedAt }).where(eq(t.quote.id, quoteId)).returning()
+    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: a.signerName, signerEmail: contact.email, ip: a.ip, userAgent: a.userAgent, documentHash: a.documentHash, signedAt: a.signedAt, amount: found.total, option: chosenOption?.name ?? null, ...(a.cosigner ? { extra: { cosigner: a.cosigner } } : {}) })
+    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: a.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}${a.cosigner ? ` (cosigned by ${a.cosigner})` : ''}`, details: { notes: a.notes || null, signedBy: a.signerName, documentHash: a.documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}), ...(a.cosigner ? { cosigner: a.cosigner } : {}) } })
+    // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
+    let deposit: unknown = null
+    if (deps.quoteDeposit) {
+      try { deposit = await deps.quoteDeposit.onApproved(contact.companyId, updated) } catch (err) { log.error('[portal] deposit invoice not raised', { quote: found.number, error: (err as Error).message }) }
+    }
+    return { updated, deposit }
   }
 
   const approveQuote = async (c: any) => {
@@ -903,22 +957,38 @@ export function createPortalRoutes(deps: PortalDeps) {
     // A quote with options is signed for ONE of them: the customer chooses before they sign.
     const optionsLive = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
     if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST, code: CHOOSE_FIRST_CODE }, 400)
-    const view = optionsLive ? await proposalView(db, t, found) : null
-    const chosenOption = view?.options.find((op) => op.chosen) || null
-    // What they signed is what is included: an optional line they left unticked is not part of the agreement.
-    const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
-    const lineItems = includedLines(allLines)
-    const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
-    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
-    const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
-    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null })
-    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}) } })
-    // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
-    let deposit: unknown = null
-    if (deps.quoteDeposit) {
-      try { deposit = await deps.quoteDeposit.onApproved(contact.companyId, updated) } catch (err) { log.error('[portal] deposit invoice not raised', { quote: found.number, error: (err as Error).message }) }
+    // The terms the proposal asks the customer to initial, and the cosigner whose signature completes it (quoteDocument.ts).
+    const doc = optionsLive && hasDocumentTables(t) ? await loadDocument(db, t, quoteId) : null
+    const clauses: any[] = Array.isArray(doc?.termsClauses) ? doc.termsClauses : []
+    let initials: Map<string, string> | null = null
+    if (clauses.length) {
+      const chk = checkInitials(clauses, body?.initials)
+      if (!chk.ok) return c.json({ error: chk.error, code: INITIAL_FIRST_CODE, fields: chk.fields }, 400)
+      initials = chk.initials
     }
-    return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS), ...(deps.quoteDeposit ? { deposit } : {}) })
+    const { chosenOption, documentHash } = await signedDocument(found, optionsLive, initials, clauses)
+    const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
+    // What was initialed and signed is kept as records, the earlier ones of a customer who signs again replaced.
+    if (hasDocumentTables(t) && (clauses.length || cosignerRequired(doc))) {
+      await db.delete(t.quoteProposalMark).where(and(eq(t.quoteProposalMark.quoteId, quoteId), inArray(t.quoteProposalMark.kind, ['initials', 'customer_signature'])))
+      const marks = clauses.map((cl: any) => ({ companyId: contact.companyId, quoteId, kind: 'initials', clauseId: cl.id, name: check.signerName, initials: initials!.get(cl.id)!, documentHash, signedIp: ip, signedUserAgent: userAgent, signedAt }))
+      if (cosignerRequired(doc)) marks.push({ companyId: contact.companyId, quoteId, kind: 'customer_signature', clauseId: null as any, name: check.signerName, initials: null as any, signature: body.signature, documentHash, signedIp: ip, signedUserAgent: userAgent, signedAt } as any)
+      if (marks.length) await db.insert(t.quoteProposalMark).values(marks)
+    }
+    if (cosignerRequired(doc)) {
+      // Signed by the customer; the approval waits for the cosigner, who is sent their own private link now.
+      await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null, action: 'quote.signed_awaiting_cosigner', extra: { cosigner: doc.cosignerName } })
+      let emailed = false
+      try {
+        await sendEmail(doc.cosignerEmail, 'quoteCosign', { quoteNumber: found.number, quoteName: found.name || '', companyName: company?.name || 'Your provider', companyEmail: company?.email || '', companyPhone: company?.phone || '', cosignerName: doc.cosignerName, cosignerRole: doc.cosignerRole || '', signerName: check.signerName, cosignPath: `/c/${doc.cosignerToken}` })
+        emailed = true
+        await db.update(t.quoteProposalDocument).set({ cosignerRequestedAt: new Date() }).where(eq(t.quoteProposalDocument.id, doc.id))
+      } catch (err) { log.error('[portal] cosigner email failed', { quote: found.number, error: (err as Error).message }) }
+      notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'signed', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}; waiting for ${doc.cosignerName} to cosign${emailed ? '' : ' (the email to them did not send: send it again from the quote)'}`, details: { signedBy: check.signerName, documentHash, cosigner: doc.cosignerName } })
+      return c.json({ success: true, awaitingCosigner: { name: doc.cosignerName, role: doc.cosignerRole ?? null, emailed } })
+    }
+    const done = await finishApproval({ found, contact, signature: body.signature, signerName: check.signerName, ip, userAgent, documentHash, signedAt, approvedAt: signedAt, chosenOption, notes: body.notes })
+    return c.json({ success: true, quote: pick(done.updated, PORTAL_QUOTE_FIELDS), ...(deps.quoteDeposit ? { deposit: done.deposit } : {}) })
   }
 
   const rejectQuote = async (c: any) => {
@@ -935,19 +1005,24 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS) })
   }
 
-  const quotePdf = async (c: any) => {
-    const { contact } = P(c)
-    const quoteId = c.req.param('quoteId')
-    const found = await visibleQuote(quoteId, contact.id)
-    if (!found) return c.json({ error: 'Quote not found' }, 404)
+  const quotePdfFor = async (found: any, contact: any) => {
+    const quoteId = found.id
     // What the page shows: the included lines (an optional line nobody ticked is not printed as bought) and, while the
     // customer has yet to choose, the lines every option shares and each option at its whole price.
     const lineItems = includedLines<any>(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
-    const view = (await proposalsLive(t, deps.proposalsEnabled, contact.companyId)) ? await proposalView(db, t, found) : null
+    const live = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
+    const view = live ? await proposalView(db, t, found) : null
     const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines), upgrades: await customerLines(db, contact.companyId, op.upgrades) }))) : undefined
     const generate = await loadQuotePdf()
-    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options } : {}) }, await fullCompany(contact.companyId))
+    const extras = live ? await pdfExtras(db, t, fileService, quoteId, view?.options ?? null, !!view?.needsChoice) : {}
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options } : {}), ...extras }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
+  }
+  const quotePdf = async (c: any) => {
+    const { contact } = P(c)
+    const found = await visibleQuote(c.req.param('quoteId'), contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    return quotePdfFor(found, contact)
   }
 
   // ---- invoices
@@ -1033,6 +1108,65 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
   app.post('/d/:token/quotes/:quoteId/choose-upgrade', docAuth, onlyLinked('quote', 'quoteId'), chooseUpgrade)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
+  // …and the COSIGNER's own link (/c/:token): the insurance carrier or spouse a proposal asks to sign after the customer. It opens
+  // that one proposal and nothing else, and the proposal is approved when this signature is in (quoteDocument.ts).
+  async function cosignAuth(c: any, next: any) {
+    const token = c.req.param('token')
+    const gone = () => c.json({ error: 'This link is not valid. Please contact the business that sent it.' }, 404)
+    if (!isDocumentToken(token) || !hasDocumentTables(t)) return gone()
+    const [doc] = await db.select().from(t.quoteProposalDocument).where(eq(t.quoteProposalDocument.cosignerToken, token)).limit(1)
+    if (!doc) return gone()
+    const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, doc.quoteId), eq(t.quote.companyId, doc.companyId), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).limit(1)
+    if (!q || !(await proposalsLive(t, deps.proposalsEnabled, doc.companyId))) return gone()
+    const co = await fullCompany(doc.companyId)
+    c.set('cosign', { doc, quote: q, company: { id: co.id, name: co.name, logo: co.logo, primaryColor: co.primaryColor, email: co.email, phone: co.phone, timeZone: await companyTimeZone(db, doc.companyId) } })
+    await next()
+  }
+  const cosignOf = (c: any) => c.get('cosign') as { doc: any; quote: any; company: any }
+  /** Where the cosigner's turn stands: 'signed', 'closed' (answered or past its day), 'not_yet' (the customer has not signed) or 'ready'. */
+  const cosignState = async (doc: any, q: any, company: any) => {
+    const marks = await loadMarks(db, t, q.id)
+    const state = marks.cosigner ? 'signed' : notAnswerable(q, 'approved', company?.name, company?.timeZone) ? 'closed' : !marks.customer ? 'not_yet' : 'ready'
+    return { marks, state: state as 'signed' | 'closed' | 'not_yet' | 'ready' }
+  }
+  app.get('/c/:token', cosignAuth, async (c) => {
+    const { doc, quote: q, company } = cosignOf(c)
+    const { marks, state } = await cosignState(doc, q, company)
+    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, q.id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    const view = await customerQuote(doc.companyId, q, lineItems, company)
+    return c.json({
+      quote: view, company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone, timeZone: company.timeZone },
+      cosigner: { name: doc.cosignerName, role: doc.cosignerRole ?? null, state, customerName: marks.customer?.name ?? null, customerSignedAt: marks.customer?.signedAt ?? null, signedAt: marks.cosigner?.signedAt ?? null },
+    })
+  })
+  app.get('/c/:token/pdf', cosignAuth, async (c) => {
+    const { quote: q } = cosignOf(c)
+    const [ct] = q.contactId ? await db.select().from(t.contact).where(and(eq(t.contact.id, q.contactId), eq(t.contact.companyId, q.companyId))).limit(1) : []
+    // The customer's name and address for the page's "Bill to", never their portal key.
+    return quotePdfFor(q, { id: ct?.id ?? null, name: ct?.name ?? null, email: ct?.email ?? null, phone: ct?.phone ?? null, address: ct?.address ?? null, city: ct?.city ?? null, state: ct?.state ?? null, zip: ct?.zip ?? null, companyId: q.companyId })
+  })
+  app.post('/c/:token/sign', cosignAuth, async (c) => {
+    const { doc, quote: q, company } = cosignOf(c)
+    const body = await c.req.json().catch(() => ({}))
+    const check = validateSignatureInput(body)
+    if (!check.ok) return c.json({ error: check.error }, 400)
+    const { marks, state } = await cosignState(doc, q, company)
+    if (state === 'signed') return c.json({ error: 'You have already signed this.' }, 400)
+    if (state === 'closed') return c.json({ error: notAnswerable(q, 'approved', company?.name, company?.timeZone) || 'This can no longer be signed.' }, 400)
+    if (state === 'not_yet') return c.json({ error: 'The customer has not signed yet. You will be sent this link again when they do.' }, 400)
+    const clauses: any[] = Array.isArray(doc.termsClauses) ? doc.termsClauses : []
+    const initials = new Map<string, string>(marks.initials.map((m: any) => [m.clauseId, m.initials]))
+    const { chosenOption, documentHash } = await signedDocument(q, true, initials, clauses)
+    // The proposal must be the one the customer signed; if the office changed it since, the customer signs again first.
+    if (documentHash !== marks.customer.documentHash) return c.json({ error: `The proposal was changed after ${marks.customer.name || 'the customer'} signed it. Ask ${company?.name || 'the business'} to have it signed again.` }, 409)
+    const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
+    await db.insert(t.quoteProposalMark).values({ companyId: q.companyId, quoteId: q.id, kind: 'cosigner_signature', name: check.signerName, signature: body.signature, documentHash, signedIp: ip, signedUserAgent: userAgent, signedAt })
+    const [ct] = q.contactId ? await db.select().from(t.contact).where(and(eq(t.contact.id, q.contactId), eq(t.contact.companyId, q.companyId))).limit(1) : []
+    const contact = ct || { id: null, companyId: q.companyId, email: null, type: 'client', name: marks.customer.name }
+    await recordSignatureAudit({ companyId: q.companyId, entity: 'quote', entityId: q.id, entityName: `${q.number} — ${q.name}`, signerName: check.signerName, signerEmail: doc.cosignerEmail, ip, userAgent, documentHash, signedAt, amount: q.total, option: chosenOption?.name ?? null, action: 'quote.cosigned', extra: { role: doc.cosignerRole || null, forCustomer: marks.customer.name } })
+    const done = await finishApproval({ found: q, contact, signature: marks.customer.signature, signerName: marks.customer.name || contact.name, ip: marks.customer.signedIp, userAgent: marks.customer.signedUserAgent, documentHash, signedAt: marks.customer.signedAt, approvedAt: signedAt, chosenOption, cosigner: check.signerName })
+    return c.json({ success: true, status: done.updated.status })
+  })
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)
 

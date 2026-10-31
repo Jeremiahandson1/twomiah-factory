@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { FileText, CheckCircle, XCircle, Clock, Download, PenTool } from 'lucide-react'
 import { usePortal } from './PortalContext'
-import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
+import { SignatureModal, SignatureDisplay, InitialsBox, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
 import { codeLabel } from '../labels/codes'
 import { SectionedRows } from '../invoicing/sections'
@@ -21,13 +21,38 @@ export interface PortalQuoteData {
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
   /** A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote. */
   proposal?: { chosenOptionId: string | null; needsChoice: boolean; options: ProposalOption[] }
+  /** The pages around the options (tenant-backend invoicing/quoteDocument.ts): cover, About Us, sections, terms to initial, cosigner. */
+  document?: ProposalDocument
   project?: { name: string; number?: string } | null
   [key: string]: unknown
+}
+
+export interface ProposalDocument {
+  coverTitle?: string | null; coverSubtitle?: string | null; coverPhoto?: string | null; aboutUs?: string | null
+  sections?: Array<{ id: string; title: string; body: string; placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }>
+  termsClauses?: Array<{ id: string; text: string; initials: string | null }>
+  attachments?: Array<{ name: string; url: string }>
+  cosigner?: { name: string; role: string | null; status: 'waiting_for_customer' | 'waiting' | 'signed' | null } | null
+}
+
+/** A block of the roofer's own words placed in line (a section), shown as the proposal's pages. */
+export function ProposalSections({ document: doc, placement }: { document?: ProposalDocument; placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }) {
+  const list = (doc?.sections || []).filter((x) => x.placement === placement)
+  if (!list.length) return null
+  return <>{list.map((sec) => <div key={sec.id} className="p-6 border-b dark:border-slate-700" data-testid="proposal-section"><h3 className="font-semibold text-gray-900 dark:text-slate-100">{sec.title}</h3><p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{sec.body}</p></div>)}</>
+}
+
+/** Files attached to the proposal or to one option: a link each, opened in a new tab. */
+export function AttachmentLinks({ items, title }: { items?: Array<{ name: string; url: string }>; title: string }) {
+  if (!items || !items.length) return null
+  return <div className="mt-2" data-testid="attachments"><p className="text-xs font-medium text-gray-700 dark:text-slate-300">{title}</p><ul className="text-sm">{items.map((a) => <li key={a.url}><a href={a.url} target="_blank" rel="noreferrer" className="text-orange-700 underline dark:text-orange-200">{a.name}</a></li>)}</ul></div>
 }
 
 export interface ProposalOption {
   id: string; name: string; tier?: string | null; brand?: string | null; warranty?: string | null; description?: string | null
   photos?: string[]; recommended?: boolean; chosen?: boolean; price: string
+  /** Files for this option (a manufacturer's brochure). */
+  attachments?: Array<{ name: string; url: string }>
   /** The deposit asked on approval if this option is chosen ('0.00' when the quote asks none). */
   deposit?: string
   /** What this option's own discount takes off ('0.00' when none). */
@@ -62,6 +87,7 @@ function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { 
               {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
               {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
               {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
+              <AttachmentLinks items={op.attachments} title="Brochures and files" />
               {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
               {Number(op.discount || 0) > 0 && <p className="mt-2 text-sm font-medium text-green-800 dark:text-green-300" data-testid="option-discount">Includes a {moneyShort(op.discount)} discount</p>}
               {/* The customer chooses the option first; its upgrades are offered after that, and are ticked one by one. */}
@@ -150,6 +176,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   const [showSign, setShowSign] = useState(false)
   const [showDecline, setShowDecline] = useState(false)
   const [reason, setReason] = useState('')
+  // The initials typed for each term of the proposal, and the terms the server named as missing.
+  const [initials, setInitials] = useState<Record<string, string>>({})
+  const [initialErrors, setInitialErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     portalFetch(`/quotes/${quoteId}`).then(setQuote).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
@@ -158,9 +187,13 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   const approve = async (sig: SignatureData) => {
     setBusy(true); setShowSign(false); setError('')
     try {
-      const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent }) })
+      const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent, ...(clauses.length ? { initials } : {}) }) })
+      // Signed, and a cosigner still to sign: the quote is not approved yet — read it again, it says who is awaited.
+      if (res?.awaitingCosigner) { setQuote(await portalFetch(`/quotes/${quoteId}`)); return }
       setQuote((q) => ({ ...(q as PortalQuoteData), ...(res?.quote || { status: 'approved', signature: sig.signature, signedBy: sig.signedBy, approvedAt: sig.signedAt }), ...(res?.deposit !== undefined ? { deposit: res.deposit } : {}) }))
-    } catch (e) { setError('Failed to approve quote: ' + (e as Error).message) } finally { setBusy(false) }
+    } catch (e) {
+      setError('Failed to approve quote: ' + (e as Error).message)
+    } finally { setBusy(false) }
   }
   // Tick or untick an optional line before approving: the server works the total out again and answers the quote.
   const choose = async (lineItemId: string, selected: boolean) => {
@@ -188,7 +221,12 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
 
   if (loading) return <Spinner />
   if (!quote) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Quote not found.'}</div>
-  const canRespond = RESPONDABLE.includes(quote.status)
+  const document = quote.document
+  const clauses = document?.termsClauses || []
+  // Signed by the customer, with a cosigner still to sign: nothing more to change or sign here.
+  const waitingOnCosigner = document?.cosigner?.status === 'waiting'
+  const canRespond = RESPONDABLE.includes(quote.status) && !waitingOnCosigner
+  const missingInitials = canRespond && clauses.some((cl) => !(initials[cl.id] || '').trim())
   const business = (quote.company as { name?: string | null } | undefined)?.name || 'us'
   const hasOptional = (quote.lineItems || []).some((li) => li.optional)
   const proposal = quote.proposal
@@ -210,6 +248,15 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           </div>
           {quote.expiryDate && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Valid until {formatDate(quote.expiryDate)}</p>}
         </div>
+        {document && (document.coverTitle || document.coverSubtitle || document.coverPhoto) && (
+          <div className="border-b dark:border-slate-700" data-testid="proposal-cover">
+            {document.coverPhoto && <img src={document.coverPhoto} alt="" className="h-56 w-full object-cover bg-gray-100 dark:bg-slate-800" />}
+            <div className="p-6 text-center">{document.coverTitle && <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">{document.coverTitle}</h2>}{document.coverSubtitle && <p className="mt-1 text-gray-600 dark:text-slate-400">{document.coverSubtitle}</p>}</div>
+          </div>
+        )}
+        {document?.aboutUs && <div className="p-6 border-b dark:border-slate-700" data-testid="proposal-about"><h3 className="font-semibold text-gray-900 dark:text-slate-100">About {business}</h3><p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{document.aboutUs}</p></div>}
+        <ProposalSections document={document} placement="top" />
+        <ProposalSections document={document} placement="before_options" />
         {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} onUpgrade={chooseUpgrade} />}
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           {proposal && quote.lineItems && quote.lineItems.length > 0 && <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">{canRespond ? 'Included with every option' : 'Included'}</h3>}
@@ -220,6 +267,7 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
               : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400">{` (optional${item.selected ? ', included' : ', not included'})`}</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>} /></tbody>
           </table>
         </div>
+        <ProposalSections document={document} placement="after_options" />
         <div className="p-6 bg-gray-50 dark:bg-slate-800/60">
           <div className="max-w-xs ml-auto space-y-2 text-gray-900 dark:text-slate-100">
             <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Subtotal</span><span>{moneyShort(quote.subtotal)}</span></div>
@@ -232,12 +280,37 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">{canRespond ? 'Deposit due on approval' : 'Deposit'}</span><span>{moneyShort(quote.depositAmount)}</span></div>}
           </div>
         </div>
-        {quote.terms && <div className="p-6 border-t dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3><p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p></div>}
+        <ProposalSections document={document} placement="before_terms" />
+        {document && <AttachmentLinks items={document.attachments} title="Files with this proposal" />}
+        {(quote.terms || clauses.length > 0) && (
+          <div className="p-6 border-t dark:border-slate-700" data-testid="quote-terms">
+            <h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3>
+            {quote.terms && <p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p>}
+            {clauses.length > 0 && (
+              <ol className="mt-3 space-y-3" data-testid="quote-clauses">
+                {clauses.map((cl, i) => (
+                  <li key={cl.id} className="flex items-start gap-3">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-slate-200">{i + 1}. {cl.text}</span>
+                    {canRespond
+                      ? <InitialsBox value={initials[cl.id] || ''} onChange={(v) => { setInitials((m) => ({ ...m, [cl.id]: v })); setInitialErrors((m) => ({ ...m, [cl.id]: '' })) }} label={`Your initials for term ${i + 1}`} error={initialErrors[cl.id]} />
+                      : cl.initials ? <span className="rounded-lg border-2 border-green-600 px-3 py-1 text-sm font-semibold tracking-wider text-gray-900 dark:text-slate-100" aria-label={`Initialed ${cl.initials}`}>{cl.initials}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+        {waitingOnCosigner && document?.cosigner && (
+          <div className="p-6 border-t bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100 dark:border-slate-700" data-testid="awaiting-cosigner">
+            <p className="font-medium">You have signed. Waiting for {document.cosigner.name}{document.cosigner.role ? ` (${document.cosigner.role})` : ''} to sign.</p>
+            <p className="mt-1 text-sm">We sent them their own link. This is approved when they have signed too; until then it cannot be changed.</p>
+          </div>
+        )}
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
-            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : 'Please review this quote and provide your signature to approve.'}</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : clauses.length ? 'Please review this quote, initial each term and provide your signature to approve.' : document?.cosigner ? `Please review this quote and sign to approve. ${document.cosigner.name} signs after you.` : 'Please review this quote and provide your signature to approve.'}</p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => setShowSign(true)} disabled={busy || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
+              <button onClick={() => { if (missingInitials) { setError(`Initial ${clauses.length === 1 ? 'the term' : `each of the ${clauses.length} terms`} above before you sign.`); setInitialErrors(Object.fromEntries(clauses.filter((cl) => !(initials[cl.id] || '').trim()).map((cl) => [cl.id, 'Initial this term.']))); return } setError(''); setShowSign(true) }} disabled={busy || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
               <button onClick={() => setShowDecline(true)} disabled={busy} className={btnSecondary}><XCircle className="w-4 h-4" /> Decline</button>
             </div>
           </div>

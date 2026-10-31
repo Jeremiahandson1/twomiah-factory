@@ -435,6 +435,13 @@
       "when": 1793473552056,
       "tag": "0061_proposal_upgrades_discount",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793474633841,
+      "tag": "0062_proposal_document",
+      "breakpoints": true
     }
   ]
 }

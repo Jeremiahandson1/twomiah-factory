@@ -13,7 +13,7 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 // is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
 // /event-proposal/<token> and /event-pay/<token> are a private event's proposal and one of its payments (crm/restaurant); /w/<token>
 // is a crew's or sub's work order, the link in the text (server/crm/roof/crewLink.ts).
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/event-proposal/*', '/event-pay/*', '/w/*']
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/c/*', '/event-proposal/*', '/event-pay/*', '/w/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client

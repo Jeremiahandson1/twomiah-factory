@@ -205,6 +205,31 @@ ${data.disclosure}`,
     }
   },
 
+  /**
+   * A proposal the customer has signed that needs a second signature (the insurance carrier, a spouse): the cosigner's own private
+   * link (data.cosignPath, /c/<token>) opens that one proposal and nothing else. Everything here was typed by a person — escaped.
+   */
+  quoteCosign: (data, b, appUrl) => {
+    const url = data.cosignPath ? appUrl + data.cosignPath : ''
+    const role = data.cosignerRole ? ` as ${escHtml(data.cosignerRole)}` : ''
+    return {
+      subject: `Your signature is needed: quote ${data.quoteNumber} from ${data.companyName}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.cosignerName)},</p>
+          <p>${escHtml(data.signerName)} has signed quote <strong>${escHtml(data.quoteNumber)}</strong>${data.quoteName ? ` (${escHtml(data.quoteName)})` : ''} and asked for your signature${role} to complete it.</p>
+          ${url ? `<p style="text-align:center;"><a href="${escHtml(url)}" class="button">Review and sign</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">This link is for you alone. Please do not forward it.</p>` : `<p>Please contact ${escHtml(data.companyName)}${data.companyPhone ? ' on ' + escHtml(data.companyPhone) : ''}.</p>`}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `${data.signerName} has signed quote ${data.quoteNumber} and asked for your signature${data.cosignerRole ? ' as ' + data.cosignerRole : ''} to complete it.\n\n${url ? 'Review and sign: ' + url : 'Please contact ' + data.companyName}`,
+    }
+  },
+
   quoteApproved: (data, b, appUrl) => ({
     subject: `Quote ${data.quoteNumber} has been approved!`,
     html: `

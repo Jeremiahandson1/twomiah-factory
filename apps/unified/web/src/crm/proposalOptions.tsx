@@ -3,7 +3,7 @@
 // and signs, and the quote's price becomes that option's. Here: what the options are and which is chosen, "Choose for the
 // customer" (a yes by phone), the editor, and building the options from a pricebook item's Good / Better / Best tiers.
 import { useEffect, useState } from 'react'
-import { Layers, Loader2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileText, Layers, Loader2, Upload } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -15,18 +15,37 @@ const OPEN = ['draft', 'sent', 'viewed']
 const MAX_OPTIONS = 6
 const MAX_PHOTOS = 6
 
+interface Attachment { name: string; url: string }
+interface DocumentView {
+  coverTitle: string | null; coverSubtitle: string | null; coverPhoto: string | null; aboutUs: string | null
+  sections: Array<{ id: string; title: string; body: string; placement: string }>
+  termsClauses: Array<{ id: string; text: string }>
+  attachments: Attachment[]
+  cosigner: { name: string; email: string; role: string | null; status: 'waiting_for_customer' | 'waiting' | 'signed' | null; path: string | null } | null
+  initialed: number
+}
+
+/** A picture or PDF sent from the editor to the quote (POST /api/quotes/:id/proposal/file): the address it is kept at comes back. */
+async function uploadProposalFile(quoteId: string, file: File): Promise<{ url: string; name: string; contentType: string }> {
+  const fd = new FormData()
+  fd.append('file', file)
+  return client.request(`/api/quotes/${quoteId}/proposal/file`, { method: 'POST', body: fd, timeoutMs: 120000 })
+}
+
 interface OptionView {
   id: string; name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null
   photos: string[]; recommended: boolean; chosen: boolean; price: string; lines: Array<LineItemInput & { id?: string; total?: string }>
   upgrades?: Array<LineItemInput & { id?: string; total?: string; selected?: boolean }>
+  attachments?: Attachment[]
   discount?: string; discountCents?: number; discountPercent?: number
 }
 /** One discount per option: nothing, a dollar amount (kept as cents when saved) or a percent of the option's price before upgrades. */
-interface Draft { name: string; tier: string; brand: string; warranty: string; description: string; photos: string[]; recommended: boolean; lines: LineItemInput[]; upgrades: LineItemInput[]; discountType: '' | 'amount' | 'percent'; discountValue: string }
+interface Draft { attachments: Attachment[]; name: string; tier: string; brand: string; warranty: string; description: string; photos: string[]; recommended: boolean; lines: LineItemInput[]; upgrades: LineItemInput[]; discountType: '' | 'amount' | 'percent'; discountValue: string }
 
-const blank = (tier = ''): Draft => ({ name: tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '', tier, brand: '', warranty: '', description: '', photos: [], recommended: false, lines: [{ description: '', quantity: 1, unitPrice: 0 }], upgrades: [], discountType: '', discountValue: '' })
+const blank = (tier = ''): Draft => ({ name: tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '', tier, brand: '', warranty: '', description: '', photos: [], recommended: false, attachments: [], lines: [{ description: '', quantity: 1, unitPrice: 0 }], upgrades: [], discountType: '', discountValue: '' })
 const cleanLine = (l: LineItemInput & { id?: string }): LineItemInput => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined && l.unitCost !== null ? { unitCost: Number(l.unitCost) } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })
 const fromView = (o: OptionView): Draft => ({
+  attachments: o.attachments || [],
   upgrades: (o.upgrades || []).map(cleanLine),
   discountType: o.discountCents ? 'amount' : o.discountPercent ? 'percent' : '',
   discountValue: o.discountCents ? (o.discountCents / 100).toFixed(2) : o.discountPercent ? String(o.discountPercent) : '',
@@ -43,6 +62,8 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
   const mayChoose = can('quotes:update') && OPEN.includes(record.status)
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [pages, setPages] = useState(false)
+  const doc: DocumentView | null = record.document || null
   if (!can('quotes:read') || (!options.length && !hasFeature('quote_proposals'))) return null
 
   // The page reads the quote when it opens; a change here reloads it, so the total and the lines follow.
@@ -57,6 +78,12 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
     setBusy(true)
     try { await client.post(`/api/quotes/${record.id}/proposal/upgrade`, { lineItemId, selected }); reload() }
     catch (e) { toast.error(errMsg(e, 'Could not change that upgrade')); setBusy(false) }
+  }
+  const resendCosigner = async () => {
+    setBusy(true)
+    try { await client.post(`/api/quotes/${record.id}/proposal/cosigner/send`, {}); toast.success('Sent to the cosigner') }
+    catch (e) { toast.error(errMsg(e, 'Could not send it')) }
+    finally { setBusy(false) }
   }
   return (
     <section aria-label="Options" data-testid="proposal-panel" className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
@@ -86,7 +113,15 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
           </ul>
         </>
       )}
-      {mayEdit && <div className="mt-3"><Button variant="secondary" onClick={() => setEditing(true)} disabled={busy}>{options.length ? 'Edit options' : 'Add options'}</Button></div>}
+      {doc?.cosigner && (
+        <p className="mt-3 text-xs text-gray-700 dark:text-slate-300" data-testid="cosigner-status">
+          Cosigner: {doc.cosigner.name}{doc.cosigner.role ? ` (${doc.cosigner.role})` : ''} — {doc.cosigner.status === 'signed' ? 'signed' : doc.cosigner.status === 'waiting' ? 'waiting for them to sign' : 'signs after the customer'}.
+          {doc.cosigner.status === 'waiting' && mayChoose && <> <button type="button" className="font-medium text-orange-700 underline dark:text-orange-200" disabled={busy} onClick={resendCosigner}>Send them the link again</button></>}
+        </p>
+      )}
+      {doc && doc.termsClauses.length > 0 && <p className="mt-1 text-xs text-gray-700 dark:text-slate-300">{doc.termsClauses.length} term{doc.termsClauses.length === 1 ? '' : 's'} to initial{doc.initialed ? `; initialed (${doc.initialed})` : ''}.</p>}
+      {mayEdit && <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(true)} disabled={busy}>{options.length ? 'Edit options' : 'Add options'}</Button><Button variant="secondary" onClick={() => setPages(true)} disabled={busy}>Proposal pages</Button></div>}
+      {pages && <DocumentEditor quote={record} initial={doc} onClose={() => setPages(false)} onSaved={reload} />}
       {editing && <OptionsEditor quote={record} initial={options.map(fromView)} onClose={() => setEditing(false)} onSaved={reload} />}
     </section>
   )
@@ -120,7 +155,7 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
 
   const body = () => drafts.map((d) => ({
     name: d.name, tier: d.tier || null, brand: d.brand || null, warranty: d.warranty || null, description: d.description || null,
-    photos: d.photos, recommended: d.recommended,
+    photos: d.photos, recommended: d.recommended, attachments: d.attachments,
     lines: d.lines.filter((l) => l.description.trim()).map(cleanLine),
     upgrades: d.upgrades.filter((l) => l.description.trim()).map(cleanLine),
     discount: discountOf(d),
@@ -137,6 +172,22 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
     setSaving(true); setError('')
     try { await client.post(`/api/quotes/${quote.id}/proposal/from-pricebook`, { pricebookItemId: pickItem }); toast.success('Options built from the price book'); onSaved() }
     catch (e) { setError(errMsg(e, 'Could not build the options from that item')); setSaving(false) }
+  }
+  // Flip the order the customer sees the options in.
+  const move = (i: number, by: -1 | 1) => { const j = i + by; if (j < 0 || j >= drafts.length) return; const next = [...drafts]; [next[i], next[j]] = [next[j], next[i]]; change(next) }
+  // A photo sent from this screen straight onto the option, and a brochure or spec sheet attached to it.
+  const [uploading, setUploading] = useState(false)
+  const sendFile = async (i: number, file: File | undefined, as: 'photo' | 'file') => {
+    if (!file) return
+    setUploading(true); setError('')
+    try {
+      const got = await uploadProposalFile(quote.id, file)
+      if (as === 'photo') {
+        if (!got.contentType.startsWith('image/')) { setError('That is not a picture. Use Attach a file for a PDF.'); return }
+        if (drafts[i].photos.length >= MAX_PHOTOS) { setError(`An option shows at most ${MAX_PHOTOS} photos.`); return }
+        patch(i, { photos: [...drafts[i].photos, got.url] })
+      } else patch(i, { attachments: [...drafts[i].attachments, { name: got.name, url: got.url }].slice(0, 8) })
+    } catch (e) { setError(errMsg(e, 'Could not upload that file')) } finally { setUploading(false) }
   }
   const togglePhoto = (i: number, url: string) => {
     const has = drafts[i].photos.includes(url)
@@ -158,7 +209,12 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
         )}
         {drafts.map((d, i) => (
           <fieldset key={i} className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700">
-            <legend className="px-1 text-sm font-semibold">Option {i + 1}</legend>
+            <legend className="px-1 text-sm font-semibold">Option {i + 1}
+              <span className="ml-2 inline-flex gap-1 align-middle">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move option ${i + 1} up`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowUp className="w-3.5 h-3.5" /></button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === drafts.length - 1} aria-label={`Move option ${i + 1} down`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowDown className="w-3.5 h-3.5" /></button>
+              </span>
+            </legend>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Name"><input className={inputCls} value={d.name} maxLength={80} onChange={(e) => patch(i, { name: e.target.value })} aria-label={`Option ${i + 1} name`} /></Field>
               <Field label="Brand"><input className={inputCls} value={d.brand} maxLength={120} placeholder="e.g. GAF Timberline HDZ" onChange={(e) => patch(i, { brand: e.target.value })} aria-label={`Option ${i + 1} brand`} /></Field>
@@ -174,10 +230,17 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
                   ))}
                 </div>
               )}
+              <label className="mb-2 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Upload a photo
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading} aria-label={`Option ${i + 1} upload a photo`} onChange={(e) => { sendFile(i, e.target.files?.[0], 'photo'); e.target.value = '' }} /></label>
               <textarea className={inputCls} rows={2} value={d.photos.filter((p) => !jobPhotos.some((j) => j.url === p)).join('\n')} aria-label={`Option ${i + 1} photo addresses`}
                 onChange={(e) => patch(i, { photos: [...d.photos.filter((p) => jobPhotos.some((j) => j.url === p)), ...e.target.value.split('\n').map((x) => x.trim()).filter(Boolean)].slice(0, MAX_PHOTOS) })} />
             </Field>
             <LineItemsEditor items={d.lines} onChange={(lines) => patch(i, { lines })} />
+            <Field label="Brochures and files for this option" hint="A manufacturer's brochure or spec sheet (PDF or picture). The customer can open it; a PDF's pages follow the proposal in its PDF.">
+              <ul className="mb-2 space-y-1 text-sm">{d.attachments.map((a) => <li key={a.url} className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-1"><FileText className="w-4 h-4" aria-hidden="true" />{a.name}</span><button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => patch(i, { attachments: d.attachments.filter((x) => x.url !== a.url) })}>Remove</button></li>)}</ul>
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Attach a file
+                <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading || d.attachments.length >= 8} aria-label={`Option ${i + 1} attach a file`} onChange={(e) => { sendFile(i, e.target.files?.[0], 'file'); e.target.value = '' }} /></label>
+            </Field>
             <div className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
               <p className="text-sm font-medium">Upgrades for this option</p>
               <p className="text-xs text-gray-600 dark:text-slate-300">Add-ons the customer can tick after they choose this option, such as copper valleys. They are not in the option's price until ticked.</p>
@@ -204,6 +267,107 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
           <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save options</Button>
         </div>
         <p className="text-xs text-gray-600 dark:text-slate-300">Saving puts the options in place of the ones above; if the customer had already chosen, they choose again.</p>
+      </div>
+    </Modal>
+  )
+}
+
+
+const PLACEMENTS: Array<[string, string]> = [['top', 'At the top, after the cover'], ['before_options', 'Before the options'], ['after_options', 'After the options'], ['before_terms', 'Before the terms']]
+interface DocDraft { coverTitle: string; coverSubtitle: string; coverPhoto: string; aboutUs: string; sections: Array<{ title: string; body: string; placement: string }>; clauses: string[]; attachments: Attachment[]; cosignerOn: boolean; cosignerName: string; cosignerEmail: string; cosignerRole: string }
+
+/** The pages around the options: cover, About Us, sections in line, the terms the customer initials, files, and a cosigner. */
+function DocumentEditor({ quote, initial, onClose, onSaved }: { quote: Record<string, any>; initial: DocumentView | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast()
+  const [d, setD] = useState<DocDraft>({
+    coverTitle: initial?.coverTitle || '', coverSubtitle: initial?.coverSubtitle || '', coverPhoto: initial?.coverPhoto || '', aboutUs: initial?.aboutUs || '',
+    sections: (initial?.sections || []).map((s) => ({ title: s.title, body: s.body, placement: s.placement })),
+    clauses: (initial?.termsClauses || []).map((c) => c.text), attachments: initial?.attachments || [],
+    cosignerOn: !!initial?.cosigner, cosignerName: initial?.cosigner?.name || '', cosignerEmail: initial?.cosigner?.email || '', cosignerRole: initial?.cosigner?.role || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const set = (p: Partial<DocDraft>) => { setD((x) => ({ ...x, ...p })); setDirty(true) }
+  const send = async (file: File | undefined, as: 'cover' | 'file') => {
+    if (!file) return
+    setUploading(true); setError('')
+    try {
+      const got = await uploadProposalFile(quote.id, file)
+      if (as === 'cover') { if (!got.contentType.startsWith('image/')) { setError('The cover takes a picture.'); return } set({ coverPhoto: got.url }) }
+      else set({ attachments: [...d.attachments, { name: got.name, url: got.url }].slice(0, 8) })
+    } catch (e) { setError(errMsg(e, 'Could not upload that file')) } finally { setUploading(false) }
+  }
+  const save = async () => {
+    setSaving(true); setError('')
+    try {
+      await client.put(`/api/quotes/${quote.id}/proposal/document`, {
+        coverTitle: d.coverTitle || null, coverSubtitle: d.coverSubtitle || null, coverPhoto: d.coverPhoto || null, aboutUs: d.aboutUs || null,
+        sections: d.sections.filter((s) => s.title.trim() || s.body.trim()), termsClauses: d.clauses.filter((c) => c.trim()).map((text) => ({ text })), attachments: d.attachments,
+        cosigner: d.cosignerOn ? { name: d.cosignerName, email: d.cosignerEmail, role: d.cosignerRole || null } : null,
+      })
+      toast.success('Proposal pages saved'); onSaved()
+    } catch (e) { setError(errMsg(e, 'Could not save the proposal pages')); setSaving(false) }
+  }
+  return (
+    <Modal isOpen onClose={onClose} title="Proposal pages" size="xl" dirty={dirty}>
+      <div className="space-y-5">
+        <p className="text-sm text-gray-600 dark:text-slate-300">What the customer reads around the options: a cover page, About Us, sections of your own words, the terms they initial, and — if the insurance carrier or a spouse must sign too — a cosigner.</p>
+        <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700"><legend className="px-1 text-sm font-semibold">Cover page</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Title"><input className={inputCls} value={d.coverTitle} maxLength={160} onChange={(e) => set({ coverTitle: e.target.value })} aria-label="Cover title" /></Field>
+            <Field label="Subtitle"><input className={inputCls} value={d.coverSubtitle} maxLength={300} onChange={(e) => set({ coverSubtitle: e.target.value })} aria-label="Cover subtitle" /></Field>
+          </div>
+          <div className="flex items-center gap-3">
+            {d.coverPhoto && <img src={d.coverPhoto} alt="Cover" className="h-14 w-20 rounded object-cover" />}
+            <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> {d.coverPhoto ? 'Change the cover photo' : 'Upload a cover photo'}
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading} aria-label="Upload a cover photo" onChange={(e) => { send(e.target.files?.[0], 'cover'); e.target.value = '' }} /></label>
+            {d.coverPhoto && <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => set({ coverPhoto: '' })}>Remove</button>}
+          </div>
+        </fieldset>
+        <Field label="About Us" hint="Who you are, in your words. Printed after the cover."><textarea className={inputCls} rows={4} maxLength={5000} value={d.aboutUs} onChange={(e) => set({ aboutUs: e.target.value })} aria-label="About Us" /></Field>
+        <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700"><legend className="px-1 text-sm font-semibold">Sections in line</legend>
+          {d.sections.map((s, i) => (
+            <div key={i} className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input className={inputCls} value={s.title} maxLength={120} placeholder="Section title" aria-label={`Section ${i + 1} title`} onChange={(e) => set({ sections: d.sections.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} />
+                <select className={inputCls} value={s.placement} aria-label={`Section ${i + 1} placement`} onChange={(e) => set({ sections: d.sections.map((x, j) => (j === i ? { ...x, placement: e.target.value } : x)) })}>{PLACEMENTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              </div>
+              <textarea className={inputCls} rows={3} maxLength={5000} value={s.body} aria-label={`Section ${i + 1} text`} onChange={(e) => set({ sections: d.sections.map((x, j) => (j === i ? { ...x, body: e.target.value } : x)) })} />
+              <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => set({ sections: d.sections.filter((_, j) => j !== i) })}>Remove this section</button>
+            </div>
+          ))}
+          {d.sections.length < 12 && <Button variant="secondary" onClick={() => set({ sections: [...d.sections, { title: '', body: '', placement: 'before_options' }] })}>Add a section</Button>}
+        </fieldset>
+        <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700"><legend className="px-1 text-sm font-semibold">Terms the customer initials</legend>
+          <p className="text-xs text-gray-600 dark:text-slate-300">Each term here is initialed by the customer before they can sign. The quote's own terms text is shown above them.</p>
+          {d.clauses.map((c, i) => (
+            <div key={i} className="flex items-start gap-2"><textarea className={inputCls} rows={2} maxLength={1500} value={c} aria-label={`Term ${i + 1}`} onChange={(e) => set({ clauses: d.clauses.map((x, j) => (j === i ? e.target.value : x)) })} /><button type="button" className="shrink-0 text-sm text-red-700 underline dark:text-red-300" onClick={() => set({ clauses: d.clauses.filter((_, j) => j !== i) })}>Remove</button></div>
+          ))}
+          {d.clauses.length < 20 && <Button variant="secondary" onClick={() => set({ clauses: [...d.clauses, ''] })}>Add a term</Button>}
+        </fieldset>
+        <Field label="Files for the whole proposal" hint="PDFs or pictures (a warranty sheet, a license). A PDF's pages follow the proposal in its PDF.">
+          <ul className="mb-2 space-y-1 text-sm">{d.attachments.map((a) => <li key={a.url} className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-1"><FileText className="w-4 h-4" aria-hidden="true" />{a.name}</span><button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => set({ attachments: d.attachments.filter((x) => x.url !== a.url) })}>Remove</button></li>)}</ul>
+          <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Attach a file
+            <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading || d.attachments.length >= 8} aria-label="Attach a file to the proposal" onChange={(e) => { send(e.target.files?.[0], 'file'); e.target.value = '' }} /></label>
+        </Field>
+        <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700"><legend className="px-1 text-sm font-semibold">Cosigner</legend>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.cosignerOn} onChange={(e) => set({ cosignerOn: e.target.checked })} /> Someone else must sign after the customer (the insurance carrier, a spouse)</label>
+          {d.cosignerOn && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Name"><input className={inputCls} value={d.cosignerName} maxLength={120} onChange={(e) => set({ cosignerName: e.target.value })} aria-label="Cosigner name" /></Field>
+              <Field label="Email"><input className={inputCls} type="email" value={d.cosignerEmail} maxLength={200} onChange={(e) => set({ cosignerEmail: e.target.value })} aria-label="Cosigner email" /></Field>
+              <Field label="Their part"><input className={inputCls} value={d.cosignerRole} maxLength={80} placeholder="e.g. Insurance carrier" onChange={(e) => set({ cosignerRole: e.target.value })} aria-label="Cosigner role" /></Field>
+            </div>
+          )}
+          {d.cosignerOn && <p className="text-xs text-gray-600 dark:text-slate-300">They are emailed their own link when the customer signs, and the quote is approved when they have signed too.</p>}
+        </fieldset>
+        {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-gray-200 pt-4 dark:border-slate-700">
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving || uploading}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save pages</Button>
+        </div>
       </div>
     </Modal>
   )

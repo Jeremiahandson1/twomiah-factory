@@ -143,6 +143,8 @@ export async function proposalsLive(t: { quoteProposalOption?: any; quoteLineIte
 export type ProposalOptionView = {
   id: string; name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null
   photos: string[]; recommended: boolean; chosen: boolean; sortOrder: number
+  /** Files attached to this option (a manufacturer's brochure): [{ name, url }]. */
+  attachments: Array<{ name: string; url: string }>
   /** What the whole quote comes to if this is the option chosen: the shared lines plus this option's, tax and discount as the quote has them. */
   price: string; subtotal: string; taxAmount: string
   /** The deposit the quote asks if this is the option chosen ('0.00' when it asks none). */
@@ -196,6 +198,7 @@ export async function proposalView(db: any, t: { quote: any; quoteLineItem: any;
     return {
       id: o.id, name: o.name, tier: o.tier ?? null, brand: o.brand ?? null, warranty: o.warranty ?? null, description: o.description ?? null,
       photos: Array.isArray(o.photos) ? o.photos.filter(isPhotoAddress) : [], recommended: !!o.recommended, chosen: !!o.chosen, sortOrder: o.sortOrder,
+      attachments: Array.isArray(o.attachments) ? o.attachments.filter((a: any) => a && typeof a.name === 'string' && isPhotoAddress(a.url)).map((a: any) => ({ name: a.name, url: a.url })) : [],
       price: p.total.toFixed(2), subtotal: p.subtotal.toFixed(2), taxAmount: p.taxAmount.toFixed(2),
       deposit: depositAmount({ depositType: quote.depositType, depositValue: quote.depositValue, total: p.total }).toFixed(2),
       discount: disc.toFixed(2), discountCents: Number(o.discountCents) || 0, discountPercent: Number(o.discountPercent) || 0, lines: own, upgrades,

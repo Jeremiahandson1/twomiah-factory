@@ -31,7 +31,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
@@ -273,9 +273,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
+    sendCosignEmail: (to: string, data: Record<string, unknown>) => s.emailService.send(to, 'quoteCosign', data),
+    storage: s.storage,
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
@@ -546,7 +548,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
-        contact, company, user, quote, quoteLineItem, quoteProposalOption, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        contact, company, user, quote, quoteLineItem, quoteProposalOption, quoteProposalDocument, quoteProposalMark, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).

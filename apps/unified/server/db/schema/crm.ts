@@ -479,9 +479,58 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   // the option's price before its upgrades. At most one of the two is set.
   discountCents: integer('discount_cents').default(0).notNull(),
   discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }).default('0').notNull(),
+  // Files attached to this option — a manufacturer's brochure, a spec sheet: [{ name, url }], url a /media file or https (0062).
+  attachments: json('attachments'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),
+])
+
+// The pages of a proposal around its options (0062; packages/tenant-backend invoicing/quoteDocument.ts): a cover page, About Us,
+// sections placed in line, files attached to the whole proposal, the terms split into clauses the customer INITIALS, and a
+// cosigner (the insurance carrier, a spouse) whose signature completes the approval. One row per quote.
+export const quoteProposalDocument = pgTable('quote_proposal_document', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  quoteId: text('quote_id').notNull().unique().references(() => quote.id, { onDelete: 'cascade' }),
+  coverTitle: text('cover_title'),
+  coverSubtitle: text('cover_subtitle'),
+  coverPhoto: text('cover_photo'),
+  aboutUs: text('about_us'),
+  /** [{ id, title, body, placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }] */
+  sections: json('sections'),
+  /** [{ id, text }] — each is initialed by the customer when they sign. */
+  termsClauses: json('terms_clauses'),
+  /** [{ name, url }] — files for the whole proposal. */
+  attachments: json('attachments'),
+  cosignerName: text('cosigner_name'),
+  cosignerEmail: text('cosigner_email'),
+  cosignerRole: text('cosigner_role'),
+  /** The cosigner's private link (/c/<token>), 64 hex characters like a quote's own link. */
+  cosignerToken: text('cosigner_token').unique(),
+  cosignerRequestedAt: timestamp('cosigner_requested_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// What a person put their hand to on a proposal (0062): each clause the customer initialed, the customer's signature while the
+// cosigner is still to sign (the quote is approved when the last required signature is in), and the cosigner's.
+export const quoteProposalMark = pgTable('quote_proposal_mark', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+  /** 'initials' | 'customer_signature' | 'cosigner_signature' */
+  kind: text('kind').notNull(),
+  clauseId: text('clause_id'),
+  name: text('name'),
+  initials: text('initials'),
+  signature: text('signature'),
+  documentHash: text('document_hash'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signedAt: timestamp('signed_at').defaultNow().notNull(),
+}, (t) => [
+  index('quote_proposal_mark_quote_id_idx').on(t.quoteId),
 ])
 
 /**
