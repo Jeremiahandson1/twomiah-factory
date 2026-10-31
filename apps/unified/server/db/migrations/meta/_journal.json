@@ -393,6 +393,13 @@
       "when": 1793474521550,
       "tag": "0055_job_paused_at",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793474547754,
+      "tag": "0056_quote_option_sets",
+      "breakpoints": true
     }
   ]
 }

@@ -459,6 +459,13 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   chosen: boolean('chosen').default(false).notNull(),
   chosenAt: timestamp('chosen_at'),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // The SET this option is one choice of (Jobber: up to three sets on a quote, 2–5 choices each; HCP / ServiceTitan: an
+  // "additive" set whose options may be taken in any combination). `set_index` 0–2 orders the sets; `set_name` is what the
+  // customer sees above the set (null on a quote's only set: "Options"); `set_kind` is 'one' (the customer picks exactly one
+  // of the set) or 'any' (any number, none included — add-ons). Every option in a set carries the same name and kind.
+  setIndex: integer('set_index').default(0).notNull(),
+  setName: text('set_name'),
+  setKind: text('set_kind').default('one').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),
