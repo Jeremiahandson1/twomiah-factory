@@ -411,7 +411,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
           const muted = closedHour(currentDate, h)
           return (
             <div key={key} data-hour={key} {...(muted ? { 'data-closed': '' } : {})} {...dropProps(key, () => dropOnHour(key))} className={`flex gap-3 border-b last:border-b-0 dark:border-slate-800 p-2 transition ${muted ? MUTED : ''} ${dragOverKey === key ? 'bg-orange-50/60 ring-2 ring-inset ring-orange-400' : ''}`}>
-              <div className={`w-16 shrink-0 text-xs font-medium pt-1 ${muted ? 'text-gray-400 dark:text-slate-500' : 'text-gray-500 dark:text-slate-400'}`}>{hourLabel(h)}</div>
+              <div className={`w-16 shrink-0 text-xs font-medium pt-1 ${muted ? 'text-gray-500 dark:text-slate-400' : 'text-gray-500 dark:text-slate-400'}`}>{hourLabel(h)}</div>
               <div className="flex-1 min-w-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 min-h-[36px]">
                 {here.map((j) => jobCard(j))}
                 {bk.map((b) => bookingCard(b))}
@@ -439,7 +439,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
             {...dropProps(key, () => dropOnDay(day))}
             className={`${muted ? MUTED : 'bg-white dark:bg-slate-900'} rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
           >
-            <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : muted ? 'bg-gray-100 dark:bg-slate-800/80 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-800' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+            <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : muted ? 'bg-gray-100 dark:bg-slate-800/80 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-800' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
               <p className="text-xs font-medium">{WEEKDAYS[day.getDay()]}{muted ? ' · Closed' : ''}</p>
               <p className="text-lg font-bold">{day.getDate()}</p>
             </button>
@@ -501,7 +501,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
               const muted = row.key ? closedHour(currentDate, Number(row.key.slice(0, 2))) : false
               return (
               <Fragment key={row.key || 'untimed'}>
-                <div {...(muted ? { 'data-closed': '' } : {})} className={`sticky left-0 z-10 border-b dark:border-slate-800 p-2 text-xs font-medium ${muted ? `${MUTED} text-gray-400 dark:text-slate-500` : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-400'}`}>{row.label}</div>
+                <div {...(muted ? { 'data-closed': '' } : {})} className={`sticky left-0 z-10 border-b dark:border-slate-800 p-2 text-xs font-medium ${muted ? `${MUTED} text-gray-500 dark:text-slate-400` : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-400'}`}>{row.label}</div>
                 {lanes.map((l) => {
                   const k = cellKey(l.id, row.key)
                   return (

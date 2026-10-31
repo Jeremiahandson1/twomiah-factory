@@ -85,6 +85,7 @@
   "/api/team/assignable",
   "/api/team?limit=25&page=1",
   "/api/text-activity/contact/:id",
+  "/api/time-clock/overtime",
   "/api/time/active",
   "/api/time?limit=25&page=1"
  ]
