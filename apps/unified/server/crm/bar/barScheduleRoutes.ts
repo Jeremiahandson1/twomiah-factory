@@ -2,6 +2,8 @@
 //
 //   A manager's (bar:update — the same as the menu and the hours):
 //     GET    /week?day=            the week grid: shifts, people and hours, gaps, overlaps, labor %, worked hours
+//     GET    /labor-forecast?day=  (bar_labor_forecast as well) sales by day and hour from the register's history, booked events, and the hours per position that fit the target labor %
+//     GET/PUT /labor-forecast/settings   the target labor percent and how many weeks to look back
 //     POST   /shifts  ·  PATCH /shifts/:id  ·  DELETE /shifts/:id
 //     POST   /copy { fromDay, toDay, replace }   ·   POST /publish { day }
 //     PUT    /time-off/:id { status: approved | denied }
@@ -51,6 +53,18 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
     }
   }
 
+  // Sales-driven labor forecast (restaurant-bar parity #9), beside the grid; a manager's, behind its own feature as well.
+  const laborOn = d.features.requireEnabledFeature('bar_labor_forecast')
+  app.get('/labor-forecast', ...manage, laborOn, async (c) => { const a = await actorOf(c); return run(c, () => bar.labor.week(a.companyId, c.req.query('day') || null)) })
+  app.get('/labor-forecast/settings', ...manage, laborOn, async (c) => { const a = await actorOf(c); return run(c, async () => ({ settings: await bar.labor.getSettings(a.companyId) })) })
+  app.put('/labor-forecast/settings', ...manage, laborOn, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const r = await bar.labor.setSettings(a.companyId, b)
+      audit.log({ req: c, action: 'update', entity: 'bar_labor_settings', entityName: 'Labor forecast settings', changes: audit.diff(r.before as any, r.settings as any) })
+      return { settings: r.settings }
+    })
+  })
   const availabilityOn = (companyId: string) => d.features.isFeatureEnabled(companyId, 'bar_availability')
   app.get('/week', ...manage, async (c) => {
     const a = await actorOf(c)

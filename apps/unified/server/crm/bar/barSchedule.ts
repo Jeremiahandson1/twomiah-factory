@@ -275,7 +275,7 @@ async function onTheClock(companyId: string, now = new Date()) {
 
 return {
   weekFor, loadWeek, addScheduled, updateScheduled, deleteScheduled, copyWeek, publishWeek, publishedWeeks, requestTimeOff, decideTimeOff, timeOffRequests,
-  myTimeOff, punchByPin, onTheClock,
+  myTimeOff, punchByPin, onTheClock, ratesByUserId: clock.ratesByUserId,
 }
 }
 export type BarSchedule = ReturnType<typeof createBarSchedule>
