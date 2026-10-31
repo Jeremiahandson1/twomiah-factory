@@ -17,6 +17,7 @@ import { createRoofMoneyRoutes } from './moneySettings.ts'
 import { createJobPeopleRoutes } from './jobPeople.ts'
 import { createCommissionDrawRoutes } from './commissionDraws.ts'
 import { createCommissionDisclaimerRoutes } from './commissionDisclaimer.ts'
+import { createJobBooksRoutes } from './jobBooks.ts'
 import { createWorksheetRoutes } from './worksheetRoutes.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
@@ -41,6 +42,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     { path: '/api/job-people', access: 'user', feature: 'commission_tracking', router: createJobPeopleRoutes(d) },
     // A job's worksheet approval — its profit counts once approved, where the company requires it (./worksheetApproval.ts).
     { path: '/api/job-worksheet', access: 'user', feature: 'job_costing', router: createWorksheetRoutes(d) },
+    // A job's profit as the roofer's QuickBooks books show it, read-only (./jobBooks.ts). The quickbooks switch is checked in the handler.
+    { path: '/api/job-books', access: 'user', feature: 'job_costing', router: createJobBooksRoutes(d) },
     // The commission disclaimer a person accepts before seeing their own commissions (./commissionDisclaimer.ts).
     { path: '/api/commission-disclaimer', access: 'user', feature: 'commission_tracking', router: createCommissionDisclaimerRoutes(d) },
     // Pre-commission draws — a part of a commission paid in advance when a job is turned in, taken off the commission later (./commissionDraws.ts).

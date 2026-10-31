@@ -243,6 +243,9 @@ export const job = pgTable('job', {
   // Roofing's job (templates/crm-roof job; docs/UNIFIED_ROOF_PLAN.md decision 2). Nullable: no other vertical writes
   // them. Roofing's job_number / property_address / estimated_revenue are this table's number / address /
   // estimated_value; its money is the CRM's precision (12, 2), wider than roofing's (10, 2), so every value fits.
+  /** The QuickBooks customer (or job) this job's books are kept under, chosen on the job (crm/roof/jobBooks.ts); null = the contact's own. 0060. */
+  qbCustomerId: text('qb_customer_id'),
+  qbCustomerName: text('qb_customer_name'),
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
   roofAge: integer('roof_age'),

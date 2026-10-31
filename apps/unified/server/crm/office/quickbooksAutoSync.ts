@@ -46,7 +46,7 @@ export function quickBooksReason(err: unknown): string {
 }
 
 /** The connection is gone (not a refusal of one record): stop the run. */
-const connectionLost = (err: unknown) => /not connected|Token refresh failed|AuthenticationFailed|401/.test(String((err as any)?.message ?? err))
+export const connectionLost = (err: unknown) => /not connected|Token refresh failed|AuthenticationFailed|401/.test(String((err as any)?.message ?? err))
 
 export interface AutoSyncDeps {
   db: any

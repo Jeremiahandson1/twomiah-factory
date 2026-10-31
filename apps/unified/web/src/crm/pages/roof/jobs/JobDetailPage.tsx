@@ -38,6 +38,7 @@ import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobCommissionPeople from './JobCommissionPeople'
+import JobBooks from './JobBooks'
 import InspectionReports from './InspectionReports'
 import PhotoDetails from './PhotoDetails'
 import ShareWithHomeowner from './ShareWithHomeowner'
@@ -865,6 +866,9 @@ export default function JobDetailPage() {
 
             {/* The other people whose commission this job carries (roof/jobPeople.ts) — a seat that reads the pay structure */}
             {hasFeature('commission_tracking') && can('commissions:read') && <JobCommissionPeople jobId={job.id} users={users} />}
+
+            {/* The job's profit in the roofer's QuickBooks books, read-only (roof/jobBooks.ts) — a seat that reads job costing, where QuickBooks is on */}
+            {hasFeature('job_costing') && hasFeature('quickbooks') && can('reports:read') && <JobBooks jobId={job.id} />}
 
             {/* Quotes — withheld from a seat without invoices:read (see maySeeJobMoney) */}
             {maySeeJobMoney && (
