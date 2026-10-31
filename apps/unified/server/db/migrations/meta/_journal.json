@@ -309,6 +309,13 @@
       "when": 1793406302523,
       "tag": "0043_fieldservice_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793407982362,
+      "tag": "0044_restaurant_bar_depth",
+      "breakpoints": true
     }
   ]
 }

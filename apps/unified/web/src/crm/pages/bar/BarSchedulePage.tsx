@@ -3,9 +3,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useMayWrite, useAuth } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, Dialog } from './registerUi';
+import { ManagerRequests, MyAvailability, MySwaps } from './StaffRequestsUi';
 
 /**
  * THE SCHEDULE (routes/barSchedule.ts). A manager (bar:update) builds the week — Monday to Sunday, the timesheet's
@@ -28,7 +29,9 @@ export default function BarSchedulePage() {
         <Link to="/crm/clock" className={`${BTN} ${OFF} inline-flex items-center`}>Time clock</Link>
       </div>
       {mayBuild ? <WeekBuilder /> : <PublishedWeeks />}
+      {mayBuild && <ManagerRequests />}
       <TimeOff />
+      <MyStaffRequests />
     </div>
   );
 }
@@ -89,7 +92,7 @@ function WeekBuilder() {
                     <td key={d} className="py-2 px-1">
                       {mine.map((s: any) => (
                         <button key={s.id} className={`block w-full text-left rounded-lg px-2 py-1 mb-1 text-xs border ${s.onTimeOff ? 'border-red-400 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-100' : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'}`} onClick={() => setEdit({ ...s })}>
-                          {clock12(s.start)}–{clock12(s.end)}{s.position ? ` · ${s.position}` : ''}{s.onTimeOff ? ' · day off' : ''}
+                          {clock12(s.start)}–{clock12(s.end)}{s.position ? ` · ${s.position}` : ''}{s.onTimeOff ? ' · day off' : ''}{s.outsideAvailability ? ' · outside availability' : ''}
                         </button>
                       ))}
                       <button className={`text-xs underline ${MUTED}`} aria-label={`Add a shift for ${p.name} on ${dayLabel(d)}`} onClick={() => setEdit({ userId: p.userId, day: d, start: '16:00', end: 'close' })}><Plus className="w-3 h-3 inline" /></button>
@@ -131,12 +134,14 @@ function WeekBuilder() {
 function ShiftDialog({ shift: s0, people, days, onClose, onSaved }: { shift: any; people: any[]; days: string[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState(s0);
   const [err, setErr] = useState('');
+  const [warn, setWarn] = useState('');
   const save = async () => {
     setErr('');
     try {
       const b = { userId: f.userId, day: f.day, start: f.start, end: f.end, position: f.position || null, note: f.note || null };
-      if (f.id) await api.patch(`/api/schedule/shifts/${f.id}`, b); else await api.post('/api/schedule/shifts', b);
-      onSaved();
+      const r = f.id ? await api.patch(`/api/schedule/shifts/${f.id}`, b) : await api.post('/api/schedule/shifts', b);
+      // Saved; if it is outside what the person said they can work, say so (a manager decides, nothing is blocked).
+      if (r?.warning) setWarn(r.warning); else onSaved();
     } catch (e) { setErr(errorText(e, 'The shift did not save.')); }
   };
   return (
@@ -150,6 +155,7 @@ function ShiftDialog({ shift: s0, people, days, onClose, onSaved }: { shift: any
         </div>
         <div><label className={LABEL} htmlFor="sh-pos">Position</label><input id="sh-pos" className={`${INPUT} mt-1`} value={f.position || ''} onChange={(e) => setF({ ...f, position: e.target.value })} placeholder="Bar, Grill, Floor" maxLength={30} /></div>
         <FormError message={err} />
+        {warn && <p role="status" className="text-sm text-amber-900 dark:text-amber-200">{warn} <button className="underline" onClick={onSaved}>Done</button></p>}
         <div className="flex flex-wrap justify-end gap-2">
           {f.id && <button className={`${BTN} ${DANGER}`} onClick={async () => { try { await api.delete(`/api/schedule/shifts/${f.id}`); onSaved(); } catch (e) { setErr(errorText(e, 'Could not delete it.')); } }}>Delete</button>}
           <button className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
@@ -158,6 +164,17 @@ function ShiftDialog({ shift: s0, people, days, onClose, onSaved }: { shift: any
       </div>
     </Dialog>
   );
+}
+
+/** Availability and swaps for the person signed in: they act on the published schedule, so it is read here once. */
+function MyStaffRequests() {
+  const { user, hasFeature } = useAuth();
+  const [published, setPublished] = useState<any[]>([]);
+  useEffect(() => {
+    if (!hasFeature('bar_shift_swaps')) return;
+    api.get('/api/schedule/published').then((d) => setPublished((d.weeks || []).flatMap((w: any) => (w.published ? w.shifts : [])))).catch(() => setPublished([]));
+  }, [hasFeature]);
+  return (<><MyAvailability /><MySwaps published={published} meId={(user as any)?.id ?? null} /></>);
 }
 
 function PublishedWeeks() {

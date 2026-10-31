@@ -18,8 +18,27 @@ import { createEventRoutes } from './events.ts'
 import { createEventSpaceRoutes } from './eventSpaces.ts'
 import { createMenuPackageRoutes } from './menuPackages.ts'
 import { createVenueImportRoutes } from './eventImport.ts'
+import { createEventSettingsRoutes } from './eventSettings.ts'
+import { createEventMinimumRoutes } from './eventMinimums.ts'
+import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes } from './eventCalendar.ts'
+import { createEventReportRoutes } from './eventReports.ts'
+import { createEventProposalRoutes, createProposalLinkRoutes } from './eventProposals.ts'
+import { createEventPaymentRoutes, createEventPayLinkRoutes, startEventPaymentJobs, runPaymentReminders, runAutopay } from './eventPayments.ts'
+import { runGuaranteeReminders } from './eventGuarantee.ts'
 
 export function restaurantMounts(d: CrmDeps): Mount[] {
+  Object.assign(d.services.eventJobs, {
+    runGuaranteeReminders: (now?: Date) => runGuaranteeReminders(d, now),
+    runPaymentReminders: (now?: Date, opts?: { fromHour?: number }) => runPaymentReminders(d, now, opts),
+    runAutopay: (now?: Date) => runAutopay(d, now),
+  })
+  // The reminders and the day's card charges, hourly, started with the CRM's other timed work (never in a test).
+  d.services.addJob(() => {
+    startEventPaymentJobs(d)
+    const guarantee = () => runGuaranteeReminders(d).catch((err: any) => d.logger.error('[events] guarantee reminders failed', { error: err?.message }))
+    setTimeout(guarantee, 120_000)
+    setInterval(guarantee, 6 * 60 * 60 * 1000)
+  })
   return [
     { path: '/api/events', access: 'user', feature: 'event_bookings', router: createEventRoutes(d) },
     { path: '/api/event-spaces', access: 'user', feature: 'event_spaces', router: createEventSpaceRoutes(d) },
@@ -27,5 +46,16 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/import/events', access: 'user', feature: 'event_bookings', router: createVenueImportRoutes(d, 'events') },
     { path: '/api/import/spaces', access: 'user', feature: 'event_bookings', router: createVenueImportRoutes(d, 'spaces') },
     { path: '/api/import/menus', access: 'user', feature: 'event_bookings', router: createVenueImportRoutes(d, 'menus') },
+    // Depth (docs/parity/restaurant-*.md): each behind its own not-ready feature as well as the events one.
+    { path: '/api/event-settings', access: 'user', feature: 'event_bookings', router: createEventSettingsRoutes(d) },
+    { path: '/api/event-minimums', access: 'user', feature: 'event_minimums', router: createEventMinimumRoutes(d) },
+    { path: '/api/event-calendar', access: 'user', feature: 'event_calendar', router: createEventCalendarRoutes(d) },
+    { path: '/api/event-waitlist', access: 'user', feature: 'event_calendar', router: createEventWaitlistRoutes(d) },
+    { path: '/api/event-feed', access: 'public', feature: 'event_calendar', router: createEventFeedRoutes(d) },
+    { path: '/api/event-reports', access: 'user', feature: 'event_reports', router: createEventReportRoutes(d) },
+    { path: '/api/event-proposals', access: 'user', feature: 'event_proposals', router: createEventProposalRoutes(d) },
+    { path: '/api/proposal-links', access: 'public', feature: 'event_proposals', router: createProposalLinkRoutes(d) },
+    { path: '/api/event-payments', access: 'user', feature: 'event_payment_automation', router: createEventPaymentRoutes(d) },
+    { path: '/api/event-pay', access: 'public', feature: 'event_payment_automation', router: createEventPayLinkRoutes(d) },
   ]
 }

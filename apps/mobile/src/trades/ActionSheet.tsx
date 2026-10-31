@@ -55,6 +55,16 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
           ) : inp.kind === 'choice' ? (
             <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
               <Wrap>{(inp.choices || []).map((c) => <Chip key={c} label={c.replace(/_/g, ' ')} selected={values[inp.id] === c} onPress={() => setValues((v) => ({ ...v, [inp.id]: c }))} />)}</Wrap></View>
+          ) : inp.kind === 'level' ? (
+            <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+                <Button label="−5" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: v[inp.id] === undefined || v[inp.id] === '' ? '' : String(Math.max(0, Number(v[inp.id]) - 5)) }))} />
+                <View accessibilityRole="adjustable" accessibilityLabel={inp.label} accessibilityValue={{ min: 0, max: 100, now: values[inp.id] === '' || values[inp.id] === undefined ? 0 : Number(values[inp.id]) }} style={{ flex: 1, height: 12, borderRadius: 6, backgroundColor: '#d1d5db', overflow: 'hidden' }}>
+                  <View style={{ width: `${values[inp.id] === '' || values[inp.id] === undefined ? 0 : Number(values[inp.id])}%`, height: 12, backgroundColor: '#ea580c' }} />
+                </View>
+                <Button label="+5" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: v[inp.id] === undefined || v[inp.id] === '' ? '100' : String(Math.min(100, Number(v[inp.id]) + 5)) }))} />
+              </View>
+              <DText variant="callout" tone="textSecondary">{values[inp.id] === '' || values[inp.id] === undefined ? 'Not used. Tap + to add an open bottle.' : `${values[inp.id]}% full`}</DText></View>
           ) : (
             <TextField key={inp.id} label={inp.label} value={values[inp.id] ?? ''} required={inp.required} multiline={inp.kind === 'multiline'} keyboardType={inp.kind === 'number' ? 'decimal-pad' : 'default'}
               onChangeText={(t) => setValues((v) => ({ ...v, [inp.id]: t }))} />

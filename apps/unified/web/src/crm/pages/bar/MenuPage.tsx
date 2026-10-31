@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Loader2, X, Utensils, Edit2, Trash2, ImagePlus } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useMayWrite, useAuth } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -17,7 +17,7 @@ import { money } from '@twomiah/tenant-ui/src/money'
 
 interface Item {
   id: string; sectionId: string | null; name: string; slug: string; description: string | null; priceCents: number | null;
-  priceLabel: string | null; isSignature: boolean; is86ed: boolean; isActive: boolean; dietary: string[]; story: string | null;
+  priceLabel: string | null; isSignature: boolean; is86ed: boolean; eightySixUntilOpen?: boolean; isActive: boolean; dietary: string[]; story: string | null;
   variations: Array<{ name: string; priceCents: number }>;
   imageUrl: string | null;
   toKitchen: boolean | null; prepSeconds: number | null;
@@ -25,7 +25,8 @@ interface Item {
 }
 /** An add-on as the form edits it: the price typed in dollars. */
 type ModRow = { id?: string; name: string; price: string };
-interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; items: Item[] }
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; availableFrom?: string | null; availableTo?: string | null; availableDays?: number[]; items: Item[] }
 
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
 const LBL = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
@@ -35,6 +36,8 @@ const price = (cents: number | null) => cents === null || cents === undefined ? 
 export default function MenuPage() {
   const mayEdit = useMayWrite('bar:update');
   const may86 = useMayWrite('bar:console');
+  const { hasFeature } = useAuth();
+  const byTime = hasFeature('menu_dayparts');
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -57,7 +60,8 @@ export default function MenuPage() {
     if (!sectionForm) return;
     setSaving(true); setFormErr('');
     try {
-      const body = { name: sectionForm.name, description: sectionForm.description ?? null, kind: sectionForm.kind || 'food', isActive: sectionForm.isActive !== false };
+      const body = { name: sectionForm.name, description: sectionForm.description ?? null, kind: sectionForm.kind || 'food', isActive: sectionForm.isActive !== false,
+        ...(byTime ? { availableFrom: sectionForm.availableFrom || null, availableTo: sectionForm.availableTo || null, availableDays: sectionForm.availableFrom ? sectionForm.availableDays || [] : [] } : {}) };
       if (sectionForm.id) await api.put(`/api/bar/menu/sections/${sectionForm.id}`, body);
       else await api.post('/api/bar/menu/sections', body);
       setSectionForm(null); await load();
@@ -101,9 +105,9 @@ export default function MenuPage() {
     catch (e) { setErr(errorText(e, 'That was not deleted.')); setConfirmDelete('') }
   };
 
-  const toggle86 = async (i: Item) => {
+  const toggle86 = async (i: Item, untilOpen = false) => {
     setErr('');
-    try { await api.put(`/api/bar/menu/items/${i.id}/86`, { is86ed: !i.is86ed }); await load() }
+    try { await api.put(`/api/bar/menu/items/${i.id}/86`, { is86ed: !i.is86ed, ...(untilOpen && !i.is86ed ? { untilOpen: true } : {}) }); await load() }
     catch (e) { setErr(errorText(e, 'The 86 did not save.')) }
   };
 
@@ -134,6 +138,7 @@ export default function MenuPage() {
             <div className="flex items-start justify-between gap-2 p-4 border-b border-gray-100 dark:border-slate-800">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{s.name} <span className="text-xs font-normal text-gray-500 dark:text-slate-400">{s.kind === 'drink' ? 'Drinks' : 'Food'}{s.isActive ? '' : ' · hidden'}</span></h2>
+                {byTime && s.availableFrom && s.availableTo && <p className="text-sm text-gray-600 dark:text-slate-300">Served {s.availableFrom} to {s.availableTo}{s.availableDays?.length && s.availableDays.length < 7 ? ' ' + s.availableDays.map((d) => DAYS[d]).join(', ') : ''}</p>}
                 {s.description && <p className="text-sm text-gray-500 dark:text-slate-400">{s.description}</p>}
               </div>
               {mayEdit && (
@@ -154,7 +159,7 @@ export default function MenuPage() {
                       <p className={`font-medium ${i.is86ed ? 'line-through text-gray-500 dark:text-slate-400' : 'text-gray-900 dark:text-slate-100'}`}>
                         {i.name}
                         {i.isSignature && <span className="ml-2 text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">Signature</span>}
-                        {i.is86ed && <span className="ml-2 text-xs font-semibold text-red-800 bg-red-50 px-2 py-0.5 rounded-full dark:text-red-200 dark:bg-red-950/40">86</span>}
+                        {i.is86ed && <span className="ml-2 text-xs font-semibold text-red-800 bg-red-50 px-2 py-0.5 rounded-full dark:text-red-200 dark:bg-red-950/40">{i.eightySixUntilOpen ? '86 until open' : '86'}</span>}
                         {!i.isActive && <span className="ml-2 text-xs text-gray-600 dark:text-slate-300">hidden</span>}
                       </p>
                       {i.description && <p className="text-sm text-gray-500 dark:text-slate-400">{i.description}</p>}
@@ -162,6 +167,7 @@ export default function MenuPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {may86 && <button onClick={() => toggle86(i)} aria-pressed={i.is86ed} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${i.is86ed ? 'bg-orange-600 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-500' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{i.is86ed ? 'Back on' : '86'}</button>}
+                      {may86 && byTime && !i.is86ed && <button onClick={() => toggle86(i, true)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">86 until we open</button>}
                       {mayEdit && <button onClick={() => { setFormErr(''); setPhoto(null); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '', mods: (i.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: (m.priceCents / 100).toFixed(2) })) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
                       {mayEdit && (confirmDelete === i.id
                         ? <><button onClick={() => remove('items', i.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Delete</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
@@ -182,6 +188,21 @@ export default function MenuPage() {
             <div><label htmlFor="sec-name" className={LBL}>Name</label><input id="sec-name" className={INPUT} value={sectionForm.name || ''} onChange={(e) => setSectionForm({ ...sectionForm, name: e.target.value })} /></div>
             <div><label htmlFor="sec-desc" className={LBL}>Description (shown above the items)</label><textarea id="sec-desc" className={INPUT} rows={2} value={sectionForm.description || ''} onChange={(e) => setSectionForm({ ...sectionForm, description: e.target.value })} /></div>
             <div><label htmlFor="sec-kind" className={LBL}>Kind</label><select id="sec-kind" className={INPUT} value={sectionForm.kind || 'food'} onChange={(e) => setSectionForm({ ...sectionForm, kind: e.target.value as 'food' | 'drink' })}><option value="food">Food</option><option value="drink">Drinks</option></select></div>
+            {byTime && (
+              <fieldset className="space-y-2">
+                <legend className={LBL}>Serve only at certain times (leave empty for all day)</legend>
+                <div className="flex gap-2 items-center">
+                  <input aria-label="Served from" type="time" className={INPUT} value={sectionForm.availableFrom || ''} onChange={(e) => setSectionForm({ ...sectionForm, availableFrom: e.target.value || null })} />
+                  <span className="text-sm text-gray-600 dark:text-slate-300">to</span>
+                  <input aria-label="Served until" type="time" className={INPUT} value={sectionForm.availableTo || ''} onChange={(e) => setSectionForm({ ...sectionForm, availableTo: e.target.value || null })} />
+                </div>
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Days served">
+                  {DAYS.map((d, n) => { const on = (sectionForm.availableDays || []).includes(n); return (
+                    <button type="button" key={d} aria-pressed={on} onClick={() => setSectionForm({ ...sectionForm, availableDays: on ? (sectionForm.availableDays || []).filter((x) => x !== n) : [...(sectionForm.availableDays || []), n].sort() })} className={`px-2.5 py-1 rounded-lg text-sm border ${on ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-800 border-gray-300 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700'}`}>{d}</button>) })}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-slate-400">No days picked means every day. A window that runs past midnight counts as the day it started.</p>
+              </fieldset>
+            )}
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={sectionForm.isActive !== false} onChange={(e) => setSectionForm({ ...sectionForm, isActive: e.target.checked })} /> Show on the website</label>
             <div className="flex justify-end gap-2 pt-2"><button onClick={() => setSectionForm(null)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100">Cancel</button><button onClick={saveSection} disabled={saving} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button></div>
           </div>

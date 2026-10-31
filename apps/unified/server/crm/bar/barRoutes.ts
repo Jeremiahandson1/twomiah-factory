@@ -12,6 +12,7 @@
 // ({ data, pagination }), deletes are { success: true }.
 import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ne } from 'drizzle-orm'
+import { refreshMenu, servingNow, windowRefusal, windowWords, menuDaypartsOn } from './menuDay.ts'
 import { barSettings, barStatus, barTap, barSpecial, barGame, barEvent, barMenuSection, barMenuItem, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
@@ -322,12 +323,22 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
   })
 
   // ─── menu ─────────────────────────────────────────────────────────────────────────────────────────
+  // A section's serving window (menu_dayparts, not ready): taken only where the venue has switched it on.
+  async function windowInput(companyId: string, body: any): Promise<{ error?: string; value: Record<string, unknown> }> {
+    const keys = ['availableFrom', 'availableTo', 'availableDays'].filter((k) => body[k] !== undefined)
+    if (!keys.length) return { value: {} }
+    if (!(await menuDaypartsOn(db, companyId))) return { error: 'Serving a section only at certain hours is not switched on for this business.', value: {} }
+    const refusal = windowRefusal(body); if (refusal) return { error: refusal, value: {} }
+    return { value: { availableFrom: body.availableFrom || null, availableTo: body.availableTo || null, ...(body.availableDays !== undefined ? { availableDays: body.availableDays } : {}) } }
+  }
+
   app.get('/menu', requireEnabledFeature('bar_menu'), requirePermission('bar:read'), async (c) => {
     const { companyId } = me(c)
     // ?tile=out is the home screen's "Out tonight" (tileConditions.ts — the dashboard's count calls the same condition):
     // the 86 board, still in sections, with only the items that are out.
     const bad = checkFilter(c, 'tile', c.req.query('tile'), MENU_TILES); if (bad) return bad
     const out = c.req.query('tile') === 'out'
+    await refreshMenu(db, companyId)   // what was out "until we open" is back once we have opened (menu_dayparts)
     const sections: Array<typeof barMenuSection.$inferSelect> = await db.select().from(barMenuSection).where(eq(barMenuSection.companyId, companyId)).orderBy(asc(barMenuSection.sortOrder), asc(barMenuSection.name))
     const items: Array<typeof barMenuItem.$inferSelect> = await db.select().from(barMenuItem).where(and(eq(barMenuItem.companyId, companyId), out ? outTonightCondition(barMenuItem) : undefined)).orderBy(asc(barMenuItem.sortOrder), asc(barMenuItem.name))
     return one(c, {
@@ -341,6 +352,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     const body = await c.req.json().catch(() => ({}))
     if (!str(body.name, 120)) return bad(c, 'A section needs a name')
     const v = sectionInput(body); if (!v.ok) return bad(c, v.error)
+    const win = await windowInput(companyId, body); if (win.error) return bad(c, win.error); Object.assign(v.value, win.value)
     const [row] = await db.insert(barMenuSection).values({ companyId, slug: await uniqueSlug(barMenuSection, companyId, str(body.slug, 80) || body.name), ...v.value } as any).returning()
     audit.log({ req: c, action: 'create', entity: 'bar_menu_section', entityId: row.id, entityName: row.name })
     return one(c, row, 201)
@@ -351,6 +363,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     const id = c.req.param('id')
     const body = await c.req.json().catch(() => ({}))
     const v = sectionInput(body); if (!v.ok) return bad(c, v.error)
+    const win = await windowInput(companyId, body); if (win.error) return bad(c, win.error); Object.assign(v.value, win.value)
     if (body.slug !== undefined) v.value.slug = await uniqueSlug(barMenuSection, companyId, str(body.slug, 80) || '', id)
     const [row] = await db.update(barMenuSection).set({ ...v.value, updatedAt: new Date() }).where(and(eq(barMenuSection.id, id), eq(barMenuSection.companyId, companyId))).returning()
     if (!row) return bad(c, 'Section not found', 404)
@@ -429,9 +442,13 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     const id = c.req.param('id')
     const body = await c.req.json().catch(() => ({}))
     if (typeof body.is86ed !== 'boolean') return bad(c, 'Say whether it is 86ed: true or false')
-    const [row] = await db.update(barMenuItem).set({ is86ed: body.is86ed, updatedAt: new Date() }).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).returning()
+    // "Until we open" (menu_dayparts, not ready): it comes back by itself at the next opening.
+    if (body.untilOpen !== undefined && typeof body.untilOpen !== 'boolean') return bad(c, 'untilOpen is true or false')
+    if (body.untilOpen && !(await menuDaypartsOn(db, companyId))) return bad(c, 'Putting an item out until you open is not switched on for this business.')
+    const until = body.is86ed && body.untilOpen === true
+    const [row] = await db.update(barMenuItem).set({ is86ed: body.is86ed, eightySixUntilOpen: until, eightySixedAt: body.is86ed ? new Date() : null, updatedAt: new Date() }).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).returning()
     if (!row) return bad(c, 'Menu item not found', 404)
-    audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: { is86ed: body.is86ed } })
+    audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: { is86ed: body.is86ed, untilOpen: until } })
     return one(c, row)
   })
 

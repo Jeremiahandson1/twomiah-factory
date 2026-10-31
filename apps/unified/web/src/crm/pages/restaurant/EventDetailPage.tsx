@@ -6,9 +6,10 @@ import {
   UtensilsCrossed, Clock, Wallet, AlertTriangle, AlertCircle, ExternalLink, Trash2, Check,
 } from 'lucide-react';
 import { api } from '../../../api'
+import { GuaranteeNote, MinimumNote, ProposalsPanel, PaymentAutomationPanel, SourcePicker, useGuaranteeOverride, errCode } from '../../eventDepth'
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDay } from './EventsPage';
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
-import { PAYMENT_METHODS, useMayWrite, useConfirm, errorText } from '../../../shared'
+import { PAYMENT_METHODS, useMayWrite, useConfirm, useAuth, errorText } from '../../../shared'
 import ClientPicker from './ClientPicker'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -39,6 +40,7 @@ interface EventFull {
   endTime?: string;
   guestCount?: number;
   guestCountFinal?: number;
+  guaranteeOverrideReason?: string | null;
   quotedTotal?: number | string;
   depositRequired?: number | string;
   source?: string;
@@ -59,7 +61,7 @@ interface PaymentLine { id: string; label?: string; amount?: number; dueDate?: s
 interface EventInvoice { id: string; number?: string; status?: string; dueDate?: string | null; total?: number | string; taxAmount?: number | string; amountPaid?: number | string; amountRefunded?: number | string; sentAt?: string | null }
 // menuTotal = every line (room hire included); fbTotal = food & beverage only (minimum spend). When
 // invoiced, total/tax/paid/refunded/outstanding are the invoice's; before that, the estimate.
-interface Totals { menuTotal?: number; fbTotal?: number; quoted?: number; invoiced?: boolean; total?: number; tax?: number; paid?: number; refunded?: number; outstanding?: number }
+interface Totals { minimum?: { required: number | null; spend: number; shortfall: number } | null; menuTotal?: number; fbTotal?: number; quoted?: number; invoiced?: boolean; total?: number; tax?: number; paid?: number; refunded?: number; outstanding?: number }
 interface Detail {
   event?: EventFull;
   client?: Client | null;
@@ -71,6 +73,8 @@ interface Detail {
   totals?: Totals;
   // The server withheld the money from this seat (invoices:read). Nothing priced is drawn — not as $0. (T62)
   moneyWithheld?: boolean;
+  // Where the venue has switched the guarantee cutoff on (restaurant-bar-depth #5).
+  guarantee?: { cutoff: string | null; locked: boolean; days: number } | null;
 }
 interface PackageOption { id: string; name?: string; pricePerPerson?: number | string; minGuests?: number; category?: string }
 interface SpaceOption { id: string; name?: string; seatedCapacity?: number }
@@ -165,6 +169,7 @@ export default function EventDetailPage() {
     }
   };
 
+  const askReason = useGuaranteeOverride();
   const removeLine = async (kind: 'menu' | 'timeline' | 'payments', lineId: string) => {
     if (!id) return;
     setPageErr('');
@@ -172,6 +177,11 @@ export default function EventDetailPage() {
       await api.delete(`/api/events/${id}/${kind}`, lineId);
       load();
     } catch (e2) {
+      // After the guarantee cutoff a manager may take a per-head line off by saying why.
+      const reason = await askReason(e2);
+      if (reason) {
+        try { await api.delete(`/api/events/${id}/${kind}/${lineId}?overrideReason=${encodeURIComponent(reason)}`); load(); return; } catch (e3) { setPageErr((e3 as Error).message || 'Could not remove that line.'); return; }
+      }
       setPageErr((e2 as Error).message || 'Could not remove that line.');
     }
   };
@@ -205,10 +215,11 @@ export default function EventDetailPage() {
   // The minimum-spend check is the whole reason a venue takes private events —
   // showing it here means nobody has to work it out on a calculator mid-call.
   // Minimum spend is food & beverage — the room-hire line doesn't count toward it.
+  const { hasFeature } = useAuth();
   const minSpend = Number(space?.minimumSpend || 0);
   const fbTotal = Number(totals.fbTotal || 0);
   // Only when the totals are real: worked out from a withheld F&B figure it read "$0.00 — $9,000.00 short". (T62)
-  const belowMinimum = showMoney && minSpend > 0 && fbTotal < minSpend;
+  const belowMinimum = showMoney && minSpend > 0 && fbTotal < minSpend && !hasFeature('event_minimums');
 
   // Warn when the guest count exceeds the room — 200 guests in a 55-standing room
   // saved silently before (M-02). A warning, not a hard block, mirrors the
@@ -290,6 +301,8 @@ export default function EventDetailPage() {
             </div>
           </div>
         )}
+
+        <GuaranteeNote guarantee={detail.guarantee} event={ev} />
 
         {belowMinimum && (
           <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">
@@ -486,6 +499,7 @@ export default function EventDetailPage() {
       {/* Payments */}
       {tab === 'money' && showMoney && (
         <div className="space-y-3">
+          <MinimumNote minimum={totals.minimum} />
           {mayTakeMoney && (
             <div className="flex justify-end">
               <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
@@ -565,6 +579,8 @@ export default function EventDetailPage() {
               </table>
             </div>
           )}
+          <PaymentAutomationPanel eventId={ev.id} />
+          <ProposalsPanel eventId={ev.id} onChanged={load} />
         </div>
       )}
 
@@ -694,14 +710,16 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
   }, [mayPickStaff]);
 
   const ask = useConfirm();
+  const { hasFeature } = useAuth();
+  const askReason = useGuaranteeOverride();
+  const [source, setSource] = useState<string>(ev.source || '');
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setErr('');
     if (!form.name.trim()) { setErr('Event name is required'); return; }
     if (!(await confirmEventRisks(ask, form, spaces, ev))) return; // a changed past date / over-capacity room: warn, allow (T16 L1 / L2)
     setSaving(true);
-    try {
-      await api.put(`/api/events/${ev.id}`, {
+    const body = {
         name: form.name.trim(),
         contactId: contactId || null,
         eventType: form.eventType,
@@ -718,7 +736,17 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
         setupNotes: form.setupNotes || null,
         lostReason: form.lostReason || null,
         notes: form.notes || null,
-      });
+        ...(hasFeature('event_reports') && source !== (ev.source || '') ? { source: source || null } : {}),
+      };
+    try {
+      try {
+        await api.put(`/api/events/${ev.id}`, body);
+      } catch (locked) {
+        // The guest count is locked after the cutoff: a manager gives a reason and it goes through (restaurant-bar-depth #5).
+        const reason = await askReason(locked);
+        if (!reason) throw locked;
+        await api.put(`/api/events/${ev.id}`, { ...body, overrideReason: reason });
+      }
       onSave();
     } catch (e2) {
       setErr((e2 as Error).message || 'Failed to save event');
@@ -803,6 +831,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Setup notes</label>
           <textarea value={form.setupNotes} onChange={(e) => set('setupNotes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
+        {hasFeature('event_reports') && <SourcePicker value={source} onChange={setSource} />}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lost reason <span className="text-xs text-gray-500 dark:text-slate-400">(only used when status is Lost)</span></label>
           <input type="text" value={form.lostReason} onChange={(e) => set('lostReason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Price, date unavailable, went elsewhere..." />

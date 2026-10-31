@@ -9,13 +9,16 @@
 //                    check's payment is written, once; the reader's action failed → declined; too long → timed out
 //   cancelCharge     cancel_action on the reader and cancel the PaymentIntent — unless it already went through
 //   refundPayment    a refund of a reader (or website) payment, back through Stripe, then recorded
+//   startTab         a pre-authorised TAB (restaurant-bar-depth #12): the card is held for an amount (manual capture) on the
+//                    reader; closeTab takes what the check comes to plus the tip when the tab is closed (one capture, on the
+//                    business's own Stripe); a voided or otherwise-paid check lets the hold go (releaseHolds)
 //
 // Nothing is recorded on a check until Stripe says the PaymentIntent succeeded. A reader payment arrives at the check
 // through recordCardInTx (barRegister.ts), whose provider id is unique per company: polled twice, written once.
 // Offline payments: the server-driven flow cannot take a card while the reader is offline (Stripe offers offline
 // collection only to its mobile SDKs), so there is no offline mode — foodSettings.ts says why.
 import Stripe from 'stripe'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { barCheck, barCheckPayment, barOrder, barReader, barTerminalCharge, company } from '../../db/schema/index.ts'
 import type { BarDb } from './db.ts'
 import type { Actor } from './barManagers.ts'
@@ -23,6 +26,7 @@ import type { BarRegister } from './barRegister.ts'
 import type { BarLoyalty } from './barLoyalty.ts'
 import type { FoodSettingsStore } from './foodSettings.ts'
 import { platformStripe } from '../platformStripe.ts'
+
 
 type Tx = any
 
@@ -48,7 +52,19 @@ function stripeSays(e: any, fallback: string): string {
 export interface ChargeView {
   id: string; status: string; failure: string | null; amountCents: number; tipCents: number
   checkId: string | null; orderId: string | null; readerId: string; readerLabel: string | null; paymentId: string | null; createdAt: string
+  /** 'sale' (an ordinary charge) or 'preauth' (a tab: amountCents is the hold). */
+  kind: string
+  card: { brand: string | null; last4: string | null; holder: string | null } | null
+  captureBefore: string | null
 }
+
+const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** The money limits of a tab's hold: at least a dollar, at most a thousand. */
+export const TAB_HOLD_MIN_CENTS = 100
+export const TAB_HOLD_MAX_CENTS = 100_000
+/** Stripe's documented floor for a card-present authorisation, used when the charge does not say its own capture_before. */
+const HOLD_LASTS_MS = 2 * 24 * 3600_000
 
 export function createBarTerminal(deps: {
   db: BarDb
@@ -226,6 +242,8 @@ export function createBarTerminal(deps: {
   const chargeView = (r: typeof barTerminalCharge.$inferSelect, readerLabel: string | null = null): ChargeView => ({
     id: r.id, status: r.status, failure: r.failure, amountCents: r.amountCents, tipCents: r.tipCents, checkId: r.checkId, orderId: r.orderId,
     readerId: r.readerId, readerLabel, paymentId: r.paymentId, createdAt: r.createdAt.toISOString(),
+    kind: r.kind, card: r.cardLast4 || r.cardBrand ? { brand: r.cardBrand, last4: r.cardLast4, holder: r.cardholder } : null,
+    captureBefore: r.captureBefore ? r.captureBefore.toISOString() : null,
   })
 
   async function chargeRow(companyId: string, id: string) {
@@ -271,6 +289,8 @@ export function createBarTerminal(deps: {
     })
     if (orderId && deps.afterOrderPaid) await deps.afterOrderPaid(charge.companyId, orderId, fired)
     else register.afterCardPayment(charge.companyId, fired)
+    // A card that paid the check in full leaves a tab's hold with nothing to do: let it go.
+    if (charge.checkId) await register.checkEnded(charge.companyId, charge.checkId)
   }
 
   /** Where the payment stands, asked of Stripe while it is pending. */
@@ -281,10 +301,14 @@ export function createBarTerminal(deps: {
       const opts = charge.stripeAccount ? { stripeAccount: charge.stripeAccount } : undefined
       if (stripe) {
         let pi: any = null
-        try { pi = await stripe.paymentIntents.retrieve(charge.paymentIntentId, {}, opts) } catch { pi = null }
+        try { pi = await stripe.paymentIntents.retrieve(charge.paymentIntentId, charge.kind === 'preauth' ? { expand: ['latest_charge'] } : {}, opts) } catch { pi = null }
+        // A tab: the reader authorised the card and the hold is in place. Nothing is captured until the tab is closed.
+        if (charge.kind === 'preauth' && pi?.status === 'requires_capture') await authorized(charge, pi)
         // The reader authorised it but the capture is still ours to make (manual capture on the account): make it.
-        if (pi?.status === 'requires_capture') { try { pi = await stripe.paymentIntents.capture(pi.id, {}, opts) } catch { /* the next poll tries again */ } }
-        if (pi?.status === 'succeeded') await record(charge, pi)
+        else if (pi?.status === 'requires_capture') { try { pi = await stripe.paymentIntents.capture(pi.id, {}, opts) } catch { /* the next poll tries again */ } }
+        // A tab is never recorded as a payment until closeTab captures it.
+        if (charge.kind === 'preauth' && (pi?.status === 'requires_capture' || pi?.status === 'succeeded')) { /* held: done above */ }
+        else if (pi?.status === 'succeeded') await record(charge, pi)
         else if (pi?.status === 'canceled') await finish(charge.id, 'canceled', 'The payment was cancelled.')
         else {
           const [reader] = await db.select().from(barReader).where(eq(barReader.id, charge.readerId)).limit(1)
@@ -316,7 +340,7 @@ export function createBarTerminal(deps: {
       // A PaymentIntent that cannot be cancelled may have just succeeded: ask, and record it if so.
       try {
         const pi: any = await stripe.paymentIntents.retrieve(charge.paymentIntentId, {}, opts)
-        if (pi?.status === 'succeeded') { await record(charge, pi); return }
+        if (pi?.status === 'succeeded' && charge.kind !== 'preauth') { await record(charge, pi); return }
       } catch { /* leave it pending for the next poll */ return }
     }
     await finish(charge.id, status, why)
@@ -389,6 +413,178 @@ export function createBarTerminal(deps: {
     return { refundedCents: want, checkNumber: check?.number ?? null, checkId: p.checkId }
   }
 
-  return { listReaders, registerReader, removeReader, setTipping, startCharge, pollCharge, cancelCharge, simulateCard, pendingFor, refundPayment, chargeView }
+  // ─── Pre-authorised tabs (restaurant-bar-depth #12) ───────────────────────────────────────────────────────────
+  // The card is held on the reader (a card_present PaymentIntent with manual capture, on the business's own account) and
+  // nothing is taken until the tab is closed: then ONE capture of what the check comes to plus the tip. If that is more
+  // than the hold, Stripe tries to raise the hold as it captures (an incremental authorisation, where the card allows);
+  // if the card will not, the tab closes for the hold and the rest is taken another way. A voided check, or one paid
+  // another way, lets the hold go. The phone app takes no cards, so none of this is reachable from it.
+  const ACTIVE_TAB = ['pending', 'authorized', 'closing']
+
+  /** The card the reader read, from the charge Stripe expanded onto the PaymentIntent. */
+  const cardOf = (pi: any) => {
+    const ch = pi?.latest_charge && typeof pi.latest_charge === 'object' ? pi.latest_charge : null
+    const c = ch?.payment_method_details?.card_present
+    return { brand: c?.brand ? String(c.brand) : null, last4: c?.last4 ? String(c.last4) : null, holder: c?.cardholder_name ? String(c.cardholder_name).slice(0, 60) : null, before: Number(c?.capture_before) > 0 ? new Date(Number(c.capture_before) * 1000) : null }
+  }
+
+  /** The reader took the card and the bank put the hold on: the tab is open. Once. */
+  async function authorized(charge: typeof barTerminalCharge.$inferSelect, pi: any): Promise<void> {
+    const c = cardOf(pi)
+    await db.update(barTerminalCharge).set({ status: 'authorized', cardBrand: c.brand, cardLast4: c.last4, cardholder: c.holder, captureBefore: c.before ?? new Date(now() + HOLD_LASTS_MS), updatedAt: new Date() })
+      .where(and(eq(barTerminalCharge.id, charge.id), eq(barTerminalCharge.status, 'pending')))
+    register.notifyRegister(charge.companyId)
+  }
+
+  /** Put a card on a check: the reader asks for it and holds `amountCents`. */
+  async function startTab(actor: Actor, input: { checkId?: string | null; readerId: string; amountCents?: unknown }): Promise<ChargeView> {
+    const companyId = actor.companyId
+    const reader = await readerOf(companyId, input.readerId)
+    const { stripe, acct, opts } = await account(companyId)
+    if (reader.stripeAccount && reader.stripeAccount !== acct) throw new TerminalError('That reader was set up on a different Stripe account. Remove it and add it again.', 409)
+    const check = await register.getCheck(companyId, String(input.checkId || '')).catch(() => null)
+    if (!check) throw new TerminalError('That check is gone.', 404)
+    if (check.status !== 'open') throw new TerminalError('That check is already closed.', 409)
+    const hold = Math.round(Number(input.amountCents))
+    if (!Number.isFinite(hold) || hold < TAB_HOLD_MIN_CENTS || hold > TAB_HOLD_MAX_CENTS) throw new TerminalError('A tab holds between $1 and $1,000 on the card.')
+    const [live] = await db.select({ id: barTerminalCharge.id }).from(barTerminalCharge).where(and(eq(barTerminalCharge.companyId, companyId), eq(barTerminalCharge.checkId, check.id), inArray(barTerminalCharge.status, ACTIVE_TAB))).limit(1)
+    if (live) throw new TerminalError('This check already has a card on it or on a reader.', 409)
+    let pi: any
+    try {
+      pi = await stripe.paymentIntents.create({
+        amount: hold, currency: 'usd', payment_method_types: ['card_present'], capture_method: 'manual',
+        payment_method_options: { card_present: { request_incremental_authorization_support: true } },
+        description: `Tab · check #${check.number} ${check.label}`.slice(0, 200), metadata: { twomiah_company: companyId, twomiah_check: check.id, twomiah_tab: '1' },
+      } as any, opts)
+    } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not start the tab. Try again.'), 502) }
+    try {
+      // No tip on the reader: the tip is added when the tab is closed, on the check.
+      await stripe.terminal.readers.processPaymentIntent(reader.stripeReaderId, { payment_intent: pi.id, process_config: { skip_tipping: true, enable_customer_cancellation: true } } as any, opts)
+    } catch (e) {
+      try { await stripe.paymentIntents.cancel(pi.id, {}, opts) } catch { /* nothing to cancel */ }
+      throw new TerminalError(stripeSays(e, 'The reader did not answer. Check it is on and connected, then try again.'), 409, 'READER_UNAVAILABLE')
+    }
+    const [row] = await db.insert(barTerminalCharge).values({
+      companyId, checkId: check.id, readerId: reader.id, stripeAccount: acct, paymentIntentId: pi.id, amountCents: hold, kind: 'preauth',
+      startedById: actor.id || null, startedByName: actor.name,
+    }).returning()
+    return chargeView(row, reader.label)
+  }
+
+  /** The tab on this check: waiting for a card, held, or being closed. Null when there is none. */
+  async function tabFor(companyId: string, checkId: string): Promise<ChargeView | null> {
+    const [row] = await db.select().from(barTerminalCharge).where(and(eq(barTerminalCharge.companyId, companyId), eq(barTerminalCharge.checkId, checkId), eq(barTerminalCharge.kind, 'preauth'), inArray(barTerminalCharge.status, ACTIVE_TAB))).orderBy(desc(barTerminalCharge.createdAt)).limit(1)
+    if (!row) return null
+    const [reader] = await db.select({ label: barReader.label }).from(barReader).where(eq(barReader.id, row.readerId)).limit(1)
+    return chargeView(row, reader?.label ?? null)
+  }
+
+  /**
+   * Close the tab: capture what the check comes to plus the tip, record it as the card payment, and the check is paid.
+   * Over the hold, Stripe tries to raise it as it captures; if the card refuses, nothing is taken and the answer says so,
+   * and `partial` closes it for the hold instead (the check keeps a balance to take another way).
+   */
+  async function closeTab(actor: Actor, id: string, input: { tipCents?: unknown; partial?: unknown }): Promise<{ charge: ChargeView; paidCents: number; tipCents: number; leftCents: number }> {
+    const companyId = actor.companyId
+    const charge = await chargeRow(companyId, id)
+    if (charge.kind !== 'preauth' || !charge.checkId) throw new TerminalError('That is not a tab.', 409)
+    if (charge.status === 'succeeded') throw new TerminalError('This tab is already closed.', 409)
+    if (charge.status === 'released') throw new TerminalError('This tab was released. The card was not charged.', 409)
+    if (charge.status !== 'authorized' && !(charge.status === 'closing' && now() - charge.updatedAt.getTime() > 30_000)) throw new TerminalError(charge.status === 'pending' ? 'The card has not been read yet.' : 'This tab cannot be closed.', 409)
+    const check = await register.getCheck(companyId, charge.checkId).catch(() => null)
+    if (!check || check.status !== 'open') throw new TerminalError('That check is already closed.', 409)
+    const balance = check.totals.balanceCents
+    if (balance <= 0) throw new TerminalError('Nothing is owed on this check. Release the tab instead.', 409)
+    const tip = Math.round(Number(input.tipCents ?? 0))
+    if (!Number.isFinite(tip) || tip < 0 || tip > Math.max(10000, balance * 2)) throw new TerminalError('That tip looks wrong. Check it.')
+    const stripe = stripeOf()
+    if (!stripe) throw new TerminalError('Card readers are not available on this server yet.', 503)
+    const opts = { stripeAccount: charge.stripeAccount as string }
+    const hold = charge.amountCents
+    // Claimed first, so two clicks capture once.
+    const claimed = await db.update(barTerminalCharge).set({ status: 'closing', updatedAt: new Date() })
+      .where(and(eq(barTerminalCharge.id, charge.id), inArray(barTerminalCharge.status, ['authorized', 'closing']))).returning({ id: barTerminalCharge.id })
+    if (!claimed.length) throw new TerminalError('This tab is being closed.', 409)
+    const back = async () => { await db.update(barTerminalCharge).set({ status: 'authorized', updatedAt: new Date() }).where(and(eq(barTerminalCharge.id, charge.id), eq(barTerminalCharge.status, 'closing'))) }
+
+    let toward = balance, tipped = tip, pi: any = null
+    const capture = async (amount: number) => stripe.paymentIntents.capture(charge.paymentIntentId, { amount_to_capture: amount }, { ...opts, idempotencyKey: `twomiah-tab-${charge.id}-${amount}` })
+    try {
+      try { pi = await capture(balance + tip) }
+      catch (e: any) {
+        // Over the hold and the card would not raise it (a declined incremental authorisation leaves the original hold).
+        if (balance + tip <= hold || e?.code !== 'card_declined') throw e
+        if (input.partial !== true) {
+          await back()
+          throw new TerminalError(`The tab comes to ${money(balance + tip)} and the card is held for ${money(hold)}; the card would not raise it. Close it for ${money(hold)}, then take the rest another way.`, 409, 'TAB_OVER_HOLD')
+        }
+        toward = Math.min(balance, hold); tipped = Math.min(tip, hold - toward)
+        pi = await capture(toward + tipped)
+      }
+    } catch (e: any) {
+      if (e instanceof TerminalError) throw e
+      await back()
+      throw new TerminalError(stripeSays(e, 'Stripe did not take the tab. Try again, or take the card again as a new payment.'), 502)
+    }
+
+    const by: Actor = { id: actor.id as string, name: actor.name, companyId, role: actor.role }
+    const earn = await loyalty.loyaltyRunning(companyId)
+    let fired = false, paymentId: string | null = null
+    try {
+      await db.transaction(async (tx: Tx) => {
+        const [locked] = await tx.select().from(barTerminalCharge).where(eq(barTerminalCharge.id, charge.id)).limit(1).for('update')
+        if (!locked || locked.status !== 'closing') return
+        const r = await register.recordCardInTx(tx, by, charge.checkId as string, { tender: 'card_terminal', amountCents: toward, tipCents: tipped, providerPaymentId: charge.paymentIntentId, stripeAccount: charge.stripeAccount }, earn)
+        paymentId = r.paymentId; fired = r.fired
+        await tx.update(barTerminalCharge).set({ status: 'succeeded', tipCents: tipped, paymentId, updatedAt: new Date() }).where(eq(barTerminalCharge.id, locked.id))
+      })
+    } catch (e: any) {
+      // The check ended while the card was being charged (voided at another till): the money goes straight back.
+      try { await stripe.refunds.create({ payment_intent: charge.paymentIntentId }, { ...opts, idempotencyKey: `twomiah-tab-undo-${charge.id}` }) } catch { /* the Stripe dashboard shows it */ }
+      await db.update(barTerminalCharge).set({ status: 'released', failure: 'The check ended while the tab was being closed. The card was charged and refunded.', updatedAt: new Date() }).where(eq(barTerminalCharge.id, charge.id))
+      throw new TerminalError('That check ended while the tab was being closed. The card was refunded in full.', 409)
+    }
+    register.afterCardPayment(companyId, fired)
+    const left = Math.max(0, balance - toward)
+    const [row] = await db.select().from(barTerminalCharge).where(eq(barTerminalCharge.id, charge.id)).limit(1)
+    return { charge: chargeView(row), paidCents: toward, tipCents: tipped, leftCents: left }
+  }
+
+  /** Let go of every held tab on a check (it was voided or paid another way). Returns how many were released. */
+  async function releaseHolds(companyId: string, checkId: string, why: string): Promise<number> {
+    const rows = await db.select().from(barTerminalCharge).where(and(eq(barTerminalCharge.companyId, companyId), eq(barTerminalCharge.checkId, checkId), eq(barTerminalCharge.kind, 'preauth'), eq(barTerminalCharge.status, 'authorized')))
+    let n = 0
+    for (const r of rows) if (await releaseOne(r, why)) n++
+    return n
+  }
+
+  async function releaseOne(r: typeof barTerminalCharge.$inferSelect, why: string): Promise<boolean> {
+    const claimed = await db.update(barTerminalCharge).set({ status: 'released', failure: why, updatedAt: new Date() }).where(and(eq(barTerminalCharge.id, r.id), eq(barTerminalCharge.status, 'authorized'))).returning({ id: barTerminalCharge.id })
+    if (!claimed.length) return false
+    const stripe = stripeOf()
+    if (stripe) {
+      try { await stripe.paymentIntents.cancel(r.paymentIntentId, {}, r.stripeAccount ? { stripeAccount: r.stripeAccount } : undefined) }
+      catch {
+        // Stripe would not say it let go (it may already have): the hold lapses on its own, and the tab says when.
+        await db.update(barTerminalCharge).set({ failure: `${why} Stripe did not confirm the release; the hold lapses by itself${r.captureBefore ? ' by ' + r.captureBefore.toISOString().slice(0, 10) : ''}.` }).where(eq(barTerminalCharge.id, r.id))
+      }
+    }
+    register.notifyRegister(r.companyId)
+    return true
+  }
+
+  /** Release a tab on purpose ("give the card back"): only while it is held. */
+  async function releaseTab(actor: Actor, id: string): Promise<ChargeView> {
+    const charge = await chargeRow(actor.companyId, id)
+    if (charge.kind !== 'preauth') throw new TerminalError('That is not a tab.', 409)
+    if (charge.status !== 'authorized') throw new TerminalError(charge.status === 'pending' ? 'The reader is waiting for the card. Cancel it there.' : 'This tab is not holding a card.', 409)
+    await releaseOne(charge, `Released by ${actor.name}.`)
+    const [row] = await db.select().from(barTerminalCharge).where(eq(barTerminalCharge.id, charge.id)).limit(1)
+    return chargeView(row)
+  }
+
+  register.hooks.checkEnded = (companyId, checkId) => releaseHolds(companyId, checkId, 'The check ended without the tab.').then(() => undefined)
+
+  return { startTab, tabFor, closeTab, releaseTab, releaseHolds, listReaders, registerReader, removeReader, setTipping, startCharge, pollCharge, cancelCharge, simulateCard, pendingFor, refundPayment, chargeView }
 }
 export type BarTerminal = ReturnType<typeof createBarTerminal>

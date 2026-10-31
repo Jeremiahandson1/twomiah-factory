@@ -120,6 +120,29 @@ export const barCloseout = pgTable('bar_closeout', {
   index('bar_closeout_company_day_idx').on(t.companyId, t.businessDay),
 ])
 
+// Who got what of a night's tips, frozen when the night is closed (restaurant-bar-depth #9, crm/bar/barTips.ts). One row
+// per person per night; closing the night again replaces that night's rows.
+export const barTipPayout = pgTable('bar_tip_payout', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessDay: text('business_day').notNull(),
+  closeoutId: text('closeout_id').references(() => barCloseout.id, { onDelete: 'set null' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  role: text('role').notNull(),
+  hoursX100: integer('hours_x100').default(0).notNull(),      // hours worked, in hundredths
+  tipsCents: integer('tips_cents').default(0).notNull(),      // tips on the checks they closed
+  salesCents: integer('sales_cents').default(0).notNull(),    // food and drink on those checks, before tax
+  keptCents: integer('kept_cents').default(0).notNull(),
+  tipOutPaidCents: integer('tip_out_paid_cents').default(0).notNull(),
+  tipOutReceivedCents: integer('tip_out_received_cents').default(0).notNull(),
+  poolShareCents: integer('pool_share_cents').default(0).notNull(),
+  totalCents: integer('total_cents').default(0).notNull(),    // what they take home in tips
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_tip_payout_day_user_key').on(t.companyId, t.businessDay, t.userId),
+])
+
 export const barEvent = pgTable('bar_event', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   slug: text('slug').notNull(),
@@ -255,6 +278,10 @@ export const barMenuItem = pgTable('bar_menu_item', {
   story: text('story'),
   isSignature: boolean('is_signature').default(false).notNull(),
   is86ed: boolean('is_86ed').default(false).notNull(),
+  /** 86'd "until we open": it comes back by itself at the next opening (menu_dayparts). */
+  eightySixUntilOpen: boolean('eighty_six_until_open').default(false).notNull(),
+  /** When it was last put out, so the next opening after that time puts it back. */
+  eightySixedAt: timestamp('eighty_sixed_at'),
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),
@@ -283,6 +310,10 @@ export const barMenuSection = pgTable('bar_menu_section', {
   kind: text('kind').default('food').notNull(), // food | drink
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  /** Served only in this window (menu_dayparts): "11:00" to "15:00" on these days (0 = Sunday); null = all day, every day. */
+  availableFrom: text('available_from'),
+  availableTo: text('available_to'),
+  availableDays: json('available_days').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -419,9 +450,16 @@ export const barTerminalCharge = pgTable('bar_terminal_charge', {
   paymentIntentId: text('payment_intent_id').notNull(),
   amountCents: integer('amount_cents').notNull(),       // toward the check; a tip the reader asks for is on top
   tipCents: integer('tip_cents').default(0).notNull(),
-  status: text('status').default('pending').notNull(), // pending | succeeded | failed | canceled | timed_out
+  status: text('status').default('pending').notNull(), // pending | succeeded | failed | canceled | timed_out | (a tab:) authorized | closing | released
   failure: text('failure'),
   paymentId: text('payment_id'),                        // bar_check_payment.id once recorded
+  // A pre-authorised tab (restaurant-bar-depth #12): 'preauth' holds the card for amountCents on the reader, manual capture,
+  // and takes what the check comes to (and the tip) when the tab is closed; 'sale' is the ordinary charge above.
+  kind: text('kind').default('sale').notNull(),
+  captureBefore: timestamp('capture_before'),           // when the card's hold lapses on its own (Stripe's capture_before)
+  cardBrand: text('card_brand'),
+  cardLast4: text('card_last4'),
+  cardholder: text('cardholder'),
   startedById: text('started_by_id').references(() => user.id, { onDelete: 'set null' }),
   startedByName: text('started_by_name'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -525,6 +563,8 @@ export const barStockCountLine = pgTable('bar_stock_count_line', {
   countId: text('count_id').notNull().references(() => barStockCount.id, { onDelete: 'cascade' }),
   stockItemId: text('stock_item_id').notNull().references(() => barStockItem.id, { onDelete: 'cascade' }),
   qty: decimal('qty', { precision: 12, scale: 3 }).notNull(),     // units on hand
+  /** Open bottles counted by how full each is (0 to 1), when the venue counts by fill level (stock_fill_levels); they are part of qty. */
+  fills: json('fills'),
   countedByName: text('counted_by_name'),
   countedAt: timestamp('counted_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -592,6 +632,44 @@ export const barTimeOff = pgTable('bar_time_off', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_time_off_company_day_idx').on(t.companyId, t.day),
+])
+
+// When a person can work, week by week (restaurant-bar-depth #10, crm/bar/barStaffRequests.ts). A person with no approved
+// windows can work any time; with some, they can work only inside them. What a person submits waits ('pending') for a
+// manager; a manager's own entry is approved at once.
+export const barAvailability = pgTable('bar_availability', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  dow: integer('dow').notNull(),                 // 0 Sunday … 6 Saturday
+  startTime: text('start_time').notNull(),       // HH:MM
+  endTime: text('end_time').notNull(),           // HH:MM, after the start (all day is 00:00 to 23:59)
+  status: text('status').default('approved').notNull(), // approved | pending
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_availability_user_idx').on(t.companyId, t.userId, t.status),
+])
+
+// A shift put up to give away, or offered in a swap (restaurant-bar-depth #10). give: open -> a claimant -> pending ->
+// a manager decides. swap: offered to one person with a shift of theirs in return -> they accept -> pending -> a manager decides.
+export const barShiftRequest = pgTable('bar_shift_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  kind: text('kind').notNull(),                  // give | swap
+  shiftId: text('shift_id').notNull().references(() => barScheduleShift.id, { onDelete: 'cascade' }),
+  withShiftId: text('with_shift_id').references(() => barScheduleShift.id, { onDelete: 'cascade' }),  // swap: the shift offered back
+  fromUserId: text('from_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  toUserId: text('to_user_id').references(() => user.id, { onDelete: 'cascade' }),   // give: whoever claimed it; swap: who it is offered to
+  status: text('status').default('open').notNull(), // open | offered | pending | approved | denied | declined | cancelled
+  note: text('note'),
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_shift_request_company_idx').on(t.companyId, t.status),
 ])
 
 // STOCK AND COSTING (services/barStock.ts, the pure arithmetic in barCosting.ts). Stock is bought by the pack (a

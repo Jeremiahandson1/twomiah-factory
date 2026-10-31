@@ -9,6 +9,7 @@
 // renders what it rendered; what changed is only the road: a read in the same database, fresh each page. A feature the
 // owner switched off, or a paused account, gives the same empty answer the CRM's 404/402 gave the site — every section
 // then shows its own fallback line, never a 500.
+import { refreshMenu, servingNow } from './menuDay.ts'
 import { and, asc, eq, gte, or } from 'drizzle-orm'
 import { accountLockOf } from '@twomiah/tenant-backend'
 import { company, barEvent, barMenuSection, barMenuItem, barTap, page, photo } from '../../db/schema/index.ts'
@@ -54,8 +55,11 @@ export function createBarPublic(db: BarDb, live: BarLive) {
   }
 
   async function menu(companyId: string) {
-    const sections: Array<typeof barMenuSection.$inferSelect> = await db.select().from(barMenuSection)
-      .where(and(eq(barMenuSection.companyId, companyId), eq(barMenuSection.isActive, true))).orderBy(asc(barMenuSection.sortOrder), asc(barMenuSection.name))
+    await refreshMenu(db, companyId)   // an 86 "until we open" is back once we have opened (menu_dayparts)
+    const served = await servingNow(db, companyId)
+    const sections: Array<typeof barMenuSection.$inferSelect> = (await db.select().from(barMenuSection)
+      .where(and(eq(barMenuSection.companyId, companyId), eq(barMenuSection.isActive, true))).orderBy(asc(barMenuSection.sortOrder), asc(barMenuSection.name)))
+      .filter((s: typeof barMenuSection.$inferSelect) => served(s))   // a section outside its hours is not shown
     const items: Array<typeof barMenuItem.$inferSelect> = await db.select().from(barMenuItem)
       .where(and(eq(barMenuItem.companyId, companyId), eq(barMenuItem.isActive, true))).orderBy(asc(barMenuItem.sortOrder), asc(barMenuItem.name))
     const stamps = [...sections.map((s) => s.updatedAt), ...items.map((i) => i.updatedAt)].filter(Boolean) as Date[]

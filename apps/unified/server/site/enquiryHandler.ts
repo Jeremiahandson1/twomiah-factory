@@ -120,7 +120,9 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
 
       const [co] = await db.select({ id: company.id, name: company.name, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1)
       if (!co) return reply(false, 'Could not save your message. Please try again.', 500)
-      const form = ownForm ? Object.fromEntries(Object.keys(body).slice(0, 40).map((k) => [k, one(body[k]).slice(0, 2000)])) : undefined
+      // A restaurant's catering form carries its event date: its answers go along so the event book can open the enquiry.
+      const eventsForm = vertical.crm?.websiteForms === 'events' && /^\d{4}-\d{2}-\d{2}$/.test(one(body.eventDate))
+      const form = ownForm || eventsForm ? Object.fromEntries(Object.keys(body).slice(0, 40).map((k) => [k, one(body[k]).slice(0, 2000)])) : undefined
       const enquiry = { name, email, phone, message, source, form, ip, ...(interest ? { interest } : {}) }
       await enquiries.record(co.id, enquiry)
       // The "Text me" box (smsConsent.ts), kept by phone number wherever the enquiry itself went.

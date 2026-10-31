@@ -103,8 +103,13 @@ export const BAR: ScreenSpec[] = [
       path: () => null, title: (d) => d.name, subtitle: (d) => d.packName && d.packSize ? `${d.packName} of ${d.packSize}` : undefined,
       sections: [{ fields: [{ label: 'Counting', get: () => 'Count what is on the shelf. The system\'s number stays hidden until you finish.' }] }],
       actions: [{ id: 'save-count', label: 'Save this count', icon: 'create', any: ['bar:register'],
-        inputs: [{ id: 'packs', label: 'Full packs', kind: 'number' }, { id: 'units', label: 'Loose units', kind: 'number' }],
-        request: (d, v) => ({ method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0) } }), done: 'Saved' }],
+        // Open bottles by how full each is: sent only when one is filled in (the server takes it only where the venue has switched it on).
+        inputs: [{ id: 'packs', label: 'Full packs', kind: 'number' }, { id: 'units', label: 'Loose units', kind: 'number' },
+          { id: 'fill1', label: 'Open bottle 1, how full', kind: 'level' }, { id: 'fill2', label: 'Open bottle 2, how full', kind: 'level' }, { id: 'fill3', label: 'Open bottle 3, how full', kind: 'level' }],
+        request: (d, v) => {
+          const fills = ['fill1', 'fill2', 'fill3'].filter((k) => String(v[k] ?? '').trim() !== '').map((k) => Number(v[k]) / 100)
+          return { method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0), ...(fills.length ? { fills } : {}) } }
+        }, done: 'Saved' }],
     },
   },
   {

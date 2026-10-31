@@ -103,13 +103,13 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
     const regulars = await loyaltyRunning(actor.companyId)
     // The card reader: offered on the Pay screen only where it is switched on, a reader is registered and the business's
     // own Stripe account is connected. Otherwise Card is the old "run it on the reader, then record it" (card_external).
-    const [readerOn, settings] = await Promise.all([isFeatureEnabled(actor.companyId, ['card_reader']), bar.food.read(actor.companyId)])
+    const [readerOn, settings, tabOn] = await Promise.all([isFeatureEnabled(actor.companyId, ['card_reader']), bar.food.read(actor.companyId), isFeatureEnabled(actor.companyId, ['bar_tab_preauth'])])
     const readers = readerOn && (await d.services.stripeService.connectedAccountFor(actor.companyId)) ? (await bar.terminal.listReaders(actor.companyId)).map((r) => ({ id: r.id, label: r.label, simulated: r.simulated })) : []
     return one(c, {
       serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, giftCards: await giftCardsOn(actor),
       regulars: regulars ? { rewards: (await listRewards(actor.companyId, true)).map((x) => ({ id: x.id, name: x.name, pointsCost: x.pointsCost, type: x.type })) } : null,
       me: { name: actor.name, mayManage: manage, hasPin: pin },
-      cardReader: { readers, tipping: settings.terminal.tipping },
+      cardReader: { readers, tipping: settings.terminal.tipping, cardTabs: tabOn && readers.length > 0 },
       tabs: settings.tabs,
     })
   })
@@ -247,7 +247,10 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
     return act(c, async () => {
       const closeout = await closeDay(actor, m.byName, { day: String(b.day || ''), floatCents: b.floatCents, countedCents: b.countedCents, note: b.note, force: b.force === true })
       audit.log({ req: c, action: 'create', entity: 'bar_closeout', entityId: closeout.id, entityName: `Close-out ${closeout.businessDay}`, changes: { overShortCents: closeout.overShortCents, by: m.byName } })
-      return { closeout }
+      // Tip-out on the close-out (bar_tip_pooling): who gets what of the night's tips, frozen with the night.
+      const tips = await isFeatureEnabled(actor.companyId, ['bar_tip_pooling']) ? await bar.tips.record(actor.companyId, closeout.businessDay, closeout.id).catch((e: any) => { d.logger.error('[tips] not recorded', { error: e?.message }); return null }) : null
+      // Everyone's tips are a manager's to read (the close-out's whole-night figures are too); a bartender closing with a manager's PIN gets the close only.
+      return { closeout, tips: tips && (await mayManage(actor)) ? tips : null }
     })
   })
 

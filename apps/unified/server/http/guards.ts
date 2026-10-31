@@ -132,3 +132,30 @@ export function createRateLimiter(windowMs: number, max: number, countMethod?: (
     await next()
   }
 }
+
+/**
+ * A ceiling on guessing a secret link. Counts the lookups that came back "not found" (a wrong token) per client address;
+ * once an address has missed `max` times in the window, EVERY request from it answers the same "not found" for the rest
+ * of the window, even for a right token, so a limited address learns nothing a wrong guess would not tell it. No
+ * RateLimit headers and no 429: the reply for a limited token is the reply for a wrong one.
+ */
+export function createTokenGuessGuard(windowMs: number, max: number, notFound: string): MiddlewareHandler {
+  const misses = new Map<string, { count: number; resetAt: number }>()
+  const sweep = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of misses) if (now > entry.resetAt) misses.delete(key)
+  }, windowMs)
+  ;(sweep as any).unref?.()
+
+  return async (c: Context, next: Next) => {
+    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+    const now = Date.now()
+    const entry = misses.get(key)
+    if (entry && now <= entry.resetAt && entry.count >= max) return fail(c, 404, notFound)
+    await next()
+    if (c.res.status !== 404) return
+    const cur = misses.get(key)
+    if (!cur || now > cur.resetAt) misses.set(key, { count: 1, resetAt: now + windowMs })
+    else cur.count++
+  }
+}

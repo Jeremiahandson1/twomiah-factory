@@ -5,7 +5,7 @@
 // takes the database (or the transaction) it runs on. The lock is in server/data/restaurantEvents.ts.
 import { and, eq, gte, inArray, notInArray, ne, isNotNull, count, countDistinct } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { event, eventSpace, eventMenuItem, user } from '../../db/schema/index.ts'
+import { event, eventSpace, eventMenuItem, user, company } from '../../db/schema/index.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { calendarDayWords } from '../../core/dayWords.ts'
@@ -140,7 +140,26 @@ export class SpaceClash extends Error {
   constructor(message: string, public conflictId: string) { super(message) }
 }
 
-export async function findClash(exec: any, companyId: string, spaceId: string, eventDate: string, ignoreId?: string) {
+export type HoldWindow = { startTime?: string | null; endTime?: string | null }
+
+/** Two events on one day overlap when either has no times (it is the whole day) or their hours cross. */
+export function windowsOverlap(a: HoldWindow, b: HoldWindow): boolean {
+  if (!a.startTime || !a.endTime || !b.startTime || !b.endTime) return true
+  return String(a.startTime) < String(b.endTime) && String(b.startTime) < String(a.endTime)
+}
+
+/** Does this business hold rooms by time window (the 'event_calendar' feature)? Off: a room holds one event a DATE. */
+export async function holdsByWindow(exec: any, companyId: string): Promise<boolean> {
+  const [co] = await exec.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+  return Array.isArray(co?.f) && co.f.includes('event_calendar')
+}
+
+/**
+ * The held event that stops this room being booked. `win` is the hours being booked: with the calendar feature on, only
+ * an event whose hours cross them clashes (lunch and dinner can share a room); without it, or with no `win`, the room
+ * holds one event a date, as it always has.
+ */
+export async function findClash(exec: any, companyId: string, spaceId: string, eventDate: string, ignoreId?: string, win?: HoldWindow) {
   const rows = await exec.select().from(event)
     .where(and(
       eq(event.companyId, companyId),
@@ -149,8 +168,9 @@ export async function findClash(exec: any, companyId: string, spaceId: string, e
       inArray(event.status, HELD),
       ...(ignoreId ? [ne(event.id, ignoreId)] : []),
     ))
-    .limit(1)
-  return rows[0]
+  if (!rows.length) return undefined
+  if (!win || !(await holdsByWindow(exec, companyId))) return rows[0]
+  return rows.find((r: any) => windowsOverlap(win, r))
 }
 
 /**
@@ -190,7 +210,7 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
   const status = body.status || 'enquiry'
   await lockEventBook(tx, companyId)
   if (body.spaceId && HELD.includes(status)) {
-    const clash = await findClash(tx, companyId, body.spaceId, body.eventDate)
+    const clash = await findClash(tx, companyId, body.spaceId, body.eventDate, undefined, { startTime: body.startTime, endTime: body.endTime })
     if (clash) throw new SpaceClash(clashMessage(body.eventDate, clash), clash.id)
   }
   const [row] = await tx.insert(event).values({
@@ -212,6 +232,7 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
     dietaryRequirements: body.dietaryRequirements || null,
     setupNotes: body.setupNotes || null,
     notes: body.notes || null,
+    bookedAt: ['confirmed', 'completed'].includes(status) ? new Date() : null,
     companyId,
   }).returning()
   await syncHireLine(tx, companyId, row)
@@ -229,10 +250,10 @@ export async function bookOnDeposit(tx: any, companyId: string, eventId: string 
   if (!ev || ev.status !== 'enquiry') return null
   await lockEventBook(tx, companyId)
   if (ev.spaceId) {
-    const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id)
+    const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id, ev)
     if (clash) return `"${ev.name}" is still an inquiry and its room is already held on ${eventDayWords(ev.eventDate)} by "${clash.name}" — move the date or the room before taking money.`
   }
-  await tx.update(event).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(event.id, ev.id))
+  await tx.update(event).set({ status: 'confirmed', bookedAt: ev.bookedAt || new Date(), updatedAt: new Date() }).where(eq(event.id, ev.id))
   return null
 }
 /** The invoice-payment hook form: the locked invoice row (raw SQL, snake_case) or a drizzle row. */

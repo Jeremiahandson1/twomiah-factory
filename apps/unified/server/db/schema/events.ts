@@ -21,6 +21,13 @@ export const event = pgTable('event', {
   endTime: text('end_time'),
   guestCount: integer('guest_count'),
   guestCountFinal: integer('guest_count_final'),           // the guaranteed number, locked days before
+  // The guarantee cutoff (restaurant-bar-depth #5): after it the count is locked; a manager can override with a reason.
+  guaranteeOverrideReason: text('guarantee_override_reason'),
+  guaranteeOverriddenAt: timestamp('guarantee_overridden_at'),
+  guaranteeOverriddenBy: text('guarantee_overridden_by'),
+  guaranteeReminderSentAt: timestamp('guarantee_reminder_sent_at'),
+  // When the booking first became a booking (confirmed): the lead-source and year-on-year reports count by it (#7).
+  bookedAt: timestamp('booked_at'),
   quotedTotal: decimal('quoted_total', { precision: 10, scale: 2 }),
   depositRequired: decimal('deposit_required', { precision: 10, scale: 2 }),
   source: text('source'),                                  // where the enquiry came from
@@ -74,11 +81,22 @@ export const eventPayment = pgTable('event_payment', {
   method: text('method'),
   reference: text('reference'),
   notes: text('notes'),
+  // The pay link (/pay/<token>) of this instalment, minted when it is first needed (restaurant-bar-depth #2).
+  payToken: text('pay_token'),
+  // Reminders sent, once each: before the due date, on it, and after it.
+  reminderBeforeAt: timestamp('reminder_before_at'),
+  reminderDueAt: timestamp('reminder_due_at'),
+  reminderOverdueAt: timestamp('reminder_overdue_at'),
+  // The card-on-file charge on the due date: tried once a day at most, and what came of it.
+  autopayAttemptedAt: timestamp('autopay_attempted_at'),
+  autopayStatus: text('autopay_status'),                   // succeeded / failed
+  autopayError: text('autopay_error'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('event_payment_company_id_idx').on(t.companyId),
+  index('event_payment_pay_token_idx').on(t.payToken),
   index('event_payment_event_id_idx').on(t.eventId),
   index('event_payment_due_idx').on(t.dueDate),
 ])
@@ -96,6 +114,8 @@ export const eventSpace = pgTable('event_space', {
   amenities: json('amenities').default([]).notNull(),   // AV, dance floor, private bar, patio
   photo: text('photo'),
   active: boolean('active').default(true).notNull(),
+  // The secret of this room's calendar feed (/api/event-feed/<token>.ics), for Google, Apple and Outlook (#4).
+  feedToken: text('feed_token'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -140,4 +160,107 @@ export const menuPackage = pgTable('menu_package', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('menu_package_company_id_idx').on(t.companyId),
+])
+
+// A room's food-and-beverage minimum for a kind of day (restaurant-bar-depth #6): by day of the week and by season, and
+// optionally for one menu category. The most specific rule that fits the event's date wins; the room's single
+// minimumSpend is the fallback.
+export const eventSpaceMinimum = pgTable('event_space_minimum', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  spaceId: text('space_id').notNull().references(() => eventSpace.id, { onDelete: 'cascade' }),
+  label: text('label'),                                    // "Saturdays in wedding season"
+  daysOfWeek: json('days_of_week').default([]).notNull(),  // [0..6], Sunday = 0; empty = every day
+  seasonStart: text('season_start'),                       // "05-01" (month-day); empty = all year
+  seasonEnd: text('season_end'),                           // "10-31"; a season may wrap the new year
+  category: text('category'),                              // a menu package category; empty = all food and beverage
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_space_minimum_space_idx').on(t.spaceId),
+  index('event_space_minimum_company_id_idx').on(t.companyId),
+])
+
+// Someone waiting for a room on a date that is held (#4). When the hold is let go, the first waiting guest is offered it.
+export const eventWaitlist = pgTable('event_waitlist', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  spaceId: text('space_id').notNull().references(() => eventSpace.id, { onDelete: 'cascade' }),
+  eventDate: date('event_date').notNull(),
+  startTime: text('start_time'),
+  endTime: text('end_time'),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  guestCount: integer('guest_count'),
+  notes: text('notes'),
+  status: text('status').default('waiting').notNull(),     // waiting / offered / booked / removed
+  offeredAt: timestamp('offered_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_waitlist_company_id_idx').on(t.companyId),
+  index('event_waitlist_space_date_idx').on(t.spaceId, t.eventDate),
+])
+
+// The proposal a guest reads, chooses on and signs (#1): frozen when it is sent, so what they signed is what they saw.
+export const eventProposal = pgTable('event_proposal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  eventId: text('event_id').notNull().references(() => event.id, { onDelete: 'cascade' }),
+  version: integer('version').default(1).notNull(),
+  status: text('status').default('draft').notNull(),       // draft / sent / viewed / accepted / declined / expired / superseded
+  publicToken: text('public_token'),                       // the guest's private link, minted when it is sent
+  message: text('message'),                                // the coordinator's note to the guest
+  terms: text('terms'),                                    // the venue's terms, as sent
+  options: json('options').default([]).notNull(),          // [{id,title,kind:'single'|'multi',required,choices:[{id,label,perPerson,price}]}]
+  snapshot: json('snapshot').default({}).notNull(),        // the event as sent: room, date, times, guests, lines, minimum, schedule
+  selections: json('selections').default({}).notNull(),    // { optionId: [choiceId] } as the guest chose
+  expiresAt: timestamp('expires_at'),
+  sentAt: timestamp('sent_at'),
+  viewedAt: timestamp('viewed_at'),
+  acceptedAt: timestamp('accepted_at'),
+  declinedAt: timestamp('declined_at'),
+  declineReason: text('decline_reason'),
+  // Signing evidence — the same set the quote keeps (tenant-backend invoicing/signingEvidence.ts).
+  signature: text('signature'),
+  signedBy: text('signed_by'),
+  signedAt: timestamp('signed_at'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_proposal_company_id_idx').on(t.companyId),
+  index('event_proposal_event_id_idx').on(t.eventId),
+  index('event_proposal_public_token_idx').on(t.publicToken),
+])
+
+// The card a client left for an event's instalments, on the venue's OWN Stripe account (#2). The card number never
+// reaches us: Stripe keeps it; we keep the ids to charge it and the last four to show.
+export const eventAutopay = pgTable('event_autopay', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  eventId: text('event_id').notNull().references(() => event.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  stripeAccount: text('stripe_account').notNull(),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  paymentMethodId: text('payment_method_id'),
+  setupIntentId: text('setup_intent_id'),
+  brand: text('brand'),
+  last4: text('last4'),
+  status: text('status').default('pending').notNull(),     // pending (card not saved yet) / active / stopped
+  consentAt: timestamp('consent_at'),
+  consentIp: text('consent_ip'),
+  consentText: text('consent_text'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_autopay_company_id_idx').on(t.companyId),
+  index('event_autopay_event_id_idx').on(t.eventId),
 ])

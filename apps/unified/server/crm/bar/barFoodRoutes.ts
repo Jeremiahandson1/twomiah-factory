@@ -9,6 +9,10 @@
 //   POST   /terminal/charge                { checkId, readerId, amountCents }   send it to the reader        bar:register · card_reader
 //   GET    /terminal/charge/:id            where it stands (Stripe is asked while it is pending)            bar:register · card_reader
 //   POST   /terminal/charge/:id/cancel                                                                      bar:register · card_reader
+//   POST   /terminal/tab                   { checkId, readerId, amountCents }   hold a card for a tab          bar:register · card_reader · bar_tab_preauth
+//   GET    /terminal/tab?checkId=          the tab on a check (Stripe is asked while the reader waits)      bar:register · card_reader · bar_tab_preauth
+//   POST   /terminal/tab/:id/close         { tipCents, partial }   take the check and the tip off the hold  bar:register · card_reader · bar_tab_preauth
+//   POST   /terminal/tab/:id/release       give the card back; nothing is charged                           bar:register · card_reader · bar_tab_preauth
 //   POST   /terminal/charge/:id/simulate   { outcome, tipCents }   a test card on a SIMULATED reader         bar:register · card_reader
 //   POST   /payment/:id/refund             { amountCents?, reason }   back to the card through Stripe       bar:manage
 //   GET    /check/:id/receipt              the receipt link (opened in a new tab to print)                  bar:register · bar_register
@@ -133,6 +137,36 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
   app.post('/terminal/charge/:id/cancel', ...reader, requirePermission('bar:register'), async (c) => {
     const actor = await actorOf(c)
     return act(c, async () => ({ charge: await terminal.cancelCharge(actor, c.req.param('id')) }))
+  })
+  // A pre-authorised tab: the card is held on the reader, nothing is taken until the tab is closed (barTerminal.ts).
+  const tab = [...reader, requireEnabledFeature('bar_register'), requireEnabledFeature('bar_tab_preauth'), requirePermission('bar:register')] as const
+  app.post('/terminal/tab', ...tab, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return act(c, async () => ({ charge: await terminal.startTab(actor, { checkId: String(b.checkId || ''), readerId: String(b.readerId || ''), amountCents: b.amountCents }) }))
+  })
+  app.get('/terminal/tab', ...tab, async (c) => {
+    const actor = await actorOf(c)
+    c.header('Cache-Control', 'no-store')
+    return act(c, async () => {
+      const t = await terminal.tabFor(actor.companyId, String(c.req.query('checkId') || ''))
+      return { tab: t && t.status === 'pending' ? await terminal.pollCharge(actor.companyId, t.id) : t }
+    })
+  })
+  app.post('/terminal/tab/:id/close', ...tab, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return act(c, async () => {
+      const r = await terminal.closeTab(actor, c.req.param('id'), { tipCents: b.tipCents, partial: b.partial })
+      audit.log({ req: c, action: 'update', entity: 'bar_check', entityId: r.charge.checkId || '', entityName: 'Tab closed', changes: { paidCents: r.paidCents, tipCents: r.tipCents, leftCents: r.leftCents } })
+      return r
+    })
+  })
+  app.post('/terminal/tab/:id/release', ...tab, async (c) => {
+    const actor = await actorOf(c)
+    return act(c, async () => {
+      const charge = await terminal.releaseTab(actor, c.req.param('id'))
+      audit.log({ req: c, action: 'update', entity: 'bar_check', entityId: charge.checkId || '', entityName: 'Tab released' })
+      return { charge }
+    })
   })
   app.post('/terminal/charge/:id/simulate', ...reader, requirePermission('bar:register'), async (c) => {
     const actor = await actorOf(c); const b = await body(c)

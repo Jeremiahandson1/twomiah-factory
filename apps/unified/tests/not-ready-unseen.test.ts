@@ -172,8 +172,15 @@ describe('the unified app, for a business without the feature (everyone, while i
   test('the menu names it only behind its own switch', () => {
     const shell = code(readFileSync(join(ROOT, 'apps/unified/web/src/shell.ts'), 'utf8'))
     const items = shell.split('\n').filter((l) => /\{\s*to:\s*'/.test(l) && WORDS!.test(l))
-    expect(items.length).toBe(1)
-    expect(items[0]).toMatch(/features: \['consumer_financing'\]/)
+    // Every menu row named in a not-ready feature's words sits behind a not-ready feature's own switch (10/30: the depth PRs
+    // added Team Revenue, Plan Reports and Job Checklists beside Financing — each behind its own hidden id).
+    const hidden = new Set(FEATURE_REGISTRY.filter((f) => f.hidden).map((f) => f.id))
+    expect(items.length).toBeGreaterThan(0)
+    for (const row of items) {
+      const gated = (row.match(/features: \[([^\]]*)\]/)?.[1] || '').split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean)
+      expect([row.trim().slice(0, 80), gated.some((id) => hidden.has(id))]).toEqual([row.trim().slice(0, 80), true])
+    }
+    expect(items.find((l) => l.includes("'/crm/financing'"))).toMatch(/features: \['consumer_financing'\]/)
   })
 
   test("the customer's quote page, the quote and the pricebook presentation say nothing of it", async () => {

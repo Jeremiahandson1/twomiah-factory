@@ -7,7 +7,7 @@ import { Loader2, Flame, LayoutGrid, Clock, Send, CreditCard, Banknote, Scissors
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
-import { ChargeWaiting, RefundDialog, ReceiptPanel, useCharge, type Charge, type ReaderChoice } from './terminalUi';
+import { ChargeWaiting, RefundDialog, ReceiptPanel, TabDialog, useCharge, type Charge, type ReaderChoice } from './terminalUi';
 
 /**
  * THE REGISTER — the bar tablet. Open a tab ("Mike"), a table ("Booth 2") or ring a walk-up; ring items (sizes,
@@ -33,7 +33,7 @@ interface Check {
   totals: { subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; tipCents: number; balanceCents: number }
 }
 interface Reward { id: string; name: string; pointsCost: number; type: string }
-interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean }; cardReader?: { readers: ReaderChoice[]; tipping: boolean }; tabs?: boolean }
+interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean }; cardReader?: { readers: ReaderChoice[]; tipping: boolean; cardTabs?: boolean }; tabs?: boolean }
 
 const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_terminal: 'Card (reader)', card_online: 'Card (online)', giftcard: 'Gift card' };
 /** A card Stripe took (the reader, the website): given back with Refund, never crossed off with Void. */
@@ -49,7 +49,7 @@ export default function RegisterPage() {
   const [seat, setSeat] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'options'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' } | { kind: 'refund'; payment: Payment }>(null);
+  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'options'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'cardTab' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' } | { kind: 'refund'; payment: Payment }>(null);
   const [showRecent, setShowRecent] = useState(false);
   const [paid, setPaid] = useState<{ changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null>(null);
   const { guarded, dialog: managerDialog } = useManagerPin();
@@ -299,6 +299,7 @@ export default function RegisterPage() {
                   <button className={`${BTN} ${ON} inline-flex items-center justify-center gap-2 col-span-2`} disabled={check.totals.balanceCents <= 0 || !!busy} onClick={() => { setPaid(null); setDialog({ kind: 'pay' }); }}>
                     <CreditCard className="w-4 h-4" />Pay {money(check.totals.balanceCents)}
                   </button>
+                  {state.cardReader?.cardTabs && <button className={`${BTN} ${OFF} inline-flex items-center justify-center gap-2 col-span-2`} disabled={!!busy} onClick={() => setDialog({ kind: 'cardTab' })}><CreditCard className="w-4 h-4" />Card tab</button>}
                   <button className={`${BTN} ${OFF} inline-flex items-center justify-center gap-2`} disabled={lines.filter((l) => l.state !== 'void').length < 2} onClick={() => setDialog({ kind: 'split' })}><Scissors className="w-4 h-4" />Split</button>
                   {isTable
                     ? <button className={`${BTN} ${OFF} inline-flex items-center justify-center gap-2`} onClick={() => act('seats', () => api.post(`/api/register/check/${check.id}/split-seats`, {}))}><Users className="w-4 h-4" />By seat</button>
@@ -335,6 +336,10 @@ export default function RegisterPage() {
           onPay={async (body) => { const r = await act('pay', () => api.post(`/api/register/check/${check.id}/pay`, body)); if (r) setPaid({ changeCents: r.changeCents ?? null, giftCard: r.giftCard ?? null }); return !!r; }} giftCards={state.giftCards}
           readers={state.cardReader?.readers || []} readerTips={!!state.cardReader?.tipping}
           onReaderDone={async () => { await loadCheck(check.id); await loadState(); }} />
+      )}
+      {dialog?.kind === 'cardTab' && check && (
+        <TabDialog checkId={check.id} label={`#${check.number} ${check.label}`} balanceCents={check.totals.balanceCents} readers={state.cardReader?.readers || []}
+          onClose={() => setDialog(null)} onChanged={async () => { await loadCheck(check.id); await loadState(); }} />
       )}
       {dialog?.kind === 'refund' && check && (
         <RefundDialog payment={dialog.payment} checkOpen={check.status === 'open'} onClose={() => setDialog(null)}

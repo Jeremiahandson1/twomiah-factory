@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../../../api'
+import { useAuth } from '../../../shared'
+import { PayoutTable, type Payout } from './TipsPage'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, CARD, LABEL, INPUT, MUTED, money, centsFrom, useManagerPin } from './registerUi';
 
@@ -29,14 +31,34 @@ interface Summary {
   refunds?: { count: number; cents: number }
 }
 interface Closeout { id: string; businessDay: string; cashExpectedCents: number; cashCountedCents: number | null; floatCents: number; overShortCents: number | null; note: string | null; closedByName: string | null; closedAt: string; emailedAt: string | null }
-interface Day { day: string; timezone: string; scope?: 'night' | 'mine'; drawerInCents?: number; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Closeout[] }
+interface Day { me?: { mayManage: boolean }; day: string; timezone: string; scope?: 'night' | 'mine'; drawerInCents?: number; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Closeout[] }
 
 function shift(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
+/** The night's tips as they settle under the venue's tip rules (feature bar_tip_pooling); a manager's. Frozen by closing the night. */
+function TipOutCard({ day, refreshKey }: { day: string; refreshKey: number }) {
+  const [n, setN] = useState<{ configured: boolean; payouts: Payout[]; notes: string[] } | null>(null);
+  useEffect(() => { api.get(`/api/tips/night?day=${day}`).then(setN).catch(() => setN(null)); }, [day, refreshKey]);
+  if (!n) return null;
+  return (
+    <div className={CARD}>
+      <p className={`${LABEL} mb-2`}>Tip-out</p>
+      {!n.configured ? <p className={`text-sm ${MUTED}`}>No tip rules yet. <Link className="underline" to="/crm/tips">Set them up</Link> and closing the night shows who gets what.</p> : (
+        <>
+          <PayoutTable payouts={n.payouts} />
+          {n.notes.map((x) => <p key={x} className={`text-sm mt-2 ${MUTED}`}>{x}</p>)}
+          <p className={`text-xs mt-2 ${MUTED}`}>Closing the night records this.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CloseoutPage() {
+  const { hasFeature } = useAuth();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<Day | null>(null);
   const [err, setErr] = useState('');
@@ -121,6 +143,8 @@ export default function CloseoutPage() {
           </dl>
         </div>
       </div>
+
+      {hasFeature('bar_tip_pooling') && data.me?.mayManage && <TipOutCard day={data.day} refreshKey={data.closes.length} />}
 
       {data.open.length > 0 && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-4">

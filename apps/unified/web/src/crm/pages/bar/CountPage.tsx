@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, Check } from 'lucide-react'
 import { api } from '../../../api'
+import { useAuth } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, CARD, LABEL, INPUT, MUTED } from './registerUi';
 
@@ -13,11 +14,17 @@ import { BTN, ON, OFF, CARD, LABEL, INPUT, MUTED } from './registerUi';
  */
 
 interface Item { id: string; name: string; category: string; unitLabel: string; packName: string; packSize: number }
-interface Count { id: string; lines: Array<{ stockItemId: string; qty: number; countedByName: string | null }> }
+interface Count { id: string; lines: Array<{ stockItemId: string; qty: number; fills?: number[]; countedByName: string | null }> }
+// Things that come in bottles, which a person counts by how full the open ones are.
+const BOTTLED = ['liquor', 'wine', 'beer', 'na'];
 
 export default function CountPage() {
   const [data, setData] = useState<{ categories: Array<{ id: string; label: string }>; count: Count | null; stock: Item[] } | null>(null);
+  const { hasFeature } = useAuth();
+  const byFill = hasFeature('stock_fill_levels');
   const [entry, setEntry] = useState<Record<string, { packs: string; units: string }>>({});
+  // Open bottles by how full each is, 0 to 1 (restaurant-bar-depth #13), per item.
+  const [fills, setFills] = useState<Record<string, number[]>>({});
   const [saved, setSaved] = useState<Record<string, number | null>>({});
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
@@ -30,17 +37,19 @@ export default function CountPage() {
       const r = await api.get('/api/stock/count');
       setData(r);
       const s: Record<string, number | null> = {};
-      for (const l of r.count?.lines || []) s[l.stockItemId] = l.qty;
-      setSaved(s); setErr('');
+      const f: Record<string, number[]> = {};
+      for (const l of r.count?.lines || []) { s[l.stockItemId] = l.qty; if (l.fills?.length) f[l.stockItemId] = l.fills; }
+      setSaved(s); setFills(f); setErr('');
     } catch (e) { setErr(errorText(e, 'Could not load the count.')); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async (it: Item) => {
     const e = entry[it.id] || { packs: '', units: '' };
+    const open = byFill ? fills[it.id] || [] : [];
     setBusy(it.id); setErr('');
     try {
-      const r = await api.post('/api/stock/count/item', { stockItemId: it.id, packs: e.packs, units: e.units, clear: !e.packs.trim() && !e.units.trim() });
+      const r = await api.post('/api/stock/count/item', { stockItemId: it.id, packs: e.packs, units: e.units, ...(byFill ? { fills: open } : {}), clear: !e.packs.trim() && !e.units.trim() && open.length === 0 });
       setSaved((s) => ({ ...s, [it.id]: r.qty })); setDone(null);
     } catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(''); }
   };
@@ -76,6 +85,21 @@ export default function CountPage() {
                     <div className="w-28"><label className={LABEL} htmlFor={`u-${it.id}`}>{isPack ? `Loose (${it.unitLabel})` : it.unitLabel}</label><input id={`u-${it.id}`} className={`${INPUT} mt-1`} inputMode="decimal" value={e.units} onChange={(ev) => setEntry((s) => ({ ...s, [it.id]: { ...e, units: ev.target.value } }))} /></div>
                     <button className={`${BTN} ${OFF}`} disabled={busy === it.id} onClick={() => save(it)}>Save</button>
                   </div>
+                  {byFill && BOTTLED.includes(it.category) && (
+                    <div className="mt-2 space-y-1" aria-label={`Open bottles of ${it.name}`}>
+                      {(fills[it.id] || []).map((f, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <label className={LABEL} htmlFor={`f-${it.id}-${i}`}>Open bottle {i + 1}</label>
+                          <input id={`f-${it.id}-${i}`} type="range" min={0} max={100} step={5} value={Math.round(f * 100)} className="flex-1 max-w-xs"
+                            aria-valuetext={`${Math.round(f * 100)} percent full`}
+                            onChange={(ev) => setFills((s) => ({ ...s, [it.id]: (s[it.id] || []).map((x, j) => (j === i ? Number(ev.target.value) / 100 : x)) }))} />
+                          <span className="w-12 text-sm tabular-nums">{Math.round(f * 100)}%</span>
+                          <button type="button" className={`${BTN} ${OFF}`} aria-label={`Remove open bottle ${i + 1}`} onClick={() => setFills((s) => ({ ...s, [it.id]: (s[it.id] || []).filter((_, j) => j !== i) }))}>Remove</button>
+                        </div>
+                      ))}
+                      <button type="button" className={`${BTN} ${OFF}`} onClick={() => setFills((s) => ({ ...s, [it.id]: [...(s[it.id] || []), 1] }))}>Add an open bottle</button>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -86,7 +110,7 @@ export default function CountPage() {
         <div className="flex justify-end">
           <button className={`${BTN} ${ON}`} disabled={!countedN || busy === 'finish'} onClick={async () => {
             setBusy('finish'); setErr('');
-            try { const n = countedN; await api.post('/api/stock/count/finish', {}); setEntry({}); await load(); setDone(n); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
+            try { const n = countedN; await api.post('/api/stock/count/finish', {}); setEntry({}); setFills({}); await load(); setDone(n); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
           }}>Finish the count</button>
         </div>
       )}

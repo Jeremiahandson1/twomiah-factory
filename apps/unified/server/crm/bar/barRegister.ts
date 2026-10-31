@@ -14,6 +14,7 @@
 // Moved from templates/crm-bar/backend/src/services/barRegister.ts. The arithmetic and every rule are unchanged (the
 // money is barCheckMoney.ts, untouched); the functions are made with the app's database, live updates, and the
 // grill, Regulars and gift-card services; the check-number counter and the reward-use counts are server/data/bar.ts.
+import { refreshMenu, servingNow, windowWords } from './menuDay.ts'
 import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '@twomiah/tenant-backend'
 import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barTap, barTerminalCharge, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
@@ -88,6 +89,15 @@ const { earnForPaidCheck, ensureMember, loyaltyRunning } = loyalty
 const { findCard, issueCard, cardPrefix, refundTo, spend } = giftCards
 
 function notifyRegister(companyId: string): void { emitToCompany(companyId, 'bar:register', { at: Date.now() }) }
+
+/**
+ * A check that ends without its card tab (voided, or paid another way) lets the tab's hold go (barTerminal.ts sets this;
+ * restaurant-bar-depth #12). Never throws: a hold that would not release lapses on its own and is said so on the tab.
+ */
+const hooks: { checkEnded: null | ((companyId: string, checkId: string) => Promise<void>) } = { checkEnded: null }
+async function checkEnded(companyId: string, checkId: string): Promise<void> {
+  try { if (hooks.checkEnded) await hooks.checkEnded(companyId, checkId) } catch { /* the hold lapses on its own */ }
+}
 
 async function taxRateBps(companyId: string, tx: Tx = db): Promise<number> {
   const [co] = await tx.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -173,11 +183,14 @@ async function listRecentClosed(companyId: string, since: Date) {
 
 /** What the register rings from: the active menu by section (with every size), and what is on tap right now. */
 async function menuForRegister(companyId: string) {
-  const [sections, items, lines] = await Promise.all([
+  await refreshMenu(db, companyId)   // an 86 "until we open" is back once we have opened (menu_dayparts)
+  const served = await servingNow(db, companyId)
+  const [allSections, items, lines] = await Promise.all([
     db.select().from(barMenuSection).where(and(eq(barMenuSection.companyId, companyId), eq(barMenuSection.isActive, true))).orderBy(asc(barMenuSection.sortOrder), asc(barMenuSection.name)),
     db.select().from(barMenuItem).where(and(eq(barMenuItem.companyId, companyId), eq(barMenuItem.isActive, true))).orderBy(asc(barMenuItem.sortOrder), asc(barMenuItem.name)),
     db.select().from(barTap).where(and(eq(barTap.companyId, companyId), eq(barTap.isActive, true))).orderBy(asc(barTap.sortOrder), asc(barTap.lineNumber)),
   ])
+  const sections = allSections.filter(s => served(s))   // a section outside its hours is not on the picker
   const onTap = lines.filter(t => t.status !== 'blown').map(t => ({
     id: 'tap:' + t.id, name: t.beerName, is86ed: false,
     // Its pour sizes (a pint, a pitcher); more than one and the register asks which, as it does for a menu item.
@@ -238,6 +251,7 @@ async function addItem(actor: Actor, checkId: string, input: { menuItemId?: stri
         .where(and(eq(barMenuItem.id, ref), eq(barMenuItem.companyId, companyId))).limit(1)
       if (!row || !row.item.isActive) throw new CheckError('That item is off the menu.')
       if (row.item.is86ed) throw new CheckError(`${row.item.name} is 86'd.`)
+      if (row.section && !(await servingNow(tx, companyId))(row.section)) throw new CheckError(`${row.section.name} is not being served now (${windowWords(row.section)}).`)
       const sizes = sizesOf(row.item, row.section?.description)
       const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
       if (!size) throw new CheckError(`Which size of ${row.item.name}?`)
@@ -412,8 +426,10 @@ async function addPayment(actor: Actor, checkId: string, input: { tender?: strin
     return closeIfPaid(tx, companyId, checkId, actor, earn)
   })
   if (fired) notifyKitchen(companyId)
+  const after = await getCheck(companyId, checkId)
+  if (after.status !== 'open') await checkEnded(companyId, checkId)
   notifyRegister(companyId)
-  return { ...(await getCheck(companyId, checkId)), changeCents: change }
+  return { ...after, changeCents: change }
 }
 
 /** Take what's owed (up to the card's balance) off a gift card. No tip off a gift card: it pays for the check. */
@@ -446,8 +462,10 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
     throw e
   }
   if (fired) notifyKitchen(companyId)
+  const ended = await getCheck(companyId, checkId)
+  if (ended.status !== 'open') await checkEnded(companyId, checkId)
   notifyRegister(companyId)
-  return { ...(await getCheck(companyId, checkId)), changeCents: null, giftCard: after }
+  return { ...ended, changeCents: null, giftCard: after }
 }
 
 /**
@@ -492,6 +510,7 @@ async function priceOrderLine(tx: Tx, companyId: string, input: { menuItemId?: u
     .where(and(eq(barMenuItem.id, String(input.menuItemId || '')), eq(barMenuItem.companyId, companyId))).limit(1)
   if (!row || !row.item.isActive || (row.section && !row.section.isActive)) throw new CheckError('Something in the order is off the menu now. Take it out and try again.', 409)
   if (row.item.is86ed) throw new CheckError(`Sorry, ${row.item.name} just sold out.`, 409)
+  if (row.section && !(await servingNow(tx, companyId))(row.section)) throw new CheckError(`Sorry, ${row.section.name} is not being served right now.`, 409)
   const sizes = sizesOf(row.item, row.section?.description)
   const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
   if (!size) throw new CheckError(`Pick a size for ${row.item.name}.`)
@@ -617,6 +636,7 @@ async function voidCheck(actor: Actor, checkId: string, reason: string, byName: 
     if (!why && view.items.length) throw new CheckError('Give a reason.')
     await tx.update(barCheck).set({ status: 'void', voidReason: why || 'empty', closedAt: new Date(), closedById: actor.id, closedByName: byName, updatedAt: new Date() }).where(eq(barCheck.id, checkId))
   })
+  await checkEnded(companyId, checkId)
   notifyRegister(companyId)
   return getCheck(companyId, checkId)
 }
@@ -707,7 +727,7 @@ async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem
 return {
   notifyRegister, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
   voidItem, sendCheck, addPayment, addGiftCardLine, voidPayment, splitItems, splitBySeat, checkNeedsManager, voidCheck, renameCheck,
-  attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine,
+  attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine, hooks, checkEnded,
 }
 }
 export type BarRegister = ReturnType<typeof createBarRegister>

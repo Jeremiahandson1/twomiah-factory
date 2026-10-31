@@ -54,6 +54,8 @@ const restaurant: VerticalSettings = {
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.
     dashboard: 'events',
     events: true,
+    // The catering form's dated enquiries open in the event book (crm/restaurant/eventEnquiry.ts; 'event_web_enquiries').
+    websiteForms: 'events',
     // The food side: a restaurant's register rings walk-ups and tables until the owner turns long tabs on, and its tap
     // list needs 'draft_taps' as well as the menu (server/crm/bar barRegisterRoutes.ts, barRoutes.ts).
     foodService: { tabs: false, tapsFeature: 'draft_taps' },
@@ -76,7 +78,7 @@ const restaurant: VerticalSettings = {
     // shellConfig.ts: the menu keeps the base CRM's words; the events items are crm/verticals/restaurant.tsx's.
     searchPlaceholder: 'Search events, contacts, the menu...',
     // The bar's food screens (crm/verticals/bar.tsx) in a restaurant's words; the tap list only with draft taps on.
-    nav: { '/crm/bar-settings': 'Hours & Settings' },
+    nav: { '/crm/bar-settings': 'Hours & Settings', '/crm/stock': 'Kitchen Stock', '/crm/shifts': 'Staff Schedule' },
     navSections: { 'The Bar': 'Kitchen & Counter' },
     navFeatures: { '/crm/taps': ['draft_taps'] },
     // Bar Settings without the bar's speakeasy door game (crm/pages/bar/BarSettingsPage.tsx), and no bar of its own: the

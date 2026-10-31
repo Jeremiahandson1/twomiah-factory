@@ -447,6 +447,8 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Register","path":"/crm/register","group":"Sell","icon":"ellipse","permission":"bar:register","features":["bar_register"]},
     {"label":"Kiosk","path":"/crm/kiosk","group":"Sell","icon":"ellipse","permission":"bar:register","features":["order_kiosk"]},
     {"label":"Orders","path":"/crm/orders","group":"Sell","icon":"ellipse","permission":"bar:register","features":["online_ordering","order_kiosk"]},
+    {"label":"Kitchen Stock","path":"/crm/stock","group":"Work","icon":"ellipse","permission":"bar:update","features":["bar_stock"],"native":[{"route":"/(tabs)/bar-count"}]},
+    {"label":"Staff Schedule","path":"/crm/shifts","group":"Work","icon":"ellipse","permission":"bar:read","features":["bar_schedule"],"native":[{"route":"/(tabs)/bar-shifts"}]},
     {"label":"Menu","path":"/crm/menu","group":"Work","icon":"ellipse","permission":"bar:read","features":["bar_menu"],"native":[{"route":"/(tabs)/bar-menu"}]},
     {"label":"Taps","path":"/crm/taps","group":"Work","icon":"ellipse","permission":"bar:read","features":["draft_taps"]},
     {"label":"What's on","path":"/crm/whats-on","group":"Customers","icon":"ellipse","permission":"bar:read","features":["bar_tonight"]},
