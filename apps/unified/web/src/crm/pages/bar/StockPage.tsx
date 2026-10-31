@@ -1,6 +1,8 @@
 // Moved from templates/crm-bar/frontend/src/pages/bar/StockPage.tsx.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import InvoicesTab from './InvoiceScanUi'
+import { useAuth } from '../../../shared'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
@@ -15,7 +17,7 @@ import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
  * the bartender's, on a phone (/crm/count).
  */
 
-type Tab = 'stock' | 'recipes' | 'counts' | 'orders';
+type Tab = 'stock' | 'recipes' | 'counts' | 'orders' | 'invoices';
 interface StockRow { id: string; name: string; category: string; unit: string; unitLabel: string; packName: string; packSize: number; packCostCents: number | null; unitCostCents: number | null; vendorId: string | null; vendorName: string | null; parPacks: number | null; isActive: boolean; onHand: number | null; onHandPacks: number | null; low: boolean; suggestPacks: number; lastCountAt: string | null }
 interface Vendor { id: string; name: string; email: string | null; phone: string | null; orderDays: string | null }
 interface Meta { categories: Array<{ id: string; label: string }>; units: Record<string, string>; presets: Array<{ name: string; unit: string; size: number }> }
@@ -25,6 +27,10 @@ const day = (iso: string | null) => (iso ? momentDate(iso, { month: 'short', day
 
 export default function StockPage() {
   const [tab, setTab] = useState<Tab>('stock');
+  const { hasFeature } = useAuth();
+  const scanning = hasFeature('bar_invoice_scan');
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  useEffect(() => { if (scanning) api.get('/api/stock/vendors').then((r: any) => setVendors(r.vendors)).catch(() => {}); }, [scanning]);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -32,7 +38,7 @@ export default function StockPage() {
         <Link to="/crm/count" className={`${BTN} ${OFF} inline-flex items-center`}>Do a count</Link>
       </div>
       <div className="flex flex-wrap gap-2" role="tablist">
-        {([['stock', 'Stock'], ['recipes', 'Recipes & pours'], ['counts', 'Counts'], ['orders', 'Orders']] as Array<[Tab, string]>).map(([t, l]) => (
+        {([['stock', 'Stock'], ['recipes', 'Recipes & pours'], ['counts', 'Counts'], ['orders', 'Orders'], ...(scanning ? [['invoices', 'Invoices']] : [])] as Array<[Tab, string]>).map(([t, l]) => (
           <button key={t} role="tab" aria-selected={tab === t} className={`${BTN} ${tab === t ? ON : OFF}`} onClick={() => setTab(t)}>{l}</button>
         ))}
       </div>
@@ -40,6 +46,7 @@ export default function StockPage() {
       {tab === 'recipes' && <RecipesTab />}
       {tab === 'counts' && <CountsTab />}
       {tab === 'orders' && <OrdersTab />}
+      {tab === 'invoices' && scanning && <InvoicesTab vendors={vendors} />}
     </div>
   );
 }
