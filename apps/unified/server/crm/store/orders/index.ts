@@ -24,6 +24,10 @@ import { createSupplierRoutes } from './suppliers.ts'
 import { mayMove } from './rules.ts'
 import { createDraftOrderRoutes } from './draftOrders.ts'
 import { createDisputeRoutes } from './disputes.ts'
+import { createSalesReportRoutes } from './reports.ts'
+import { createStoreBooks } from '../books.ts'
+import { createStoreReturns } from '../returns/returns.ts'
+import { createReturnRoutes } from '../returns/routes.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -42,6 +46,10 @@ export function createOrderHooks(d: CrmDeps, core: StoreCore): OrderHooks {
 
 export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
   const refunds = createOrderRefunds(d, core)
+  // 2026-10-30, gap 6: paid orders, refunds and Stripe payouts go to QuickBooks in the same sweep as the shared sync (the
+  // sweep only runs for a company that has the quickbooks feature on and auto-sync, or a Sync Now).
+  const books = createStoreBooks(d, core)
+  d.services.quickbooksSync.addPass('store', books.pass)
   d.services.addJob(() => {
     const resume = () => refunds.resumePendingRefunds().catch((err: any) => d.logger.error('[orders] refund resume failed', { error: err?.message }))
     setTimeout(resume, 90_000)
@@ -63,5 +71,11 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     // 2026-10-24, the store upgrade: orders made for a customer (orders:create), chargebacks (orders:refund).
     { path: '/api/admin/draft-orders', access: 'user', router: createDraftOrderRoutes(d, core) },
     { path: '/api/admin/disputes', access: 'user', router: createDisputeRoutes(d) },
+    // 2026-10-30, the store's gaps: sales reports (revenue:read), behind store_sales_reports (not ready).
+    { path: '/api/admin/sales-reports', access: 'user', feature: 'store_sales_reports', router: createSalesReportRoutes(d) },
+    // The bank account Stripe's payouts are deposited to in QuickBooks: settings:update, behind quickbooks (opt-in).
+    { path: '/api/admin/store-books', access: 'user', feature: 'quickbooks', router: books.routes() },
+    // Returns and exchanges (gap 8): orders:read to look, orders:refund to decide, receive and send money, settings:update for the rule.
+    { path: '/api/admin/store-returns', access: 'user', feature: 'store_returns', router: createReturnRoutes(d, createStoreReturns(d, core, refunds), refunds) },
   ]
 }

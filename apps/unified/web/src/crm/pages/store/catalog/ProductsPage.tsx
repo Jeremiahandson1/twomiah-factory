@@ -11,10 +11,10 @@
 //     the empty-state icon and the photo placeholder have their dark partners;
 //   · the header wraps at phone width.
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Package, Plus } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useMayWrite } from '../../../../shared'
+import { PageError, errorText, useAuth, useMayWrite } from '../../../../shared'
 import { PRODUCT_STATUS, formatMoney, listOf, useStoreCurrency, type Product } from './lib'
 
 /**
@@ -26,6 +26,8 @@ function startingPrice(p: Product): { cents: number; wasCents: number | null } |
   const lo = p.variants.reduce((a, v) => (v.priceCents < a.priceCents ? v : a), p.variants[0])
   return { cents: lo.priceCents, wasCents: lo.compareAtPriceCents && lo.compareAtPriceCents > lo.priceCents ? lo.compareAtPriceCents : null }
 }
+/** An option that tracks its stock, has a level, and is at or under it (the server's lowStockProductCondition). */
+const isLow = (p: Product) => p.variants.some((v) => v.lowStockAt != null && v.inventoryQty != null && v.inventoryQty <= v.lowStockAt)
 function totalInventory(p: Product) {
   const tracked = p.variants.filter((v) => v.inventoryQty !== null)
   if (!tracked.length) return null
@@ -38,13 +40,18 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null)
   const currency = useStoreCurrency()
   const mayCreate = useMayWrite('products:create')
+  // Low-stock alerts (store_low_stock): the "Running low" filter is there only where the shop has them on.
+  const lowStockOn = useAuth().hasFeature('store_low_stock')
+  const [params, setParams] = useSearchParams()
+  const onlyLow = lowStockOn && params.get('filter') === 'low_stock'
 
   useEffect(() => {
-    api.get('/api/admin/products')
+    setLoading(true)
+    api.get('/api/admin/products', onlyLow ? { filter: 'low_stock' } : undefined)
       .then((r: unknown) => setProducts(listOf<Product>(r)))
       .catch((e: unknown) => setError(errorText(e, 'Could not load the products')))
       .finally(() => setLoading(false))
-  }, [])
+  }, [onlyLow])
 
   return (
     <div className="space-y-6">
@@ -53,12 +60,19 @@ export default function ProductsPage() {
         {mayCreate && <Link to="/crm/products/new" className="btn btn-primary"><Plus className="h-4 w-4" /> New product</Link>}
       </div>
 
+      {lowStockOn && (
+        <div className="flex gap-2" role="group" aria-label="Show">
+          <button type="button" aria-pressed={!onlyLow} className={onlyLow ? 'btn-secondary text-sm' : 'btn btn-primary text-sm'} onClick={() => setParams({})}>All products</button>
+          <button type="button" aria-pressed={onlyLow} className={onlyLow ? 'btn btn-primary text-sm' : 'btn-secondary text-sm'} onClick={() => setParams({ filter: 'low_stock' })}>Running low</button>
+        </div>
+      )}
+
       <PageError message={error} />
 
       {loading ? <PageSpinner /> : error ? null : products.length === 0 ? (
         <div className="card p-10 text-center">
           <Package className="h-10 w-10 mx-auto text-gray-400 dark:text-slate-500" />
-          <p className="mt-3 text-gray-600 dark:text-slate-300">No products yet.</p>
+          <p className="mt-3 text-gray-600 dark:text-slate-300">{onlyLow ? 'Nothing is running low.' : 'No products yet.'}</p>
           {mayCreate && <Link to="/crm/products/new" className="btn btn-primary mt-4 inline-flex"><Plus className="h-4 w-4" /> Add your first product</Link>}
         </div>
       ) : (
@@ -78,6 +92,7 @@ export default function ProductsPage() {
                     <div className="font-medium text-sm text-gray-900 truncate dark:text-slate-100">{p.name}</div>
                     <div className="text-xs text-gray-600 dark:text-slate-400">
                       {p.variants.length} {p.variants.length === 1 ? 'variant' : 'variants'}{inv !== null && ` · ${inv} in stock`}
+                      {lowStockOn && isLow(p) && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Running low</span>}
                     </div>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>

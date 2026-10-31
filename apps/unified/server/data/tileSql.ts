@@ -24,3 +24,10 @@ export function productSearchCondition(product: any, variant: any, q: string) {
     sql`exists (select 1 from ${variant} where ${variant.productId} = ${product.id} and (${variant.sku} ilike ${needle} or ${variant.name} ilike ${needle} or ${variant.gtin} = ${q.trim()}))`,
   )!
 }
+
+/**
+ * "Low stock" (store_low_stock): a product with an option that tracks its stock, has a level set, and is at or under it.
+ * One definition for the Products list's filter and the Dashboard's tile. `product` / `variant` are the Drizzle tables.
+ */
+export const lowStockProductCondition = (product: any, variant: any) =>
+  sql`exists (select 1 from ${variant} where ${variant.productId} = ${product.id} and ${variant.lowStockAt} is not null and ${variant.inventoryQty} is not null and ${variant.inventoryQty} <= ${variant.lowStockAt})`

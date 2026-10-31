@@ -229,7 +229,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'job_checklists', name: 'Job Checklists', description: 'Checklists you build for each kind of job, filled in on the phone and signed by the customer on site', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job checklists', 'checklists'] },
   { id: 'quote_options', name: 'Quote Options', description: 'Good / better / best on a quote you send: the customer picks one option, signs for it, and the deposit follows their pick', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['quote options', 'good better best'] },
   { id: 'job_reminders', name: 'Job Reminders', description: 'Automatic reminder texts and emails before the jobs you book', category: 'Communication', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job reminders'] },
-  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-store'], optIn: ['crm-store'] },
 
   // Communication
   { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Unified SMS inbox — every customer conversation logged', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
@@ -245,8 +245,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
   // Factory wizard. Put the templates back when the service is ready.
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
-  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review — sent automatically after a completed job or salon visit once switched on in Reviews › Settings, or by hand from Reviews', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
-  { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
+  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review — sent automatically after a completed job or salon visit once switched on in Reviews › Settings, or by hand from Reviews', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar', 'crm-store'], optIn: ['crm-store'] },
+  { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar', 'crm-store'], optIn: ['crm-store'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
 
   // Advanced
@@ -281,6 +281,18 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
   { id: 'products', name: 'Product Catalog', description: 'Your products, their variants, prices and stock', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
   { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
+  // Store sales reports — NOT ready (2026-10-30). Sales over time, top products, repeat customers and the average order for a
+  // store's own days (revenue:read: the owner and the managers). Hidden until the owner has run it on the live shop, so no
+  // plan, signup, Features page or Factory save switches it on (apps/unified/tests/not-ready-unseen.test.ts).
+  { id: 'store_sales_reports', name: 'Store Sales Reports', description: 'Sales over time, top products, repeat customers and the average order, for your own days', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store low-stock alerts — NOT ready (2026-10-30). A threshold per option, a Low stock filter and tile on Products, and ONE email
+  // to the owner when a sale takes an option down to it. Hidden until the owner has run it on the live shop.
+  { id: 'store_low_stock', name: 'Store Stock Alerts', description: 'Set a level per product option; get one email when a sale takes it down to that level, and see what is running low', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store product writer — NOT ready (2026-10-30). Drafts a product's description, search description and photo descriptions in a chosen
+  // tone for the owner to read and change; nothing is saved until the owner saves. Hidden until the owner has run it on the live shop.
+  { id: 'store_ai_writer', name: 'Store Product Writer', description: 'Draft a product description, search-result text and photo descriptions in a tone you pick, for you to edit before saving', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_accounts', name: 'Store Customer Accounts', description: 'Shoppers sign in with an emailed link or code to see their own orders, keep addresses, order again and pay their group’s prices', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_returns', name: 'Store Returns and Exchanges', description: 'Shoppers and staff start returns; you approve, receive the goods back, then refund to the card or store credit or send an exchange', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance

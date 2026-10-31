@@ -8,7 +8,7 @@
 // price it two ways.
 import { createId } from '@paralleldrive/cuid2'
 import { and, eq, inArray } from 'drizzle-orm'
-import { discountCode, storeOrder, storeOrderItem, storeProduct, storeProductImage, storeProductVariant } from '../../../db/schema/store.ts'
+import { discountCode, storeOrder, storeOrderItem, storeProduct, storeProductImage, storeProductVariant, type StoreAddress } from '../../../db/schema/store.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { groupPrice, type GroupPricing } from '../catalog/groupPricing.ts'
@@ -33,6 +33,11 @@ export interface StartInput {
   origin: string
   /** A draft order: made by the owner for this customer at their group's prices, paid from the emailed link. */
   draft?: { contactId: string; customerName?: string | null; pricing: GroupPricing | null; note?: string | null }
+  /**
+   * A signed-in shopper (their account's cookie, checked by the route): the order is theirs whatever email is typed, at
+   * their group's prices, with their saved address ready on the payment page. Never taken from the request body.
+   */
+  shopper?: { contactId: string; email: string; name: string | null; pricing: GroupPricing | null; shipping?: { name: string; address: StoreAddress } }
 }
 export type StartResult =
   | { ok: true; orderId: string; url: string; paidByGiftCard: boolean }
@@ -91,6 +96,8 @@ type Line = {
   sku: string; name: string; description?: string; imageUrl?: string
   unitPriceCents: number; quantity: number; giftCard: boolean
   productId: string; variantId: string; variantName: string; productName: string
+  /** The option's cost when bought, kept on the line for profit reports. */
+  unitCostCents: number | null
 }
 
 export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: CheckoutService, giftCards: StoreGiftCards) {
@@ -99,6 +106,8 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
 
   async function start(input: StartInput): Promise<StartResult> {
     const { companyId } = input
+    // A signed-in shopper's email is their account's, not whatever the form sent.
+    const customerEmail = input.shopper?.email ?? input.customerEmail
     const provider = await core.getActiveProvider(companyId)
     const settings = await core.settings(companyId)
     const currency = settings.currency ?? 'usd'
@@ -121,8 +130,8 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       if (giftCard && !sellableCardAmount(v.priceCents)) return refuse(400, `${p.name} is not on sale at that amount.`)
       lines.push({
         sku: v.sku, name: v.name && v.name !== p.name ? `${p.name} — ${v.name}` : p.name, description: p.tagline ?? undefined,
-        unitPriceCents: groupPrice(v.priceCents, v.id, input.draft?.pricing ?? null, giftCard), quantity: qty, giftCard,
-        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name,
+        unitPriceCents: groupPrice(v.priceCents, v.id, input.draft?.pricing ?? input.shopper?.pricing ?? null, giftCard), quantity: qty, giftCard,
+        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name, unitCostCents: v.costCents ?? null,
       })
     }
     if (!lines.length) return refuse(400, 'None of these items are available')
@@ -158,9 +167,9 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     // A loyalty reward, priced by the server against this cart; the points are spent when the order is paid.
     let loyaltyDiscountCents = 0
     let loyaltyRewardId: string | null = null
-    if (input.loyaltyRewardId && input.customerEmail && goodsCents > 0) {
+    if (input.loyaltyRewardId && customerEmail && goodsCents > 0) {
       try {
-        const quoted = await core.quoteRewardForCheckout(companyId, input.customerEmail, input.loyaltyRewardId, goodsCents)
+        const quoted = await core.quoteRewardForCheckout(companyId, customerEmail, input.loyaltyRewardId, goodsCents)
         loyaltyDiscountCents = Math.max(0, Math.min(quoted, goodsCents - discountCents))
         if (loyaltyDiscountCents > 0) loyaltyRewardId = input.loyaltyRewardId
       } catch { /* a loyalty problem must not stop a customer paying */ }
@@ -178,7 +187,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     if (input.giftCardCode && !input.draft) {
       const c = await giftCards.cards.findCard(companyId, input.giftCardCode)
       if (!c || c.status !== 'active' || c.balanceCents <= 0) return refuse(400, !c ? 'That gift card number was not found.' : c.status !== 'active' ? 'That gift card is no longer active.' : 'That gift card has nothing left on it.', 'gift_card')
-      if (!input.customerEmail) return refuse(400, 'Enter your email to pay with a gift card — your receipt goes there.', 'gift_card')
+      if (!customerEmail) return refuse(400, 'Enter your email to pay with a gift card — your receipt goes there.', 'gift_card')
       card = { id: c.id, balanceCents: c.balanceCents }
     }
     const payable = totalCents - cardLinesCents
@@ -189,9 +198,9 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     // pay: it goes to the provider with the minimum left on it rather than being taken as paid.
     if (!provider && !(card && wantFromCard >= totalCents && !automaticTax)) return refuse(503, 'This store is not accepting orders yet')
 
-    let contactId: string | null = input.draft?.contactId ?? null
-    if (!contactId && input.customerEmail) {
-      try { contactId = await core.shopperFor(companyId, { email: input.customerEmail }) } catch (e: any) {
+    let contactId: string | null = input.draft?.contactId ?? input.shopper?.contactId ?? null
+    if (!contactId && customerEmail) {
+      try { contactId = await core.shopperFor(companyId, { email: customerEmail }) } catch (e: any) {
         logger.warn('[store] shopper contact not made at checkout', { error: e?.message })
       }
     }
@@ -201,11 +210,11 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const [order] = await db.insert(storeOrder).values({
       id: orderId, companyId, contactId, orderNumber: orderNumberFor(orderId),
       provider: provider?.name ?? 'giftcard', providerSessionId: `pending_${createId()}`, status: 'pending',
-      customerEmail: input.customerEmail ?? NO_EMAIL_YET, customerName: input.draft?.customerName ?? null,
+      customerEmail: customerEmail ?? NO_EMAIL_YET, customerName: input.draft?.customerName ?? input.shopper?.name ?? null,
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
-      source: input.draft ? 'draft' : 'storefront', customerGroupId: input.draft?.pricing?.groupId ?? null,
+      source: input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
       internalNote: input.draft?.note ?? null,
       // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout).
       recoveryToken: input.draft ? newRecoveryToken() : null,
@@ -213,6 +222,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     await db.insert(storeOrderItem).values(lines.map((li) => ({
       orderId: order.id, productId: li.productId, variantId: li.variantId, productName: li.productName, variantName: li.variantName,
       sku: li.sku, imageUrl: li.imageUrl ?? null, unitPriceCents: li.unitPriceCents, quantity: li.quantity, lineTotalCents: li.unitPriceCents * li.quantity,
+      unitCostCents: li.unitCostCents,
     })))
     // The audit log: an order begun (store live test, 2026-10-26: orders left no record there). Unpaid until the provider
     // says so (checkoutService.ts finalizeOrder records "paid").
@@ -237,7 +247,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       // Nothing went through a provider: the order says it was paid by gift card, which is where a refund goes back.
       const [fresh] = await db.update(storeOrder).set({ provider: 'giftcard', updatedAt: new Date() })
         .where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId))).returning()
-      await checkout.finalizeOrder(fresh, { type: 'paid', providerSessionId: fresh.providerSessionId, customerEmail: input.customerEmail })
+      await checkout.finalizeOrder(fresh, { type: 'paid', providerSessionId: fresh.providerSessionId, customerEmail })
       return { ok: true, orderId: order.id, url: `${storefront}/checkout/success?ref=${encodeURIComponent(order.id)}`, paidByGiftCard: true }
     }
     if (!provider) { await forget('No payment provider'); return refuse(503, 'This store is not accepting orders yet') }
@@ -252,7 +262,8 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
         currency, shippingCents, taxCents,
         // EVERYTHING taken off — the code, the loyalty reward, and what the gift card pays: the provider charges the rest.
         discountCents: totalDiscountCents + heldCents,
-        customerEmail: input.customerEmail,
+        customerEmail,
+        ...(input.shopper?.shipping ? { prefill: { name: input.shopper.name ?? input.shopper.shipping.name, shipping: input.shopper.shipping } } : {}),
         collectShippingAddress: fulfillment === 'ship',
         automaticTax,
         // Stripe Tax needs an address; a pickup or gift-card order has no shipping one, so the billing address is asked.

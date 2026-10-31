@@ -316,6 +316,13 @@
       "when": 1793407982362,
       "tag": "0044_restaurant_bar_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793408833993,
+      "tag": "0045_store_depth",
+      "breakpoints": true
     }
   ]
 }

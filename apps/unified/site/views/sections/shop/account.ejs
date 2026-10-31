@@ -1,0 +1,22 @@
+<%
+  // The shopper's account page: no server data. /scripts/account.js fills #account-root — the sign-in form, or (signed in)
+  // their orders and saved addresses — from /api/public/account. `confirm` is the page the emailed link opens: it shows a
+  // button, and only pressing it signs in (a mail scanner opening the link must not use it up).
+%>
+<div class="store-page account-page">
+  <div class="container">
+    <a href="/shop" class="store-back-link">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      Continue Shopping
+    </a>
+    <h1 class="cart-title">Your Account</h1>
+    <div id="account-root" class="account-root"<%- data && data.confirm ? ' data-confirm="1"' : '' %>>
+      <div class="cart-loading">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p>Loading&hellip;</p>
+      </div>
+    </div>
+    <noscript><p class="store-empty">Your account needs JavaScript to work in this browser.</p></noscript>
+  </div>
+</div>
+<script src="/scripts/account.js?v=1" defer></script>

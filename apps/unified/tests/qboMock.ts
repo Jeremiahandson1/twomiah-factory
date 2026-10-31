@@ -6,6 +6,10 @@
 //   GET  /v3/company/{realm}/invoice/{id}                         → { Invoice }
 //   POST /v3/company/{realm}/payment      { Payment }             → { Payment: { Id, SyncToken, TotalAmt, … } }
 //   POST oauth.platform.intuit.com/oauth2/v1/tokens/bearer        → { access_token, refresh_token, expires_in, … }
+// and, for the online store's books (server/crm/store/books.ts):
+//   GET  /v3/company/{realm}/query?query=select * from Account where Name = 'x'  → { QueryResponse: { Account: [...] } }
+//   POST /v3/company/{realm}/account | item | salesreceipt | refundreceipt | deposit → { Account | Item | SalesReceipt | … }
+//   (a deposit links receipts one time each and its lines must add up; Undeposited Funds and one bank account exist)
 // and its refusals: a ValidationFault (400) with Fault.Error[{ Message, Detail, code }] — a duplicate display name is
 // 6240, a stale SyncToken 5010, an unknown reference 2500 — and a 401 AUTHENTICATION fault with lowercase keys, as
 // Intuit sends it for an expired or revoked token. Any other address is refused: no test reaches the internet.
@@ -15,6 +19,11 @@ export function createQboMock() {
   const customers = new Map<string, Rec>()
   const invoices = new Map<string, Rec>()
   const payments = new Map<string, Rec>()
+  const accounts = new Map<string, Rec>()
+  const items = new Map<string, Rec>()
+  const salesReceipts = new Map<string, Rec>()
+  const refundReceipts = new Map<string, Rec>()
+  const deposits = new Map<string, Rec>()
   const calls: Array<{ method: string; path: string; body: any }> = []
   let nextId = 100
   let authFails = false
@@ -24,6 +33,80 @@ export function createQboMock() {
   const validation = (code: string, Message: string, Detail: string) =>
     reply(400, { Fault: { Error: [{ Message, Detail, code, element: '' }], type: 'ValidationFault' }, time: time() })
   const notFound = (what: string, oid: string) => validation('610', 'Object Not Found', `Object Not Found : Something you're trying to use has been made inactive. Check the fields with accounts, customers, items, vendors or employees. ${what} ${oid}`)
+
+  const money = (n: number) => Math.round(n * 100) / 100
+  const addAccount = (a: Rec) => { const made = { Active: true, SyncToken: '0', ...a, Id: id() }; accounts.set(made.Id, made); return made }
+  addAccount({ Name: 'Undeposited Funds', AccountType: 'Other Current Asset', AccountSubType: 'UndepositedFunds' })
+  addAccount({ Name: 'Checking', AccountType: 'Bank', AccountSubType: 'Checking' })
+
+  function account(body: any) {
+    const a = body
+    if (!a?.Name || !a?.AccountType) return validation('2020', 'Required param missing, need to supply the required value for the API', 'Name and AccountType are required')
+    if ([...accounts.values()].some((x) => x.Name.toLowerCase() === String(a.Name).toLowerCase())) return validation('6240', 'Duplicate Name Exists Error', 'The name supplied already exists.')
+    return reply(200, { Account: addAccount(a), time: time() })
+  }
+  function item(body: any) {
+    if (!body?.Name || body.Type !== 'Service') return validation('2020', 'Required param missing, need to supply the required value for the API', 'Name and Type are required')
+    const acc = accounts.get(String(body.IncomeAccountRef?.value))
+    if (!acc) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Account ${body.IncomeAccountRef?.value ?? '(none)'}`)
+    if (!['Income', 'Other Current Liability'].includes(acc.AccountType)) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: The income account must be an income or liability account.')
+    if ([...items.values()].some((x) => x.Name.toLowerCase() === String(body.Name).toLowerCase())) return validation('6240', 'Duplicate Name Exists Error', 'The name supplied already exists.')
+    const made = { ...body, Id: id(), SyncToken: '0', Active: true }
+    items.set(made.Id, made)
+    return reply(200, { Item: made, time: time() })
+  }
+  /** A sales or refund receipt: a known customer, an account to hold the money, lines that are an item times a quantity. */
+  function receipt(kind: 'SalesReceipt' | 'RefundReceipt', body: any) {
+    const r = body
+    if (!r?.CustomerRef?.value || !customers.has(String(r.CustomerRef.value))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Customer ${r?.CustomerRef?.value ?? '(none)'}`)
+    const accountRef = kind === 'SalesReceipt' ? r.DepositToAccountRef : r.RefundFromAccountRef
+    if (!accounts.has(String(accountRef?.value))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Account ${accountRef?.value ?? '(none)'}`)
+    if (!Array.isArray(r.Line) || !r.Line.length) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: You must fill out at least one split line.')
+    for (const l of r.Line) {
+      if (l.DetailType !== 'SalesItemLineDetail' || typeof l.Amount !== 'number') return validation('2010', 'Request has invalid or unsupported property', 'Property Name:Line.Amount')
+      const d = l.SalesItemLineDetail
+      if (!items.has(String(d?.ItemRef?.value))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Item ${d?.ItemRef?.value ?? '(none)'}`)
+      if (Math.abs(money(d.Qty * d.UnitPrice) - l.Amount) > 0.005) return validation('6000', 'A business validation error has occurred while processing your request', `Business Validation Error: ${l.Description} — quantity times unit price is not the amount.`)
+    }
+    const total = money(r.Line.reduce((n: number, l: any) => n + l.Amount, 0))
+    if (total < 0) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: The total cannot be negative.')
+    const made = { ...r, Id: id(), SyncToken: '0', TotalAmt: total }
+    ;(kind === 'SalesReceipt' ? salesReceipts : refundReceipts).set(made.Id, made)
+    return reply(200, { [kind]: made, time: time() })
+  }
+  function deposit(body: any) {
+    const dep = body
+    const bank = accounts.get(String(dep?.DepositToAccountRef?.value))
+    if (!bank || bank.AccountType !== 'Bank') return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Account ${dep?.DepositToAccountRef?.value ?? '(none)'}`)
+    if (!Array.isArray(dep.Line) || !dep.Line.length) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: You must fill out at least one split line.')
+    const used = new Set<string>()
+    for (const l of dep.Line) {
+      for (const t of l.LinkedTxn || []) {
+        const src = t.TxnType === 'SalesReceipt' ? salesReceipts.get(String(t.TxnId)) : t.TxnType === 'RefundReceipt' ? refundReceipts.get(String(t.TxnId)) : null
+        if (!src) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : ${t.TxnType} ${t.TxnId}`)
+        if (src.depositedIn || used.has(src.Id)) return validation('6000', 'A business validation error has occurred while processing your request', `Business Validation Error: ${t.TxnType} ${src.DocNumber} is already deposited.`)
+        const want = t.TxnType === 'SalesReceipt' ? src.TotalAmt : -src.TotalAmt
+        if (Math.abs(l.Amount - want) > 0.005) return validation('6000', 'A business validation error has occurred while processing your request', `Business Validation Error: the amount of ${t.TxnType} ${src.DocNumber} is ${want}, not ${l.Amount}.`)
+        used.add(src.Id)
+      }
+      if (!l.LinkedTxn?.length && !accounts.has(String(l.DepositLineDetail?.AccountRef?.value))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Account ${l.DepositLineDetail?.AccountRef?.value ?? '(none)'}`)
+    }
+    const made = { ...dep, Id: id(), SyncToken: '0', TotalAmt: money(dep.Line.reduce((n: number, l: any) => n + l.Amount, 0)) }
+    for (const sid of used) (salesReceipts.get(sid) ?? refundReceipts.get(sid))!.depositedIn = made.Id
+    deposits.set(made.Id, made)
+    return reply(200, { Deposit: made, time: time() })
+  }
+  /** select * from <Entity> where <Field> = '<value>' — the one shape the app asks. */
+  function query(q: string) {
+    const m = /^select \* from (\w+) where (\w+) = '((?:\\.|[^'])*)'/i.exec(q.trim())
+    if (!m) return validation('4000', 'Query parse error', q)
+    const [, entity, field, raw] = m
+    const value = raw.replace(/\\(.)/g, '$1')
+    const source = entity === 'Account' ? accounts : entity === 'Item' ? items : entity === 'Customer' ? customers : null
+    if (!source) return validation('4000', 'Query parse error', `Unknown entity ${entity}`)
+    const rows = [...source.values()].filter((r) => String(r[field]).toLowerCase() === value.toLowerCase())
+    return reply(200, { QueryResponse: rows.length ? { [entity]: rows } : {}, time: time() })
+  }
 
   function customer(body: any) {
     const c = body?.Customer
@@ -94,6 +177,12 @@ export function createQboMock() {
     const m = /^\/v3\/company\/([^/]+)\/([a-z]+)(?:\/([^/]+))?$/.exec(url.pathname)
     if (!m) return reply(404, { Fault: { Error: [{ Message: 'Unsupported Operation', Detail: url.pathname, code: '500' }], type: 'ValidationFault' } })
     const [, , entity, oid] = m
+    if (entity === 'query' && method === 'GET') return query(url.searchParams.get('query') || '')
+    if (method === 'POST' && entity === 'account') return account(body)
+    if (method === 'POST' && entity === 'item') return item(body)
+    if (method === 'POST' && entity === 'salesreceipt') return receipt('SalesReceipt', body?.SalesReceipt)
+    if (method === 'POST' && entity === 'refundreceipt') return receipt('RefundReceipt', body?.RefundReceipt)
+    if (method === 'POST' && entity === 'deposit') return deposit(body?.Deposit)
     const store = entity === 'customer' ? customers : entity === 'invoice' ? invoices : entity === 'payment' ? payments : null
     if (!store) return reply(400, { Fault: { Error: [{ Message: 'Unsupported Operation', Detail: entity, code: '500' }], type: 'ValidationFault' } })
     if (method === 'GET') {
@@ -107,7 +196,9 @@ export function createQboMock() {
   }
 
   return {
-    customers, invoices, payments, calls, fetch: fetchMock,
+    customers, invoices, payments, accounts, items, salesReceipts, refundReceipts, deposits, calls, fetch: fetchMock,
+    /** A second bank account, so the owner has to choose. */
+    addBank(name: string) { return addAccount({ Name: name, AccountType: 'Bank', AccountSubType: 'Savings' }) },
     /** Every request from now on answers 401 (a revoked token), until switched back. */
     revoke(on = true) { authFails = on },
     writes: () => calls.filter((c) => c.method === 'POST' && c.path.startsWith('/v3/')),

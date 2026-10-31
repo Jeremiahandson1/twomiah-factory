@@ -2,7 +2,7 @@
 import Stripe from 'stripe'
 import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
-  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult, DisputeNotice,
+  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult, DisputeNotice, PayoutSummary, PayoutLine,
 } from './types.ts'
 import { RefundRefused } from './types.ts'
 import type { StoreAddress as Address } from '../../../db/schema/store.ts'
@@ -78,6 +78,16 @@ export class StripeProvider implements PaymentProvider {
       })
     }
 
+    let prefillCustomer: string | null = null
+    if (input.prefill && input.collectShippingAddress) {
+      const a = input.prefill.shipping.address
+      const customer = await this.stripe.customers.create({
+        ...(input.customerEmail ? { email: input.customerEmail } : {}), name: input.prefill.name,
+        shipping: { name: input.prefill.shipping.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } },
+      }, this.opts)
+      prefillCustomer = customer.id
+    }
+
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       line_items,
@@ -88,7 +98,9 @@ export class StripeProvider implements PaymentProvider {
       phone_number_collection: { enabled: true },
       ...(auto ? { automatic_tax: { enabled: true } } : {}),
       ...(input.collectBillingAddress ? { billing_address_collection: 'required' as const } : {}),
-      ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+      // A signed-in shopper's saved address: a Stripe Customer (on the merchant's own account) that carries it, so the
+      // payment page opens with it filled in. Checkout takes the customer in place of customer_email.
+      ...(prefillCustomer ? { customer: prefillCustomer, customer_update: { shipping: 'auto' as const, name: 'auto' as const } } : input.customerEmail ? { customer_email: input.customerEmail } : {}),
       ...(input.collectShippingAddress
         ? { shipping_address_collection: { allowed_countries: ['US'] } }
         : {}),
@@ -143,6 +155,37 @@ export class StripeProvider implements PaymentProvider {
   async taxStatus(): Promise<'active' | 'pending'> {
     const s = await this.stripe.tax.settings.retrieve({}, this.opts)
     return s.status === 'active' ? 'active' : 'pending'
+  }
+
+  // Payouts that reached the bank on or after `sinceUnix` (Stripe: status 'paid'), oldest first.
+  async payouts(sinceUnix: number): Promise<PayoutSummary[]> {
+    const list = await this.stripe.payouts.list({ status: 'paid', arrival_date: { gte: sinceUnix }, limit: 100 }, this.opts)
+    return list.data.map((p) => ({ id: p.id, amountCents: p.amount, currency: p.currency, arrivedAt: new Date(p.arrival_date * 1000) }))
+      .sort((a, b) => a.arrivedAt.getTime() - b.arrivedAt.getTime())
+  }
+
+  // What one payout was made of: its balance transactions, each with the charge or refund behind it. The payout's own
+  // line (type 'payout') is the total itself and is left out.
+  async payoutLines(payoutId: string): Promise<PayoutLine[]> {
+    const lines: PayoutLine[] = []
+    let after: string | undefined
+    for (;;) {
+      const page = await this.stripe.balanceTransactions.list({ payout: payoutId, limit: 100, expand: ['data.source'], ...(after ? { starting_after: after } : {}) }, this.opts)
+      for (const t of page.data) {
+        if (t.type === 'payout') continue
+        const src: any = t.source && typeof t.source === 'object' ? t.source : null
+        const pi = src?.payment_intent ?? src?.charge?.payment_intent ?? null
+        lines.push({
+          id: t.id, type: t.type, grossCents: t.amount, feeCents: t.fee, netCents: t.net,
+          paymentId: typeof pi === 'string' ? pi : pi?.id ?? null,
+          refundId: t.type === 'refund' || t.type === 'payment_refund' ? (src?.id ?? null) : null,
+          description: t.description ?? null,
+        })
+      }
+      if (!page.has_more || !page.data.length) break
+      after = page.data[page.data.length - 1].id
+    }
+    return lines
   }
 
   // Part of the payment (amountCents), or with no amount whatever of it has not gone back yet, to the card it came

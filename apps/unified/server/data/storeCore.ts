@@ -1,8 +1,9 @@
 // The store core's raw SQL (RULEBOOK §2), for server/crm/store/core.ts: a shopper found by email whatever its case, a
 // reward's use counted in the statement that writes it, and the loyalty member locked for the one pass that spends and
 // earns an order's points (templates/crm-store/backend/src/services/loyalty.ts settleLoyaltyForPaidOrder).
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, notInArray, sql } from 'drizzle-orm'
 import { contact, loyaltyReward } from '../db/schema/index.ts'
+import { storeOrder } from '../db/schema/store.ts'
 
 /** The company's contact with this email, compared lower-cased (the address is stored as typed). Oldest first. */
 export async function contactByEmail(db: any, companyId: string, emailLower: string): Promise<any | null> {
@@ -40,4 +41,11 @@ export async function lockLoyaltyMember(tx: any, memberId: string, companyId: st
     qualifyingVisits: Number(row.qualifying_visits) || 0,
     punchRewardsEarned: Number(row.punch_rewards_earned) || 0,
   }
+}
+
+/** How many sales this customer has made (an unfinished checkout and a cancelled order are not sales; a refunded one was). */
+export async function countedOrdersOf(db: any, companyId: string, contactId: string): Promise<number> {
+  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(storeOrder)
+    .where(and(eq(storeOrder.companyId, companyId), eq(storeOrder.contactId, contactId), notInArray(storeOrder.status, ['pending', 'cancelled'])))
+  return Number(row?.n ?? 0)
 }

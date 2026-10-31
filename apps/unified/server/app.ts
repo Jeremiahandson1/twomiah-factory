@@ -93,7 +93,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // The app is made below; a link fetches through it (as the person who asked), so it is reached lazily.
   const downloads = createDownloadLinks({ fetchApp: (req) => app.fetch(req) })
   const adsConnector = createCrmAdsConnector()
-  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM, vocabulary: vertical.vocabulary, stripe: deps.testing?.stripe })
+  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM, featureSet: vertical.featureSet, vocabulary: vertical.vocabulary, stripe: deps.testing?.stripe })
   // Phone notifications, every vertical: the sender and the phones (core/phonePush.ts), and who is told what — a job
   // assigned or rescheduled, a new lead (crm/notify/phoneRules.ts). The job scan is timed work: boot only, never tests.
   const phonePush = createPhonePush({ db, logger })
@@ -219,7 +219,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         // A store's website reads its shop through the store add-on (crm/store createStorefront); a bar's sections read
         // its night through the bar add-on (crm/bar/barSite.ts, SiteSettings.facts).
         .route('/', createSiteRoutes({
-          db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm, audit }) : null,
+          db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm, audit, isFeatureEnabled: features.isFeatureEnabled }) : null,
           facts: vertical.site.facts === 'bar' ? createBarSite({ db, live: createBarLive(db) })
             : vertical.site.facts === 'menu' ? createMenuSite({ db, live: createBarLive(db) }) : null,
         })),

@@ -73,6 +73,10 @@ export const storeProductVariant = pgTable('product_variants', {
   compareAtPriceCents: integer('compare_at_price_cents'),
   weightOz: integer('weight_oz'),
   inventoryQty: integer('inventory_qty'), // null = not tracked
+  /** Low-stock level (store_low_stock): at or under it, the option is on the Low stock list and the owner's daily email. null = no level. */
+  lowStockAt: integer('low_stock_at'),
+  /** What one unit costs the shop (the owner types it; margin:read sees it). Sales reports work profit out from it; null = no cost. */
+  costCents: integer('cost_cents'),
   /** The feeds' identifiers, sent when present. */
   gtin: text('gtin'),
   mpn: text('mpn'),
@@ -148,6 +152,9 @@ export const storeOrder = pgTable('orders', {
   disputeStatus: text('dispute_status'),
   readyForPickupAt: timestamp('ready_for_pickup_at'),
   pickedUpAt: timestamp('picked_up_at'),
+  /** The QuickBooks sales receipt this paid order became (store/books.ts): set once it is sent, so it is never sent twice. */
+  qbSalesReceiptId: text('qb_sales_receipt_id'),
+  qbSyncedAt: timestamp('qb_synced_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -176,6 +183,8 @@ export const storeOrderItem = pgTable('order_items', {
   quantity: integer('quantity').notNull(),
   lineTotalCents: integer('line_total_cents').notNull(),
   refundedQuantity: integer('refunded_quantity').notNull().default(0),
+  /** The option's cost when this was bought (a later cost edit never rewrites a sale's profit); null = it had none. */
+  unitCostCents: integer('unit_cost_cents'),
 }, (t) => [index('order_items_order_idx').on(t.orderId)])
 
 /**
@@ -199,7 +208,103 @@ export const storeOrderRefund = pgTable('order_refunds', {
   createdByName: text('created_by_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   settledAt: timestamp('settled_at'),
+  /** The QuickBooks refund receipt this refund became (store/books.ts). */
+  qbRefundReceiptId: text('qb_refund_receipt_id'),
+  /** How much of amount_cents went back as store credit (a gift card) rather than to the card it was paid with. */
+  creditCents: integer('credit_cents').notNull().default(0),
 }, (t) => [index('order_refunds_order_idx').on(t.orderId)])
+
+export type ReturnLine = { orderItemId: string; quantity: number }
+
+/**
+ * A return (store_returns): a shopper or staff member asks to send some of an order back. requested → approved | declined
+ * → received → refunded | exchanged (or cancelled by the shopper before it is decided). The money is NOT here: a refund
+ * goes through the order's refund machinery (order_refunds, refund_row_id) and an exchange makes a new order
+ * (exchange_order_id) that costs nothing.
+ */
+export const storeReturn = pgTable('store_returns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  orderId: text('order_id').notNull().references(() => storeOrder.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  returnNumber: text('return_number').notNull(),
+  status: text('status').notNull().default('requested'),
+  /** shopper | staff */
+  startedBy: text('started_by').notNull().default('shopper'),
+  startedByName: text('started_by_name'),
+  /** refund | exchange */
+  resolution: text('resolution').notNull().default('refund'),
+  /** defective | wrong_item | not_as_described | changed_mind | other */
+  reason: text('reason').notNull().default('other'),
+  note: text('note'),
+  /** An exchange: what the shopper would like instead, in their words. */
+  wanted: text('wanted'),
+  /** The shopper would rather have store credit than the card refunded. */
+  preferCredit: boolean('prefer_credit').notNull().default(false),
+  staffNote: text('staff_note'),
+  declineReason: text('decline_reason'),
+  items: json('items').$type<ReturnLine[]>().notNull().default([]),
+  /** Started after the return window closed, by a staff member who allowed it. */
+  late: boolean('late').notNull().default(false),
+  /** Worked out at approval and kept: what the goods were worth, what the shop keeps, what goes back and how. */
+  lineValueCents: integer('line_value_cents').notNull().default(0),
+  restockingFeeCents: integer('restocking_fee_cents').notNull().default(0),
+  returnShippingFeeCents: integer('return_shipping_fee_cents').notNull().default(0),
+  refundCents: integer('refund_cents').notNull().default(0),
+  creditCents: integer('credit_cents').notNull().default(0),
+  labelUrl: text('label_url'),
+  labelTracking: text('label_tracking'),
+  labelCarrier: text('label_carrier'),
+  labelCostCents: integer('label_cost_cents'),
+  labelClaimedAt: timestamp('label_claimed_at'),
+  /** The order_refunds row that sent the money back, and the order an exchange made. */
+  refundRowId: text('refund_row_id'),
+  exchangeOrderId: text('exchange_order_id'),
+  decidedAt: timestamp('decided_at'),
+  decidedByName: text('decided_by_name'),
+  receivedAt: timestamp('received_at'),
+  receivedByName: text('received_by_name'),
+  /** The units went back on the shelf when the parcel was received (not when the money went back). */
+  restockedAt: timestamp('restocked_at'),
+  closedAt: timestamp('closed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_returns_company_number_unique').on(t.companyId, t.returnNumber),
+  index('store_returns_order_idx').on(t.orderId),
+  index('store_returns_company_status_idx').on(t.companyId, t.status),
+])
+
+/**
+ * What the store's books need QuickBooks to know that QuickBooks does not hold itself (store/books.ts): the bank account
+ * the payouts land in (the owner's choice) and the accounts and items the store made or found in QuickBooks, by name,
+ * so each is looked up once. One row per company.
+ */
+export const storeBooks = pgTable('store_books', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  bankAccountId: text('bank_account_id'),
+  bankAccountName: text('bank_account_name'),
+  refs: json('refs').$type<Record<string, string>>().notNull().default({}),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_books_company_unique').on(t.companyId)])
+
+/**
+ * One Stripe payout as the books saw it: what Stripe paid into the bank, the fees taken out of it, and the QuickBooks
+ * deposit made for it (so it matches the bank's line). `lines` is what was in it, for the owner to read.
+ */
+export const storePayout = pgTable('store_payouts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  providerPayoutId: text('provider_payout_id').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  feeCents: integer('fee_cents').notNull().default(0),
+  arrivedAt: timestamp('arrived_at').notNull(),
+  lines: json('lines').$type<unknown[]>().notNull().default([]),
+  qbDepositId: text('qb_deposit_id'),
+  qbSyncedAt: timestamp('qb_synced_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_payouts_company_payout_unique').on(t.companyId, t.providerPayoutId)])
 
 // ── Marketing ────────────────────────────────────────────────────────────────
 export const discountCode = pgTable('discount_codes', {
@@ -265,6 +370,16 @@ export const storeSettings = pgTable('store_settings', {
   pickupHours: text('pickup_hours'),
   /** The private part of the product feeds' addresses (Google Merchant Center, Meta); a new one retires the old. */
   feedToken: text('feed_token'),
+  /** The return rule (store_returns): days after the order shipped (else was placed) that a return may be started. */
+  returnWindowDays: integer('return_window_days').notNull().default(30),
+  /** Kept from the goods' value on a return, in basis points (1000 = 10%); not kept when the return is the shop's fault. */
+  restockingFeeBps: integer('restocking_fee_bps').notNull().default(0),
+  /** Kept for the return postage; not kept when the return is the shop's fault. */
+  returnShippingFeeCents: integer('return_shipping_fee_cents').notNull().default(0),
+  /** Buy the shopper a prepaid return label (EasyPost) when a return is approved. */
+  returnLabels: boolean('return_labels').notNull().default(false),
+  /** May a signed-in shopper start a return themselves? Off: only staff start them. */
+  shopperReturns: boolean('shopper_returns').notNull().default(true),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_settings_company_unique').on(t.companyId)])
 
@@ -370,3 +485,69 @@ export const storeDispute = pgTable('store_disputes', {
   uniqueIndex('store_disputes_provider_dispute_unique').on(t.provider, t.providerDisputeId),
   index('store_disputes_company_idx').on(t.companyId),
 ])
+
+// ── Shopper accounts ─────────────────────────────────────────────────────────
+// A shopper signs in with an emailed link or code (crm/store/accounts). Their session is NOT the staff session: its own
+// cookie, its own table, and it reaches only the shopper's own orders and addresses.
+
+/**
+ * One emailed sign-in: a link's token and a short code, both kept only as keyed hashes, good for 15 minutes, used once.
+ * `attempts` counts wrong codes: after five the sign-in is spent and a new one must be asked for.
+ */
+export const shopperLogin = pgTable('shopper_logins', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** The customer it was sent to — null for a brand-new shopper, whose contact is made when the sign-in is first confirmed. */
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'cascade' }),
+  /** The address it was sent to, lower-case: how a sign-in with no contact yet is found, counted and capped. */
+  email: text('email'),
+  tokenHash: text('token_hash').notNull(),
+  codeHash: text('code_hash').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  expiresAt: timestamp('expires_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('shopper_logins_token_unique').on(t.tokenHash),
+  index('shopper_logins_contact_idx').on(t.contactId, t.createdAt),
+  index('shopper_logins_email_idx').on(t.companyId, t.email, t.createdAt),
+])
+
+/** A signed-in shopper's browser: the cookie holds a random token, this holds its hash. Ending it signs the browser out. */
+export const shopperSession = pgTable('shopper_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('shopper_sessions_token_unique').on(t.tokenHash),
+  index('shopper_sessions_contact_idx').on(t.contactId),
+])
+
+/** An address a shopper saved on their account. */
+export const shopperAddress = pgTable('shopper_addresses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  label: text('label'),
+  name: text('name').notNull(),
+  phone: text('phone'),
+  address: json('address').$type<StoreAddress>().notNull(),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('shopper_addresses_contact_idx').on(t.contactId)])
+
+/**
+ * One request to an AI drafting tool, kept for an hour's worth of counting (server/crm/aiUse.ts): the product writer's cap per
+ * company. `feature` names the tool, so the next catalog to get a writer (pricebook, a salon's menu) shares the one counter's
+ * code, with a count of its own. Rows older than a day are swept as new ones are added.
+ */
+export const aiDraftUse = pgTable('ai_draft_uses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  feature: text('feature').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('ai_draft_uses_company_idx').on(t.companyId, t.feature, t.createdAt)])

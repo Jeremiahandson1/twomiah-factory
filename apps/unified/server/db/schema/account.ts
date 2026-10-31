@@ -35,6 +35,10 @@ export const qbSyncRun = pgTable('qb_sync_run', {
   customers: integer('customers').default(0).notNull(),
   invoices: integer('invoices').default(0).notNull(),
   payments: integer('payments').default(0).notNull(),
+  /** A store's: paid orders sent as sales receipts, refunds as refund receipts, Stripe payouts as deposits (0044). */
+  orders: integer('orders').default(0).notNull(),
+  refunds: integer('refunds').default(0).notNull(),
+  payouts: integer('payouts').default(0).notNull(),
   failed: integer('failed').default(0).notNull(),
   error: text('error'),
   startedAt: timestamp('started_at').defaultNow().notNull(),
@@ -50,7 +54,7 @@ export const qbSyncRun = pgTable('qb_sync_run', {
 export const qbSyncFailure = pgTable('qb_sync_failure', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  entity: text('entity').notNull(),                            // 'customer' | 'invoice' | 'payment'
+  entity: text('entity').notNull(),                            // 'customer' | 'invoice' | 'payment' | 'order' | 'refund' | 'payout'
   entityId: text('entity_id').notNull(),
   label: text('label'),
   attempts: integer('attempts').default(1).notNull(),

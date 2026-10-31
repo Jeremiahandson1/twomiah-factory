@@ -480,7 +480,13 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
     // A part the provider is holding (providerRefundId set while pending) is asked after by its own id — never sent again.
     // `told` is the provider's own word on it, from its webhook.
     const held = row.status === 'pending' && !!row.providerRefundId
-    const money = told ?? (held ? await refundStanding(order, row.providerRefundId!) : await returnPayment(order, { amountCents: row.amountCents, idempotencyKey: PART_KEY(row.id), reason: row.reason }))
+    // STORE CREDIT (a return refunded partly or wholly as credit): that share never goes through the provider; what is left of
+    // the refund does, as ever. A refund that is all credit asks the provider nothing.
+    const credit = Math.min(row.creditCents ?? 0, row.amountCents)
+    const viaProvider = row.amountCents - credit
+    const money = told ?? (held ? await refundStanding(order, row.providerRefundId!)
+      : viaProvider > 0 ? await returnPayment(order, { amountCents: viaProvider, idempotencyKey: PART_KEY(row.id), reason: row.reason })
+        : { kind: 'refunded', refundId: null, status: 'succeeded', amountCents: 0 } as MoneyBack)
     const items = await itemsOf(order.id)
     const what = partDescription(row, items, order.currency)
     if (money.kind === 'failed') {
@@ -503,6 +509,15 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
       }
       return { money, settled: null }
     }
+    // The credit is given before the row is settled, once per refund row (the card's idempotency key), so a retry after a
+    // failure here hands back the card it already made and the provider's own idempotency key stops a second refund.
+    let creditCard: { code: string; cents: number; created: boolean } | null = null
+    if (credit > 0) {
+      try { creditCard = await giftCards.issueCredit(order, credit, `credit-${row.id}`, 'Return') } catch (e: any) {
+        logger.error('[orders] store credit not issued', { refundRowId: row.id, error: e?.message })
+        return { money: { kind: 'failed', reason: `The store credit could not be issued: ${String(e?.message || 'unknown').slice(0, 200)}`, refused: false }, settled: null }
+      }
+    }
     const settled = await settlePart(row.id, money)
     if (settled) {
       const sent = money.kind === 'refunded' ? (money.alreadyRefunded ? ', already refunded at the provider' : ', sent back to the card') : ', recorded only — no money sent back here'
@@ -515,7 +530,8 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
           ...(money.kind === 'refunded' ? { refundId: money.refundId, refundStatus: money.status } : { moneyBack: money.kind }),
         },
       }, c)
-      if (money.kind === 'refunded' && !money.alreadyRefunded) void notifyRefund(order, row, items)
+      if (money.kind === 'refunded' && !money.alreadyRefunded && viaProvider > 0) void notifyRefund(order, { ...row, amountCents: viaProvider }, items)
+      if (creditCard?.created) void notifyCredit(order, creditCard)
     }
     return { money, settled }
   }
@@ -529,6 +545,17 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
         order: { orderNumber: order.orderNumber, customerName: order.customerName, currency: order.currency },
         lines: row.items.map((l) => ({ productName: byId.get(l.orderItemId)?.productName || 'Item', variantName: byId.get(l.orderItemId)?.variantName || '', quantity: l.quantity })),
         shippingCents: row.shippingCents, amountCents: row.amountCents, cancelled, supportEmail: co?.email,
+      }, co?.email)
+    } catch { /* non-blocking */ }
+  }
+
+  // Store credit given back: its card number and amount, to the shopper. Non-blocking.
+  async function notifyCredit(order: Order, card: { code: string; cents: number }) {
+    try {
+      const co = await core.shop()
+      await core.mail(order.customerEmail, 'storeCreditIssued', {
+        order: { orderNumber: order.orderNumber, customerName: order.customerName, currency: order.currency },
+        code: card.code, amountCents: card.cents, supportEmail: co?.email,
       }, co?.email)
     } catch { /* non-blocking */ }
   }

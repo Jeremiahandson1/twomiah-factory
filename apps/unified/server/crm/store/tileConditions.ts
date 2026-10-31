@@ -18,10 +18,10 @@ export const toPackCondition = (order: any) => and(eq(order.status, 'paid'), ne(
 /** "At supplier": forwarded to the dropship supplier and not yet back. */
 export const atSupplierCondition = (order: any) => eq(order.supplierStatus, 'placed')
 
-/** "Orders": every order that was a sale — a refunded one still was; an unfinished checkout and a cancelled one never were. */
-export const countedOrderCondition = (order: any) => notInArray(order.status, ['pending', 'cancelled'])
+/** "Orders": every order that was a sale — a refunded one still was; an unfinished checkout and a cancelled one never were, and nor is an exchange (a zero-charge order sent for goods that came back). */
+export const countedOrderCondition = (order: any) => and(notInArray(order.status, ['pending', 'cancelled']), ne(order.source, 'exchange'))!
 
 /** "Reviews to approve": a review nobody has decided. */
 export const pendingReviewCondition = (review: any) => eq(review.status, 'pending')
 
-export { productSearchCondition } from '../../data/tileSql.ts'
+export { productSearchCondition, lowStockProductCondition } from '../../data/tileSql.ts'

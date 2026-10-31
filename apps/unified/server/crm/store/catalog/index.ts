@@ -16,6 +16,7 @@ import { createLoyaltyAdminRoutes } from './loyalty.ts'
 import { createStoreSettingsRoutes } from './settings.ts'
 import { createCustomerGroupRoutes } from './groups.ts'
 import { createGiftCardRoutes } from './giftCardRoutes.ts'
+import { createProductWriterRoutes } from './writer.ts'
 
 export function catalogMounts(d: CrmDeps, core: StoreCore): Mount[] {
   return [
@@ -27,5 +28,7 @@ export function catalogMounts(d: CrmDeps, core: StoreCore): Mount[] {
     // 2026-10-24, the store upgrade: wholesale customer groups (discounts:*), gift cards (orders:refund).
     { path: '/api/admin/customer-groups', access: 'user', router: createCustomerGroupRoutes(d) },
     { path: '/api/admin/gift-cards', access: 'user', router: createGiftCardRoutes(d, core) },
+    // 2026-10-30, gap 5: the AI product writer — drafts only, behind its (not ready) feature and products:update.
+    { path: '/api/admin/product-writer', access: 'user', feature: 'store_ai_writer', router: createProductWriterRoutes(d) },
   ]
 }

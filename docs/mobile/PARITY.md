@@ -20,7 +20,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Salon / barber / spa | 36 | 13 | 7 | 5 | 10 | 14 |
 | Restaurant / caterer / event venue | 38 | 12 | 9 | 5 | 8 | 16 |
 | Bar / tavern | 44 | 13 | 10 | 8 | 7 | 19 |
-| Online store | 28 | 5 | 6 | 2 | 3 | 17 |
+| Online store | 30 | 5 | 6 | 2 | 4 | 18 |
 | Veterinary practice | 34 | 0 | 8 | 4 | 9 | 13 |
 
 ## Contractor (`contractor`, feature set `crm`)
@@ -709,6 +709,8 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
+| — | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| — | Reviews | `/crm/reviews` | — | google_reviews (off by default (add-on or opt-in)) | all | none | C |
 | Shop | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
 | Shop | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
 | Shop | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |

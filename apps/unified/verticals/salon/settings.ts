@@ -172,7 +172,8 @@ const salon: VerticalSettings = {
     jobCosting: {},
     time: {},
     expenses: { categories: EXPENSE_CATEGORIES.map((value) => ({ value, label: EXPENSE_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1) })) },
-    team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Senior Stylist' },
+    // A chair has no department; the rate stays (Time Tracking is offered to a salon).
+    team: { roleLabel: 'Role / Specialty', rolePlaceholder: 'e.g. Senior Stylist', subtitle: 'The people who work in your salon.', department: false },
     agreements: {},
     fleet: {},
     commissions: {},
@@ -200,6 +201,8 @@ const salon: VerticalSettings = {
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },
       ],
       licenseNumber: false,
+      // Timesheets and online bookings are the salon's; the AI Receptionist is not offered to it (store gaps, item 2).
+      timeZoneHint: 'The one clock for your salon: your hours, reports, invoices, timesheets and online bookings all keep time on it.',
     },
     tech: {},
   },

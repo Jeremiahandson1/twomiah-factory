@@ -190,6 +190,11 @@ export interface SettingsConfig {
   /** Show "Work week starts on" (the pay week overtime is counted over). */
   workWeek?: boolean
   /**
+   * What sits under the time zone box. Default: the trades' sentence (hours, reports, invoices, timesheets, online
+   * bookings, the AI Receptionist). A shop that has none of those says what its clock really keeps (store, 2026-10-30).
+   */
+  timeZoneHint?: string
+  /**
    * The app's own control on a row of Settings › Users, before the shared ones (the unified app's "View as <person>").
    * Not called for your own row. Absent: nothing extra, as before.
    */

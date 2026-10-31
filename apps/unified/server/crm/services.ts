@@ -15,8 +15,9 @@ import {
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder,
   purchaseOrderItem, qbIntegration, vehicle, vehicleMaintenance, fuelLog, warrantyTemplate, projectWarranty, warrantyClaim,
   activity, jobAssignment, equipment, equipmentCategory, equipmentMaintenance, pricebookCategory, pricebookItem,
-  pricebookGoodBetterBest, commission, commissionPlan, vehicleTrip, locationLog,
+  pricebookGoodBetterBest, commission, commissionPlan, vehicleTrip, locationLog, marketingAutomation, marketingAutomationSend,
 } from '../db/schema/index.ts'
+import { lastActivityFor, inCustomerGroup, customerGroupOptions } from '../data/marketingActivity.ts'
 import { calculateDistance } from './field/geofencingService.ts'
 import type { EmailService } from '../core/email.ts'
 import type { CrmSettings } from '../core/vertical.ts'
@@ -33,6 +34,8 @@ import { createJobReminders } from './field/jobReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
 import { createScheduledTextRunner } from './comms/scheduledTexts.ts'
+import { createInventoryLowStockDigest } from './inventory/lowStock.ts'
+import { startLowStockDigest } from './lowStockDigest.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -51,6 +54,8 @@ export interface CrmServiceDeps {
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** The vertical's feature set ('crm-store'…): what "a customer coming back" means for marketing (data/marketingActivity.ts). */
+  featureSet?: string
   /** What the business calls the people it serves (VerticalSettings.vocabulary): a marketing email's footer says it. */
   vocabulary?: Vocabulary
   /** Tests only: a fake Stripe client (TestSeams.stripe); otherwise one is made from STRIPE_SECRET_KEY. */
@@ -126,7 +131,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // The drips keep sending with either Email Marketing or the dealership's Follow-Up switch; a scheduled campaign needs
   // Email Marketing itself (templates/crm-rv services/marketing.ts, RV T19 M6; only crm-rv is offered follow_up_sequences).
   const marketing = createMarketingService({
-    db, tables: { campaign, contact, emailLog }, sendRaw: email.sendRaw, isFeatureEnabled,
+    db, tables: { campaign, contact, emailLog, automation: marketingAutomation, automationSend: marketingAutomationSend }, sendRaw: email.sendRaw, isFeatureEnabled,
+    // Win-back and "not back in N days" read the trade's own idea of a visit (data/marketingActivity.ts); the store adds its
+    // customer groups as an audience and a welcome on a first order.
+    lastActivity: lastActivityFor(deps.featureSet),
+    ...(deps.featureSet === 'crm-store' ? { welcome: true, audienceFilters: { customerGroupId: inCustomerGroup }, audienceOptions: async (companyId: string) => ({ groups: await customerGroupOptions(db, companyId) }) } : {}),
     sequencesEnabled: (companyId: string) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']),
     // "You are receiving this because you are a guest of ours" on a bar's email, not "a customer or contact" (salon
     // live test, 2026-10-25: the page's words come from the vocabulary; the email it sends says the same).
@@ -145,6 +154,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     tables: { inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company, branch: location },
     emailService,
   } as any)
+  // Low stock is ONE email a day, not one per movement (inventory/lowStock.ts → lowStockDigest.ts, the code the store shares).
+  const inventoryLowStock = createInventoryLowStockDigest({ db, logger, features: { isFeatureEnabled } as any }, emailService)
   // QuickBooks customers are this vertical's paying contacts (CrmSettings.contacts.customerType: a dealership's
   // 'customer', templates/crm-rv services/quickbooks.ts).
   const quickbooks = createQuickBooksService({ db, tables: { contact, invoice, invoiceLineItem, payment, company, qbIntegration }, options: { customerType: settings.contacts?.customerType ?? 'client' } } as any)
@@ -214,7 +225,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
     eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
@@ -254,6 +265,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
       quickbooksSync.start()
       // Scheduled texts that are due, every minute.
       scheduledTexts.start()
+      // The low-stock email for inventory items: hourly, sent once a day from 8am the shop's time.
+      startLowStockDigest(inventoryLowStock)
       for (const start of moduleJobs) start()
     },
   }

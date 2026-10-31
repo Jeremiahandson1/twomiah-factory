@@ -15,6 +15,7 @@ import { productUpsells, storefrontCatalogue, storefrontProduct, type Storefront
 import { ordersMounts, createOrderHooks } from './orders/index.ts'
 import { ratingSummaries } from '../../data/storeCheckout.ts'
 import { catalogMounts } from './catalog/index.ts'
+import { createShopperAccountRoutes } from './accounts/routes.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
 const cores = new WeakMap<object, StoreCore>()
@@ -33,6 +34,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
     ...checkoutMounts(d, core, createOrderHooks(d, core)),
     ...ordersMounts(d, core),
     ...catalogMounts(d, core),
+    // 2026-10-30, gap 7: shoppers sign in (their own cookie, not the staff's); behind store_accounts (not ready), 404 when off.
+    { path: '/api/public/account', access: 'public', feature: 'store_accounts', router: createShopperAccountRoutes(d, core) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'store' }))
 }
 
@@ -40,6 +43,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
 export interface Storefront {
   companyId(): Promise<string | null>
   isClosed(): Promise<boolean>
+  /** Whether shoppers can sign in to an account (the store_accounts feature): the Account pages exist only then. */
+  accountsOn(companyId: string): Promise<boolean>
   catalogue(companyId: string): Promise<StorefrontProduct[]>
   product(companyId: string, slug: string): Promise<StorefrontProduct | null>
   /** The order summary by the provider's return (?session_id= or ?ref=), finishing an order whose payment notice is late. */
@@ -55,12 +60,13 @@ export interface Storefront {
 // `audit`: finishing an order from the thank-you page writes its "paid" row (checkoutService finalizeOrder). Without it the
 // website's copy crashed right after marking the order paid — no order emails, no audit row (store final check, 2026-10-26);
 // an `as CrmDeps` cast had hidden the missing piece from the type check.
-export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' | 'audit'>): Storefront {
+export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' | 'audit'> & { isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean> }): Storefront {
   const core = coreFor(d)
   const checkout = createCheckoutService(d, core)
   return {
     companyId: async () => (await core.shop())?.id ?? null,
     isClosed: () => core.isClosed(),
+    accountsOn: async (companyId) => (d.isFeatureEnabled ? await d.isFeatureEnabled(companyId, 'store_accounts').catch(() => false) : false),
     catalogue: (companyId) => storefrontCatalogue(d, companyId),
     product: (companyId, slug) => storefrontProduct(d, companyId, slug),
     orderSummary: (companyId, q) => checkout.orderSummary(companyId, q),

@@ -158,6 +158,32 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
         <p style="color:#666;font-size:13px;margin-top:24px;">${p.supportEmail ? 'Questions? Reply to this email.' : 'Thanks for shopping with us.'}</p>`),
     )
   },
+  /** A shopper's sign-in: the link (which asks them to press Sign in) and the code to type instead. */
+  /** Store credit given back on a return: its number and amount. */
+  storeCreditIssued: (p: { order: Pick<EmailOrder, 'orderNumber' | 'customerName' | 'currency'>; code: string; amountCents: number; supportEmail?: string | null }, b) => done(
+    `Your ${b.companyName} store credit — ${formatCents(p.amountCents, p.order.currency)}`,
+    wrap(b.companyName, 'Your store credit', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.order.customerName)} — your return on order${num(p.order)} came to <strong>${formatCents(p.amountCents, p.order.currency)}</strong> in store credit. Enter this number in the gift card box at checkout:</p>
+      <p style="margin:16px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;color:#111;"><strong style="font-family:Consolas,Menlo,monospace;letter-spacing:1px;">${esc(p.code)}</strong><span style="float:right;">${formatCents(p.amountCents, p.order.currency)}</span></p>
+      <p style="color:#666;font-size:13px;margin-top:24px;">Keep this email: the number is the credit.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  /** Where a return stands (approved with a label, declined, received, exchange on its way): one plain message. */
+  storeReturnUpdate: (p: { order: Pick<EmailOrder, 'orderNumber' | 'customerName' | 'currency'>; returnNumber: string; headline: string; message: string; labelUrl?: string | null; supportEmail?: string | null }, b) => done(
+    `${p.headline} — return ${p.returnNumber}`,
+    wrap(b.companyName, p.headline, `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.order.customerName)} — ${esc(p.message)}</p>
+      ${p.labelUrl ? button(p.labelUrl, 'Print your return label') : ''}
+      <p style="color:#666;font-size:13px;margin-top:24px;">Return ${esc(p.returnNumber)} · order${num(p.order)}.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  storeSignIn: (p: { name?: string | null; code: string; link: string; minutes: number; supportEmail?: string | null }, b) => done(
+    `Sign in to ${b.companyName}`,
+    wrap(b.companyName, 'Sign in', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(p.name)} — press the button to sign in to your ${esc(b.companyName)} account.</p>
+      ${button(p.link, 'Sign in')}
+      <p style="color:#444;font-size:14px;line-height:1.6;margin-top:22px;">Or type this code on the sign-in page:</p>
+      <p style="margin:6px 0 0;font-size:26px;letter-spacing:6px;font-family:Consolas,Menlo,monospace;color:#111;"><strong>${esc(p.code)}</strong></p>
+      <p style="color:#666;font-size:13px;margin-top:24px;">The link and the code work for ${p.minutes} minutes, once. If you did not ask to sign in, you can ignore this email — nobody can sign in without it.</p>`),
+  ),
   /** The codes a paid order bought, one per card. */
   storeGiftCard: (p: { orderNumber: string | null; currency: string; cards: { code: string; cents: number }[]; supportEmail?: string | null }, b) => done(
     p.cards.length === 1 ? `Your ${b.companyName} gift card` : `Your ${p.cards.length} ${b.companyName} gift cards`,
@@ -176,6 +202,14 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
       <h3 style="font-size:14px;color:#111;margin:20px 0 8px;">Items</h3>
       ${itemsTable(items, order.currency)}
       <p style="color:#666;font-size:13px;margin-top:24px;">Bring this email or your order number.${supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
+  ),
+  /** To the shop, once a day while anything is at or under its level: everything that is running low. */
+  storeLowStockDigest: (p: { items: { productName: string; variantName: string; sku: string; quantity: number; lowStockAt: number }[]; productsUrl: string }, b) => done(
+    p.items.length === 1 ? `Running low: ${p.items[0].productName}${p.items[0].variantName && p.items[0].variantName !== 'Default' ? ' — ' + p.items[0].variantName : ''}` : `${p.items.length} products are running low`,
+    wrap(b.companyName, 'Running low', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">${p.items.length === 1 ? 'This is at or under the level you set' : 'These are at or under the levels you set'}. You get this email once a day while anything is low, and not on a day when nothing is.</p>
+      <ul style="color:#444;font-size:14px;line-height:1.7;margin:12px 0 0;padding-left:18px;">${p.items.map((i) => `<li><strong>${esc(i.productName)}</strong>${i.variantName && i.variantName !== 'Default' ? ` — ${esc(i.variantName)}` : ''} (${esc(i.sku)}): <strong>${i.quantity} left</strong>, level ${i.lowStockAt}</li>`).join('')}</ul>
+      ${button(p.productsUrl, 'See what is low')}`),
   ),
   /** To the shop: a chargeback was opened, with the deadline to answer it. */
   storeDisputeOpened: (p: { orderNumber: string | null; amount: string; reason: string; dueBy: string | null; respondUrl: string; disputesUrl: string }, b) => done(

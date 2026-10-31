@@ -249,6 +249,12 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
     }
     return imported
   }
+  /** The first rows a QuickBooks query returns for an entity ("select * from Account where Name = 'x'"). */
+  async function query(companyId: string, entity: string, where: string): Promise<any[]> {
+    const q = `select * from ${entity} where ${where} maxresults 100`
+    const result = await apiRequest(companyId, 'GET', `/query?query=${encodeURIComponent(q)}`)
+    return result?.QueryResponse?.[entity] || []
+  }
   async function getCompanyInfo(companyId: string) {
     const { realmId } = await getValidToken(companyId)
     return (await apiRequest(companyId, 'GET', '/companyinfo/' + realmId)).CompanyInfo
@@ -257,6 +263,8 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   return {
     configured, getAuthUrl, signState, verifyState, exchangeCodeForTokens, refreshAccessToken, saveConnection, getValidToken, disconnect, setAutoSync, getConnectionStatus, getCompanyInfo,
     createCustomer, updateCustomer, syncAllCustomers, createInvoice, updateInvoice, syncAllInvoices, createPayment, importCustomers,
+    // For a vertical's own records (the store's sales receipts and deposits, apps/unified server/crm/store/books.ts).
+    apiRequest, query,
   }
 }
 export type QuickBooksService = ReturnType<typeof createQuickBooksService>

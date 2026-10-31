@@ -11,14 +11,18 @@
 // seven schemas): email_template, email_recipient, email_click, drip_sequence, sequence_enrollment.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc } from 'drizzle-orm'
+import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc, isNotNull, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { publicApiBase } from '../publicOrigin'
 import { mailFailureReason } from '../integrations/mailError'
 import { sanitizeEmailHtml } from './emailHtml'
 import { partialOf } from '../partialOf'
 
-export interface MarketingTables { campaign: any; contact: any; emailLog: any }
+export interface MarketingTables {
+  campaign: any; contact: any; emailLog: any
+  /** Automatic emails (win-back, welcome): the company's settings row and the one-row-per-email claim. Both or neither. */
+  automation?: any; automationSend?: any
+}
 export interface MailMessage { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }
 export interface MarketingServiceDeps {
   db: any
@@ -43,6 +47,18 @@ export interface MarketingServiceDeps {
    * bar's guest (the unified app's vocabulary). Without it the footer says what it always said, "a customer or contact".
    */
   recipientNoun?: string
+  /**
+   * What the business counts as a customer coming back, as a SQL value over `contact` (a correlated subquery: the moment
+   * of the customer's latest job / visit / order, null for none), and the word for one ("job", "visit", "order"). With
+   * it a campaign can aim at customers "not back in N days" and the win-back email can run. Without it neither is offered.
+   */
+  lastActivity?: { sql: SQL; word: string }
+  /** More segment filters for a business's own kinds of customer (the store's customer groups): filter key → a condition on contact. */
+  audienceFilters?: Record<string, (value: unknown, companyId: string) => SQL | undefined>
+  /** What the audience picker can offer beyond contact types (the store's customer groups). */
+  audienceOptions?: (companyId: string) => Promise<{ groups?: Array<{ id: string; name: string }> }>
+  /** This business sends a welcome email on a customer's first order (the store). */
+  welcome?: boolean
 }
 export interface MarketingRoutesDeps {
   service: MarketingService
@@ -156,6 +172,7 @@ const camelSequence = (s: any) => s ? ({ ...s, companyId: s.company_id ?? s.comp
 
 export function createMarketingService(deps: MarketingServiceDeps) {
   const { db, tables: t, sendRaw, isFeatureEnabled, sequencesEnabled } = deps
+  const activityWord = deps.lastActivity?.word || 'visit'
   const recipientNoun = deps.recipientNoun ? escapeHtml(deps.recipientNoun) : ''
   const env = deps.env || process.env
   const publicBase = () => publicApiBase(env as Record<string, string | undefined>)
@@ -210,6 +227,17 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       if (parsed.createdAfter && !isNaN(new Date(parsed.createdAfter).getTime())) conditions.push(gte(t.contact.createdAt, new Date(parsed.createdAfter)))
       if (parsed.createdBefore && !isNaN(new Date(parsed.createdBefore).getTime())) conditions.push(sql`${t.contact.createdAt} <= ${new Date(parsed.createdBefore)}`)
       if (parsed.search) { const p = `%${String(parsed.search).replace(/[\\%_]/g, (ch: string) => '\\' + ch)}%`; conditions.push(or(ilike(t.contact.name, p), ilike(t.contact.email, p), ilike(t.contact.company, p))!) }
+      // A tag the customer carries. A tag asked for and not usable matches NOBODY — never "everyone".
+      if ('tag' in parsed) conditions.push(typeof parsed.tag === 'string' && parsed.tag.trim() ? sql`${t.contact.tags}::jsonb @> ${JSON.stringify([parsed.tag.trim()])}::jsonb` : sql`false`)
+      // Customers whose latest job / visit / order is more than N days back (and who have had one).
+      if ('inactiveDays' in parsed) {
+        const n = Number(parsed.inactiveDays)
+        conditions.push(deps.lastActivity && Number.isInteger(n) && n >= 1 && n <= 3650 ? sql`(${deps.lastActivity.sql}) < NOW() - INTERVAL '1 day' * ${n}` : sql`false`)
+      }
+      // The business's own filters (store: customerGroupId). Asked for and not understood: nobody.
+      for (const [key, build] of Object.entries(deps.audienceFilters || {})) {
+        if (key in parsed) conditions.push(build(parsed[key], companyId) ?? sql`false`)
+      }
     }
     if (audienceType === 'contacts') {
       const ids: string[] = Array.isArray(parsed?.contactIds) ? parsed.contactIds.filter((x: any) => typeof x === 'string') : []
@@ -435,11 +463,122 @@ export function createMarketingService(deps: MarketingServiceDeps) {
   function startMarketingProcessor(intervalMs = 15 * 60 * 1000) {
     console.log('[Marketing] Starting campaign/drip processor (every 15 min)')
     const run = async () => {
-      try { const c = await processScheduledCampaigns(); const d = await processDripEmails(); if (c.sent || d.sent) console.log('[Marketing] sent', c.sent, 'campaign emails,', d.sent, 'drip emails') }
+      try { const c = await processScheduledCampaigns(); const d = await processDripEmails(); const w = await processWinBacks(); if (c.sent || d.sent || w.sent) console.log('[Marketing] sent', c.sent, 'campaign emails,', d.sent, 'drip emails,', w.sent, 'win-back emails') }
       catch (err: any) { console.error('[Marketing] Processor error:', err.message) }
     }
     setInterval(run, intervalMs)
     setTimeout(run, 45_000)
+  }
+
+  // ─── automatic emails: win-back and welcome ────────────────────────────────
+  // Off until the owner switches them on (a company with no settings row has neither). Each email is CLAIMED in
+  // marketing_automation_send before it is sent, so two sweeps never send one twice.
+  const DEFAULT_WIN_BACK = () => ({
+    subject: 'We miss you, {{firstName}}',
+    body: `<p>Hi {{firstName}},</p><p>It has been a while since your last ${escapeHtml(activityWord)}, and we would love to see you again.</p><p>If there is anything we can do for you, just reply to this email.</p>`,
+  })
+  const DEFAULT_WELCOME = () => ({
+    subject: 'Welcome, {{firstName}} — thank you for your first order',
+    body: '<p>Hi {{firstName}},</p><p>Thank you for your first order. We are glad to have you, and we will let you know when it is on its way.</p><p>If you ever need anything, just reply to this email.</p>',
+  })
+  /** How far behind a sweep may fall and still send a win-back: a customer who lapsed longer ago than this is left alone. */
+  const WIN_BACK_CATCH_UP_DAYS = 14
+  /** The most win-backs one sweep sends for a company (the rest wait for the next sweep). */
+  const WIN_BACK_BATCH = 200
+  const automationRow = async (companyId: string) => {
+    if (!t.automation) return null
+    const [row] = await db.select().from(t.automation).where(eq(t.automation.companyId, companyId)).limit(1)
+    return row || null
+  }
+  async function getAutomations(companyId: string) {
+    const row = await automationRow(companyId)
+    const can = !!(t.automation && t.automationSend)
+    const wb = DEFAULT_WIN_BACK(), wl = DEFAULT_WELCOME()
+    return {
+      winBack: { available: can && !!deps.lastActivity, word: activityWord, days: row?.winBackDays ?? null, subject: row?.winBackSubject || wb.subject, body: row?.winBackBody || wb.body, customSubject: !!row?.winBackSubject, customBody: !!row?.winBackBody },
+      welcome: { available: can && !!deps.welcome, on: !!row?.welcomeOn, subject: row?.welcomeSubject || wl.subject, body: row?.welcomeBody || wl.body, customSubject: !!row?.welcomeSubject, customBody: !!row?.welcomeBody },
+    }
+  }
+  async function saveAutomations(companyId: string, data: { winBackDays?: number | null; winBackSubject?: string | null; winBackBody?: string | null; welcomeOn?: boolean; welcomeSubject?: string | null; welcomeBody?: string | null }) {
+    const cur = await getAutomations(companyId)
+    if (data.winBackDays !== undefined && data.winBackDays !== null && !cur.winBack.available) throw new MarketingError('Win-back emails are not available here.', 400)
+    if (data.welcomeOn === true && !cur.welcome.available) throw new MarketingError('A welcome email is not available here.', 400)
+    if (data.winBackDays !== undefined && data.winBackDays !== null && (!Number.isInteger(data.winBackDays) || data.winBackDays < 14 || data.winBackDays > 730)) throw new MarketingError('Choose a number of days from 14 to 730.', 400)
+    const clean = (v: string | null | undefined) => (v === undefined ? undefined : (v === null || !v.trim() ? null : v))
+    const subjects = { winBackSubject: clean(data.winBackSubject), welcomeSubject: clean(data.welcomeSubject) }
+    const bodies = { winBackBody: data.winBackBody === undefined ? undefined : (data.winBackBody ? sanitizeEmailHtml(data.winBackBody).trim() || null : null), welcomeBody: data.welcomeBody === undefined ? undefined : (data.welcomeBody ? sanitizeEmailHtml(data.welcomeBody).trim() || null : null) }
+    checkMergeFields('This email', subjects.winBackSubject, bodies.winBackBody, subjects.welcomeSubject, bodies.welcomeBody)
+    const set: Record<string, unknown> = {}
+    if (data.winBackDays !== undefined) set.winBackDays = data.winBackDays
+    if (data.welcomeOn !== undefined) set.welcomeOn = data.welcomeOn
+    for (const [k, v] of Object.entries({ ...subjects, ...bodies })) if (v !== undefined) set[k] = v
+    if (!t.automation) throw new MarketingError('Automatic emails are not available here.', 400)
+    await db.insert(t.automation).values({ companyId, ...set }).onConflictDoUpdate({ target: t.automation.companyId, set: { ...set, updatedAt: new Date() } })
+    return getAutomations(companyId)
+  }
+  /** One automatic email to one customer: personalised, with the unsubscribe link, and in the email log. */
+  async function sendAutomated(companyId: string, c: { id: string; name?: string | null; email: string; company?: string | null }, subject: string, bodyHtml: string) {
+    await sendRaw({ to: c.email, subject: personalize(subject, c), html: decorate(personalize(sanitizeEmailHtml(bodyHtml), c, { html: true }), null, c.id) })
+    await db.insert(t.emailLog).values({ companyId, to: c.email, subject: personalize(subject, c), body: bodyHtml, status: 'sent', contactId: c.id, sentAt: new Date() }).catch(() => {})
+  }
+  /** Claim an automatic email; false when it was already claimed (so already sent, or being sent). */
+  async function claimAutomated(companyId: string, contactId: string, kind: 'welcome' | 'win_back', marker: string): Promise<string | null> {
+    const [row] = await db.insert(t.automationSend).values({ companyId, contactId, kind, marker }).onConflictDoNothing().returning({ id: t.automationSend.id })
+    return row?.id ?? null
+  }
+  const finishAutomated = (id: string, status: 'sent' | 'failed') => db.update(t.automationSend).set({ status }).where(eq(t.automationSend.id, id)).catch(() => {})
+  /** The welcome for a customer's first order. The caller says it IS the first; this checks the owner wants it and the customer can be emailed. */
+  async function sendWelcome(companyId: string, contactId: string): Promise<'sent' | 'off' | 'skipped' | 'already' | 'failed'> {
+    if (!t.automation || !t.automationSend || !deps.welcome) return 'off'
+    const row = await automationRow(companyId)
+    if (!row?.welcomeOn) return 'off'
+    if (isFeatureEnabled && !(await isFeatureEnabled(companyId, 'email_marketing'))) return 'off'
+    const [c] = await db.select().from(t.contact).where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId))).limit(1)
+    if (!c || !c.email || c.emailOptOut) return 'skipped'
+    const claim = await claimAutomated(companyId, contactId, 'welcome', 'welcome')
+    if (!claim) return 'already'
+    const wl = DEFAULT_WELCOME()
+    try { await sendAutomated(companyId, c, row.welcomeSubject || wl.subject, row.welcomeBody || wl.body); await finishAutomated(claim, 'sent'); return 'sent' }
+    catch (e: any) { console.error('[Marketing] Welcome failed:', c.email, e?.message || e); await finishAutomated(claim, 'failed'); return 'failed' }
+  }
+  /**
+   * Win-back: a customer whose latest job / visit / order was N days ago (N the owner's, per company; off when unset) gets
+   * one email, once per lapse. Only the customers who crossed N in the last WIN_BACK_CATCH_UP_DAYS are sent to: switching
+   * win-back on never mails everyone who has been gone for a year.
+   */
+  async function processWinBacks(now: Date = new Date()) {
+    if (!t.automation || !t.automationSend || !deps.lastActivity) return { companies: 0, sent: 0 }
+    const last = deps.lastActivity.sql
+    const configs = await db.select().from(t.automation).where(isNotNull(t.automation.winBackDays))
+    let sent = 0, companies = 0
+    for (const cfg of configs) {
+      if (isFeatureEnabled && !(await isFeatureEnabled(cfg.companyId, 'email_marketing'))) continue
+      companies++
+      const days = Number(cfg.winBackDays)
+      const day = 86_400_000
+      const lapsed = await db.select({ id: t.contact.id, name: t.contact.name, email: t.contact.email, company: t.contact.company, last: sql`${last}`.as('last_activity') })
+        .from(t.contact)
+        .where(and(
+          eq(t.contact.companyId, cfg.companyId), sql`${t.contact.email} IS NOT NULL`, sql`${t.contact.email} <> ''`, eq(t.contact.emailOptOut, false),
+          sql`(${last}) <= ${new Date(now.getTime() - days * day)}`, sql`(${last}) > ${new Date(now.getTime() - (days + WIN_BACK_CATCH_UP_DAYS) * day)}`,
+        ))
+        .orderBy(sql`last_activity ASC`).limit(WIN_BACK_BATCH)
+      const wb = DEFAULT_WIN_BACK()
+      for (const c of lapsed) {
+        const marker = new Date(c.last as any).toISOString()
+        const claim = await claimAutomated(cfg.companyId, c.id, 'win_back', marker)
+        if (!claim) continue
+        try { await sendAutomated(cfg.companyId, c, cfg.winBackSubject || wb.subject, cfg.winBackBody || wb.body); await finishAutomated(claim, 'sent'); sent++ }
+        catch (e: any) { console.error('[Marketing] Win-back failed:', c.email, e?.message || e); await finishAutomated(claim, 'failed') }
+      }
+    }
+    return { companies, sent }
+  }
+  /** What the audience picker can offer: the tags in use, the business's own groups, and whether "not back in N days" works. */
+  async function audienceOptions(companyId: string) {
+    const tagRows = rows(await db.execute(sql`SELECT DISTINCT jsonb_array_elements_text(tags::jsonb) AS tag FROM contact WHERE company_id = ${companyId} AND jsonb_typeof(tags::jsonb) = 'array' ORDER BY 1 LIMIT 300`))
+    const extra = deps.audienceOptions ? await deps.audienceOptions(companyId) : {}
+    return { tags: tagRows.map((r) => String(r.tag)), groups: extra.groups || [], inactive: !!deps.lastActivity, activityWord }
   }
 
   // ─── tracking + unsubscribe ────────────────────────────────────────────────
@@ -503,7 +642,8 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     createTemplate, getTemplates, getTemplate, updateTemplate, duplicateTemplate, deleteTemplate,
     createCampaign, getCampaigns, getCampaign, updateCampaign, getCampaignRecipients, sendCampaign, scheduleCampaign, unscheduleCampaign, deleteCampaign, processScheduledCampaigns,
     createSequence, getSequence, getSequences, updateSequence, deleteSequence, enrollInSequence, getEnrollments, processDripEmails, startMarketingProcessor,
-    previewAudience, trackOpen, trackClick, handleUnsubscribe, resubscribe, getMarketingStats,
+    previewAudience, audienceOptions, getAutomations, saveAutomations, sendWelcome, processWinBacks,
+    trackOpen, trackClick, handleUnsubscribe, resubscribe, getMarketingStats,
   }
 }
 export type MarketingService = ReturnType<typeof createMarketingService>
@@ -535,6 +675,15 @@ const sequenceSchema = z.object({
   steps: z.array(z.object({ delayDays: z.any(), delayHours: z.any(), subject: z.any(), body: z.any(), templateId: z.any().optional() })).max(30),
 })
 
+const automationSchema = z.object({
+  winBackDays: z.number().int().nullable().optional(),
+  winBackSubject: z.string().max(300).nullable().optional(),
+  winBackBody: z.string().max(200_000).nullable().optional(),
+  welcomeOn: z.boolean().optional(),
+  welcomeSubject: z.string().max(300).nullable().optional(),
+  welcomeBody: z.string().max(200_000).nullable().optional(),
+})
+
 export function createMarketingRoutes({ service: m, authenticate, requirePermission, escapeHtml, featureGate, campaignsGate }: MarketingRoutesDeps) {
   const app = new Hono()
   // Tracking pixels, click redirects and unsubscribe links are opened from a mail client with no session.
@@ -542,7 +691,7 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : authenticate(c, next)))
   // Email Marketing switched off refuses the module at the API too (403 FEATURE_NOT_ENABLED); links stay open.
   if (featureGate) app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : featureGate(c, next)))
-  if (campaignsGate) for (const p of ['/campaigns', '/campaigns/*', '/templates', '/templates/*', '/audience/*']) app.use(p, campaignsGate)
+  if (campaignsGate) for (const p of ['/campaigns', '/campaigns/*', '/templates', '/templates/*', '/audience/*', '/automations']) app.use(p, campaignsGate)
   const user = (c: any) => (c as any).get('user')
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid request', details: err.flatten().fieldErrors }, 400)
   const guarded = (fn: (c: any) => Promise<Response>) => async (c: any) => {
@@ -578,6 +727,12 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   // whole list (76), so a campaign aimed at a subset looked right and would have gone to every contact. Name the
   // audiences we support instead. (Landscaping T21 M4)
   app.post('/audience/preview', requirePermission('marketing:read'), guarded(async (c) => { const b = await body(c); if (b.audienceType !== undefined && b.audienceType !== null && b.audienceType !== '' && !AUDIENCE_TYPES.includes(b.audienceType)) return c.json({ error: `Audience must be one of: ${AUDIENCE_TYPES.join(', ')}. To reach one kind of customer, use "segment" with a type filter.` }, 400); const type = b.audienceType || 'all'; return c.json(await m.previewAudience(user(c).companyId, type, b.audienceFilter ?? null)) }))
+
+  app.get('/audience/options', requirePermission('marketing:read'), guarded(async (c) => c.json(await m.audienceOptions(user(c).companyId))))
+
+  // automatic emails (win-back, welcome): off until the owner switches them on
+  app.get('/automations', requirePermission('marketing:read'), guarded(async (c) => c.json(await m.getAutomations(user(c).companyId))))
+  app.put('/automations', requirePermission('marketing:update'), guarded(async (c) => { const p = automationSchema.safeParse(await body(c)); if (!p.success) return invalid(c, p.error); return c.json(await m.saveAutomations(user(c).companyId, p.data)) }))
 
   // sequences
   app.get('/sequences', requirePermission('marketing:read'), async (c) => c.json(await m.getSequences(user(c).companyId)))

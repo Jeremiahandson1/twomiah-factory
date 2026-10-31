@@ -8,6 +8,10 @@
 // explicit Save; the supplier item id beside each variant, for the owner (integrations:update) with a supplier
 // connected; staff add and edit, deleting a product or a variant is products:delete.
 //
+// 2026-10-30 (gap 5): with store_ai_writer on, a seat that edits products can ask for a DRAFT of the description and search
+// text, and of each photo's alt text, in a tone it picks. The draft lands in a box to read and change, then in the form's own
+// boxes — nothing is saved until the person presses the ordinary Save (the photo's own Save alt).
+//
 // Changes from the template:
 //   · replies (RULEBOOK §3): one product, variant or photo is the record itself (the template read { product },
 //     { variant }, { image }); the supplier variant map is { data } (was { map }), its link answer { success, name } /
@@ -29,7 +33,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Plus, Star, Trash2, Upload } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useConfirm, useKnownPermission, useMayWrite, useToast } from '../../../../shared'
+import { PageError, errorText, useAuth, useConfirm, useKnownPermission, useMayWrite, useToast } from '../../../../shared'
 import {
   formatMoney, fromHundredths, listOf, refusalOf, toHundredths, toWhole, useStoreCurrency,
   type Product, type ProductImage, type ProductVariant,
@@ -103,6 +107,7 @@ export default function ProductEditPage() {
   const mayUpdate = useMayWrite('products:update')
   const mayDelete = useMayWrite('products:delete')
   const mayEditDetails = isNew ? mayCreate : mayUpdate
+  const writerOn = useAuth().hasFeature('store_ai_writer')
   // The other products, for the upsell picks.
   const [others, setOthers] = useState<{ id: string; name: string }[]>([])
   useEffect(() => {
@@ -222,6 +227,9 @@ export default function ProductEditPage() {
           <label className="label" htmlFor="p-description">Description</label>
           <textarea id="p-description" className="input min-h-[120px]" value={form.description} onChange={(e) => set('description', e.target.value)} />
         </div>
+        {writerOn && !isNew && mayUpdate && id && (
+          <WriterPanel productId={id} onUse={(draft) => { set('description', draft.description); set('seoTitle', draft.seoTitle); set('seoDescription', draft.seoDescription) }} />
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label" htmlFor="p-status">Status</label>
@@ -319,11 +327,13 @@ export default function ProductEditPage() {
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 interface SupplierLink { ref: string; name: string | null }
-interface RowEdit { price: string; compareAt: string; inv: string; options: string; ref: string; gtin: string; mpn: string }
+interface RowEdit { price: string; compareAt: string; inv: string; low: string; cost: string; options: string; ref: string; gtin: string; mpn: string }
 
 function VariantsSection({ product, currency, mayUpdate, onChange }: { product: Product; currency: string; mayUpdate: boolean; onChange: () => Promise<void> }) {
   const toast = useToast()
   const confirm = useConfirm()
+  // Low-stock alerts (store_low_stock): the "Tell me at" box is there only where the shop has them on.
+  const lowStockOn = useAuth().hasFeature('store_low_stock')
   // Dropship: variant → supplier item links, shown only when a supplier is connected. The supplier connection is the
   // owner's (integrations:update): asked only once the answer is known to be yes, never a request other seats are refused.
   const mayLinkSupplier = useKnownPermission('integrations:update')
@@ -392,6 +402,11 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
     if (next.compareAt.trim() && compare === null) { toast.error('Enter the compare-at price as a number, or leave it blank.'); return false }
     const inventoryQty = toWhole(next.inv)
     if (Number.isNaN(inventoryQty)) { toast.error('Stock is a whole number, or blank for untracked.'); return false }
+    // What it costs you: only a seat that is sent the cost (margin:read) has the box; blank = no cost entered.
+    const costCents = next.cost.trim() ? toHundredths(next.cost) : null
+    if (next.cost.trim() && costCents === null) { toast.error('Enter the cost as a number, like 9.50, or leave it blank.'); return false }
+    const lowStockAt = toWhole(next.low)
+    if (Number.isNaN(lowStockAt) || (lowStockAt !== null && lowStockAt < 0)) { toast.error('The low-stock level is a whole number, or blank for no alert.'); return false }
     const options = parseOptions(next.options)
     if (options === 'invalid') { toast.error('Write options as name=value, separated by commas (size=M, color=Red).'); return false }
     try {
@@ -401,6 +416,8 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
       if (priceCents !== v.priceCents) body.priceCents = priceCents
       if (compare !== v.compareAtPriceCents) body.compareAtPriceCents = compare
       if (inventoryQty !== v.inventoryQty) { body.inventoryQty = inventoryQty; body.inventoryFrom = v.inventoryQty }
+      if (lowStockOn && lowStockAt !== (v.lowStockAt ?? null)) body.lowStockAt = lowStockAt
+      if (v.costCents !== undefined && costCents !== v.costCents) body.costCents = costCents
       if (optionsText(options) !== optionsText(v.options)) body.options = options
       if (next.gtin.trim() !== (v.gtin || '')) body.gtin = next.gtin.trim() || null
       if (next.mpn.trim() !== (v.mpn || '')) body.mpn = next.mpn.trim() || null
@@ -437,6 +454,7 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
         {product.variants.map((v) => (
           <VariantRow
             key={v.id} v={v} currency={currency} mayUpdate={mayUpdate}
+            lowStockOn={lowStockOn}
             supplierConnected={supplierConnected} supplierRef={supplierMap[v.id]?.ref ?? ''} supplierName={supplierMap[v.id]?.name ?? null}
             onSave={(next) => saveRow(v, next)}
             onDelete={mayDeleteVariant ? () => del(v) : undefined}
@@ -465,10 +483,12 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
 }
 
 // One editable variant row: controlled inputs and an explicit Save that lights up only when something changed.
-function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
+function VariantRow({ v, currency, mayUpdate, lowStockOn, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
   v: ProductVariant
   currency: string
   mayUpdate: boolean
+  /** Low-stock alerts are on: show the "Tell me at" box. */
+  lowStockOn: boolean
   supplierConnected: boolean
   supplierRef: string
   supplierName: string | null
@@ -478,7 +498,7 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
 }) {
   const fromVariant = (): RowEdit => ({
     price: fromHundredths(v.priceCents), compareAt: fromHundredths(v.compareAtPriceCents),
-    inv: v.inventoryQty == null ? '' : String(v.inventoryQty), options: optionsText(v.options), ref: supplierRef,
+    inv: v.inventoryQty == null ? '' : String(v.inventoryQty), low: v.lowStockAt == null ? '' : String(v.lowStockAt), cost: v.costCents == null ? '' : fromHundredths(v.costCents), options: optionsText(v.options), ref: supplierRef,
     gtin: v.gtin || '', mpn: v.mpn || '',
   })
   const [edit, setEdit] = useState<RowEdit>(fromVariant)
@@ -486,10 +506,10 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
 
   // Re-sync when the variant changes underneath (a reload after a save, or the stock moved).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, optionsText(v.options), supplierRef, v.gtin, v.mpn])
+  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, v.lowStockAt, v.costCents, optionsText(v.options), supplierRef, v.gtin, v.mpn])
 
   const base = fromVariant()
-  const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || edit.options !== base.options
+  const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || (lowStockOn && edit.low !== base.low) || (v.costCents !== undefined && edit.cost !== base.cost) || edit.options !== base.options
     || edit.gtin.trim() !== base.gtin || edit.mpn.trim() !== base.mpn
     || (supplierConnected && edit.ref.trim() !== supplierRef)
 
@@ -535,6 +555,16 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
         <label className="block text-xs text-gray-600 dark:text-slate-400">Stock
           <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="∞" title="Blank = not tracked" value={edit.inv} onChange={(e) => setEdit({ ...edit, inv: e.target.value })} />
         </label>
+        {v.costCents !== undefined && (
+          <label className="block text-xs text-gray-600 dark:text-slate-400">What it costs you ({currency.toUpperCase()})
+            <input className="input mt-1 py-1.5" inputMode="decimal" placeholder="—" title="Used for profit on the Sales page. Shoppers never see it." value={edit.cost} onChange={(e) => setEdit({ ...edit, cost: e.target.value })} />
+          </label>
+        )}
+        {lowStockOn && (
+          <label className="block text-xs text-gray-600 dark:text-slate-400">Tell me at
+            <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="No alert" title="One email when a sale takes the stock down to this number" value={edit.low} onChange={(e) => setEdit({ ...edit, low: e.target.value })} />
+          </label>
+        )}
         <label className="block text-xs text-gray-600 dark:text-slate-400">Options
           <input className="input mt-1 py-1.5" placeholder="size=M" value={edit.options} onChange={(e) => setEdit({ ...edit, options: e.target.value })} />
         </label>
@@ -558,6 +588,21 @@ function VariantRow({ v, currency, mayUpdate, supplierConnected, supplierRef, su
 // ── Images ───────────────────────────────────────────────────────────────────
 function ImagesSection({ product, mayUpdate, onChange }: { product: Product; mayUpdate: boolean; onChange: () => Promise<void> }) {
   const toast = useToast()
+  const writerOn = useAuth().hasFeature('store_ai_writer')
+  const [tone, setTone] = useState<ToneId>('straightforward')
+  const [writing, setWriting] = useState(false)
+  /** Drafted descriptions by photo, waiting in each photo's box for the person to read and save. */
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [skipNote, setSkipNote] = useState<string | null>(null)
+  const writeAlts = async () => {
+    setWriting(true); setSkipNote(null)
+    try {
+      const r: { alts: Array<{ imageId: string; alt: string }>; skipped: Array<{ imageId: string; reason: string }> } = await api.post(`/api/admin/product-writer/${product.id}/alt-text`, { tone })
+      setDrafts(Object.fromEntries(r.alts.map((a) => [a.imageId, a.alt])))
+      if (r.skipped.length) setSkipNote(`${r.skipped.length} photo${r.skipped.length === 1 ? '' : 's'} left for you: ${[...new Set(r.skipped.map((x) => x.reason))].join('; ')}.`)
+      toast.success(r.alts.length ? 'Drafts are in the photo boxes — read them, then Save alt on each' : 'Nothing to draft')
+    } catch (e) { toast.error(errorText(e, 'Could not write the photo descriptions')) } finally { setWriting(false) }
+  }
   const confirm = useConfirm()
   const [url, setUrl] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -615,9 +660,16 @@ function ImagesSection({ product, mayUpdate, onChange }: { product: Product; may
     <section className="card p-5 min-w-0">
       <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Photos</h2>
       {product.images.length === 0 && <p className="mb-3 text-sm text-gray-600 dark:text-slate-400">No photos yet.</p>}
+      {writerOn && mayUpdate && product.images.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-end gap-2">
+          <ToneSelect id="alt-tone" value={tone} onChange={setTone} />
+          <button type="button" onClick={writeAlts} disabled={writing} className="btn btn-secondary text-xs">{writing ? 'Writing…' : 'Write photo descriptions'}</button>
+          {skipNote && <p className="basis-full text-xs text-gray-600 dark:text-slate-400">{skipNote}</p>}
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
         {product.images.map((img) => (
-          <ImageCard key={img.id} img={img} mayUpdate={mayUpdate} onPrimary={() => makePrimary(img)} onDelete={() => del(img)} onAlt={(alt) => saveAlt(img, alt)} />
+          <ImageCard key={img.id} img={img} draft={drafts[img.id]} mayUpdate={mayUpdate} onPrimary={() => makePrimary(img)} onDelete={() => del(img)} onAlt={(alt) => saveAlt(img, alt)} />
         ))}
       </div>
 
@@ -654,12 +706,14 @@ function ImagesSection({ product, mayUpdate, onChange }: { product: Product; may
   )
 }
 
-function ImageCard({ img, mayUpdate, onPrimary, onDelete, onAlt }: {
-  img: ProductImage; mayUpdate: boolean; onPrimary: () => void; onDelete: () => void; onAlt: (alt: string) => Promise<void>
+function ImageCard({ img, draft, mayUpdate, onPrimary, onDelete, onAlt }: {
+  img: ProductImage; draft?: string; mayUpdate: boolean; onPrimary: () => void; onDelete: () => void; onAlt: (alt: string) => Promise<void>
 }) {
   const [alt, setAlt] = useState(img.alt || '')
   const [saving, setSaving] = useState(false)
   useEffect(() => { setAlt(img.alt || '') }, [img.alt])
+  // A drafted description lands in the box, unsaved: the person reads it and presses Save alt.
+  useEffect(() => { if (draft) setAlt(draft) }, [draft])
   const dirty = alt.trim() !== (img.alt || '').trim()
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden dark:border-slate-700">
@@ -683,6 +737,75 @@ function ImageCard({ img, mayUpdate, onPrimary, onDelete, onAlt }: {
           </div>
         </div>
       ) : img.alt ? <p className="p-2 text-xs text-gray-600 dark:text-slate-400">{img.alt}</p> : null}
+    </div>
+  )
+}
+
+// ── The writer (store_ai_writer) ───────────────────────────────────────────────
+const TONE_CHOICES = [
+  ['friendly', 'Friendly'], ['professional', 'Professional'], ['playful', 'Playful'], ['luxurious', 'Luxurious'], ['straightforward', 'Straightforward'],
+] as const
+type ToneId = (typeof TONE_CHOICES)[number][0]
+
+function ToneSelect({ id, value, onChange }: { id: string; value: ToneId; onChange: (t: ToneId) => void }) {
+  return (
+    <div>
+      <label className="label" htmlFor={id}>Tone</label>
+      <select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value as ToneId)}>
+        {TONE_CHOICES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+      </select>
+    </div>
+  )
+}
+
+interface Draft { description: string; seoTitle: string; seoDescription: string }
+
+/** Asks for a draft, shows it in boxes the person can change, and hands it to the form only when they say so. */
+function WriterPanel({ productId, onUse }: { productId: string; onUse: (d: Draft) => void }) {
+  const toast = useToast()
+  const [tone, setTone] = useState<ToneId>('friendly')
+  const [notes, setNotes] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  const write = async () => {
+    setBusy(true); setProblem(null)
+    try { setDraft(await api.post(`/api/admin/product-writer/${productId}/describe`, { tone, notes: notes.trim() || null })) }
+    catch (e) { setProblem(errorText(e, 'Could not write a draft')) } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 space-y-3 dark:border-slate-700">
+      <p className="text-sm font-medium text-gray-700 dark:text-slate-200">Write it for me</p>
+      <p className="text-xs text-gray-600 dark:text-slate-400">A draft from the product's name, options and your notes. Read it and change it; it is only saved when you press Save changes.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <ToneSelect id="p-tone" value={tone} onChange={setTone} />
+        <div>
+          <label className="label" htmlFor="p-notes">What to say about it (optional)</label>
+          <textarea id="p-notes" className="input min-h-[40px]" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Materials, who it's for, what makes it good" />
+        </div>
+      </div>
+      <PageError message={problem} />
+      <button type="button" onClick={write} disabled={busy} className="btn btn-secondary text-sm">{busy ? 'Writing…' : draft ? 'Write another' : 'Write a draft'}</button>
+      {draft && (
+        <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-slate-700">
+          <div>
+            <label className="label" htmlFor="d-description">Draft description</label>
+            <textarea id="d-description" className="input min-h-[140px]" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+          </div>
+          <div>
+            <label className="label" htmlFor="d-seo-title">Draft search title</label>
+            <input id="d-seo-title" className="input" value={draft.seoTitle} onChange={(e) => setDraft({ ...draft, seoTitle: e.target.value })} />
+          </div>
+          <div>
+            <label className="label" htmlFor="d-seo-desc">Draft search description</label>
+            <textarea id="d-seo-desc" className="input min-h-[60px]" value={draft.seoDescription} onChange={(e) => setDraft({ ...draft, seoDescription: e.target.value })} />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary text-sm" onClick={() => { onUse(draft); setDraft(null); toast.success('Draft is in the form — press Save changes to keep it') }}>Use this draft</button>
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => setDraft(null)}>Throw it away</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -59,7 +59,7 @@ describe("the setup wizard's steps reach their pages", () => {
     const store = await loadVertical('store')
     const extra = (store.screens as any).onboarding.extra as Array<{ open: { to: string } }>
     expect(extra.map((e) => e.open.to)).toEqual(['/crm/domain', '/crm/payments', '/crm/products/new'])
-    // No QuickBooks step: the store is not offered it.
+    // No QuickBooks step: it is offered to the store as an opt-in the owner turns on later, not part of setting up.
     expect((store.screens as any).onboarding.integrations).not.toContain('quickbooks')
     const screens = src('crm/screens.tsx')
     expect(screens).toContain('!wizardOpens().includes(pathname)')

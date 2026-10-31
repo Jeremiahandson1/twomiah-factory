@@ -19,9 +19,12 @@ export function marketingCopy() {
   const { customer } = vocabulary()
   const n = (count: number) => `${count} ${count === 1 ? customer.one : customer.many}`
   return {
+    customerOne: customer.one,
+    customerMany: customer.many,
     audienceAll: `All ${customer.many} with an email`,
     audienceSegment: `Some ${customer.many}`,
     segmentType: `${capital(customer.one)} type`,
+    segmentGroup: `${capital(customer.one)} group`,
     counting: `Counting ${customer.many}…`,
     willGoTo: (count: number) => `This campaign will go to ${n(count)}.`,
     unsubscribedExcluded: `${capital(customer.many)} who unsubscribed are always excluded.`,

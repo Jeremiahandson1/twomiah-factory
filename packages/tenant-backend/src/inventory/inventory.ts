@@ -27,8 +27,8 @@ export interface InventoryTables {
   /** The company's branches (multi_location). Present, with inventory_location.branch_id → a warehouse or truck belongs to a branch. */
   branch?: any;
 }
-// Optional: low-stock email alerts to company admins. Templates that wire an
-// emailService get the alert (crm/rv shipped it); others silently skip it.
+// Low stock is no longer emailed per movement (2026-10-30): the app sends ONE digest a day, from the same code as the
+// store's (apps/unified/server/crm/lowStockDigest.ts). `emailService` stays on the deps only so older wiring still compiles.
 export interface InventoryEmail { send: (to: string, template: string, data: any) => Promise<any> }
 export interface InventoryServiceDeps { db: any; tables: InventoryTables; emailService?: InventoryEmail }
 // Optional: write an audit-log entry on inventory mutations (templates inject their own audit service).
@@ -73,6 +73,13 @@ function positiveQuantity(v: unknown, label = 'Quantity'): number {
  */
 const ITEM_TEXT = ['description', 'category', 'unit', 'vendor', 'vendorPartNumber', 'barcode', 'imageUrl'] as const
 const ITEM_MONEY = [['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']] as const
+/**
+ * Low stock: an item with a reorder point set (above 0) whose total on hand is at or below it. An item with no reorder point is
+ * not watched, so it is never "low" — the same rule the daily digest sends by (apps/unified server/data/inventoryLowStock.ts),
+ * so the Low Stock screen, its filter and the email name the same items (10/30, store PR #174 follow-up).
+ */
+export const isLowStock = (total: number, reorderPoint: number | null | undefined) => Number(reorderPoint) > 0 && total <= Number(reorderPoint)
+
 const ITEM_LEVELS = [['minStockLevel', 'Minimum stock level'], ['reorderPoint', 'Reorder point'], ['reorderQuantity', 'Reorder quantity']] as const
 function itemFields(data: any, isCreate: boolean): Record<string, any> {
   const d = data && typeof data === 'object' ? data : {}
@@ -233,7 +240,7 @@ async function getItems(companyId: string, {
       ...item,
       stockLevels: itemStockLevels,
       totalStock,
-      isLowStock: totalStock <= item.reorderPoint,
+      isLowStock: isLowStock(totalStock, item.reorderPoint),
     }
   })
 
@@ -518,44 +525,7 @@ async function adjustStock(companyId: string, {
     return moveStock(tx, companyId, { itemId, location, quantity: qty, reason, userId, jobId, cost })
   })
 
-  await lowStockAlert(companyId, itemId, newQuantity)
   return updated
-}
-
-/** Email company admins when a movement leaves an item at or below its reorder point (never blocks the movement). */
-async function lowStockAlert(companyId: string, itemId: string, newQuantity: number) {
-  const [item] = await db.select()
-    .from(inventoryItem)
-    .where(eq(inventoryItem.id, itemId))
-
-  if (emailService && item && newQuantity <= item.reorderPoint && newQuantity > 0) {
-    // Send low stock notification to company admins
-    try {
-      const admins = await db.select({ email: user.email, firstName: user.firstName })
-        .from(user)
-        .where(and(
-          eq(user.companyId, companyId),
-          eq(user.isActive, true),
-          inArray(user.role, ['owner', 'admin', 'manager']),
-        ))
-
-      const [comp] = await db.select({ name: company.name })
-        .from(company)
-        .where(eq(company.id, companyId))
-        .limit(1)
-
-      for (const admin of admins) {
-        await emailService.send(admin.email, 'lowStockAlert', {
-          itemName: item.name,
-          currentStock: newQuantity,
-          reorderPoint: item.reorderPoint,
-          companyName: comp?.name || 'Your Company',
-        }).catch(() => {}) // Don't fail the stock update if email fails
-      }
-    } catch {
-      // Email service may not be configured — don't block stock updates
-    }
-  }
 }
 
 /**
@@ -612,8 +582,6 @@ async function transferStock(companyId: string, {
     return { transfer, fromQuantity: out.newQuantity, toQuantity: into.newQuantity }
   })
 
-  await lowStockAlert(companyId, itemId, result.fromQuantity)
-  await lowStockAlert(companyId, itemId, result.toQuantity)
   return result.transfer
 }
 
@@ -677,7 +645,6 @@ async function useOnJob(companyId: string, {
     return { usage, newQuantity: moved.newQuantity }
   })
 
-  await lowStockAlert(companyId, itemId, newQuantity)
   return usage
 }
 
@@ -756,7 +723,6 @@ async function returnFromJob(companyId: string, {
     return { updated, newQuantity: moved.newQuantity, itemId: usage.itemId }
   })
 
-  await lowStockAlert(companyId, itemId, newQuantity)
   return updated
 }
 
@@ -915,7 +881,6 @@ async function receivePurchaseOrder(companyId: string, poId: string, {
     return { updated, moves }
   })
 
-  for (const m of moves) await lowStockAlert(companyId, m.itemId, m.newQuantity)
   return updated
 }
 
@@ -1007,7 +972,7 @@ async function getLowStockItems(companyId: string) {
       const totalStock = itemStocks.reduce((sum, sl) => sum + sl.quantity, 0)
       return { ...item, totalStock, stockLevels: itemStocks }
     })
-    .filter(item => item.totalStock <= item.reorderPoint)
+    .filter(item => isLowStock(item.totalStock, item.reorderPoint))
     .sort((a, b) => a.totalStock - b.totalStock)
 }
 

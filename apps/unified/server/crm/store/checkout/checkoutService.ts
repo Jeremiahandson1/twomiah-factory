@@ -193,6 +193,10 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       logger.warn('[store] order emails failed', { error: e?.message })
     }
 
+    // The welcome email for a first order — only if the owner has switched it on (Marketing › Automatic emails). Fire and forget:
+    // a marketing email never costs the shopper their order. The send claims itself, so a replayed webhook sends nothing twice.
+    if (paid.contactId) void core.welcomeFirstOrder(companyId, paid.contactId)
+
     logger.info('[store] order finalized', { order: orderNumber })
   }
 

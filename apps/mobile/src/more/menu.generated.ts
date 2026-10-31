@@ -509,6 +509,8 @@ export const MENU: Record<string, MenuRow[]> = {
   ],
   store: [
     {"label":"Dashboard","path":"/crm/dashboard","group":"Home","icon":"home","permission":"orders:read","routePermission":"orders:read","native":[{"route":"/(tabs)/dashboard"}]},
+    {"label":"Marketing","path":"/crm/marketing","group":"Customers","icon":"megaphone","permission":"marketing:read","features":["email_marketing"]},
+    {"label":"Reviews","path":"/crm/reviews","group":"Customers","icon":"star","features":["google_reviews"]},
     {"label":"Products","path":"/crm/products","group":"Sell","icon":"ellipse","permission":"products:read","routePermission":"products:read","native":[{"route":"/(tabs)/store-stock"}]},
     {"label":"Orders","path":"/crm/orders","group":"Sell","icon":"ellipse","permission":"orders:read","routePermission":"orders:read","native":[{"route":"/(tabs)/store-orders"}]},
     {"label":"Suppliers","path":"/crm/suppliers","group":"Equipment & records","icon":"ellipse","permission":"integrations:update","routePermission":"integrations:update"},

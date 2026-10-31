@@ -157,7 +157,7 @@ describe('the picker', () => {
     expect(offersSection('care/finder', homecare)).toBe(true)
     expect(offersSection('care/finder', contractor)).toBe(false)
     // The routes' own pages are never offered (a product page, a cart, an order-received page).
-    for (const k of ['shop/product', 'shop/cart', 'shop/receipt', 'order/page', 'order/done']) expect(offersSection(k, store)).toBe(false)
+    for (const k of ['shop/product', 'shop/cart', 'shop/receipt', 'shop/account', 'order/page', 'order/done']) expect(offersSection(k, store)).toBe(false)
   })
 })
 

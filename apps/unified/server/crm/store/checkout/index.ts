@@ -17,6 +17,7 @@ import type { Mount } from '../../../http/registry.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { createCheckoutService } from './checkoutService.ts'
+import { createLowStockDigest } from '../lowStock.ts'
 import { createStorePublicRoutes, type OrderHooks } from './publicRoutes.ts'
 import { createStorePaymentRoutes, ensurePayPalWebhookEvents, ensureStripeWebhookEvents } from './paymentRoutes.ts'
 import { createPaymentNotices } from './paymentNotices.ts'
@@ -47,6 +48,10 @@ export function checkoutMounts(d: CrmDeps, core: StoreCore, orders?: OrderHooks)
     // Ask for a review once, a few days after an order ships.
     setInterval(() => { checkout.sweepReviewRequests().catch(log('review-request sweep')) }, 6 * 60 * 60 * 1000)
     setTimeout(() => { checkout.sweepReviewRequests().catch(log('review-request sweep')) }, 120_000)
+    // The owner's low-stock email: hourly, sent once a day from 8am the shop's time (../lowStock.ts).
+    const lowStock = createLowStockDigest(d, core)
+    setInterval(() => { void lowStock.sweep() }, 60 * 60 * 1000)
+    setTimeout(() => { void lowStock.sweep() }, 150_000)
     // A store connected before refunds were listened for has its webhook brought up to date, so refunds made in the
     // provider's dashboard reach the order. (10/12, 10/17)
     setTimeout(() => { void ensureStripeWebhookEvents(d, core); void ensurePayPalWebhookEvents(d, core) }, 30_000)

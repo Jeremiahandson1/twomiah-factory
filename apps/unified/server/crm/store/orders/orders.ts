@@ -35,7 +35,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { storeOrder, storeOrderRefund, productReview, type RefundLine } from '../../../db/schema/store.ts'
+import { storeOrder, storeOrderRefund, productReview, storeProduct, storeProductVariant, type RefundLine } from '../../../db/schema/store.ts'
 import { orderStats, storeCustomers, moveOrderFrom, reservePartMoney, reserveLineUnits, shippingRefundedCents } from '../../../data/storeOrders.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { requestScope } from '../../../core/audit.ts'
@@ -47,7 +47,7 @@ import { SHOPPER_TYPE } from '../core.ts'
 import { formatCents } from '../lib/money.ts'
 import { COUNTED, hasParcel, isFulfilment, mayMove, moveRefusal, changedUnderYou, noParcelRefusal, refundRefusal, seatOf, orderForSeat, fitsFulfillment, fulfillmentRefusal } from './rules.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
-import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition } from '../tileConditions.ts'
+import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition, lowStockProductCondition } from '../tileConditions.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { holdsRefund, quoteRefund, type MoneyBack, type OrderRefunds } from './refunds.ts'
 
@@ -151,7 +151,12 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     // "Reviews to approve" is a tile of the reviews:read seat — the list it opens (/api/admin/reviews?tile=pending) is gated the same.
     const mayReviews = await canSeeWith(d.permissions)((c as any).get('user').role, 'reviews:read', (c as any).get('user').userId)
     const reviewsPending = mayReviews ? Number((await db.select({ n: count() }).from(productReview).where(and(eq(productReview.companyId, own(c)), pendingReviewCondition(productReview))))[0]?.n ?? 0) : null
+    // "Running low" is a tile of the products:read seat, with the switch on: the list it opens (?filter=low_stock) asks the same.
+    const mayProducts = await canSeeWith(d.permissions)((c as any).get('user').role, 'products:read', (c as any).get('user').userId)
+    const lowStock = mayProducts && await d.features.isFeatureEnabled(own(c), 'store_low_stock')
+      ? Number((await db.select({ n: count() }).from(storeProduct).where(and(eq(storeProduct.companyId, own(c)), lowStockProductCondition(storeProduct, storeProductVariant))))[0]?.n ?? 0) : null
     return one(c, {
+      ...(lowStock !== null ? { lowStock } : {}),
       paidCount: row.paidCount,
       pendingFulfillment: row.pendingFulfillment,
       atSupplier: row.atSupplier,
@@ -170,7 +175,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const page = Math.max(1, Number(c.req.query('page')) || 1)
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 50))
     const q = String(c.req.query('q') || '').slice(0, 80)
-    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q)
+    const { rows, total } = await storeCustomers(db, own(c), d.settings?.contacts?.customerType || SHOPPER_TYPE, page, limit, q, String(c.req.query('tag') || '').slice(0, 60))
     return list(c, rows, { page, limit, total })
   })
 
@@ -180,6 +185,14 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     if (!order) return fail(c, 404, 'Not found')
     return one(c, orderForSeat(await seatOf(d.permissions, c), order))
   })
+
+  /** Never throws and never delays the status change: a review request is a courtesy. */
+  const askForReview = async (companyId: string, contactId: string) => {
+    try {
+      if (!(await d.features.isFeatureEnabled(companyId, 'google_reviews'))) return
+      await d.services.reviews.scheduleReviewRequestForVisit({ companyId, contactId })
+    } catch (e: any) { d.logger.warn('[store] review request not scheduled', { error: e?.message }) }
+  }
 
   app.patch('/:id/status', requirePermission('orders:update'), async (c) => {
     const companyId = own(c)
@@ -241,6 +254,9 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     await refunds.logStatusChange(c, prev, final, restocked, money)
     if (next === 'shipped' && prev.status !== 'shipped') void core.notifyShipped(updated)
     if (next === 'ready_for_pickup' && prev.status !== 'ready_for_pickup') void notifyReady(updated)
+    // An order that has reached the customer (delivered, or picked up) asks for a Google review — when the shop has Review Requests
+    // on and has switched requests on in Reviews › Settings (the service checks that). One request per customer per 30 days.
+    if ((next === 'delivered' || next === 'picked_up') && updated.contactId) void askForReview(companyId, updated.contactId)
     return one(c, { order: orderForSeat(seat, final), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
   })
 

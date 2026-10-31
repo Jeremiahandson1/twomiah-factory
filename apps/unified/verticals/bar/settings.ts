@@ -148,7 +148,7 @@ const bar: VerticalSettings = {
     time: { jobsFeature: 'jobs', billable: false, subtitle: 'Clock in on the bar tablet with your till PIN, or log hours by hand' },
     expenses: {},
     // The column was the shared default, "Job Title / Trade" (Bar Run 2).
-    team: { roleLabel: 'Position', rolePlaceholder: 'e.g. Bartender, line cook' },
+    team: { roleLabel: 'Position', rolePlaceholder: 'e.g. Bartender, line cook', subtitle: 'The people who work in your bar.' },
     agreements: { recurrence: true },
     fleet: { gps: true },
     // The four stored keys in a bar's words: nobody here is a tech (T51).
@@ -201,6 +201,9 @@ const bar: VerticalSettings = {
     settings: {
       // No trade licence behind a bar (settingsConfig.ts, T41).
       licenseNumber: false,
+      // A bar keeps timesheets and a pay week (Time Tracking is offered to it), so the work week stays; its clock sentence
+      // drops "online bookings", which a bar does not have (store gaps, item 2).
+      timeZoneHint: 'The one clock for your bar: your hours, reports, invoices, timesheets and the AI Receptionist all keep time on it.',
       // The same four rungs and words, described as what each does behind a bar (Bar Run 1). This replaces the shared
       // list, so Viewer is repeated or the bar could not hand out read-only access.
       roles: [

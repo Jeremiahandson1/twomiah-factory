@@ -20,6 +20,15 @@ export interface TeamConfig {
    * field seat then reads the crew's jobs as its own. Absent → no logins field (a template without crew_login).
    */
   crewLogins?: boolean
+  /**
+   * The line under the page title, before the "login access" sentence. Default: "The people you schedule and pay." — a shop
+   * that schedules and pays no one says what the roster is for in its own words (store, 2026-10-30).
+   */
+  subtitle?: string
+  /** Show the Department column and box. Default on; a shop has no departments. */
+  department?: boolean
+  /** Show the hourly rate column and box ("Rate …/hr"). Default on; off for a vertical that pays no one by the hour here. */
+  hourlyRate?: boolean
 }
 
 export interface TimeConfig {
