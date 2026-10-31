@@ -62,6 +62,7 @@ import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
+import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
@@ -81,6 +82,7 @@ import { roofMounts } from '../crm/roof/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
+import { createMoneyStripRoutes } from '../crm/dashboard/moneyStrip.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
 import { cardPaymentsFor } from '../crm/cardPayments.ts'
@@ -100,6 +102,8 @@ export interface CrmModuleDeps {
   adsConnector: ReturnType<typeof createAdsConnector>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** What the vertical calls its customer (its vocabulary), for the words a refusal uses. Absent → "customer". */
+  customerWord?: string
   /** The website's photo store (served at /media): a menu item's photo goes into the site's library. */
   store?: PhotoStore
 }
@@ -108,7 +112,7 @@ export interface CrmModuleDeps {
 const gbpSecrets = { seal: encrypt, open: decrypt }
 
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
-  const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v } = deps
+  const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, customerWord } = deps
   const gbpDeps = { db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets, googleStillUsedBy: (email: string | null) => googleLinkSharing(db, email, { reviews: true }) }
   // A customer's service sites and the equipment at them (field service, landscaping, basic, bar).
   const sites = !!v.serviceSites
@@ -141,6 +145,15 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const canTakeCardPayments = cardPaymentsFor({ features, services: s })
   // A quote billed in parts: its deposit on approval, progress invoices, the final invoice crediting them (crm/billing).
   const quoteBilling = createQuoteBilling(own, { canTakeCardPayments })
+  // Approving a quote sets up the work: its budget by cost code and its allowances on Selections (crm/billing/quoteBudget.ts).
+  // One hook for both doors (the office marking it approved, the customer approving on their link); a failure here is
+  // logged and never undoes the approval or the deposit.
+  const quoteBudget = createQuoteBudget(own)
+  const afterApproval = async (companyId: string, quoteId: string) => {
+    const deposit = await quoteBilling.raiseDeposit(companyId, quoteId)
+    try { await quoteBudget.carryOver(companyId, quoteId) } catch (err: any) { logger.error?.('[quotes] budget not set up after approval', { quote: quoteId, error: err?.message }) }
+    return deposit
+  }
 
   /**
    * What keeps a contact from being deleted, and the delete itself: ONE rule (tenant-backend createContactDeleter) for
@@ -237,6 +250,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // a job billed on its own: POST /api/jobs/:id/invoice
       ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
+      ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
     },
   } as any)
@@ -250,7 +264,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       hasLineCost: true, timeZoneFor,
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
-      onApproved: ({ companyId, quote: q }: any) => quoteBilling.raiseDeposit(companyId, q.id),
+      onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
       billedBefore: (tx: any, q: any) => quoteBilling.billedBefore(tx, q),
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
       // the field-service copies had them, the base CRM didn't).
@@ -405,6 +419,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The roofer's (templates/crm-roof routes/dashboard.ts).
       : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
       : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
+    // Cash in, what is owed and who is waiting, under every trade's own dashboard (crm/dashboard/moneyStrip.ts). Each half
+    // asks its own permission and is sent only where the trade has it.
+    { path: '/api/dashboard-strip', access: 'user', feature: 'dashboard', router: createMoneyStripRoutes(own) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
     { path: '/api/time', access: 'user', feature: 'time_tracking', router: createTimeRoutes({ db, tables: { timeEntry, user, job, project, teamMember }, authenticate, requirePermission, audit } as any) },
@@ -519,7 +536,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       enabledFeaturesFor: features.enabledFeaturesFor,
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
-      quoteDeposit: { onApproved: (companyId: string, q: any) => quoteBilling.raiseDeposit(companyId, q.id), depositFor: quoteBilling.depositFor },
+      quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

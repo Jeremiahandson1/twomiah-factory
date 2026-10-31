@@ -6,6 +6,10 @@
  * The /plans API reads from the database, not these defaults.
  */
 
+import { PLANS } from './planSeats'
+
+const SEAT_PLAN_IDS = ['starter10', 'team25', 'business50'] as const
+
 export const PRODUCTS = [
   { id: 'crm', name: 'General Contractor CRM' },
   { id: 'crm-fieldservice', name: 'Field Service CRM' },
@@ -16,21 +20,35 @@ export const PRODUCTS = [
 
 export type ProductId = typeof PRODUCTS[number]['id']
 
-export const DEFAULT_SAAS_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
-]
+/**
+ * PRICING IS SEATS ONLY: every feature is included, and the plans differ in how many people log in. The catalog (ids, names, list
+ * prices, seats) is packages/tenant-backend/src/plans.ts — the ONE place; this file, the public /plans list, the sign-up pages
+ * and the Factory wizard all read it. These are what a NEW sign-up is offered. What an existing customer pays is their Stripe
+ * subscription, which nothing here touches.
+ *
+ * Annual billing is not offered on the seat plans yet (factoryStripe.ts points the annual slot at the monthly price), so the
+ * annual figure equals the monthly one and nothing is promised as a discount.
+ */
+export function seatPlanTiers() {
+  return SEAT_PLAN_IDS.map((id) => {
+    const p = PLANS[id]
+    return {
+      id: p.id, name: p.name, monthlyPrice: p.monthlyPrice, annualPrice: p.monthlyPrice,
+      users: { included: p.seats as number, max: p.seats as number },
+      ...(id === 'team25' ? { highlight: true } : {}),
+      features: [`Up to ${p.seats} users`, 'Every standard feature included — nothing is locked behind a higher plan', 'Your website, hosting and support', 'Optional add-ons (like texting or the Exterior Visualizer) are extra'],
+    }
+  })
+}
 
-export const DEFAULT_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 1764 },
-  { id: 'pro', name: 'Pro License', price: 5364 },
-  { id: 'business', name: 'Business License', price: 10764 },
-  { id: 'construction', name: 'Construction License', price: 21564 },
-  { id: 'full', name: 'Full Platform License', price: 14997 },
-]
+/** The own-it licence for each seat plan: 36 months of the monthly price, as create-stripe-products.ts mints it. */
+export function seatPlanLicenses() {
+  return SEAT_PLAN_IDS.map((id) => ({ id, name: `${PLANS[id].name} License`, price: PLANS[id].monthlyPrice * 36 }))
+}
+
+export const DEFAULT_SAAS_TIERS = seatPlanTiers()
+
+export const DEFAULT_SELF_HOSTED = seatPlanLicenses()
 
 export const DEFAULT_SELF_HOSTED_ADDONS = [
   { id: 'installation', name: 'Installation Service', price: 500, type: 'one_time' },
@@ -66,43 +84,6 @@ export const DEFAULT_FEATURE_BUNDLES = [
 
 // ─── Per-Product Defaults ────────────────────────────────────────────────────
 // Each product gets its own tailored tiers and relevant add-ons.
-
-const CRM_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
-]
-
-// Must match templates/crm-fieldservice/backend/src/config/pricing.ts tier IDs.
-// The template uses `starter`/`pro`/`business`/`fleet`/`enterprise` for feature
-// gating — if these IDs drift, purchased tiers won't unlock the right features.
-const FIELDSERVICE_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Jobs & scheduling', 'Quotes & invoices', 'Payments', 'Customer portal', 'Mobile tech app', 'Documents', 'Time tracking'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'GPS tracking & geofencing', 'Route optimization', 'Flat-rate pricebook', 'Service agreements', 'Review requests', 'Online booking', 'Two-way SMS', 'QuickBooks sync', 'Showcase website included'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Customer equipment tracking', 'Parts inventory', 'Fleet management', 'Maintenance contracts', 'Warranties', 'Email campaigns', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
-  { id: 'fleet', name: 'Fleet', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Multi-location dispatch', 'Advanced scheduling & routing', 'Call tracking & recording', 'Commission tracking', 'Territory management', 'Revenue by location / technician', 'Service area pages on website'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited techs & locations', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
-]
-
-// Must match templates/crm-roof/backend/src/config/pricing.ts tier IDs.
-// Template uses `starter`/`pro`/`business`/`storm`/`enterprise` for feature gating.
-const ROOF_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Lead intake', 'Job tracking', 'Quotes & invoices', 'Payments', 'Customer portal', 'Documents', 'Mobile app'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Good-Better-Best pricing', 'Pricebook', 'Review requests', 'Two-way SMS', 'Photos & before/after galleries', 'QuickBooks sync', 'Showcase website included'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Insurance workflow + adjuster directory', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
-  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Service area pages on website'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited everything', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
-]
-
-const HOMECARE_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Client Profiles', 'Care Plans', 'Scheduling', 'Visit Tracking', 'Documents', 'Family Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 19 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Caregiver Matching', 'EVV (Electronic Visit Verification)', 'Medication Tracking', 'QuickBooks Sync', 'Reporting'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 19 }, features: ['Everything in Pro', 'Multi-Location', 'Payroll Integration', 'Insurance Billing', 'Compliance Dashboard', 'Email Campaigns', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'agency', name: 'Agency', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 19 }, features: ['Everything in Business', 'Advanced Compliance', 'Multi-State Operations', 'Custom Workflows', 'Dedicated Support', 'API Access'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
-]
 
 // Per-product add-on bundles — only show what's relevant to each industry
 const CRM_BUNDLES = [
@@ -155,39 +136,6 @@ const HOMECARE_BUNDLES = [
   { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, payroll, insurance billing' },
 ]
 
-// Self-hosted licenses per product
-const CRM_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 1764 },
-  { id: 'pro', name: 'Pro License', price: 5364 },
-  { id: 'business', name: 'Business License', price: 10764 },
-  { id: 'construction', name: 'Construction License', price: 21564 },
-  { id: 'full', name: 'Full Platform License', price: 14997 },
-]
-
-const FIELDSERVICE_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 1764 },
-  { id: 'pro', name: 'Pro License', price: 5364 },
-  { id: 'business', name: 'Business License', price: 10764 },
-  { id: 'fleet', name: 'Fleet License', price: 21564 },
-  { id: 'full', name: 'Full Platform License', price: 14997 },
-]
-
-const ROOF_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 1764 },
-  { id: 'pro', name: 'Pro License', price: 5364 },
-  { id: 'business', name: 'Business License', price: 10764 },
-  { id: 'storm', name: 'Storm License', price: 21564 },
-  { id: 'full', name: 'Full Platform License', price: 14997 },
-]
-
-const HOMECARE_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 1764 },
-  { id: 'pro', name: 'Pro License', price: 5364 },
-  { id: 'business', name: 'Business License', price: 10764 },
-  { id: 'agency', name: 'Agency License', price: 21564 },
-  { id: 'full', name: 'Full Platform License', price: 14997 },
-]
-
 // Dispensary (Leaf) tiers
 const DISPENSARY_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 299, annualPrice: 239, users: { included: 5, max: 10, additionalPrice: 29 }, features: ['POS System', 'Inventory Management', 'Cash Sessions + Reconciliation', 'ID Scanning + Verification', 'Customer Check-In Queue', 'Purchase Limit Enforcement', 'Product Equivalency Calculator', 'Tip Management', 'EOD Reconciliation Reports', 'QR Code Scanning', 'Offline POS Mode', 'Team Management', 'Compliance Basics', 'Audit Trail'] },
@@ -210,32 +158,32 @@ export function getProductDefaults(product: string) {
   switch (product) {
     case 'crm':
       return {
-        saas_tiers: CRM_TIERS,
-        self_hosted: CRM_SELF_HOSTED,
+        saas_tiers: seatPlanTiers(),
+        self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
         feature_bundles: CRM_BUNDLES,
       }
     case 'crm-fieldservice':
       return {
-        saas_tiers: FIELDSERVICE_TIERS,
-        self_hosted: FIELDSERVICE_SELF_HOSTED,
+        saas_tiers: seatPlanTiers(),
+        self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
         feature_bundles: FIELDSERVICE_BUNDLES,
       }
     case 'crm-roof':
       return {
-        saas_tiers: ROOF_TIERS,
-        self_hosted: ROOF_SELF_HOSTED,
+        saas_tiers: seatPlanTiers(),
+        self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
         feature_bundles: ROOF_BUNDLES,
       }
     case 'crm-homecare':
       return {
-        saas_tiers: HOMECARE_TIERS,
-        self_hosted: HOMECARE_SELF_HOSTED,
+        saas_tiers: seatPlanTiers(),
+        self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
         feature_bundles: HOMECARE_BUNDLES,
@@ -257,4 +205,53 @@ export function getProductDefaults(product: string) {
         feature_bundles: DEFAULT_FEATURE_BUNDLES,
       }
   }
+}
+
+/**
+ * The products whose public plan list is the seat plans. The home care, field service, roofing and general-contractor CRMs
+ * (and the default) are; the dispensary (Leaf) keeps its own tiers until the owner decides otherwise — it has no seat-plan
+ * Stripe price to send a new sign-up to.
+ */
+export const SEAT_PLAN_PRODUCTS: ReadonlySet<string> = new Set(['crm', 'crm-fieldservice', 'crm-roof', 'crm-homecare'])
+export const usesSeatPlans = (product: string) => SEAT_PLAN_PRODUCTS.has(product) || !PRODUCTS.some((p) => p.id === product)
+
+/**
+ * What the public /plans list sends for a product: the seat plans, whatever the stored factory_pricing row says (it was seeded
+ * with the old feature tiers and the admin page can still edit it). Everything else on the row (add-ons, set-up services)
+ * is passed through as stored.
+ */
+export function publicPlans(product: string, stored: { saas_tiers?: unknown; self_hosted?: unknown } | null | undefined) {
+  if (usesSeatPlans(product)) return { plans: seatPlanTiers(), selfHosted: seatPlanLicenses() }
+  return { plans: stored?.saas_tiers ?? getProductDefaults(product).saas_tiers, selfHosted: stored?.self_hosted ?? getProductDefaults(product).self_hosted }
+}
+
+/** Where the seat plans are set. The admin Pricing page shows this next to the read-only plans. */
+export const SEAT_PLANS_SET_IN = 'packages/tenant-backend/src/plans.ts'
+
+/**
+ * One factory_pricing row as the admin Pricing page sees it. A seat product's plans (and its self-hosted licences, which are
+ * 36× the monthly) come from plans.ts, never from the stored row — the row still holds the old feature tiers and nothing reads
+ * them — and are marked read-only with where they are set. Everything else on the row (add-ons, set-up services) is as stored.
+ * Another product's row is returned as it is.
+ */
+export function adminPricingRow<T extends { product: string }>(row: T) {
+  if (!usesSeatPlans(row.product)) return row
+  return { ...row, saas_tiers: seatPlanTiers(), self_hosted: seatPlanLicenses(), seat_plans_read_only: true, seat_plans_set_in: SEAT_PLANS_SET_IN }
+}
+
+/**
+ * The columns an admin save may write for a product. A seat product's plans and licences are not the admin page's to change
+ * (they are set in plans.ts), so a save never writes them — whatever the page, or an old copy of it, sent.
+ */
+export function adminPricingWrite(product: string, body: Record<string, unknown>) {
+  const all = {
+    saas_tiers: body.saas_tiers,
+    self_hosted: body.self_hosted,
+    self_hosted_addons: body.self_hosted_addons,
+    deploy_services: body.deploy_services,
+    feature_bundles: body.feature_bundles,
+  }
+  if (!usesSeatPlans(product)) return all
+  const { saas_tiers: _t, self_hosted: _s, ...rest } = all
+  return rest
 }

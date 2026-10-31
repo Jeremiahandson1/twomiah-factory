@@ -21,12 +21,15 @@ import { nav as roofNav, routePermissions as roofRoutePermissions, isRoofing, ro
 import { nav as storeNav, routePermissions as storeRoutePermissions, isStore, storeMenu } from './crm/verticals/store'
 import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SHARED_ABSENT, SETTINGS_HIDDEN, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 import { ViewAsBanner } from './crm/viewAs'
+import { applyNavGroups } from './navGroups'
 
 const SHARED_NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
   // business sees none of them; the rest show with their feature.
   { to: '/crm/dashboard', icon: Home, label: 'Dashboard', section: 'Business', features: ['dashboard'], exact: true },
   { to: '/crm/contacts', icon: Users, label: 'Contacts', features: ['contacts'], permission: 'contacts:read' },
+  // Next to Contacts, where an enquiry becomes one. It used to close the list, after Bookings, so it read as a Bookings page.
+  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'leads:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/tech', icon: Smartphone, label: 'Field View', features: ['tech_mobile_view'] },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', features: ['quotes'], permission: 'quotes:read' },
@@ -114,14 +117,15 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/bookings/waitlist', icon: Hourglass, label: 'Waitlist', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/insights', icon: BarChart3, label: 'Insights', features: ['online_booking'], permission: 'bookings:read' },
   { to: '/crm/bookings/settings', icon: SlidersHorizontal, label: 'Booking settings', features: ['online_booking'], permission: 'bookings:update' },
-  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'leads:read' },
+  // The last three have a heading of their own: with none they were read as Bookings' pages (menu review, 2026-10-30).
   // Who changed what — owners and admins (audit:read, the permission /api/audit asks for).
-  { to: '/crm/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit:read' },
+  { to: '/crm/audit', icon: ScrollText, label: 'Audit Log', section: 'Account', permission: 'audit:read' },
   // Ungated in the template and on the server (/api/support's knowledge base and AI chat, /api/platform-support):
   // the help center, and the line to Twomiah about the software itself, on every business's menu.
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
-  // Each near-copy vertical's own items (crm/verticals/<v>.tsx), gated by its features.
+  // Each near-copy vertical's own items (crm/verticals/<v>.tsx), gated by its features. Each starts under a heading of
+  // its own, so they do not fall under Account above.
   ...basicNav,
   ...landscapingNav,
   ...barNav,
@@ -200,20 +204,22 @@ export const SETTINGS_SUB_PAGES = [
  * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
  */
 const verticalShell = (): ShellConfig => {
-  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]> }
+  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]>; navGroups?: Record<string, string>; navGroupOrder?: string[] }
   const names = sc.nav || {}
   const sections = sc.navSections || {}
   const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
   const widened = sc.navFeatures || {}
   return {
     ...SHELL,
-    nav: SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
+    nav: applyNavGroups(SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
       const gated = widened[item.to] ? { ...item, features: widened[item.to] } : item
       // The website's page of photos is the business's Portfolio or Gallery (VerticalSettings.vocabulary.gallery).
       const own = names[item.to] || (item.to === '/crm/website/portfolio' ? sc.vocabulary?.gallery : undefined)
       const renamed = own ? { ...gated, label: own } : gated
       return item.section && sections[item.section] ? { ...renamed, section: sections[item.section] } : renamed
-    }),
+    }), sc.navGroups, sc.navGroupOrder),
+    // Headings fold away and stay as the person left them (packages/tenant-ui shell/AppShell.tsx).
+    collapsibleSections: true,
     ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),
     // A page left out of the menu is not this CRM's: typed in, it says so (another vertical's page on a shared feature).
     routeAbsent: [...(SHELL.routeAbsent || []), ...hidden],

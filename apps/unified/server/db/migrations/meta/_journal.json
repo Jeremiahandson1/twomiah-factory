@@ -295,6 +295,13 @@
       "when": 1793401181711,
       "tag": "0041_saved_request",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793403320550,
+      "tag": "0042_contractor_depth",
+      "breakpoints": true
     }
   ]
 }

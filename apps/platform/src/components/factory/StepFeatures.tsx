@@ -36,7 +36,7 @@ const CRM_PRESETS: { id: string; name: string; icon: string; description: string
 const WEBSITE_PRESETS = [
   { id: 'lead-capture', name: 'Lead Capture', icon: '📋', description: 'Single page. Hero, services, contact form.', features: ['contact_form'] },
   { id: 'brochure', name: 'Brochure Site', icon: '📄', description: '3–5 pages. Services, about, contact.', features: ['contact_form','services_pages','testimonials'] },
-  { id: 'full-site', name: 'Full Site', icon: '🌐', description: 'All pages — gallery, blog, testimonials, visualizer.', features: ['contact_form','services_pages','gallery','blog','testimonials','analytics'] },
+  { id: 'full-site', name: 'Full Site', icon: '🌐', description: 'All pages — gallery, blog, testimonials. (The Exterior Visualizer is a paid add-on, picked separately.)', features: ['contact_form','services_pages','gallery','blog','testimonials','analytics'] },
   { id: 'custom', name: 'Custom', icon: '⚙️', description: 'Full control over every feature.', features: null },
 ]
 
@@ -175,7 +175,7 @@ const CRM_REGISTRY = [
     { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', core: false },
   ]},
   { category: 'Add-on Products', features: [
-    { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior rendering tool', core: false },
+    { id: 'visualizer', name: 'Exterior Visualizer', description: 'Paid add-on (extra cost) — AI-powered exterior rendering tool', core: false },
   ]},
 ]
 
@@ -419,9 +419,11 @@ function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   // Plan-based feature locking
-  const hasPlan = plan && plan.planId
-  const currentTierIdx = hasPlan ? getPlanTierIndex(plan.product, plan.planId) : -1
-  const plans = hasPlan ? PLANS_BY_PRODUCT[plan.product] : []
+  // The plans are seats only now (planData.ts SEAT_PLANS): they carry no feature list, so a plan locks nothing and the whole
+  // feature picker (and its presets) stays open. This still guards a ladder that does list features per plan.
+  const hasPlan = !!(plan && plan.planId && PLANS_BY_PRODUCT[plan.product].some(p => p.features.length > 0))
+  const currentTierIdx = hasPlan ? getPlanTierIndex(plan!.product, plan!.planId) : -1
+  const plans = hasPlan ? PLANS_BY_PRODUCT[plan!.product] : []
   const planFeatures = hasPlan ? new Set(plans[currentTierIdx]?.features || []) : new Set<string>()
 
   // Determine if a feature is locked by plan (included in current tier — can't uncheck)
@@ -429,7 +431,7 @@ function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[
   // Determine if a feature requires upgrade (exists in a higher tier only)
   const getUpgradeTier = (featureId: string): string | null => {
     if (!hasPlan) return null
-    const featureTierIdx = getFeatureTier(plan.product, featureId)
+    const featureTierIdx = getFeatureTier(plan!.product, featureId)
     if (featureTierIdx < 0 || featureTierIdx <= currentTierIdx) return null
     return plans[featureTierIdx]?.name || null
   }

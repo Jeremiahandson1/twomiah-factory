@@ -50,6 +50,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const [customerJobs, setCustomerJobs] = useState<Row[]>([])
   /** The catalogue, when this vertical prices quotes from it. Empty everywhere else. (T41) */
   const [pricebook, setPricebook] = useState<Row[]>([])
+  // Fetched (even to nothing): only then can the form say the book is empty rather than still loading.
+  const [pricebookLoaded, setPricebookLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<any>(null)
   const [statusFilter, setStatusFilter] = useState('')
@@ -87,7 +89,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
      */
     if (cfg.pricebook) {
       api.get('/api/pricebook/items', { limit: 200, active: 'true' })
-        .then((r: any) => setPricebook(Array.isArray(r) ? r : r?.data || []))
+        .then((r: any) => { setPricebook(Array.isArray(r) ? r : r?.data || []); setPricebookLoaded(true) })
         .catch(() => setPricebook([]))
     }
   }, [page, statusFilter, search]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,6 +114,11 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
       ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
       ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
+      // Estimating fields must survive the round trip too: PUT replaces every line.
+      ...(li.section ? { section: li.section } : {}),
+      ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
+      ...(li.allowance ? { allowance: true } : {}),
+      ...(li.costCode ? { costCode: li.costCode } : {}),
     })) : [blankLine()], depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
@@ -264,8 +271,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                * written that way. This hook asks the permissions context directly, so the gate holds
                * on every template that mounts the page with no wiring in the wrapper at all.
                */
-              pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost } : undefined}
+              pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
+              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes } : undefined}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (

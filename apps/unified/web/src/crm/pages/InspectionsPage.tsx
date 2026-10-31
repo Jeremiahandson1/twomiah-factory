@@ -1,13 +1,14 @@
 // Moved from templates/crm/frontend/src/pages/InspectionsPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '../date'
-import { Plus, Edit, Trash2, Check, X as XIcon, RotateCcw } from 'lucide-react'
+import { Plus, Edit, Trash2, Check, X as XIcon, RotateCcw, ListChecks } from 'lucide-react'
 import { api } from '../../api'
 import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { ChecklistModal, ChecklistTemplatesModal } from './InspectionChecklist'
 
 /**
  * While an inspection has no result. Kept in step with RESULTABLE in routes/inspections.ts: a result
@@ -36,7 +37,11 @@ export default function InspectionsPage() {
   const toast = useToast();
   // Every write on this page asks inspections:create|update|delete on the server (routes/inspections.ts); the
   // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
-  const { can } = useAuth();
+  const { can, hasFeature } = useAuth();
+  // Checklists (feature inspection_checklists): a list of lines to answer on each visit, and the saved checklists to start from.
+  const checklistsOn = hasFeature('inspection_checklists') && can('inspections:read');
+  const [checklistFor, setChecklistFor] = useState<Record<string, unknown> | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +90,8 @@ export default function InspectionsPage() {
   const [failing, setFailing] = useState<Record<string, unknown> | null>(null);
   const [deficiencies, setDeficiencies] = useState('');
   const [failSaving, setFailSaving] = useState(false);
+  // A visit whose checklist has failed lines already says what failed: leave this empty and the lines are the list.
+  const failedFromChecklist = checklistsOn && Number(((failing?.checklist as { failed?: number } | undefined)?.failed) || 0) > 0;
   const submitFail = async () => {
     if (!failing) return;
     setFailSaving(true);
@@ -118,23 +125,27 @@ export default function InspectionsPage() {
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', passed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }} /> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? formatDate(v as string) : '-' },
     { key: 'inspector', label: 'Inspector' },
+    ...(checklistsOn ? [{ key: 'checklist', label: 'Checklist', render: (v: unknown) => { const c = v as { total: number; answered: number; failed: number } | undefined; return c && c.total ? `${c.answered} of ${c.total} answered${c.failed ? ` · ${c.failed} failed` : ''}` : '-'; } }] : []),
   ];
 
   return (
     <div>
-      <PageHeader title="Inspections" action={can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : undefined} />
+      <PageHeader title="Inspections" action={<div className="flex gap-2">{checklistsOn && <Button variant="secondary" onClick={() => setTemplatesOpen(true)}><ListChecks className="w-4 h-4 mr-2 inline"/>Checklists</Button>}{can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : null}</div>} />
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
         emptyMessage='No inspections yet'
         emptyHint="Schedule permit and quality inspections and record whether each one passed."
         emptyAction={can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : undefined}
         actions={[
         // A result is recorded once, so Pass and Fail are offered only while there is no result.
+        { label: 'Checklist', icon: ListChecks, onClick: (r: Record<string, unknown>) => setChecklistFor(r), show: () => checklistsOn },
         { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
         { label: 'Pass', icon: Check, onClick: handlePass, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
         { label: 'Fail', icon: XIcon, onClick: (r: Record<string, unknown>) => { setDeficiencies(''); setFailing(r); }, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
         { label: 'Book re-inspection', icon: RotateCcw, onClick: (r: Record<string, unknown>) => { setReinspectDate(''); setReinspecting(r); }, show: (r: Record<string, unknown>) => can('inspections:create') && r.status === 'failed' },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('inspections:delete') },
       ]} />
+      {checklistsOn && <ChecklistModal inspection={checklistFor} canEdit={can('inspections:update') && !!checklistFor && AWAITING.includes(checklistFor.status as string)} onClose={() => setChecklistFor(null)} onChanged={load} />}
+      {checklistsOn && <ChecklistTemplatesModal isOpen={templatesOpen} onClose={() => setTemplatesOpen(false)} types={inspectionTypes} canCreate={can('inspections:create')} canUpdate={can('inspections:update')} canDelete={can('inspections:delete')} />}
       <Modal isOpen={!!failing} onClose={() => setFailing(null)} title={`Fail ${(failing?.number as string) || 'inspection'}`} size="md">
         <div className="space-y-4">
           <div>
@@ -149,10 +160,11 @@ export default function InspectionsPage() {
             <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
               The re-inspection is booked against this list, so it is what the crew works from.
             </p>
+            {failedFromChecklist && <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">The failed lines on the checklist are used if you leave this empty.</p>}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setFailing(null)}>Cancel</Button>
-            <Button onClick={submitFail} disabled={failSaving || deficiencies.trim().length < 10}>{failSaving ? 'Saving…' : 'Record failure'}</Button>
+            <Button onClick={submitFail} disabled={failSaving || (deficiencies.trim().length < 10 && !failedFromChecklist)}>{failSaving ? 'Saving…' : 'Record failure'}</Button>
           </div>
         </div>
       </Modal>

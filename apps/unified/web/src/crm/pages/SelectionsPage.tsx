@@ -4,10 +4,10 @@ import { formatDate } from '../date'
 import {
   Palette, Plus, Check, Clock, Package, Truck,
   DollarSign, AlertTriangle, ChevronRight, Search,
-  Loader2, Image, ArrowUpRight, ArrowDownRight, Filter
+  Image, ArrowUpRight, ArrowDownRight, Filter
 } from 'lucide-react';
 import { api } from '../../api'
-import { usePrompt, useToast, useAuth, usePermissions } from '../../shared'
+import { usePrompt, useToast, useAuth, usePermissions, PageLoading } from '../../shared'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -266,9 +266,7 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
 
       {/* Selections by Category */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        </div>
+        <PageLoading what="your selections" rows={3} bare />
       ) : Object.keys(grouped).length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
@@ -616,9 +614,7 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
           {/* Options Grid */}
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              </div>
+              <PageLoading what="the options" rows={3} bare />
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 {search ? 'No options match your search.' : mayAdd ? 'No options yet — add the choices you offer for this selection below.' : 'No options have been added for this selection yet.'}

@@ -50,7 +50,7 @@ const basic: VerticalSettings = {
   crm: {
     serviceSites: true,
     // No billing a job on its own: the basic copy's job table had no invoice link mounted (routes/jobs.ts).
-    jobs: { photos: true, textArrival: true },
+    jobs: { photos: true, textArrival: true, requireCustomer: true },
     quotes: { textOnSend: true },
     documents: { markup: false, types: DOC_TYPES },
     agreements: { recurrence: true },
@@ -75,7 +75,7 @@ const basic: VerticalSettings = {
       // No projects here (featureRegistry: the contractor's): no Projects list or count on a contact.
       sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true },
     },
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true },
     // The template's quote-name example was field service's ('AC Compressor Replacement'); a neutral one here.
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Standard package', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
@@ -100,7 +100,7 @@ const basic: VerticalSettings = {
     // Neutral words for a general service business (it fell back to the shared default, which suits no one in particular).
     pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Standard visit' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: {},
     expenses: {},
@@ -117,7 +117,10 @@ const basic: VerticalSettings = {
       labels: { myJobs: 'Jobs', agreements: 'Maintenance Plans' },
     },
     // The general lead platforms (leadsConfig.ts, T42); the ids are crm.leads.platforms.
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
     leads: {
+      startWith: ['job', 'quote'],
       platforms: [
         {
           value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo',

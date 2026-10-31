@@ -93,6 +93,10 @@ const roof: VerticalSettings = {
   },
   // The screens' settings are filled as roofing's screens land (plan step 4).
   screens: {
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
+    // Roofing's jobs are its own pages, which do not open with a contact chosen, so a roofer's lead starts a quote.
+    leads: { startWith: ['quote'] },
     // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
     onboarding: { integrations: ['dns', 'quickbooks', 'jobber', 'angi', 'thumbtack', 'google_lsa', 'stripe', 'twilio'] },
     // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).

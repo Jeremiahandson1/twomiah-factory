@@ -7,6 +7,7 @@ import { bootTenant, seedOwner } from './harness.ts'
 let t: Awaited<ReturnType<typeof bootTenant>>
 let as: (path: string, init?: any) => Promise<Response>
 const KEY = 'phone-save-0001-abcdef'
+let customer = ''
 
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'fieldservice' })
@@ -14,6 +15,8 @@ beforeAll(async () => {
   const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken as string
   as = (path, init = {}) => t.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
   expect((await as('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs'] } })).status).toBe(200)
+  // A new job is for a customer in field service (contractor PR #173: crm.jobs.requireCustomer).
+  customer = (await (await as('/api/contacts', { method: 'POST', json: { name: 'Job Customer', type: 'client' } })).json() as any).id
 }, 120_000)
 
 const contacts = async (name: string) => ((await (await as(`/api/contacts?search=${encodeURIComponent(name)}`)).json() as any).data as any[]).filter((c) => c.name === name)
@@ -36,7 +39,7 @@ describe('a save sent twice with one key is made once', () => {
 
   test('two tries at the same moment: one is made, the other is told to try again', async () => {
     // A job: unlike a contact (which refuses a duplicate name on its own), nothing else stops a second one being made.
-    const send = () => as('/api/jobs', { method: 'POST', json: { title: 'Racer job' }, headers: { 'Idempotency-Key': 'phone-save-race-0001' } })
+    const send = () => as('/api/jobs', { method: 'POST', json: { title: 'Racer job', contactId: customer }, headers: { 'Idempotency-Key': 'phone-save-race-0001' } })
     const statuses = (await Promise.all([send(), send()])).map((r) => r.status).sort()
     expect(statuses.filter((s) => s === 503).length).toBeLessThanOrEqual(1)
     const jobs = ((await (await as('/api/jobs?search=Racer%20job')).json() as any).data as any[]).filter((j) => j.title === 'Racer job')
@@ -54,14 +57,14 @@ describe('a save sent twice with one key is made once', () => {
   })
 
   test('one key used for a different save is refused; a malformed key is refused', async () => {
-    const r = await as('/api/jobs', { method: 'POST', json: { title: 'Other save' }, headers: { 'Idempotency-Key': KEY } })
+    const r = await as('/api/jobs', { method: 'POST', json: { title: 'Other save', contactId: customer }, headers: { 'Idempotency-Key': KEY } })
     expect([r.status, (await r.json() as any).code]).toEqual([422, 'key_reused'])
     const bad = await as('/api/jobs', { method: 'POST', json: { title: 'x' }, headers: { 'Idempotency-Key': 'no spaces allowed' } })
     expect([bad.status, (await bad.json() as any).code]).toEqual([400, 'bad_key'])
   })
 
   test('a queued "complete" sent twice completes the job once', async () => {
-    const job = await (await as('/api/jobs', { method: 'POST', json: { title: 'Queued' } })).json() as any
+    const job = await (await as('/api/jobs', { method: 'POST', json: { title: 'Queued', contactId: customer } })).json() as any
     const id = (job.data ?? job).id
     const send = () => as(`/api/jobs/${id}/complete`, { method: 'POST', headers: { 'Idempotency-Key': 'phone-complete-0001' } })
     const a = await (await send()).json() as any

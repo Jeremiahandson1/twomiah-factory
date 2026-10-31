@@ -20,6 +20,7 @@ import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
 import { includedLines, depositProblem, chooseOptionalLine } from './quoteOptions'
 import { partialOf } from '../partialOf'
+import { applyMarkups, sectionSummary } from './quoteSections'
 
 
 export interface QuoteTables {
@@ -164,6 +165,16 @@ const lineItemSchema = z.object({
   // An optional line, and whether it is ticked (quoteOptions.ts). Kept only where quote_line_item has the columns.
   optional: z.boolean().optional(),
   selected: z.boolean().optional(),
+  /**
+   * Estimating depth (quoteSections.ts), kept only where quote_line_item has the columns. The phase the line sits under;
+   * the markup on our cost the price comes from (the server works the price out — a markup with no cost is refused);
+   * an allowance the customer chooses against (approving the quote opens it on Selections); the cost code its budget
+   * is filed under.
+   */
+  section: z.string().trim().max(120, 'A section name is 120 characters or fewer').optional(),
+  markupPct: z.number().min(0, 'Markup cannot be negative').max(1000, 'Markup cannot be more than 1000%').optional(),
+  allowance: z.boolean().optional(),
+  costCode: z.string().trim().max(60, 'A cost code is 60 characters or fewer').optional(),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
@@ -177,7 +188,7 @@ const EDITABLE = OPEN_QUOTE_STATUSES
 /** The statuses an edit may set by hand: 'viewed' is the customer's act, never typed in. */
 const SETTABLE = ['draft', 'sent']
 
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false) => items.map((item, i) => ({
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false) => items.map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -194,6 +205,12 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
   } : {}),
   // An optional line starts unticked unless the office ticked it; a line that is not optional is always included.
   ...(hasOptional ? { optional: !!item.optional, selected: item.optional ? !!item.selected : true } : {}),
+  ...(hasSections ? {
+    section: item.section || null,
+    markupPct: item.markupPct === undefined ? null : item.markupPct.toString(),
+    allowance: !!item.allowance,
+    costCode: item.costCode || null,
+  } : {}),
 }))
 /** The lines that count, for a quote whose lines may be optional (quoteOptions.ts) — every line where none can be. */
 const counted = (items: z.infer<typeof lineItemSchema>[], hasOptional: boolean) => (hasOptional ? includedLines(items.map((i) => ({ ...i, selected: i.optional ? !!i.selected : true }))) : items)
@@ -219,7 +236,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const u = c.get('user') as any
     try { return !!(await deps.canSee(u?.role, permission, u?.userId)) } catch { return false }
   }
-  const withoutLineCost = (lines: any[] | undefined) => (lines || []).map(({ unitCost, ...li }: any) => li)
+  // A markup is the cost in another form (price ÷ markup gives the cost back), so it goes with the cost.
+  const withoutLineCost = (lines: any[] | undefined) => (lines || []).map(({ unitCost, markupPct, ...li }: any) => li)
   /** One quote, shaped for this caller. A list row drops the evidence for everyone except the tamper hash. */
   const forCaller = (q: any, seesCost: boolean, seesEvidence: boolean, list = false) => {
     if (!q) return q
@@ -228,6 +246,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // keeps the signing evidence; every other seat (and every open screen) does not get it. (2026-10-22)
     if (!seesEvidence) delete out.publicToken
     if (list) { delete out.signature; delete out.signedIp; delete out.signedUserAgent }
+    // The phases, with their subtotals — and, for a seat that reads margins, what each costs us.
+    if (hasSections && Array.isArray(out.lineItems) && !list) out = { ...out, sections: sectionSummary(out.lineItems, seesCost) }
     if (!seesCost && Array.isArray(out.lineItems)) out = { ...out, lineItems: withoutLineCost(out.lineItems) }
     return out
   }
@@ -269,6 +289,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   // decides a quote's own link by its public_token column. A template's tables have neither and keep what they had.
   const hasOptional = !!t.quoteLineItem?.optional
   const hasDeposit = !!t.quote?.depositType
+  // Sections, markup, allowances and cost codes on a quote's lines: where the table has the columns (migration 0041).
+  const hasSections = !!t.quoteLineItem?.section
   /** A quote's lines as its job and its invoice take them: the included ones. */
   const billable = (rows: any[]) => (hasOptional ? includedLines(rows) : rows)
 
@@ -418,6 +440,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const cid = currentUser.companyId
     const data = quoteSchema.parse(await c.req.json()) as any
+    if (hasSections) {
+      const priced = applyMarkups<any>(data.lineItems)
+      if ('error' in priced) return c.json({ error: priced.error }, 400)
+      data.lineItems = priced.lines
+    }
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
     // Who the quote is for: the customer named (never a vendor — the invoice it becomes would bill one), else the
     // project's (contacts/customer.ts).
@@ -457,7 +484,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
@@ -483,9 +510,20 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const left = [...stored]
       for (const li of data.lineItems) {
         const i = left.findIndex((s: any) => (li.pricebookItemId && s.pricebookItemId === li.pricebookItemId) || (!li.pricebookItemId && s.description === li.description))
-        if (i >= 0) { const s = left.splice(i, 1)[0]; li.unitCost = s.unitCost === null || s.unitCost === undefined ? undefined : Number(s.unitCost) }
+        if (i >= 0) {
+          const s = left.splice(i, 1)[0]
+          li.unitCost = s.unitCost === null || s.unitCost === undefined ? undefined : Number(s.unitCost)
+          // …and the markup it was priced from, which the same seat was never shown.
+          if (hasSections && s.markupPct !== null && s.markupPct !== undefined && li.markupPct === undefined) li.markupPct = Number(s.markupPct)
+        }
         else li.unitCost = undefined
       }
+    }
+    if (hasSections && Array.isArray(data.lineItems)) {
+      // A seat that cannot see cost cannot reprice from a markup either: it keeps the price it sent.
+      const priced = applyMarkups<any>(seesCost ? data.lineItems : data.lineItems.map((li: any) => ({ ...li, markupPct: undefined })))
+      if ('error' in priced) return c.json({ error: priced.error }, 400)
+      data.lineItems = seesCost ? priced.lines : data.lineItems
     }
     // Once a customer has approved (or declined) a quote it is a record, not a draft. Signed acceptances must not be mutable.
     if (!EDITABLE.includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
@@ -522,7 +560,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       let items: any[]
       if (data.lineItems !== undefined) {
         await tx.delete(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id))
-        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional)).returning() : []
+        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections)).returning() : []
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
       // a single-connection database). Every other caller reads before the transaction opens.

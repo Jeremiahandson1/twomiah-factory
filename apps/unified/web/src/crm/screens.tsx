@@ -8,9 +8,10 @@ import {
   CommissionsPage, TechView, FleetPage, InventoryPage, EquipmentPage, AgreementsPage, WarrantiesPage, RecurringForm,
   RecurringList, TasksPage, ReviewsPage, MarketingPage, MessagesPage, AdsPage, PricebookPage, LeadSourcesPage,
   leadSourceGuides, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, IntegrationsPage, ImportPage, MigrationPage,
-  useAuth, useToast,
+  useAuth, useToast, MoneyStrip,
 } from '../shared'
 import { api } from '../api'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 import { verticalScreens } from './vertical'
 import OnboardingWizard, { wizardOpens } from './pages/OnboardingWizard'
 import type { ComponentType } from 'react'
@@ -53,7 +54,14 @@ function JobsDashboard() {
 export function Dashboard() {
   const home = v().home
   const Own = typeof home === 'string' ? HOMES[home] : undefined
-  return Own ? <Own /> : <JobsDashboard />
+  // Cash in, what is owed and who is waiting, above every trade's own home screen (reporting/MoneyStrip.tsx). The jobs
+  // dashboard shows the past-due figure as a tile of its own, so the strip leaves that one out there.
+  return (
+    <div className="space-y-6">
+      <MoneyStrip api={client} hide={Own ? [] : ['overdue']} />
+      {Own ? <Own /> : <JobsDashboard />}
+    </div>
+  )
 }
 /**
  * A contact's page in the trade's words: its job ("Schedule Service Call", the "Service Calls" list) and its service sites
@@ -78,7 +86,7 @@ export function ContactDetail() {
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
 // repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
@@ -104,7 +112,10 @@ export function JobDetail() {
 const invoicingFor = (hasFeature: (f: string) => boolean) => {
   const i = v().invoicing as any
   // Optional quote lines and a deposit on approval: every vertical's quotes have the columns (server 0034).
+  // Estimating: sections, markup on cost and multi-line lines for every vertical's quotes (server 0041). Allowances only where
+  // Selections is on (a contractor's), cost codes only where quotes attach to projects (the approved quote's budget).
   return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true,
+    quoteSections: true, quoteAllowances: hasFeature('selections'), quoteCostCodes: !!i.projects && hasFeature('projects'),
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),
     jobs: !!i.jobs && hasFeature('jobs'),

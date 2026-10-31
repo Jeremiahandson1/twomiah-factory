@@ -182,7 +182,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // The CRM: contacts, jobs, quotes, invoices and every module the shared code carries.
     // This phone's push token, for every vertical (core/phonePush.ts) — before any module's own /api/push.
     { path: '/api/push/expo-token', access: 'user', router: phonePush.tokenRoutes },
-    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM, store }),
+    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM, customerWord: vertical.vocabulary.customer.one, store }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits — and the editor's preview, which draws a draft
     // through the website's own routes (site/preview.ts).
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical, preview: { fetchApp: (req) => app.fetch(req), stylesheet: siteStylesheet } }) },

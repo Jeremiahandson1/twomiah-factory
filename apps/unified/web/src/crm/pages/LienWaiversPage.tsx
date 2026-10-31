@@ -4,9 +4,9 @@
  * Four types: conditional/unconditional × progress/final.
  */
 import { useState, useEffect } from 'react'
-import { Shield, Plus, Check, X, Loader2 } from 'lucide-react'
+import { Shield, Plus, Check, X } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth } from '../../shared'
+import { useAuth, PageLoading } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -58,7 +58,7 @@ export default function LienWaiversPage() {
 
   const act = async (id: string, action: string) => { await api.post(`/api/lien-waivers/${id}/${action}`, {}); load(); };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
+  if (loading) return <PageLoading what="your lien waivers" />;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

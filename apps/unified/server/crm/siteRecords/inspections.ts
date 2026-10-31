@@ -4,11 +4,12 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { createActorName, companyTimeZone, storeDateString, markerDay } from '@twomiah/tenant-backend'
-import { inspection, project, user } from '../../db/schema/index.ts'
+import { inspection, inspectionItem, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { checklistCounts, checklistLines } from './inspectionChecklists.ts'
 
 const schema = z.object({ type: z.string(), projectId: z.string(), scheduledDate: z.string().optional(), inspector: z.string().optional(), notes: z.string().optional() })
 
@@ -50,6 +51,9 @@ export function createInspectionRoutes(d: CrmDeps) {
     return fail(c, 400, `${item.number} is scheduled for ${markerDay(when)}, which has not happened yet. Move the date if the inspector came early.`, 'inspection_not_yet_due')
   }
 
+  /** Checklists (feature inspection_checklists) change nothing for a business that has not been given them. */
+  const checklistsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, 'inspection_checklists')
+
   const app = new Hono<AppEnv>()
 
   app.get('/', requirePermission('inspections:read'), async (c) => {
@@ -78,7 +82,12 @@ export function createInspectionRoutes(d: CrmDeps) {
 
     // Flatten {inspection, project} → the inspection fields with a nested project, so the list table (which reads
     // flat number/type/status/date/inspector) works.
-    const flat = (data as any[]).map((r) => ({ ...r.inspection, project: r.project }))
+    const counts = await checklistsOn(me.companyId) ? await checklistCounts(d, me.companyId, (data as any[]).map((r) => r.inspection.id)) : null
+    const flat = (data as any[]).map((r) => {
+      const { photos: _photos, ...rest } = r.inspection
+      // The checklist summary and the photo count are only there where checklists are on; everything else is as it was.
+      return counts ? { ...rest, project: r.project, checklist: counts.get(r.inspection.id) || { total: 0, answered: 0, failed: 0 }, photoCount: Array.isArray(_photos) ? _photos.length : 0 } : { ...r.inspection, project: r.project }
+    })
     return list(c, flat, { page: pageNum, limit: limitNum, total: Number(total) })
   })
 
@@ -115,6 +124,8 @@ export function createInspectionRoutes(d: CrmDeps) {
     // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
     const [gone] = await db.delete(inspection).where(and(eq(inspection.id, id), eq(inspection.companyId, me.companyId))).returning()
     if (!gone) return fail(c, 404, 'Inspection not found')
+    // The visit's photos go with it (the rows of its checklist go by the foreign key).
+    for (const p of Array.isArray((gone as any).photos) ? (gone as any).photos : []) { try { d.services.storage.deleteFile(p?.path) } catch { /* the row is gone */ } }
     return c.body(null, 204)
   })
 
@@ -127,6 +138,14 @@ export function createInspectionRoutes(d: CrmDeps) {
     if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
     const early = notYetVisited(c, existing, tz)
     if (early) return early
+    // A visit with a checklist passes only when every line has an answer and none of them failed.
+    if (await checklistsOn(me.companyId)) {
+      const lines = await checklistLines(d, me.companyId, id)
+      const open = lines.filter((l) => l.result === 'pending').length
+      const failed = lines.filter((l) => l.result === 'fail').length
+      if (failed) return fail(c, 400, `${failed} ${failed === 1 ? 'line' : 'lines'} on the checklist failed, so ${existing.number} cannot pass. Record it as failed, or change the answer if it was a mistake.`, 'inspection_has_failed_lines')
+      if (open) return fail(c, 400, `${open} ${open === 1 ? 'line' : 'lines'} on the checklist ${open === 1 ? 'has' : 'have'} no answer yet. Answer every line (or mark it not applicable) before passing ${existing.number}.`, 'inspection_checklist_incomplete')
+    }
     const [item] = await db.update(inspection).set({
       status: 'passed', result: 'pass', resultedAt: new Date(), resultedBy: await actorName(me), updatedAt: new Date(),
     }).where(and(eq(inspection.id, id), eq(inspection.companyId, me.companyId))).returning()
@@ -137,7 +156,7 @@ export function createInspectionRoutes(d: CrmDeps) {
     const me = c.get('user') as any
     const id = c.req.param('id')
     const body = await c.req.json().catch(() => ({}))
-    const deficiencies = typeof body?.deficiencies === 'string' ? body.deficiencies.trim() : ''
+    let deficiencies = typeof body?.deficiencies === 'string' ? body.deficiencies.trim() : ''
 
     const existing = await load(id, me.companyId)
     if (!existing) return fail(c, 404, 'Inspection not found')
@@ -145,6 +164,12 @@ export function createInspectionRoutes(d: CrmDeps) {
     if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
     const early = notYetVisited(c, existing, tz)
     if (early) return early
+
+    // With a checklist the failed lines ARE the list: used when none was typed, so nobody writes it twice.
+    if (!deficiencies && await checklistsOn(me.companyId)) {
+      const failedLines = (await checklistLines(d, me.companyId, id)).filter((l) => l.result === 'fail')
+      deficiencies = failedLines.map((l) => `• ${l.label}${l.note ? ` — ${l.note}` : ''}`).join('\n')
+    }
 
     // A failure has to say what failed. 10 characters refuses "ok", "x" and "See notes" while asking nothing of
     // somebody writing a real sentence.
@@ -192,6 +217,11 @@ export function createInspectionRoutes(d: CrmDeps) {
         .filter(Boolean).join('\n\n'),
       reinspectionOfId: existing.id,
     } as any).returning()
+    // Checklist on: the re-visit checks exactly the lines that failed, starting unanswered.
+    if (await checklistsOn(me.companyId)) {
+      const failedLines = (await checklistLines(d, me.companyId, existing.id)).filter((l) => l.result === 'fail')
+      if (failedLines.length) await db.insert(inspectionItem).values(failedLines.map((l, i) => ({ companyId: me.companyId, inspectionId: (made as any).id, label: l.label, sortOrder: i })) as any)
+    }
     return one(c, { inspection: made, reinspectionOf: existing }, 201)
   })
 

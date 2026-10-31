@@ -45,7 +45,7 @@ const fieldservice: VerticalSettings = {
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     serviceSites: true,
-    jobs: { defaultType: 'repair', photos: true, billing: { prefix: 'INV', pad: 5, termsDays: 30 }, textArrival: true },
+    jobs: { defaultType: 'repair', photos: true, billing: { prefix: 'INV', pad: 5, termsDays: 30 }, textArrival: true, requireCustomer: true },
     quotes: { textOnSend: true },
     // No drawings to mark up: plan markup is construction's.
     documents: { markup: false, types: DOC_TYPES },
@@ -67,7 +67,7 @@ const fieldservice: VerticalSettings = {
     searchPlaceholder: 'Search contacts, service calls, invoices...',
     // No projects in field service (featureRegistry: the contractor's): no Projects list or count on a contact.
     contacts: { sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
-    jobs: { labels: { singular: 'Service Call', plural: 'Service Calls', add: 'New Service Call' }, equipment: true, sites: true, photos: true, billing: true },
+    jobs: { labels: { singular: 'Service Call', plural: 'Service Calls', add: 'New Service Call' }, equipment: true, sites: true, photos: true, billing: true, requireCustomer: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. AC Compressor Replacement', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
     equipment: {
@@ -92,7 +92,7 @@ const fieldservice: VerticalSettings = {
     // The van's stock, named as a tech would (crm/pages/fieldservice/PartsInventory).
     parts: { namePlaceholder: 'e.g., 16x25x1 Pleated Filter' },
     reporting: { jobsLabel: 'Service Calls', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },
     time: {},
     expenses: {},
@@ -107,7 +107,9 @@ const fieldservice: VerticalSettings = {
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Calls', agreements: 'Maintenance Plans' },
     },
-    leads: {},
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
+    leads: { startWith: ['job', 'quote'] },
     marketing: {},
     messages: {},
     reviews: {},

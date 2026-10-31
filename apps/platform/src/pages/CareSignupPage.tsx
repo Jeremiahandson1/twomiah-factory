@@ -1,73 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Heart, Shield, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User, Palette } from 'lucide-react'
+import { Heart, Shield, Check, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User, Palette } from 'lucide-react'
+import { TRUST_BAR_OFFER, PLAN_STEP_NOTE, REVIEW_TITLE, REVIEW_NOTE, TOTAL_LABEL, DUE_LABEL, SUBMIT_LABEL, FOOTER_OFFER } from './careSignupOffer'
 import { API_URL } from '../supabase'
-
-// ─── Care-specific pricing (fallback if API fetch fails) ────────────────────
-const FALLBACK_PLANS = {
-  essentials: {
-    id: 'essentials',
-    name: 'Essentials',
-    price: 79,
-    priceAnnual: 63,
-    description: 'Core tools for small home care agencies',
-    users: 3,
-    features: [
-      'Client & caregiver management',
-      'Basic scheduling & calendar',
-      'Care plan documentation',
-      'Caregiver mobile app',
-      'Secure messaging',
-      'Document storage',
-    ],
-  },
-  professional: {
-    id: 'professional',
-    name: 'Professional',
-    price: 149,
-    priceAnnual: 119,
-    description: 'Full-featured for growing agencies',
-    users: 10,
-    popular: true,
-    features: [
-      'Everything in Essentials',
-      'EVV compliance tracking',
-      'Automated shift matching',
-      'Family portal access',
-      'Billing & invoicing',
-      'Custom care assessments',
-      'Authorization tracking',
-      'Caregiver training logs',
-    ],
-  },
-  enterprise: {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 299,
-    priceAnnual: 239,
-    description: 'Multi-location agency operations',
-    users: 25,
-    features: [
-      'Everything in Professional',
-      'Multi-location support',
-      'Advanced reporting & analytics',
-      'API access & integrations',
-      'Payroll export (Gusto, ADP)',
-      'Dedicated account manager',
-      'Custom onboarding',
-    ],
-  },
-}
-
-type PlanData = {
-  id: string
-  name: string
-  price: number
-  priceAnnual: number
-  description: string
-  users: number
-  popular?: boolean
-  features: string[]
-}
+import { FALLBACK_PLANS, DEFAULT_PLAN_ID, mapApiPlansToLocal, careFeatures, annualOffered, type PlanData } from './careSignupPlans'
 
 type AddonData = {
   id: string
@@ -84,24 +19,6 @@ const FALLBACK_ADDONS: AddonData[] = [
   { id: 'marketing_site', name: 'Marketing Website', price: 49, description: 'SEO-optimized agency website with lead capture' },
 ]
 
-function mapApiPlansToLocal(apiPlans: any[]): Record<string, PlanData> {
-  const result: Record<string, PlanData> = {}
-  for (const p of apiPlans) {
-    const key = p.name.toLowerCase().replace(/\s+/g, '_')
-    result[key] = {
-      id: key,
-      name: p.name,
-      price: p.monthlyPrice,
-      priceAnnual: p.annualPrice,
-      description: p.description || `${p.name} plan`,
-      users: p.users?.included ?? p.users?.max ?? 5,
-      popular: p.highlight === true,
-      features: p.features || [],
-    }
-  }
-  return result
-}
-
 function mapApiAddonsToLocal(apiAddons: any[]): AddonData[] {
   return apiAddons.map((a) => ({
     id: a.id,
@@ -110,56 +27,6 @@ function mapApiAddonsToLocal(apiAddons: any[]): AddonData[] {
     description: a.description || '',
   }))
 }
-
-const CARE_FEATURE_COMPARISON = [
-  { category: 'Client Management', features: [
-    { name: 'Client profiles & intake', essentials: true, professional: true, enterprise: true },
-    { name: 'Emergency contacts & physicians', essentials: true, professional: true, enterprise: true },
-    { name: 'Care plan documentation', essentials: true, professional: true, enterprise: true },
-    { name: 'Custom care assessments', essentials: false, professional: true, enterprise: true },
-    { name: 'Authorization tracking & alerts', essentials: false, professional: true, enterprise: true },
-    { name: 'Family portal (visit logs & updates)', essentials: false, professional: true, enterprise: true },
-  ]},
-  { category: 'Caregiver Management', features: [
-    { name: 'Caregiver profiles & availability', essentials: true, professional: true, enterprise: true },
-    { name: 'Certification & license tracking', essentials: true, professional: true, enterprise: true },
-    { name: 'Caregiver mobile app', essentials: true, professional: true, enterprise: true },
-    { name: 'Automated shift matching', essentials: false, professional: true, enterprise: true },
-    { name: 'Training module & compliance logs', essentials: false, professional: true, enterprise: true },
-    { name: 'Applicant tracking & onboarding', essentials: false, professional: false, enterprise: true },
-  ]},
-  { category: 'Scheduling & Visits', features: [
-    { name: 'Drag-and-drop scheduling', essentials: true, professional: true, enterprise: true },
-    { name: 'Recurring shift templates', essentials: true, professional: true, enterprise: true },
-    { name: 'Secure messaging', essentials: true, professional: true, enterprise: true },
-    { name: 'GPS clock-in / clock-out', essentials: false, professional: true, enterprise: true },
-    { name: 'EVV (Electronic Visit Verification)', essentials: false, professional: true, enterprise: true },
-    { name: 'Geofencing & visit validation', essentials: false, professional: true, enterprise: true },
-    { name: 'Open shift board (caregiver pickup)', essentials: false, professional: false, enterprise: true },
-  ]},
-  { category: 'Billing & Payroll', features: [
-    { name: 'Basic invoicing', essentials: true, professional: true, enterprise: true },
-    { name: 'Insurance & Medicaid billing', essentials: false, professional: true, enterprise: true },
-    { name: 'Batch invoice generation', essentials: false, professional: true, enterprise: true },
-    { name: 'Payer-rate configuration', essentials: false, professional: true, enterprise: true },
-    { name: 'Payroll export (Gusto, ADP)', essentials: false, professional: false, enterprise: true },
-    { name: 'Revenue & payer-mix reports', essentials: false, professional: false, enterprise: true },
-  ]},
-  { category: 'Compliance & Reporting', features: [
-    { name: 'Document storage', essentials: true, professional: true, enterprise: true },
-    { name: 'Background check tracking', essentials: true, professional: true, enterprise: true },
-    { name: 'HIPAA audit log', essentials: false, professional: true, enterprise: true },
-    { name: 'Custom reports & dashboards', essentials: false, professional: false, enterprise: true },
-    { name: 'Multi-location management', essentials: false, professional: false, enterprise: true },
-    { name: 'API access & integrations', essentials: false, professional: false, enterprise: true },
-  ]},
-  { category: 'Limits', features: [
-    { name: 'Active clients', essentials: '50', professional: '250', enterprise: 'Unlimited' },
-    { name: 'Active caregivers', essentials: '25', professional: '100', enterprise: 'Unlimited' },
-    { name: 'Storage', essentials: '5 GB', professional: '50 GB', enterprise: '250 GB' },
-    { name: 'SMS credits / month', essentials: '—', professional: '500', enterprise: '2,000' },
-  ]},
-]
 
 // ADDONS fallback is defined above as FALLBACK_ADDONS
 
@@ -201,7 +68,7 @@ export default function CareSignupPage() {
   const [ADDONS, setAddons] = useState<AddonData[]>(FALLBACK_ADDONS)
   const [, setPricingLoaded] = useState(false)
 
-  const [selectedPlan, setSelectedPlan] = useState('professional')
+  const [selectedPlan, setSelectedPlan] = useState(DEFAULT_PLAN_ID)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
   const [selectedAddons, setSelectedAddons] = useState<string[]>([])
 
@@ -224,7 +91,7 @@ export default function CareSignupPage() {
           const keys = Object.keys(mapped)
           if (!mapped[selectedPlan]) {
             const highlighted = keys.find(k => mapped[k].popular)
-            setSelectedPlan(highlighted || keys[0] || 'professional')
+            setSelectedPlan(highlighted || keys[0] || DEFAULT_PLAN_ID)
           }
         }
 
@@ -325,17 +192,8 @@ export default function CareSignupPage() {
     setLoading(true)
     setError('')
 
-    // Build feature list from plan + addons
-    const features = [
-      'scheduling', 'care_plans', 'caregiver_app', 'messaging',
-      ...selectedAddons,
-    ]
-    if (selectedPlan !== 'essentials') {
-      features.push('evv_basic', 'billing', 'family_portal_basic', 'assessments')
-    }
-    if (selectedPlan === 'enterprise') {
-      features.push('multi_location', 'analytics', 'api_access', 'payroll_export')
-    }
+    // Every plan has every feature (seats only); the add-ons picked are extra.
+    const features = careFeatures(selectedAddons)
 
     // Determine products
     const products = ['crm']
@@ -712,7 +570,7 @@ export default function CareSignupPage() {
         {/* Trust bar */}
         <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-gray-400 text-sm">
           <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> HIPAA-ready platform</div>
-          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 30-day free trial</div>
+          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> {TRUST_BAR_OFFER}</div>
           <div className="flex items-center gap-2"><FileCheck className="w-4 h-4" /> EVV compliant</div>
           <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> GPS visit verification</div>
         </div>
@@ -726,17 +584,14 @@ export default function CareSignupPage() {
 function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, setBillingCycle, selectedAddons, toggleAddon }: any) {
   const PLANS = plans as Record<string, PlanData>
   const ADDONS = addons as AddonData[]
-  const [showComparison, setShowComparison] = useState(false)
-  // Feature comparison table uses hardcoded keys that match CARE_FEATURE_COMPARISON data
-  const comparisonTierKeys = ['essentials', 'professional', 'enterprise']
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Choose your plan</h2>
-      <p className="text-gray-500 mb-6">All plans include a 30-day free trial. No credit card required.</p>
+      <p className="text-gray-500 mb-6">{PLAN_STEP_NOTE}</p>
 
-      {/* Billing toggle */}
-      <div className="flex justify-center items-center gap-4 mb-8">
+      {/* Billing toggle — only if some plan is cheaper by the year (the seat plans are not: no toggle, no "Save 20%") */}
+      {annualOffered(PLANS) && <div className="flex justify-center items-center gap-4 mb-8">
         <span className={billingCycle === 'monthly' ? 'text-gray-900 font-medium' : 'text-gray-400'}>Monthly</span>
         <button
           onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
@@ -748,7 +603,7 @@ function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, 
         {billingCycle === 'annual' && (
           <span className="bg-teal-100 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full">Save 20%</span>
         )}
-      </div>
+      </div>}
 
       {/* Plan cards */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -797,61 +652,7 @@ function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, 
         })}
       </div>
 
-      {/* Feature comparison toggle */}
-      <div className="text-center mb-8">
-        <button
-          onClick={() => setShowComparison(!showComparison)}
-          className="text-teal-600 hover:text-teal-700 text-sm font-medium underline underline-offset-2"
-        >
-          {showComparison ? 'Hide feature comparison' : 'Compare all features across plans'}
-        </button>
-      </div>
-
-      {/* Feature comparison table */}
-      {showComparison && (
-        <div className="mb-10 overflow-x-auto border border-gray-200 rounded-xl">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left p-3 font-semibold text-gray-700 w-2/5">Feature</th>
-                {comparisonTierKeys.map((k) => (
-                  <th key={k} className="text-center p-3 font-semibold text-gray-700 capitalize">{k}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {CARE_FEATURE_COMPARISON.map((group, gi) => (
-                <React.Fragment key={gi}>
-                  <tr>
-                    <td colSpan={4} className="bg-teal-50 px-3 py-2 font-bold text-teal-800 text-xs uppercase tracking-wide">
-                      {group.category}
-                    </td>
-                  </tr>
-                  {group.features.map((feat, fi) => (
-                    <tr key={fi} className={fi % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                      <td className="px-3 py-2 text-gray-700">{feat.name}</td>
-                      {comparisonTierKeys.map((k) => {
-                        const v = (feat as any)[k]
-                        return (
-                          <td key={k} className="text-center px-3 py-2">
-                            {v === true ? (
-                              <Check className="w-4 h-4 text-teal-500 mx-auto" />
-                            ) : v === false ? (
-                              <X className="w-4 h-4 text-gray-300 mx-auto" />
-                            ) : (
-                              <span className="text-gray-700 font-medium">{v}</span>
-                            )}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <p className="text-center text-sm text-gray-600 mb-8">Every plan has every feature. The plans differ only in how many people can log in.</p>
 
       {/* Add-ons */}
       <div>
@@ -1019,8 +820,8 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
   const total = price + addonsTotal
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-1">Review & start your free trial</h2>
-      <p className="text-gray-500 mb-6">14 days free, no credit card required. Cancel anytime.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-1">{REVIEW_TITLE}</h2>
+      <p className="text-gray-500 mb-6">{REVIEW_NOTE}</p>
 
       <div className="bg-teal-50/50 rounded-xl border border-teal-100 p-6 mb-6">
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
@@ -1044,12 +845,12 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
           </div>
           <hr className="my-3 border-teal-200" />
           <div className="flex justify-between text-base">
-            <span className="text-gray-600">After trial</span>
+            <span className="text-gray-600">{TOTAL_LABEL}</span>
             <span className="font-bold text-gray-900">${total}/mo</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Due today</span>
-            <span className="text-lg font-bold text-teal-600">$0.00</span>
+            <span className="text-gray-600">{DUE_LABEL}</span>
+            <span className="text-lg font-bold text-teal-600">${price}</span>
           </div>
         </div>
       </div>
@@ -1073,15 +874,15 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
         {loading ? (
           <><Loader2 className="w-5 h-5 animate-spin" /> Creating your account...</>
         ) : (
-          <><Heart className="w-5 h-5" /> Start 30-Day Free Trial</>
+          <><Heart className="w-5 h-5" /> {SUBMIT_LABEL}</>
         )}
       </button>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-gray-400 text-xs">
         <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Cancel anytime</div>
-        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> No credit card needed</div>
+        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> {FOOTER_OFFER}</div>
         <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Full platform access</div>
-        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Free onboarding call</div>
+        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Free support</div>
       </div>
     </div>
   )

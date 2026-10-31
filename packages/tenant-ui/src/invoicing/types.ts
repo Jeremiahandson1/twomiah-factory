@@ -82,6 +82,15 @@ export interface InvoicingConfig {
    */
   quoteOptions?: boolean
   quoteDeposit?: boolean
+  /**
+   * Estimating tools on the quote form: sections with subtotals, multi-line descriptions, a markup on our cost. Only for an
+   * app whose quote tables have the columns (the unified app, migration 0041); absent, the form is as it was.
+   */
+  quoteSections?: boolean
+  /** …and an "Allowance" tick on a line (approving the quote opens it on Selections). Only where Selections is switched on. */
+  quoteAllowances?: boolean
+  /** …and a cost code on a line, which the approved quote's project budget is filed under. Only where the app has projects. */
+  quoteCostCodes?: boolean
 }
 
 export interface InvoicingPageProps {
@@ -130,6 +139,11 @@ export interface LineItemInput {
   /** An optional line, and whether it is ticked (InvoicingConfig.quoteOptions). An optional line counts once ticked. */
   optional?: boolean
   selected?: boolean
+  /** Estimating (InvoicingConfig.quoteSections): the section the line sits under, the markup on our cost its price came from, an allowance, a cost code. */
+  section?: string
+  markupPct?: number
+  allowance?: boolean
+  costCode?: string
 }
 
 /** The lines a quote's price counts: every line not optional, and the optional ones ticked. */

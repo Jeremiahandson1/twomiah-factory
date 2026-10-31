@@ -50,7 +50,7 @@ const landscaping: VerticalSettings = {
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
     // owner objected that "a landscaping job is labelled REPAIR" (T58); the template only hid the label on the
     // dispatch card and kept storing it. It billed no job on its own (no POST /api/jobs/:id/invoice).
-    jobs: { photos: true, textArrival: true },
+    jobs: { photos: true, textArrival: true, requireCustomer: true },
     quotes: { textOnSend: true },
     // No drawings to mark up: plan markup is construction's (field service's fix, T28 L10 — the landscaping copy still
     // passed the table).
@@ -78,7 +78,7 @@ const landscaping: VerticalSettings = {
     // and job forms.
     sites: { singular: 'Property', plural: 'Properties', namePlaceholder: 'e.g. "Home", "Lake cottage"' },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },
     // markup/projects: construction's, as for field service (the template still offered both; projects is not offered
     // to this vertical).
@@ -107,7 +107,7 @@ const landscaping: VerticalSettings = {
     // the flat-rate form said "AC Diagnostic - Residential" and "DIAG-001").
     pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Spring cleanup', codePlaceholder: 'e.g., MOW-01', partsPlaceholder: 'Comma-separated, e.g., 2 yd mulch, 1x edging roll' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
-    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false, overdueTile: true },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: {},
     expenses: {},
@@ -130,7 +130,9 @@ const landscaping: VerticalSettings = {
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Visits', agreements: 'Service Plans' },
     },
-    leads: {},
+    // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
+    // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
+    leads: { startWith: ['job', 'quote'] },
     marketing: {},
     messages: {},
     reviews: {},

@@ -26,6 +26,9 @@ type ProductPricing = {
   self_hosted_addons: SelfHostedAddon[]
   deploy_services: DeployService[]
   feature_bundles: FeatureBundle[]
+  /** Seat products: the plans come from plans.ts and are not editable here (the Factory sets these two). */
+  seat_plans_read_only?: boolean
+  seat_plans_set_in?: string
 }
 
 export default function PricingAdminPage() {
@@ -45,6 +48,8 @@ export default function PricingAdminPage() {
   const [selfHostedAddons, setSelfHostedAddons] = useState<SelfHostedAddon[]>([])
   const [deployServices, setDeployServices] = useState<DeployService[]>([])
   const [featureBundles, setFeatureBundles] = useState<FeatureBundle[]>([])
+  const [seatReadOnly, setSeatReadOnly] = useState(false)
+  const [seatSetIn, setSeatSetIn] = useState('')
 
   useEffect(() => { loadPricing() }, [])
 
@@ -58,6 +63,8 @@ export default function PricingAdminPage() {
       setSelfHostedAddons(p.self_hosted_addons || [])
       setDeployServices(p.deploy_services || [])
       setFeatureBundles(p.feature_bundles || [])
+      setSeatReadOnly(p.seat_plans_read_only === true)
+      setSeatSetIn(p.seat_plans_set_in || '')
     }
   }, [selectedProduct, allPricing])
 
@@ -84,8 +91,8 @@ export default function PricingAdminPage() {
         method: 'PUT',
         body: JSON.stringify({
           product: selectedProduct,
-          saas_tiers: tiers,
-          self_hosted: selfHosted,
+          // A seat product's plans and licences are set in plans.ts: not sent, and the Factory would not save them anyway.
+          ...(seatReadOnly ? {} : { saas_tiers: tiers, self_hosted: selfHosted }),
           self_hosted_addons: selfHostedAddons,
           deploy_services: deployServices,
           feature_bundles: featureBundles,
@@ -94,7 +101,7 @@ export default function PricingAdminPage() {
       // Update local cache
       setAllPricing(prev => prev.map(p =>
         p.product === selectedProduct
-          ? { ...p, saas_tiers: tiers, self_hosted: selfHosted, self_hosted_addons: selfHostedAddons, deploy_services: deployServices, feature_bundles: featureBundles }
+          ? { ...p, ...(seatReadOnly ? {} : { saas_tiers: tiers, self_hosted: selfHosted }), self_hosted_addons: selfHostedAddons, deploy_services: deployServices, feature_bundles: featureBundles }
           : p
       ))
       setSaved(true)
@@ -138,6 +145,13 @@ export default function PricingAdminPage() {
       </div>
     )
   }
+
+  const seatNote = (
+    <div className="bg-blue-500/10 border border-blue-500/30 text-blue-200 px-4 py-3 rounded-lg text-sm">
+      These plans are not set on this page. They are set in <code className="text-white">{seatSetIn || 'packages/tenant-backend/src/plans.ts'}</code> — the one list the
+      sign-up pages and billing read — so change them there. Add-ons and set-up services can still be edited here.
+    </div>
+  )
 
   const currentProductName = products.find(p => p.id === selectedProduct)?.name || selectedProduct
 
@@ -205,7 +219,21 @@ export default function PricingAdminPage() {
       </div>
 
       {/* SaaS Tiers */}
-      {tab === 'tiers' && (
+      {tab === 'tiers' && seatReadOnly && (
+        <div className="space-y-4">
+          {seatNote}
+          {tiers.map((tier) => (
+            <div key={tier.id} className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-white">{tier.name}{tier.highlight ? ' · most popular' : ''}</div>
+                <div className="text-xs text-gray-400 mt-0.5">Plan ID {tier.id} · up to {tier.users?.max ?? tier.users?.included} users</div>
+              </div>
+              <div className="text-lg font-bold text-white">${tier.monthlyPrice}<span className="text-xs font-normal text-gray-400">/mo</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'tiers' && !seatReadOnly && (
         <div className="space-y-4">
           {tiers.map((tier, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
@@ -304,7 +332,19 @@ export default function PricingAdminPage() {
       )}
 
       {/* Self-Hosted Licenses */}
-      {tab === 'selfHosted' && (
+      {tab === 'selfHosted' && seatReadOnly && (
+        <div className="space-y-3">
+          {seatNote}
+          <p className="text-xs text-gray-400">A self-hosted licence is 36 × the monthly price.</p>
+          {selfHosted.map((s) => (
+            <div key={s.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center justify-between">
+              <span className="text-sm text-white">{s.name} <span className="text-xs text-gray-400">({s.id})</span></span>
+              <span className="text-sm font-semibold text-white">${s.price.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'selfHosted' && !seatReadOnly && (
         <div className="space-y-3">
           {selfHosted.map((s, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center gap-4">

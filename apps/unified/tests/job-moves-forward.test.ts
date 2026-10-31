@@ -12,7 +12,9 @@ async function tenant(vertical: string) {
   const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken as string
   const as = (path: string, init: any = {}) => t.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
   expect((await as('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs'] } })).status).toBe(200)
-  const newJob = async () => { const j = await (await as('/api/jobs', { method: 'POST', json: { title: 'Furnace check' } })).json() as any; return (j.data ?? j).id as string }
+  // A new job is for a customer where the trade says so (contractor PR #173: crm.jobs.requireCustomer).
+  const customer = (await (await as('/api/contacts', { method: 'POST', json: { name: 'Pat Customer', type: 'client' } })).json() as any).id as string
+  const newJob = async () => { const j = await (await as('/api/jobs', { method: 'POST', json: { title: 'Furnace check', contactId: customer } })).json() as any; return (j.data ?? j).id as string }
   const move = async (id: string, to: 'dispatch' | 'start' | 'complete') => { const r = await as(`/api/jobs/${id}/${to}`, { method: 'POST' }); return { status: r.status, body: await r.json() as any } }
   const read = async (id: string) => { const j = await (await as(`/api/jobs/${id}`)).json() as any; return j.data ?? j }
   return { as, newJob, move, read }

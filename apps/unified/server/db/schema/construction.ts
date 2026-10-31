@@ -284,6 +284,8 @@ export const inspection = pgTable('inspection', {
   /** Who recorded pass/fail, and when — not the same thing as when it was scheduled. (T32 M1) */
   resultedAt: timestamp('resulted_at'),
   resultedBy: text('resulted_by'),
+  /** Photos taken at the visit — the same list shape as a daily log's or a punch item's (siteRecords/recordPhotos.ts). */
+  photos: json('photos').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -299,6 +301,48 @@ export const inspection = pgTable('inspection', {
   index('inspection_company_id_idx').on(t.companyId),
   index('inspection_project_id_idx').on(t.projectId),
   index('inspection_reinspection_of_id_idx').on(t.reinspectionOfId),
+])
+
+/** A checklist a business reuses for one kind of inspection ("Framing walk-through"): the questions, in order. */
+export const inspectionTemplate = pgTable('inspection_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** The inspection type it is meant for ("Framing"); only used to suggest it when that type is picked. */
+  type: text('type'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('inspection_template_company_id_idx').on(t.companyId),
+  uniqueIndex('inspection_template_company_id_name_idx').on(t.companyId, t.name),
+])
+
+export const inspectionTemplateItem = pgTable('inspection_template_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => inspectionTemplate.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [index('inspection_template_item_template_id_idx').on(t.templateId)])
+
+/**
+ * One line of a visit's checklist, copied from a template (or typed on the spot) so editing the template later never
+ * rewrites a visit that already happened. result: pending | pass | fail | na.
+ */
+export const inspectionItem = pgTable('inspection_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  inspectionId: text('inspection_id').notNull().references(() => inspection.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  result: text('result').default('pending').notNull(),
+  note: text('note'),
+  /** The punch-list item a failed line made, so marking it failed twice never makes two. No key: deleting the snag keeps the line. */
+  punchListItemId: text('punch_list_item_id'),
+  answeredAt: timestamp('answered_at'),
+  answeredBy: text('answered_by'),
+}, (t) => [
+  index('inspection_item_company_id_idx').on(t.companyId),
+  index('inspection_item_inspection_id_idx').on(t.inspectionId),
 ])
 
 export const bid = pgTable('bid', {
@@ -718,6 +762,8 @@ export const projectBaseline = pgTable('project_baseline', {
 
 export const projectSelection = pgTable('project_selection', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  /** The quote line this allowance came from (0041): approving a quote opens its allowance lines here, once each. */
+  quoteLineItemId: text('quote_line_item_id'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
   categoryId: text('category_id').references(() => selectionCategory.id),
@@ -852,4 +898,54 @@ export const aiaForm = pgTable('aia_form', {
 }, (t) => [
   index('aia_form_company_id_idx').on(t.companyId),
   index('aia_form_project_id_idx').on(t.projectId),
+])
+
+
+/**
+ * A project saved as a starting point (0042, crm/projects/projectTemplates.ts): its phases, milestones and tasks laid out
+ * by how many days after the start each begins, and a starter punch list. Starting a project from one copies them onto
+ * the new project's dates. Nothing of the first project's people, progress, money or documents is kept.
+ */
+export const projectTemplate = pgTable('project_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type'),
+  /** The project it was saved from, for the list ("from Kitchen — Ruiz"); no key, so deleting the project keeps the template. */
+  fromProjectId: text('from_project_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_template_company_id_idx').on(t.companyId),
+  uniqueIndex('project_template_company_id_name_idx').on(t.companyId, t.name),
+])
+
+export const projectTemplateTask = pgTable('project_template_task', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  /** The template task this one sits under (a phase's tasks), by this table's ids. */
+  parentId: text('parent_id'),
+  name: text('name').notNull(),
+  description: text('description'),
+  /** Days after the project's start that it begins, and how many days it lasts. */
+  offsetDays: integer('offset_days').default(0).notNull(),
+  spanDays: integer('span_days').default(0).notNull(),
+  /** A milestone: a single day on the schedule (start and end the same). */
+  milestone: boolean('milestone').default(false).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_task_template_id_idx').on(t.templateId),
+])
+
+export const projectTemplatePunchItem = pgTable('project_template_punch_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  description: text('description').notNull(),
+  location: text('location'),
+  priority: text('priority').default('normal').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_punch_item_template_id_idx').on(t.templateId),
 ])

@@ -94,6 +94,13 @@ export interface JobOptions {
   onComplete?: JobHook
   maxLimit?: number
   /**
+   * Present → a NEW job must be for a customer (the one named, or its project's), refused in words when it is not, and
+   * an edit may not take the customer off a job that has one. Jobs already saved without a customer stay readable and
+   * editable — only making one, or clearing one, is refused. Absent → a job may have no customer, as before, so a
+   * template that never sets it (the old CRM templates) is unchanged. `word` is what the trade calls its customer.
+   */
+  requireCustomer?: { word: string }
+  /**
    * Present → POST /:id/invoice is offered: a job can be billed. (T41)
    *
    * Requires tables.invoice + tables.invoiceLineItem, and an `invoice.job_id` column on this
@@ -852,6 +859,10 @@ export function createJobRoutes(deps: JobDeps) {
     const forWhom = await resolveCustomer(db, t, currentUser.companyId, { contactId: data.contactId, projectId: data.projectId })
     if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
     if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId
+    if (o.requireCustomer && !forWhom.contactId) {
+      const error = `Pick the ${o.requireCustomer.word} this ${jobWord} is for — it can't be scheduled, billed or texted without one.`
+      return c.json({ error, code: 'customer_required', fields: { contactId: error } }, 400)
+    }
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
     if (who.error) return c.json({ error: who.error }, 400)
     // The other people on the job (otherAssigneeIds), read beside the job as `repeat` is. Nobody leads but someone is
@@ -970,6 +981,11 @@ export function createJobRoutes(deps: JobDeps) {
     const forWhom = await resolveCustomer(db, t, currentUser.companyId, { contactId: data.contactId, projectId: data.projectId }, existing)
     if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
     if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId
+    // Only TAKING the customer off a job that has one is refused; a job saved without one is still edited freely.
+    if (o.requireCustomer && forWhom.contactId === null) {
+      const error = `A ${jobWord} needs a ${o.requireCustomer.word} — pick another one instead of leaving it empty.`
+      return c.json({ error, code: 'customer_required', fields: { contactId: error } }, 400)
+    }
 
     /**
      * `jobs:update` IS NOT PERMISSION TO REPRICE THE JOB. (T32 M7)

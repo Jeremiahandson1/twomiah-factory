@@ -64,6 +64,7 @@ export {
 export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/staffBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
 export { isIncluded, includedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
+export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
 export { SIGNING_EVIDENCE, withoutSigningEvidence } from './invoicing/signingEvidence'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.

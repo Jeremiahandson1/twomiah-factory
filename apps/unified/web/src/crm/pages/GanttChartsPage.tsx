@@ -6,9 +6,9 @@
  * picture — no adding a task, no dragging (live test, 2026-10-22). Server: crm/projects/ganttCharts.ts.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { BarChart3, Loader2, Plus, Trash2 } from 'lucide-react'
+import { BarChart3, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../api'
-import { usePermissions, useToast, useConfirm } from '../../shared'
+import { usePermissions, useToast, useConfirm, PageLoading } from '../../shared'
 
 interface GanttTask {
   id: string;
@@ -155,7 +155,7 @@ export default function GanttChartsPage() {
     try { await api.delete(`/api/gantt-charts/tasks/${t.id}`); load(); } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not remove the task'); }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
+  if (loading) return <PageLoading what="the schedules for your projects" />;
 
   if (projects.length === 0) {
     return <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" /><div className="text-gray-500 dark:text-slate-400">No projects to display. Create a project to see it on the Gantt chart.</div></div>;

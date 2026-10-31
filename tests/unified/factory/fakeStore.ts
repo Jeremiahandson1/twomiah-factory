@@ -47,6 +47,18 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
         for (const r of inserted) writes.push({ table, op: 'insert', values: r, where: [] })
         return q
       },
+      // upsert: a row with the same key (opts.onConflict, else `product` when the row has one, else `id`) is merged into, else added.
+      upsert: (v: Row | Row[], opts: { onConflict?: string } = {}) => {
+        op = 'insert'
+        inserted = []
+        for (const r of Array.isArray(v) ? v : [v]) {
+          const key = opts.onConflict || (r.product !== undefined ? 'product' : 'id')
+          const existing = rows().find((x) => x[key] === r[key])
+          if (existing) { Object.assign(existing, r); inserted.push(existing); writes.push({ table, op: 'update', values: r, where: [[key, r[key]]] }) }
+          else { const row = { id: 'row-' + ++n, ...r }; rows().push(row); inserted.push(row); writes.push({ table, op: 'insert', values: row, where: [] }) }
+        }
+        return q
+      },
       update: (v: Row) => { op = 'update'; values = v; return q },
       delete: () => { op = 'delete'; return q },
       eq: (k: string, v: any) => { where.push([k, v]); return q },

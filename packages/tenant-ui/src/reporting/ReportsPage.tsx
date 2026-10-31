@@ -1,7 +1,7 @@
 // Reports & Analytics — one page for every CRM. The period picker drives every number on the page;
 // balances (outstanding / overdue) are point-in-time and say so.
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, Download, FileText, Loader2, Users } from 'lucide-react'
+import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, Download, FileText, Users } from 'lucide-react'
 import { StatusBadge, instantDay, inputCls, money, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { ReportsPageProps } from './types'
@@ -9,6 +9,7 @@ import { resolveReportingConfig } from './types'
 import { downloadCsv, csvName, type CsvCell } from './csv'
 import { moneyCompact } from '../money'
 import { todayKey, dayKeyPlus } from '../time/day'
+import { ReceivablesAgingCard, WipCard, JobProfitCard } from './DepthReports'
 
 interface Summary {
   period: string
@@ -79,9 +80,36 @@ function CardHead({ title, period, table }: { title: string; period: string; tab
   )
 }
 
+/**
+ * What the page shows while its numbers come: the words for what is loading, over grey blocks the shape of the cards
+ * that will fill them. It was a lone spinner, and a builder on a slow connection could not tell it from a page that broke.
+ */
+function ReportsLoading() {
+  return (
+    <div role="status" aria-live="polite" aria-busy="true" data-page-loading="">
+      <p className="mb-4 text-sm font-medium text-gray-600 dark:text-slate-300">Loading your revenue, what is owed, and the work done…</p>
+      <div className="animate-pulse space-y-6" aria-hidden="true">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-28 rounded-xl bg-gray-100 dark:bg-slate-800" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-64 rounded-xl bg-gray-100 dark:bg-slate-800" /><div className="h-64 rounded-xl bg-gray-100 dark:bg-slate-800" />
+        </div>
+        <div className="h-48 rounded-xl bg-gray-100 dark:bg-slate-800" />
+      </div>
+    </div>
+  )
+}
+
 export function ReportsPage({ api, config }: ReportsPageProps) {
   const cfg = resolveReportingConfig(config)
-  const { hasFeature } = useAuth()
+  const { hasFeature, can } = useAuth()
+  // Reports a builder buys on (DepthReports.tsx): each only where the business has its feature and the seat reads reports.
+  // A page mounted without a permission check (an older host) asks the server, which refuses what the seat may not read.
+  const mayRead = typeof can === 'function' ? can('reports:read') : true
+  const showAging = hasFeature('ar_aging') && mayRead
+  const showWip = hasFeature('wip_report') && mayRead
+  const showJobProfit = showWip && hasFeature('job_costing')
   // The config says whether this VERTICAL has projects; hasFeature says whether this tenant has the module. Reports
   // carried the same ungated Project summary the dashboard carried an Active projects card for. (Contractor T29 L2)
   const showProjects = cfg.projects && hasFeature('projects')
@@ -166,7 +194,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
         </div>
       </div>
 
-      {loading && <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}
+      {loading && <ReportsLoading />}
       {!loading && (error || !data) && <div className={`${card} text-center text-red-600 dark:text-red-300`}>{error || 'Could not load reports'}</div>}
 
       {!loading && data && (() => {
@@ -336,6 +364,10 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                 </div>
               </div>
             </div>
+
+            {showAging && <ReceivablesAgingCard api={api} />}
+            {showWip && <WipCard api={api} jobsLabel={cfg.jobsLabel} />}
+            {showJobProfit && <JobProfitCard api={api} jobsLabel={cfg.jobsLabel} costingPath="/crm/job-costing" />}
 
             {showProjects && (
               <div className={card}>

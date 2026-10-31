@@ -12,10 +12,10 @@
  * is shown.
  */
 import { useState, useEffect, type FormEvent } from 'react'
-import { CalendarDays, Plus, Check, X, Loader2 } from 'lucide-react'
+import { CalendarDays, Plus, Check, X } from 'lucide-react'
 import { formatDate } from '../lib/date'
 import { api, rows, errorMessage, listAll } from '../lib/http'
-import { useMayWrite, useToast } from '../../../../shared'
+import { useMayWrite, useToast, PageLoading } from '../../../../shared'
 
 // Each status as an ink on its own ground, light and dark.
 const STATUS_COLORS: Record<string, string> = {
@@ -95,7 +95,7 @@ export default function PtoPage() {
     load()
   }
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-teal-600 dark:text-teal-400" /></div>
+  if (loading) return <PageLoading what="time-off requests" />
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

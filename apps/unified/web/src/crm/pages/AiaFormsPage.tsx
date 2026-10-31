@@ -5,9 +5,9 @@
  */
 import { useState, useEffect } from 'react'
 import { formatDate } from '../date'
-import { FileText, Plus, Loader2 } from 'lucide-react'
+import { FileText, Plus } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth, usePrompt, useToast, errorText } from '../../shared'
+import { useAuth, usePrompt, useToast, errorText, PageLoading } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -89,7 +89,7 @@ export default function AiaFormsPage() {
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
+  if (loading) return <PageLoading what="your AIA forms" />;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

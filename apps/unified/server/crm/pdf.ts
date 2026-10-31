@@ -1,6 +1,6 @@
 // Invoice and quote PDFs, moved from templates/crm*/backend/src/services/pdf.ts.
 import PDFDocument from 'pdfkit'
-import { money } from '@twomiah/tenant-backend'
+import { money, groupBySection, hasStructure } from '@twomiah/tenant-backend'
 
 function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: any) {
   const companyName = company?.name || company?.companyName || 'Company'
@@ -58,17 +58,34 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.font('Helvetica')
     doc.moveDown(0.5)
 
-    for (const item of items) {
+    const drawLine = (item: any) => {
       const qty = Number(item.quantity ?? 1)
       const price = Number(item.unitPrice ?? item.price ?? 0)
       const lineTotal = Number(item.total ?? qty * price)
       const rowY = doc.y
-      doc.text(String(item.description || item.name || ''), colDesc, rowY, { width: wDesc })
+      // An allowance is said to be one: the customer is choosing against that figure, not buying it as priced.
+      doc.text(`${String(item.description || item.name || '')}${item.allowance ? ' (allowance)' : ''}`, colDesc, rowY, { width: wDesc })
       const rowEnd = doc.y
       doc.text(String(qty), colQty, rowY, { width: wQty, align: 'right' })
       doc.text(`${money(price)}`, colPrice, rowY, { width: wPrice, align: 'right' })
       doc.text(`${money(lineTotal)}`, colTotal, rowY, { width: wTotal, align: 'right' })
       doc.y = Math.max(rowY + 14, rowEnd) // advance past the tallest cell in the row
+    }
+    if (hasStructure(items)) {
+      // Phases: each section's name, its lines, then its subtotal (tenant-backend invoicing/quoteSections.ts).
+      for (const g of groupBySection(items)) {
+        if (g.name) { doc.moveDown(0.3); doc.font('Helvetica-Bold').text(g.name, colDesc, doc.y, { width: 468 }); doc.font('Helvetica') }
+        for (const item of g.lines) drawLine(item)
+        if (g.name) {
+          const y = doc.y
+          doc.font('Helvetica-Bold').text(`${g.name} subtotal`, colDesc, y, { width: 360, align: 'right' })
+          doc.text(money(g.subtotal), colTotal, y, { width: wTotal, align: 'right' })
+          doc.font('Helvetica')
+          doc.y = Math.max(y + 14, doc.y)
+        }
+      }
+    } else {
+      for (const item of items) drawLine(item)
     }
     doc.moveDown()
   }
