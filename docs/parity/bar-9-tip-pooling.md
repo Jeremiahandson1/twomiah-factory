@@ -1,7 +1,7 @@
 # Bar 9 - Tip pooling and tip-out
 
-Feature ids: `bar_tip_pooling` (hidden, not ready); `bar_declared_tips` (hidden); `bar_tip_import` (hidden).
-Tests: `apps/unified/tests/bar-tip-pooling.test.ts`, `bar-declared-tips.test.ts` (3), `bar-tip-import.test.ts` (5); phone: `tests/mobile/bar-shift-requests.test.ts`.
+Feature ids: `bar_tip_pooling` (hidden, not ready); `bar_declared_tips` (hidden); `bar_tip_import` (hidden); `bar_payroll_export` (hidden, the payroll export).
+Tests: `apps/unified/tests/bar-payroll-export.test.ts` (payroll export), `apps/unified/tests/bar-tip-pooling.test.ts`, `bar-declared-tips.test.ts` (3), `bar-tip-import.test.ts` (5); phone: `tests/mobile/bar-shift-requests.test.ts`.
 
 Leader: 7shifts Tip Pooling - https://kb.7shifts.com/hc/en-us/articles/4417505157779
 
@@ -12,7 +12,7 @@ Leader: 7shifts Tip Pooling - https://kb.7shifts.com/hc/en-us/articles/441750515
 | Nightly tip-out shown at close | Tip-out card on the close-out, managers only; recorded when the feature is on | matches |
 | Report of payouts | Tips page with payout table (declared and imported parts shown) | matches |
 | Declared (cash) tips at clock-out | Staff declare at clock-out on the phone, the counter tablet and the website; a manager sees and corrects (the first figure is kept); they join the pool and the tip-out; a closed night is worked out again after a correction. Cash tips rung on our register are shown beside the box and never declared twice | matches |
-| Declared tips in the payroll export | `declaredByPerson(companyId, from, to)` in `server/crm/bar/barTips.ts` gives declared cents per person per day for a pay period. The export itself is row 8 (not this row) | partly - the figures are ready, the export reads them |
+| Declared tips in the payroll export | `declaredByPerson(companyId, from, to)` in `server/crm/bar/barTips.ts` gives declared cents per person per day. The payroll export (`bar_payroll_export`, `server/crm/bar/barPayroll.ts`, `tests/bar-payroll-export.test.ts`) reads it: declared cash and the register's own cash tips are shown as cash already received and taken off the paycheck tips, and each tip is counted once (the total comes from the closed nights' payouts only) | matches for the figures and the three files (Gusto, ADP, spreadsheet). **Partly** in that no file has been uploaded to a real Gusto or ADP account and their tip columns are not confirmed - see restaurant-8-kitchen-stock-schedule.md |
 | POS integrations (Toast, Square) supply tips | Connect Toast (the venue's own read-only credentials) or Square (OAuth); tips per business day join the same pool; staff matched by email or by hand; unmatched tips are listed, not shared | partly - built up to each provider's approval, never run against a live account (see below) |
 | Tip-out as a share of SALES with tips from another register | Sales on another register are not read, so a sales-based tip-out uses this register's sales only (the night says so) | not built - needs sales from the other register |
 | Tips reported by the other register that change after the night is closed | A closed night is left as frozen; closing it again reads the register again | partly |
