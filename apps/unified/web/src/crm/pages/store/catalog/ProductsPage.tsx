@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Package, Plus } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useAuth, useMayWrite } from '../../../../shared'
+import { PageError, errorText, useAuth, useKnownPermission, useMayWrite } from '../../../../shared'
 import { PRODUCT_STATUS, formatMoney, listOf, useStoreCurrency, type Product } from './lib'
 
 /**
@@ -42,6 +42,8 @@ export default function ProductsPage() {
   const mayCreate = useMayWrite('products:create')
   // Low-stock alerts (store_low_stock): the "Running low" filter is there only where the shop has them on.
   const lowStockOn = useAuth().hasFeature('store_low_stock')
+  // Reorders (store_reorders; costs are margin:read's): the running-low list offers to draft the supplier orders.
+  const reorderOn = useAuth().hasFeature('store_reorders') && useKnownPermission('margin:read')
   const [params, setParams] = useSearchParams()
   const onlyLow = lowStockOn && params.get('filter') === 'low_stock'
 
@@ -64,6 +66,7 @@ export default function ProductsPage() {
         <div className="flex gap-2" role="group" aria-label="Show">
           <button type="button" aria-pressed={!onlyLow} className={onlyLow ? 'btn-secondary text-sm' : 'btn btn-primary text-sm'} onClick={() => setParams({})}>All products</button>
           <button type="button" aria-pressed={onlyLow} className={onlyLow ? 'btn btn-primary text-sm' : 'btn-secondary text-sm'} onClick={() => setParams({ filter: 'low_stock' })}>Running low</button>
+          {reorderOn && <Link to="/crm/reorders" className="btn-secondary text-sm">Draft a reorder</Link>}
         </div>
       )}
 

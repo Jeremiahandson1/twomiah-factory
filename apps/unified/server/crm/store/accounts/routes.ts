@@ -17,7 +17,9 @@ import { createRateLimiter } from '../../../http/guards.ts'
 import { done, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
-import { requestOrigin } from '../checkout/checkoutService.ts'
+import { createCheckoutService, requestOrigin } from '../checkout/checkoutService.ts'
+import { createFastCheckout } from '../checkout/fastCheckout.ts'
+import { createOrderStarter } from '../checkout/placeOrder.ts'
 import { groupPrice, pricingForContact } from '../catalog/groupPricing.ts'
 import { createOrderRefunds } from '../orders/refunds.ts'
 import { createStoreReturns, REASONS } from '../returns/returns.ts'
@@ -65,6 +67,8 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
   const refunds = createOrderRefunds(d, core)
   const returns = createStoreReturns(d, core, refunds)
   const giftCards = createStoreGiftCards(d, core)
+  const fast = createFastCheckout(d, core)
+  const starter = createOrderStarter(d, core, createCheckoutService(d, core), giftCards)
   const returnsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, 'store_returns').catch(() => false)
   /** The signed-in shopper, or the 401 to give instead. */
   const signedIn = async (c: Context): Promise<{ s: ShopperSession } | { reply: Response }> => {
@@ -109,7 +113,20 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
     const credit = await returnsOn(r.s.companyId) ? await giftCards.creditOf(r.s.companyId, r.s.email) : []
     // Gift cards they bought or were given, with the balance and the code (beside the store credit above).
     const cards = await giftCardsForEmail(d.db, r.s.companyId, r.s.email)
-    return one(c, { ...(await accounts.profile(r.s)), returns: await returnsOn(r.s.companyId), credit, giftCards: cards })
+    // The card they chose to keep for one-tap payment (store_fast_checkout): brand, last four and expiry — nothing that can be charged.
+    const kept = await fast.cardOf(r.s.companyId, r.s.contactId)
+    const savedCard = kept ? { brand: kept.brand, last4: kept.last4, expMonth: kept.expMonth, expYear: kept.expYear } : null
+    return one(c, { ...(await accounts.profile(r.s)), returns: await returnsOn(r.s.companyId), credit, giftCards: cards, fastCheckout: await fast.enabled(r.s.companyId), savedCard })
+  })
+
+  // The shopper takes their saved card away (always open to them, even if the shop later switches the feature off): detached at Stripe, consent cleared.
+  app.delete('/card', async (c) => {
+    const r = await signedIn(c); if ('reply' in r) return r.reply
+    try { await fast.remove(r.s.companyId, r.s.contactId) } catch (e: any) {
+      d.logger.warn('[store] saved card not removed', { error: e?.message })
+      return fail(c, 502, 'Your card could not be removed just now. Try again in a moment.')
+    }
+    return done(c)
   })
 
   /** An order with, when returns are on, what of it can be sent back (the window, the units left). */
@@ -134,6 +151,32 @@ export function createShopperAccountRoutes(d: CrmDeps, core: StoreCore, accounts
     const r = await signedIn(c); if ('reply' in r) return r.reply
     const again = await accounts.reorder(r.s, c.req.param('id'))
     return again ? one(c, again) : fail(c, 404, 'That order was not found.')
+  })
+
+  /**
+   * Reorder and pay in one tap: the same lines as "Order again", at today's prices, paid with the saved card to the saved
+   * address. Only when every line can still be bought in the full quantity — a changed order is shown in the cart instead,
+   * never charged for something different from what the shopper last saw.
+   */
+  app.post('/orders/:id/pay-again', async (c) => {
+    const r = await signedIn(c); if ('reply' in r) return r.reply
+    const order = await accounts.orderOf(r.s, c.req.param('id'))
+    if (!order) return fail(c, 404, 'That order was not found.')
+    const again = await accounts.reorder(r.s, order.id)
+    if (!again) return fail(c, 404, 'That order was not found.')
+    const items = again.items as Array<{ sku: string; quantity: number; note?: string }>
+    if (!items.length || again.skipped.length || items.some((i) => i.note)) {
+      return fail(c, 409, 'Some of this order has changed since you bought it. Order it again to see what is available, then check out.', 'reorder_changed')
+    }
+    const pricing = await pricingForContact(d.db, r.s.companyId, r.s.contactId)
+    const where = await accounts.defaultAddress(r.s.companyId, r.s.contactId)
+    const res = await starter.start({
+      companyId: r.s.companyId, items: items.map((i) => ({ sku: i.sku, quantity: i.quantity })), origin: requestOrigin(c),
+      delivery: order.fulfillment === 'pickup' ? 'pickup' : 'ship',
+      shopper: { contactId: r.s.contactId, email: r.s.email, name: r.s.name, pricing, ...(where ? { shipping: { name: where.name, address: where.address } } : {}) },
+      fast: { useSavedCard: true },
+    })
+    return res.ok ? one(c, { url: res.url, orderId: res.orderId }) : fail(c, res.status, res.error, res.code)
   })
 
   app.get('/addresses', async (c) => {

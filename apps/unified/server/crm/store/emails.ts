@@ -204,12 +204,26 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
       <p style="color:#666;font-size:13px;margin-top:24px;">Bring this email or your order number.${supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
   ),
   /** To the shop, once a day while anything is at or under its level: everything that is running low. */
-  storeLowStockDigest: (p: { items: { productName: string; variantName: string; sku: string; quantity: number; lowStockAt: number }[]; productsUrl: string }, b) => done(
+  storeLowStockDigest: (p: { items: { productName: string; variantName: string; sku: string; quantity: number; lowStockAt: number }[]; productsUrl: string; reorderUrl?: string }, b) => done(
     p.items.length === 1 ? `Running low: ${p.items[0].productName}${p.items[0].variantName && p.items[0].variantName !== 'Default' ? ' — ' + p.items[0].variantName : ''}` : `${p.items.length} products are running low`,
     wrap(b.companyName, 'Running low', `
       <p style="color:#444;font-size:15px;line-height:1.6;">${p.items.length === 1 ? 'This is at or under the level you set' : 'These are at or under the levels you set'}. You get this email once a day while anything is low, and not on a day when nothing is.</p>
       <ul style="color:#444;font-size:14px;line-height:1.7;margin:12px 0 0;padding-left:18px;">${p.items.map((i) => `<li><strong>${esc(i.productName)}</strong>${i.variantName && i.variantName !== 'Default' ? ` — ${esc(i.variantName)}` : ''} (${esc(i.sku)}): <strong>${i.quantity} left</strong>, level ${i.lowStockAt}</li>`).join('')}</ul>
-      ${button(p.productsUrl, 'See what is low')}`),
+      ${button(p.productsUrl, 'See what is low')}
+      ${p.reorderUrl ? `<p style="color:#444;font-size:14px;line-height:1.6;margin:18px 0 6px;">Ready to restock? We can draft the order for each supplier.</p>${button(p.reorderUrl, 'Draft a reorder')}` : ''}`),
+  ),
+  /** To a supplier, from the shop: a purchase order — what to send, how many, at what cost. Reply goes to the shop. */
+  storePurchaseOrder: (p: { number: string; supplierName: string; lines: { sku: string; name: string; quantity: number; unitCostCents: number }[]; totalCents: number; currency: string; notes?: string | null; expectedOn?: string | null; shopEmail?: string | null }, b) => done(
+    `Purchase order ${p.number} from ${b.companyName}`,
+    wrap(b.companyName, `Purchase order ${esc(p.number)}`, `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Hello${p.supplierName ? ' ' + esc(p.supplierName) : ''} — please supply the following${p.expectedOn ? `, wanted by <strong>${esc(new Date(p.expectedOn + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }))}</strong>` : ''}.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;color:#444;margin-top:12px;">
+        <tr><th align="left" style="padding:6px 0;border-bottom:1px solid #ddd;">Item</th><th align="left" style="padding:6px 0;border-bottom:1px solid #ddd;">SKU</th><th align="right" style="padding:6px 0;border-bottom:1px solid #ddd;">Qty</th><th align="right" style="padding:6px 0;border-bottom:1px solid #ddd;">Unit cost</th><th align="right" style="padding:6px 0;border-bottom:1px solid #ddd;">Total</th></tr>
+        ${p.lines.map((l) => `<tr><td style="padding:6px 0;">${esc(l.name)}</td><td style="padding:6px 0;">${esc(l.sku)}</td><td align="right" style="padding:6px 0;">${l.quantity}</td><td align="right" style="padding:6px 0;">${formatCents(l.unitCostCents, p.currency)}</td><td align="right" style="padding:6px 0;">${formatCents(l.quantity * l.unitCostCents, p.currency)}</td></tr>`).join('')}
+        <tr><td colspan="4" align="right" style="padding:8px 0;"><strong>Total</strong></td><td align="right" style="padding:8px 0;"><strong>${formatCents(p.totalCents, p.currency)}</strong></td></tr>
+      </table>
+      ${p.notes ? `<p style="color:#444;font-size:14px;line-height:1.6;margin-top:14px;"><strong>Note:</strong> ${esc(p.notes)}</p>` : ''}
+      <p style="color:#666;font-size:13px;margin-top:22px;">Please confirm by replying to this email${p.shopEmail ? ` (${esc(p.shopEmail)})` : ''}, quoting ${esc(p.number)}.</p>`),
   ),
   /** To the shop: a chargeback was opened, with the deadline to answer it. */
   storeDisputeOpened: (p: { orderNumber: string | null; amount: string; reason: string; dueBy: string | null; respondUrl: string; disputesUrl: string }, b) => done(

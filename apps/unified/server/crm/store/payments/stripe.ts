@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
   CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult, DisputeNotice, PayoutSummary, PayoutLine,
+  SavedCard, ChargeSavedCardInput, ChargeSavedCardResult, ExpressIntentInput,
 } from './types.ts'
 import { RefundRefused } from './types.ts'
 import type { StoreAddress as Address } from '../../../db/schema/store.ts'
@@ -24,6 +25,7 @@ export class StripeProvider implements PaymentProvider {
   readonly name = 'stripe' as const
   private stripe: Stripe
   private webhookSecret?: string
+  private publishableKey?: string
   /** The connected account every call is made on; null for a store still on the keys it pasted before Connect. */
   readonly stripeAccount: string | null
   private opts: { stripeAccount: string } | undefined
@@ -38,6 +40,7 @@ export class StripeProvider implements PaymentProvider {
     // Over fetch — the transport Stripe recommends off plain Node, and the one a test can answer without the network.
     this.stripe = new Stripe(source.secretKey, { httpClient: Stripe.createFetchHttpClient() })
     this.webhookSecret = source.webhookSecret
+    this.publishableKey = source.publishableKey
     this.stripeAccount = null
     this.opts = undefined
   }
@@ -79,7 +82,17 @@ export class StripeProvider implements PaymentProvider {
     }
 
     let prefillCustomer: string | null = null
-    if (input.prefill && input.collectShippingAddress) {
+    if (input.customerId) {
+      // The shopper's own customer on this account (store_fast_checkout): their saved address goes onto it, so the page opens with it.
+      prefillCustomer = input.customerId
+      if (input.prefill && input.collectShippingAddress) {
+        const a = input.prefill.shipping.address
+        await this.stripe.customers.update(input.customerId, {
+          name: input.prefill.name,
+          shipping: { name: input.prefill.shipping.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } },
+        }, this.opts)
+      }
+    } else if (input.prefill && input.collectShippingAddress) {
       const a = input.prefill.shipping.address
       const customer = await this.stripe.customers.create({
         ...(input.customerEmail ? { email: input.customerEmail } : {}), name: input.prefill.name,
@@ -96,11 +109,13 @@ export class StripeProvider implements PaymentProvider {
       client_reference_id: input.clientReferenceId,
       metadata: input.metadata,
       phone_number_collection: { enabled: true },
+      // The shopper ticked "save my card": Stripe keeps it on their customer after this payment, for the next one.
+      ...(input.saveCard && input.customerId ? { payment_intent_data: { setup_future_usage: 'on_session' as const } } : {}),
       ...(auto ? { automatic_tax: { enabled: true } } : {}),
       ...(input.collectBillingAddress ? { billing_address_collection: 'required' as const } : {}),
       // A signed-in shopper's saved address: a Stripe Customer (on the merchant's own account) that carries it, so the
       // payment page opens with it filled in. Checkout takes the customer in place of customer_email.
-      ...(prefillCustomer ? { customer: prefillCustomer, customer_update: { shipping: 'auto' as const, name: 'auto' as const } } : input.customerEmail ? { customer_email: input.customerEmail } : {}),
+      ...(prefillCustomer ? { customer: prefillCustomer, customer_update: input.collectShippingAddress ? { shipping: 'auto' as const, name: 'auto' as const } : { name: 'auto' as const } } : input.customerEmail ? { customer_email: input.customerEmail } : {}),
       ...(input.collectShippingAddress
         ? { shipping_address_collection: { allowed_countries: ['US'] } }
         : {}),
@@ -132,6 +147,83 @@ export class StripeProvider implements PaymentProvider {
     return { redirectUrl: session.url, providerSessionId: session.id }
   }
 
+  // ── Saved cards and one-tap payment (store_fast_checkout) ───────────────────────────────────────────────────────
+  /** The shopper's Customer on the merchant's own Stripe account: the one given when it is still there, else a new one. */
+  async ensureCustomer(input: { email: string; name?: string | null; existingId?: string | null; shipping?: { name: string; address: Address } }): Promise<string> {
+    if (input.existingId) {
+      try {
+        const got = await this.stripe.customers.retrieve(input.existingId, {}, this.opts)
+        if (!('deleted' in got && got.deleted)) return input.existingId
+      } catch (e: any) { if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e }
+    }
+    const a = input.shipping?.address
+    const customer = await this.stripe.customers.create({
+      email: input.email, ...(input.name ? { name: input.name } : {}),
+      ...(a ? { shipping: { name: input.shipping!.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } } } : {}),
+    }, this.opts)
+    return customer.id
+  }
+
+  /** The card a paid payment left on the customer (null when it was not kept: the shopper did not agree, or it is not a card). */
+  async savedCardOf(paymentIntentId: string, customerId: string): Promise<SavedCard | null> {
+    const pi = await this.stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['payment_method'] }, this.opts)
+    const pm = pi.payment_method && typeof pi.payment_method !== 'string' ? pi.payment_method : null
+    if (!pm || pm.type !== 'card' || !pm.card) return null
+    const owner = typeof pm.customer === 'string' ? pm.customer : pm.customer?.id
+    if (owner !== customerId) return null // paid, but never attached to the customer: not saved
+    return { paymentMethodId: pm.id, brand: pm.card.brand, last4: pm.card.last4, expMonth: pm.card.exp_month, expYear: pm.card.exp_year }
+  }
+
+  /** Take the card off the customer, so it can no longer be charged. A card Stripe no longer has is already gone. */
+  async forgetCard(paymentMethodId: string): Promise<void> {
+    try { await this.stripe.paymentMethods.detach(paymentMethodId, {}, this.opts) } catch (e: any) { if (e?.code !== 'resource_missing' && e?.statusCode !== 404) throw e }
+  }
+
+  /**
+   * The one tap: charge the saved card for the order now. The shopper is at the screen (on_session), so a bank that wants
+   * them to confirm is sent to its page (3-D Secure) and back to returnUrl. A refusal is a sentence, not an exception.
+   */
+  async chargeSavedCard(input: ChargeSavedCardInput): Promise<ChargeSavedCardResult> {
+    try {
+      const a = input.shipping?.address
+      const pi = await this.stripe.paymentIntents.create({
+        amount: input.amountCents, currency: input.currency.toLowerCase(), customer: input.customerId, payment_method: input.paymentMethodId,
+        confirm: true, off_session: false, return_url: input.returnUrl, payment_method_types: ['card'],
+        ...(input.receiptEmail ? { receipt_email: input.receiptEmail } : {}), ...(input.description ? { description: input.description } : {}),
+        ...(a ? { shipping: { name: input.shipping!.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } } } : {}),
+        // `twomiah_flow` marks it ours, so the payment notice for it is told apart from a Checkout Session's own payment.
+        metadata: { orderId: input.orderId, twomiah_flow: 'saved_card' },
+      }, { ...(this.opts ?? {}), idempotencyKey: input.idempotencyKey })
+      if (pi.status === 'succeeded') return { status: 'succeeded', paymentIntentId: pi.id }
+      if (pi.status === 'requires_action' && pi.next_action?.type === 'redirect_to_url' && pi.next_action.redirect_to_url?.url) {
+        return { status: 'requires_action', paymentIntentId: pi.id, redirectUrl: pi.next_action.redirect_to_url.url }
+      }
+      return { status: 'declined', message: 'The card could not be charged.' }
+    } catch (e: any) {
+      if (e?.type === 'StripeCardError' || e?.code === 'card_declined' || e?.statusCode === 402) return { status: 'declined', message: e?.message || 'The card was declined.' }
+      throw e
+    }
+  }
+
+  /** The key Stripe.js starts with: the platform's, acting on the connected account; or the key the owner pasted. Null when there is none. */
+  expressKeys(): { publishableKey: string; stripeAccount: string | null } | null {
+    const key = this.stripeAccount ? process.env.STRIPE_PUBLISHABLE_KEY : this.publishableKey
+    return key ? { publishableKey: key, stripeAccount: this.stripeAccount } : null
+  }
+
+  /** A PaymentIntent for the wallet buttons: the browser confirms it with what the shopper chose in their wallet. */
+  async createExpressIntent(input: ExpressIntentInput): Promise<{ paymentIntentId: string; clientSecret: string }> {
+    const a = input.shipping?.address
+    const pi = await this.stripe.paymentIntents.create({
+      amount: input.amountCents, currency: input.currency.toLowerCase(), automatic_payment_methods: { enabled: true },
+      ...(input.receiptEmail ? { receipt_email: input.receiptEmail } : {}), ...(input.description ? { description: input.description } : {}),
+      ...(a ? { shipping: { name: input.shipping!.name, address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.city, state: a.state, postal_code: a.postalCode, country: a.country } } } : {}),
+      metadata: { orderId: input.orderId, twomiah_flow: 'express' },
+    }, { ...(this.opts ?? {}), idempotencyKey: `store-express-${input.orderId}` })
+    if (!pi.client_secret) throw new Error('Stripe did not return a client secret')
+    return { paymentIntentId: pi.id, clientSecret: pi.client_secret }
+  }
+
   async verifyAndParseWebhook(input: WebhookVerifyInput): Promise<WebhookResult> {
     if (!this.webhookSecret) throw new Error('Stripe webhook secret not configured')
     if (!input.signature) throw new Error('Missing Stripe signature')
@@ -147,6 +239,8 @@ export class StripeProvider implements PaymentProvider {
   // (on the connected account, or with the merchant's own key) so orders finalize even when the
   // webhook is delayed, misconfigured, or intercepted by another endpoint.
   async retrieveSession(sessionId: string): Promise<WebhookResult> {
+    // A one-tap payment's handle is its PaymentIntent (pi_…), not a Checkout Session.
+    if (sessionId.startsWith('pi_')) return parsePaymentIntent(await this.stripe.paymentIntents.retrieve(sessionId, {}, this.opts))
     const session = await this.stripe.checkout.sessions.retrieve(sessionId, {}, this.opts)
     return parseSession(session)
   }
@@ -226,6 +320,8 @@ export function parseStripeEvent(event: Pick<Stripe.Event, 'type' | 'data'>): We
   if (event.type.startsWith('charge.dispute.')) {
     return { type: 'dispute', dispute: parseDispute(event.data.object as Stripe.Dispute, event.type === 'charge.dispute.created') }
   }
+  // A one-tap (saved card) payment: ours only when we marked it so — a Checkout Session's own payment is finalised by its session.
+  if (event.type === 'payment_intent.succeeded') return parsePaymentIntent(event.data.object as Stripe.PaymentIntent)
   if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
   return parseSession(event.data.object as Stripe.Checkout.Session)
 }
@@ -256,6 +352,16 @@ function parseSession(session: Stripe.Checkout.Session): WebhookResult {
     customerPhone: cd?.phone ?? undefined,
     shippingAddress: toAddress(shipping?.address),
     billingAddress: toAddress(cd?.address),
+  }
+}
+
+/** A PaymentIntent the store itself made (saved card): paid, in the store's terms. Anything else is not the store's. */
+function parsePaymentIntent(pi: Stripe.PaymentIntent): WebhookResult {
+  if (!['saved_card', 'express'].includes(pi.metadata?.twomiah_flow ?? '') || pi.status !== 'succeeded') return { type: 'ignored' }
+  const sh = pi.shipping
+  return {
+    type: 'paid', providerSessionId: pi.id, providerPaymentId: pi.id, amountTotalCents: pi.amount_received || pi.amount, currency: pi.currency,
+    customerEmail: pi.receipt_email ?? undefined, customerName: sh?.name ?? undefined, shippingAddress: toAddress(sh?.address),
   }
 }
 

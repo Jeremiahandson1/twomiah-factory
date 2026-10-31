@@ -46,6 +46,8 @@ export const storeProduct = pgTable('products', {
   /** The owner's own picks for "Frequently bought together" and "You may also like" (product ids, in order). */
   boughtTogetherIds: json('bought_together_ids').$type<string[]>(),
   alsoLikeIds: json('also_like_ids').$type<string[]>(),
+  /** A consumable: the replenishment reminder goes out this many days after the order arrives (null = never). */
+  replenishAfterDays: integer('replenish_after_days'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -77,6 +79,10 @@ export const storeProductVariant = pgTable('product_variants', {
   lowStockAt: integer('low_stock_at'),
   /** What one unit costs the shop (the owner types it; margin:read sees it). Sales reports work profit out from it; null = no cost. */
   costCents: integer('cost_cents'),
+  /** Who the shop buys this option from (store_reorders): the draft reorder groups low options by this. null = none chosen. */
+  supplierId: text('supplier_id'),
+  /** "Order up to": a reorder brings the stock back to this many. null = twice the low-stock level. */
+  reorderToQty: integer('reorder_to_qty'),
   /** The feeds' identifiers, sent when present. */
   gtin: text('gtin'),
   mpn: text('mpn'),
@@ -152,6 +158,8 @@ export const storeOrder = pgTable('orders', {
   disputeStatus: text('dispute_status'),
   readyForPickupAt: timestamp('ready_for_pickup_at'),
   pickedUpAt: timestamp('picked_up_at'),
+  /** When the order reached the shopper (marked delivered, or picked up): the follow-up emails count their days from here. */
+  deliveredAt: timestamp('delivered_at'),
   /** The QuickBooks sales receipt this paid order became (store/books.ts): set once it is sent, so it is never sent twice. */
   qbSalesReceiptId: text('qb_sales_receipt_id'),
   qbSyncedAt: timestamp('qb_synced_at'),
@@ -575,3 +583,91 @@ export const storeSegment = pgTable('store_segments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_segments_company_name_unique').on(t.companyId, t.name)])
+
+/**
+ * The store's post-purchase emails (parity row 3; Shopify Email's automations): one row per shop, everything off until the
+ * owner switches it on. Sent through the shared Email Marketing sender, so an unsubscribed customer is never mailed.
+ */
+export const storeFollowup = pgTable('store_followups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** When set, only the customers in this saved segment get the emails. */
+  segmentId: text('segment_id').references(() => storeSegment.id, { onDelete: 'set null' }),
+  firstOrderOn: boolean('first_order_on').notNull().default(false),
+  firstOrderDays: integer('first_order_days').notNull().default(3),
+  firstOrderSubject: text('first_order_subject'),
+  firstOrderBody: text('first_order_body'),
+  crossSellOn: boolean('cross_sell_on').notNull().default(false),
+  crossSellDays: integer('cross_sell_days').notNull().default(14),
+  crossSellSubject: text('cross_sell_subject'),
+  crossSellBody: text('cross_sell_body'),
+  replenishOn: boolean('replenish_on').notNull().default(false),
+  replenishSubject: text('replenish_subject'),
+  replenishBody: text('replenish_body'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_followups_company_unique').on(t.companyId)])
+
+/** Someone the shop buys stock from (store_reorders, 2026-10-31, parity row 4). Not the dropship providers of supplier_config. */
+export const storeSupplier = pgTable('store_suppliers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_suppliers_company_name_unique').on(t.companyId, t.name)])
+
+/** A purchase order to a supplier: draft (the owner edits) → sent (emailed) → partly_received | received; cancelled from draft or sent. */
+export const storePurchaseOrder = pgTable('store_purchase_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  number: text('number').notNull(),
+  supplierId: text('supplier_id').notNull().references(() => storeSupplier.id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('draft'), // draft | sent | partly_received | received | cancelled
+  notes: text('notes'),
+  /** The day the owner expects it (a date on the shop's calendar, YYYY-MM-DD). */
+  expectedOn: text('expected_on'),
+  sentAt: timestamp('sent_at'),
+  sentTo: text('sent_to'),
+  receivedAt: timestamp('received_at'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('store_purchase_orders_company_number_unique').on(t.companyId, t.number),
+  index('store_purchase_orders_company_status_idx').on(t.companyId, t.status),
+])
+
+/** A line: the option as it was named when ordered, how many, the supplier's cost for one (cents), and how many have come in. */
+export const storePurchaseOrderLine = pgTable('store_purchase_order_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => storePurchaseOrder.id, { onDelete: 'cascade' }),
+  variantId: text('variant_id').references(() => storeProductVariant.id, { onDelete: 'set null' }),
+  sku: text('sku').notNull(),
+  name: text('name').notNull(),
+  quantity: integer('quantity').notNull(),
+  unitCostCents: integer('unit_cost_cents').notNull().default(0),
+  receivedQuantity: integer('received_quantity').notNull().default(0),
+}, (t) => [index('store_purchase_order_lines_po_idx').on(t.purchaseOrderId)])
+
+/**
+ * A signed-in shopper's card kept on the MERCHANT'S OWN Stripe customer (store_fast_checkout, 2026-10-31, parity row 6; Shop Pay's
+ * saved card, within one shop). `consentAt` is when they ticked "save my card"; until a paid order has left a card attached to
+ * the customer, the card columns are empty. Removing the card detaches it at Stripe and clears these columns and consentAt.
+ */
+export const storeShopperCard = pgTable('store_shopper_cards', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  paymentMethodId: text('payment_method_id'),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  consentAt: timestamp('consent_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('store_shopper_cards_company_contact_unique').on(t.companyId, t.contactId)])

@@ -209,6 +209,8 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     if (!isFulfilment(prev.status, next) && !seat.refund) return refundRefusal(c)
     const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }
     if (next === 'ready_for_pickup') patch.readyForPickupAt = new Date()
+    // The follow-up emails count their days from when the order reached the shopper (the first time it did).
+    if ((next === 'delivered' || next === 'picked_up') && !prev.deliveredAt) patch.deliveredAt = new Date()
     if (next === 'picked_up') { patch.pickedUpAt = new Date(); if (!prev.fulfilledAt) patch.fulfilledAt = new Date() }
     // The FIRST fulfilment is the one recorded: packing and then shipping kept rewriting it.
     if ((next === 'fulfilled' || next === 'shipped') && !prev.fulfilledAt) patch.fulfilledAt = new Date()

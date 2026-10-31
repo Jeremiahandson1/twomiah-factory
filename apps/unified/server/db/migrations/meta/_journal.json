@@ -372,6 +372,27 @@
       "when": 1793467082624,
       "tag": "0052_store_segments",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793467440842,
+      "tag": "0053_store_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793467967399,
+      "tag": "0054_store_reorders",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793468603545,
+      "tag": "0055_store_fast_checkout",
+      "breakpoints": true
     }
   ]
 }

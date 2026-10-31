@@ -18,7 +18,10 @@ export function createLowStockDigest(d: Pick<CrmDeps, 'db' | 'logger' | 'feature
     recipients: async (co) => (co.email ? [co.email] : []),
     send: async (to, items) => {
       // core.mail answers false (and never throws) when the email could not go: say so, so the day is given back.
-      if (!(await core.mail(to, 'storeLowStockDigest', { items, productsUrl: `${siteBase()}/crm/products?filter=low_stock` }))) throw new Error('the email was not sent')
+      // With store_reorders on, the email also offers "Draft a reorder" (the supplier purchase orders).
+      const co = await core.shop()
+      const reorder = co && (await d.features.isFeatureEnabled(co.id, 'store_reorders').catch(() => false))
+      if (!(await core.mail(to, 'storeLowStockDigest', { items, productsUrl: `${siteBase()}/crm/products?filter=low_stock`, ...(reorder ? { reorderUrl: `${siteBase()}/crm/reorders` } : {}) }))) throw new Error('the email was not sent')
     },
   })
 }

@@ -598,7 +598,7 @@ export const marketingAutomationSend = pgTable('marketing_automation_send', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
-  kind: text('kind').notNull(), // welcome | win_back
+  kind: text('kind').notNull(), // welcome | win_back | the store's store_first_order | store_cross_sell | store_replenish
   marker: text('marker').notNull(),
   status: text('status').default('claimed').notNull(), // claimed | sent | failed
   createdAt: timestamp('created_at').defaultNow().notNull(),

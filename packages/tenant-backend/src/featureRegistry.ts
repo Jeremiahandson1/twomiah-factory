@@ -323,6 +323,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Store customer segments — NOT ready (2026-10-31). Save a question about what customers spent, how often they ordered and what they bought
   // (or did not buy) over a period, and send a campaign or a follow-up email to it. Hidden until the owner has run it on the live shop.
   { id: 'store_segments', name: 'Store Customer Segments', description: 'Save groups of customers by what they spent, how many orders they made and what they bought, and send campaigns and follow-up emails to them', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store post-purchase emails — NOT ready (2026-10-31). A first-order email, a thank-you with products to go with the order, and a replenishment
+  // reminder for consumables, each N days after the order arrives, off until the owner switches it on. Hidden until run on the live shop.
+  { id: 'store_followups', name: 'Store Post-Purchase Emails', description: 'Email a customer after their order arrives: a first-order follow-up, a thank-you with products to go with it, and a reminder to reorder consumables', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  // Store reorders — NOT ready (2026-10-31). "Draft a reorder": a purchase order per supplier from the low-stock list and the daily email, with suggested
+  // counts and the supplier's cost; the owner edits it, emails it, and books what arrives against it. Hidden until run on the live shop.
+  { id: 'store_reorders', name: 'Store Supplier Reorders', description: 'Draft a purchase order for each supplier from what is running low, email it, and book the stock in when it arrives', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_fast_checkout', name: 'Store Accelerated Checkout', description: 'Shoppers keep a card on the shop\'s own Stripe account (with their consent) and pay in one tap — at checkout, from order history, and with Apple Pay, Google Pay and Link buttons', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance

@@ -22,7 +22,10 @@ export function stripeMock() {
   const calls: StripeCall[] = []
   /** What a retrieved session says when the success page asks: by session id. */
   const sessions = new Map<string, any>()
-  const state = { taxStatus: 'active' as 'active' | 'pending', n: 0, /** 'refuse': Stripe answers a refund with a 4xx (nothing is sent). */ refund: 'ok' as 'ok' | 'refuse' }
+  /** PaymentIntents the store made (saved card, wallet), by id; what the next charge of a saved card answers. */
+  const intents = new Map<string, any>()
+  const state = { taxStatus: 'active' as 'active' | 'pending', n: 0, /** Whether a paid Checkout left its card on the customer (false: the shopper did not agree). */ cardAttached: true as boolean,
+    /** What Stripe answers a saved-card charge: paid, wants the bank's confirmation (3-D Secure), or refused. */ charge: 'succeeded' as 'succeeded' | 'requires_action' | 'declined', /** 'refuse': Stripe answers a refund with a 4xx (nothing is sent). */ refund: 'ok' as 'ok' | 'refuse' }
   /** Payouts to the bank, and the balance transactions each is made of (by payout id): what the books read. */
   const payouts: any[] = []
   const balance = new Map<string, any[]>()
@@ -44,6 +47,31 @@ export function stripeMock() {
       const s = sessions.get(decodeURIComponent(m[1]))
       return s ? json(s) : json({ error: { type: 'invalid_request_error', message: 'No such checkout.session' } }, 404)
     }
+    if (u.pathname === '/v1/payment_intents' && method === 'POST') {
+      const id = `pi_test_${++state.n}`
+      const card = { id: `pm_test_${state.n}`, object: 'payment_method', type: 'card', customer: params.get('customer'), card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: new Date().getUTCFullYear() + 3 } }
+      const flow = params.get('metadata[twomiah_flow]')
+      if (flow === 'saved_card' && state.charge === 'declined') return json({ error: { type: 'card_error', code: 'card_declined', message: 'Your card was declined.' } }, 402)
+      const status = flow === 'saved_card' ? state.charge : 'requires_payment_method'
+      const pi = {
+        id, object: 'payment_intent', status, amount: Number(params.get('amount')), amount_received: status === 'succeeded' ? Number(params.get('amount')) : 0, currency: params.get('currency'), client_secret: `${id}_secret_x`,
+        customer: params.get('customer'), payment_method: params.get('payment_method') ?? null, receipt_email: params.get('receipt_email'),
+        shipping: params.get('shipping[name]') ? { name: params.get('shipping[name]'), address: { line1: params.get('shipping[address][line1]'), city: params.get('shipping[address][city]'), state: params.get('shipping[address][state]'), postal_code: params.get('shipping[address][postal_code]'), country: params.get('shipping[address][country]') } } : null,
+        metadata: { orderId: params.get('metadata[orderId]'), twomiah_flow: flow },
+        next_action: status === 'requires_action' ? { type: 'redirect_to_url', redirect_to_url: { url: `https://hooks.stripe.com/3d_secure/${id}` } } : null,
+        __card: card,
+      }
+      intents.set(id, pi)
+      return json(pi)
+    }
+    const pim = u.pathname.match(/^\/v1\/payment_intents\/([^/]+)$/)
+    if (pim && method === 'GET') {
+      const pi = intents.get(decodeURIComponent(pim[1]))
+      if (!pi) return json({ error: { type: 'invalid_request_error', message: 'No such payment_intent' } }, 404)
+      return json({ ...pi, payment_method: u.searchParams.get('expand[0]') === 'payment_method' ? (state.cardAttached === false ? { ...pi.__card, customer: null } : pi.__card) : pi.payment_method })
+    }
+    if (/^\/v1\/customers\/[^/]+$/.test(u.pathname)) return json({ id: u.pathname.split('/').pop(), object: 'customer' })
+    if (/^\/v1\/payment_methods\/[^/]+\/detach$/.test(u.pathname)) return json({ id: u.pathname.split('/')[3], object: 'payment_method', customer: null })
     if (u.pathname === '/v1/customers' && method === 'POST') return json({ id: `cus_${++state.n}`, object: 'customer', email: params.get('email'), name: params.get('name') })
     if (u.pathname === '/v1/payouts' && method === 'GET') {
       const since = Number(u.searchParams.get('arrival_date[gte]') || 0)
@@ -54,7 +82,7 @@ export function stripeMock() {
     if (u.pathname === '/v1/refunds' && method === 'POST') return json({ id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount: Number(params.get('amount') || 0) || null, payment_intent: params.get('payment_intent') })
     return json({ error: { type: 'invalid_request_error', message: `Unrouted ${method} ${u.pathname}` } }, 404)
   }
-  return { calls, sessions, state, payouts, balance, handle, last: (path: string) => [...calls].reverse().find((c) => c.path === path && c.method === 'POST') }
+  return { calls, sessions, intents, state, payouts, balance, handle, last: (path: string) => [...calls].reverse().find((c) => c.path === path && c.method === 'POST') }
 }
 
 /** A paid Checkout Session as Stripe describes it (the fields the store reads). */

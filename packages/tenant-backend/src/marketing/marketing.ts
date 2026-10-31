@@ -523,7 +523,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     await db.insert(t.emailLog).values({ companyId, to: c.email, subject: personalize(subject, c), body: bodyHtml, status: 'sent', contactId: c.id, sentAt: new Date() }).catch(() => {})
   }
   /** Claim an automatic email; false when it was already claimed (so already sent, or being sent). */
-  async function claimAutomated(companyId: string, contactId: string, kind: 'welcome' | 'win_back', marker: string): Promise<string | null> {
+  async function claimAutomated(companyId: string, contactId: string, kind: string, marker: string): Promise<string | null> {
     const [row] = await db.insert(t.automationSend).values({ companyId, contactId, kind, marker }).onConflictDoNothing().returning({ id: t.automationSend.id })
     return row?.id ?? null
   }
@@ -541,6 +541,21 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const wl = DEFAULT_WELCOME()
     try { await sendAutomated(companyId, c, row.welcomeSubject || wl.subject, row.welcomeBody || wl.body); await finishAutomated(claim, 'sent'); return 'sent' }
     catch (e: any) { console.error('[Marketing] Welcome failed:', c.email, e?.message || e); await finishAutomated(claim, 'failed'); return 'failed' }
+  }
+  /**
+   * One automatic email from a sibling feature (the store's post-purchase follow-ups) under the SAME rules as the welcome:
+   * Email Marketing is on for the company, the customer has an address and has not unsubscribed, the email is claimed
+   * once per (customer, kind, marker) before it is sent, and it carries the unsubscribe link. `bodyHtml` is sanitised here.
+   */
+  async function sendClaimed(companyId: string, contactId: string, kind: string, marker: string, subject: string, bodyHtml: string): Promise<'sent' | 'off' | 'skipped' | 'already' | 'failed'> {
+    if (!t.automationSend) return 'off'
+    if (isFeatureEnabled && !(await isFeatureEnabled(companyId, 'email_marketing'))) return 'off'
+    const [c] = await db.select().from(t.contact).where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId))).limit(1)
+    if (!c || !c.email || c.emailOptOut) return 'skipped'
+    const claim = await claimAutomated(companyId, contactId, kind, marker)
+    if (!claim) return 'already'
+    try { await sendAutomated(companyId, c, subject, bodyHtml); await finishAutomated(claim, 'sent'); return 'sent' }
+    catch (e: any) { console.error('[Marketing] Automatic email failed:', kind, c.email, e?.message || e); await finishAutomated(claim, 'failed'); return 'failed' }
   }
   /**
    * Win-back: a customer whose latest job / visit / order was N days ago (N the owner's, per company; off when unset) gets
@@ -643,7 +658,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     createTemplate, getTemplates, getTemplate, updateTemplate, duplicateTemplate, deleteTemplate,
     createCampaign, getCampaigns, getCampaign, updateCampaign, getCampaignRecipients, sendCampaign, scheduleCampaign, unscheduleCampaign, deleteCampaign, processScheduledCampaigns,
     createSequence, getSequence, getSequences, updateSequence, deleteSequence, enrollInSequence, getEnrollments, processDripEmails, startMarketingProcessor,
-    previewAudience, audienceOptions, getAutomations, saveAutomations, sendWelcome, processWinBacks,
+    previewAudience, audienceOptions, getAutomations, saveAutomations, sendWelcome, sendClaimed, processWinBacks,
     trackOpen, trackClick, handleUnsubscribe, resubscribe, getMarketingStats,
   }
 }

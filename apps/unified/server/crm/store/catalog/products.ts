@@ -34,7 +34,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'node:crypto'
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { storeProduct, storeProductImage, storeProductVariant } from '../../../db/schema/store.ts'
+import { storeProduct, storeProductImage, storeProductVariant, storeSupplier } from '../../../db/schema/store.ts'
 import { makeOnlyPrimaryImage } from '../../../data/storeCatalog.ts'
 import { cleanText } from '../../../core/sanitize.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -72,6 +72,8 @@ const productSchema = z.object({
   // The owner's picks for "Frequently bought together" and "You may also like": this company's product ids.
   boughtTogetherIds: z.array(z.string().min(1).max(64)).max(12).optional().nullable(),
   alsoLikeIds: z.array(z.string().min(1).max(64)).max(12).optional().nullable(),
+  // A consumable: the post-purchase "time to reorder" email goes out this many days after the order arrives (null = none).
+  replenishAfterDays: z.number().int().min(1).max(730).optional().nullable(),
 })
 
 const variantSchema = z.object({
@@ -88,6 +90,9 @@ const variantSchema = z.object({
   lowStockAt: z.number().int().min(0, 'The low-stock level cannot be negative').max(2147483647).optional().nullable(),
   // What one unit costs the shop (margin:read's: staff neither see nor set it). Profit in the sales reports is worked out from it.
   costCents: z.number().int().min(0, 'The cost cannot be negative').max(2147483647).optional().nullable(),
+  // Who the shop buys it from and how many to bring the stock back to (store_reorders: the draft reorder reads both).
+  supplierId: z.string().min(1).max(64).optional().nullable(),
+  reorderToQty: z.number().int().min(0, 'The order-up-to count cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string(), z.string()).optional().nullable(),
   position: z.number().int().optional(),
   // The feeds' identifiers: a barcode (GTIN: UPC, EAN or ISBN, 8 to 14 digits) and the maker's part number.
@@ -156,6 +161,16 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
   const costRefused = (c: any) => fail(c, 403, "What a product costs you is for a manager or the owner.", 'permission_denied')
   const stripCost = <T extends { costCents?: number | null }>(rows: T[], may: boolean): T[] => (may ? rows : rows.map(({ costCents: _c, ...rest }) => rest as T))
   /** A low-stock level is the store_low_stock feature's: off, the API refuses it (the screens do not show the box). */
+  /** Choosing a supplier or an order-up-to count needs store_reorders, and a supplier of THIS company. null = fine. */
+  const reorderFieldsProblem = async (companyId: string, f: { supplierId?: string | null; reorderToQty?: number | null }): Promise<((c: any) => Response) | null> => {
+    if (f.supplierId == null && f.reorderToQty == null) return null
+    if (!(await d.features.isFeatureEnabled(companyId, 'store_reorders'))) return (c) => fail(c, 403, 'Reordering from suppliers is not switched on.', 'FEATURE_NOT_ENABLED')
+    if (f.supplierId) {
+      const [sup] = await db.select({ id: storeSupplier.id }).from(storeSupplier).where(and(eq(storeSupplier.id, f.supplierId), eq(storeSupplier.companyId, companyId))).limit(1)
+      if (!sup) return (c) => fail(c, 400, 'That supplier is not one of yours. Choose another.', 'validation_failed', { supplierId: 'Not found' })
+    }
+    return null
+  }
   const lowStockOff = (c: any) => fail(c, 403, 'Low-stock alerts are not switched on.', 'FEATURE_NOT_ENABLED')
   const currency = async (companyId: string) => (await core.settings(companyId)).currency || 'usd'
   /** This company's product, or nothing. */
@@ -264,6 +279,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     if (!product) return fail(c, 404, 'Product not found')
     if (parsed.data.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
     if (parsed.data.costCents !== undefined && !(await mayMargin(c))) return costRefused(c)
+    const reorderProblem = await reorderFieldsProblem(u.companyId, parsed.data)
+    if (reorderProblem) return reorderProblem(c)
     const [created] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
     // Its own row: the floor would file this under the product the URL names (create product TEA-1).
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await currency(u.companyId))}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
@@ -281,6 +298,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     if (!before) return fail(c, 404, 'Not found')
     if (fields.lowStockAt != null && !(await d.features.isFeatureEnabled(u.companyId, 'store_low_stock'))) return lowStockOff(c)
     if (fields.costCents !== undefined && !(await mayMargin(c))) return costRefused(c)
+    const reorderProblem = await reorderFieldsProblem(u.companyId, fields)
+    if (reorderProblem) return reorderProblem(c)
     const guarded = inventoryFrom !== undefined && fields.inventoryQty !== undefined
     const where = guarded
       ? and(eq(storeProductVariant.id, before.id), inventoryFrom === null ? isNull(storeProductVariant.inventoryQty) : eq(storeProductVariant.inventoryQty, inventoryFrom))

@@ -44,10 +44,12 @@ interface DetailsForm {
   leadTimeDays: string; seoTitle: string; seoDescription: string
   kind: 'physical' | 'gift_card'; brand: string; condition: 'new' | 'refurbished' | 'used'; category: string
   boughtTogetherIds: string[]; alsoLikeIds: string[]
+  /** Days after an order arrives that the "time to reorder" email goes out ('' = none). */
+  replenishAfterDays: string
 }
 const BLANK: DetailsForm = {
   name: '', tagline: '', description: '', status: 'draft', featured: false, leadTimeDays: '', seoTitle: '', seoDescription: '',
-  kind: 'physical', brand: '', condition: 'new', category: '', boughtTogetherIds: [], alsoLikeIds: [],
+  kind: 'physical', brand: '', condition: 'new', category: '', boughtTogetherIds: [], alsoLikeIds: [], replenishAfterDays: '',
 }
 
 const formOf = (p: Product): DetailsForm => ({
@@ -55,18 +57,21 @@ const formOf = (p: Product): DetailsForm => ({
   leadTimeDays: p.leadTimeDays == null ? '' : String(p.leadTimeDays), seoTitle: p.seoTitle || '', seoDescription: p.seoDescription || '',
   kind: p.kind || 'physical', brand: p.brand || '', condition: p.condition || 'new', category: p.category || '',
   boughtTogetherIds: p.boughtTogetherIds || [], alsoLikeIds: p.alsoLikeIds || [],
+  replenishAfterDays: p.replenishAfterDays == null ? '' : String(p.replenishAfterDays),
 })
 
 /** The product's own fields as the server takes them, or the box that is wrong. */
 function detailsBody(f: DetailsForm): { body: Record<string, unknown> } | { error: string; field: string } {
   const lead = toWhole(f.leadTimeDays)
   if (Number.isNaN(lead)) return { error: 'Lead time is a whole number of days.', field: 'leadTimeDays' }
+  const again = toWhole(f.replenishAfterDays)
+  if (Number.isNaN(again) || (again != null && (again < 1 || again > 730))) return { error: 'The reorder reminder is a whole number of days, from 1 to 730.', field: 'replenishAfterDays' }
   return {
     body: {
       name: f.name.trim(), tagline: f.tagline || null, description: f.description || null, status: f.status, featured: f.featured,
       leadTimeDays: lead, seoTitle: f.seoTitle || null, seoDescription: f.seoDescription || null,
       kind: f.kind, brand: f.brand.trim() || null, condition: f.condition, category: f.category.trim() || null,
-      boughtTogetherIds: f.boughtTogetherIds, alsoLikeIds: f.alsoLikeIds,
+      boughtTogetherIds: f.boughtTogetherIds, alsoLikeIds: f.alsoLikeIds, replenishAfterDays: again,
     },
   }
 }
@@ -85,7 +90,7 @@ function parseOptions(text: string): Record<string, string> | null | 'invalid' {
   return out
 }
 
-const FIELD_LABELS: Record<string, string> = { name: 'Name', leadTimeDays: 'Lead time', slug: 'Slug', seoTitle: 'SEO title', seoDescription: 'SEO description' }
+const FIELD_LABELS: Record<string, string> = { name: 'Name', leadTimeDays: 'Lead time', replenishAfterDays: 'Reorder reminder', slug: 'Slug', seoTitle: 'SEO title', seoDescription: 'SEO description' }
 
 export default function ProductEditPage() {
   const { id } = useParams()
@@ -96,6 +101,7 @@ export default function ProductEditPage() {
   const currency = useStoreCurrency()
 
   const [form, setForm] = useState<DetailsForm>(BLANK)
+  const followupsOn = useAuth().hasFeature('store_followups')
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(!isNew)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -244,6 +250,14 @@ export default function ProductEditPage() {
             <input id="p-lead" className="input" inputMode="numeric" value={form.leadTimeDays} onChange={(e) => set('leadTimeDays', e.target.value)} placeholder="Optional" />
             {err('leadTimeDays')}
           </div>
+          {followupsOn && form.kind === 'physical' && (
+            <div>
+              <label className="label" htmlFor="p-again">Reorder reminder (days after it arrives)</label>
+              <input id="p-again" className="input" inputMode="numeric" value={form.replenishAfterDays} onChange={(e) => set('replenishAfterDays', e.target.value)} placeholder="Not a consumable" />
+              {err('replenishAfterDays')}
+              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">For things that run out: the shopper is emailed this many days after the order arrives, unless they have already bought it again. It goes out only when the reorder-reminder email is switched on in Post-purchase emails.</p>
+            </div>
+          )}
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
           <input type="checkbox" checked={form.featured} onChange={(e) => set('featured', e.target.checked)} /> Feature on the storefront's home page
@@ -327,13 +341,23 @@ export default function ProductEditPage() {
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 interface SupplierLink { ref: string; name: string | null }
-interface RowEdit { price: string; compareAt: string; inv: string; low: string; cost: string; options: string; ref: string; gtin: string; mpn: string }
+interface RowEdit { price: string; compareAt: string; inv: string; low: string; cost: string; options: string; ref: string; gtin: string; mpn: string; supplier: string; upTo: string }
 
 function VariantsSection({ product, currency, mayUpdate, onChange }: { product: Product; currency: string; mayUpdate: boolean; onChange: () => Promise<void> }) {
   const toast = useToast()
   const confirm = useConfirm()
   // Low-stock alerts (store_low_stock): the "Tell me at" box is there only where the shop has them on.
   const lowStockOn = useAuth().hasFeature('store_low_stock')
+  // Reorders (store_reorders): who the shop buys an option from, and the count a reorder brings it back to. The suppliers list is
+  // margin:read's (costs are), so a seat without it has neither box.
+  const reordersOn = useAuth().hasFeature('store_reorders')
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[] | null>(null)
+  useEffect(() => {
+    if (!reordersOn) return
+    let live = true
+    api.get('/api/admin/reorders/suppliers').then((r: any) => { if (live) setSuppliers((r.data as { id: string; name: string }[]) ?? []) }).catch(() => { if (live) setSuppliers(null) })
+    return () => { live = false }
+  }, [reordersOn])
   // Dropship: variant → supplier item links, shown only when a supplier is connected. The supplier connection is the
   // owner's (integrations:update): asked only once the answer is known to be yes, never a request other seats are refused.
   const mayLinkSupplier = useKnownPermission('integrations:update')
@@ -418,6 +442,12 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
       if (inventoryQty !== v.inventoryQty) { body.inventoryQty = inventoryQty; body.inventoryFrom = v.inventoryQty }
       if (lowStockOn && lowStockAt !== (v.lowStockAt ?? null)) body.lowStockAt = lowStockAt
       if (v.costCents !== undefined && costCents !== v.costCents) body.costCents = costCents
+      if (suppliers) {
+        const upTo = toWhole(next.upTo)
+        if (Number.isNaN(upTo) || (upTo !== null && upTo < 0)) { toast.error('"Order up to" is a whole number, or blank.'); return false }
+        if ((next.supplier || null) !== (v.supplierId ?? null)) body.supplierId = next.supplier || null
+        if (upTo !== (v.reorderToQty ?? null)) body.reorderToQty = upTo
+      }
       if (optionsText(options) !== optionsText(v.options)) body.options = options
       if (next.gtin.trim() !== (v.gtin || '')) body.gtin = next.gtin.trim() || null
       if (next.mpn.trim() !== (v.mpn || '')) body.mpn = next.mpn.trim() || null
@@ -454,7 +484,7 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
         {product.variants.map((v) => (
           <VariantRow
             key={v.id} v={v} currency={currency} mayUpdate={mayUpdate}
-            lowStockOn={lowStockOn}
+            lowStockOn={lowStockOn} suppliers={suppliers}
             supplierConnected={supplierConnected} supplierRef={supplierMap[v.id]?.ref ?? ''} supplierName={supplierMap[v.id]?.name ?? null}
             onSave={(next) => saveRow(v, next)}
             onDelete={mayDeleteVariant ? () => del(v) : undefined}
@@ -483,12 +513,14 @@ function VariantsSection({ product, currency, mayUpdate, onChange }: { product: 
 }
 
 // One editable variant row: controlled inputs and an explicit Save that lights up only when something changed.
-function VariantRow({ v, currency, mayUpdate, lowStockOn, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
+function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
   v: ProductVariant
   currency: string
   mayUpdate: boolean
   /** Low-stock alerts are on: show the "Tell me at" box. */
   lowStockOn: boolean
+  /** The shop's suppliers when reorders are on and this seat may see costs; null = no supplier boxes. */
+  suppliers: { id: string; name: string }[] | null
   supplierConnected: boolean
   supplierRef: string
   supplierName: string | null
@@ -499,18 +531,19 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, supplierConnected, sup
   const fromVariant = (): RowEdit => ({
     price: fromHundredths(v.priceCents), compareAt: fromHundredths(v.compareAtPriceCents),
     inv: v.inventoryQty == null ? '' : String(v.inventoryQty), low: v.lowStockAt == null ? '' : String(v.lowStockAt), cost: v.costCents == null ? '' : fromHundredths(v.costCents), options: optionsText(v.options), ref: supplierRef,
-    gtin: v.gtin || '', mpn: v.mpn || '',
+    gtin: v.gtin || '', mpn: v.mpn || '', supplier: v.supplierId || '', upTo: v.reorderToQty == null ? '' : String(v.reorderToQty),
   })
   const [edit, setEdit] = useState<RowEdit>(fromVariant)
   const [saving, setSaving] = useState(false)
 
   // Re-sync when the variant changes underneath (a reload after a save, or the stock moved).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, v.lowStockAt, v.costCents, optionsText(v.options), supplierRef, v.gtin, v.mpn])
+  useEffect(() => { setEdit(fromVariant()) }, [v.priceCents, v.compareAtPriceCents, v.inventoryQty, v.lowStockAt, v.costCents, optionsText(v.options), supplierRef, v.gtin, v.mpn, v.supplierId, v.reorderToQty])
 
   const base = fromVariant()
   const dirty = edit.price !== base.price || edit.compareAt !== base.compareAt || edit.inv !== base.inv || (lowStockOn && edit.low !== base.low) || (v.costCents !== undefined && edit.cost !== base.cost) || edit.options !== base.options
     || edit.gtin.trim() !== base.gtin || edit.mpn.trim() !== base.mpn
+    || (!!suppliers && (edit.supplier !== base.supplier || edit.upTo.trim() !== base.upTo))
     || (supplierConnected && edit.ref.trim() !== supplierRef)
 
   const save = async () => {
@@ -563,6 +596,19 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, supplierConnected, sup
         {lowStockOn && (
           <label className="block text-xs text-gray-600 dark:text-slate-400">Tell me at
             <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="No alert" title="One email when a sale takes the stock down to this number" value={edit.low} onChange={(e) => setEdit({ ...edit, low: e.target.value })} />
+          </label>
+        )}
+        {suppliers && (
+          <label className="block text-xs text-gray-600 dark:text-slate-400">Buy it from
+            <select className="input mt-1 py-1.5" value={edit.supplier} onChange={(e) => setEdit({ ...edit, supplier: e.target.value })}>
+              <option value="">No supplier</option>
+              {suppliers.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+            </select>
+          </label>
+        )}
+        {suppliers && (
+          <label className="block text-xs text-gray-600 dark:text-slate-400">Order up to
+            <input className="input mt-1 py-1.5" inputMode="numeric" placeholder="Twice the low level" title="A reorder brings the stock back to this many" value={edit.upTo} onChange={(e) => setEdit({ ...edit, upTo: e.target.value })} />
           </label>
         )}
         <label className="block text-xs text-gray-600 dark:text-slate-400">Options

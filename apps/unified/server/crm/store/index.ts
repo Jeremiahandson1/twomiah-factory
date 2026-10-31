@@ -17,6 +17,11 @@ import { ratingSummaries } from '../../data/storeCheckout.ts'
 import { catalogMounts } from './catalog/index.ts'
 import { createShopperAccountRoutes } from './accounts/routes.ts'
 import { createSegmentRoutes } from './segments/routes.ts'
+import { createFollowups } from './followups/followups.ts'
+import { createFollowupRoutes } from './followups/routes.ts'
+import { createReorderRoutes } from './reorders/routes.ts'
+import { createExpressRoutes } from './checkout/expressRoutes.ts'
+import { createStoreGiftCards } from './giftCards.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
 const cores = new WeakMap<object, StoreCore>()
@@ -30,13 +35,21 @@ function coreFor(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>): StoreCore {
 export function storeMounts(d: CrmDeps): Mount[] {
   if (!d.settings?.store) return []
   const core = coreFor(d)
+  const followups = createFollowups(d, core)
+  d.services.addJob(() => followups.start())
   return ([
     // The payment and supplier webhooks move an order's refunds and status by the orders group's rules.
     ...checkoutMounts(d, core, createOrderHooks(d, core)),
     ...ordersMounts(d, core),
     ...catalogMounts(d, core),
     // 2026-10-31, parity row 2: saved customer segments (marketing:read), behind store_segments (not ready).
-    { path: '/api/admin/segments', access: 'user', feature: 'store_segments', router: createSegmentRoutes(d, async () => null) },
+    { path: '/api/admin/segments', access: 'user', feature: 'store_segments', router: createSegmentRoutes(d, followups.segmentInUse) },
+    // 2026-10-31, parity row 3: the post-purchase emails' settings (marketing:read / marketing:update), behind store_followups (not ready).
+    { path: '/api/admin/followups', access: 'user', feature: 'store_followups', router: createFollowupRoutes(d, followups) },
+    // 2026-10-31, parity row 4: "Draft a reorder" — supplier purchase orders (margin:read, products:update), behind store_reorders (not ready).
+    { path: '/api/admin/reorders', access: 'user', feature: 'store_reorders', router: createReorderRoutes(d, core) },
+    // 2026-10-31, parity row 6: Apple Pay / Google Pay / Link buttons (quote, intent, keys), behind store_fast_checkout (not ready), 404 when off.
+    { path: '/api/public/express', access: 'public', feature: 'store_fast_checkout', router: createExpressRoutes(d, core, createCheckoutService(d, core), createStoreGiftCards(d, core)) },
     // 2026-10-30, gap 7: shoppers sign in (their own cookie, not the staff's); behind store_accounts (not ready), 404 when off.
     { path: '/api/public/account', access: 'public', feature: 'store_accounts', router: createShopperAccountRoutes(d, core) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'store' }))

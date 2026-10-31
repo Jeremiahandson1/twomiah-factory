@@ -15,6 +15,7 @@ import { groupPrice, type GroupPricing } from '../catalog/groupPricing.ts'
 import { cardShare, GIFT_CARD_TAX_CODE, MIN_PROVIDER_CHARGE_CENTS, sellableCardAmount, type StoreGiftCards } from '../giftCards.ts'
 import type { PaymentProvider } from '../payments/types.ts'
 import { formatCents } from '../lib/money.ts'
+import { createFastCheckout } from './fastCheckout.ts'
 import { NO_EMAIL_YET, newRecoveryToken, orderNumberFor, successUrlFor, type CheckoutService } from './checkoutService.ts'
 
 /** How the order reaches the shopper. 'digital' is decided here (a cart of gift cards only), never asked for. */
@@ -38,9 +39,24 @@ export interface StartInput {
    * their group's prices, with their saved address ready on the payment page. Never taken from the request body.
    */
   shopper?: { contactId: string; email: string; name: string | null; pricing: GroupPricing | null; shipping?: { name: string; address: StoreAddress } }
+  /**
+   * Accelerated checkout (store_fast_checkout), honoured ONLY for a signed-in `shopper` on a Stripe store with the feature on —
+   * otherwise ignored, so the box can never be forced on for someone who did not tick it.
+   *   saveCard      the shopper ticked "keep my card for next time": the payment page keeps it on their own customer.
+   *   useSavedCard  one tap: the kept card is charged now, no payment page. Needs a kept, unexpired card, no Stripe Tax, and
+   *                 (for a delivered order) the shopper's saved address — the address the order is priced and shipped to.
+   */
+  fast?: { saveCard?: boolean; useSavedCard?: boolean }
+  /**
+   * Wallet buttons (Apple Pay, Google Pay, Link; store_fast_checkout): the order is priced for the address the wallet gave and
+   * a PaymentIntent is made for the browser to confirm — no payment page. No sign-in needed. Stripe, without Stripe Tax.
+   */
+  express?: { shipping?: { name: string; address: StoreAddress } }
+  /** Price the cart and stop: nothing is written (the wallet sheet asks what the total is for an address). */
+  preview?: boolean
 }
 export type StartResult =
-  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean }
+  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean; clientSecret?: string; preview?: { subtotalCents: number; discountCents: number; shippingCents: number; taxCents: number; totalCents: number; currency: string } }
   | { ok: false; status: 400 | 409 | 502 | 503; error: string; code?: string }
 
 // Shipping: first matching zone (by the buyer's ship-to region) wins, else the flat rate. Free-shipping thresholds
@@ -103,6 +119,7 @@ type Line = {
 export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: CheckoutService, giftCards: StoreGiftCards) {
   const { db, logger } = d
   const refuse = (status: 400 | 409 | 502 | 503, error: string, code?: string): StartResult => ({ ok: false, status, error, ...(code ? { code } : {}) })
+  const fast = createFastCheckout(d, core)
 
   async function start(input: StartInput): Promise<StartResult> {
     const { companyId } = input
@@ -112,6 +129,23 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const settings = await core.settings(companyId)
     const currency = settings.currency ?? 'usd'
     if (input.delivery === 'pickup' && !settings.pickupEnabled) return refuse(400, 'This store does not offer pickup.', 'no_pickup')
+
+    // Accelerated checkout: only for a signed-in shopper, on Stripe, with the feature on (see StartInput.fast).
+    const stripeFast = !input.draft && provider?.name === 'stripe' && await fast.enabled(companyId)
+    const fastOn = !!input.shopper && stripeFast
+    const wantsSave = fastOn && !!input.fast?.saveCard
+    const kept = fastOn && input.shopper ? await fast.cardOf(companyId, input.shopper.contactId) : null
+    const oneTap = fastOn && !!input.fast?.useSavedCard
+    if (oneTap) {
+      if (!kept || !provider?.chargeSavedCard) return refuse(400, 'Your saved card cannot be used. Pay with a card instead.', 'card_unavailable')
+      if (usesStripeTax(settings, provider)) return refuse(400, 'This store works out tax on the payment page, so the saved card is used there.', 'card_unavailable')
+    }
+    const expressOn = !!input.express && stripeFast
+    if (input.express && !expressOn) return refuse(400, 'Wallet payments are not available at this store.', 'express_unavailable')
+    if (expressOn && usesStripeTax(settings, provider)) return refuse(400, 'This store works out tax on the payment page, so wallet buttons are not used.', 'express_unavailable')
+    // One tap ships to (and is priced for) the shopper's saved address; a wallet to the address it gave — never one typed into the cart.
+    const sealed = oneTap ? input.shopper?.shipping : expressOn ? input.express?.shipping : undefined
+    const shipTo = sealed ? { country: sealed.address.country, state: sealed.address.state } : input.shipTo
 
     // Collapse duplicate SKUs, then load the real variants (trusted prices) — of this company's products.
     const wanted = new Map<string, number>()
@@ -176,10 +210,12 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     }
     const totalDiscountCents = Math.min(goodsCents, discountCents + loyaltyDiscountCents)
 
-    const shippingCents = fulfillment === 'ship' ? computeShipping(settings, goodsCents, input.shipTo) : 0
+    const shippingCents = fulfillment === 'ship' ? computeShipping(settings, goodsCents, shipTo) : 0
     const automaticTax = usesStripeTax(settings, provider)
-    const taxCents = automaticTax ? 0 : Math.round(Math.max(0, goodsCents - totalDiscountCents) * (computeTaxBps(settings, input.shipTo) / 10000))
+    const taxCents = automaticTax ? 0 : Math.round(Math.max(0, goodsCents - totalDiscountCents) * (computeTaxBps(settings, shipTo) / 10000))
     const totalCents = subtotalCents - totalDiscountCents + shippingCents + taxCents
+
+    if (input.preview) return { ok: true, orderId: '', url: '', paidByGiftCard: false, preview: { subtotalCents, discountCents: totalDiscountCents, shippingCents, taxCents, totalCents, currency } }
 
     // A gift card pays what it can of the order — never the gift cards in it. Its balance is looked at now and HELD when
     // the order is written (giftCards.hold, the card row locked), so the figure the provider is told is the one taken.
@@ -253,6 +289,60 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     if (!provider) { await forget('No payment provider'); return refuse(503, 'This store is not accepting orders yet') }
     if (input.draft) return { ok: true, orderId: order.id, url: `${storefront}/api/public/recover/${order.recoveryToken}`, paidByGiftCard: false }
 
+    // ONE TAP: the kept card is charged for what the gift card did not pay. No payment page — paid here, or sent to the bank's
+    // own confirmation page and back (the success page then finds the payment by the PaymentIntent kept as the session id).
+    if (oneTap && kept && input.shopper && provider.chargeSavedCard) {
+      const needsAddress = fulfillment === 'ship'
+      if (needsAddress && !input.shopper.shipping) { await forget('No saved address for one-tap'); return refuse(400, 'Add a delivery address to your account to pay in one tap.', 'card_unavailable') }
+      const ship = needsAddress ? input.shopper.shipping : undefined
+      let charge
+      try {
+        charge = await provider.chargeSavedCard({
+          customerId: kept.customerId, paymentMethodId: kept.paymentMethodId, amountCents: totalCents - heldCents, currency,
+          orderId: order.id, idempotencyKey: `store-order-${order.id}`, receiptEmail: customerEmail, description: `Order ${order.orderNumber}`,
+          ...(ship ? { shipping: ship } : {}), returnUrl: `${storefront}/checkout/success?ref=${encodeURIComponent(order.id)}`,
+        })
+      } catch (err: any) {
+        await forget('Saved card could not be charged')
+        logger.error('[store] saved card charge failed', { error: err?.message })
+        return refuse(502, 'Could not take payment')
+      }
+      if (charge.status === 'declined') { await forget('Saved card declined'); return refuse(400, `${charge.message} Pay with another card instead.`, 'card_declined') }
+      const [fresh] = await db.update(storeOrder).set({ providerSessionId: charge.paymentIntentId, updatedAt: new Date() })
+        .where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId))).returning()
+      if (charge.status === 'requires_action') return { ok: true, orderId: order.id, url: charge.redirectUrl, paidByGiftCard: false }
+      await checkout.finalizeOrder(fresh, {
+        type: 'paid', providerSessionId: charge.paymentIntentId, providerPaymentId: charge.paymentIntentId, amountTotalCents: totalCents - heldCents, currency,
+        customerEmail, ...(ship ? { customerName: ship.name, shippingAddress: ship.address } : {}),
+      })
+      return { ok: true, orderId: order.id, url: `${storefront}/checkout/success?ref=${encodeURIComponent(order.id)}`, paidByGiftCard: false }
+    }
+    // WALLET BUTTONS: a PaymentIntent for exactly this total; the browser confirms it with the wallet's card and comes back to
+    // the success page, which finds the payment by the intent kept as the session id.
+    if (expressOn && provider.createExpressIntent) {
+      const ship = fulfillment === 'ship' ? input.express?.shipping : undefined
+      if (fulfillment === 'ship' && !ship) { await forget('No address from the wallet'); return refuse(400, 'The wallet did not give a delivery address.', 'express_unavailable') }
+      try {
+        const intent = await provider.createExpressIntent({ amountCents: totalCents - heldCents, currency, orderId: order.id, receiptEmail: customerEmail, description: `Order ${order.orderNumber}`, ...(ship ? { shipping: ship } : {}) })
+        await db.update(storeOrder).set({ providerSessionId: intent.paymentIntentId, updatedAt: new Date() }).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId)))
+        return { ok: true, orderId: order.id, url: `${storefront}/checkout/success?ref=${encodeURIComponent(order.id)}`, paidByGiftCard: false, clientSecret: intent.clientSecret }
+      } catch (err: any) {
+        await forget('Wallet payment could not start')
+        logger.error('[store] wallet payment failed', { error: err?.message })
+        return refuse(502, 'Could not start the payment')
+      }
+    }
+    // Saved card consent: ticked → their customer on the merchant's account, and the payment page keeps the card on it. A card
+    // already kept is shown on the payment page too (Stripe offers a customer's saved cards there).
+    let customerId: string | undefined
+    if (input.shopper && fastOn && (wantsSave || kept) && provider.ensureCustomer) {
+      try {
+        customerId = wantsSave
+          ? (await fast.agree(provider, companyId, { contactId: input.shopper.contactId, email: input.shopper.email, name: input.shopper.name, shipping: input.shopper.shipping })) ?? undefined
+          : kept?.customerId
+      } catch (e: any) { logger.warn('[store] saved-card customer not made; paying without it', { error: e?.message }) }
+    }
+
     try {
       const session = await provider.createCheckout({
         lineItems: lines.map((li) => ({
@@ -263,6 +353,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
         // EVERYTHING taken off — the code, the loyalty reward, and what the gift card pays: the provider charges the rest.
         discountCents: totalDiscountCents + heldCents,
         customerEmail,
+        ...(customerId ? { customerId, saveCard: wantsSave } : {}),
         ...(input.shopper?.shipping ? { prefill: { name: input.shopper.name ?? input.shopper.shipping.name, shipping: input.shopper.shipping } } : {}),
         collectShippingAddress: fulfillment === 'ship',
         automaticTax,

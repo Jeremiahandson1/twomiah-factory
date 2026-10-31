@@ -41,14 +41,18 @@ export const CSP = [
 // listed one by one; the businesses here are US, so google.com is the one their visitors' pings use.
 const TRACKING_SCRIPTS = 'https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms'
 const TRACKING_CONNECT = 'https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.google.com https://*.google.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://*.g.doubleclick.net https://ad.doubleclick.net https://pagead2.googlesyndication.com https://www.facebook.com https://*.clarity.ms'
+// Stripe.js for a store's wallet buttons (Apple Pay, Google Pay, Link; store_fast_checkout): its script, its API and its frames — Stripe's own hosts only.
+const STRIPE_JS = 'https://js.stripe.com'
+const STRIPE_CONNECT = 'https://api.stripe.com https://m.stripe.network https://q.stripe.com'
+const STRIPE_FRAMES = 'https://js.stripe.com https://hooks.stripe.com https://m.stripe.network'
 export const SITE_CSP = [
   "default-src 'self'",
   "img-src 'self' data: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  `script-src 'self' 'unsafe-inline' ${TRACKING_SCRIPTS}`,
-  `connect-src 'self' ${TRACKING_CONNECT}`,
-  "frame-src 'self' https://www.googletagmanager.com https://td.doubleclick.net https://www.facebook.com",
+  `script-src 'self' 'unsafe-inline' ${TRACKING_SCRIPTS} ${STRIPE_JS}`,
+  `connect-src 'self' ${TRACKING_CONNECT} ${STRIPE_CONNECT}`,
+  `frame-src 'self' https://www.googletagmanager.com https://td.doubleclick.net https://www.facebook.com ${STRIPE_FRAMES}`,
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
