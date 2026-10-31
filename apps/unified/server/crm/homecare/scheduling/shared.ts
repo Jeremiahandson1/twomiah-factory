@@ -1,6 +1,7 @@
 // What this group's routers share: who is a caregiver, authorization advice for staffing a shift, and filling an open
 // shift's one visit. Moved from templates/crm-homecare/backend/src/helpers/authorizationCheck.ts and the assignShift of
 // routes/openShifts.ts (which routes/schedulingHub.ts imported); their SQL is in server/data/homecareScheduling.ts.
+import { createCredentialGate } from '../core/certReminders.ts'
 import type { Context } from 'hono'
 import type { CrmDeps } from '../../deps.ts'
 import { clientPrivatePay } from '../../../data/homecareCore.ts'
@@ -35,6 +36,7 @@ export const weekStartOf = (ymd: string) => addDays(ymd, -new Date(`${ymd}T12:00
 export class HttpError extends Error { constructor(public status: number, message: string) { super(message) } }
 
 export function createSchedulingShared(d: CrmDeps) {
+  const credentials = createCredentialGate(d)
   /**
    * Authorization ADVICE for staffing a shift. It never blocks: scheduling is not billing, and refusing to staff a
    * shift is the most expensive response to a paperwork gap. Every shortfall is a warning; `allowed` is always true.
@@ -86,6 +88,9 @@ export function createSchedulingShared(d: CrmDeps) {
    */
   async function assignShift(companyId: string, s: any, caregiverId: string, actorId: string): Promise<void> {
     const day = s.shiftDate
+    // The agency may refuse an expired credential outright (Credentials › Reminders); the one door every fill goes through.
+    const expired = (await credentials.blockedFor(companyId, [caregiverId], day))[caregiverId]
+    if (expired?.length) throw new HttpError(409, `This caregiver has an expired credential (${expired.join(', ')}) and cannot be put on a shift until it is renewed.`)
     if (!s.scheduleId) {
       await insertSchedule(d.db, companyId, {
         caregiverId, clientId: s.clientId, scheduleType: 'one-time', dayOfWeek: null, date: day,

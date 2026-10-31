@@ -120,6 +120,11 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
       frequency: frequency || 'weekly', effectiveDate, anchorDate, split: split ?? null, isTraining: !!isTraining, endDate,
     })
 
+    // An expired credential: refused when the agency blocks it, otherwise a flag on the reply (empty without care_cert_reminders).
+    const refused = (await core.certReminders.blockedFor(companyId, [String(caregiverId)], base))[String(caregiverId)]
+    if (refused?.length) return fail(c, 409, `This caregiver has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
+    const credentialWarnings = (await core.certReminders.expiredFor(companyId, [String(caregiverId)], base))[String(caregiverId)] || []
+
     // A one-time shift overlapping one the caregiver already has that day.
     const oneTimeConflict = async (start: string, end: string) => !isRecurring && await oneTimeOverlap(db, companyId, caregiverId, date, start, end)
 
@@ -136,18 +141,18 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
         const id2 = await insert(s2, e2, { group, segment: 2 })
         const segments = [await core.schedules.scheduleById(companyId, id1), await core.schedules.scheduleById(companyId, id2)]
         await core.notify.recordAudit(companyId, me, 'CREATE', 'schedules', id1, null, { splitShift: true, segments })
-        return one(c, { splitShift: true, segments, effectiveDateClamped, effectiveDate, anchorDate, authWarnings: authCheck.warnings }, 201)
+        return one(c, { splitShift: true, segments, effectiveDateClamped, effectiveDate, anchorDate, authWarnings: authCheck.warnings, credentialWarnings }, 201)
       }
 
       // One-time duplicate guard: a double-submit returns the existing row, not a billable twin.
       if (!isRecurring) {
         const existing = await oneTimeTwin(db, companyId, { caregiverId, clientId, date, start: startTime, end: endTime })
-        if (existing) return one(c, { ...existing, duplicate: true, effectiveDateClamped, effectiveDate, authWarnings: authCheck.warnings }, 200)
+        if (existing) return one(c, { ...existing, duplicate: true, effectiveDateClamped, effectiveDate, authWarnings: authCheck.warnings, credentialWarnings }, 200)
       }
       const id = await insert(startTime, endTime)
       const row = await core.schedules.scheduleById(companyId, id)
       await core.notify.recordAudit(companyId, me, 'CREATE', 'schedules', id, null, row)
-      return one(c, { ...row, effectiveDateClamped, effectiveDate, anchorDate, authWarnings: authCheck.warnings }, 201)
+      return one(c, { ...row, effectiveDateClamped, effectiveDate, anchorDate, authWarnings: authCheck.warnings, credentialWarnings }, 201)
     } catch (e: any) {
       if (isDup(e)) return fail(c, 409, 'This caregiver already has this exact shift (same client, day, and time).', 'duplicate')
       throw e

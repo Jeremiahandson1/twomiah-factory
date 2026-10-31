@@ -82,9 +82,13 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
       return fail(c, 400, 'date, startTime, and endTime are required')
     }
     const rows = await caregiversForSlot(db, companyId, date, hms(startTime)!, hms(endTime)!, excludeScheduleId || null)
+    const ids = rows.map((r) => String(r.id))
+    const expired = await core.certReminders.expiredFor(companyId, ids, date)
+    const noCert = await core.certReminders.blockedFor(companyId, ids, date)
     return asList(c, rows.map((r) => ({
       id: r.id, firstName: r.firstName, lastName: r.lastName, phone: r.phone, email: r.email,
-      available: !r.hasConflict && !r.timeOff, busy: !!r.hasConflict, timeOff: !!r.timeOff, notified: false,
+      available: !r.hasConflict && !r.timeOff && !noCert[String(r.id)], busy: !!r.hasConflict, timeOff: !!r.timeOff, notified: false,
+      expiredCertifications: expired[String(r.id)] || [], blockedByCredential: !!noCert[String(r.id)],
     })))
   })
 
@@ -162,6 +166,9 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     const os = await openShiftById(db, companyId, id, true)
     if (!os) return fail(c, 400, 'Shift is no longer available')
     if (Array.isArray(os.visibleTo) && !os.visibleTo.includes(caregiverId)) return fail(c, 403, 'This shift was not offered to you')
+
+    const noCert = (await core.certReminders.blockedFor(companyId, [caregiverId], os.shiftDate))[caregiverId]
+    if (noCert?.length) return fail(c, 409, `You cannot take this shift: your ${noCert.join(', ')} has expired. Send the office the renewed copy.`, 'credential_expired')
 
     // A visit they already have at that time — recurring visits included, cancelled ones not.
     if (await hasOverlap(db, companyId, caregiverId, os.shiftDate, os.startTime, os.endTime, true)) return fail(c, 400, 'You have a conflicting shift at this time')
@@ -277,8 +284,11 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     // The same rule auto-fill and the suggestions use (core/caregiverFit.ts): nobody on this client's do-not-use list, on time
     // off, marked unavailable, or outside the days and hours they work is told (10/30, owner's follow-up to PR #172).
     const blocked = await unfitFor(companyId, s)
-    const eligible = (await eligibleForShift(db, companyId, s))
-      .filter((r) => !r.hasConflict && !blocked.has(String(r.id)) && (!Array.isArray(s.visibleTo) || s.visibleTo.includes(r.id)))
+    const all = await eligibleForShift(db, companyId, s)
+    // Nobody with an expired credential is told when the agency blocks them (Credential settings › Block).
+    const noCert = await core.certReminders.blockedFor(companyId, all.map((r) => String(r.id)), s.shiftDate)
+    const eligible = all
+      .filter((r) => !r.hasConflict && !blocked.has(String(r.id)) && !noCert[String(r.id)] && (!Array.isArray(s.visibleTo) || s.visibleTo.includes(r.id)))
     if (eligible.length === 0) return fail(c, 409, 'No caregiver is free for this shift, so nobody was told.', 'nobody_to_tell')
     const r = await tellCaregivers(companyId, s, eligible.map((e) => e.id), { customMessage, sms: sms === true })
     if (r.notified === 0) return fail(c, 502, 'The notices could not be delivered, so nobody was told. Try again.', 'not_delivered')
@@ -293,7 +303,8 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     if (!s) return fail(c, 404, 'Shift not found')
     const rows = await eligibleForShift(db, companyId, s)
     const expired = await core.certReminders.expiredFor(companyId, rows.map((r) => String(r.id)), s.shiftDate)
-    return asList(c, rows.map((r) => ({ id: r.id, firstName: r.firstName, lastName: r.lastName, phone: r.phone, email: r.email, available: !r.hasConflict, notified: !!r.alreadyNotified, expiredCertifications: expired[String(r.id)] || [] })))
+    const noCert = await core.certReminders.blockedFor(companyId, rows.map((r) => String(r.id)), s.shiftDate)
+    return asList(c, rows.map((r) => ({ id: r.id, firstName: r.firstName, lastName: r.lastName, phone: r.phone, email: r.email, available: !r.hasConflict && !noCert[String(r.id)], notified: !!r.alreadyNotified, expiredCertifications: expired[String(r.id)] || [], blockedByCredential: !!noCert[String(r.id)] })))
   })
 
   // POST /api/open-shifts/:id/notify { caregiverIds, customMessage?, sms? } — tell chosen caregivers. An in-app
@@ -305,8 +316,11 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     if (!Array.isArray(caregiverIds) || caregiverIds.length === 0) return fail(c, 400, 'caregiverIds is required and must be a non-empty array')
     const s = await openShiftWithClient(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Shift not found')
-    const r = await tellCaregivers(companyId, s, caregiverIds.map(String), { customMessage, sms: !!sms })
-    return one(c, { success: true, ...r })
+    const noCert = await core.certReminders.blockedFor(companyId, caregiverIds.map(String), s.shiftDate)
+    const allowed = caregiverIds.map(String).filter((id) => !noCert[id])
+    if (allowed.length === 0) return fail(c, 409, 'Every caregiver chosen has an expired credential, so nobody was told.', 'credential_expired')
+    const r = await tellCaregivers(companyId, s, allowed, { customMessage, sms: !!sms })
+    return one(c, { success: true, ...r, skippedForCredential: caregiverIds.length - allowed.length })
   })
 
   // GET /api/open-shifts/:id/claims — who accepted

@@ -3070,3 +3070,34 @@ export const clientLtcPolicy = pgTable('client_ltc_policy', {
 
 // Item 4 (care_offline_saves): the saved answers behind Idempotency-Key are the server-wide saved_request (db/schema/core.ts,
 // http/savedOnce.ts) — one table and one guard for every signed-in write (10/30 integration).
+
+// Row 1 (care_cert_reminders, home care parity): a client's own credentials — a certification or licence the agency must
+// keep current for them (AxisCare monitors client certifications). Reminded like a caregiver's, but to the office only
+// (a client does not sign in to be told).
+export const clientCredential = pgTable('client_credential', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  credentialType: text('credential_type').notNull(),
+  issuingBody: text('issuing_body'),
+  issueDate: date('issue_date'),
+  expiryDate: date('expiry_date'),
+  documentUrl: text('document_url'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_credential_company_idx').on(t.companyId),
+  index('client_credential_client_idx').on(t.clientId),
+])
+
+// One reminder per (client credential, expiry date, stage) — the same claim that makes a caregiver's reminders send once.
+export const clientCredentialReminder = pgTable('client_credential_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientCredentialId: text('client_credential_id').notNull().references(() => clientCredential.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  expiryDate: date('expiry_date').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_credential_reminder_key').on(t.clientCredentialId, t.expiryDate, t.stage),
+])

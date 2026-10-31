@@ -6,7 +6,7 @@
 //
 // Server (server/crm/homecare/scheduling/openShifts.ts):
 //   GET  /api/open-shifts/caregivers-available?date&startTime&endTime&excludeScheduleId — a list reply of
-//        { id, firstName, lastName, phone, email, available, busy, timeOff, notified } (data: caregiversForSlot)
+//        { id, firstName, lastName, phone, email, available, busy, timeOff, notified, expiredCertifications, blockedByCredential } (data: caregiversForSlot)
 //   POST /api/open-shifts/from-schedule/:scheduleId { date, visibleTo, autoAssign, bonusAmount, urgency } — the open shift
 //   POST /api/open-shifts/:id/notify { caregiverIds, customMessage, sms } — { success, notified, texted, total }
 import { useEffect, useState, type CSSProperties } from 'react'
@@ -47,6 +47,10 @@ interface Candidate {
   available: boolean
   busy: boolean
   timeOff: boolean
+  /** 'CPR (expired 2026-10-01)' — only for an agency with credential tracking on. */
+  expiredCertifications?: string[]
+  /** The agency does not let an expired caregiver take a shift. */
+  blockedByCredential?: boolean
 }
 
 const fmtTime = (t: string) => {
@@ -194,13 +198,19 @@ export default function MakeShiftAvailableModal({ schedule, date, clientName, ca
                   borderBottom: `1px solid ${C.subtle}`, cursor: 'pointer',
                   background: isSelected ? blue.bg : C.surface, opacity: c.available ? 1 : 0.6,
                 }}>
-                  <input type="checkbox" checked={isSelected} onChange={() => toggle(c.id)} />
+                  <input type="checkbox" checked={isSelected} disabled={!!c.blockedByCredential} onChange={() => toggle(c.id)} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
                       {c.firstName} {c.lastName}
                       {c.timeOff && <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', color: amber.ink, fontWeight: 600 }}>TIME OFF</span>}
                       {c.busy && <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', color: red.ink, fontWeight: 600 }}>BUSY THIS TIME</span>}
+                      {c.expiredCertifications && c.expiredCertifications.length > 0 && (
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', color: red.ink, fontWeight: 600 }} title={c.expiredCertifications.join(', ')}>
+                          {c.blockedByCredential ? 'EXPIRED CREDENTIAL — CANNOT TAKE SHIFTS' : 'EXPIRED CREDENTIAL'}
+                        </span>
+                      )}
                     </div>
+                    {c.expiredCertifications && c.expiredCertifications.length > 0 && <div style={{ fontSize: '0.74rem', color: red.ink }}>{c.expiredCertifications.join(', ')}</div>}
                     {c.phone && <div style={{ fontSize: '0.78rem', color: C.inkSoft }}>{c.phone}</div>}
                   </div>
                 </label>

@@ -323,8 +323,9 @@ const SchedulingHub = () => {
   // Schedule saves return authWarnings (authorization balance, etc). They are advisory — the shift IS created — so they
   // ride on the success message as a warning: a red "No active authorization" over a 201 read as a failure (Run 5).
   const showSaved = (text: string, body: SavedReply | null | undefined, failed = false) => {
-    const w = body?.authWarnings
-    if (Array.isArray(w) && w.length) showMsg(`${text} ⚠️ ${w[0]}`, failed ? 'error' : 'warning')
+    // Advice that rides on a successful save: the authorization balance, and an expired credential (never a refusal unless the agency blocks it).
+    const warns = [...(Array.isArray(body?.authWarnings) ? body!.authWarnings! : []), ...(Array.isArray(body?.credentialWarnings) ? body!.credentialWarnings!.map((w) => `Expired credential: ${w}`) : [])]
+    if (warns.length) showMsg(`${text} ⚠️ ${warns.join(' · ')}`, failed ? 'error' : 'warning')
     else showMsg(text, failed ? 'error' : 'success')
   }
 
@@ -1873,7 +1874,7 @@ const SchedulingHub = () => {
                           <span style={{ fontWeight: 700 }}>{idx + 1}. {sg.firstName} {sg.lastName}</span>
                           <span style={{ background: tint(t.tone).bg, color: tint(t.tone).ink, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{t.label} · {sg.score}</span>
                         </div>
-                        {sg.reasons && sg.reasons.length > 0 && <div style={{ marginTop: 3, fontSize: '0.72rem', color: C.muted }}>{sg.reasons.slice(0, 4).join(' · ')}</div>}
+                        {sg.reasons && sg.reasons.length > 0 && <div style={{ marginTop: 3, fontSize: '0.72rem', color: C.muted }}>{sg.reasons.join(' · ')}</div>}
                       </button>
                     )
                   })}
