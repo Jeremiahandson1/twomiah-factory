@@ -3,6 +3,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
+import { createCommissionViewerGrants } from './crm/roof/commissionViewers.ts'
 import { asc } from 'drizzle-orm'
 import {
   createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes,
@@ -71,8 +72,11 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
-  const permissions = createPermissions({
+  // Roofing: the company chooses which roles see commissions (crm/roof/commissionViewers.ts), read through the shared permissions.
+  const viewerGrants = vertical.crm?.roof ? createCommissionViewerGrants(db, (role: string) => permissions.normalizeRole(role)) : undefined
+  const permissions: ReturnType<typeof createPermissions> = createPermissions({
     db, tables: { user },
+    ...(viewerGrants ? { companyGrants: viewerGrants } : {}),
     roleLabels: vertical.roleLabels,
     extraRolePermissions: vertical.extraRolePermissions,
     withheldRolePermissions: vertical.withheldRolePermissions,

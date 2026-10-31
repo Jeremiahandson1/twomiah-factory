@@ -83,6 +83,8 @@ const TRIGGER_WORDS: Record<string, string> = {
   completed: 'Completed (final inspection done)',
   approved: 'Approved (the contract is signed)',
 }
+/** The roles a company can let see everyone's commissions (the server's COMMISSION_VIEWER_CHOICES). Owner and admin always do. */
+const VIEWER_ROLE_WORDS: Record<string, string> = { manager: 'Managers', field: 'Field staff', viewer: 'Read-only seats' }
 const SALES_KIND_WORDS: Record<string, string> = { all: 'Services and retail', services: 'Services only', retail: 'Retail only' }
 /** The people a plan names (commission_plan.user_ids) — empty when it names nobody. */
 const namedOn = (p: any): string[] => (Array.isArray(p?.userIds) ? p.userIds.map(String) : [])
@@ -188,12 +190,14 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [rules, setRules] = useState<any | null>(null)
   const [minKind, setMinKind] = useState<'none' | 'percent' | 'amount'>('none')
   const [minValue, setMinValue] = useState('')
+  const [viewerRoles, setViewerRoles] = useState<string[]>(['manager'])
   const loadRules = useCallback(async () => {
     try {
       const r = await api.get('/api/roof-money/settings')
       setRules(r)
       setMinKind(r?.minProfit?.kind || 'none')
       setMinValue(r?.minProfit ? String(r.minProfit.value) : '')
+      setViewerRoles(Array.isArray(r?.commissionViewerRoles) ? r.commissionViewerRoles : ['manager'])
     } catch (e) { setRules(null); toast.error(errMsg(e, 'Could not load the commission rules')) }
   }, [api])
   useEffect(() => { if (config.moneyRules && mayReadPlans) loadRules() }, [config.moneyRules, mayReadPlans, loadRules])
@@ -205,6 +209,15 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       setRules(await api.put('/api/roof-money/settings', { minProfit }))
       toast.success('Commission rules saved')
     } catch (err) { toast.error(errMsg(err, 'The rules could not be saved')) } finally { setBusy(false) }
+  }
+
+  const saveViewers = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      setRules(await api.put('/api/roof-money/settings', { commissionViewerRoles: viewerRoles }))
+      toast.success('Saved who sees commissions')
+    } catch (err) { toast.error(errMsg(err, 'This could not be saved')) } finally { setBusy(false) }
   }
 
   // ── plans ──
@@ -425,6 +438,20 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </Field>
             )}
           </div>
+          {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
+        </form>
+        <form onSubmit={saveViewers} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Who sees commissions</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400">Owners and admins always see everyone&rsquo;s commissions and how they are worked out. Choose who else does. Everyone sees their own earnings whatever is chosen. A change reaches people signed in at their next sign-in.</p>
+          <fieldset className="space-y-1">
+            <legend className="sr-only">Roles that see everyone&rsquo;s commissions</legend>
+            {Object.entries(VIEWER_ROLE_WORDS).map(([role, word]) => (
+              <label key={role} className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
+                <input type="checkbox" disabled={!mayUpdate} checked={viewerRoles.includes(role)} onChange={(e) => setViewerRoles((prev) => e.target.checked ? [...prev, role] : prev.filter((x) => x !== role))} />
+                {word}
+              </label>
+            ))}
+          </fieldset>
           {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
         </form>
       </div>

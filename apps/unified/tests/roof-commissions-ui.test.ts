@@ -289,3 +289,35 @@ describe('the job on every line (row 4)', () => {
     root.unmount()
   })
 })
+
+describe('who sees commissions (row 4)', () => {
+  test('the Rules tab lists the roles, starts from the company’s choice and sends exactly the roles ticked', async () => {
+    const { api, calls } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/roof-money/settings': { minProfit: null, commissionViewerRoles: ['manager'] },
+      'PUT /api/roof-money/settings': (b: any) => ({ minProfit: null, ...b }),
+    })
+    const root = await mount(api)
+    await click(tab('Rules'))
+    expect(text()).toContain('Who sees commissions')
+    const boxes = Array.from(document.querySelectorAll('fieldset input[type=checkbox]')) as HTMLInputElement[]
+    expect(boxes.map((b) => b.checked)).toEqual([true, false, false])
+    await click(boxes[1]); await click(boxes[0])
+    const forms = Array.from(document.querySelectorAll('form'))
+    const form = forms.find((f) => f.textContent?.includes('Who sees commissions'))!
+    await act(async () => { form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true })) })
+    await settle()
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/api/roof-money/settings')
+    expect(put?.body).toEqual({ commissionViewerRoles: ['field'] })
+    root.unmount()
+  })
+
+  test('a seat that can only read the rules sees the choice and cannot change it', async () => {
+    const { api } = fakeApi({ ...BASE_ROUTES, '/api/roof-money/settings': { minProfit: null, commissionViewerRoles: ['manager', 'viewer'] } })
+    const root = await mount(api, ['commissions:read'])
+    await click(tab('Rules'))
+    const boxes = Array.from(document.querySelectorAll('fieldset input[type=checkbox]')) as HTMLInputElement[]
+    expect(boxes.map((b) => [b.checked, b.disabled])).toEqual([[true, true], [false, true], [true, true]])
+    root.unmount()
+  })
+})

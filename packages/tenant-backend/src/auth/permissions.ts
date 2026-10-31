@@ -401,6 +401,13 @@ export interface PermissionsDeps {
    * presentation only — every gate still works on the hierarchy id. (Salon T28 M3)
    */
   roleLabels?: Record<string, string>
+  /**
+   * Grants that come from the COMPANY's own settings rather than from a person's row — a roofer choosing which roles see
+   * commissions. Given the user's id, returns permissions to add and — written with a leading "-" — permissions to take away
+   * ("-commissions:read"). Read with the person's own grants (getExtraPermissions), so every guard, the login payload and View As
+   * agree. The owner's and an admin's access ("*") is never taken away.
+   */
+  companyGrants?: (userId: string) => Promise<string[]>
 }
 
 /**
@@ -448,10 +455,15 @@ export function createPermissions(deps: PermissionsDeps) {
       const [row] = await db.select({ extra: user.extraPermissions }).from(user).where(eq(user.id, userId)).limit(1)
       list = Array.isArray(row?.extra) ? (row!.extra as string[]).filter((x) => typeof x === 'string') : []
     } catch { list = [] }
+    if (deps.companyGrants) {
+      try { list = [...list, ...(await deps.companyGrants(userId)).filter((x) => typeof x === 'string')] } catch { /* a settings read that fails leaves the role's own list */ }
+    }
     GRANT_CACHE.set(userId, { at: Date.now(), list })
     return list
   }
   function invalidateExtraPermissions(userId: string) { GRANT_CACHE.delete(userId) }
+  /** Forget every cached grant — after a company changes a setting that grants or withholds for a whole role. */
+  function invalidateAllGrants() { GRANT_CACHE.clear() }
 
   function hasPermission(role: string, permission: string, extra: string[] = []): boolean {
     // Per-user grants (extra_permissions) sit on top of the role.
@@ -459,6 +471,8 @@ export function createPermissions(deps: PermissionsDeps) {
     const normalizedRole = normalizeRole(role)
     const permissions = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
     if (permissions.includes('*')) return true
+    // A company taking a permission away from a role (companyGrants → "-permission"); "*" above is never touched.
+    if (extra.includes(`-${permission}`)) return false
     if (permissions.includes(permission)) return true
     const [resource] = permission.split(':')
     if (permissions.includes(`${resource}:*`)) return true
@@ -526,7 +540,7 @@ export function createPermissions(deps: PermissionsDeps) {
 
   return {
     ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole, roleLabel,
-    getExtraPermissions, invalidateExtraPermissions,
+    getExtraPermissions, invalidateExtraPermissions, invalidateAllGrants,
     hasPermission, getPermissions,
     requirePermission, requireAnyPermission, requireRole, requireOwnership,
   }

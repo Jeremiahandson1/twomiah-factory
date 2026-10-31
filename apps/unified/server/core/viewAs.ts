@@ -96,7 +96,7 @@ export function createViewAs(deps: ViewAsDeps) {
     if (!permissions.hasPermission(by.role, VIEW_AS_PERMISSION, byExtra)) return { status: 403, error: 'Only the owner or an admin can view as someone.', code: 'not_permitted' }
     if (rung(target.role) > rung(by.role)) return { status: 403, error: 'You can only view as someone at or below your own role.', code: 'higher_role' }
     // No escalation: everything the person can do, the opener must already be able to do.
-    const theirs: string[] = [...permissions.getPermissions(target.role), ...(await permissions.getExtraPermissions(target.id))]
+    const theirs: string[] = [...permissions.getPermissions(target.role), ...(await permissions.getExtraPermissions(target.id))].filter((p) => !p.startsWith('-'))
     const beyond = theirs.filter((p) => !permissions.hasPermission(by.role, p, byExtra))
     if (beyond.length) return { status: 403, error: 'This person has access you don’t have, so you can’t view as them.', code: 'beyond_your_access' }
     return null

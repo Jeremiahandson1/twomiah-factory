@@ -487,6 +487,9 @@ export const roofMoneySetting = pgTable('roof_money_setting', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   minProfitKind: text('min_profit_kind'),
   minProfitValue: decimal('min_profit_value', { precision: 12, scale: 2 }),
+  // The roles below owner/admin that see EVERYONE's commissions and the pay structure (a list of role ids); null = the default, the
+  // manager. Everyone always sees their own earnings.
+  commissionViewerRoles: json('commission_viewer_roles'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('roof_money_setting_company_id_idx').on(t.companyId),

@@ -5,6 +5,10 @@
 //   minProfit   the floor under which no commission plan pays: { kind: 'percent', value } is a share of the contract the job
 //               must have kept as gross profit; { kind: 'amount', value } is dollars of gross profit. Null: no floor.
 //
+//   commissionViewerRoles   which roles below the owner and admin see EVERYONE's commissions and the pay structure (commissions:read).
+//               The default is the manager, as it always was; field and viewer seats can be added and the manager taken off. Everyone
+//               always sees their own earnings. Applied by ./commissionViewers.ts through the shared permissions.
+//
 // GET is commissions:read (a manager reads the rules; nobody below that does). The registry gates the feature
 // (commission_tracking, an existing id: nothing new is advertised).
 import { Hono } from 'hono'
@@ -17,10 +21,14 @@ import { one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 export interface MinProfit { kind: 'percent' | 'amount'; value: number }
+/** The roles a company can choose to let see everyone's commissions. Owner and admin always do. */
+export const COMMISSION_VIEWER_CHOICES = ['manager', 'field', 'viewer'] as const
+export const DEFAULT_COMMISSION_VIEWERS: string[] = ['manager']
 export interface RoofMoneySettings {
   minProfit: MinProfit | null
+  commissionViewerRoles: string[]
 }
-export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null })
+export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null, commissionViewerRoles: [...DEFAULT_COMMISSION_VIEWERS] })
 
 const minProfitSchema = z.object({
   kind: z.enum(['percent', 'amount'], { error: 'Choose percent or dollars for the minimum profit.' }),
@@ -29,6 +37,7 @@ const minProfitSchema = z.object({
 
 const settingsSchema = z.object({
   minProfit: minProfitSchema.nullable().optional(),
+  commissionViewerRoles: z.array(z.enum(COMMISSION_VIEWER_CHOICES, { error: 'Choose roles from the list.' })).max(3).optional(),
 })
 
 const num = (v: unknown) => Number(v || 0)
@@ -41,6 +50,7 @@ export function createRoofMoneySettings(d: CrmDeps) {
     const out = DEFAULT_MONEY_SETTINGS()
     if (!row) return out
     if (row.minProfitKind === 'percent' || row.minProfitKind === 'amount') out.minProfit = { kind: row.minProfitKind, value: num(row.minProfitValue) }
+    if (Array.isArray(row.commissionViewerRoles)) out.commissionViewerRoles = (row.commissionViewerRoles as unknown[]).filter((r): r is string => (COMMISSION_VIEWER_CHOICES as readonly string[]).includes(String(r)))
     return out
   }
 
@@ -51,6 +61,7 @@ export function createRoofMoneySettings(d: CrmDeps) {
       set.minProfitKind = patch.minProfit ? patch.minProfit.kind : null
       set.minProfitValue = patch.minProfit ? String(patch.minProfit.value) : null
     }
+    if (patch.commissionViewerRoles !== undefined) set.commissionViewerRoles = [...new Set(patch.commissionViewerRoles)]
     await db.insert(roofMoneySetting).values({ companyId, ...set } as any)
       .onConflictDoUpdate({ target: roofMoneySetting.companyId, set: set as any })
     return read(companyId)
@@ -70,7 +81,10 @@ export function createRoofMoneyRoutes(d: CrmDeps) {
   app.put('/settings', requirePermission('commissions:update'), async (c) => {
     const parsed = settingsSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
-    return one(c, await store.write(c.get('user').companyId, parsed.data))
+    const saved = await store.write(c.get('user').companyId, parsed.data)
+    // Who sees commissions is read through the shared permissions, which keep each person's grants for a few seconds.
+    if (parsed.data.commissionViewerRoles !== undefined) d.permissions.invalidateAllGrants?.()
+    return one(c, saved)
   })
 
   return app

@@ -1,0 +1,1 @@
+ALTER TABLE "roof_money_setting" ADD COLUMN "commission_viewer_roles" json;
