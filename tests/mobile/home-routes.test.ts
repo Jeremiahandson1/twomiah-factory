@@ -41,11 +41,18 @@ check('a payment row shows dollars', rowView('month-revenue', { kind: 'payment',
 // phone links open the phone's own apps
 check('call, text and email use tel:, sms: and mailto:', telUrl('(555) 010-0100') === 'tel:5550100100' && smsUrl('+1 555 010 0100') === 'sms:+15550100100' && mailUrl(' a@b.co ') === 'mailto:a@b.co')
 
-// no card is ever taken on the phone
+// A card is taken on the phone ONLY by Tap to Pay (the owner's yes, 10/30): through Stripe Terminal's own SDK, on the Tap to
+// Pay screen and its loader, into the business's own Stripe. Nowhere else, and a card's details are never typed into the app.
+const TAP_TO_PAY_FILES = new Set(['app/(details)/invoice/tap.tsx', 'app/(details)/invoice/[id].tsx', 'src/payments/terminal.native.ts', 'src/payments/terminal.ts'])
 const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === 'preview' ? [] : walk(path.join(d, e.name))) : [path.join(d, e.name)]))
 const srcFiles = [...walk(path.resolve(import.meta.dir, '../../apps/mobile/app')), ...walk(path.resolve(import.meta.dir, '../../apps/mobile/src'))].filter((f) => /\.(tsx?|ts)$/.test(f))
-const card = srcFiles.filter((f) => /take payment|tap to pay|card reader|enter card|card number|stripe terminal/i.test(fs.readFileSync(f, 'utf8')))
-check('nothing in the app takes a card payment ("Take payment" / card entry / tap to pay appear nowhere)', card.length === 0, card)
+const rel = (f: string) => path.relative(path.resolve(import.meta.dir, '../../apps/mobile'), f).split(path.sep).join('/')
+const card = srcFiles.filter((f) => !TAP_TO_PAY_FILES.has(rel(f)) && /take payment|tap to pay|card reader|stripe terminal|stripe-terminal/i.test(fs.readFileSync(f, 'utf8')))
+check('a card is taken only on the Tap to Pay screen ("Take payment" / tap to pay / card reader appear nowhere else)', card.length === 0, card.map(rel))
+const typed = srcFiles.filter((f) => /enter card|card number|cardNumber|\bcvc\b|\bcvv\b/i.test(fs.readFileSync(f, 'utf8')))
+check("a card's details are never typed into the app (no card number / CVC entry anywhere)", typed.length === 0, typed.map(rel))
+const tapScreen = fs.readFileSync(path.resolve(import.meta.dir, '../../apps/mobile/app/(details)/invoice/tap.tsx'), 'utf8')
+check('Tap to Pay goes through the server (its PaymentIntent and its record), never on the phone alone', /tap-to-pay\/invoices\/.*\/intent/.test(tapScreen) && /tap-to-pay\/payments\/.*\/record/.test(tapScreen))
 const inv = fs.readFileSync(path.resolve(import.meta.dir, '../../apps/mobile/app/(details)/invoice/[id].tsx'), 'utf8')
 check('invoice statuses and payment methods print in words, never as stored', ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'void', 'refunded'].every((k) => /^[A-Z][a-z ]+$/.test(invoiceStatusLabel(k)))
   && invoiceStatusLabel('partial') === 'Partly paid' && paymentMethodLabel('bank_transfer') === 'Bank transfer' && paymentMethodLabel('check') === 'Check' && paymentMethodLabel(undefined) === 'Payment' && invoiceStatusLabel('some_new_status') === 'Some new status')
