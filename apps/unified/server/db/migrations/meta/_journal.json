@@ -379,6 +379,13 @@
       "when": 1793467727184,
       "tag": "0053_roof_money_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793468107002,
+      "tag": "0054_job_person",
+      "breakpoints": true
     }
   ]
 }

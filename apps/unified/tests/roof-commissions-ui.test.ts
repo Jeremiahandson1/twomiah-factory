@@ -131,3 +131,70 @@ describe('the plan form', () => {
     root.unmount()
   })
 })
+
+describe('plans for the job’s other people', () => {
+  test('the plan form offers every role and net profit, and sends exactly what was chosen', async () => {
+    const { api, calls } = fakeApi({ ...BASE_ROUTES, '/api/roof-money/settings': { minProfit: null }, 'POST /api/commissions/plans': (b: any) => ({ id: 'p2', ...b }) })
+    const root = await mount(api)
+    await click(tab('Plans'))
+    await click(Array.from(document.querySelectorAll('button')).find((b) => /New plan/.test(b.textContent || '')))
+    const sel = (has: string) => (Array.from(document.querySelectorAll('select')) as HTMLSelectElement[]).find((s) => Array.from(s.options).some((o) => o.value === has))!
+    const auto = sel('job_sales_rep')
+    expect(Array.from(auto.options).map((o) => o.value)).toEqual(['none', 'job_assignee', 'job_creator', 'job_sales_rep', 'job_estimator', 'job_canvasser', 'job_office', 'job_production_manager', 'job_sales_manager'])
+    await act(async () => { auto.value = 'job_sales_manager'; auto.dispatchEvent(new win.Event('change', { bubbles: true })) })
+    await settle()
+    const measured = sel('net_profit')
+    expect(Array.from(measured.options).map((o) => o.value)).toEqual(['contract', 'gross_profit', 'net_profit'])
+    await act(async () => { measured.value = 'net_profit'; measured.dispatchEvent(new win.Event('change', { bubbles: true })) })
+    await settle()
+    await inputValue(document.querySelector('input[required]:not([type=number])'), 'Sales manager override')
+    await submit('Create')
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/api/commissions/plans')?.body).toMatchObject({ planType: 'percent_of_invoice', autoEarn: 'job_sales_manager', measuredOn: 'net_profit' })
+    root.unmount()
+  })
+})
+
+describe('the job’s commission people card', () => {
+  const W = '../web/src/'
+  async function mountCard(permissions: string[]) {
+    const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
+    const { ToastProvider } = await import(P + 'ui/Toast.tsx') as any
+    const { api } = await import(W + 'api.ts') as any
+    const Card = (await import(W + 'crm/pages/roof/jobs/JobCommissionPeople.tsx') as any).default
+    const calls: Call[] = []
+    const real = { get: api.get, put: api.put }
+    api.get = async (url: string, params?: any) => { calls.push({ method: 'GET', path: url, body: params }); return { data: [{ id: 'r1', role: 'estimator', userId: 'u2' }] } }
+    api.put = async (url: string, body?: any) => { calls.push({ method: 'PUT', path: url, body }); return { data: body.people.map((p: any, i: number) => ({ id: `n${i}`, ...p })) } }
+    document.body.innerHTML = ''
+    const el = document.createElement('div'); document.body.appendChild(el)
+    const root = createRoot(el)
+    const users = [{ id: 'u1', firstName: 'Pat', lastName: 'Manager' }, { id: 'u2', firstName: 'Eva', lastName: 'Estimator' }]
+    const auth = { user: { id: 'u1', role: 'owner' }, company: {}, hasFeature: () => true }
+    await act(async () => { root.render(h(AuthContext.Provider, { value: auth }, h(PermissionsProvider, { role: 'manager', permissions }, h(ToastProvider, null, h(MemoryRouter, null, h(Card, { jobId: 'j1', users })))))) })
+    await settle()
+    return { root, calls, undo: () => Object.assign(api, real) }
+  }
+
+  test('shows who holds each role, adds a production manager, and saves the whole set', async () => {
+    const { root, calls, undo } = await mountCard(['jobs:dispatch', 'commissions:read'])
+    expect(text()).toContain('Commission people')
+    expect(text()).toContain('Eva Estimator')
+    const add = document.querySelector('select[aria-label="Add a Production manager"]') as HTMLSelectElement
+    await act(async () => { add.value = 'u1'; add.dispatchEvent(new win.Event('change', { bubbles: true })) })
+    await settle()
+    expect(text()).toContain('Pat Manager')
+    await click(Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Save'))
+    const put = calls.find((c) => c.method === 'PUT')
+    expect(put?.path).toBe('/api/job-people/j1')
+    expect(put?.body.people).toEqual([{ role: 'estimator', userId: 'u2' }, { role: 'production_manager', userId: 'u1' }])
+    root.unmount(); undo()
+  })
+
+  test('a seat that cannot dispatch reads the people and has no way to change them', async () => {
+    const { root, undo } = await mountCard(['commissions:read'])
+    expect(text()).toContain('Eva Estimator')
+    expect(document.querySelectorAll('select').length).toBe(0)
+    expect(document.querySelector('button[aria-label^="Take"]')).toBeNull()
+    root.unmount(); undo()
+  })
+})

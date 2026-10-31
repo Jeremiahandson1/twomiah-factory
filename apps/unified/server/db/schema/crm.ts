@@ -311,6 +311,25 @@ export const jobAssignee = pgTable('job_assignee', {
 ])
 
 /**
+ * The people on a job whose COMMISSION it is, besides its sales rep (job.assigned_sales_rep_id) — roofing parity row 2: the
+ * estimator, the canvasser, the office person, the production manager and the sales manager (COMMISSION_JOB_ROLES). Several
+ * people may hold a role on one job (JobNimbus), and one person may hold several. A row here gives no access to the job (that is
+ * job_assignee / the sales rep): it is only who a plan that pays the role pays. Changed through /api/job-people (jobs:dispatch).
+ */
+export const jobPerson = pgTable('job_person', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_person_job_id_idx').on(t.jobId),
+  index('job_person_user_id_idx').on(t.userId),
+  uniqueIndex('job_person_job_user_role_idx').on(t.jobId, t.userId, t.role),
+])
+
+/**
  * What each job was last announced to its person as — who it is assigned to and when it is scheduled (crm/notify/
  * jobAssignments.ts). A job that differs from its row here has been assigned or rescheduled since, by whichever screen or
  * route, and its person gets a phone notification. Filled from the jobs that existed when it was made (migration 0015),

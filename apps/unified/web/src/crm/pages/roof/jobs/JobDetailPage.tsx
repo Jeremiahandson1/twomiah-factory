@@ -37,6 +37,7 @@ import { displayName } from '../lib/user'
 import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
+import JobCommissionPeople from './JobCommissionPeople'
 import InspectionReports from './InspectionReports'
 import PhotoDetails from './PhotoDetails'
 import ShareWithHomeowner from './ShareWithHomeowner'
@@ -861,6 +862,9 @@ export default function JobDetailPage() {
                 </div>}
               </div>
             </div>
+
+            {/* The other people whose commission this job carries (roof/jobPeople.ts) — a seat that reads the pay structure */}
+            {hasFeature('commission_tracking') && can('commissions:read') && <JobCommissionPeople jobId={job.id} users={users} />}
 
             {/* Quotes — withheld from a seat without invoices:read (see maySeeJobMoney) */}
             {maySeeJobMoney && (
