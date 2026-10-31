@@ -46,7 +46,7 @@ export interface JobCost {
    * Roofing only (CrmSettings.roof): the material orders and the crew's pay that are INSIDE materialCost and laborCost
    * above, kept apart so the screen can show them, and the job's supplements. Absent for every other trade.
    */
-  roof?: RoofJobCost & { crewBasis: 'clocked' | 'per_square' | 'unknown' }
+  roof?: RoofJobCost & { crewBasis: 'clocked' | 'lump_sum' | 'per_square' | 'unknown' }
 }
 
 const EMPTY_COST: JobCost = {
@@ -127,13 +127,15 @@ export function createJobCostingService(d: CrmDeps) {
       for (const [id, r] of extra) {
         const c = out.get(id); if (!c) continue
         const clocked = c.laborHours > 0 || c.laborCost > 0
-        const crewCost = clocked ? 0 : r.crewCost
+        // A lump-sum price on the job's work orders is what the crews are paid; it stands in for the pay by the square.
+        const lump = r.workOrderCount > 0
+        const crewCost = clocked ? 0 : lump ? r.workOrderCost : r.crewCost
         c.materialCost += r.materialOrderCost
         c.laborCost += crewCost
         // The commissions the job's people earned are a cost of the job — except for the commission engine, which asks for the
         // costs before them (a plan on profit is never worked out on a profit its own payout has reduced).
         c.commissionCost = opts.beforeCommissions ? 0 : r.commissionCost
-        c.roof = { ...r, crewCost, crewBasis: clocked ? 'clocked' : r.crewCostKnown ? 'per_square' : 'unknown' }
+        c.roof = { ...r, crewCost, crewBasis: clocked ? 'clocked' : lump ? 'lump_sum' : r.crewCostKnown ? 'per_square' : 'unknown' }
       }
     }
 
@@ -424,13 +426,14 @@ export function createJobCostingService(d: CrmDeps) {
           crewCost: cost.roof.crewCost,
           crewBasis: cost.roof.crewBasis,
           crewName: cost.roof.crewName,
+          workOrderCost: cost.roof.workOrderCost,
           commissionCost: cost.roof.commissionCost,
           squares: cost.roof.squares,
           payPerSquare: cost.roof.payPerSquare,
           supplements: cost.roof.supplements,
         },
         ...(await roof.roofDetail(companyId, jobId)),
-        crewDetail: cost.roof.crewBasis === 'per_square' && cost.roof.crewName
+        crewDetail: cost.roof.crewBasis === 'lump_sum' ? [] : cost.roof.crewBasis === 'per_square' && cost.roof.crewName
           ? [{ crew: cost.roof.crewName, squares: cost.roof.squares, payPerSquare: cost.roof.payPerSquare, cost: cost.roof.crewCost }]
           : [],
       } : {}),

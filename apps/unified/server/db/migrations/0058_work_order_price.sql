@@ -1,0 +1,1 @@
+ALTER TABLE "work_order" ADD COLUMN "price" numeric(12, 2);

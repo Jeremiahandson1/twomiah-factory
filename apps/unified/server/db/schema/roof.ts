@@ -437,6 +437,9 @@ export const workOrder = pgTable('work_order', {
   scope: text('scope'),
   address: text('address'),
   startDate: timestamp('start_date'),
+  // What the crew or sub is paid for this job, as one lump sum (the shop's cost — margin:read to see or set). Counts as the job's
+  // labour while the order is sent, accepted or completed (roof/jobCosts.ts). Null: no price on it.
+  price: decimal('price', { precision: 12, scale: 2 }),
   recipientName: text('recipient_name').notNull(),
   recipientPhone: text('recipient_phone').notNull(),
   materialLines: json('material_lines').default([]).notNull(),

@@ -74,3 +74,70 @@ describe('commissions are a cost of the job', () => {
     expect(a.body.actual.profit).toBe(4860)
   })
 })
+
+describe('a crew’s lump-sum price from a work order is the job’s labour', () => {
+  const makeOrder = (who: string, jobId: string, extra: Record<string, unknown> = {}) =>
+    k.as(who)('/api/work-orders', { method: 'POST', json: { jobId, title: 'Tear off and re-roof', recipientName: 'Ray', recipientPhone: '715-555-0199', ...extra } })
+  const roofOf = async (jobId: string) => (await analysis('owner', jobId)).body
+
+  test('a sent work order with a price replaces the pay by the square; a draft, a cancelled one, and a seat without margin:read do not', async () => {
+    const crew = await k.json(await k.as('owner')('/api/crews', { method: 'POST', json: { name: 'Ridge Crew', foremanName: 'Ray', foremanPhone: '715-555-0199', size: 4, payPerSquare: 45 } }))
+    expect(crew.status).toBe(201)
+    const jobId = await k.jobAt('in_production', '2 Crew Way', { assignedCrewId: crew.body.id, totalSquares: 30 })
+    // No work order: the crew is paid by the square — 30 squares × $45.
+    let b = await roofOf(jobId)
+    expect([b.roof.crewBasis, b.roof.crewCost]).toEqual(['per_square', 1350])
+
+    // Only a seat that reads what the shop pays sets or sees the price.
+    expect((await makeOrder('rep', jobId, { price: 2000 })).status).toBe(403)
+    const made = await k.json(await makeOrder('owner', jobId, { price: 2000, crewId: crew.body.id }))
+    expect([made.status, made.body.price, made.body.status]).toEqual([201, 2000, 'draft'])
+    const forRep = await k.json(await k.as('manager')(`/api/work-orders/${made.body.id}`))
+    expect(forRep.body.price).toBe(2000)
+    const forViewer = await k.json(await k.as('viewer')(`/api/work-orders/${made.body.id}`))
+    expect('price' in forViewer.body).toBe(false)
+
+    // A draft is not a commitment: still by the square.
+    b = await roofOf(jobId)
+    expect([b.roof.crewBasis, b.roof.crewCost]).toEqual(['per_square', 1350])
+    // Sent (no texting set up here, but the order is made ready and sent): the lump sum stands in for it.
+    process.env.FRONTEND_URL ||= 'https://crm.example.com'
+    expect((await k.as('owner')(`/api/work-orders/${made.body.id}/send`, { method: 'POST', json: {} })).status).toBe(200)
+    b = await roofOf(jobId)
+    expect([b.roof.crewBasis, b.roof.crewCost, b.roof.workOrderCost]).toEqual(['lump_sum', 2000, 2000])
+    expect(b.actual.laborCost).toBe(2000)
+    expect(b.workOrderDetail.map((w: any) => [w.title, w.cost])).toEqual([['Tear off and re-roof', 2000]])
+    // The price is not on the crew's own link.
+    const token = (await k.t.db.select().from(k.t.schema.workOrder))[0].publicToken
+    const crewSide = await k.json(await k.t.call(`/api/crew-link/${token}`))
+    expect(JSON.stringify(crewSide.body)).not.toContain('2000')
+
+    // A second sub on the job at $500 adds to it; a cancelled order does not count.
+    const extra = await k.json(await makeOrder('owner', jobId, { price: 500, title: 'Gutters' }))
+    expect((await k.as('owner')(`/api/work-orders/${extra.body.id}/send`, { method: 'POST', json: {} })).status).toBe(200)
+    expect((await roofOf(jobId)).roof.crewCost).toBe(2500)
+    expect((await k.as('owner')(`/api/work-orders/${extra.body.id}/cancel`, { method: 'POST', json: {} })).status).toBe(200)
+    expect((await roofOf(jobId)).roof.crewCost).toBe(2000)
+    // Cancel the priced one too and it falls back to the pay by the square.
+    expect((await k.as('owner')(`/api/work-orders/${made.body.id}/cancel`, { method: 'POST', json: {} })).status).toBe(200)
+    b = await roofOf(jobId)
+    expect([b.roof.crewBasis, b.roof.crewCost]).toEqual(['per_square', 1350])
+  })
+
+  test('the price is checked, can be cleared, and hours clocked on the job still win', async () => {
+    const jobId = await k.jobAt('in_production', '3 Crew Way', { totalSquares: 20 })
+    expect((await makeOrder('owner', jobId, { price: -5 })).status).toBe(400)
+    expect((await makeOrder('owner', jobId, { price: 'lots' })).status).toBe(400)
+    const o = await k.json(await makeOrder('owner', jobId, { price: 800 }))
+    const cleared = await k.json(await k.as('owner')(`/api/work-orders/${o.body.id}`, { method: 'PUT', json: { price: null } }))
+    expect(cleared.body.price).toBeNull()
+    // Priced and sent, but the crew also clocked hours: the hours are the labour, the lump sum is not counted beside them.
+    expect((await k.as('owner')(`/api/work-orders/${o.body.id}`, { method: 'PUT', json: { price: 800 } })).status).toBe(200)
+    process.env.FRONTEND_URL ||= 'https://crm.example.com'
+    expect((await k.as('owner')(`/api/work-orders/${o.body.id}/send`, { method: 'POST', json: {} })).status).toBe(200)
+    expect((await roofOf(jobId)).roof.crewCost).toBe(800)
+    await k.t.db.insert(k.t.schema.timeEntry).values({ companyId: k.companyId, userId: k.ids.owner, jobId, date: new Date(), hours: '4', hourlyRate: '30', description: 'Clocked' } as any)
+    const clocked = await roofOf(jobId)
+    expect([clocked.roof.crewBasis, clocked.roof.crewCost, clocked.actual.laborCost]).toEqual(['clocked', 0, 120])
+  })
+})
