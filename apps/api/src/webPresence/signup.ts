@@ -64,7 +64,10 @@ export async function webPresenceSignup(body: any, d: SignupDeps): Promise<Signu
 
   const siteUrl = String(d.env.PUBLIC_SITE_URL || 'https://twomiah.com').replace(/\/$/, '')
   try {
-    const out = await d.checkout(tenant, { successUrl: siteUrl + '/welcome?tenant=' + tenant.id, cancelUrl: siteUrl + '/signup?canceled=1' })
+    // The plan rides back on both pages: the welcome page says "sign in from the link we email" (no password on this plan), and a
+    // cancelled checkout returns to the signup with the $19 plan still picked.
+    const back = 'plan=' + WEB_PRESENCE_PLAN_ID
+    const out = await d.checkout(tenant, { successUrl: siteUrl + '/welcome?tenant=' + tenant.id + '&' + back, cancelUrl: siteUrl + '/signup?canceled=1&' + back })
     if (!out.url) throw new Error('no checkout url')
     if (out.stripeCustomerId && !tenant.stripe_customer_id) await d.db.from('tenants').update({ stripe_customer_id: out.stripeCustomerId }).eq('id', tenant.id)
     return { status: 200, body: { success: true, tenantId: tenant.id, slug: tenant.slug, checkoutUrl: out.url, message: 'Account created — complete checkout to launch your page.' } }

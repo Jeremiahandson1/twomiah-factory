@@ -455,7 +455,8 @@ describe('the signup', () => {
     expect(t).toMatchObject({ plan: 'webpresence', products: ['website'], billing_status: 'pending', status: 'pending', monthly_amount: 19, slug: 'acme-roofing', name: 'Acme Roofing' })
     expect(t.stripe_customer_id).toBe('cus_9')
     expect(t.render_backend_url).toBeUndefined(); expect(x.db.tables.factory_jobs).toHaveLength(0)
-    expect(x.seen[0].u.successUrl).toMatch(/^https:\/\/twomiah\.com\/welcome\?tenant=/)
+    expect(x.seen[0].u.successUrl).toBe('https://twomiah.com/welcome?tenant=' + t.id + '&plan=webpresence')
+    expect(x.seen[0].u.cancelUrl).toBe('https://twomiah.com/signup?canceled=1&plan=webpresence')
     expect(x.ai).toEqual([t.id])
   })
   test('bad answers are refused before an account is made', async () => {
