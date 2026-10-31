@@ -306,6 +306,21 @@ export const appointmentItem = pgTable('appointment_item', {
   index('appointment_item_stylist_idx').on(t.companyId, t.stylistId),
 ])
 
+/** A preset kind of blocked time the owner keeps (salon parity row 2; Fresha's blocked time types): a name, a colour, a usual length, paid or not. */
+export const bookBlockType = pgTable('book_block_type', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** A hex colour the Book draws the block in. */
+  color: text('color').default('#94a3b8').notNull(),
+  defaultMin: integer('default_min').default(60).notNull(),
+  /** Paid time off the chair (training, a meeting) counts toward hours; unpaid (lunch) does not. */
+  paid: boolean('paid').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('book_block_type_company_name_idx').on(t.companyId, t.name),
+])
+
 /** Time a chair is not bookable (lunch, training): one stylist's, or the whole salon's when no stylist is named. */
 export const bookBlock = pgTable('book_block', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -315,10 +330,18 @@ export const bookBlock = pgTable('book_block', {
   startTime: timestamp('start_time').notNull(),
   endTime: timestamp('end_time').notNull(),
   reason: text('reason'),
+  /** The type it was made from, if any. Deleting the type leaves the block as it was: the name, colour and paid mark are kept on the block. */
+  typeId: text('type_id').references(() => bookBlockType.id, { onDelete: 'set null' }),
+  typeName: text('type_name'),
+  typeColor: text('type_color'),
+  paid: boolean('paid'),
+  /** Blocks made together by one repeat rule share a series, so the whole series can be changed or removed. */
+  seriesId: text('series_id'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('book_block_company_start_idx').on(t.companyId, t.startTime),
+  index('book_block_series_idx').on(t.companyId, t.seriesId),
 ])
 
 /**
