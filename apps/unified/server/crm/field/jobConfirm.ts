@@ -76,7 +76,7 @@ export function createJobConfirm(d: CrmDeps) {
     const reminded = await db.select({ subjectId: reminderLog.subjectId }).from(reminderLog)
       .where(and(eq(reminderLog.companyId, m.companyId), inArray(reminderLog.kind, noticeKinds), eq(reminderLog.status, 'sent'), gte(reminderLog.createdAt, since)))
       .orderBy(desc(reminderLog.createdAt))
-    const ids = [...new Set(reminded.map((r: any) => r.subjectId as string))]
+    const ids = Array.from(new Set<string>(reminded.map((r: any) => String(r.subjectId))))
     if (!ids.length) return null
     const rows: any[] = await db.select().from(job)
       .where(and(eq(job.companyId, m.companyId), eq(job.contactId, contactId), inArray(job.id, ids as any), inArray(job.status, OPEN as any), gte(job.scheduledDate, dayBefore())))

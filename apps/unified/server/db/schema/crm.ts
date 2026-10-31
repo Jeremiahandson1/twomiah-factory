@@ -210,6 +210,9 @@ export const job = pgTable('job', {
   actualHours: decimal('actual_hours', { precision: 5, scale: 2 }),
   // When the crew pressed Start (stamped once, by the start moment). With completedAt it is how long a route visit took.
   startedAt: timestamp('started_at'),
+  // Paused (ServiceTitan's Pause): the tech stopped work for a while (lunch, a parts run) without leaving the job — set by
+  // POST /:id/pause, cleared by /resume; the status stays in_progress. Different from on_hold, which stops the job itself.
+  pausedAt: timestamp('paused_at'),
   address: text('address'),
   city: text('city'),
   state: text('state'),

@@ -7,7 +7,7 @@
 //     a real refusal is never hidden by an old copy; one person's copies are not another's.
 //
 //   bun run tests/mobile/job-moves-offline.test.ts
-import { buildFlow, effectiveStatus, jobKey, moveBody, type FlowInput } from '../../apps/mobile/src/jobflow/flow.ts'
+import { buildFlow, effectiveStatus, effectivePaused, jobKey, moveBody, type FlowInput } from '../../apps/mobile/src/jobflow/flow.ts'
 import { jobPhotoRequest, pendingJobPhotos, photosKey } from '../../apps/mobile/src/jobflow/jobPhotos.ts'
 import { createEngine, type KV, type Sender } from '../../apps/mobile/src/offline/engine.ts'
 import { withUploadedPhotos, type FileExists, type UploadPhoto } from '../../apps/mobile/src/offline/localPhotos.ts'
@@ -53,6 +53,20 @@ console.log('on hold')
   const input = base({ status: 'on_hold', queue: [q('/hold', 'failed', { refusal: { status: 409, message: 'No.' } })] })
   const g = buildFlow(input)
   check('…when the server already had it on hold, a refused hold shows as failed with its words', stateOf(g, 'on_hold') === 'failed' && g.steps[0].note === 'No.')
+}
+console.log('paused')
+{
+  const f = buildFlow(base({ status: 'in_progress' }))
+  check('a started job can be paused', f.canPause === true && f.paused === false)
+  check('a job not started cannot be paused', buildFlow(base({ status: 'dispatched' })).canPause === false)
+  const waiting = buildFlow(base({ status: 'in_progress', queue: [q('/pause')] }))
+  check('a pause waiting to send: the job WILL be paused, shown as waiting, the pause button not offered twice', waiting.paused === true && waiting.steps[0].key === 'paused' && waiting.steps[0].state === 'waiting' && waiting.canPause === false)
+  const p = buildFlow(base({ status: 'in_progress', pausedAt: '2026-10-31T14:00:00Z' }))
+  check('a paused job: the one step is Resume work', p.next === 'paused' && p.steps[0].key === 'paused' && p.steps[0].state === 'next')
+  check('pause then resume, both waiting, in order: working again', effectivePaused(base({ status: 'in_progress', queue: [q('/pause'), q('/resume')] })) === false)
+  check('a queued Complete ends the pause', effectivePaused(base({ status: 'in_progress', pausedAt: 'x', queue: [q('/complete')] })) === false)
+  const r = buildFlow(base({ status: 'in_progress', queue: [q('/pause', 'failed', { refusal: { status: 409, message: 'No.' } })] }))
+  check('a refused pause shows the server\'s words and the job is not paused', r.paused === false && r.steps[0].key === 'paused' && r.steps[0].state === 'failed' && r.steps[0].note === 'No.')
 }
 check('a queued move never turns a finished job back', effectiveStatus(base({ status: 'completed', queue: [q('/hold')] })) === 'completed')
 

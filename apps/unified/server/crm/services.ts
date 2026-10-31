@@ -66,7 +66,7 @@ export interface CrmServiceDeps {
 }
 
 /** The moments of a job a module can act on. */
-export type JobMomentKind = 'created' | 'dispatched' | 'started' | 'completed'
+export type JobMomentKind = 'created' | 'dispatched' | 'started' | 'paused' | 'resumed' | 'completed'
 export type JobMoment = (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => Promise<unknown> | unknown
 
 export function createCrmServices(deps: CrmServiceDeps) {
@@ -239,8 +239,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // server long after (JobHook ctx.tappedAt) is recorded with its real time but not texted: "I'm on my way" an hour late is wrong.
   const STALE_AFTER_MS = 30 * 60_000
   const stillCurrent = (tappedAt: Date | null | undefined) => !tappedAt || Date.now() - tappedAt.getTime() <= STALE_AFTER_MS
-  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook } = {
+  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook } = {
     onCreate: async (ctx) => { await afterJobMoment('created', ctx) },
+    // Paused / resumed (ServiceTitan's Pause): nothing is texted; the clock takes a break where timekeeping is automatic.
+    onPause: async (ctx) => { await afterJobMoment('paused', ctx) },
+    onResume: async (ctx) => { await afterJobMoment('resumed', ctx) },
     onDispatch: async (ctx) => {
       if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
       await afterJobMoment('dispatched', ctx)
