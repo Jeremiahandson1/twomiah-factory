@@ -1,5 +1,5 @@
 {
- "discoveredOn": "2026-10-29",
+ "discoveredOn": "2026-10-31",
  "routes": [
   "/api/admin/domain/status",
   "/api/ai-receptionist/rules",
@@ -10,6 +10,8 @@
   "/api/canvassing/scripts",
   "/api/canvassing/sessions",
   "/api/canvassing/sessions/:id",
+  "/api/commissions",
+  "/api/commissions/plans",
   "/api/company",
   "/api/company/users",
   "/api/contacts/:id",
@@ -17,6 +19,7 @@
   "/api/contacts?audience=customers&limit=200",
   "/api/contacts?limit=25&page=1",
   "/api/crews",
+  "/api/dashboard-strip",
   "/api/documents?limit=25&page=1",
   "/api/email-aliases",
   "/api/email-aliases/status",
@@ -29,6 +32,8 @@
   "/api/invoices/stats",
   "/api/invoices?contactId=:id&limit=100",
   "/api/invoices?limit=25&page=1",
+  "/api/job-costing/by-category?groupBy=month",
+  "/api/job-costing/summary?limit=100",
   "/api/jobs/:id",
   "/api/jobs/:id/timeline",
   "/api/jobs/types",

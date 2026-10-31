@@ -1,12 +1,12 @@
 {
- "discoveredOn": "2026-10-29",
+ "discoveredOn": "2026-10-31",
  "routes": [
   "/api/admin/domain/status",
   "/api/ai-receptionist/rules",
   "/api/ai-receptionist/settings",
   "/api/alerts?status=active",
   "/api/applications",
-  "/api/audit-logs?endDate=2026-10-30T04:59:59.999Z&limit=200&page=1&startDate=2026-09-29T05:00:00.000Z",
+  "/api/audit-logs?endDate=2026-11-01T04:59:59.999Z&limit=200&page=1&startDate=2026-10-01T05:00:00.000Z",
   "/api/audit/filters",
   "/api/audit?limit=50&page=1",
   "/api/authorizations",
@@ -44,6 +44,7 @@
   "/api/compliance/login-activity",
   "/api/contacts/stats",
   "/api/contacts?limit=25&page=1",
+  "/api/dashboard-strip",
   "/api/dashboard/action-items",
   "/api/dashboard/caregiver-hours",
   "/api/dashboard/live-board",
@@ -55,7 +56,7 @@
   "/api/email-aliases/status",
   "/api/emergency/miss-reports",
   "/api/evv?limit=50&page=1",
-  "/api/expenses?endDate=2026-10-29&limit=500&page=1&startDate=2026-10-01",
+  "/api/expenses?endDate=2026-10-31&limit=500&page=1&startDate=2026-10-01",
   "/api/family-portal/admin/members",
   "/api/family-portal/admin/messages",
   "/api/family-portal/admin/portal-threads",
@@ -124,8 +125,8 @@
   {
    "path": "/api/payroll/calculate",
    "body": {
-    "startDate": "2026-10-15",
-    "endDate": "2026-10-29",
+    "startDate": "2026-10-17",
+    "endDate": "2026-10-31",
     "otThreshold": 40,
     "otMultiplier": 1.5
    }
@@ -133,8 +134,8 @@
   {
    "path": "/api/reports/overview",
    "body": {
-    "startDate": "2026-09-29",
-    "endDate": "2026-10-29"
+    "startDate": "2026-10-01",
+    "endDate": "2026-10-31"
    }
   }
  ]

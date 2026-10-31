@@ -65,8 +65,9 @@ describe('changes and reset', () => {
     await page.getByRole('button', { name: /Add Job/ }).click()
     const titleLabel = page.getByText('Title *', { exact: true })
     await titleLabel.locator('xpath=following::input[1]').fill(TITLE)
-    // Whoever the job is for: the first real choice in the contact list.
-    const pick = titleLabel.locator('xpath=following::select[1]')
+    // Whoever the job is for: the first real choice in the customer list (a contractor's job needs one, PR #173). Found by its
+    // "Pick a customer..." line: the first list after the title is now the status.
+    const pick = page.locator('select', { has: page.locator('option', { hasText: /^Pick a / }) })
     const options = await pick.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean))
     if (options.length) await pick.selectOption(options[0])
     await page.getByRole('button', { name: /^Create$/ }).click()
