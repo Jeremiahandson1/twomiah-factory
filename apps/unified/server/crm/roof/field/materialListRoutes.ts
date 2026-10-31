@@ -6,6 +6,7 @@
 //   GET  /jobs/:jobId            a list for the job: its squares (entered on the job, else its newest   jobs:read
 //                                measurement report's), ?wastePercent= and the other assumptions
 //   POST /jobs/:jobId/order      the edited list → a material order on the job                          inventory:create
+//   GET  /jobs/:jobId/quote-lines  the material lines of the job's signed (approved) quotes, newest first     jobs:read
 //   POST /jobs/:jobId/provider-report   an EagleView / HOVER / GAF report keyed in from its PDF: its squares and   measurements:create
 //                                       lengths become the job's measurement, and the list is worked from them
 //
@@ -14,8 +15,8 @@
 // nothing to withhold). A Field login reaches only the jobs it is on (seatJob.ts).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, desc, eq } from 'drizzle-orm'
-import { job, material, measurementReport } from '../../../db/schema/index.ts'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { job, material, measurementReport, quote, quoteLineItem } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
@@ -61,6 +62,8 @@ const orderSchema = z.object({
   deliveryAddress: z.string().trim().optional(),
   deliveryDate: z.string().optional(),
   notes: z.string().trim().max(2000).optional(),
+  /** Where the list came from when it was not worked from the squares ("Material list from signed quote Q-0012."). */
+  sourceNote: z.string().trim().max(200).optional(),
   poNumber: z.string().trim().max(60).optional(),
   contactName: z.string().trim().max(120).optional(),
   contactPhone: z.string().trim().max(40).optional(),
@@ -134,6 +137,34 @@ export function createMaterialListRoutes(d: CrmDeps) {
     })
   })
 
+  // The material lines of the job's signed quotes (Roofr: an order from the signed proposal). A quote is "signed" here when it is
+  // approved — the customer's signature, or the office approving it; `signedAt` says which. Only lines the customer is paying for
+  // count (a line of a Good / Better / Best option the customer did not choose, or an add-on left unticked, is not selected).
+  // What a line sells for is never sent: the order is for the supplier's prices, not the customer's.
+  app.get('/jobs/:jobId/quote-lines', requirePermission('jobs:read'), async (c) => {
+    const me = c.get('user')
+    const row = await seatJob(c, c.req.param('jobId'))
+    if (!row) return fail(c, 404, 'Job not found')
+    const quotes = await db.select().from(quote)
+      .where(and(eq(quote.companyId, me.companyId), eq(quote.jobId, row.id), eq(quote.status, 'approved')))
+      .orderBy(desc(quote.approvedAt), desc(quote.createdAt)).limit(10)
+    const lines = quotes.length
+      ? await db.select().from(quoteLineItem)
+        .where(and(inArray(quoteLineItem.quoteId, quotes.map((q: any) => q.id)), inArray(quoteLineItem.type, ['material', 'part']), eq(quoteLineItem.selected, true)))
+        .orderBy(asc(quoteLineItem.sortOrder), asc(quoteLineItem.id))
+      : []
+    return one(c, {
+      quotes: quotes.map((q: any) => ({
+        id: q.id, number: q.number, name: q.name, signed: !!q.signedAt, signedBy: q.signedBy ?? null,
+        signedAt: q.signedAt ? new Date(q.signedAt).toISOString() : null, approvedAt: q.approvedAt ? new Date(q.approvedAt).toISOString() : null,
+        lines: lines.filter((l: any) => l.quoteId === q.id).map((l: any, i: number) => ({
+          code: `quote-${l.id}`, description: l.description, qty: Number(l.quantity), unit: 'ea',
+          basis: `Quote ${q.number}, material line ${i + 1}${l.section ? ` (${l.section})` : ''}`,
+        })).filter((l: any) => l.qty > 0),
+      })),
+    })
+  })
+
   // A provider's report keyed in from its PDF. The provider's own API (ordering a report, receiving it by webhook) needs the
   // roofer's provider account and developer credentials and is not built (docs/integration-eagleview-hover.md).
   app.post('/jobs/:jobId/provider-report', requirePermission('measurements:create'), async (c) => {
@@ -176,7 +207,7 @@ export function createMaterialListRoutes(d: CrmDeps) {
       if (Number.isNaN(deliveryDate.getTime())) return fail(c, 400, 'deliveryDate: Enter a valid date.')
     }
     const { lineItems, total } = normaliseLineItems(data.lines.map((l) => ({ description: l.description, qty: l.qty, unit: l.unit || 'ea', ...(l.code ? { code: l.code } : {}) })) as any)
-    const from = data.squares ? `Material list for ${data.squares} squares${data.wastePercent !== undefined ? ` with ${data.wastePercent}% waste` : ''}.` : 'Material list.'
+    const from = data.sourceNote ? data.sourceNote : data.squares ? `Material list for ${data.squares} squares${data.wastePercent !== undefined ? ` with ${data.wastePercent}% waste` : ''}.` : 'Material list.'
     const [created] = await db.insert(material).values({
       companyId: me.companyId, jobId: row.id, supplier: data.supplier, orderStatus: 'not_ordered',
       deliveryDate, lineItems, totalCost: total.toFixed(2),

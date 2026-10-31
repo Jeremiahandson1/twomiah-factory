@@ -187,3 +187,35 @@ describe('the Materials dashboard', () => {
     } finally { s.undo() }
   })
 })
+
+describe('a list from the signed quote', () => {
+  const QUOTE = { id: 'q1', number: 'Q-0012', name: 'Roof', signed: true, signedAt: '2026-10-20T15:00:00Z', lines: [
+    { code: 'quote-a', description: 'GAF Timberline HDZ shingles', qty: 99, unit: 'ea', basis: 'Quote Q-0012, material line 1' },
+    { code: 'quote-b', description: 'Pipe boots', qty: 4, unit: 'ea', basis: 'Quote Q-0012, material line 2' },
+  ] }
+  test('the signed quote is offered; using it fills the lines from the quote and the order says where they came from', async () => {
+    const s = stub((url) => (url.endsWith('/quote-lines') ? { quotes: [QUOTE] } : BUILT()))
+    try {
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      expect(document.querySelector('[data-testid="quote-source"]')!.textContent).toContain('signed quote with material lines')
+      await click(button('Use quote Q-0012 (2 lines)'))
+      expect(document.querySelector('[data-testid="quote-source"]')!.textContent).toContain('Material list from signed quote Q-0012.')
+      expect((document.getElementById('ml-d-0') as any).value).toBe('GAF Timberline HDZ shingles')
+      expect((document.getElementById('ml-q-1') as any).value).toBe('4')
+      await setInput(document.getElementById('ml-supplier'), 'ABC Supply')
+      await click(button('Create material order'))
+      const posted = s.calls.find((c) => c.m === 'POST' && c.url.endsWith('/order'))!
+      expect(posted.body.sourceNote).toBe('Material list from signed quote Q-0012.')
+      expect(posted.body.squares).toBeUndefined()
+      expect(posted.body.lines.map((l: any) => l.description)).toEqual(['GAF Timberline HDZ shingles', 'Pipe boots'])
+    } finally { s.undo() }
+  })
+
+  test('with no signed quote with material lines, nothing is offered', async () => {
+    const s = stub((url) => (url.endsWith('/quote-lines') ? { quotes: [{ ...QUOTE, lines: [] }] } : BUILT()))
+    try {
+      await mount(h(MaterialListBuilder, { jobId: 'j1', onClose: () => {}, onSaved: () => {} }))
+      expect(document.querySelector('[data-testid="quote-source"]')).toBeNull()
+    } finally { s.undo() }
+  })
+})

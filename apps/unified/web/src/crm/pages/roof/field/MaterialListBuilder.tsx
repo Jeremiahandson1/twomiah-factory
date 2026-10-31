@@ -16,6 +16,7 @@ interface Built {
   lengthSources: Record<string, 'typed' | 'roof_report' | 'provider_report' | 'estimated' | 'none'>
   lengthsReport: ReportChoice | null; reportChoices: ReportChoice[]
 }
+interface QuoteSource { id: string; number: string; name: string; signed: boolean; signedAt: string | null; lines: ListLine[] }
 interface Labels { [k: string]: { label: string; unit: string; help: string } }
 
 const LENGTHS: Array<[string, string]> = [['eaveFt', 'Eave (ft)'], ['rakeFt', 'Rake (ft)'], ['ridgeFt', 'Ridge and hip (ft)'], ['valleyFt', 'Valley (ft)']]
@@ -32,6 +33,9 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
   const [lengths, setLengths] = useState<Record<string, string>>({})
   const [changed, setChanged] = useState<Record<string, string>>({})
   const [lines, setLines] = useState<ListLine[]>([])
+  // The job's signed quotes with material lines: a list can start from one instead of from the squares.
+  const [quotes, setQuotes] = useState<QuoteSource[]>([])
+  const [sourceNote, setSourceNote] = useState('')
   // Which report the lengths are read from: '' = the job's newest, 'none' = none (estimate from the squares).
   const [reportId, setReportId] = useState('')
   const mayMeasure = useMayWrite('measurements:create') // what POST …/provider-report asks
@@ -53,16 +57,18 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
       if (sq) params.squares = sq
       for (const [k, v] of Object.entries(ls)) if (v !== '') params[k] = v
       const r = (await api.get(`/api/material-list/jobs/${jobId}`, params)) as Built
-      setBuilt(r); setLines(r.lines)
+      setBuilt(r); setLines(r.lines); setSourceNote('')
       if (!sq) setSquares(r.squares ? String(r.squares) : '')
     } catch (err) { setError(errorText(err, 'Could not work out the list')) }
   }, [jobId])
 
   useEffect(() => {
     work('', {}, {})
+    api.get(`/api/material-list/jobs/${jobId}/quote-lines`).then((r: any) => setQuotes(((r?.quotes || []) as QuoteSource[]).filter((q) => q.lines.length))).catch(() => setQuotes([]))
     api.get('/api/material-list/assumptions').then((r: any) => setLabels(r?.labels || {})).catch(() => setLabels({}))
   }, [work])
 
+  const useQuote = (q: QuoteSource) => { setLines(q.lines.map((l) => ({ ...l }))); setSourceNote(`Material list from ${q.signed ? 'signed' : 'approved'} quote ${q.number}.`) }
   const recalc = () => work(squares, lengths, changed, reportId)
   const pickReport = (id: string) => { setReportId(id); setLengths({}); work(squares, {}, changed, id) }
   const importReport = async () => {
@@ -89,7 +95,7 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
     setSaving(true); setError('')
     try {
       await api.post(`/api/material-list/jobs/${jobId}/order`, {
-        supplier: supplier.trim(), squares: built?.squares, wastePercent: Number(wasteNow),
+        supplier: supplier.trim(), ...(sourceNote ? { sourceNote } : { squares: built?.squares, wastePercent: Number(wasteNow) }),
         ...Object.fromEntries(Object.entries(delivery).filter(([, v]) => v.trim() !== '')),
         lines: lines.map((l) => ({ description: l.description.trim(), qty: Number(l.qty), unit: l.unit || 'ea', ...(l.code ? { code: l.code } : {}) })),
       })
@@ -145,6 +151,19 @@ export default function MaterialListBuilder({ jobId, onClose, onSaved }: { jobId
           </div>
         )}
 
+        {quotes.length > 0 && (
+          <div className="mb-4 rounded-lg border p-3 dark:border-slate-700" data-testid="quote-source">
+            <p className="text-sm text-gray-700 dark:text-slate-300">This job has {quotes.length === 1 ? 'a ' : ''}{quotes.some((q) => q.signed) ? 'signed' : 'approved'} quote with material lines. Start the list from what the customer bought instead of from the squares:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {quotes.map((q) => (
+                <button key={q.id} type="button" onClick={() => useQuote(q)} className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700">
+                  Use quote {q.number} ({q.lines.length} {q.lines.length === 1 ? 'line' : 'lines'})
+                </button>
+              ))}
+            </div>
+            {sourceNote && <p role="status" className="mt-2 text-sm text-green-800 dark:text-green-300">{sourceNote} Edit the quantities below, or press Work out the list to go back to the squares.</p>}
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div><label htmlFor="ml-squares" className={lab}>Squares</label><input id="ml-squares" type="number" min={0} step="any" value={squares} onChange={(e) => setSquares(e.target.value)} className={input} /></div>
           <div><label htmlFor="ml-waste" className={lab}>Waste %</label><input id="ml-waste" type="number" min={0} step="any" value={wasteNow} onChange={(e) => setChanged((c) => ({ ...c, wastePercent: e.target.value }))} className={input} /></div>
