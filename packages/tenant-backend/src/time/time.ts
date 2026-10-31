@@ -69,6 +69,15 @@ export type ClockResult =
   | { ok: true; discarded: true; message: string }
   | { ok: false; status: 400 | 409; error: string; entry?: any }
 
+/** A tapped time that reaches the server more than this many minutes after the tap is flagged "sent late" (a queued tap, no signal). */
+export const SENT_LATE_MINUTES = 5
+/** Minutes the tap was late reaching us, or null when it arrived on time (or no tapped time came with it). */
+export const lateByMinutes = (at: Date | undefined, now: Date = new Date()): number | null => {
+  if (!at) return null
+  const m = Math.round((now.getTime() - at.getTime()) / 60000)
+  return m > SENT_LATE_MINUTES ? m : null
+}
+
 export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>) {
   const { db, tables: t, audit } = deps
   const activeEntry = async (userId: string, companyId: string) => {
@@ -76,10 +85,12 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
     return row || null
   }
-  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null } = {}): Promise<ClockResult> {
+  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null; at?: Date } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
     if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
-    const now = new Date()
+    // `at`: the moment the person tapped, when the phone sent it later (no signal). Without it, now.
+    const now = data.at ?? new Date()
+    const late = lateByMinutes(data.at)
     // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
     // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
     // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
@@ -88,13 +99,16 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     const [row] = await db.insert(t.timeEntry).values({
       userId: person.userId, companyId: person.companyId, jobId: data.jobId ?? null, projectId: data.projectId ?? null,
       clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: true, description: data.description || null,
+      // Only where the table has the column (the unified app); the older template copies keep exactly what they had.
+      ...(late && t.timeEntry.clockInLateMinutes ? { clockInLateMinutes: late } : {}),
     }).returning()
     return { ok: true, entry: row }
   }
-  async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null } = {}): Promise<ClockResult> {
+  async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null; at?: Date } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
     if (!open) return { ok: false, status: 400, error: 'No open clock-in to clock out of' }
-    const end = new Date()
+    const end = data.at ?? new Date()
+    if (end.getTime() < new Date(open.clockIn).getTime()) return { ok: false, status: 400, error: 'That time is before you clocked in.' }
     // Clocking straight back out is a mis-click, not a shift: it used to save a 0.00-hour row on the timesheet for
     // someone to wonder about later. Under a minute, the clock-in is discarded instead. (Landscaping T21 L7)
     const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
@@ -106,7 +120,8 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     const worked = Math.round(elapsedMinutes) - (data.breakMinutes || 0)
     // Same answer a manual entry gives, instead of silently saving nothing worked.
     if (worked <= 0) return { ok: false, status: 400, error: 'Break is longer than the time worked' }
-    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: data.description || open.description, updatedAt: new Date() })
+    const late = lateByMinutes(data.at)
+    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: data.description || open.description, updatedAt: new Date(), ...(late && t.timeEntry.clockOutLateMinutes ? { clockOutLateMinutes: late } : {}) })
       .where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, person.companyId))).returning()
     return { ok: true, entry: row }
   }
@@ -209,6 +224,16 @@ export function createTimeRoutes(deps: TimeDeps) {
     || (updates.hourlyRate !== undefined && !sameNumber(updates.hourlyRate, existing?.hourlyRate))
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
+  /**
+   * `at`: when the person tapped Clock in / Clock out, for a phone that had no signal and sent it later (the offline queue).
+   * An instant (ISO, with its zone); not in the future (two minutes of clock drift allowed) and not more than 48 hours ago —
+   * a phone clock can be wrong, so the office still approves the hours. Without it the entry is stamped when it arrives.
+   */
+  const tappedAt = z.string().datetime({ offset: true, message: 'Send the time as an ISO date and time' })
+    .transform((v) => new Date(v))
+    .refine((d) => d.getTime() <= Date.now() + 2 * 60_000, { message: 'That time has not happened yet' })
+    .refine((d) => d.getTime() >= Date.now() - 48 * 3_600_000, { message: 'That time is more than 48 hours ago \u2014 ask the office to enter it' })
+    .optional()
   const entrySchema = z.object({
     date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }).refine(notFuture, { message: 'Time can only be logged for a date that has happened' }),
     // RR4 L2's rule, applied here too: the type check fires before .positive(), so without its own
@@ -459,21 +484,21 @@ export function createTimeRoutes(deps: TimeDeps) {
 
   app.post('/clock-in', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = entrySchema.pick({ jobId: true, projectId: true, description: true, notes: true }).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.pick({ jobId: true, projectId: true, description: true, notes: true }).extend({ at: tappedAt }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
-    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null })
+    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null, at: data.at })
     if (!r.ok) return c.json({ error: r.error, ...(r.entry ? { entry: r.entry } : {}) }, r.status)
     return c.json((r as any).entry, 201)
   })
 
   app.post('/clock-out', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = entrySchema.pick({ breakMinutes: true, description: true, notes: true }).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.pick({ breakMinutes: true, description: true, notes: true }).extend({ at: tappedAt }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
-    const r = await clock.clockOut(currentUser, { breakMinutes: parsed.data.breakMinutes, description: parsed.data.description || parsed.data.notes || null })
+    const r = await clock.clockOut(currentUser, { breakMinutes: parsed.data.breakMinutes, description: parsed.data.description || parsed.data.notes || null, at: parsed.data.at })
     if (!r.ok) return c.json({ error: r.error }, r.status)
     if (r.discarded) return c.json({ discarded: true, message: r.message })
     return c.json(r.entry)

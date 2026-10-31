@@ -10,6 +10,10 @@
  *     job's NOTE ROWS ({ id, body, createdAt }), added by POST /:id/notes { body }; the crew is `crew` { name,
  *     foremanName }; the claim is claimNumber / insuranceCompany / adjusterName on the job itself.
  * Every action here is jobs:update — the office and the field seat hold it, the read-only viewer does not.
+ *
+ * The shared job's moves (on my way, arrived, checklist, photos, customer signs, complete) are ONE flow card
+ * (src/jobflow/JobFlowCard.tsx). Its moves go through the offline queue under the job's record key, so with no signal they are kept
+ * on the phone and shown as "Waiting to send" (never as done); the job shows the status it will have once they are sent.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -32,6 +36,11 @@ import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { useRealTimeEvent, EVENTS } from '../../../src/socket/SocketContext'
 import { PhotoGallery } from '../../../src/components/PhotoGallery'
+import { useOfflineQueue } from '../../../src/offline/OfflineContext'
+import { useOfflineApi } from '../../../src/offline/useOfflineApi'
+import { JobFlowCard } from '../../../src/jobflow/JobFlowCard'
+import { useJobFlowData } from '../../../src/jobflow/useJobFlowData'
+import { effectiveStatus, jobKey } from '../../../src/jobflow/flow'
 
 const STATUS_STEPS = ['scheduled', 'dispatched', 'in_progress', 'completed']
 /** Roofing's pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES — Advance steps along it). */
@@ -59,6 +68,10 @@ export default function JobDetailScreen() {
   const toast = useToast()
   const haptics = useHaptics()
   const [job, setJob] = useState<any>(null)
+  const { queue } = useOfflineQueue()
+  const offline = useOfflineApi()
+  const [moving, setMoving] = useState(false)
+  const flowData = useJobFlowData(id, !isRoof && canWork)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
@@ -79,6 +92,20 @@ export default function JobDetailScreen() {
   }, [id, isRoof])
 
   useEffect(() => { load() }, [load])
+  // When something waiting on the phone is sent (or refused), the job and its checklists are read again.
+  const queueSignature = queue.filter((q) => q.recordKey === jobKey(String(id))).map((q) => `${q.id}:${q.state}`).join(',')
+  useEffect(() => { void flowData.reload(); void load() }, [queueSignature]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** On my way / arrived / complete: sent now with signal, kept on the phone without — never lost, never shown as done early. */
+  const moveJob = async (m: 'dispatch' | 'start' | 'complete') => {
+    setMoving(true)
+    const words = { dispatch: 'On my way', start: 'Arrived', complete: 'Completed' }[m]
+    const r = await offline.post(`/api/jobs/${id}/${m}`, undefined, { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
+    setMoving(false)
+    if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
+    else if (r.ok) { haptics.success(); toast.success(words); load(); void flowData.reload() }
+    else { haptics.error(); toast.error(r.error || 'That did not go through') }
+  }
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
 
   useRealTimeEvent(EVENTS.JOB_UPDATED, load, [load])
@@ -134,8 +161,10 @@ export default function JobDetailScreen() {
     )
   }
 
+  // What the job will be once the moves waiting on this phone are sent.
+  const shownStatus = isRoof ? job.status : effectiveStatus({ jobId: String(id), status: job.status, queue, checklists: null, photoCount: null })
   const steps = isRoof ? ROOF_STAGES : STATUS_STEPS
-  const currentStep = steps.indexOf(job.status)
+  const currentStep = steps.indexOf(shownStatus)
   const roofClosed = isRoof && ROOF_CLOSED.includes(job.status)
   const nextStage = isRoof && currentStep >= 0 && currentStep < ROOF_STAGES.length - 1 ? ROOF_STAGES[currentStep + 1] : null
   // Roofing shows four stages around where the job is, not eleven dots across a phone.
@@ -171,7 +200,7 @@ export default function JobDetailScreen() {
                   {job.number}{isRoof && job.jobType ? ` • ${label(job.jobType)}` : ''}
                 </Text>
               </View>
-              <StatusBadge status={job.status} />
+              <StatusBadge status={shownStatus} />
             </View>
           </View>
         </AnimatedCard>
@@ -353,23 +382,11 @@ export default function JobDetailScreen() {
         {canWork && (
           <AnimatedCard index={7}>
             <View style={styles.actionsCol}>
-              {!isRoof && (job.status === 'scheduled' || job.status === 'dispatched') && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.green }]} onPress={() => act('start', undefined, 'Job started')}>
-                  <Ionicons name="play" size={20} color={ACTION_INK} />
-                  <Text style={styles.actionBtnText}>Start Job</Text>
-                </TouchableOpacity>
-              )}
-              {!isRoof && job.status === 'scheduled' && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.blue }]} onPress={() => act('dispatch', undefined, 'Job dispatched')}>
-                  <Ionicons name="paper-plane" size={20} color={ACTION_INK} />
-                  <Text style={styles.actionBtnText}>Dispatch</Text>
-                </TouchableOpacity>
-              )}
-              {!isRoof && job.status === 'in_progress' && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.violet }]} onPress={() => setShowComplete(true)}>
-                  <Ionicons name="checkmark-circle" size={20} color={ACTION_INK} />
-                  <Text style={styles.actionBtnText}>Complete Job</Text>
-                </TouchableOpacity>
+              {!isRoof && (
+                <JobFlowCard
+                  jobId={String(id)} status={job.status} queue={queue} checklists={flowData.checklists} photoCount={flowData.photoCount}
+                  busy={moving} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
+                />
               )}
 
               {isRoof && job.status === 'lead' && (
@@ -436,7 +453,7 @@ export default function JobDetailScreen() {
       <ConfirmSheet
         visible={showComplete}
         onClose={() => setShowComplete(false)}
-        onConfirm={() => { act('complete', undefined, 'Job completed') }}
+        onConfirm={() => { void moveJob('complete') }}
         title="Complete Job"
         description="Mark this job as completed?"
         confirmLabel="Complete"

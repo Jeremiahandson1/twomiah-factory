@@ -8,6 +8,7 @@ import { fail, one } from '../../http/reply.ts'
 import { JOB_DISPATCH_PERMISSION } from '@twomiah/tenant-backend'
 import { and, eq } from 'drizzle-orm'
 import { contact } from '../../db/schema/index.ts'
+import { completionRefusal, jobsForCompletion } from '../field/checklistRoutes.ts'
 
 /** Only the named fields of `updates`, the ones a bulk change may set. */
 const pick = (updates: Record<string, any>, allowedFields: string[]) => {
@@ -96,6 +97,11 @@ export function createBulkRoutes(d: CrmDeps) {
     const { ids, updates } = await c.req.json()
     if (!ids?.length) return noIds(c)
     const safeUpdates = pick(updates, ['status', 'priority', 'type', 'assignedToId'])
+    // A required checklist unfinished: no job is completed by a bulk move either (crm/field/checklistRoutes.ts completionRefusal).
+    if (safeUpdates.status === 'completed') {
+      const why = await completionRefusal(d, user.companyId, await jobsForCompletion(d, user.companyId, ids))
+      if (why) return fail(c, 400, why, 'checklist_outstanding')
+    }
     const count = await bulk.bulkUpdateJobs(user.companyId, ids, safeUpdates)
     d.audit.log({ req: c, action: 'BULK_UPDATE', entity: 'jobs', metadata: { count, updates: safeUpdates }, userId: user.userId, companyId: user.companyId })
     return one(c, { updated: count })
@@ -128,6 +134,10 @@ export function createBulkRoutes(d: CrmDeps) {
     const user = c.get('user') as any
     const { ids, status } = await c.req.json()
     if (!ids?.length) return noIds(c)
+    if (status === 'completed') {
+      const why = await completionRefusal(d, user.companyId, await jobsForCompletion(d, user.companyId, ids))
+      if (why) return fail(c, 400, why, 'checklist_outstanding')
+    }
     // Moving INTO a status runs its moment for each job, as the job routes do (packages/tenant-backend jobs.ts jobHookFor).
     return one(c, { updated: await bulk.bulkUpdateJobStatus(user.companyId, ids, status, user.userId) })
   })

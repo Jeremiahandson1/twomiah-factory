@@ -73,6 +73,11 @@ const MaintenanceContracts = page(() => import('./crm/pages/fieldservice/Mainten
 const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventory'))
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
+const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
+const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
+const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
+const PlanReportsPage = page(() => import('./crm/pages/PlanReportsPage'))
 const ExportEverythingPage = page(() => import('./crm/pages/ExportEverythingPage'))
 
 function NotFound() {
@@ -154,6 +159,10 @@ export default function App() {
                         <Route path="messages" element={<Crm.Messages />} />
                         <Route path="reports" element={<Crm.Reports />} />
                         <Route path="job-costing" element={<Crm.JobCosting />} />
+                        <Route path="availability" element={<AvailabilityPage />} />
+                        <Route path="checklists" element={<ChecklistsPage />} />
+                        <Route path="team-revenue" element={<TeamRevenuePage />} />
+                        <Route path="plan-reports" element={<PlanReportsPage />} />
                         <Route path="lead-sources" element={<Crm.LeadSources />} />
                         <Route path="email" element={<Crm.EmailInbox />} />
                         <Route path="google-reviews" element={<Crm.GoogleReviews />} />
@@ -237,6 +246,7 @@ export default function App() {
                       <Route path="settings/billing" element={<Billing />} />
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
+                      <Route path="settings/job-reminders" element={<JobRemindersPage />} />
                       <Route path="settings/export" element={<ExportEverythingPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />

@@ -196,6 +196,15 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
   // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
   { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
+  // Job Reminders — NOT ready (2026-10-30). The reminder text and email the day before a job the office booked
+  // (apps/unified server/crm/field/jobReminders.ts), per business, off until the owner switches it on, inside the
+  // business's sending hours. Hidden until the owner has tested it; no plan, signup or Features page switches it on.
+  { id: 'team_revenue_reports', name: 'Team Revenue Reports', description: 'Revenue per tech, and how many quotes each rep and tech turns into work', category: 'Advanced', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['team revenue'] },
+  { id: 'plan_reports', name: 'Plan Reports', description: 'Service plans sold by rep, renewals coming due and plans that ended', category: 'Advanced', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['plan reports'] },
+  { id: 'tech_availability', name: 'Tech Availability', description: 'Working hours and time off for each tech, shown on the Dispatch Board and checked when a job is given to them', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['tech availability'] },
+  { id: 'job_checklists', name: 'Job Checklists', description: 'Checklists you build for each kind of job, filled in on the phone and signed by the customer on site', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job checklists', 'checklists'] },
+  { id: 'quote_options', name: 'Quote Options', description: 'Good / better / best on a quote you send: the customer picks one option, signs for it, and the deposit follows their pick', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['quote options', 'good better best'] },
+  { id: 'job_reminders', name: 'Job Reminders', description: 'Automatic reminder texts and emails before the jobs you book', category: 'Communication', core: false, templates: ['crm-fieldservice', 'crm-basic'], hidden: true, words: ['job reminders'] },
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
   // Communication

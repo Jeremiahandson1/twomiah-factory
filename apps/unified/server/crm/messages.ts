@@ -406,6 +406,31 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, your ${data.agreementName} (${data.agreementNumber}) renews automatically on ${data.renewalDate} through ${data.newEndDate} at $${data.amount} ${data.billingFrequency}. To cancel, reply to this email or contact ${data.companyName}${data.companyPhone ? ` at ${data.companyPhone}` : ''} before ${data.renewalDate}.`,
   }),
+
+  // The reminder before a job the office booked (crm/field/jobReminders.ts). Every value is typed by staff, so each is escaped.
+  jobReminder: (data, b) => ({
+    subject: `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your upcoming visit</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>This is a reminder of your visit with ${escHtml(data.companyName)}.</p>
+          <div class="highlight">
+            <p><strong>What:</strong> ${escHtml(data.jobTitle)}</p>
+            <p><strong>When:</strong> ${escHtml(data.when)}</p>
+            ${data.address ? `<p><strong>Where:</strong> ${escHtml(data.address)}</p>` : ''}
+            ${data.techName ? `<p><strong>Who:</strong> ${escHtml(data.techName)}</p>` : ''}
+          </div>
+          <p>If you need to change the time, reply to this email or call us.</p>
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.`,
+  }),
 }
 
 /**

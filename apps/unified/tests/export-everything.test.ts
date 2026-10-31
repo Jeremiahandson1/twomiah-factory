@@ -102,7 +102,7 @@ describe('export everything', () => {
   test('every table of the schema is exported, scoped or deliberately left out', () => {
     const plan = exportPlan()
     expect(plan.filter((p) => p.how === 'unclassified')).toEqual([])
-    expect(plan.length).toBe(395)
+    expect(plan.length).toBe(405) // 10/30: +saved_request, contractor PR #173, field service PR #169
   })
 })
 

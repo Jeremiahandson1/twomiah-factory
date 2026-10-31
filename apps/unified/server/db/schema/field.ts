@@ -5,7 +5,7 @@ import { type AnyPgColumn, pgTable, text, boolean, integer, decimal, real, times
 import { createId } from '@paralleldrive/cuid2'
 import { site } from './trades.ts'
 import { company, user } from './core.ts'
-import { contact, job, project } from './crm.ts'
+import { contact, job, project, teamMember } from './crm.ts'
 
 export const locationLog = pgTable('location_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -275,6 +275,12 @@ export const serviceAgreement = pgTable('service_agreement', {
   autoSchedule: boolean('auto_schedule').default(false).notNull(),
   reminderDaysBefore: integer('reminder_days_before').default(7).notNull(),
   lastGeneratedJobId: text('last_generated_job_id'),
+  // Service-plan reports (0041): who sold the plan, and how and when it ended. All null on a plan made or ended before
+  // these were recorded; a report says so rather than guessing (an older ended plan is dated by its last change).
+  soldById: text('sold_by_id').references(() => user.id, { onDelete: 'set null' }),
+  endedAt: timestamp('ended_at'),
+  endedHow: text('ended_how'), // 'cancelled' (someone ended it) or 'expired' (its term ran out without a renewal)
+  cancelReason: text('cancel_reason'),
 }, (t) => [
   index('service_agreement_company_id_idx').on(t.companyId),
 ])
@@ -542,4 +548,43 @@ export const roofReport = pgTable('roof_report', {
 }, (t) => [
   index('roof_report_company_id_idx').on(t.companyId),
   index('roof_report_contact_id_idx').on(t.contactId),
+])
+
+/**
+ * Working hours per person (0042): one window a weekday, in the company's wall clock ('HH:MM'). A person with NO rows has
+ * not been set up and is available whenever; once they have any, a weekday with no row is a day off. The person is a login
+ * (user_id) or roster-only crew (member_id), exactly one of the two.
+ */
+export const techHours = pgTable('tech_hours', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  weekday: integer('weekday').notNull(), // 0 = Sunday … 6 = Saturday, as Date.getUTCDay() on a job's day marker
+  startsAt: text('starts_at').notNull(),
+  endsAt: text('ends_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('tech_hours_company_id_idx').on(t.companyId),
+  uniqueIndex('tech_hours_user_weekday_key').on(t.userId, t.weekday),
+  uniqueIndex('tech_hours_member_weekday_key').on(t.memberId, t.weekday),
+])
+
+/** Time off per person (0042): whole days (day markers, midnight UTC, both ends included) or, with times, part of them. */
+export const techTimeOff = pgTable('tech_time_off', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  startsOn: timestamp('starts_on').notNull(),
+  endsOn: timestamp('ends_on').notNull(),
+  startTime: text('start_time'), // null with endTime null = the whole day(s); only for a single day
+  endTime: text('end_time'),
+  note: text('note'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('tech_time_off_company_id_idx').on(t.companyId),
+  index('tech_time_off_user_idx').on(t.userId),
+  index('tech_time_off_member_idx').on(t.memberId),
 ])

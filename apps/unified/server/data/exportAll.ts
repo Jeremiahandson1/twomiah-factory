@@ -33,6 +33,7 @@ export const LEFT_OUT: Record<string, string> = {
   push_subscription: 'browser push endpoints',
   expo_push_tokens: 'phone push tokens',
   dashboard_cache: 'a cache, rebuilt on demand',
+  saved_request: 'replies kept 30 days so a phone resending a save is not saved twice (http/savedOnce.ts)',
   self_hosted_license: 'the Twomiah licence record (held by Twomiah, carries the licence key)',
 }
 

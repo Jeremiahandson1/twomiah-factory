@@ -208,8 +208,8 @@ describe("a job's money, on every route", () => {
       ['PUT', `/api/jobs/${ids.job}`, { notes: 'gutters too' }],
       ['POST', `/api/tech/${ids.job}/on-my-way`, {}],
       ['POST', `/api/tech/${ids.job}/on-site`, {}],
-      ['POST', `/api/jobs/${ids.job}/complete`, {}],
       ['POST', `/api/jobs/${ids.job}/start`, {}],
+      ['POST', `/api/jobs/${ids.job}/complete`, {}],
     ] as const) {
       const r = await as(method, url, json)
       const body = await r.text()

@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, chooseOptionGroup, optionChoiceProblem, optionTotals, hasOptions, pickedOption, optionNames } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -161,8 +161,9 @@ const MAX_SIGNATURE_BYTES = 500_000
  */
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
-// section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance'] as const
+// section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). optionGroup: the
+// good / better / best option a line belongs to. Never cost or markup.
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'optionGroup'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -694,6 +695,14 @@ export function createPortalRoutes(deps: PortalDeps) {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
       lineItems: (await customerLines(db, companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
+      // Good / better / best: what each option costs in full (and its deposit), and which one is picked.
+      ...(hasOptions(lineItems) ? { options: {
+        names: optionNames(lineItems), picked: pickedOption(lineItems),
+        totals: optionTotals(lineItems, found.taxRate, found.discount).map((x) => ({
+          name: x.name, subtotal: x.subtotal.toFixed(2), taxAmount: x.taxAmount.toFixed(2), total: x.total.toFixed(2),
+          ...('depositType' in found ? { deposit: depositAmount({ depositType: found.depositType, depositValue: found.depositValue, total: x.total }).toFixed(2) } : {}),
+        })),
+      } } : {}),
       company: { name: company.name, email: company.email, phone: company.phone },
     }
   }
@@ -707,6 +716,21 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (refused) return c.json({ error: refused }, 400)
     const body = await c.req.json().catch(() => ({}))
     const r: any = await chooseOptionalLine(db, t, contact.companyId, quoteId, body?.lineItemId, body?.selected)
+    if ('error' in r) return c.json({ error: r.error }, r.status)
+    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
+    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
+  }
+
+  /** The customer picks good / better / best while the quote is still theirs to answer; the totals and the deposit follow. */
+  const chooseGroup = async (c: any) => {
+    const { contact, company } = P(c)
+    const quoteId = c.req.param('quoteId')
+    const found = await visibleQuote(quoteId, contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
+    if (refused) return c.json({ error: refused }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r: any = await chooseOptionGroup(db, t, contact.companyId, quoteId, body?.group)
     if ('error' in r) return c.json({ error: r.error }, r.status)
     emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
@@ -755,7 +779,11 @@ export function createPortalRoutes(deps: PortalDeps) {
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
-    const lineItems = includedLines(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
+    const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    // A quote that is a choice is signed with one option picked: the signature is for that option and its price.
+    const choice = optionChoiceProblem(allLines)
+    if (choice) return c.json({ error: choice, code: 'option_required' }, 400)
+    const lineItems = includedLines(allLines)
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
     const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
@@ -858,6 +886,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
   app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
+  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseGroup)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -872,6 +901,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
   app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
+  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseGroup)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)

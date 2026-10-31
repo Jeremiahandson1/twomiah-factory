@@ -14,7 +14,12 @@ import { whenTime } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
 import { vocabulary, capital } from '../labels/vocabulary'
 
-interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+
+/** "clock-in sent 3 h 0 min late; clock-out sent 30 min late" — for the flag's tooltip. */
+const lateFor = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`)
+const sentLateTitle = (row: { clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null }) =>
+  [row.clockInLateMinutes ? `Clock-in sent ${lateFor(row.clockInLateMinutes)} after it was tapped` : '', row.clockOutLateMinutes ? `Clock-out sent ${lateFor(row.clockOutLateMinutes)} after it was tapped` : ''].filter(Boolean).join('; ')
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
 // TOMORROW all evening, and it is also the ceiling the date box is given. (Contractor T29 L1)
 const today = () => todayKey() // the company's day, not the browser's
@@ -145,7 +150,13 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'user', label: 'User', render: (v: any) => (v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || '-' : '-') },
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
-    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (row.clockIn && !row.clockOut ? <span className="text-amber-700 dark:text-amber-300">running</span> : Number(v || 0).toFixed(2)) },
+    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (
+      <>
+        {row.clockIn && !row.clockOut ? <span className="text-amber-700 dark:text-amber-300">running</span> : Number(v || 0).toFixed(2)}
+        {/* The phone tapped this when it had no signal and sent it later: the time is the tap's, so the person approving should know. */}
+        {(row.clockInLateMinutes || row.clockOutLateMinutes) ? <span data-testid="time-sent-late" className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300" title={sentLateTitle(row)}>Time set by phone, sent late</span> : null}
+      </>
+    ) },
     { key: 'description', label: 'Description', render: (v: any) => v || '-' },
     ...(config?.billable === false ? [] : [{ key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) }]),
     { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },

@@ -130,7 +130,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
-| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | Hours (More): waiting approval / all + approve | A — time clock |
+| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | Clock (More): clock in/out with the offline queue (waiting to send), the job-site switch, and Approve hours for managers | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | Expenses (More): list + approve + add one with a receipt photo | C |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
@@ -196,7 +196,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule tab | A — the day's work |
-| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | Hours (More): waiting approval / all + approve | A — time clock |
+| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | Clock (More): clock in/out with the offline queue (waiting to send), the job-site switch, and Approve hours for managers | A — time clock |
 | Business | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | Expenses (More): list + approve + add one with a receipt photo | C |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |

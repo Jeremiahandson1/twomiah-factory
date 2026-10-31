@@ -1,0 +1,216 @@
+// Automatic reminders for the jobs the office books — a text and an email before the visit. Online-booked jobs already get
+// theirs from the booking engine (booking/extras.ts); a job made on the Schedule or from a quote got nothing. Modelled on
+// the vet clinic's vaccine reminders (crm/vet/vaccineReminders.ts): a timed pass, on the business's own clock, through the
+// business's own texting and email.
+//
+// The rules (company.settings.jobReminders — off until the business switches it on):
+//   · a pass every 10 minutes, and nothing goes out outside the business's sending hours (default 8am–8pm on its clock);
+//   · a reminder is "N hours before the visit", one or two of them; a visit's start is its date and time on the business's
+//     clock (a job with no time counts as starting when the sending hours open that day);
+//   · only jobs the office booked (no booking behind them, and not `online_booking`) that are scheduled or dispatched;
+//   · each reminder is claimed in reminder_log BEFORE it goes, per job, step and channel — its unique index is the "once".
+//     The step names the visit's exact start, so a moved visit earns reminders of its own and the old ones can never fire;
+//   · several steps already due (a visit booked inside the window): only the latest one reached is sent, the earlier ones
+//     are logged as superseded;
+//   · a customer who texted STOP (contact.optedOutSms) is never texted, one who unsubscribed (contact.emailOptOut) is never
+//     emailed; no number or no email → skipped, and the log says why;
+//   · texting not set up, or the usage wallet empty: nothing was sent, so the claim is HELD and tried again next pass; a
+//     carrier's refusal of the number is recorded once and not retried.
+import { and, eq, inArray, isNull, isNotNull, ne, or, gte, lt } from 'drizzle-orm'
+import { companyRowTimeZone, storeDateString, markerDay, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { company, contact, job, user, reminderLog } from '../../db/schema/index.ts'
+import type { Logger } from '../../core/logger.ts'
+
+export const JOB_REMINDER_KIND = { sms: 'job_reminder_sms', email: 'job_reminder_email' } as const
+export const DEFAULT_JOB_MESSAGE = '{{company_name}}: reminder for {{customer_name}} — {{job}} on {{when}}. Reply to this text if you need to change it.'
+export const MAX_JOB_MESSAGE = 320
+
+export interface JobReminderSettings {
+  enabled: boolean
+  /** Hours before the visit, one or two, largest first. */
+  hoursBefore: number[]
+  sms: boolean
+  email: boolean
+  /** The sending hours on the business's clock: from this hour (0–23) until this one (1–24). */
+  sendFromHour: number
+  sendUntilHour: number
+  message: string
+}
+
+export const DEFAULT_JOB_REMINDERS: JobReminderSettings = { enabled: false, hoursBefore: [24], sms: true, email: true, sendFromHour: 8, sendUntilHour: 20, message: DEFAULT_JOB_MESSAGE }
+
+const int = (v: unknown, lo: number, hi: number, fallback: number) => { const n = Number(v); return Number.isInteger(n) && n >= lo && n <= hi ? n : fallback }
+
+/** The business's reminder settings, every gap filled with what the engine really uses. */
+export function jobReminderSettings(settings: unknown): JobReminderSettings {
+  let s: any = settings
+  if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = null } }
+  const r = s?.jobReminders || {}
+  const steps = Array.isArray(r.hoursBefore) ? r.hoursBefore : DEFAULT_JOB_REMINDERS.hoursBefore
+  const hoursBefore = [...new Set(steps.map((h: unknown) => int(h, 1, 168, 0)).filter((h: number) => h > 0))].sort((a, b) => (b as number) - (a as number)).slice(0, 2) as number[]
+  let from = int(r.sendFromHour, 0, 23, DEFAULT_JOB_REMINDERS.sendFromHour)
+  let until = int(r.sendUntilHour, 1, 24, DEFAULT_JOB_REMINDERS.sendUntilHour)
+  // A window that ends before it starts is no window: the default hours, rather than a guess at what was meant.
+  if (until <= from) { from = DEFAULT_JOB_REMINDERS.sendFromHour; until = DEFAULT_JOB_REMINDERS.sendUntilHour }
+  const message = typeof r.message === 'string' && r.message.trim() ? r.message.trim().slice(0, MAX_JOB_MESSAGE) : DEFAULT_JOB_MESSAGE
+  return {
+    enabled: r.enabled === true,
+    hoursBefore: hoursBefore.length ? hoursBefore : DEFAULT_JOB_REMINDERS.hoursBefore,
+    sms: r.sms !== false,
+    email: r.email !== false,
+    sendFromHour: from,
+    sendUntilHour: until,
+    message,
+  }
+}
+
+const FALLBACKS: Record<string, string> = { customer_name: 'there', company_name: 'your service team', job: 'your visit', when: 'the scheduled time', date: 'the scheduled day', time: 'the scheduled time', address: 'your address', tech_name: 'our team' }
+/** Fill `{{name}}` fields; a field with nothing behind it falls back to words that still read as a sentence. */
+export function mergeFields(template: string, values: Record<string, string | undefined>): string {
+  return String(template ?? '').replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (whole, key: string) => {
+    const k = key.toLowerCase()
+    const v = (values[k] || '').trim()
+    if (v) return v
+    return k in FALLBACKS ? FALLBACKS[k] : whole
+  })
+}
+
+const HM = /^\d{1,2}:\d{2}$/
+const hourIn = (now: Date, tz: string) => Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now))
+const addDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+const dateWords = (at: Date, tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(at)
+const timeWords = (at: Date, tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(at)
+
+/** A job's start on the business's clock: its date and time, or — with no time — when the sending hours open that day. */
+export function visitStart(scheduledDate: Date | string | null, scheduledTime: string | null, tz: string, sendFromHour: number): { start: Date; allDay: boolean } | null {
+  if (!scheduledDate) return null
+  const day = markerDay(scheduledDate instanceof Date ? scheduledDate : new Date(scheduledDate))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+  const hm = HM.test(String(scheduledTime || '').trim()) ? String(scheduledTime).trim() : null
+  const start = zonedWallTimeToUtc(day, hm ?? `${String(sendFromHour).padStart(2, '0')}:00`, tz)
+  return Number.isNaN(start.getTime()) ? null : { start, allDay: !hm }
+}
+
+export interface JobReminderDeps {
+  db: any
+  sms: { sendSMS: (companyId: string, msg: any) => Promise<any> }
+  email: { send: (to: string, template: string, data: Record<string, unknown>) => Promise<unknown> }
+  logger: Logger
+  isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
+}
+
+export interface PassResult { sent: number; skipped: number; failed: number; held: number }
+
+export function createJobReminders(deps: JobReminderDeps) {
+  const { db, sms, email, logger } = deps
+
+  /** Claim a step for one channel: a new row, or one HELD by an earlier pass that could not text. */
+  async function claim(companyId: string, kind: string, jobId: string, step: string): Promise<string | null> {
+    const fresh = await db.insert(reminderLog).values({ companyId, kind, subjectId: jobId, step, status: 'sending' })
+      .onConflictDoNothing({ target: [reminderLog.companyId, reminderLog.kind, reminderLog.subjectId, reminderLog.step] }).returning({ id: reminderLog.id })
+    if (fresh[0]) return fresh[0].id
+    const held = await db.update(reminderLog).set({ status: 'sending', updatedAt: new Date() })
+      .where(and(eq(reminderLog.companyId, companyId), eq(reminderLog.kind, kind), eq(reminderLog.subjectId, jobId), eq(reminderLog.step, step), eq(reminderLog.status, 'held')))
+      .returning({ id: reminderLog.id })
+    return held[0]?.id ?? null
+  }
+  const settle = (id: string, status: string, detail: string | null, sentTo: string | null = null) =>
+    db.update(reminderLog).set({ status, detail, sentTo, updatedAt: new Date() }).where(eq(reminderLog.id, id))
+
+  async function forCompany(co: any, cfg: JobReminderSettings, now: Date, out: PassResult) {
+    const tz = companyRowTimeZone(co)
+    const hour = hourIn(now, tz)
+    if (hour < cfg.sendFromHour || hour >= cfg.sendUntilHour) return
+    const today = storeDateString(now, tz)
+    const reach = Math.ceil(cfg.hoursBefore[0] / 24) + 2
+    const rows = await db.select({
+      id: job.id, title: job.title, status: job.status, scheduledDate: job.scheduledDate, scheduledTime: job.scheduledTime,
+      address: job.address, city: job.city, contactId: job.contactId, techName: user.firstName,
+      customerName: contact.name, phone: contact.phone, mobile: contact.mobile, emailAddress: contact.email,
+      optedOutSms: contact.optedOutSms, emailOptOut: contact.emailOptOut,
+    })
+      .from(job).leftJoin(contact, eq(contact.id, job.contactId)).leftJoin(user, eq(user.id, job.assignedToId))
+      .where(and(
+        eq(job.companyId, co.id),
+        isNull(job.bookingId), or(isNull(job.source), ne(job.source, 'online_booking')),
+        inArray(job.status, ['scheduled', 'dispatched']),
+        isNotNull(job.scheduledDate),
+        gte(job.scheduledDate, new Date(`${addDays(today, -1)}T00:00:00Z`)),
+        lt(job.scheduledDate, new Date(`${addDays(today, reach)}T00:00:00Z`)),
+      ))
+
+    for (const j of rows) {
+      const v = visitStart(j.scheduledDate, j.scheduledTime, tz, cfg.sendFromHour)
+      if (!v || v.start.getTime() <= now.getTime()) continue
+      // The steps whose moment has come: the latest one reached is the one that is sent.
+      const due = cfg.hoursBefore.filter((h) => now.getTime() >= v.start.getTime() - h * 3_600_000).sort((a, b) => a - b)
+      if (!due.length) continue
+      const [sendHours, ...superseded] = due
+      const stepKey = (h: number) => `${h}h:${v.start.toISOString()}`
+      const channels: Array<'sms' | 'email'> = [...(cfg.sms ? ['sms' as const] : []), ...(cfg.email ? ['email' as const] : [])]
+      for (const ch of channels) {
+        for (const h of superseded) {
+          const id = await claim(co.id, JOB_REMINDER_KIND[ch], j.id, stepKey(h))
+          if (id) await settle(id, 'skipped', 'A later reminder for this visit had already come due.')
+        }
+        const logId = await claim(co.id, JOB_REMINDER_KIND[ch], j.id, stepKey(sendHours))
+        if (!logId) continue
+        const skip = async (why: string) => { await settle(logId, 'skipped', why); out.skipped++ }
+        if (!j.contactId) { await skip('The job has no customer.'); continue }
+        const fields = {
+          customer_name: String(j.customerName || '').split(' ')[0], company_name: co.name || '', job: j.title || '',
+          date: dateWords(v.start, tz), time: v.allDay ? '' : timeWords(v.start, tz),
+          when: v.allDay ? dateWords(v.start, tz) : `${dateWords(v.start, tz)} at ${timeWords(v.start, tz)}`,
+          address: [j.address, j.city].filter(Boolean).join(', '), tech_name: j.techName || '',
+        }
+        if (ch === 'sms') {
+          if (j.optedOutSms) { await skip('The customer asked not to be texted (STOP).'); continue }
+          const to = j.mobile || j.phone
+          if (!to) { await skip('The customer has no phone number.'); continue }
+          let result: any
+          try { result = await sms.sendSMS(co.id, { contactId: j.contactId, toPhone: to, message: mergeFields(cfg.message, fields) }) }
+          catch (e: any) { await settle(logId, 'failed', String(e?.message || 'The text could not be sent.').slice(0, 500), to); out.failed++; continue }
+          // Nothing was sent (texting not set up, or the wallet empty): held, and tried again next pass.
+          if (result?.refused) { await settle(logId, 'held', String(result.errorMessage || 'Texting is not available.').slice(0, 500), to); out.held++; continue }
+          if (!result || result.status === 'failed') { await settle(logId, 'failed', String(result?.errorMessage || 'The text was not accepted.').slice(0, 500), to); out.failed++; continue }
+          await settle(logId, 'sent', mergeFields(cfg.message, fields), to); out.sent++
+        } else {
+          if (j.emailOptOut) { await skip('The customer unsubscribed from emails.'); continue }
+          const to = String(j.emailAddress || '').trim()
+          if (!to) { await skip('The customer has no email address.'); continue }
+          try {
+            await email.send(to, 'jobReminder', {
+              companyName: co.name || '', contactName: String(j.customerName || '').split(' ')[0] || 'there', jobTitle: j.title || '',
+              when: fields.when, address: fields.address, techName: fields.tech_name,
+            })
+          } catch (e: any) { await settle(logId, 'failed', String(e?.message || 'The email could not be sent.').slice(0, 500), to); out.failed++; continue }
+          await settle(logId, 'sent', null, to); out.sent++
+        }
+      }
+    }
+  }
+
+  /** One pass over every business with job reminders on. `now` is the clock (a test pins it). */
+  async function runOnce(now: Date = new Date()): Promise<PassResult> {
+    const out: PassResult = { sent: 0, skipped: 0, failed: 0, held: 0 }
+    for (const co of await db.select().from(company)) {
+      const cfg = jobReminderSettings(co.settings)
+      if (!cfg.enabled) continue
+      if (!(await deps.isFeatureEnabled(co.id, 'job_reminders'))) continue
+      try { await forCompany(co, cfg, now, out) } catch (e: any) { logger.error('[job reminders] pass failed', { company: co.id, error: e?.message }) }
+    }
+    if (out.sent || out.failed || out.held) logger.info('[job reminders] pass', out as any)
+    return out
+  }
+
+  /** Every 10 minutes, and shortly after boot (services.startJobs: boot only, never in tests). */
+  function start() {
+    const tick = () => runOnce().catch((e) => logger.error('[job reminders] pass failed', { error: e?.message }))
+    setTimeout(tick, 2 * 60_000)
+    setInterval(tick, 10 * 60_000)
+  }
+
+  return { runOnce, start }
+}
+
+export type JobReminders = ReturnType<typeof createJobReminders>

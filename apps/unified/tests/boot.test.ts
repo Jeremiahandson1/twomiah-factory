@@ -35,7 +35,7 @@ describe('boot', () => {
     // sync record (0029: reminder_log, qb_sync_run, qb_sync_failure), the logins on a crew (0031, crew_login) and the
     // other people on a job (0032, job_assignee), texts set to send later (0034, scheduled_text), and food service's card readers,
     // reader payments and kiosk and website orders (0035: bar_reader, bar_terminal_charge, bar_order).
-    expect(declared.length).toBe(403) // +saved_request (Idempotency-Key, 10/30); contractor PR #173: project_template(_*), inspection checklists, quote sections
+    expect(declared.length).toBe(405) // 10/30: +saved_request; contractor PR #173 tables; field service PR #169 (job_checklist_template…, tech availability)
     for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series', 'financing_event', 'reminder_log', 'qb_sync_run', 'qb_sync_failure', 'crew_login', 'job_assignee', 'scheduled_text', 'bar_reader', 'bar_terminal_charge', 'bar_order']) expect(declared).toContain(name)
   })
 

@@ -6,6 +6,7 @@
 // Access: a module whose router signs people in itself AND answers a provider or a customer without a session
 // (texting's and Stripe's webhooks, QuickBooks' callback, a review link, an unsubscribe link) is mounted public, as the
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
+import { checkAvailability } from '../data/techAvailability.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -55,6 +56,7 @@ import type { CrmDeps } from '../crm/deps.ts'
 import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
+import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH } from '../crm/comms/smsMedia.ts'
@@ -127,6 +129,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
   const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, store: deps.store }
+  // A job is not completed with a required checklist unfinished (crm/field/checklistRoutes.ts); in front of the jobs mount below.
+  const completionGate = createCompletionGate(own)
   // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
   // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
   // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).
@@ -244,7 +248,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
     options: {
       // a job also points at a piece of equipment and a service site
-      ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),
+      // A business's own kinds of job ("Furnace install"), for its checklists (crm/field/checklistRoutes.ts); the job form offers them only with Job Checklists on.
+      extraFields: { ...(sites ? { equipmentId: blankToUndefined, siteId: blankToUndefined } : {}), jobType: z.string().trim().max(40, 'A job type is at most 40 characters').optional().transform((v) => v || undefined) },
       // photos in the store, served at /media/photos/… (the website's media route serves the same prefix)
       ...(v.jobs?.photos ? { storage: s.storage } : {}),
       // a job billed on its own: POST /api/jobs/:id/invoice
@@ -252,6 +257,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
+      // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
+      // Only for a business that has switched Tech Availability on.
+      availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
+        (await features.isFeatureEnabled(companyId, 'tech_availability')) ? checkAvailability(exec, companyId, people, date, time, hours) : null,
     },
   } as any)
 
@@ -262,6 +271,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
+      // Good / better / best (feature `quote_options`, NOT READY): option names are only accepted for a business that has it on.
+      optionsOn: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_options'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
@@ -382,11 +393,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/text-activity', access: 'user', feature: 'contacts', router: createTextActivityRoutes({ db, requirePermission, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId) }) },
     // A job's photos are photo_capture's, as the field-service and basic copies' index.ts gated /api/jobs/:id/photos.
     // Roofing's own job module over the same table (CrmSettings.roof; server/crm/roof/jobs.ts) — one mount, never two.
-    { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.roof
+    { path: '/api/jobs', access: 'user', feature: 'jobs', router: new Hono().use('/', completionGate).use('/:id/complete', completionGate).use('/:id', completionGate).route('/', v.roof
       ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', createRoofJobRoutes(own))
       : v.jobs?.photos
       ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', jobs)
-      : jobs },
+      : jobs) },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
     { path: '/api/invoices', access: 'user', feature: 'invoices', router: invoices },
     // A quote's deposit and progress invoices, billed against what is left (crm/billing/quoteBilling.ts).

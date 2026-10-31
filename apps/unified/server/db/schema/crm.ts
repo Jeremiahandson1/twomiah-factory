@@ -365,6 +365,9 @@ export const quote = pgTable('quote', {
   // bill_kind 'deposit'), credited on the final invoice.
   depositType: text('deposit_type'),
   depositValue: decimal('deposit_value', { precision: 12, scale: 2 }),
+  // Who made the quote (the rep or tech who wrote it): quote conversion by person (field-service reports, 0041). Null on a
+  // quote made before this was recorded, and where a quote was made by the system.
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
@@ -406,6 +409,9 @@ export const quoteLineItem = pgTable('quote_line_item', {
   markupPct: decimal('markup_pct', { precision: 7, scale: 2 }),
   allowance: boolean('allowance').default(false).notNull(),
   costCode: text('cost_code'),
+  // Good / better / best (0044): lines that share an option name are ONE choice; the customer picks one option and only its lines
+  // (with the quote's other, non-option lines) count. A line with an option name is optional by definition. Null: not part of a choice.
+  optionGroup: text('option_group'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -563,6 +569,10 @@ export const timeEntry = pgTable('time_entry', {
   isAutoClocked: boolean('is_auto_clocked').default(false).notNull(),
   clockIn: timestamp('clock_in'),
   clockOut: timestamp('clock_out'),
+  // How many minutes after the tap the phone's clock-in / clock-out reached the server (null: on time, or not tapped on a phone).
+  // The entry carries the time the person tapped, so the office sees it flagged "time set by phone, sent late" when approving.
+  clockInLateMinutes: integer('clock_in_late_minutes'),
+  clockOutLateMinutes: integer('clock_out_late_minutes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -788,6 +798,11 @@ export const formSubmission = pgTable('form_submission', {
   signature: text('signature'),
   signedAt: timestamp('signed_at'),
   signedBy: text('signed_by'),
+  // What proves the on-site signature (as a signed quote carries it): where, on what device, what they saw, the consent.
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
 
   submittedById: text('submitted_by_id').references(() => user.id),
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),

@@ -14,7 +14,7 @@ import { api } from '../api'
 import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 import { verticalScreens } from './vertical'
 import OnboardingWizard, { wizardOpens } from './pages/OnboardingWizard'
-import type { ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { dashboard as salonDashboard } from './verticals/salon'
 import { dashboard as eventsDashboard } from './verticals/restaurant'
 // 'practice': the veterinary practice's.
@@ -87,9 +87,23 @@ export function ContactDetail() {
 // repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
 const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+/** The kinds of job the owner's checklists are written for (Job Checklists, NOT READY) — the job form's "Job type" box. */
+function useChecklistJobTypes(on: boolean): string[] | undefined {
+  const [types, setTypes] = useState<string[] | undefined>()
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    client.get('/api/checklists/templates').then((r: any) => {
+      if (live) setTypes([...new Set<string>((r?.data || []).flatMap((x: any) => x.jobTypes || []))])
+    }).catch(() => { /* the box just stays away */ })
+    return () => { live = false }
+  }, [on])
+  return types
+}
 export function Jobs() {
   const { hasFeature, can } = useAuth()
-  return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
+  const jobTypes = useChecklistJobTypes(hasFeature('job_checklists'))
+  return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can, jobTypes } as any} />
 }
 export function JobDetail() {
   const { hasFeature, company } = useAuth()
@@ -114,7 +128,7 @@ const invoicingFor = (hasFeature: (f: string) => boolean) => {
   // Optional quote lines and a deposit on approval: every vertical's quotes have the columns (server 0034).
   // Estimating: sections, markup on cost and multi-line lines for every vertical's quotes (server 0041). Allowances only where
   // Selections is on (a contractor's), cost codes only where quotes attach to projects (the approved quote's budget).
-  return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true,
+  return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true, optionGroups: hasFeature('quote_options'),
     quoteSections: true, quoteAllowances: hasFeature('selections'), quoteCostCodes: !!i.projects && hasFeature('projects'),
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),

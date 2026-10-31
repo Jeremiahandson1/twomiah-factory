@@ -26,6 +26,9 @@ const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: 
  */
 const INVOICE_REMINDER_SETTINGS = { to: '/crm/settings/invoice-reminders', label: 'Invoice Reminders', icon: BellRing, permission: 'company:update', ...(isHomecare ? {} : { feature: 'invoices' }) }
 
+/** Settings › Job Reminders (crm/pages/JobRemindersPage.tsx; server crm/field/jobReminderRoutes.ts): the owner and admins, where the Job Reminders feature is on. */
+const JOB_REMINDER_SETTINGS = { to: '/crm/settings/job-reminders', label: 'Job Reminders', icon: BellRing, permission: 'company:update', feature: 'job_reminders' }
+
 /** Settings › Your data (crm/pages/ExportEverythingPage.tsx): every list the business has, one ZIP — the owner's and the admins'. */
 const EXPORT_SETTINGS = { to: '/crm/settings/export', label: 'Your Data', icon: FileArchive, permission: 'settings:update' }
 
@@ -72,7 +75,7 @@ export function Settings() {
   const auth = useAuth()
   // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
   // userActions: "View as <person>" on each row (crm/viewAs.tsx), every vertical.
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, JOB_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: true, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

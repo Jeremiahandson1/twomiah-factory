@@ -75,6 +75,12 @@ export function jobHookFor(status: string, hooks: JobHooks | undefined): JobHook
 }
 
 export interface JobOptions {
+  /**
+   * Is every person on this job free at this time (working hours, time off)? Called on a create and on a move, after the
+   * overlap and travel checks. Returns a warning the office may book past — `{ code, message, ... }`, answered as a 409
+   * with `canBookAnyway` exactly as a travel-time warning is — or null. Absent → no such check (every template, as before).
+   */
+  availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
   numbering?: { prefix?: string; pad?: number }
   /**
    * A new job's type when none is given, on a job table with a job_type column. The templates each left it to their own
@@ -524,7 +530,7 @@ export function createJobRoutes(deps: JobDeps) {
     } catch { /* an audit row is never why a save fails */ }
   }
   /** 409 with a code the screens read to offer "Book anyway" (the same request again with bookAnyway: true). */
-  const travelRefusal = (c: any, warning: any) => c.json({ error: warning.message, code: 'travel_time', canBookAnyway: true, warning }, 409)
+  const travelRefusal = (c: any, warning: any) => c.json({ error: warning.message, code: warning.code ?? 'travel_time', canBookAnyway: true, warning }, 409)
 
   /** The other people on a job (t.jobAssignee), in the order the office listed them. */
   const othersOf = async (jobId: string, exec: any = db): Promise<Person[]> => {
@@ -938,6 +944,8 @@ export function createJobRoutes(deps: JobDeps) {
       if (clash) return null
       // Not an overlap, but no time to get there: a warning, booked past only when the office says so.
       travel = await travelWarning(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, { address: data.address ?? null }, undefined, tx)
+      // …or a person who is off that day or outside their hours (JobOptions.availability): the same kind of warning.
+      if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, tx)
       if (travel && !bookAnyway) return null
       const row = await insertOne(tx, data.scheduledDate)
       await writeOthers(tx, currentUser.companyId, row.id, crew.others)
@@ -1096,6 +1104,7 @@ export function createJobRoutes(deps: JobDeps) {
       if (clash) return null
       if (movesSlot) {
         travel = await travelWarning(currentUser.companyId, everyone, effDate, effTime, effHours, here, id, tx)
+        if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx)
         if (travel && !bookAnyway) return null
       }
       if (crewChanged) await writeOthers(tx, currentUser.companyId, id, crew.others)

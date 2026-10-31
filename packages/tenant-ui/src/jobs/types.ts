@@ -6,6 +6,8 @@ export type JobsApi = InvoicingApi & { request?: (path: string, init?: any) => P
 export type JobsToast = InvoicingToast
 
 export interface JobsConfig {
+  /** Kinds of job the form offers in a "Job type" box (a business's own, e.g. for its checklists). Absent: no box. */
+  jobTypes?: string[]
   /** Vertical vocabulary. Default Job / Jobs / Add Job. */
   labels?: { singular?: string; plural?: string; add?: string }
   /** Assigned To picker (GET /api/team). Default true. */
@@ -92,6 +94,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     repeat: !!cfg.repeat,
     requireCustomer: !!cfg.requireCustomer,
     customerWord: cfg.customerWord || 'customer',
+    jobTypes: cfg.jobTypes && cfg.jobTypes.length ? cfg.jobTypes : null,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

@@ -1,107 +1,59 @@
 /**
- * Offline mutation queue — persists failed POST/PUT/DELETE requests
- * to AsyncStorage and replays them in FIFO order when connectivity returns.
+ * The phone's offline queue — the one API screens use. The rules live in ./engine.ts (pure, tested under bun); this file
+ * only plugs in the phone: AsyncStorage for the list, the API client to send, NetInfo for the connection.
+ * Read ./README.md before using it.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo'
 import { api } from '../api/client'
+import { createEngine, type NewItem, type QueueItem, type QueueStatus, type Sender } from './engine'
 
-const STORAGE_KEY = 'twomiah_offline_queue'
+export type { NewItem, QueueItem, QueueStatus, ItemView, Refusal, Method } from './engine'
 
-export interface QueuedMutation {
-  id: string
-  method: 'POST' | 'PUT' | 'DELETE'
-  path: string
-  body?: any
-  timestamp: number
+/**
+ * The API client throws when the request never gets an answer (fetch rejects offline) and answers with the status when
+ * it does. 0 means "no answer". `Idempotency-Key` is the item's id, the same on every try — the server may use it to
+ * recognise a repeat; it does not yet (see README › Known limits).
+ */
+const send: Sender = async ({ id, method, path, body }) => {
+  try {
+    const res = await api(path, {
+      method,
+      headers: { 'Idempotency-Key': id },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    return { status: res.status, data: res.data }
+  } catch {
+    return { status: 0 }
+  }
 }
 
-export type QueueListener = (queue: QueuedMutation[]) => void
-
-let queue: QueuedMutation[] = []
-let listeners: QueueListener[] = []
-let syncing = false
-let initialized = false
-
-function notify() {
-  listeners.forEach(fn => fn([...queue]))
-}
-
-async function persist() {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(queue))
-}
+const engine = createEngine({ kv: AsyncStorage, send })
+let unsubscribeNet: (() => void) | null = null
+let signedInAs: string | null = null
 
 export const OfflineQueue = {
-  async init() {
-    if (initialized) return
-    initialized = true
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY)
-      if (raw) queue = JSON.parse(raw)
-    } catch { /* start fresh */ }
-
-    // Auto-sync when connectivity returns
-    NetInfo.addEventListener(state => {
-      if (state.isConnected && queue.length > 0 && !syncing) {
-        OfflineQueue.sync()
-      }
-    })
-  },
-
-  subscribe(listener: QueueListener) {
-    listeners.push(listener)
-    return () => { listeners = listeners.filter(l => l !== listener) }
-  },
-
-  async enqueue(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: any) {
-    const mutation: QueuedMutation = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      method,
-      path,
-      body,
-      timestamp: Date.now(),
+  /** Call when someone signs in (and with null when they sign out). Their queue is theirs alone. */
+  async start(userId: string | null) {
+    if (signedInAs === userId && unsubscribeNet) return
+    signedInAs = userId
+    if (!unsubscribeNet) {
+      unsubscribeNet = NetInfo.addEventListener((s) => engine.setOnline(s.isConnected !== false && s.isInternetReachable !== false))
     }
-    queue.push(mutation)
-    await persist()
-    notify()
-    return mutation
+    await engine.load(userId)
   },
 
-  get pendingCount() { return queue.length },
-  get isSyncing() { return syncing },
-  getQueue() { return [...queue] },
-
-  async sync() {
-    if (syncing || queue.length === 0) return
-    syncing = true
-    notify()
-
-    while (queue.length > 0) {
-      const mutation = queue[0]
-      const res = await api(mutation.path, {
-        method: mutation.method,
-        body: mutation.body ? JSON.stringify(mutation.body) : undefined,
-      })
-
-      if (res.ok || (res.status >= 400 && res.status < 500)) {
-        // Success or client error (don't retry 4xx) — remove from queue
-        queue.shift()
-        await persist()
-        notify()
-      } else {
-        // Server error or network failure — stop and retry later
-        break
-      }
-    }
-
-    syncing = false
-    notify()
-  },
-
-  async clear() {
-    queue = []
-    await persist()
-    notify()
-  },
+  /** Keep a save for later. */
+  enqueue: (req: NewItem): Promise<QueueItem> => engine.enqueue(req),
+  /** Send now, or keep it if there is no signal. A refusal comes straight back; see README. */
+  submit: (req: NewItem) => engine.submit(req),
+  status: (): QueueStatus => engine.status(),
+  subscribe: (fn: (s: QueueStatus) => void) => engine.subscribe(fn),
+  /** Try again now; give `{ body }` to send a corrected save. */
+  retry: (id: string, patch?: { body?: unknown }) => engine.retry(id, patch),
+  retryAll: () => engine.retryAll(),
+  discard: (id: string) => engine.discard(id),
+  /** "Send now". */
+  syncNow: () => engine.sendNow(),
 }

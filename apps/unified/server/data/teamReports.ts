@@ -1,0 +1,221 @@
+// Reports that cut the money and the selling by PERSON (RULEBOOK §2: raw SQL lives here):
+//   - revenue per tech        — invoice → job → who was assigned
+//   - quote conversion        — per person who wrote the quote, and per tech on the job the quote became
+//   - service-plan reports    — plans sold per person, renewals coming due, plans that ended
+//
+// The money rules are the Reports page's (packages/tenant-backend reporting/reporting.ts), so a figure here can be set
+// beside the Reports page's and agree: "invoiced" is every invoice that is not a draft or void, in the period it was
+// made (a refunded sale was still invoiced); "collected" is the payment ledger by the day the payment was taken, where a
+// refund is a negative row, so it is already net of refunds.
+//
+// Nothing is guessed. An invoice that reaches no job, or a job nobody is on, or a quote or plan made before the app
+// recorded who wrote it, is its own row — so every report adds up to the business's own total and says what it could
+// not place. (Accounts receivable aging is not here: that is the invoices report.)
+import { sql } from 'drizzle-orm'
+
+const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
+const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+export interface Range { gte?: Date; lte?: Date }
+
+/** A bound as a timestamp-without-zone literal in UTC, which is how every timestamp column here is stored. */
+const at = (d: Date) => sql`${d.toISOString()}::timestamp`
+const between = (col: ReturnType<typeof sql.raw>, range: Range) => sql`${range.gte ? sql`AND ${col} >= ${at(range.gte)}` : sql``} ${range.lte ? sql`AND ${col} <= ${at(range.lte)}` : sql``}`
+
+export interface Person { id: string; name: string; kind: 'user' | 'member' }
+export interface PersonRow { person: Person | null; bucket: 'none' | 'unplaced'; [k: string]: unknown }
+
+/** Names for users (login) and roster-only crew (team_member), by id. */
+async function namesFor(db: any, companyId: string, userIds: string[], memberIds: string[]): Promise<Map<string, Person>> {
+  const out = new Map<string, Person>()
+  if (userIds.length) {
+    const rows = rowsOf(await db.execute(sql`SELECT id, first_name, last_name FROM "user" WHERE company_id = ${companyId} AND id IN (${sql.join(userIds.map((i) => sql`${i}`), sql`, `)})`))
+    for (const u of rows) out.set(`u:${u.id}`, { id: u.id, name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed', kind: 'user' })
+  }
+  if (memberIds.length) {
+    const rows = rowsOf(await db.execute(sql`SELECT id, name FROM team_member WHERE company_id = ${companyId} AND id IN (${sql.join(memberIds.map((i) => sql`${i}`), sql`, `)})`))
+    for (const m of rows) out.set(`m:${m.id}`, { id: m.id, name: m.name || 'Unnamed', kind: 'member' })
+  }
+  return out
+}
+
+/**
+ * An invoice's job: the job named on it; else the job its quote became — the quote it was billed from (a deposit,
+ * progress or final bill) or its own. ONE job per invoice, the earliest, so an invoice is never counted twice.
+ */
+const INVOICE_JOB = sql`COALESCE(i.job_id, (SELECT j.id FROM job j WHERE j.company_id = i.company_id AND j.quote_id = COALESCE(i.billed_quote_id, i.quote_id) ORDER BY j.created_at, j.id LIMIT 1))`
+
+export interface RevenueRow { person: Person | null; bucket: 'person' | 'unassigned' | 'no_job'; invoiced: number; invoiceCount: number; collected: number }
+export interface RevenueByTech { rows: RevenueRow[]; totals: { invoiced: number; invoiceCount: number; collected: number } }
+
+/**
+ * Revenue per tech: what the jobs each person was assigned to invoiced and collected in the period.
+ * Buckets: `unassigned` (the job has nobody on it) and `no_job` (the invoice is not attached to a job — a sale made
+ * from the office). Rows add up to `totals`, which is the Reports page's figure for the same period.
+ */
+export async function revenueByTech(db: any, companyId: string, invoiceRange: Range, paymentRange: Range = invoiceRange): Promise<RevenueByTech> {
+  const invoiced = rowsOf(await db.execute(sql`
+    SELECT j.assigned_to_id AS user_id, j.assigned_to_member_id AS member_id, (${INVOICE_JOB} IS NOT NULL) AS has_job,
+           COUNT(*) AS n, COALESCE(SUM(i.total::numeric), 0) AS total
+    FROM invoice i
+    LEFT JOIN job j ON j.id = ${INVOICE_JOB}
+    WHERE i.company_id = ${companyId} AND i.status NOT IN ('void', 'draft') ${between(sql.raw('i.created_at'), invoiceRange)}
+    GROUP BY 1, 2, 3`))
+  const collected = rowsOf(await db.execute(sql`
+    SELECT j.assigned_to_id AS user_id, j.assigned_to_member_id AS member_id, (${INVOICE_JOB} IS NOT NULL) AS has_job,
+           COALESCE(SUM(p.amount::numeric), 0) AS total
+    FROM payment p
+    JOIN invoice i ON i.id = p.invoice_id
+    LEFT JOIN job j ON j.id = ${INVOICE_JOB}
+    WHERE i.company_id = ${companyId} ${between(sql.raw('p.paid_at'), paymentRange)}
+    GROUP BY 1, 2, 3`))
+
+  const key = (r: any) => (!r.has_job ? 'no_job' : r.user_id ? `u:${r.user_id}` : r.member_id ? `m:${r.member_id}` : 'unassigned')
+  const acc = new Map<string, { invoiced: number; invoiceCount: number; collected: number }>()
+  const slot = (k: string) => { let s = acc.get(k); if (!s) { s = { invoiced: 0, invoiceCount: 0, collected: 0 }; acc.set(k, s) } return s }
+  for (const r of invoiced) { const s = slot(key(r)); s.invoiced += num(r.total); s.invoiceCount += num(r.n) }
+  for (const r of collected) slot(key(r)).collected += num(r.total)
+
+  const people = await namesFor(db, companyId,
+    [...acc.keys()].filter((k) => k.startsWith('u:')).map((k) => k.slice(2)),
+    [...acc.keys()].filter((k) => k.startsWith('m:')).map((k) => k.slice(2)))
+  const rows: RevenueRow[] = [...acc.entries()].map(([k, s]) => ({
+    person: people.get(k) ?? null,
+    bucket: k === 'no_job' ? 'no_job' : k === 'unassigned' ? 'unassigned' : people.get(k) ? 'person' : 'unassigned',
+    invoiced: r2(s.invoiced), invoiceCount: s.invoiceCount, collected: r2(s.collected),
+  }))
+  const order = { person: 0, unassigned: 1, no_job: 2 }
+  rows.sort((a, b) => order[a.bucket] - order[b.bucket] || b.invoiced - a.invoiced || (a.person?.name ?? '').localeCompare(b.person?.name ?? ''))
+  return { rows, totals: {
+    invoiced: r2(rows.reduce((n, r) => n + r.invoiced, 0)),
+    invoiceCount: rows.reduce((n, r) => n + r.invoiceCount, 0),
+    collected: r2(rows.reduce((n, r) => n + r.collected, 0)),
+  } }
+}
+
+export interface ConversionRow { person: Person | null; bucket: 'person' | 'not_recorded'; sent: number; approved: number; declined: number; open: number; approvedValue: number; sentValue: number; conversionRate: number }
+
+/**
+ * Quote conversion per person, with the Reports page's definition: approved ÷ decided (approved, rejected, declined or
+ * expired); drafts and sent-but-undecided quotes are open, not misses. Quotes in the period by the day they were made.
+ *   by 'writer' — who wrote the quote (quote.created_by_id; quotes made before 0041 are `not_recorded`)
+ *   by 'tech'   — who is on the job the quote became (its own job, else the earliest raised from it); a quote that
+ *                 never became a job has nobody, so it is `not_recorded` here too
+ */
+export async function quoteConversion(db: any, companyId: string, range: Range, by: 'writer' | 'tech'): Promise<ConversionRow[]> {
+  const tech = by === 'tech'
+  const jobOf = sql`COALESCE(q.job_id, (SELECT j.id FROM job j WHERE j.company_id = q.company_id AND j.quote_id = q.id ORDER BY j.created_at, j.id LIMIT 1))`
+  const rows = rowsOf(await db.execute(tech
+    ? sql`SELECT j.assigned_to_id AS user_id, j.assigned_to_member_id AS member_id, q.status AS status, COUNT(*) AS n, COALESCE(SUM(q.total::numeric), 0) AS total
+          FROM quote q LEFT JOIN job j ON j.id = ${jobOf}
+          WHERE q.company_id = ${companyId} ${between(sql.raw('q.created_at'), range)} GROUP BY 1, 2, 3`
+    : sql`SELECT q.created_by_id AS user_id, NULL::text AS member_id, q.status AS status, COUNT(*) AS n, COALESCE(SUM(q.total::numeric), 0) AS total
+          FROM quote q WHERE q.company_id = ${companyId} ${between(sql.raw('q.created_at'), range)} GROUP BY 1, 2, 3`))
+
+  type Acc = { approved: number; declined: number; open: number; approvedValue: number; sentValue: number; all: number }
+  const acc = new Map<string, Acc>()
+  for (const r of rows) {
+    const k = r.user_id ? `u:${r.user_id}` : r.member_id ? `m:${r.member_id}` : 'none'
+    const a = acc.get(k) ?? { approved: 0, declined: 0, open: 0, approvedValue: 0, sentValue: 0, all: 0 }
+    const n = num(r.n), v = num(r.total)
+    a.all += n
+    if (r.status === 'approved') { a.approved += n; a.approvedValue += v }
+    else if (['rejected', 'declined', 'expired'].includes(r.status)) a.declined += n
+    else a.open += n
+    if (r.status !== 'draft') a.sentValue += v
+    acc.set(k, a)
+  }
+  const people = await namesFor(db, companyId,
+    [...acc.keys()].filter((k) => k.startsWith('u:')).map((k) => k.slice(2)),
+    [...acc.keys()].filter((k) => k.startsWith('m:')).map((k) => k.slice(2)))
+  const out: ConversionRow[] = [...acc.entries()].map(([k, a]) => {
+    const person = people.get(k) ?? null
+    const decided = a.approved + a.declined
+    return { person, bucket: person ? 'person' as const : 'not_recorded' as const, sent: a.all, approved: a.approved, declined: a.declined, open: a.open,
+      approvedValue: r2(a.approvedValue), sentValue: r2(a.sentValue), conversionRate: decided > 0 ? Math.round((a.approved / decided) * 100) : 0 }
+  })
+  out.sort((a, b) => (a.bucket === 'person' ? 0 : 1) - (b.bucket === 'person' ? 0 : 1) || b.approvedValue - a.approvedValue || (a.person?.name ?? '').localeCompare(b.person?.name ?? ''))
+  return out
+}
+
+// ----------------------------------------------------------------------------------------------------------------
+// Service plans
+
+const MONTHS_PER_BILL: Record<string, number> = { monthly: 1, quarterly: 3, 'semi-annual': 6, annual: 12 }
+/** What a plan brings in over a year: its price per bill, times the bills in a year. */
+export const yearlyValue = (amount: unknown, frequency: string) => r2(num(amount) * 12 / (MONTHS_PER_BILL[frequency] ?? 1))
+
+export interface PlanSoldRow { person: Person | null; bucket: 'person' | 'not_recorded'; sold: number; yearlyValue: number; stillActive: number }
+
+/** Plans sold in the period (by the day the plan was made), per person who sold it; plans made before 0041 are `not_recorded`. */
+export async function planSales(db: any, companyId: string, range: Range): Promise<PlanSoldRow[]> {
+  const rows = rowsOf(await db.execute(sql`
+    SELECT sold_by_id AS user_id, status, amount, billing_frequency FROM service_agreement
+    WHERE company_id = ${companyId} ${between(sql.raw('created_at'), range)}`))
+  const acc = new Map<string, { sold: number; yearly: number; active: number }>()
+  for (const r of rows) {
+    const k = r.user_id ? `u:${r.user_id}` : 'none'
+    const a = acc.get(k) ?? { sold: 0, yearly: 0, active: 0 }
+    a.sold += 1; a.yearly += yearlyValue(r.amount, r.billing_frequency); if (r.status === 'active') a.active += 1
+    acc.set(k, a)
+  }
+  const people = await namesFor(db, companyId, [...acc.keys()].filter((k) => k.startsWith('u:')).map((k) => k.slice(2)), [])
+  const out: PlanSoldRow[] = [...acc.entries()].map(([k, a]) => {
+    const person = people.get(k) ?? null
+    return { person, bucket: person ? 'person' as const : 'not_recorded' as const, sold: a.sold, yearlyValue: r2(a.yearly), stillActive: a.active }
+  })
+  out.sort((a, b) => (a.bucket === 'person' ? 0 : 1) - (b.bucket === 'person' ? 0 : 1) || b.yearlyValue - a.yearlyValue)
+  return out
+}
+
+export interface RenewalRow { id: string; number: string; name: string; contactId: string; customer: string; endDate: string; daysLeft: number; renewal: 'auto' | 'manual'; autopay: boolean; yearlyValue: number }
+
+/**
+ * Plans whose term ends within `days` days of `today` (a day marker, midnight UTC, on the company's calendar) — the
+ * ones still active. `auto` renews itself; `manual` lapses unless someone renews it, which is the list to call.
+ */
+export async function renewalsDue(db: any, companyId: string, today: Date, days: number): Promise<RenewalRow[]> {
+  const until = new Date(today.getTime() + (days + 1) * 86_400_000 - 1)
+  const rows = rowsOf(await db.execute(sql`
+    SELECT a.id, a.number, a.name, a.contact_id, a.end_date, a.renewal_type, a.autopay, a.amount, a.billing_frequency,
+           c.name AS contact_name, c.company AS contact_company
+    FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
+    WHERE a.company_id = ${companyId} AND a.status = 'active' AND a.end_date IS NOT NULL
+      AND a.end_date >= ${at(today)} AND a.end_date <= ${at(until)}
+    ORDER BY a.end_date, a.number`))
+  return rows.map((r) => ({
+    id: r.id, number: r.number, name: r.name, contactId: r.contact_id,
+    customer: r.contact_name || r.contact_company || 'Customer',
+    endDate: new Date(r.end_date).toISOString().slice(0, 10),
+    daysLeft: Math.max(0, Math.round((new Date(r.end_date).getTime() - today.getTime()) / 86_400_000)),
+    renewal: r.renewal_type === 'manual' ? 'manual' as const : 'auto' as const,
+    autopay: !!r.autopay, yearlyValue: yearlyValue(r.amount, r.billing_frequency),
+  }))
+}
+
+export interface ChurnRow { id: string; number: string; name: string; customer: string; how: 'cancelled' | 'expired'; endedOn: string; dateKnown: boolean; reason: string | null; soldBy: Person | null; yearlyValue: number }
+
+/**
+ * Plans that ended in the period: cancelled by someone, or run out their term without a renewal. The day is `ended_at`
+ * where the app recorded it; a plan that ended before 0041 is dated by its last change and flagged `dateKnown: false`.
+ */
+export async function churnedPlans(db: any, companyId: string, range: Range): Promise<ChurnRow[]> {
+  const when = sql`COALESCE(a.ended_at, a.updated_at)`
+  const rows = rowsOf(await db.execute(sql`
+    SELECT a.id, a.number, a.name, a.status, a.ended_how, a.ended_at, a.updated_at, a.cancel_reason, a.sold_by_id, a.amount, a.billing_frequency,
+           c.name AS contact_name, c.company AS contact_company
+    FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
+    WHERE a.company_id = ${companyId} AND a.status IN ('cancelled', 'expired') ${between(when as any, range)}
+    ORDER BY ${when} DESC, a.number`))
+  const people = await namesFor(db, companyId, [...new Set(rows.map((r) => r.sold_by_id).filter(Boolean))] as string[], [])
+  return rows.map((r) => ({
+    id: r.id, number: r.number, name: r.name,
+    customer: r.contact_name || r.contact_company || 'Customer',
+    how: (r.ended_how === 'expired' || (!r.ended_how && r.status === 'expired')) ? 'expired' as const : 'cancelled' as const,
+    endedOn: new Date(r.ended_at ?? r.updated_at).toISOString().slice(0, 10),
+    dateKnown: !!r.ended_at, reason: r.cancel_reason || null,
+    soldBy: r.sold_by_id ? people.get(`u:${r.sold_by_id}`) ?? null : null,
+    yearlyValue: yearlyValue(r.amount, r.billing_frequency),
+  }))
+}

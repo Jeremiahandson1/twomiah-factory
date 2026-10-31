@@ -6,6 +6,12 @@
 // quote's totals count a line only when it is included, and only included lines carry into the job and the invoice.
 // A template whose quote_line_item has no `optional` column has none: every line is included, exactly as before.
 //
+// OPTIONS (good / better / best). Lines that share an `optionGroup` name are one alternative; a quote with two or more such names
+// is a choice. Exactly one option is picked — by the customer on the quote's link before signing, or by the office — and then only
+// that option's lines count, with the quote's own non-option lines; the totals, the signed document, the job, the invoice and the
+// deposit all follow what was picked. A quote whose lines have no option name is unchanged. An option line is optional by definition,
+// so the one rule above (`isIncluded`) still decides what counts.
+//
 // DEPOSIT. A quote may ask a deposit on approval: a percent of its total, or a fixed amount (never more than the total).
 import { and, asc, eq } from 'drizzle-orm'
 import { calcTotals, round2 } from './money'
@@ -68,6 +74,63 @@ export async function chooseOptionalLine(db: any, t: { quote: any; quoteLineItem
   if (!line) return { error: 'That line is not on this quote.', status: 404 }
   if (!line.optional) return { error: 'Only an optional line can be ticked or unticked.', status: 400 }
   await db.update(t.quoteLineItem).set({ selected }).where(eq(t.quoteLineItem.id, lineItemId))
+  const r = await retotalQuote(db, t, companyId, quoteId)
+  return r ?? { error: 'Quote not found', status: 404 }
+}
+
+// ── good / better / best ────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The option names on a quote's lines, in the order they first appear. */
+export const optionNames = (lines: Array<{ optionGroup?: string | null }>): string[] => {
+  const seen: string[] = []
+  for (const l of lines || []) if (l?.optionGroup && !seen.includes(l.optionGroup)) seen.push(l.optionGroup)
+  return seen
+}
+/** Is this quote a choice between options? Two or more names. */
+export const hasOptions = (lines: Array<{ optionGroup?: string | null }>): boolean => optionNames(lines).length >= 2
+
+/** The option that is picked now, or null. */
+export const pickedOption = (lines: Array<{ optionGroup?: string | null; selected?: boolean | null }>): string | null =>
+  optionNames(lines).find((n) => lines.some((l) => l.optionGroup === n && l.selected)) ?? null
+
+/** Why this quote cannot be signed or approved yet for want of a choice — or null. */
+export const optionChoiceProblem = (lines: Array<{ optionGroup?: string | null; selected?: boolean | null }>): string | null =>
+  hasOptions(lines) && !pickedOption(lines) ? `Choose one of the options first: ${optionNames(lines).join(', ')}.` : null
+
+/** Why these lines, as the office wrote them, are not a valid set of options — or null. */
+export function optionLinesProblem(lines: Array<{ optionGroup?: string | null; selected?: boolean | null; optional?: boolean | null }>): string | null {
+  const names = optionNames(lines)
+  if (names.length === 0) return null
+  if (names.length < 2) return 'A choice needs at least two options (for example Good and Better). Give the lines two option names, or clear the option name.'
+  if (names.length > 5) return 'At most five options.'
+  const picked = names.filter((n) => lines.some((l) => l.optionGroup === n && l.selected))
+  if (picked.length > 1) return 'Only one option can be chosen at a time.'
+  return null
+}
+
+/** What the quote would cost under each option: the non-option lines plus that option's lines, with the quote's tax and discount. */
+export function optionTotals(lines: Array<{ optionGroup?: string | null; optional?: boolean | null; selected?: boolean | null; quantity: unknown; unitPrice: unknown }>, taxRate: unknown, discount: unknown) {
+  return optionNames(lines).map((name) => {
+    const counted = lines.filter((l) => (l.optionGroup ? l.optionGroup === name : isIncluded(l)))
+      .map((l) => ({ quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) }))
+    const calc = calcTotals(counted, Number(taxRate), Number(discount))
+    return { name, subtotal: calc.subtotal, taxAmount: calc.taxAmount, total: calc.total }
+  })
+}
+
+/**
+ * Pick one option: its lines are ticked, the other options' lines are not, and the totals are worked out again. The caller has
+ * decided the quote is open. Refuses a name the quote does not have.
+ */
+export async function chooseOptionGroup(db: any, t: { quote: any; quoteLineItem: any }, companyId: string, quoteId: string, group: unknown):
+  Promise<{ error: string; status: 400 | 404 } | { quote: any; lineItems: any[] }> {
+  if (!t.quoteLineItem?.optionGroup) return { error: 'This quote has no options.', status: 400 }
+  if (typeof group !== 'string' || !group) return { error: 'Say which option.', status: 400 }
+  const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, quoteId), eq(t.quote.companyId, companyId))).limit(1)
+  if (!q) return { error: 'Quote not found', status: 404 }
+  const lines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId))
+  if (!optionNames(lines).includes(group)) return { error: `This quote has no option called “${group}”.`, status: 404 }
+  for (const l of lines) if (l.optionGroup) await db.update(t.quoteLineItem).set({ selected: l.optionGroup === group }).where(eq(t.quoteLineItem.id, l.id))
   const r = await retotalQuote(db, t, companyId, quoteId)
   return r ?? { error: 'Quote not found', status: 404 }
 }
