@@ -5,12 +5,11 @@
 //   ?format=csv); /filters lists the choices; /saved keeps a report as it is set up and emails it on a schedule.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
 import { parseRange, ReportError, companyTimeZone, storeDateString, dayMarker } from '@twomiah/tenant-backend'
-import { serviceAgreement, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import type { CrmDeps } from '../deps.ts'
 import { fail, one } from '../../http/reply.ts'
+import { planFilterOptions } from '../../data/planReports.ts'
 import { churnedPlans, planSales, renewalsDue, type PlanFilter, type Range } from '../../data/teamReports.ts'
 import { PLAN_TABS, planTable, type PlanParams } from './planReportTables.ts'
 import { PERIOD_IDS, chooseColumns, csvOf, resolvePeriod, type Col, type ReportTable } from './reportTables.ts'
@@ -64,7 +63,7 @@ export function createPlanReports(d: CrmDeps) {
     parse: (p) => planParamsSchema.parse(p),
     run: (companyId, params, now) => planParamsToTable(d.db, companyId, params as PlanSavedParams, now),
   } satisfies SavedKind])
-  return { saved, routes: createPlanReportRoutes(d, saved) }
+  return { saved, routes: createPlanReportRoutes(d, saved), savedRoutes: saved.routesFor('plans') }
 }
 
 function createPlanReportRoutes(d: CrmDeps, saved: ReturnType<typeof createSavedReports>) {
@@ -76,7 +75,7 @@ function createPlanReportRoutes(d: CrmDeps, saved: ReturnType<typeof createSaved
   app.get('/sold', requirePermission('reports:read'), async (c) => {
     const p = await periodOf(d, c)
     if ('error' in p) return fail(c, 400, p.error as string)
-    return one(c, { rows: await planSales(db, p.companyId, p.range) })
+    return one(c, { rows: await planSales(db, p.companyId, p.range, filterOf(c)) })
   })
 
   // Not a period: what is coming due from today, on the business's calendar. 30 or 60 days.
@@ -111,19 +110,7 @@ function createPlanReportRoutes(d: CrmDeps, saved: ReturnType<typeof createSaved
   })
 
   /** What the filters can be set to: the plan names in use, the people who sold plans, the customers who have one. */
-  app.get('/filters', requirePermission('reports:read'), async (c) => {
-    const companyId = c.get('user').companyId as string
-    const names = await db.selectDistinct({ name: serviceAgreement.name }).from(serviceAgreement).where(eq(serviceAgreement.companyId, companyId)).orderBy(serviceAgreement.name)
-    const sellers = await db.execute(sql`SELECT DISTINCT u.id, u.first_name, u.last_name FROM service_agreement a JOIN "user" u ON u.id = a.sold_by_id WHERE a.company_id = ${companyId} ORDER BY u.first_name, u.last_name`)
-    const customers = await db.execute(sql`SELECT DISTINCT c.id, c.name, c.company FROM service_agreement a JOIN contact c ON c.id = a.contact_id WHERE a.company_id = ${companyId} ORDER BY c.name LIMIT 500`)
-    const rows = (r: any): any[] => (r?.rows || r) as any[]
-    return one(c, {
-      planNames: names.map((n: any) => n.name),
-      sellers: rows(sellers).map((u) => ({ id: u.id, name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed' })),
-      customers: rows(customers).map((x) => ({ id: x.id, name: x.name || x.company || 'Customer' })),
-    })
-  })
+  app.get('/filters', requirePermission('reports:read'), async (c) => one(c, await planFilterOptions(db, c.get('user').companyId as string)))
 
-  app.route('/saved', saved.routesFor('plans'))
   return app
 }

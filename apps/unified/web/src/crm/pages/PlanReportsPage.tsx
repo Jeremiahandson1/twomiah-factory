@@ -20,7 +20,7 @@ interface Saved { id: string; name: string; params: Record<string, any>; schedul
 
 const TABS: Array<[string, string]> = [['sold', 'Sold by'], ['plans', 'Plans made'], ['summary', 'Summary'], ['events', 'History'], ['renewals', 'Coming due'], ['ended', 'Ended'], ['revenue', 'Revenue'], ['payments', 'Payments']]
 const STATUSES: Array<[string, string]> = [['active', 'Active'], ['pending', 'Pending'], ['suspended', 'Suspended'], ['cancelled', 'Cancelled'], ['expired', 'Expired']]
-const EVENT_KINDS: Array<[string, string]> = [['created', 'Sold'], ['renewed', 'Renewed'], ['suspended', 'Suspended'], ['reactivated', 'Reactivated'], ['cancelled', 'Cancelled'], ['expired', 'Expired']]
+const EVENT_KINDS: Array<[string, string]> = [['created', 'Made'], ['renewed', 'Renewed'], ['suspended', 'Suspended'], ['reactivated', 'Reactivated'], ['cancelled', 'Cancelled'], ['expired', 'Expired']]
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const hourWords = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' : 'PM'}`
 const FILTER_KEYS = ['planName', 'sellerId', 'contactId', 'status'] as const
@@ -41,7 +41,7 @@ function cellText(c: Col, v: unknown): string {
   if (v == null || v === '') return '—'
   switch (c.kind) {
     case 'money': return typeof v === 'number' ? money(v) : String(v)
-    case 'date': return day(String(v))
+    case 'date': return /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? day(String(v)) : String(v)
     case 'datetime': return stamp(String(v))
     case 'percent': return `${v}%`
     default: return String(v)

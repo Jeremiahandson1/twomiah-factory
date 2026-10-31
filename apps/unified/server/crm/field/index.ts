@@ -67,6 +67,7 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue', access: 'user', feature: 'team_revenue_reports', router: createTeamRevenueRoutes(d) },
+    { path: '/api/plan-reports/saved', access: 'user', feature: 'plan_reports', router: planReports.savedRoutes },
     { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: planReports.routes },
     // When each tech works and is away (crm/field/availabilityRoutes.ts); jobs.ts warns when a job is given outside it. Not ready.
     { path: '/api/availability', access: 'user', feature: 'tech_availability', router: createAvailabilityRoutes(d) },

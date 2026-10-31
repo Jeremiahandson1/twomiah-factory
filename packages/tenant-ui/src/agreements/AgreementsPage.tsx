@@ -38,7 +38,7 @@ interface AgreementPlan {
   name?: string;
 }
 
-const HISTORY_WORDS: Record<string, string> = { created: 'Sold', renewed: 'Renewed', suspended: 'Suspended', reactivated: 'Reactivated', cancelled: 'Cancelled', expired: 'Expired' };
+const HISTORY_WORDS: Record<string, string> = { created: 'Made', renewed: 'Renewed', suspended: 'Suspended', reactivated: 'Reactivated', cancelled: 'Cancelled', expired: 'Expired' };
 
 interface Agreement {
   id: string;

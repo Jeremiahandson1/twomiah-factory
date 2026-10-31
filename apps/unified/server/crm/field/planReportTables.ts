@@ -139,7 +139,7 @@ export async function planTable(db: any, companyId: string, p: PlanParams): Prom
       return {
         tab: 'revenue', title: measure === 'collected' ? 'Plan revenue collected, by month' : 'Recurring plan revenue, by month',
         note: measure === 'collected'
-          ? 'Money taken in each month on invoices a plan billed, net of refunds. Invoices from before plans were linked to their invoices are matched by their wording where it is unambiguous.'
+          ? 'Money taken in each month on invoices a plan billed, net of refunds. Invoices billed before plans were linked to their invoices were matched by their wording when this report was added; anything that matched no plan is not counted.'
           : 'The monthly value of the plans that were active at the end of each month. A plan on hold is not counted.',
         columns: cols,
         rows: rev.rows.map((r) => rowOf(r.name, r[measure], r.collectedTotal)),

@@ -144,3 +144,15 @@ export async function planPayments(db: any, companyId: string, range: Range, f: 
     planId: r.plan_id, planNumber: r.plan_number, name: r.name, contactId: r.contact_id, customer: r.contact_name || r.contact_company || 'Customer',
   }))
 }
+
+/** What the report's filters can be set to: plan names in use, the people who sold plans, and the customers who have one. */
+export async function planFilterOptions(db: any, companyId: string) {
+  const names = rowsOf(await db.execute(sql`SELECT DISTINCT name FROM service_agreement WHERE company_id = ${companyId} ORDER BY name`))
+  const sellers = rowsOf(await db.execute(sql`SELECT DISTINCT u.id, u.first_name, u.last_name FROM service_agreement a JOIN "user" u ON u.id = a.sold_by_id WHERE a.company_id = ${companyId} ORDER BY u.first_name, u.last_name`))
+  const customers = rowsOf(await db.execute(sql`SELECT DISTINCT c.id, c.name, c.company FROM service_agreement a JOIN contact c ON c.id = a.contact_id WHERE a.company_id = ${companyId} ORDER BY c.name LIMIT 500`))
+  return {
+    planNames: names.map((n: any) => n.name as string),
+    sellers: sellers.map((u: any) => ({ id: u.id as string, name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed' })),
+    customers: customers.map((x: any) => ({ id: x.id as string, name: (x.name || x.company || 'Customer') as string })),
+  }
+}

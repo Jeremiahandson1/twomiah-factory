@@ -160,10 +160,10 @@ export const planWhere = (f: PlanFilter, a = 'a') => {
 export interface PlanSoldRow { person: Person | null; bucket: 'person' | 'not_recorded'; sold: number; yearlyValue: number; stillActive: number }
 
 /** Plans sold in the period (by the day the plan was made), per person who sold it; plans made before 0041 are `not_recorded`. */
-export async function planSales(db: any, companyId: string, range: Range): Promise<PlanSoldRow[]> {
+export async function planSales(db: any, companyId: string, range: Range, f: PlanFilter = {}): Promise<PlanSoldRow[]> {
   const rows = rowsOf(await db.execute(sql`
-    SELECT sold_by_id AS user_id, status, amount, billing_frequency FROM service_agreement
-    WHERE company_id = ${companyId} ${between(sql.raw('created_at'), range)}`))
+    SELECT a.sold_by_id AS user_id, a.status, a.amount, a.billing_frequency FROM service_agreement a
+    WHERE a.company_id = ${companyId} ${between(sql.raw('a.created_at'), range)} ${planWhere(f)}`))
   const acc = new Map<string, { sold: number; yearly: number; active: number }>()
   for (const r of rows) {
     const k = r.user_id ? `u:${r.user_id}` : 'none'
@@ -193,7 +193,7 @@ export async function renewalsDue(db: any, companyId: string, today: Date, days:
            c.name AS contact_name, c.company AS contact_company
     FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
     WHERE a.company_id = ${companyId} AND a.status = 'active' AND a.end_date IS NOT NULL
-      AND a.end_date >= ${at(today)} AND a.end_date <= ${at(until)} ${planWhere({ ...f, status: undefined })}
+      AND a.end_date >= ${at(today)} AND a.end_date <= ${at(until)} ${planWhere(f)}
     ORDER BY a.end_date, a.number`))
   return rows.map((r) => ({
     id: r.id, number: r.number, name: r.name, contactId: r.contact_id,
@@ -217,7 +217,7 @@ export async function churnedPlans(db: any, companyId: string, range: Range, f: 
     SELECT a.id, a.number, a.name, a.status, a.ended_how, a.ended_at, a.updated_at, a.cancel_reason, a.sold_by_id, a.amount, a.billing_frequency,
            c.name AS contact_name, c.company AS contact_company
     FROM service_agreement a LEFT JOIN contact c ON c.id = a.contact_id
-    WHERE a.company_id = ${companyId} AND a.status IN ('cancelled', 'expired') ${between(when as any, range)} ${planWhere({ ...f, status: undefined })}
+    WHERE a.company_id = ${companyId} AND a.status IN ('cancelled', 'expired') ${between(when as any, range)} ${planWhere(f)}
     ORDER BY ${when} DESC, a.number`))
   const people = await namesFor(db, companyId, [...new Set(rows.map((r) => r.sold_by_id).filter(Boolean))] as string[], [])
   return rows.map((r) => ({
