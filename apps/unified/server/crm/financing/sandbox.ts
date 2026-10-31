@@ -29,7 +29,7 @@ export async function runSandbox(
   if (missing.length) return { ran: false, skipped: `No sandbox run: set ${missing.join(', ')} (keys from your Wisetack partner account). Nothing was called.`, checks: [] }
   if (env.WISETACK_SANDBOX_CONFIRM !== 'sandbox') return { ran: false, skipped: 'No sandbox run: set WISETACK_SANDBOX_CONFIRM=sandbox to say these are sandbox keys, not live ones. Nothing was called.', checks: [] }
   const url = String(env.WISETACK_SANDBOX_URL).trim().replace(/\/+$/, '')
-  if (!/^https:\/\//.test(url)) return { ran: false, skipped: 'No sandbox run: WISETACK_SANDBOX_URL must start with https://. Nothing was called.', checks: [] }
+  if (!/^https:\/\//.test(url)) return { ran: false, skipped: 'No sandbox run: the sandbox address must start with https://. Nothing was called.', checks: [] }
 
   const checks: Check[] = []
   const add = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail })
@@ -63,7 +63,7 @@ export async function runSandbox(
       add('webhook event body', !('error' in ev), 'error' in ev ? `${ev.error} — correct parseLenderEvent in lender.ts` : `event ${ev.eventId}: ${ev.rawStatus} → ${ev.status}`)
     } catch (e) { add('webhook sample', false, `could not read the sample: ${(e as Error).message}`) }
   } else {
-    add('webhook signature', false, 'not run: set WISETACK_SANDBOX_WEBHOOK_SECRET and WISETACK_SANDBOX_WEBHOOK_SAMPLE (a webhook the sandbox sent you, saved as { signature, body })')
+    add('webhook signature', false, 'not run: the webhook secret and a saved webhook sample (a webhook the sandbox sent you, saved as { signature, body }) were not given — see the settings listed at the top of this file')
   }
   void transactionId
   return { ran: true, checks }
