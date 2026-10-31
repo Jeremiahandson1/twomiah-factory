@@ -20,6 +20,8 @@ import { createSegmentRoutes } from './segments/routes.ts'
 import { createFollowups } from './followups/followups.ts'
 import { createFollowupRoutes } from './followups/routes.ts'
 import { createReorderRoutes } from './reorders/routes.ts'
+import { createAudienceRoutes } from './audiences/routes.ts'
+import { audiencesEnabled, settingsRow as audienceSettings } from './audiences/audiences.ts'
 import { createExpressRoutes } from './checkout/expressRoutes.ts'
 import { createStoreGiftCards } from './giftCards.ts'
 
@@ -48,6 +50,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
     { path: '/api/admin/followups', access: 'user', feature: 'store_followups', router: createFollowupRoutes(d, followups) },
     // 2026-10-31, parity row 4: "Draft a reorder" — supplier purchase orders (margin:read, products:update), behind store_reorders (not ready).
     { path: '/api/admin/reorders', access: 'user', feature: 'store_reorders', router: createReorderRoutes(d, core) },
+    // 2026-10-31, parity row 7: a segment as an ad audience (hashed file, direct push) and the purchase tags, behind store_audiences (not ready).
+    { path: '/api/admin/audiences', access: 'user', feature: 'store_audiences', router: createAudienceRoutes(d) },
     // 2026-10-31, parity row 6: Apple Pay / Google Pay / Link buttons (quote, intent, keys), behind store_fast_checkout (not ready), 404 when off.
     { path: '/api/public/express', access: 'public', feature: 'store_fast_checkout', router: createExpressRoutes(d, core, createCheckoutService(d, core), createStoreGiftCards(d, core)) },
     // 2026-10-30, gap 7: shoppers sign in (their own cookie, not the staff's); behind store_accounts (not ready), 404 when off.
@@ -63,6 +67,8 @@ export interface Storefront {
   accountsOn(companyId: string): Promise<boolean>
   catalogue(companyId: string): Promise<StorefrontProduct[]>
   product(companyId: string, slug: string): Promise<StorefrontProduct | null>
+  /** Whether the order-received page reports the purchase to Tag Manager and the Meta pixel (store_audiences on, and the shop switched it on). */
+  purchaseTags(companyId: string): Promise<boolean>
   /** The order summary by the provider's return (?session_id= or ?ref=), finishing an order whose payment notice is late. */
   orderSummary(companyId: string, q: { ref?: string | null; sessionId?: string | null }): Promise<OrderSummary | null>
   /** A product page's "Frequently bought together" and "You may also like". */
@@ -83,6 +89,7 @@ export function createStorefront(d: Pick<CrmDeps, 'db' | 'logger' | 'services' |
     companyId: async () => (await core.shop())?.id ?? null,
     isClosed: () => core.isClosed(),
     accountsOn: async (companyId) => (d.isFeatureEnabled ? await d.isFeatureEnabled(companyId, 'store_accounts').catch(() => false) : false),
+    purchaseTags: async (companyId) => (await audiencesEnabled(d as any, companyId)) && !!(await audienceSettings(d.db, companyId).catch(() => null))?.purchaseEventsOn,
     catalogue: (companyId) => storefrontCatalogue(d, companyId),
     product: (companyId, slug) => storefrontProduct(d, companyId, slug),
     orderSummary: (companyId, q) => checkout.orderSummary(companyId, q),

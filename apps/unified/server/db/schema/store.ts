@@ -671,3 +671,45 @@ export const storeShopperCard = pgTable('store_shopper_cards', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('store_shopper_cards_company_contact_unique').on(t.companyId, t.contactId)])
+
+/**
+ * Audiences and purchase tags (store_audiences, 2026-10-31, parity row 7; Shopify Audiences / the Facebook & Google channels,
+ * within one shop). One row per shop. Secrets are encrypted (core/crypto) and never read back to the screen. The Meta pixel id is
+ * the Website settings' own (one source, so the browser pixel and the server event share it and de-duplicate).
+ */
+export const storeAudienceSetting = pgTable('store_audience_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }).unique(),
+  /** The browser tags: a `purchase` event for Tag Manager (dataLayer) and a Meta pixel Purchase, on the order-received page. */
+  purchaseEventsOn: boolean('purchase_events_on').notNull().default(false),
+  /** Meta Conversions API: the same purchase, sent from the server when the order is paid. */
+  metaCapiOn: boolean('meta_capi_on').notNull().default(false),
+  metaCapiTokenEnc: text('meta_capi_token_enc'),
+  metaTestEventCode: text('meta_test_event_code'),
+  /** Meta Marketing API, for sending a segment as a Custom Audience. */
+  metaAdAccountId: text('meta_ad_account_id'),
+  metaAccessTokenEnc: text('meta_access_token_enc'),
+  /** Google Ads API, for sending a segment as a Customer Match list. */
+  googleCustomerId: text('google_customer_id'),
+  googleLoginCustomerId: text('google_login_customer_id'),
+  googleDeveloperTokenEnc: text('google_developer_token_enc'),
+  googleClientId: text('google_client_id'),
+  googleClientSecretEnc: text('google_client_secret_enc'),
+  googleRefreshTokenEnc: text('google_refresh_token_enc'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+/** What was exported or sent: a download, a push of a segment to a platform, or a purchase event — and how it ended. */
+export const storeAudienceLog = pgTable('store_audience_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  segmentId: text('segment_id').references(() => storeSegment.id, { onDelete: 'set null' }),
+  /** meta | google | meta_capi */
+  platform: text('platform').notNull(),
+  /** download | push | event */
+  kind: text('kind').notNull(),
+  people: integer('people').notNull().default(0),
+  status: text('status').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('store_audience_log_company_idx').on(t.companyId, t.createdAt)])

@@ -80,4 +80,18 @@
   </div>
   <%# The order went through: /scripts/cart.js empties the saved cart when it sees this. %>
   <% if (!closed && !waiting) { %><div data-cart-clear hidden></div><% } %>
+  <%# Purchase tags (store_audiences, when the shop switched them on): ONE purchase event for Tag Manager's dataLayer (GA4's ecommerce shape,
+       for a Google Ads / GA4 tag inside the container) and one Meta pixel Purchase whose eventID is the order number, which the server's
+       Conversions API event carries too so Meta counts it once. Only for a paid order, and once a browser tab (a refresh does not repeat it). %>
+  <% if (o && data.tags && !closed && !waiting && o.orderNumber) {
+       const cents = (v) => Math.round(Number(v) || 0) / 100
+       const payload = {
+         id: String(o.orderNumber), value: cents(o.totalCents), currency: String(o.currency || 'usd').toUpperCase(), tax: cents(o.taxCents), shipping: cents(o.shippingCents),
+         items: items.map((it) => ({ name: String(it.productName), variant: it.variantName && it.variantName !== 'Default' ? String(it.variantName) : '', quantity: Number(it.quantity) || 1, price: cents((Number(it.lineTotalCents) || 0) / Math.max(1, Number(it.quantity) || 1) * 100) })),
+       }
+  %>
+  <script>(function(){var p=<%- JSON.stringify(payload).replace(/</g, '\u003c') %>;var k='purchase-sent-'+p.id;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}
+  window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:'purchase',ecommerce:{transaction_id:p.id,value:p.value,currency:p.currency,tax:p.tax,shipping:p.shipping,items:p.items.map(function(i){return{item_name:i.name,item_variant:i.variant,quantity:i.quantity,price:i.price}})}});
+  if(window.fbq)window.fbq('track','Purchase',{value:p.value,currency:p.currency,content_type:'product',num_items:p.items.reduce(function(n,i){return n+i.quantity},0),contents:p.items.map(function(i){return{id:i.name,quantity:i.quantity,item_price:i.price}})},{eventID:p.id});})();</script>
+  <% } %>
 </div>

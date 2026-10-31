@@ -330,6 +330,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // counts and the supplier's cost; the owner edits it, emails it, and books what arrives against it. Hidden until run on the live shop.
   { id: 'store_reorders', name: 'Store Supplier Reorders', description: 'Draft a purchase order for each supplier from what is running low, email it, and book the stock in when it arrives', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'store_fast_checkout', name: 'Store Accelerated Checkout', description: 'Shoppers keep a card on the shop\'s own Stripe account (with their consent) and pay in one tap — at checkout, from order history, and with Apple Pay, Google Pay and Link buttons', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_audiences', name: 'Store Audiences & Purchase Tags', description: 'Send a customer segment to Meta and Google Ads as a hashed audience (file or direct), and report purchases to Meta and Google Tag Manager', category: 'Marketing', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance

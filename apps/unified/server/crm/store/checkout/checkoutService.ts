@@ -36,6 +36,7 @@ import { createStoreGiftCards, GIFT_CARD_TAX_CODE, HOLD_EXPIRY_MS } from '../gif
 import type { PaymentProvider, WebhookResult } from '../payments/types.ts'
 import { checkoutImageUrl } from './placeOrder.ts'
 import { keepCardAfterPaid } from './fastCheckout.ts'
+import { sendPurchaseEvent } from '../audiences/audiences.ts'
 import { formatCents } from '../lib/money.ts'
 
 /** Cancel only well after the reminder has had a chance to work (the abandoned-cart reminder needs room). */
@@ -159,6 +160,8 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
 
     // A shopper who ticked "save my card" has the card the payment left on their customer kept (store_fast_checkout). Never blocks.
     await keepCardAfterPaid(d, core, paid)
+    // The Purchase for Meta's Conversions API, when the shop switched it on (store_audiences). One try; never blocks the order.
+    await sendPurchaseEvent(d as any, paid)
 
     // Count discount-code usage exactly once (only the winning finalize reaches here).
     if (order.discountCode) {
