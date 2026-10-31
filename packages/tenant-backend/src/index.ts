@@ -248,7 +248,7 @@ export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
 
 // Commissions — plans + earnings, the amount worked out server-side from the plan (crm, crm-fieldservice, crm-landscaping, crm-basic).
-export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP, COMMISSION_SALES_KINDS, VISIT_STYLIST } from './commissions/commissions'
+export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP, COMMISSION_MEASURED_ON, measuredOnOf, COMMISSION_SALES_KINDS, VISIT_STYLIST } from './commissions/commissions'
 export type { CommissionRoutesDeps, CommissionTables, CommissionEarner, CommissionEarnerDeps, CommissionEarnerTables } from './commissions/commissions'
 
 // Locations — a company's branches (crm, crm-fieldservice, crm-landscaping, crm-basic). crm-dispensary keeps its own stock-per-store system.

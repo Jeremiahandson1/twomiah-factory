@@ -13,6 +13,7 @@ import { createWorkOrderRoutes } from './workOrders.ts'
 import { createCrewLinkRoutes } from './crewLink.ts'
 import { createPipelineRoutes } from './pipeline.ts'
 import { createRoofCommissions } from './commissions.ts'
+import { createRoofMoneyRoutes } from './moneySettings.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -29,6 +30,9 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // Work orders for crews and subs (not ready): the office's side, and the crew's private link (no sign-in).
     { path: '/api/work-orders', access: 'user', feature: 'roof_work_orders', router: createWorkOrderRoutes(d) },
     { path: '/api/crew-link', access: 'public', feature: 'roof_work_orders', router: createCrewLinkRoutes(d) },
+    // The company's money rules for commissions and job costing (./moneySettings.ts): its minimum profit, and — as the rows land — the
+    // disclaimer, who sees commissions and the worksheet approval. An existing feature id: commission tracking.
+    { path: '/api/roof-money', access: 'user', feature: 'commission_tracking', router: createRoofMoneyRoutes(d) },
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
     { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
     ...inspectionMounts(d),

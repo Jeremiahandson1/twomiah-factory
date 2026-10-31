@@ -476,6 +476,21 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
   uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A roofing company's money rules, one row per company (roofing parity, rows 1-5; docs/parity/roof-commissions-costing.md): the
+ * floor under which no commission plan pays (min_profit_kind 'percent' of the contract, or 'amount' in dollars — both null: no
+ * floor). The commission disclaimer, who sees commissions and the worksheet approval switch join it as those rows land. Changed only
+ * through /api/roof-money/settings (commissions:update), never through the general company settings.
+ */
+export const roofMoneySetting = pgTable('roof_money_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  minProfitKind: text('min_profit_kind'),
+  minProfitValue: decimal('min_profit_value', { precision: 12, scale: 2 }),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('roof_money_setting_company_id_idx').on(t.companyId),
+])
 
 // A job's inspection report (docs/parity/roof-inspection-report.md): a branded write-up built from the job's photos, in
 // roof sections, that the roofer shares as a private link (public_token, the same kind a quote's link is) and a PDF.

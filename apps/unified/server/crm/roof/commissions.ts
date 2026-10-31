@@ -9,32 +9,46 @@
 //   · a % of GROSS PROFIT needs the job's costs, which the shared earner cannot know (it refuses margin plans outright).
 // So a plan that pays 'job_sales_rep' (COMMISSION_AUTO_EARN_SALES_REP) is paid here, when the job is Collected — every invoice
 // that went out is paid in full — on the numbers job costing shows (crm/field/jobCostingService.ts):
-//   · % of the invoice, tiered, or flat — worked out on the contract: everything invoiced on the job, before sales tax;
-//   · % of margin — worked out on the job's gross profit: that contract less what the job cost, which is the job's material
-//     orders, its crew's pay, hours clocked, expenses and vendor bills (roof/jobCosts.ts). A job that made nothing earns
-//     nothing on a margin plan (no row is made).
+//   · each plan names what its rate is MEASURED ON (commission_plan.measured_on, commissions.ts measuredOnOf): the contract —
+//     everything invoiced on the job, before sales tax — or the job's gross profit: that contract less what the job cost, which
+//     is the job's material orders, its crew's pay, hours clocked, expenses and vendor bills (roof/jobCosts.ts). A percentage
+//     and the brackets of a tiered plan are both read against that figure, so "5% of the first $5,000 of profit, 8% above"
+//     is a plan (AccuLynx: rates by job-profit threshold). A "% of margin" plan is on gross profit whatever it says. A flat
+//     amount ignores it. A job that made nothing earns nothing on a profit plan (no row is made).
 // It is called from the two ways a job gets there: money arriving on one of its invoices (roof/index.ts, after the job is
 // moved to Collected) and the office moving the job to Collected by hand (jobs.ts Advance / the job form). One commission
 // per plan per job, however often it is called: it hangs on the job's last-paid invoice under the shared earner's unique
 // index (commission_auto_once) and is looked for before it is written. A voided or cancelled one is not made again.
+//
+// A company MINIMUM PROFIT (roof_money_setting, ./moneySettings.ts) — a share of the contract or dollars of gross profit — holds
+// every plan: a job under it earns nothing until its figures clear it.
 //
 // Costs entered AFTER Collected do not change a commission already earned — void it and record the corrected one by hand.
 // A refund in full of the invoice it hangs on cancels it (the shared earner's refund handling); a refund of an earlier
 // invoice does not.
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { commission, commissionPlan, invoice, job, user } from '../../db/schema/index.ts'
-import { commissionFor, planPaysPerson, COMMISSION_AUTO_EARN_SALES_REP } from '@twomiah/tenant-backend'
+import { commissionFor, measuredOnOf, planPaysPerson, COMMISSION_AUTO_EARN_SALES_REP } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
+import { createRoofMoneySettings, type MinProfit } from './moneySettings.ts'
 
 /** Not a bill the homeowner owes: a draft that never went out, a void one. Collected's own rule (collected.ts). */
 const NOT_BILLED = ['draft', 'void']
 const round2 = (n: number) => Math.round(n * 100) / 100
 const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+/** Is the job's profit under the company's floor? Percent is of the contract, dollars are of the gross profit. */
+export function belowMinimumProfit(floor: MinProfit | null, contract: number, profit: number): boolean {
+  if (!floor) return false
+  if (floor.kind === 'percent') return contract <= 0 || (profit / contract) * 100 < floor.value
+  return profit < floor.value
+}
+
 export function createRoofCommissions(d: CrmDeps) {
   const { db } = d
   const costing = createJobCostingService(d)
+  const moneySettings = createRoofMoneySettings(d)
 
   /** Pay the job's sales rep what each of the company's plans owes. Returns how many commissions were made. */
   async function earnForJob(companyId: string, jobId: string): Promise<number> {
@@ -68,12 +82,16 @@ export function createRoofCommissions(d: CrmDeps) {
     const contract = round2(byJob.get(jobId)?.revenue ?? 0)
     const profit = round2(contract - (costs?.totalCost ?? 0))
 
+    // The company's minimum profit (roof_money_setting): a job that kept less than the floor pays no plan at all. It is looked at
+    // again whenever the job is followed up, so a job held under the floor pays once its figures clear it.
+    if (belowMinimumProfit((await moneySettings.read(companyId)).minProfit, contract, profit)) return 0
+
     let made = 0
     for (const plan of paying) {
       const already = await db.select({ id: commission.id }).from(commission)
         .where(and(eq(commission.companyId, companyId), eq(commission.jobId, jobId), eq(commission.planId, plan.id), eq(commission.userId, rep.id), eq(commission.source, 'auto'))).limit(1)
       if (already.length) continue
-      const onProfit = plan.planType === 'percent_of_margin'
+      const onProfit = measuredOnOf(plan) === 'gross_profit'
       const base = onProfit ? profit : contract
       if (base <= 0) continue
       const result = commissionFor(plan, base)

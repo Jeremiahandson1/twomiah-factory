@@ -1,0 +1,1 @@
+ALTER TABLE "commission_plan" ADD COLUMN "measured_on" text DEFAULT 'contract' NOT NULL;

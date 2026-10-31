@@ -365,6 +365,20 @@
       "when": 1793451966205,
       "tag": "0051_care_split_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793467632754,
+      "tag": "0052_commission_plan_measured_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793467727184,
+      "tag": "0053_roof_money_setting",
+      "breakpoints": true
     }
   ]
 }

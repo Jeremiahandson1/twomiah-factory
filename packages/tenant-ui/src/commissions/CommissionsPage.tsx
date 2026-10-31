@@ -64,7 +64,9 @@ const PLAN_TYPE_WORDS: Record<string, string> = {
 const listOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [])
 type TierRow = { min: string; max: string; rate: string }
 const blankTiers = (): TierRow[] => [{ min: '0', max: '5000', rate: '40' }, { min: '5000.01', max: '1000000', rate: '45' }]
-const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', tiers: blankTiers() })
+const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', measuredOn: 'contract', tiers: blankTiers() })
+/** What a plan's rate (or each bracket) is read against — the server's COMMISSION_MEASURED_ON. */
+const MEASURED_ON_WORDS: Record<string, string> = { contract: 'The contract (billed before tax)', gross_profit: 'The job’s gross profit (contract less what the job cost)' }
 const SALES_KIND_WORDS: Record<string, string> = { all: 'Services and retail', services: 'Services only', retail: 'Retail only' }
 /** The people a plan names (commission_plan.user_ids) — empty when it names nobody. */
 const namedOn = (p: any): string[] => (Array.isArray(p?.userIds) ? p.userIds.map(String) : [])
@@ -156,7 +158,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true); loadPeople() }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
-    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
+    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', measuredOn: p.measuredOn || 'contract', tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
     setPlanOpen(true)
     loadPeople()
   }
@@ -165,6 +167,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     e.preventDefault()
     const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: autoFor(planForm.planType, planForm.autoEarn), userIds: planForm.userIds }
     if (config.salesKinds) body.salesKind = planForm.salesKind
+    if (salesRepAuto && autoFor(planForm.planType, planForm.autoEarn) === 'job_sales_rep' && planForm.planType !== 'flat_rate') body.measuredOn = planForm.planType === 'percent_of_margin' ? 'gross_profit' : planForm.measuredOn
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else if (planForm.planType === 'tiered') body.tiers = planForm.tiers.map((t) => ({ min: Number(t.min), max: Number(t.max), rate: Number(t.rate) }))
     else body.percentRate = Number(planForm.percentRate || 0)
@@ -404,8 +407,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </div>
               <div className="text-sm text-gray-900 dark:text-slate-100">
                 {p.planType === 'flat_rate' && <>{money(p.flatRateAmount)} per job</>}
-                {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {baseWords[p.planType]}</>}
-                {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets{config.salesKinds ? ' by this month’s sales' : ''}</>}
+                {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {baseWords[p.planType === 'percent_of_margin' || p.measuredOn === 'gross_profit' ? 'percent_of_margin' : 'percent_of_invoice']}</>}
+                {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets{config.salesKinds ? ' by this month’s sales' : p.autoEarn === 'job_sales_rep' ? ` on the job’s ${p.measuredOn === 'gross_profit' ? 'gross profit' : 'contract'}` : ''}</>}
                 {config.salesKinds && <> · {SALES_KIND_WORDS[p.salesKind || 'all']}</>}
               </div>
               {p.autoEarn === 'job_sales_rep'
@@ -424,11 +427,11 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           <Field label="Plan name"><input required placeholder={`e.g. ${config.planExample}`} value={planForm.name} onChange={(e) => setPlanForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} /></Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="How it is worked out">
-              <select value={planForm.planType} onChange={(e) => setPlanForm((prev) => ({ ...prev, planType: e.target.value }))} className={inputCls} disabled={editingPlan?.planType === 'tiered' && !config.salesKinds}>
+              <select value={planForm.planType} onChange={(e) => setPlanForm((prev) => ({ ...prev, planType: e.target.value }))} className={inputCls} disabled={editingPlan?.planType === 'tiered' && !config.salesKinds && !salesRepAuto}>
                 <option value="flat_rate">{planWords.flat_rate}</option>
                 <option value="percent_of_invoice">{planWords.percent_of_invoice}</option>
                 <option value="percent_of_margin">{planWords.percent_of_margin}</option>
-                {(editingPlan?.planType === 'tiered' || config.salesKinds) && <option value="tiered">{config.salesKinds ? 'Tiered by this month’s sales' : planWords.tiered}</option>}
+                {(editingPlan?.planType === 'tiered' || config.salesKinds || salesRepAuto) && <option value="tiered">{config.salesKinds ? 'Tiered by this month’s sales' : planWords.tiered}</option>}
               </select>
             </Field>
             {/* "Intended for" is a note on the plan: a commission is recorded against a person, and nothing matches a plan to anyone by role. (T51) */}
@@ -441,6 +444,13 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           {planForm.planType === 'flat_rate'
             ? <Field label="Amount per job ($)"><input type="number" min="0" step="0.01" required value={planForm.flatRateAmount} onChange={(e) => setPlanForm((prev) => ({ ...prev, flatRateAmount: e.target.value }))} className={inputCls} /></Field>
             : planForm.planType !== 'tiered' && <Field label="Rate (%)" hint="Between 0 and 100."><input type="number" min="0" max="100" step="0.1" required value={planForm.percentRate} onChange={(e) => setPlanForm((prev) => ({ ...prev, percentRate: e.target.value }))} className={inputCls} /></Field>}
+          {salesRepAuto && autoFor(planForm.planType, planForm.autoEarn) === 'job_sales_rep' && (planForm.planType === 'percent_of_invoice' || planForm.planType === 'tiered') && (
+            <Field label="Rate is measured on" hint="A percentage, or each bracket of a tiered plan, is read against this figure for the whole job. Profit is the contract less its material orders, crew pay, hours, expenses and bills.">
+              <select value={planForm.measuredOn} onChange={(e) => setPlanForm((prev) => ({ ...prev, measuredOn: e.target.value }))} className={inputCls}>
+                {Object.entries(MEASURED_ON_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
+              </select>
+            </Field>
+          )}
           {config.salesKinds && (
             <Field label="Paid on" hint="Make one plan for services and another for retail to pay them at different rates.">
               <select value={planForm.salesKind} onChange={(e) => setPlanForm((prev) => ({ ...prev, salesKind: e.target.value }))} className={inputCls}>
@@ -451,7 +461,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           {planForm.planType === 'tiered' && (
             <fieldset>
               <legend className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Brackets</legend>
-              <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">The rate is found from the person&rsquo;s sales so far this month, including this one, and applies to this sale only &mdash; it is not paid back on earlier sales.</p>
+              <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">{salesRepAuto && !config.salesKinds ? 'The rate is the bracket the job’s whole figure (the contract or the gross profit, as chosen above) falls in — it is not split across brackets.' : 'The rate is found from the person’s sales so far this month, including this one, and applies to this sale only — it is not paid back on earlier sales.'}</p>
               {planForm.tiers.map((t, i) => (
                 <div key={i} className="mb-2 flex flex-wrap items-center gap-2 text-sm">
                   <span>From $</span><input aria-label={`Bracket ${i + 1} from`} type="number" min="0" step="0.01" value={t.min} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, min: e.target.value } : x)) }))} className={inputCls + ' w-28'} />

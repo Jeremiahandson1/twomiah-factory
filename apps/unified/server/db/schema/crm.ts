@@ -1013,6 +1013,10 @@ export const commissionPlan = pgTable('commission_plan', {
   // not named on another plan; named: only them (contractor live re-test 2026-10-22, "the Plans page can't assign a plan
   // to a person"). packages/tenant-backend commissions.ts.
   userIds: json('user_ids').default([]).notNull(),
+  // What the plan's rate (or each bracket of a tiered plan) is read against, for a plan that pays a job's people when the job is
+  // paid (roofing): 'contract' (billed before tax — what every plan was) or 'gross_profit' (the contract less what the job cost).
+  // commissions.ts measuredOnOf; the work is in apps/unified server/crm/roof/commissions.ts.
+  measuredOn: text('measured_on').default('contract').notNull(),
   // Which sales the plan is paid on, where the business offers the choice (salon): 'all', 'services' or 'retail'. Others leave it 'all'.
   salesKind: text('sales_kind').default('all').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

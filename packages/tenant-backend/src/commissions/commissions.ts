@@ -82,6 +82,21 @@ export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as c
  * gross profit. The invoice-by-invoice earner below never pays it.
  */
 export const COMMISSION_AUTO_EARN_SALES_REP = 'job_sales_rep' as const
+/**
+ * WHAT A PLAN'S RATE IS MEASURED ON, for a plan that pays a job's people when the job is paid (the app works it out:
+ * apps/unified server/crm/roof/commissions.ts). 'contract' is what the job was billed before tax (a "% of the invoice" plan,
+ * and the default every plan had); 'gross_profit' is that contract less what the job cost. The brackets of a tiered plan, and
+ * a percentage, are read against this figure — so "5% up to $5,000 of profit, 8% above" is a plan, not a contract plan with
+ * profit-looking numbers. A plan of type "% of margin" is measured on gross profit whatever this says.
+ */
+export const COMMISSION_MEASURED_ON = ['contract', 'gross_profit'] as const
+export type CommissionMeasuredOn = (typeof COMMISSION_MEASURED_ON)[number]
+/** The figure a plan's rate is read against: its own choice, else gross profit for a margin plan, else the contract. */
+export function measuredOnOf(plan: { planType?: string; measuredOn?: unknown }): CommissionMeasuredOn {
+  const own = String(plan.measuredOn || 'contract')
+  if (own !== 'contract' && (COMMISSION_MEASURED_ON as readonly string[]).includes(own)) return own as CommissionMeasuredOn
+  return plan.planType === 'percent_of_margin' ? 'gross_profit' : 'contract'
+}
 /** Where a business offers it (CommissionRoutesDeps.salesKinds): the stylist of the visit the invoice was raised from. */
 export const VISIT_STYLIST = 'visit_stylist'
 /** What a plan is paid on, where the business offers the choice. */
@@ -99,6 +114,8 @@ const planSchema = z.object({
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
   autoEarn: z.enum([...COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP]).optional(),
+  /** What the rate (or each bracket) is read against — the contract, or the job's gross profit. Only where the app pays a job's people. */
+  measuredOn: z.enum(COMMISSION_MEASURED_ON).optional(),
   /**
    * The people the plan pays (login ids of this company). Empty: anyone it reaches who is not named on another plan.
    * Where the table has no column for it (a template's own schema), it is not offered.
@@ -225,6 +242,11 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (ids.some((id) => (found.get(id) as any).isActive === false && !keep.includes(id))) return 'Someone chosen for this plan has been switched off. Choose people who are still on the team.'
     return null
   }
+  /** A plan measured on profit is paid by the app that knows the job's costs, to the people on the job — nobody else can work it out. */
+  const measuredRefusal = (measuredOn: string | undefined, autoEarn: string | undefined) =>
+    measuredOn && measuredOn !== 'contract' && autoEarn !== COMMISSION_AUTO_EARN_SALES_REP
+      ? 'A plan measured on the job\u2019s profit has to pay the job\u2019s sales rep automatically \u2014 the profit is worked out when the job is paid.'
+      : null
   const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) => {
     if (autoEarn === COMMISSION_AUTO_EARN_SALES_REP) {
       return deps.salesRepAutoEarn ? null : 'This business does not pay the job\u2019s sales rep automatically.'
@@ -239,6 +261,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
     if (!t.commissionPlan.userIds) delete v.userIds
     if (!deps.salesKinds || !t.commissionPlan.salesKind) delete v.salesKind
+    if (!deps.salesRepAutoEarn || !t.commissionPlan.measuredOn) delete v.measuredOn
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
@@ -251,7 +274,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const parsed = planShape.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const data = parsed.data
-    const refusal = autoRefusal(data.planType, data.autoEarn)
+    const refusal = autoRefusal(data.planType, data.autoEarn) || measuredRefusal(data.measuredOn, data.autoEarn)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, data.userIds)
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
@@ -275,7 +298,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!existing) return c.json({ error: 'Commission plan not found' }, 404)
     const nextType = parsed.data.planType ?? existing.planType
     const nextAuto = parsed.data.autoEarn ?? existing.autoEarn
-    const refusal = autoRefusal(nextType, nextAuto)
+    const refusal = autoRefusal(nextType, nextAuto) || measuredRefusal(parsed.data.measuredOn ?? existing.measuredOn, nextAuto)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, parsed.data.userIds, Array.isArray(existing.userIds) ? existing.userIds : [])
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
