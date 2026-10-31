@@ -264,3 +264,28 @@ describe('earlier triggers and draws (row 3)', () => {
     root.unmount()
   })
 })
+
+describe('the job on every line (row 4)', () => {
+  test('the earnings table and the statement show the job number on each line, and a dash where there is none', async () => {
+    const lines = [
+      { id: 'c1', userName: 'Rita Seat', userId: 'u1', jobId: 'j1', jobNumber: 'JOB-00042', baseAmount: '10000', rateApplied: '8', commissionAmount: '800', earnedAt: '2026-10-30T12:00:00', status: 'pending', source: 'auto' },
+      { id: 'c2', userName: 'Rita Seat', userId: 'u1', jobId: null, jobNumber: null, baseAmount: '0', rateApplied: null, commissionAmount: '25', earnedAt: '2026-10-30T12:00:00', status: 'pending', source: 'manual' },
+    ]
+    const { api } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/commissions': { data: lines },
+      '/api/company/users': { data: [{ id: 'u1', firstName: 'Rita', lastName: 'Seat', isActive: true, role: 'field' }] },
+      '/api/commissions/statement': { person: { id: 'u1', name: 'Rita Seat' }, from: null, to: null, lines, totals: { pending: 825, approved: 0, paid: 0, disputed: 0, owed: 825 } },
+    })
+    const root = await mount(api)
+    const heads = Array.from(document.querySelectorAll('th')).map((th) => th.textContent)
+    expect(heads).toContain('Job')
+    const rows = Array.from(document.querySelectorAll('tbody tr')).map((tr) => tr.textContent || '')
+    expect(rows.some((r) => r.includes('JOB-00042'))).toBe(true)
+    await click(tab('Statements'))
+    await click(Array.from(document.querySelectorAll('button')).find((b) => /^(Show|Run|View|Load)/.test((b.textContent || '').trim())))
+    expect(Array.from(document.querySelectorAll('th')).filter((th) => th.textContent === 'Job').length).toBeGreaterThan(0)
+    expect(text()).toContain('JOB-00042')
+    root.unmount()
+  })
+})

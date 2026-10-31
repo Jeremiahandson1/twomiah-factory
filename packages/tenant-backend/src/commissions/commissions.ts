@@ -371,6 +371,14 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   })
 
   // ── earnings ─────────────────────────────────────────────────────────────────────────────────────────
+  /** The number of each line's job, so a line reads "J-1042" and not just a name and an amount (a tenant whose jobs have no number gets none). */
+  const withJobNumbers = async (companyId: string, rows: any[]) => {
+    const ids = [...new Set(rows.map((r) => r.jobId).filter(Boolean))] as string[]
+    if (!ids.length || !t.job?.number) return rows.map((r) => ({ ...r, jobNumber: null }))
+    const jobs = await db.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(eq(t.job.companyId, companyId), inArray(t.job.id, ids)))
+    const numberOf = new Map((jobs as any[]).map((j) => [j.id, j.number ?? null]))
+    return rows.map((r) => ({ ...r, jobNumber: r.jobId ? numberOf.get(r.jobId) ?? null : null }))
+  }
   /**
    * The list, with the earner's NAME. The page printed the first eight characters of a user id, which
    * told an owner nothing about who was owed what. Without commissions:read you see only your own.
@@ -393,7 +401,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
           .from(t.user).where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, ids)))
       : []
     const nameOf = Object.fromEntries(people.map((p: any) => [p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email]))
-    return c.json({ data: rows.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })) })
+    const numbered = await withJobNumbers(currentUser.companyId, rows)
+    return c.json({ data: numbered.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })) })
   })
 
   /**
@@ -574,7 +583,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     return c.json({
       person: { id: person.id, name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email },
       from: fromQ || null, to: toQ || null,
-      lines: lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void'),
+      lines: await withJobNumbers(companyId, lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void')),
       totals: { ...totals, owed: cents(totals.pending + totals.approved) },
     })
   })

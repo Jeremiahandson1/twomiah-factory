@@ -116,7 +116,7 @@ const JOB_ROLE_CARD_WORDS: Record<string, string> = {
 /** A plan that pays someone on the job when the job is paid (the server's COMMISSION_AUTO_EARN_JOB_ROLES). */
 const paysJobRole = (autoEarn: unknown) => typeof autoEarn === 'string' && autoEarn in JOB_ROLE_CARD_WORDS
 const SALON_AUTO_WORDS: Record<string, string> = { none: 'No — record each one by hand', visit_stylist: 'Yes — the stylist of the visit, when its bill is paid in full' }
-const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded' }
+const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded', draw: 'Draw in advance' }
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const blankRecord = { userId: '', planId: '', invoiceId: '', jobId: '', baseAmount: '', commissionAmount: '', notes: '' }
 /** Where a commission can still be voided or moved to another person: not yet paid out, and not already cancelled. */
@@ -346,8 +346,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     if (!statement) return
     const w = window.open('', '_blank')
     if (!w) { toast.error('Allow pop-ups for this site to print the statement'); return }
-    const rows = statement.lines.map((l: any) => `<tr><td>${esc(instantDay(l.earnedAt))}</td><td>${esc(SOURCE_WORDS[l.source] || l.source)}</td><td>${esc(l.notes || '')}</td><td class="n">${esc(money(l.baseAmount))}</td><td class="n">${esc(money(l.commissionAmount))}</td><td>${esc(l.status)}</td></tr>`).join('')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Commission statement — ${esc(statement.person.name)}</title><style>body{font:14px system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 16px;color:#444}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}td.n,th.n{text-align:right}tfoot td{font-weight:600}</style></head><body><h1>Commission statement — ${esc(statement.person.name)}</h1><p>${esc(statement.from || 'From the start')} to ${esc(statement.to || 'today')}</p><table><thead><tr><th>Earned</th><th>How</th><th>Note</th><th class="n">Worked out on</th><th class="n">Commission</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No commissions in this period.</td></tr>'}</tbody><tfoot><tr><td colspan="4">Paid</td><td class="n">${esc(money(statement.totals.paid))}</td><td></td></tr><tr><td colspan="4">Approved, not yet paid</td><td class="n">${esc(money(statement.totals.approved))}</td><td></td></tr><tr><td colspan="4">Pending approval</td><td class="n">${esc(money(statement.totals.pending))}</td><td></td></tr><tr><td colspan="4">Owed</td><td class="n">${esc(money(statement.totals.owed))}</td><td></td></tr></tfoot></table><script>window.onload=function(){window.print()}<\/script></body></html>`)
+    const rows = statement.lines.map((l: any) => `<tr><td>${esc(instantDay(l.earnedAt))}</td><td>${esc(l.jobNumber || '')}</td><td>${esc(SOURCE_WORDS[l.source] || l.source)}</td><td>${esc(l.notes || '')}</td><td class="n">${esc(money(l.baseAmount))}</td><td class="n">${esc(money(l.commissionAmount))}</td><td>${esc(l.status)}</td></tr>`).join('')
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Commission statement — ${esc(statement.person.name)}</title><style>body{font:14px system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 16px;color:#444}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}td.n,th.n{text-align:right}tfoot td{font-weight:600}</style></head><body><h1>Commission statement — ${esc(statement.person.name)}</h1><p>${esc(statement.from || 'From the start')} to ${esc(statement.to || 'today')}</p><table><thead><tr><th>Earned</th><th>Job</th><th>How</th><th>Note</th><th class="n">Worked out on</th><th class="n">Commission</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No commissions in this period.</td></tr>'}</tbody><tfoot><tr><td colspan="5">Paid</td><td class="n">${esc(money(statement.totals.paid))}</td><td></td></tr><tr><td colspan="5">Approved, not yet paid</td><td class="n">${esc(money(statement.totals.approved))}</td><td></td></tr><tr><td colspan="5">Pending approval</td><td class="n">${esc(money(statement.totals.pending))}</td><td></td></tr><tr><td colspan="5">Owed</td><td class="n">${esc(money(statement.totals.owed))}</td><td></td></tr></tfoot></table><script>window.onload=function(){window.print()}<\/script></body></html>`)
     w.document.close()
   }
 
@@ -378,13 +378,14 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               <p className="text-sm text-gray-600 dark:text-slate-400">{statement.from || 'From the start'} to {statement.to || 'today'}</p>
             </div>
             <table className="w-full min-w-[560px]">
-              <thead><tr className="text-left text-xs font-semibold uppercase text-gray-600 dark:text-slate-300"><th className="px-4 py-2">Earned</th><th className="px-4 py-2">How</th><th className="px-4 py-2">Commission</th><th className="px-4 py-2">Status</th></tr></thead>
+              <thead><tr className="text-left text-xs font-semibold uppercase text-gray-600 dark:text-slate-300"><th className="px-4 py-2">Earned</th><th className="px-4 py-2">Job</th><th className="px-4 py-2">How</th><th className="px-4 py-2">Commission</th><th className="px-4 py-2">Status</th></tr></thead>
               <tbody>
                 {statement.lines.length === 0
-                  ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-600 dark:text-slate-400">No commissions in this period.</td></tr>
+                  ? <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-600 dark:text-slate-400">No commissions in this period.</td></tr>
                   : statement.lines.map((l: any) => (
                     <tr key={l.id} className="border-t border-gray-100 dark:border-slate-800">
                       <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{instantDay(l.earnedAt)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{l.jobNumber || '—'}</td>
                       <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{SOURCE_WORDS[l.source] || l.source}{l.notes ? <span className="block text-xs text-gray-600 dark:text-slate-400">{l.notes}</span> : null}</td>
                       <td className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-slate-100">{money(l.commissionAmount)}</td>
                       <td className="px-4 py-2"><StatusBadge status={l.status} /></td>
@@ -463,18 +464,19 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200 dark:bg-slate-800 dark:border-slate-700">
               <tr className="text-left text-xs font-semibold uppercase text-gray-600 dark:text-slate-300">
-                <th className="px-4 py-3">Person</th><th className="px-4 py-3">Worked out on</th><th className="px-4 py-3">Rate</th>
+                <th className="px-4 py-3">Person</th><th className="px-4 py-3">Job</th><th className="px-4 py-3">Worked out on</th><th className="px-4 py-3">Rate</th>
                 <th className="px-4 py-3">Commission</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
               {records.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-600 dark:text-slate-400">
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-600 dark:text-slate-400">
                   {mayCreate ? 'No commissions yet. Record one when a job or invoice earns it.' : 'No commissions recorded for you yet.'}
                 </td></tr>
               ) : records.map((r) => (
                 <tr key={r.id} className="border-b border-gray-100 dark:border-slate-800">
                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{r.userName || 'Former team member'}{r.source && r.source !== 'manual' && <span className="block text-xs text-gray-600 dark:text-slate-400">{SOURCE_WORDS[r.source] || r.source}</span>}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{r.jobNumber || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{money(r.baseAmount)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{r.rateApplied ? `${Number(r.rateApplied)}%` : '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-slate-100">{money(r.commissionAmount)}</td>
