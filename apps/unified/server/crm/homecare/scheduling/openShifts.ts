@@ -23,6 +23,8 @@ import {
   approveClaims, reopenShift, cancelPosting, eligibleForShift, personPhone, recordShiftNotice,
   markNotified, claimsForShift, caregiversForSuggestions, clientForSuggestions,
 } from '../../../data/homecareScheduling.ts'
+import { seriesPostings } from '../../../data/homecareOpenOffers.ts'
+import { eligibleToTell } from './openShiftEligibility.ts'
 import { caregiverFit, doNotUseOf } from '../core/caregiverFit.ts'
 import { HttpError, isCaregiver, who, type SchedulingShared } from './shared.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
@@ -47,7 +49,13 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
    * asked) a text from the agency's own number. Returns who was really reached — a caller never says "sent" for a count
    * it did not deliver. POST /:id/notify (the office picks) and POST /:id/broadcast (everyone eligible) both use it.
    */
-  async function tellCaregivers(companyId: string, s: any, caregiverIds: string[], opts: { customMessage?: string; sms?: boolean }) {
+  async function tellCaregivers(companyId: string, s: any, caregiverIds: string[], opts: { customMessage?: string; sms?: boolean; email?: boolean }) {
+    // care_open_shift_offers: every channel honours each person's notification settings and every message is kept in the outbox.
+    if (await core.openShiftOffers.enabled(companyId)) {
+      const visits = s.seriesId ? (await seriesPostings(db, companyId, s.seriesId)).filter((x: any) => x.status === 'open').length : null
+      const r = await core.openShiftOffers.send(companyId, { ...s, seriesVisits: visits }, caregiverIds, { channels: ['app', 'push', ...(opts.sms ? ['sms' as const] : []), ...(opts.email ? ['email' as const] : [])], customMessage: opts.customMessage })
+      return r
+    }
     const bonus = parseFloat(s.bonusAmount) > 0 ? ` (+$${Number(s.bonusAmount).toFixed(2)} bonus)` : ''
     const title = `Open Shift: ${s.clientFirst || ''} ${s.clientLast || ''}`.trim()
     const base = `${fmtDay(s.shiftDate)} ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}${bonus}. Open the app to claim it.`
@@ -97,7 +105,10 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
   app.get('/available', perm('care-schedule:read'), async (c) => {
     const { user, companyId, me } = who(c)
     const today = await core.time.today(companyId)
-    return asList(c, await availableOpenShifts(db, companyId, today, me, !isCaregiver(d, user)))
+    const rows = await availableOpenShifts(db, companyId, today, me, !isCaregiver(d, user))
+    // care_open_shift_offers: what the agency lets caregivers see, how far ahead, and not what they declined or hid or let expire.
+    if (isCaregiver(d, user) && await core.openShiftOffers.enabled(companyId)) return asList(c, await core.openShiftOffers.visibleFor(companyId, me, rows))
+    return asList(c, rows)
   })
 
   // GET /api/open-shifts — the office's board. ?status=open (default) | active (open + claimed) | all | <status>
@@ -167,28 +178,43 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     if (!os) return fail(c, 400, 'Shift is no longer available')
     if (Array.isArray(os.visibleTo) && !os.visibleTo.includes(caregiverId)) return fail(c, 403, 'This shift was not offered to you')
 
-    const noCert = (await core.certReminders.blockedFor(companyId, [caregiverId], os.shiftDate))[caregiverId]
-    if (noCert?.length) return fail(c, 409, `You cannot take this shift: your ${noCert.join(', ')} has expired. Send the office the renewed copy.`, 'credential_expired')
+    // care_open_shift_offers: the answer-by time has passed; and a series offered together is taken together.
+    const offers = await core.openShiftOffers.enabled(companyId)
+    if (offers && os.respondBy && (await core.openShiftOffers.nowLocal(companyId)) > `${os.respondBy}:00`) return fail(c, 409, 'The time to answer this offer has passed.', 'offer_expired')
+    const targets: any[] = offers && os.seriesId
+      ? (await seriesPostings(db, companyId, os.seriesId)).filter((x: any) => x.status === 'open').map((x: any) => (x.id === os.id ? os : { ...os, id: x.id, shiftDate: x.shiftDate, startTime: x.startTime, endTime: x.endTime, scheduleId: x.scheduleId, autoAssign: x.autoAssign }))
+      : [os]
 
-    // A visit they already have at that time — recurring visits included, cancelled ones not.
-    if (await hasOverlap(db, companyId, caregiverId, os.shiftDate, os.startTime, os.endTime, true)) return fail(c, 400, 'You have a conflicting shift at this time')
+    const noCert = await core.certReminders.blockedFor(companyId, [caregiverId], targets.map((t) => t.shiftDate).sort()[0])
+    if (noCert[caregiverId]?.length) return fail(c, 409, `You cannot take this shift: your ${noCert[caregiverId].join(', ')} has expired. Send the office the renewed copy.`, 'credential_expired')
 
-    // First tap wins; a second caregiver is told it's gone.
+    // A visit they already have at that time — recurring visits included, cancelled ones not. For a series, every date is checked first.
+    const clashes: string[] = []
+    for (const t of targets) if (await hasOverlap(db, companyId, caregiverId, t.shiftDate, t.startTime, t.endTime, true)) clashes.push(fmtDay(t.shiftDate))
+    if (clashes.length) return fail(c, 400, targets.length > 1 ? `You have a conflicting shift on ${clashes.join(', ')}, so you cannot take this series.` : 'You have a conflicting shift at this time')
+
+    // First tap wins; a second caregiver is told it's gone. For a series the tapped visit decides; the rest follow it.
     if (!(await claimOpenShift(db, companyId, id, caregiverId))) return fail(c, 409, 'Someone else just took this shift')
-    await insertClaim(db, companyId, id, caregiverId, b.notes || null)
+    const claimed: any[] = [os]
+    for (const t of targets.filter((x) => x.id !== os.id)) if (await claimOpenShift(db, companyId, t.id, caregiverId)) claimed.push(t)
+    for (const t of claimed) await insertClaim(db, companyId, t.id, caregiverId, b.notes || null)
 
     const person = await personName(db, companyId, caregiverId)
     const cl = os.clientId ? await clientName(db, companyId, os.clientId) : null
-    const what = `${fmtDay(os.shiftDate)} ${fmtHm(os.startTime)}–${fmtHm(os.endTime)} with ${clientShort(cl?.firstName, cl?.lastName)}`
+    const what = claimed.length > 1
+      ? `${claimed.length} visits with ${clientShort(cl?.firstName, cl?.lastName)}, ${fmtDay(claimed[0].shiftDate)} to ${fmtDay(claimed[claimed.length - 1].shiftDate)}`
+      : `${fmtDay(os.shiftDate)} ${fmtHm(os.startTime)}–${fmtHm(os.endTime)} with ${clientShort(cl?.firstName, cl?.lastName)}`
     const name = `${person?.firstName || ''} ${person?.lastName || ''}`.trim() || 'A caregiver'
 
     if (os.autoAssign) {
       try {
-        await shared.assignShift(companyId, os, caregiverId, os.createdById || caregiverId)
-        await markFilled(db, companyId, id, os.createdById || null)
-        await approveClaims(db, companyId, id, caregiverId)
+        for (const t of claimed) {
+          await shared.assignShift(companyId, t, caregiverId, os.createdById || caregiverId)
+          await markFilled(db, companyId, t.id, os.createdById || null)
+          await approveClaims(db, companyId, t.id, caregiverId)
+        }
         await core.notify.notifyAdmins(companyId, 'open_shift_filled', `Open shift filled: ${name}`, `${name} accepted the open shift ${what}. It is on their schedule now.`)
-        return one(c, { success: true, assigned: true, message: `It's yours — ${what} is on your schedule.` })
+        return one(c, { success: true, assigned: true, visits: claimed.length, message: `It's yours — ${what} ${claimed.length > 1 ? 'are' : 'is'} on your schedule.` })
       } catch (e: any) {
         // Couldn't place it (e.g. the visit was cancelled meanwhile) — leave it claimed for the office.
         await core.notify.notifyAdmins(companyId, 'open_shift_claimed', `Open shift needs you: ${name}`,
@@ -197,7 +223,7 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
       }
     }
     await core.notify.notifyAdmins(companyId, 'open_shift_claimed', `Open shift accepted: ${name}`, `${name} wants the open shift ${what}. Approve it in Schedule Hub → Staffing → Open Shifts.`)
-    return one(c, { success: true, assigned: false, message: 'Shift claimed - pending approval' })
+    return one(c, { success: true, assigned: false, visits: claimed.length, message: claimed.length > 1 ? `Series claimed (${claimed.length} visits) - pending approval` : 'Shift claimed - pending approval' })
   })
 
   // POST /api/open-shifts/:id/approve — the office approves the claim
@@ -262,35 +288,21 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     return one(c, { success: true, openShiftId: s.id, assignedTo: caregiverId, authWarnings: warnings })
   })
 
-  /** The caregivers this shift's client and day rule out (core/caregiverFit.ts — the auto-fill and suggestion rule). */
-  const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const unfitFor = async (companyId: string, s: any): Promise<Set<string>> => {
-    const date = String(s.shiftDate).slice(0, 10)
-    const cgs = await caregiversForSuggestions(db, companyId, WEEKDAYS[new Date(`${date}T12:00:00Z`).getUTCDay()], date)
-    const dnu = doNotUseOf(s.clientId ? await clientForSuggestions(db, companyId, s.clientId) : null)
-    return new Set(cgs.filter((cg: any) => caregiverFit(cg, dnu, s.startTime, s.endTime).blocks.length).map((cg: any) => String(cg.id)))
-  }
-
   // POST /api/open-shifts/:id/broadcast { sms?, customMessage? } — tell every caregiver who could take the shift: active, free at
   // that time, and (when the posting was offered to chosen caregivers only) one of those. Each gets an in-app notice and a
   // phone push; sms:true also texts them. The reply counts who was really reached, and a posting nobody was told about is
   // never marked broadcast.
   app.post('/:id/broadcast', perm('care-schedule:update'), async (c) => {
     const { companyId } = who(c)
-    const { customMessage, sms } = await c.req.json().catch(() => ({})) as any
+    const { customMessage, sms, email } = await c.req.json().catch(() => ({})) as any
     const s = await openShiftWithClient(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Shift not found')
     if (s.status !== 'open') return fail(c, 409, `Shift is ${s.status}, not open`)
     // The same rule auto-fill and the suggestions use (core/caregiverFit.ts): nobody on this client's do-not-use list, on time
     // off, marked unavailable, or outside the days and hours they work is told (10/30, owner's follow-up to PR #172).
-    const blocked = await unfitFor(companyId, s)
-    const all = await eligibleForShift(db, companyId, s)
-    // Nobody with an expired credential is told when the agency blocks them (Credential settings › Block).
-    const noCert = await core.certReminders.blockedFor(companyId, all.map((r) => String(r.id)), s.shiftDate)
-    const eligible = all
-      .filter((r) => !r.hasConflict && !blocked.has(String(r.id)) && !noCert[String(r.id)] && (!Array.isArray(s.visibleTo) || s.visibleTo.includes(r.id)))
+    const eligible = await eligibleToTell(core, d, companyId, s)
     if (eligible.length === 0) return fail(c, 409, 'No caregiver is free for this shift, so nobody was told.', 'nobody_to_tell')
-    const r = await tellCaregivers(companyId, s, eligible.map((e) => e.id), { customMessage, sms: sms === true })
+    const r = await tellCaregivers(companyId, s, eligible.map((e) => e.id), { customMessage, sms: sms === true, email: email === true })
     if (r.notified === 0) return fail(c, 502, 'The notices could not be delivered, so nobody was told. Try again.', 'not_delivered')
     const texts = r.texted ? ` and texted ${r.texted}` : ''
     return one(c, { success: true, message: `Told ${r.notified} caregiver${r.notified === 1 ? '' : 's'}${texts}`, notified: r.notified, texted: r.texted, total: r.total, caregiverCount: r.notified })
@@ -312,14 +324,14 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
   // nobody who never subscribed, so a text is how they find out).
   app.post('/:id/notify', perm('care-schedule:update'), async (c) => {
     const { companyId } = who(c)
-    const { caregiverIds, customMessage, sms } = await c.req.json().catch(() => ({})) as any
+    const { caregiverIds, customMessage, sms, email } = await c.req.json().catch(() => ({})) as any
     if (!Array.isArray(caregiverIds) || caregiverIds.length === 0) return fail(c, 400, 'caregiverIds is required and must be a non-empty array')
     const s = await openShiftWithClient(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Shift not found')
     const noCert = await core.certReminders.blockedFor(companyId, caregiverIds.map(String), s.shiftDate)
     const allowed = caregiverIds.map(String).filter((id) => !noCert[id])
     if (allowed.length === 0) return fail(c, 409, 'Every caregiver chosen has an expired credential, so nobody was told.', 'credential_expired')
-    const r = await tellCaregivers(companyId, s, allowed, { customMessage, sms: !!sms })
+    const r = await tellCaregivers(companyId, s, allowed, { customMessage, sms: !!sms, email: !!email })
     return one(c, { success: true, ...r, skippedForCredential: caregiverIds.length - allowed.length })
   })
 

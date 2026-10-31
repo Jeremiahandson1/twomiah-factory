@@ -558,7 +558,7 @@ const OS_COLS = sql.raw(`
   to_char(os.start_time, 'HH24:MI:SS') AS start_time, to_char(os.end_time, 'HH24:MI:SS') AS end_time,
   os.status, os.notes, os.urgency, os.care_type_id, os.hourly_rate, COALESCE(os.bonus_amount, 0) AS bonus_amount,
   os.source_absence_id, os.notified_caregiver_count, os.auto_created, os.broadcast_sent,
-  os.visible_to, os.auto_assign,
+  os.visible_to, os.auto_assign, to_char(os.respond_by, 'YYYY-MM-DD"T"HH24:MI') AS respond_by, os.series_id,
   os.claimed_by_id, os.claimed_by_id AS claimed_by, os.claimed_at,
   os.approved_by_id, os.approved_by_id AS approved_by, os.approved_at,
   os.created_by_id, os.created_by_id AS created_by, os.created_at, os.updated_at`)

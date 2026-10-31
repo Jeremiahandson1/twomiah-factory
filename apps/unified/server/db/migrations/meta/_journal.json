@@ -428,6 +428,13 @@
       "when": 1793474431615,
       "tag": "0060_care_family_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793475549846,
+      "tag": "0061_care_open_shift_offers",
+      "breakpoints": true
     }
   ]
 }

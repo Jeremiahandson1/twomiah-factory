@@ -34,6 +34,7 @@ import { createVisitSignature } from './visitSignature.ts'
 import { createTaskReport } from './taskReport.ts'
 import { createFamilyContent } from './familyContent.ts'
 import { createPickupRewards } from './pickupRewards.ts'
+import { createOpenShiftOffers } from './openShiftOffers.ts'
 import { createFamilyTexts } from './familyTexts.ts'
 import { createFamilyComms, wordingProblem } from './familyComms.ts'
 import { createAlertRules } from './alertRules.ts'
@@ -130,6 +131,7 @@ function buildHomecareCore(d: CrmDeps) {
   const taskReport = createTaskReport(d, { time })
   const familyContent = createFamilyContent(d, { time, taskReport, offlineSaves })
   const pickupRewards = createPickupRewards(d, { time })
+  const openShiftOffers = createOpenShiftOffers(d, { time, notify, prefs, agencyName: (companyId: string) => profile.agencyShortName(companyId) })
   const familyComms = createFamilyComms(d, { notify, profile })
   const familyTexts = createFamilyTexts(d, { time, notify, profile, comms: familyComms })
   const alertRules = createAlertRules(d, { wordingProblem })
@@ -146,7 +148,7 @@ function buildHomecareCore(d: CrmDeps) {
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
     invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
+    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

@@ -395,9 +395,13 @@ export const openShifts = pgTable('open_shifts', {
   // The caregivers the office offered it to (NULL = everyone); the first of them to accept gets it.
   visibleTo: text('visible_to').array(),
   autoAssign: boolean('auto_assign').default(false).notNull(),
+  // care_open_shift_offers: answer by this time (after it the posting is "Expired" for caregivers); the series a whole-series offer belongs to.
+  respondBy: timestamp('respond_by'),
+  seriesId: text('series_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
+  index('open_shifts_series_idx').on(t.seriesId),
   index('open_shifts_company_id_idx').on(t.companyId),
   index('open_shifts_date_idx').on(t.date),
   index('open_shifts_status_idx').on(t.status),
@@ -415,6 +419,36 @@ export const openShiftNotifications = pgTable('open_shift_notifications', {
   index('open_shift_notifications_company_id_idx').on(t.companyId),
   uniqueIndex('open_shift_notifications_shift_caregiver_idx').on(t.openShiftId, t.caregiverId),
   index('open_shift_notifications_open_shift_id_idx').on(t.openShiftId),
+])
+
+// care_open_shift_offers — a caregiver's answer to an offer that is not "take it": declined (with a reason) or hidden from their list.
+export const openShiftResponse = pgTable('open_shift_response', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  response: text('response').notNull(), // declined | hidden
+  reason: text('reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('open_shift_response_shift_caregiver_idx').on(t.openShiftId, t.caregiverId),
+  index('open_shift_response_company_idx').on(t.companyId),
+])
+
+// The outbox: one row per message tried (shift, caregiver, channel), with where it went and how it ended. A resend writes new rows.
+export const openShiftMessage = pgTable('open_shift_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(), // app | push | sms | email
+  target: text('target'), // the phone number or address it went to ('the app' for an app notice)
+  status: text('status').notNull(), // delivered | sent | failed | skipped
+  detail: text('detail'), // why it failed or was skipped, in words
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('open_shift_message_shift_idx').on(t.openShiftId, t.createdAt),
+  index('open_shift_message_company_idx').on(t.companyId),
 ])
 
 export const absences = pgTable('absences', {

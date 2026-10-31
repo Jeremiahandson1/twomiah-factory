@@ -327,3 +327,27 @@ export function timeOffBody(start: string, end: string, type: string, reason: st
 export function rewardAffordText(balance: number, cost: number): string {
   return balance >= cost ? `${cost} points` : `${cost} points — ${cost - balance} more to go`
 }
+
+// ── Open shifts: turning one down, the answer-by time, a series (row 17, care_open_shift_offers) ─────────────
+
+/** Why a decline is not ready, in plain words — or null. "Another reason" needs the caregiver's own words. */
+export function declineProblem(reason: string | null, note: string): string | null {
+  if (!reason) return 'Pick why you are turning this shift down.'
+  if (reason === 'other' && !note.trim()) return 'Write the reason.'
+  return null
+}
+export function declineBody(reason: string, note: string): { reason: string; note?: string } {
+  return { reason, ...(note.trim() ? { note: note.trim() } : {}) }
+}
+/** "Answer by Mon, Nov 2 at 5:00 PM" from the agency's wall time ('YYYY-MM-DDTHH:MM[:SS]'), or null when there is none. */
+export function answerByText(respondBy: string | null | undefined, fmtDay: (ymd: string) => string, fmtTime: (hm: string) => string): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(respondBy || ''))
+  return m ? `Answer by ${fmtDay(m[1])} at ${fmtTime(m[2])}` : null
+}
+/** The words on the button and in the confirm for one shift or a series offered together. */
+export function takeText(seriesVisits: number | null | undefined): { button: string; confirm: string } {
+  const n = Number(seriesVisits) || 0
+  return n > 1
+    ? { button: `Take all ${n} visits`, confirm: `This offer is one of ${n} visits offered together. Taking it takes all ${n}.` }
+    : { button: 'Take this shift', confirm: '' }
+}
