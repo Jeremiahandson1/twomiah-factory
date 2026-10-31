@@ -320,7 +320,7 @@ export default function IntegrationsHub() {
           {mayPayroll && (
             <Card style={{ borderLeft: '4px solid var(--hc-primary)' }}>
               {/* It told the owner to add the Gusto key to the server — a setting no owner can reach, for a push the server
-                  refuses (/api/gusto/export answers 501). What the owner CAN do is the CSV, every pay period (live test,
+                  refuses (there is no push: the old /api/gusto/export answered 501 and was removed). What the owner CAN do is the CSV, every pay period (live test,
                   2026-10-22). No setting names on this page. */}
               <div className="mb-1.5 text-[0.85rem] font-bold">💰 Gusto Payroll</div>
               <Badge status="active" label="CSV export" />

@@ -26,6 +26,15 @@ import { createMedicationsOnFile } from './medicationsOnFile.ts'
 import { createVitals } from './vitals.ts'
 import { createShiftReminders } from './shiftReminders.ts'
 import { createOvertimeAlerts } from './overtimeAlerts.ts'
+import { createCertReminders } from './certReminders.ts'
+import { createFamilyTexts } from './familyTexts.ts'
+import { createRequiredTasks } from './requiredTasks.ts'
+import { createSupervisory } from './supervisory.ts'
+import { createMargin } from './margin.ts'
+import { createCsvImport } from './csvImport.ts'
+import { createAutopay } from './autopay.ts'
+import { createLtc } from './ltc.ts'
+import { createOfflineSaves } from './offlineSaves.ts'
 import { createVisitJobs } from './visitJobs.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
@@ -89,6 +98,9 @@ function buildHomecareCore(d: CrmDeps) {
   const invoices = createInvoiceEngine(d, { time })
   const claims = createClaimsEngine(d)
   const payroll = createPayrollPay(d)
+  const margin = createMargin(d, { invoices })
+  const csvImport = createCsvImport(d, { time })
+  const ltc = createLtc(d)
 
   // Hiring and onboarding.
   const staffEmails = createStaffEmails(d, { profile })
@@ -99,7 +111,13 @@ function buildHomecareCore(d: CrmDeps) {
   // Background work (started by startJobs, never here).
   const reminders = createShiftReminders(d, { time, notify })
   const overtime = createOvertimeAlerts(d, { time, profile, notify })
-  const visitJobs = createVisitJobs(d, { reminders, overtime })
+  const certReminders = createCertReminders(d, { time, notify })
+  const autopay = createAutopay(d, { invoices, time, notify, email })
+  const offlineSaves = createOfflineSaves(d, { time, notify })
+  const familyTexts = createFamilyTexts(d, { time, notify, profile })
+  const requiredTasks = createRequiredTasks(d, { time })
+  const supervisory = createSupervisory(d, { time })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, autopay })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -108,9 +126,9 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll,
+    invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, worcsPoll,
+    reminders, overtime, certReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

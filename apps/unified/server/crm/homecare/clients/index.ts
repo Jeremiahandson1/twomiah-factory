@@ -24,6 +24,7 @@ import { createEmergencyRoutes } from './emergency.ts'
 import { createServiceCodeRoutes } from './serviceCodes.ts'
 import { createReferralSourceRoutes } from './referralSources.ts'
 import { createProspectRoutes, createProspectAppointmentRoutes } from './prospects.ts'
+import { createSupervisoryVisitRoutes } from './supervisoryVisits.ts'
 
 export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   const access = createClientAccess(core, d)
@@ -42,6 +43,7 @@ export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/emergency', access: 'user', router: createEmergencyRoutes(core, d, access) },
     { path: '/api/service-codes', access: 'user', router: createServiceCodeRoutes(d) },
     { path: '/api/referral-sources', access: 'user', router: createReferralSourceRoutes(d) },
+    { path: '/api/supervisory-visits', access: 'user', feature: 'care_supervisory_visits', router: createSupervisoryVisitRoutes(core, d, access) },
     { path: '/api/prospects', access: 'user', router: createProspectRoutes(core, d) },
     { path: '/api/prospect-appointments', access: 'user', router: createProspectAppointmentRoutes(d) },
   ]

@@ -22,7 +22,7 @@
 // camelCase. Its buttons were the office's (requireAdmin); here adding a relative and replying need care-portal:create,
 // the rest care-portal:update, both sides.
 import { useEffect, useState, type FormEvent } from 'react'
-import { usePermissions, usePrompt, useToast } from '../../../../shared'
+import { useAuth, usePermissions, usePrompt, useToast } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
@@ -45,6 +45,7 @@ interface Member {
   phone: string | null
   isActive: boolean
   isPrimaryContact: boolean | null
+  visitTextOptIn?: boolean | null
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
@@ -84,11 +85,45 @@ const RELATIONSHIP_COLOURS: Record<string, string> = {
   other: '#616161',
 }
 
+/** The hours when no arrival text goes out (the agency's own clock). GET/PUT /api/family-portal/admin/family-texts. */
+function QuietHours() {
+  const toast = useToast()
+  const [start, setStart] = useState('21:00')
+  const [end, setEnd] = useState('08:00')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    api.get('/api/family-portal/admin/family-texts').then((r: any) => {
+      const h = r?.data ?? r
+      if (h?.quietHoursStart) setStart(h.quietHoursStart)
+      if (h?.quietHoursEnd) setEnd(h.quietHoursEnd)
+    }).catch(() => { /* keeps the defaults shown */ })
+  }, [])
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.put('/api/family-portal/admin/family-texts', { quietHoursStart: start, quietHoursEnd: end })
+      toast.success('Quiet hours saved')
+    } catch (error) { toast.error(errorMessage(error, 'Could not save the quiet hours')) } finally { setSaving(false) }
+  }
+  return (
+    <div className="hc-card" style={{ marginBottom: '1rem' }}>
+      <h4 style={{ marginTop: 0 }}>Arrival texts: quiet hours</h4>
+      <p style={{ color: 'var(--hc-muted)', marginTop: 0 }}>No arrival or departure text is sent between these times (your agency's clock). A text held back is not sent later.</p>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="form-group" style={{ margin: 0 }}><label>Quiet from</label><input type="time" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+        <div className="form-group" style={{ margin: 0 }}><label>until</label><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+        <button className="hc-btn hc-btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  )
+}
+
 export default function FamilyPortalAdmin() {
   const toast = useToast()
   const prompt = usePrompt()
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
+  const showQuietHours = useAuth().hasFeature('care_family_texts') && can('care-portal:update')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<FamilyMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -272,6 +307,8 @@ export default function FamilyPortalAdmin() {
         <h2>👨‍👩‍👧 Family Portal Management</h2>
         {mayCreate && <button className="hc-btn hc-btn-primary" onClick={() => setShowAddModal(true)}>+ Add Family Member</button>}
       </div>
+
+      {showQuietHours && <QuietHours />}
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '1rem' }}>
         <div className="hc-stat-card">
@@ -658,6 +695,7 @@ const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'othe
 interface EditPatch {
   name: string; phone: string; relationship: string
   canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean; isPrimaryContact: boolean
+  visitTextOptIn: boolean
 }
 
 function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubmit: (patch: EditPatch) => Promise<void>; onCancel: () => void }) {
@@ -671,7 +709,9 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canViewMedications: !!member.canViewMedications,
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
+    visitTextOptIn: !!member.visitTextOptIn,
   })
+  const textsOn = useAuth().hasFeature('care_family_texts')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -716,6 +756,15 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
           Primary contact for this client
         </label>
       </div>
+      {textsOn && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input type="checkbox" checked={form.visitTextOptIn} onChange={(e) => setForm({ ...form, visitTextOptIn: e.target.checked })} />
+            Text them when the caregiver arrives and when they leave
+          </label>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. No texts between 9 PM and 8 AM; they can reply STOP at any time.</small>
+        </div>
+      )}
       <div className="modal-actions">
         <button type="button" className="hc-btn hc-btn-secondary" onClick={onCancel}>Cancel</button>
         <button type="submit" className="hc-btn hc-btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>

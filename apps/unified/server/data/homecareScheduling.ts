@@ -475,7 +475,8 @@ export async function caregiverHoursSplit(q: Q, companyId: string, caregiverId: 
 /** The client a suggestion is for: care type, position, preferred and do-not-use caregivers. */
 export async function clientForSuggestions(q: Q, companyId: string, clientId: string): Promise<any | null> {
   return camelFirst(await q.execute(sql`SELECT c.id, c.first_name, c.last_name, c.care_type_id, c.latitude, c.longitude,
-      c.preferred_caregivers, c.do_not_use_caregivers, ct.name AS care_type_name
+      c.preferred_caregivers, c.do_not_use_caregivers, c.required_skills, c.preferred_caregiver_gender, c.preferred_language,
+      ct.name AS care_type_name
     FROM clients c LEFT JOIN care_types ct ON c.care_type_id = ct.id AND ct.company_id = ${companyId}
     WHERE c.id = ${clientId} AND c.company_id = ${companyId}`)) ?? null
 }
@@ -486,6 +487,7 @@ const DAY_COLS = new Set(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'
 export async function caregiversForSuggestions(q: Q, companyId: string, dayCol: string | null, date: string | null): Promise<any[]> {
   if (dayCol && !DAY_COLS.has(dayCol)) throw new Error(`bad day: ${dayCol}`)
   return camelRows(await q.execute(sql`SELECT u.id, u.first_name, u.last_name, u.phone, u.default_pay_rate, u.latitude, u.longitude,
+      cp.capabilities, cp.gender, cp.languages,
       ca.status AS availability_status, ca.max_hours_per_week,
       ${dayCol ? sql.raw(`ca.${dayCol}_available`) : sql`NULL::boolean`} AS day_available,
       ${dayCol ? sql.raw(`to_char(ca.${dayCol}_start_time, 'HH24:MI')`) : sql`NULL::text`} AS day_start_time,
@@ -493,6 +495,7 @@ export async function caregiversForSuggestions(q: Q, companyId: string, dayCol: 
       EXISTS (SELECT 1 FROM caregiver_time_off t WHERE t.company_id = ${companyId} AND t.caregiver_id = u.id AND ${date}::date IS NOT NULL
                AND (t.status = 'approved' OR t.type = 'blackout') AND t.start_date <= ${date}::date AND t.end_date >= ${date}::date) AS is_blacked_out
     FROM "user" u LEFT JOIN caregiver_availability ca ON u.id = ca.caregiver_id AND ca.company_id = ${companyId}
+      LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = u.id AND cp.company_id = ${companyId}
     WHERE u.company_id = ${companyId} AND ${IS_CAREGIVER()} AND u.is_active = true ORDER BY u.first_name`))
 }
 
@@ -521,13 +524,6 @@ export async function openShiftsToFill(q: Q, companyId: string, start: string, e
     FROM open_shifts os JOIN clients cl ON os.client_id = cl.id AND cl.company_id = ${companyId}
     WHERE os.company_id = ${companyId} AND os.status = 'open' AND os.date >= ${start}::date AND os.date <= ${end}::date AND os.start_time IS NOT NULL
     ORDER BY CASE os.urgency WHEN 'critical' THEN 0 WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, os.date, os.start_time`))
-}
-
-/** Active caregivers not marked unavailable, with position and cap (auto-fill). */
-export async function caregiversForAutoFill(q: Q, companyId: string): Promise<any[]> {
-  return camelRows(await q.execute(sql`SELECT u.id, u.first_name, u.last_name, u.latitude, u.longitude, ca.max_hours_per_week
-    FROM "user" u LEFT JOIN caregiver_availability ca ON u.id = ca.caregiver_id AND ca.company_id = ${companyId}
-    WHERE u.company_id = ${companyId} AND ${IS_CAREGIVER()} AND u.is_active = true AND (ca.status IS NULL OR ca.status <> 'unavailable')`))
 }
 
 // ══ Authorization advice (helpers/authorizationCheck.ts) ═════════════════════════════════════════════════════════
@@ -716,11 +712,6 @@ export async function reopenShift(q: Q, companyId: string, id: string, reason: s
 export async function cancelPosting(q: Q, companyId: string, id: string): Promise<boolean> {
   return rowsOf(await q.execute(sql`UPDATE open_shifts SET status = 'cancelled', updated_at = NOW()
     WHERE id = ${id} AND company_id = ${companyId} AND status IN ('open', 'claimed') RETURNING id`)).length > 0
-}
-
-/** Mark a posting broadcast. */
-export async function markBroadcast(q: Q, companyId: string, id: string): Promise<void> {
-  await q.execute(sql`UPDATE open_shifts SET broadcast_sent = true, updated_at = NOW() WHERE id = ${id} AND company_id = ${companyId}`)
 }
 
 /** Every active caregiver for a posting: busy at its time (its own schedule aside), already told about it. */

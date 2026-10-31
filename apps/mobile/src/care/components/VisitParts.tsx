@@ -16,6 +16,7 @@ import { ACTION_INK, OVERLAY_INK } from '../../theme/actions'
 import { useToast } from '../../components/ToastProvider'
 import { useCare } from '../CareContext'
 import { careGet, carePost, carePut, asList } from '../careApi'
+import { useOfflineApi } from '../../offline/useOfflineApi'
 import { isOfflineId } from '../offlinePunches'
 import { formatClock } from '../time'
 import { Banner, Button, Card, Field, SectionTitle, useTone } from '../ui'
@@ -35,6 +36,8 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
   const tone = useTone(s.tone)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(task.notes || '')
+  // A REQUIRED task (care_required_tasks) can only be skipped with a reason: Skip opens the note, and saving it skips.
+  const [skipping, setSkipping] = useState(false)
   // GET /api/care-tasks/time-entry/:id rows (data/homecareClients.ts shiftChecklist): { taskId, taskName, description,
   // category, allottedMinutes, cadence, status, notes, doneThisWeek }
   const weeklyDone = task.cadence === 'weekly' && task.doneThisWeek && task.status !== 'completed'
@@ -43,7 +46,7 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
       <View style={styles.taskHead}>
         <Ionicons name={s.icon as any} size={20} color={task.status === 'pending' ? t.textSecondary : tone.text} />
         <View style={{ flex: 1 }}>
-          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.taskName}</Text>
+          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.taskName}{task.isRequired ? '  · Required' : ''}</Text>
           <Text style={[styles.taskMeta, { color: task.status === 'pending' ? t.textSecondary : tone.text }]}>
             {[task.category ? String(task.category).toUpperCase() : null, task.allottedMinutes > 0 ? `${task.allottedMinutes} min` : null, weeklyDone ? 'done earlier this week' : null].filter(Boolean).join(' · ')}
           </Text>
@@ -54,13 +57,13 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
       {task.notes && !noteOpen ? <Text style={[styles.taskDesc, { color: task.status === 'pending' ? t.text : tone.text }]}>Note: {task.notes}</Text> : null}
       {noteOpen ? (
         <View style={{ marginTop: 8 }}>
-          <Field label="Note" value={note} onChangeText={setNote} multiline placeholder="What happened with this task?" />
-          <Button small label="Save note" onPress={async () => { await onSet(task.status, note); setNoteOpen(false) }} />
+          <Field label={skipping ? 'Why are you skipping it? (required)' : 'Note'} value={note} onChangeText={setNote} multiline placeholder={skipping ? 'The office needs the reason' : 'What happened with this task?'} />
+          <Button small label={skipping ? 'Mark skipped' : 'Save note'} disabled={skipping && !note.trim()} onPress={async () => { await onSet(skipping ? 'skipped' : task.status, note); setNoteOpen(false); setSkipping(false) }} />
         </View>
       ) : (
         <View style={styles.taskActions}>
           {task.status !== 'completed' && <Button small variant="success" label="Done" icon="checkmark" onPress={() => onSet('completed', task.notes)} />}
-          {task.status !== 'skipped' && <Button small variant="secondary" label="Skip" onPress={() => onSet('skipped', task.notes)} />}
+          {task.status !== 'skipped' && <Button small variant="secondary" label="Skip" onPress={() => { if (task.isRequired) { setSkipping(true); setNoteOpen(true) } else onSet('skipped', task.notes) }} />}
           {task.status !== 'refused' && <Button small variant="secondary" label="Refused" onPress={() => onSet('refused', task.notes)} />}
           {task.status !== 'pending' && <Button small variant="ghost" label="Undo" onPress={() => onSet('pending', task.notes)} />}
           <Button small variant="ghost" label={task.notes ? 'Edit note' : 'Note'} onPress={() => setNoteOpen(true)} />
@@ -84,10 +87,17 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
   }, [timeEntryId, offline])
   useEffect(() => { load() }, [load])
 
+  // A tick made with no signal is kept on the phone and sent later (src/offline), with the time it was tapped; the server's
+  // Idempotency-Key guard makes a resend harmless. Shown as waiting, never as done (10/30, home care PR #172 item 4).
+  const queue = useOfflineApi()
   const setStatus = async (taskId: string, status: string, notes?: string | null) => {
-    const r = await carePut(`/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, { status, notes: notes ?? null })
-    if (r.ok) setItems((prev) => (prev || []).map((x) => (x.taskId === taskId ? { ...x, status, notes: notes ?? x.notes } : x)))
-    else toast.error(r.error || 'Could not save that task.')
+    const task = (items || []).find((x) => x.taskId === taskId)
+    const r = await queue.put(`/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, { status, notes: notes ?? null, savedAt: new Date().toISOString() },
+      { recordKey: `visit:${timeEntryId}`, label: `${task?.taskName || 'Task'} · ${status.replace('_', ' ')}` })
+    if (r.ok) {
+      setItems((prev) => (prev || []).map((x) => (x.taskId === taskId ? { ...x, status, notes: notes ?? x.notes } : x)))
+      if (r.queued) toast.info('Saved on your phone. It will be sent when you have signal.')
+    } else toast.error(r.error || 'Could not save that task.')
   }
 
   if (offline) return <Banner tone="neutral" icon="cloud-offline-outline">The task checklist opens once this visit reaches the office (it is saved on your phone for now).</Banner>
@@ -127,6 +137,7 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
   const t = useTheme()
   const okTone = useTone('success')
   const toast = useToast()
+  const queue = useOfflineApi()
   const [meds, setMeds] = useState<any[] | null>(null)
   const [logs, setLogs] = useState<any[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -146,14 +157,17 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
   const record = async (med: any, status: string) => {
     if (offline) { toast.warning('No signal — medications can be recorded once this visit reaches the office.'); return }
     setBusy(med.id)
-    const r = await carePost('/api/medications/log', { medicationId: med.id, clientId, timeEntryId, status })
+    const name = med.medicationName || med.name
+    const r = await queue.post('/api/medications/log', { medicationId: med.id, clientId, timeEntryId, status, savedAt: new Date().toISOString() },
+      { recordKey: `visit:${timeEntryId}`, label: `${name} · ${status.replace('_', ' ')}` })
     setBusy(null)
-    if (r.ok) { toast.success(`${med.medicationName || med.name}: ${status.replace('_', ' ')}`); load() }
+    if (r.ok && r.queued) toast.info(`${name}: saved on your phone. It will be sent when you have signal.`)
+    else if (r.ok) { toast.success(`${name}: ${status.replace('_', ' ')}`); load() }
     else toast.error(r.error || 'Could not record that.')
   }
   return (
     <View>
-      <SectionTitle>Medications (MAR)</SectionTitle>
+      <SectionTitle>Medicine list & dose log</SectionTitle>
       {meds.map((med) => {
         // GET /api/medications/due/:clientId → { id, medicationName, name, dosage, route, frequency, instructions, isPrn };
         // GET /api/medications/logs/time-entry/:id → { medicationId, status, administeredTime, administeredAt }.

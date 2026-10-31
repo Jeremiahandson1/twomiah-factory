@@ -17,6 +17,8 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
+import { MATCH_PREFS_FEATURE, matchTraits, splitList } from '../core/matchTraits.ts'
+import { caregiverFit, doNotUseOf } from '../core/caregiverFit.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { hms, schedTs, shiftHours, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -25,7 +27,7 @@ import {
   hoursByCaregiver, maxHoursOf, activeCaregivers, weekOccurrences, occurrenceHours, caregiverCapacity, activeClientUnits,
   conflictHeatmapRows, caregiverOverlaps, personName, clientPosition, dayVisitsElsewhere, caregiverHoursSplit,
   clientForSuggestions, caregiversForSuggestions, visitCountsForClient, busyCaregiverIds, hasOverlap, insertSchedule,
-  openShiftsToFill, caregiversForAutoFill, visitCountsByClient, markFilled,
+  openShiftsToFill, visitCountsByClient, markFilled,
 } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, weekStartOf, who, type SchedulingShared } from './shared.ts'
 
@@ -213,22 +215,24 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       ? await busyCaregiverIds(db, companyId, validDate, hms(startTime)!, hms(endTime)!)
       : [])
     const preferred = new Set((Array.isArray(client.preferredCaregivers) ? client.preferredCaregivers : []).map(String))
-    const dnu = new Set((Array.isArray(client.doNotUseCaregivers) ? client.doNotUseCaregivers : []).map(String))
-    const toMin = (t: any) => { if (!t) return null; const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0) }
-    const sMin = toMin(startTime), eMin = toMin(endTime)
+    const dnu = doNotUseOf(client)
+    // A caregiver whose credential has expired by that day is flagged (never hidden): the office decides.
+    const expired = await core.certReminders.expiredFor(companyId, cgs.map((cg) => String(cg.id)), validDate || await core.time.today(companyId))
+    // What the client needs (skills, a gender, a language) against what each caregiver has — only for an agency with care_match_prefs.
+    const matchPrefs = await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE)
 
     const ranked = cgs.map((cg) => {
       const weeklyHours = weekly[cg.id] || 0
       const maxHours = Number(cg.maxHoursPerWeek) || 40
       const visitCount = history[cg.id] || 0
       const hasConflict = conflictIds.has(cg.id)
-      const isAvailable = cg.availabilityStatus !== 'unavailable'
+      const fit = caregiverFit(cg, dnu, startTime, endTime)
+      const isAvailable = !fit.markedUnavailable
       const wouldExceedHours = weeklyHours + hours > maxHours
       const approachingOvertime = weeklyHours > 35
       const distance = distanceMiles(cg.latitude, cg.longitude, client.latitude, client.longitude)
-      const isPreferred = preferred.has(String(cg.id)), isDnu = dnu.has(String(cg.id)), isBlackedOut = cg.isBlackedOut === true
-      const aS = toMin(cg.dayStartTime), aE = toMin(cg.dayEndTime)
-      const timeFits = aS != null && aE != null && sMin != null && eMin != null ? (sMin >= aS && eMin <= aE) : null
+      const isPreferred = preferred.has(String(cg.id)), isDnu = fit.doNotUse, isBlackedOut = fit.timeOff
+      const timeFits = fit.timeFits
       let score = 100
       if (isDnu) score -= 1000
       if (isBlackedOut) score -= 1000
@@ -239,8 +243,12 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       score -= (weeklyHours / maxHours) * 20
       if (wouldExceedHours) score -= 50
       if (approachingOvertime) score -= 10
+      const expiredCertifications = expired[String(cg.id)] || []
+      if (expiredCertifications.length) score -= 150
+      const traits = matchPrefs ? matchTraits(client, cg) : null
+      if (traits) score += traits.scoreDelta
       if (distance !== null) { if (distance <= 5) score += 20; else if (distance <= 10) score += 10; else if (distance <= 20) score += 5; else if (distance > 30) score -= 15 }
-      if (dayCol) { if (cg.dayAvailable === false) score -= 50; else if (timeFits === true) score += 15; else if (timeFits === false) score -= 20 }
+      if (dayCol) { if (fit.notThatDay) score -= 50; else if (timeFits === true) score += 15; else if (timeFits === false) score -= 20 }
       const reasons: string[] = []
       if (isDnu) reasons.push('🚫 Client do-not-use list')
       if (isBlackedOut) reasons.push('🚫 PTO/blackout on this date')
@@ -248,11 +256,13 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       if (visitCount > 5) reasons.push(`✓ Familiar (${visitCount} visits)`)
       else if (visitCount > 0) reasons.push(`${visitCount} prior visits`)
       if (hasConflict) reasons.push('⚠️ Conflicting shift')
+      for (const e of expiredCertifications) reasons.push(`⚠️ Expired credential: ${e}`)
+      if (traits) reasons.push(...traits.reasons)
       if (!isAvailable) reasons.push('⚠️ Marked unavailable')
       if (wouldExceedHours) reasons.push('⚠️ Exceeds max hours')
       else if (approachingOvertime) reasons.push(`⚠️ ${weeklyHours.toFixed(0)}h this week`)
       else if (weeklyHours < 20) reasons.push('✓ Has availability')
-      if (dayCol && cg.dayAvailable === false) reasons.push(`⚠️ Not available ${dayMap[dow!]}s`)
+      if (dayCol && fit.notThatDay) reasons.push(`⚠️ Not available ${dayMap[dow!]}s`)
       else if (timeFits === true) reasons.push('✓ Time fits availability window')
       else if (timeFits === false) reasons.push('⚠️ Outside availability window')
       if (distance !== null) {
@@ -263,10 +273,12 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const tier = score >= 130 ? 'excellent' : score >= 100 ? 'good' : score >= 60 ? 'maybe' : 'avoid'
       return { ...cg, weeklyHours: weeklyHours.toFixed(2), maxHours, visitCount, hasConflict, isAvailable, isPreferred, isDnu, isBlackedOut,
         wouldExceedHours, approachingOvertime, distance: distance !== null ? distance.toFixed(1) : null, estimatedDriveTime: distance !== null ? Math.round(distance * 2) : null,
-        hasRequiredSkills: true, missingCertifications: [], score: Math.round(score), tier, reasons }
+        hasRequiredSkills: traits ? traits.hasRequiredSkills : true, missingSkills: traits ? traits.missingSkills : [],
+        genderOk: traits ? traits.genderOk : null, languageOk: traits ? traits.languageOk : null,
+        missingCertifications: [], expiredCertifications, score: Math.round(score), tier, reasons }
     })
     const out = (c.req.query('includeBlocked') === 'true' ? ranked : ranked.filter((x) => !x.isDnu && !x.isBlackedOut)).sort((a, b) => b.score - a.score)
-    return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [] })
+    return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [], requiredSkills: matchPrefs ? splitList(client.requiredSkills) : [] })
   })
 
   // POST /bulk-create { caregiverId, clientId, template: [{dayOfWeek,startTime,endTime}], weeks, startDate, notes }
@@ -305,7 +317,19 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
     const dryRun = !!b.dryRun
     const shifts = await openShiftsToFill(db, companyId, start, end)
     if (!shifts.length) return one(c, { success: true, message: 'No open shifts to fill', filled: 0, failed: 0, results: [] })
-    const cgs = await caregiversForAutoFill(db, companyId)
+    // Who is on time off, free that weekday and inside their hours depends on the shift's own day, so each day is read once; the client's
+    // do-not-use list once per client. The same rule (core/caregiverFit.ts) the suggestion list uses decides who may not be offered.
+    const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const byDay = new Map<string, any[]>()
+    const clientCache = new Map<string, any>()
+    const caregiversOn = async (date: string) => {
+      if (!byDay.has(date)) byDay.set(date, await caregiversForSuggestions(db, companyId, dayMap[new Date(`${date}T12:00:00Z`).getUTCDay()], date))
+      return byDay.get(date)!
+    }
+    const dnuOf = async (clientId: string) => {
+      if (!clientCache.has(clientId)) clientCache.set(clientId, doNotUseOf(await clientForSuggestions(db, companyId, clientId)))
+      return clientCache.get(clientId)!
+    }
     const ws = weekStartOf(start)
     const weekly = await hoursByCaregiver(db, companyId, ws, addDays(ws, 6))
     const hist = await visitCountsByClient(db, companyId)
@@ -316,7 +340,10 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const h = shiftHours(sh.startTime, sh.endTime)
       const busy = new Set(await busyCaregiverIds(db, companyId, sh.shiftDate, sh.startTime, sh.endTime))
       const auth = await shared.checkAuthorizationBalance(companyId, sh.clientId, h)
-      const scored = cgs.map((cg) => {
+      const dnu = await dnuOf(sh.clientId)
+      const scored = (await caregiversOn(sh.shiftDate)).map((cg) => {
+        const fit = caregiverFit(cg, dnu, sh.startTime, sh.endTime)
+        if (fit.blocks.length) return { ...cg, score: -1000, disqualified: true, reason: fit.blocks[0] }
         const max = Number(cg.maxHoursPerWeek) || 40
         const projected = (weekly[cg.id] || 0)
         const conflict = busy.has(cg.id) || placed.some((a) => a.caregiverId === cg.id && a.date === sh.shiftDate && !(a.e <= sh.startTime || a.s >= sh.endTime))

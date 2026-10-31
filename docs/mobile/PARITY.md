@@ -407,11 +407,11 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Scheduling | Shift Approvals | `/crm/shift-approvals` | evv:delete | — (core) | owner, admin, manager | none | C |
 | Scheduling | Route Optimizer | `/crm/route-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
 | Scheduling | Company Optimizer | `/crm/company-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
-| Clinical | ADL Tracking | `/crm/adl` | care-clients:update | — (core) | owner, admin, manager | none | C |
-| Clinical | Medications | `/crm/medications` | care-clients:update | — (core) | owner, admin, manager | none | C |
-| Clinical | Visit Documentation | `/crm/visit-docs` | evv:delete | — (core) | owner, admin, manager | none | A — home care visits and shifts |
-| Clinical | Incidents | `/crm/incidents` | care-compliance:read | — (core) | owner, admin, manager | Report an incident (More) | C |
-| Clinical | Form Builder | `/crm/form-builder` | care-clients:update | — (core) | owner, admin, manager | none | D — account and set-up administration |
+| Daily care | ADL Tracking | `/crm/adl` | care-clients:update | — (core) | owner, admin, manager | none | C |
+| Daily care | Medicine list & dose log | `/crm/medications` | care-clients:update | — (core) | owner, admin, manager | none | C |
+| Daily care | Visit Documentation | `/crm/visit-docs` | evv:delete | — (core) | owner, admin, manager | none | A — home care visits and shifts |
+| Daily care | Incidents | `/crm/incidents` | care-compliance:read | — (core) | owner, admin, manager | Report an incident (More) | C |
+| Daily care | Form Builder | `/crm/form-builder` | care-clients:update | — (core) | owner, admin, manager | none | D — account and set-up administration |
 | Caregivers | Caregivers | `/crm/caregivers` | care-hr:read or care-office:read | — (core) | owner, admin, manager, viewer | none | C |
 | Caregivers | Performance | `/crm/performance` | care-hr:read | — (core) | owner, admin | none | C |
 | Caregivers | Job Applications | `/crm/applications` | care-hr:read | — (core) | owner, admin | none | C |

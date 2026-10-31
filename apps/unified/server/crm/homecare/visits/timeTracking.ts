@@ -93,8 +93,11 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     else if (caregiverId) conditions.push(eq(timeEntries.caregiverId, caregiverId))
     if (clientId) conditions.push(eq(timeEntries.clientId, clientId))
     if (isComplete !== undefined) conditions.push(eq(timeEntries.isComplete, isComplete === 'true'))
-    if (startDate) conditions.push(gte(timeEntries.startTime, new Date(startDate)))
-    if (endDate) conditions.push(lte(timeEntries.startTime, new Date(new Date(endDate).setHours(23, 59, 59))))
+    // A day is the agency's own day (midnight to midnight in its zone). The filter used to cut at UTC midnight (start) and at 23:59:59 in the
+    // server's zone (end), so for a Central agency a visit at 8 PM on the end date, or one at 7 PM the evening before the start date, landed on the wrong side.
+    const span = await core.time.range(companyId, startDate, endDate)
+    if (span.from) conditions.push(gte(timeEntries.startTime, span.from))
+    if (span.before) conditions.push(lt(timeEntries.startTime, span.before))
     const whereClause = and(...conditions)
 
     const [entries, [{ value: total }]] = await Promise.all([
@@ -449,6 +452,8 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     // EVV: does this visit go to Sandata (weekly EVV allowance)? Decided after the punch is saved and capped, so it never
     // blocks the clock-in; null = no answer, and the app prompts as before.
     const sandataRequired = await core.evvVisits.recordSandataDecision(companyId, entry.id, entry.clientId, entry.startTime.toISOString())
+    // The relatives who asked are told she has arrived (not waited for: the text never delays the punch).
+    void core.familyTexts.onClockEvent(companyId, entry, 'clock_in', at)
     return one(c, { ...entry, sandataRequired }, 201)
   })
 
@@ -475,8 +480,23 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     if (endAt && endAt < entry.startTime) endAt = entry.startTime
     const end = endAt || new Date()
 
+    // Required tasks (care_required_tasks): a live clock-out waits until each is done, or skipped / refused with a
+    // reason. A clock-out saved on the phone while offline is already a fact, so it is recorded and flagged for the
+    // office instead of being refused when it finally arrives.
+    const openRequired = await core.requiredTasks.pendingFor(companyId, entry)
+    if (openRequired.length && !endAt) {
+      const names = openRequired.map((t) => t.taskName)
+      // fields: task id → task name, so a screen can point at the exact rows still open.
+      return fail(c, 409,
+        `Finish the required task${names.length === 1 ? '' : 's'} before clocking out: ${names.join(', ')}. Mark ${names.length === 1 ? 'it' : 'each'} done, or skip it and say why.`,
+        'required_tasks_pending', Object.fromEntries(openRequired.map((t) => [t.taskId, t.taskName])))
+    }
+
     const dec = decideBilling({ durationSeconds: (end.getTime() - entry.startTime.getTime()) / 1000, allottedMinutes: entry.allottedMinutes, isPrivatePay: isPrivate(payer) })
-    const flag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
+    const baseFlag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
+    const flag = openRequired.length
+      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}`].filter(Boolean).join(' · ') }
+      : baseFlag
     const outLoc = latitude && longitude
       ? (endAt ? { lat: latitude, lng: longitude, source: 'offline', captured_at: endAt.toISOString() } : { lat: latitude, lng: longitude })
       : (b.clockOutLocation || null)
@@ -510,6 +530,8 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     } catch (e: any) { d.logger.error('[clock-out] breadcrumb backfill', { error: e?.message }) }
 
     await onVisitClosed(companyId, entry.id)
+    // …and that she has finished.
+    void core.familyTexts.onClockEvent(companyId, updated, 'clock_out', end)
     // The clock-in's Sandata decision is on the row (sandataRequired), so the clock-out prompt matches it.
     return one(c, updated)
   }
@@ -656,7 +678,14 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
 
   app.post('/:id/photos', requirePermission('evv:create'), async (c) => {
     const { user: u, companyId, me } = who(c)
-    const { imageBase64, caption, category } = await c.req.json().catch(() => ({})) as any
+    const { imageBase64, caption, category, takenAt } = await c.req.json().catch(() => ({})) as any
+    // Item 4 (care_offline_saves): a photo saved on the phone without signal keeps the time it was taken.
+    let taken: Date | null = null
+    if (takenAt !== undefined && await core.offlineSaves.enabled(companyId)) {
+      const t = core.offlineSaves.savedTime(takenAt)
+      if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+      taken = t.at
+    }
     if (!imageBase64 || !String(imageBase64).startsWith('data:image')) return fail(c, 400, 'imageBase64 (data URI) is required')
     if (String(imageBase64).length > MAX_PHOTO_CHARS) return fail(c, 400, 'Photo too large — keep under ~5MB raw')
     const te = await entryOwner(companyId, c.req.param('id'))
@@ -669,7 +698,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     const [p] = await db.insert(visitPhotos).values({
       companyId, timeEntryId: c.req.param('id'), caregiverId: te.caregiverId, clientId: te.clientId,
       caption: caption ? String(caption).slice(0, 200) : null, category: category ? String(category).slice(0, 40) : null,
-      imageBase64: String(imageBase64), imageSize: Math.floor(String(imageBase64).length * 0.75),
+      imageBase64: String(imageBase64), imageSize: Math.floor(String(imageBase64).length * 0.75), ...(taken ? { takenAt: taken } : {}),
     }).returning({ id: visitPhotos.id, caption: visitPhotos.caption, category: visitPhotos.category, takenAt: visitPhotos.takenAt, imageSize: visitPhotos.imageSize })
     return one(c, p, 201)
   })

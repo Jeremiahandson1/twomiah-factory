@@ -12,8 +12,11 @@
 //
 // Change: the company's reviews, caregivers and rates only (companyId first).
 import { payableReviewWeeks, caregiverPayRates, reviewCountWithStatus } from '../../../data/homecarePayroll.ts'
+import { payableVisits, type PayableVisit } from '../../../data/homecarePayRules.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { OT_WEEKLY_HOURS as WEEKLY_CAP, workweekStartOn, companyWorkWeek } from '../../payrollExport/workWeek.ts'
+import { addDays } from './agencyTime.ts'
+import { OVERTIME_RULES, buildSegments, classifyWeek, createPayRules, type PayRules } from './payRules.ts'
 
 export const PAYABLE_REVIEW_STATUSES = ['verified', 'approved', 'manual_entry'] as const
 export const UNRESOLVED_REVIEW_STATUSES = ['pending', 'flagged', 'missing_punch'] as const
@@ -51,15 +54,74 @@ export interface PayrollLine {
   regularHours: number
   overtimeHours: number
   weekendHours: number
+  /** Item 2 (care_payroll_rules): double time and paid travel. Zero for an agency without it; travel hours are already inside the hours above. */
+  doubleTimeHours: number
+  doubleTimePay: number
+  travelHours: number
   baseRate: number
   otRate: number
   regularPay: number
   overtimePay: number
   grossPay: number
-  weeks: { weekStart: string; hours: number; regularHours: number; overtimeHours: number }[]
+  weeks: { weekStart: string; hours: number; regularHours: number; overtimeHours: number; doubleTimeHours?: number }[]
 }
 
 export function createPayrollPay(d: CrmDeps) {
+  const payRules = createPayRules(d)
+
+  /**
+   * The pay run under the agency's own overtime rule and travel pay (item 2). Visits are read for whole work weeks so a daily or
+   * 7th-day rule sees the days either side of the range; only the days inside the range are paid.
+   */
+  async function payrollWithRules(companyId: string, startDate: string, endDate: string, rules: PayRules, startDay: number, cg: string | null, multiplier: number, threshold: number): Promise<PayrollLine[]> {
+    const rule = OVERTIME_RULES[rules.overtimeRule]
+    const wkStart = workweekStartOn(startDate, startDay)
+    const wkEnd = addDays(workweekStartOn(endDate, startDay), 6)
+    const visits = await payableVisits(d.db, companyId, wkStart, wkEnd, PAYABLE_REVIEW_STATUSES, cg)
+    if (!visits.length) return []
+    const inRange = (date: string) => date >= startDate && date <= endDate
+    const ids = [...new Set(visits.map((v) => v.caregiverId))]
+    const people = await caregiverPayRates(d.db, companyId, ids, endDate)
+    const byId = new Map(people.map((p) => [String(p.id), p]))
+
+    const lines: PayrollLine[] = []
+    for (const id of ids) {
+      const mine = visits.filter((v) => v.caregiverId === id)
+      const byWeek = new Map<string, PayableVisit[]>()
+      for (const v of mine) { const w = workweekStartOn(v.shiftDate, startDay); byWeek.set(w, [...(byWeek.get(w) ?? []), v]) }
+      let reg = 0, ot = 0, dt = 0, travel = 0, weekend = 0, shifts = 0
+      const weeks: PayrollLine['weeks'] = []
+      for (const [weekStart, wk] of [...byWeek.entries()].sort()) {
+        const classified = classifyWeek(buildSegments(wk, rules.travel), rule, Math.round(threshold * 60)).filter((s) => inRange(s.date))
+        if (!classified.length) continue
+        const w = { reg: 0, ot: 0, dt: 0 }
+        for (const s of classified) {
+          w.reg += s.regular; w.ot += s.overtime; w.dt += s.doubleTime
+          if (s.kind === 'travel') travel += s.minutes
+          else { shifts++; const dow = new Date(`${s.date}T12:00:00Z`).getUTCDay(); if (dow === 0 || dow === 6) weekend += s.minutes }
+        }
+        reg += w.reg; ot += w.ot; dt += w.dt
+        weeks.push({ weekStart, hours: hours2(w.reg + w.ot + w.dt), regularHours: hours2(w.reg), overtimeHours: hours2(w.ot), doubleTimeHours: hours2(w.dt) })
+      }
+      if (reg + ot + dt === 0) continue
+      const p: any = byId.get(id) || {}
+      const baseRate = Number(p.baseRate ?? p.defaultPayRate ?? FALLBACK_PAY_RATE) || FALLBACK_PAY_RATE
+      const baseCents = cents(baseRate)
+      const otCents = p.overtimeRate != null && Number.isFinite(Number(p.overtimeRate)) ? cents(Number(p.overtimeRate)) : Math.round(baseCents * multiplier)
+      const dtCents = baseCents * 2
+      const regularPayCents = payCents(reg, baseCents), overtimePayCents = payCents(ot, otCents), doubleTimePayCents = payCents(dt, dtCents)
+      lines.push({
+        caregiverId: id, firstName: p.firstName ?? null, lastName: p.lastName ?? null, email: p.email ?? null,
+        shifts, totalHours: hours2(reg + ot + dt), regularHours: hours2(reg), overtimeHours: hours2(ot), weekendHours: hours2(weekend),
+        doubleTimeHours: hours2(dt), doubleTimePay: doubleTimePayCents / 100, travelHours: hours2(travel),
+        baseRate: baseCents / 100, otRate: otCents / 100,
+        regularPay: regularPayCents / 100, overtimePay: overtimePayCents / 100,
+        grossPay: (regularPayCents + overtimePayCents + doubleTimePayCents) / 100, weeks,
+      })
+    }
+    return lines.sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+  }
+
   /**
    * The pay for every caregiver of the company with payable reviews between `startDate` and `endDate` (inclusive,
    * YYYY-MM-DD), or one caregiver's. Sorted by last name, first name.
@@ -72,6 +134,9 @@ export function createPayrollPay(d: CrmDeps) {
     const cg = opts.caregiverId || null
 
     const { startDay } = await companyWorkWeek(d.db, companyId)
+    // Item 2: an agency with care_payroll_rules is paid by its own overtime rule and travel pay; every other agency, as ever.
+    const rules = await payRules.forCompany(companyId)
+    if (rules) return payrollWithRules(companyId, startDate, endDate, rules, startDay, cg, multiplier, threshold)
     const weeks = await payableReviewWeeks(d.db, companyId, startDate, endDate, PAYABLE_REVIEW_STATUSES, cg, startDay)
     if (!weeks.length) return []
 
@@ -98,6 +163,9 @@ export function createPayrollPay(d: CrmDeps) {
         regularHours: hours2(split.regularMinutes),
         overtimeHours: hours2(split.overtimeMinutes),
         weekendHours: hours2(mine.reduce((s, w) => s + Number(w.weekendMinutes), 0)),
+        doubleTimeHours: 0,
+        doubleTimePay: 0,
+        travelHours: 0,
         baseRate: baseCents / 100,
         otRate: otCents / 100,
         regularPay: regularPayCents / 100,
@@ -117,7 +185,7 @@ export function createPayrollPay(d: CrmDeps) {
     return reviewCountWithStatus(d.db, companyId, startDate, endDate, UNRESOLVED_REVIEW_STATUSES, caregiverId)
   }
 
-  return { payrollForRange, unresolvedReviewCount }
+  return { payrollForRange, unresolvedReviewCount, payRules }
 }
 
 export type PayrollPay = ReturnType<typeof createPayrollPay>

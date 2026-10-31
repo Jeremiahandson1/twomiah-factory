@@ -37,7 +37,8 @@ import { Link } from 'react-router-dom'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useAuth, usePrompt, useToast } from '../../../../shared'
 import { usePolling } from '../lib/usePolling'
-import { isBiweeklyOn, toYMD } from '../lib/biweekly'
+import { toYMD } from '../lib/biweekly'
+import { isRepeatOn } from '../lib/repeats'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
 import { formatDate, parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDate, formatAgencyDateTime, agencyWall, agencyToday, agencyTodayDate } from '../lib/agencyClock'
@@ -640,7 +641,7 @@ const CaregiverDashboard = () => {
     const ymd = toYMD(parseLocalDate(targetDate))!
     if (schedule.effectiveDate && ymd < String(schedule.effectiveDate).slice(0, 10)) return false
     if (schedule.endDate && ymd > String(schedule.endDate).slice(0, 10)) return false
-    if (schedule.frequency === 'biweekly' && schedule.anchorDate && !isBiweeklyOn(ymd, schedule.anchorDate)) return false
+    if (schedule.anchorDate && !isRepeatOn(ymd, schedule.frequency, schedule.anchorDate)) return false
     if (isSuspendedOn(schedule, ymd)) return false
     return true
   }
@@ -847,6 +848,12 @@ const CaregiverDashboard = () => {
         // VA client with no note: keep the modal open so they can add one and retry.
         if (data.code === 'va_note_required') {
           setNoteError(data.error || 'A visit note is required for this client.')
+          return
+        }
+        // Required tasks still open (care_required_tasks): say which, and leave the visit open to finish them.
+        if (data.code === 'required_tasks_pending') {
+          setShowNoteModal(false)
+          say(data.error || 'Finish the required tasks before clocking out.', 'error')
           return
         }
         throw new Error(data.error || 'Failed')

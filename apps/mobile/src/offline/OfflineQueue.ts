@@ -14,7 +14,7 @@ export type { NewItem, QueueItem, QueueStatus, ItemView, Refusal, Method } from 
 /**
  * The API client throws when the request never gets an answer (fetch rejects offline) and answers with the status when
  * it does. 0 means "no answer". `Idempotency-Key` is the item's id, the same on every try — the server may use it to
- * recognise a repeat; it does not yet (see README › Known limits).
+ * recognise a repeat, and does: the server keeps the first answer and replays it (apps/unified server/http/savedOnce.ts, 10/30).
  */
 const send: Sender = async ({ id, method, path, body }) => {
   try {

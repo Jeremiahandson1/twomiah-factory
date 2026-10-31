@@ -3,7 +3,7 @@
 // insurer's assessment PDF (the formats this agency's state uses), or pasted as JSON; "What's getting done" shows each
 // task's completions over the last 7/30/90 days. (server/crm/homecare/clients/careTasks.ts: rows are camelCase.)
 import { useState, useEffect } from 'react'
-import { useConfirm } from '../../../../shared'
+import { useAuth, useConfirm } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDate } from '../lib/agencyClock'
 import type { Client } from './shared'
@@ -29,6 +29,7 @@ export interface CareTask {
   daysOfWeek?: string | null
   timeOfDay?: string | null
   cadence?: string | null
+  isRequired?: boolean
   assessmentSource?: string | null
   timesPerWeek: number
   minutesPerWeek: number
@@ -44,6 +45,7 @@ interface TaskForm {
   daysOfWeek: string
   timeOfDay: string
   cadence: string
+  isRequired: boolean
 }
 
 interface AssessmentFormat { id: string; label: string; insurer: string; portal: string }
@@ -77,7 +79,7 @@ interface Adherence {
 }
 
 // Number inputs hold what was typed; they are checked when the task is saved.
-const emptyForm: TaskForm = { taskName: '', description: '', category: 'iadl', allottedMinutes: '15', weeklyFrequency: '1', daysOfWeek: '', timeOfDay: 'any', cadence: 'daily' }
+const emptyForm: TaskForm = { taskName: '', description: '', category: 'iadl', allottedMinutes: '15', weeklyFrequency: '1', daysOfWeek: '', timeOfDay: 'any', cadence: 'daily', isRequired: false }
 
 const inp = 'px-2 py-2 rounded-md border text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 
@@ -85,6 +87,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
   // Each control for whoever the server lets use it (care-clients create / update / delete) (lib/useMay.ts).
   const may = useMay('care-clients')
   const confirm = useConfirm()
+  const requiredOn = useAuth().hasFeature('care_required_tasks')
   const [tasks, setTasks] = useState<CareTask[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -159,7 +162,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
     setForm({
       taskName: t.taskName, description: t.description || '', category: t.category || 'other',
       allottedMinutes: String(t.allottedMinutes ?? 0), weeklyFrequency: String(t.weeklyFrequency || 1),
-      daysOfWeek: t.daysOfWeek || '', timeOfDay: t.timeOfDay || 'any', cadence: t.cadence || 'daily',
+      daysOfWeek: t.daysOfWeek || '', timeOfDay: t.timeOfDay || 'any', cadence: t.cadence || 'daily', isRequired: !!t.isRequired,
     })
   }
 
@@ -409,6 +412,12 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
                 <option value="PM">PM</option>
               </select>
             </div>
+            {(requiredOn || form.isRequired) && (
+              <label className="mb-2 flex items-start gap-2 text-sm">
+                <input type="checkbox" checked={form.isRequired} onChange={(e) => setForm({ ...form, isRequired: e.target.checked })} className="mt-1" />
+                <span><b>Required before clock-out.</b> The caregiver cannot clock out until this is marked done, or skipped with a reason.</span>
+              </label>
+            )}
             {form.cadence === 'daily' && (
               <div className="mb-2 text-xs text-gray-600 dark:text-slate-300">
                 Done on every visit, so it counts once per scheduled visit in the minutes per week. "Times per week" is used only while the client has no visits scheduled.
@@ -433,7 +442,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
               {tasks.map((t) => (
                 <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 mb-1.5 rounded-xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex-1">
-                    <div className="font-semibold text-sm">{t.taskName}</div>
+                    <div className="font-semibold text-sm">{t.taskName}{t.isRequired && <span className="ml-2 rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100">Required</span>}</div>
                     {t.description && <div className="text-xs mt-0.5 text-gray-600 dark:text-slate-400">{t.description}</div>}
                     <div className="text-xs mt-1 text-gray-600 dark:text-slate-400">
                       <b className={t.cadence === 'weekly' ? 'text-violet-700 dark:text-violet-300' : 'text-blue-700 dark:text-blue-300'}>{t.cadence === 'weekly' ? '🗓️ Set times a week' : '📅 Every visit'}</b>

@@ -17,6 +17,17 @@ export async function downloadBlob(endpoint: string): Promise<Blob> {
   return res.blob()
 }
 
+/** Like downloadBlob, with the file name the server chose (Content-Disposition) — for files whose name matters, such as payroll files. */
+export async function downloadFile(endpoint: string): Promise<{ blob: Blob; fileName: string | null }> {
+  const res = await api.raw(endpoint)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error((body as { error?: string }).error || 'Download failed')
+  }
+  const named = /filename="?([^";]+)"?/i.exec(res.headers.get('content-disposition') || '')
+  return { blob: await res.blob(), fileName: named?.[1] ?? null }
+}
+
 /** Hands a Blob to the browser as a download named `fileName`. */
 export function saveBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob)

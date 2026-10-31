@@ -25,7 +25,7 @@ for (const m of read('verticals/homecare.tsx').matchAll(/\['(\/crm\/[^']+)',\s*'
   if (label) menu.add(`${m[2]} › ${label}`)
 }
 
-const SECTIONS = 'Operations|Scheduling|Clinical|Caregivers|Financial|Compliance|Communication|Settings'
+const SECTIONS = 'Operations|Scheduling|Daily care|Caregivers|Financial|Compliance|Communication|Settings'
 /**
  * Each "Section › …" in a text, as the menu item it names: the longest item of that section the words start with, or —
  * when none does — the next three words, which the menu does not have.

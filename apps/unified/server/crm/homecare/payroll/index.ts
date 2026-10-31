@@ -18,6 +18,7 @@ import { createHomecareExpenseRoutes } from './expenses.ts'
 import { createCaregiverRateRoutes } from './caregiverRates.ts'
 import { createCaregiverCareTypeRateRoutes } from './caregiverCareTypeRates.ts'
 import { createPtoRoutes } from './pto.ts'
+import { createPayRulesRoutes } from './payRulesRoutes.ts'
 
 export function payrollMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   return [
@@ -31,5 +32,7 @@ export function payrollMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/caregiver-rates', access: 'user', router: createCaregiverRateRoutes(core, d) },
     { path: '/api/caregiver-care-type-rates', access: 'user', router: createCaregiverCareTypeRateRoutes(d) },
     { path: '/api/pto', access: 'user', router: createPtoRoutes(d) },
+    // item 2: overtime rules, paid travel, ADP / Paychex files (not ready)
+    { path: '/api/pay-rules', access: 'user', feature: 'care_payroll_rules', router: createPayRulesRoutes(core, d) },
   ]
 }

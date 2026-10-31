@@ -25,6 +25,7 @@ import { useAuth, useConfirm, usePrompt, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { formatDate } from '../lib/datetime'
 import { isBiweeklyOn } from '../lib/biweekly'
+import { isRepeatOn, weeklyShare, repeatPill, describeRepeat, everyNWeeks } from '../lib/repeats'
 import { endsBeforeStart, shiftTimesError } from '../lib/shiftTimes'
 import { toLocalYMD, parseLocalDate, formatDate as formatDay } from '../lib/date'
 import DragDropScheduler from './DragDropScheduler'
@@ -65,6 +66,7 @@ interface Patterns { overallReliability: number; periodMonths: number; riskDays:
 interface OpenShift {
   id: string; status: string; urgency: string | null; notes: string | null; shiftDate: string | null; startTime: string; endTime: string
   clientFirstName: string | null; clientLastName: string | null; claimedByFirst: string | null; claimedByLast: string | null; offeredTo: string | null
+  broadcastSent?: boolean; notifiedCaregiverCount?: number | null
 }
 interface Swap {
   id: string; status: string; shiftDate: string | null; startTime: string | null; endTime: string | null
@@ -192,6 +194,9 @@ const SchedulingHub = () => {
   // Bi-weekly "first on" date. '' = the Start Date. The server aligns whatever is sent to each selected weekday, so it
   // need not be a Sunday (a this-week's-Sunday default put a Sat+Sun pair on two different fortnights).
   const [biWeeklyAnchorDate, setBiWeeklyAnchorDate] = useState('')
+  // Item 12 (care_shift_repeats): '' = the kind picked above; 'monthly' or '3'..'12' = every N weeks. Only offered when the agency has it.
+  const [repeatChoice, setRepeatChoice] = useState('')
+  const repeatsOn = hasFeature('care_shift_repeats')
 
   // ── Edit box ──
   const [editModal, setEditModal] = useState<EditModal | null>(null)
@@ -432,7 +437,7 @@ const SchedulingHub = () => {
   const calculateTotalHours = (list: ScheduleRow[]) => {
     const total = list.reduce((t, s) => {
       const hrs = parseFloat(calculateHours(s.startTime, s.endTime))
-      return t + (s.frequency === 'biweekly' ? hrs / 2 : hrs)
+      return t + hrs * weeklyShare(s.frequency)
     }, 0)
     return Number(total || 0).toFixed(2)
   }
@@ -536,7 +541,7 @@ const SchedulingHub = () => {
     setSaving(true)
     try {
       if (formData.scheduleType === 'multi-day' || formData.scheduleType === 'bi-weekly') {
-        const freq = formData.scheduleType === 'bi-weekly' ? 'biweekly' : 'weekly'
+        const freq = repeatsOn && repeatChoice ? (repeatChoice === 'monthly' ? 'monthly' : everyNWeeks(Number(repeatChoice))) : formData.scheduleType === 'bi-weekly' ? 'biweekly' : 'weekly'
         let created = 0, dup = 0, failed = 0
         let firstFailure: string | null = null, lastWarnings: string[] | null = null
         for (const dayOfWeek of selectedDays) {
@@ -555,7 +560,7 @@ const SchedulingHub = () => {
           }
         }
         // 409 = the duplicate guard refused an identical active shift. Say WHY anything failed, not just how many.
-        const label = freq === 'biweekly' ? 'bi-weekly' : 'recurring'
+        const label = freq === 'biweekly' ? 'bi-weekly' : freq === 'weekly' ? 'recurring' : describeRepeat(freq)
         let m = `Created ${created} ${label} schedule${created !== 1 ? 's' : ''}`
         if (dup > 0) m += ` — ${dup} already scheduled`
         if (failed > 0) m += ` — ${failed} failed: ${firstFailure}`
@@ -564,7 +569,8 @@ const SchedulingHub = () => {
         const body = await api.post('/api/schedules-enhanced', {
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
           dayOfWeek: parseInt(formData.dayOfWeek), date: null, startTime: formData.startTime, endTime: formData.endTime,
-          notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null, endDate: formData.endDate || null,
+          notes: formData.notes, frequency: repeatsOn && repeatChoice ? (repeatChoice === 'monthly' ? 'monthly' : everyNWeeks(Number(repeatChoice))) : 'weekly',
+          effectiveDate: formData.date || today, anchorDate: repeatsOn && repeatChoice ? anchorStr : null, endDate: formData.endDate || null,
           isTraining: formData.isTraining, overnight,
         }) as SavedReply
         showSaved('Schedule created!', body)
@@ -578,6 +584,7 @@ const SchedulingHub = () => {
       }
       setFormData((prev) => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
       setSelectedDays([])
+      setRepeatChoice('')
       loadCaregiverSchedules(selectedCaregiverId)
       if (scheduleView === 'week') loadWeekView()
       if (scheduleView === 'month') loadCalendarData()
@@ -729,7 +736,7 @@ const SchedulingHub = () => {
         if (s.endDate && dateStr > s.endDate.slice(0, 10)) return
         // Suspended service: hide occurrences on/after the suspend date, as the server engine does.
         if (s.suspendedFrom && dateStr >= s.suspendedFrom.slice(0, 10)) return
-        if (s.frequency === 'biweekly' && s.anchorDate && !isBiweeklyOn(dateStr, s.anchorDate)) return
+        if (s.anchorDate && !isRepeatOn(dateStr, s.frequency, s.anchorDate)) return
         const exc = (s.exceptions || []).find((e) => (e.exceptionDate || '').slice(0, 10) === dateStr)
         if (exc && exc.exceptionType === 'cancelled') return
         if (exc && exc.exceptionType === 'modified') {
@@ -825,6 +832,15 @@ const SchedulingHub = () => {
       await api.post(`/api/open-shifts/${shift.id}/reject`, { reason: 'Turned down by office' })
       showMsg('Turned down — the shift is available again'); loadOpenShifts()
     } catch (e) { showMsg('Failed: ' + errorMessage(e), 'error') }
+  }
+  // Tell every caregiver who could take it (free at that time, and offered the shift) — a notice in the app and a phone push.
+  // The sentence shown is the server's count of who was really reached.
+  const tellCaregiversAboutShift = async (shift: OpenShift) => {
+    if (!(await confirm('Tell every caregiver who is free at that time about this shift? They get a notice in the app and on their phone.', { danger: false }))) return
+    try {
+      const r = await api.post(`/api/open-shifts/${shift.id}/broadcast`, {}) as { message?: string } | null
+      showMsg(r?.message || 'Caregivers told'); loadOpenShifts()
+    } catch (e) { showMsg('Nobody was told: ' + errorMessage(e), 'error') }
   }
   const removeOpenShift = async (shift: OpenShift) => {
     if (!(await confirm('Remove this from Available Shifts? Caregivers will no longer see it. The visit stays with the caregiver it was scheduled for.', { danger: true }))) return
@@ -1404,6 +1420,11 @@ const SchedulingHub = () => {
                           <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => approveOpenShift(shift)}>✓ Approve</button>
                           <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => turnDownOpenShift(shift)}>✗ Turn down</button>
                         </>}
+                        {may.update && shift.status === 'open' && (
+                          <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => tellCaregiversAboutShift(shift)}>
+                            📣 {shift.broadcastSent ? 'Tell them again' : 'Tell caregivers'}
+                          </button>
+                        )}
                         {may.update && (shift.status === 'open' || shift.status === 'claimed') && (
                           <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => removeOpenShift(shift)}>🗑 Remove</button>
                         )}
@@ -1784,6 +1805,21 @@ const SchedulingHub = () => {
       border: `2px solid ${on ? fill : C.line}`, background: on ? fill : C.surface, color: on ? '#fff' : C.ink,
     })
     const smallDate: CSSProperties = { width: '100%', padding: '0.5rem', borderRadius: '6px', border: `1px solid ${C.line}`, fontSize: '0.88rem' }
+    const repeatPicker = (
+      <>
+        {repeatsOn && formData.scheduleType !== 'one-time' && (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem' }}>How often</label>
+                        <select aria-label="How often" value={repeatChoice} onChange={(e) => setRepeatChoice(e.target.value)} style={smallDate}>
+                          <option value="">{formData.scheduleType === 'bi-weekly' ? 'Every other week' : 'Every week'}</option>
+                          {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => <option key={n} value={String(n)}>Every {n} weeks</option>)}
+                          <option value="monthly">Monthly (same weekday of the month as the start date)</option>
+                        </select>
+                        {repeatChoice && <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.3rem' }}>Starts on the first chosen weekday on or after the start date{repeatChoice === 'monthly' ? '. A shift that starts on a 2nd Tuesday repeats every 2nd Tuesday; on a 5th, the last one.' : `, then every ${repeatChoice} weeks.`}</div>}
+                      </div>
+                    )}
+      </>
+    )
     const dateRange = (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
@@ -1906,6 +1942,7 @@ const SchedulingHub = () => {
                         <div style={{ fontSize: '0.72rem', color: orange.ink, marginTop: '0.3rem' }}>Defaults to the Start Date. Each selected day begins on or after this date, then repeats every 2 weeks — Sat + Sun starting on a Saturday stay on the same weekend.</div>
                       </div>
                     )}
+                    {repeatPicker}
                     {dateRange}
                   </div>
                 )}
@@ -1918,6 +1955,7 @@ const SchedulingHub = () => {
                         <button key={day} type="button" onClick={() => setFormData((prev) => ({ ...prev, dayOfWeek: idx.toString() }))} style={dayPick(formData.dayOfWeek === idx.toString(), FILL.blue)}>{day}</button>
                       ))}
                     </div>
+                    {repeatPicker}
                     {dateRange}
                   </div>
                 )}

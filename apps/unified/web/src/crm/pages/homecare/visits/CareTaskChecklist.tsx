@@ -33,6 +33,7 @@ interface Item {
   status: string
   notes?: string | null
   doneThisWeek?: boolean
+  isRequired?: boolean
 }
 
 export default function CareTaskChecklist({ timeEntryId, compact = false, onChange }: { timeEntryId: string; compact?: boolean; onChange?: () => void }) {
@@ -42,7 +43,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
   const [notesFor, setNotesFor] = useState<Item | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
   // 'refuse': the same dialog, asking WHY the client refused; the reason is required (server too).
-  const [notesMode, setNotesMode] = useState<'note' | 'refuse'>('note')
+  const [notesMode, setNotesMode] = useState<'note' | 'refuse' | 'skip'>('note')
   const [notesError, setNotesError] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
 
@@ -71,16 +72,18 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
     }
   }
 
-  const openNotes = (t: Item, mode: 'note' | 'refuse') => {
+  const openNotes = (t: Item, mode: 'note' | 'refuse' | 'skip') => {
     setNotesFor(t); setNotesMode(mode); setNotesDraft(t.notes || ''); setNotesError('')
   }
 
   const saveNotes = async () => {
     if (!notesFor) return
     const refusing = notesMode === 'refuse'
+    const skipping = notesMode === 'skip'
     if (refusing && !notesDraft.trim()) { setNotesError('Say why the client refused — the office needs the reason.'); return }
+    if (skipping && !notesDraft.trim()) { setNotesError('Say why you are skipping this — it is a required task, and the office needs the reason.'); return }
     setNotesSaving(true)
-    const msg = await setStatus(notesFor.taskId, refusing ? 'refused' : notesFor.status, notesDraft)
+    const msg = await setStatus(notesFor.taskId, refusing ? 'refused' : skipping ? 'skipped' : notesFor.status, notesDraft)
     setNotesSaving(false)
     if (msg) { setNotesError(msg); return }
     setNotesFor(null)
@@ -110,7 +113,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
       <div key={t.taskId} className={`rounded-xl border-2 px-3 py-2.5 ${sc.card} ${weeklyDone && t.status !== 'completed' ? 'opacity-70' : ''}`}>
         <div className="flex items-center gap-2 mb-1">
           <div className="flex-1">
-            <div className="font-semibold text-sm text-gray-900 dark:text-slate-100">{t.taskName}</div>
+            <div className="font-semibold text-sm text-gray-900 dark:text-slate-100">{t.taskName}{t.isRequired && <span className="ml-2 rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100">Required</span>}</div>
             <div className="text-xs text-gray-600 dark:text-slate-400">
               {CATEGORY_LABELS[t.category] || t.category}
               {(t.allottedMinutes ?? 0) > 0 && ` · ${t.allottedMinutes} min`}
@@ -127,7 +130,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
               className={`${btn} border-emerald-700 bg-emerald-700 text-white dark:border-emerald-700 dark:bg-emerald-700 dark:text-white`}>✓ Done</button>
           )}
           {t.status !== 'skipped' && (
-            <button type="button" onClick={() => setStatus(t.taskId, 'skipped', t.notes)}
+            <button type="button" onClick={() => (t.isRequired ? openNotes(t, 'skip') : setStatus(t.taskId, 'skipped', t.notes))}
               className={`${btn} border-amber-500 bg-white text-amber-800 dark:border-amber-500 dark:bg-slate-900 dark:text-amber-200`}>Skip</button>
           )}
           {t.status !== 'refused' && (
@@ -175,10 +178,13 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
         <div className="fixed inset-0 z-[2400] flex items-center justify-center p-4 bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) setNotesFor(null) }}>
           <div className="w-full max-w-md rounded-xl p-5 bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100">
             <h4 className="m-0 mb-2 text-base font-semibold">
-              {notesMode === 'refuse' ? `Refused: ${notesFor.taskName}` : `Note for: ${notesFor.taskName}`}
+              {notesMode === 'refuse' ? `Refused: ${notesFor.taskName}` : notesMode === 'skip' ? `Skip: ${notesFor.taskName}` : `Note for: ${notesFor.taskName}`}
             </h4>
             {notesMode === 'refuse' && (
               <label htmlFor="task-refusal-reason" className="block mb-1 text-sm font-semibold text-gray-700 dark:text-slate-300">Why did the client refuse? (required)</label>
+            )}
+            {notesMode === 'skip' && (
+              <label htmlFor="task-refusal-reason" className="block mb-1 text-sm font-semibold text-gray-700 dark:text-slate-300">Why are you skipping it? (required)</label>
             )}
             <textarea id="task-refusal-reason" value={notesDraft} onChange={(e) => { setNotesDraft(e.target.value); setNotesError('') }} rows={4}
               placeholder="e.g. Client refused — said she'd shower tomorrow"
@@ -187,7 +193,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setNotesFor(null)} className="hc-btn hc-btn-secondary hc-btn-sm">Cancel</button>
               <button type="button" onClick={saveNotes} disabled={notesSaving} className="hc-btn hc-btn-primary hc-btn-sm">
-                {notesSaving ? 'Saving…' : notesMode === 'refuse' ? 'Mark Refused' : 'Save Note'}
+                {notesSaving ? 'Saving…' : notesMode === 'refuse' ? 'Mark Refused' : notesMode === 'skip' ? 'Mark Skipped' : 'Save Note'}
               </button>
             </div>
           </div>

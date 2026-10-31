@@ -133,7 +133,7 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
   async function sendCaregiverAlert(a: {
     companyId: string
     userId: string | null | undefined
-    alertType: 'shift_reminder' | 'overtime_alert'
+    alertType: 'shift_reminder' | 'overtime_alert' | 'cert_reminder'
     channel: 'push' | 'sms'
     phone?: unknown
     body: string

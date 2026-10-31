@@ -217,6 +217,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
     const money = {
       regularHours: line.regularHours.toFixed(2),
       overtimeHours: line.overtimeHours.toFixed(2),
+      doubleTimeHours: line.doubleTimeHours.toFixed(2),
       regularRate: line.baseRate.toFixed(2),
       overtimeRate: line.otRate.toFixed(2),
       grossPay: line.grossPay.toFixed(2),
@@ -340,6 +341,12 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
           const premiumCents = Math.round(l.overtimePay * 100) - payCents(Math.round(l.overtimeHours * 60), rateCents)
           rows.push(`${name},"Overtime premium",${endDate},${l.overtimeHours.toFixed(2)},${(l.otRate - l.baseRate).toFixed(2)},${(premiumCents / 100).toFixed(2)}`)
         }
+        // Item 2 (care_payroll_rules): paid travel between visits is paid at the base rate, and double time is 2x: the premium over base.
+        if (l.travelHours > 0) rows.push(`${name},"Travel time",${endDate},${l.travelHours.toFixed(2)},${l.baseRate.toFixed(2)},${(payCents(Math.round(l.travelHours * 60), rateCents) / 100).toFixed(2)}`)
+        if (l.doubleTimeHours > 0) {
+          const dtMinutes = Math.round(l.doubleTimeHours * 60)
+          rows.push(`${name},"Double time premium",${endDate},${l.doubleTimeHours.toFixed(2)},${l.baseRate.toFixed(2)},${((Math.round(l.doubleTimePay * 100) - payCents(dtMinutes, rateCents)) / 100).toFixed(2)}`)
+        }
       }
       c.header('Content-Type', 'text/csv')
       c.header('Content-Disposition', `attachment; filename="payroll_${startDate}_${endDate}.csv"`)
@@ -362,6 +369,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       const name = csvEscape(`${l.lastName}, ${l.firstName}`)
       csvRows.push(`"${name}",Regular,${l.regularHours.toFixed(2)},${l.baseRate.toFixed(2)},${l.regularPay.toFixed(2)}`)
       if (l.overtimeHours > 0) csvRows.push(`"${name}",Overtime,${l.overtimeHours.toFixed(2)},${l.otRate.toFixed(2)},${l.overtimePay.toFixed(2)}`)
+      if (l.doubleTimeHours > 0) csvRows.push(`"${name}","Double time",${l.doubleTimeHours.toFixed(2)},${(l.baseRate * 2).toFixed(2)},${l.doubleTimePay.toFixed(2)}`)
     }
     c.header('Content-Type', 'text/csv')
     c.header('Content-Disposition', `attachment; filename="quickbooks_payroll_${startDate}_${endDate}.csv"`)

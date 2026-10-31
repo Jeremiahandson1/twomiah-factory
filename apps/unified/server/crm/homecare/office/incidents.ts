@@ -143,7 +143,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // Caregiver field report (caregiver app → "Report Incident"). The office gets an incident_alert notification and
-  // the report lands in Clinical → Incidents as an open case.
+  // the report lands in Daily care → Incidents as an open case.
   app.post('/caregiver-report', requireAnyPermission(['care-compliance:create', 'evv:create']), async (c) => {
     const u = c.get('user')
     const companyId = u.companyId
@@ -201,7 +201,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
     await audit(c, 'CREATE', 'incidents', incident.id, null, withoutSignature(incident))
 
     await notifyOffice(companyId, 'incident_alert', `⚠️ Incident reported: ${clientName}`,
-      `${reporterName} reported ${INCIDENT_TYPES[b.incidentType]} for ${clientName} on ${b.incidentDate}${b.incidentTime ? ` at ${b.incidentTime}` : ''}: ${String(b.description).trim().slice(0, 300)}\n\nOpen Clinical → Incidents (${incident.incidentNumber}).`)
+      `${reporterName} reported ${INCIDENT_TYPES[b.incidentType]} for ${clientName} on ${b.incidentDate}${b.incidentTime ? ` at ${b.incidentTime}` : ''}: ${String(b.description).trim().slice(0, 300)}\n\nOpen Daily care → Incidents (${incident.incidentNumber}).`)
 
     return one(c, { success: true, id: incident.id, incidentNumber: incident.incidentNumber }, 201)
   })

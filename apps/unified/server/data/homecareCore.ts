@@ -159,9 +159,23 @@ const END = sql.raw(`COALESCE(se.override_end_time, s.end_time::time)`)
 const WRAP = sql.raw(`(CASE WHEN COALESCE(se.override_end_time, s.end_time::time) < COALESCE(se.override_start_time, s.start_time::time) THEN 1 ELSE 0 END)`)
 // Bi-weekly parity: FLOOR (not truncation) so a date 1–6 days before the anchor counts as the previous week; ((x % 2)
 // + 2) % 2 normalises negative weeks — the same rule as core/biweekly.ts and the screens' isBiweeklyOn.
-const BIWEEKLY_ON_WEEK = sql.raw(
-  `(((FLOOR((d.dt::date - COALESCE(s.anchor_date, s.effective_date, s.created_at::date))::numeric / 7)::int % 2) + 2) % 2) = 0`,
-)
+const BIWEEKLY_ON_WEEK_SQL =
+  `(((FLOOR((d.dt::date - COALESCE(s.anchor_date, s.effective_date, s.created_at::date))::numeric / 7)::int % 2) + 2) % 2) = 0`
+
+// Item 12 repeats (core/repeats.ts is the same rule in TypeScript). 'every_N_weeks' (N 3..12): the same floored whole-week
+// count from the anchor, modulo N. 'monthly': the date is the same weekday-of-the-month as the anchor (the 2nd Tuesday),
+// and an anchor on the 5th is "the last one" of every month.
+const ANCHOR_SQL = `COALESCE(s.anchor_date, s.effective_date, s.created_at::date)`
+const EVERY_N = String.raw`(substring(s.frequency from '^every_([2-9]|1[0-2])_weeks$'))::int`
+const EVERY_N_WEEKS_SQL = `(((FLOOR((d.dt::date - ${ANCHOR_SQL})::numeric / 7)::int % ${EVERY_N}) + ${EVERY_N}) % ${EVERY_N}) = 0`
+const MONTHLY_SQL = `(CEIL(EXTRACT(DAY FROM d.dt) / 7.0)::int = CEIL(EXTRACT(DAY FROM ${ANCHOR_SQL}) / 7.0)::int
+    OR (CEIL(EXTRACT(DAY FROM ${ANCHOR_SQL}) / 7.0)::int = 5
+        AND EXTRACT(DAY FROM d.dt) + 7 > EXTRACT(DAY FROM ((date_trunc('month', d.dt) + interval '1 month') - interval '1 day'))))`
+const REPEAT_ON = sql.raw(String.raw`(CASE
+      WHEN COALESCE(s.frequency, 'weekly') IN ('biweekly', 'bi-weekly') THEN ` + BIWEEKLY_ON_WEEK_SQL + String.raw`
+      WHEN s.frequency ~ '^every_([2-9]|1[0-2])_weeks$' THEN ` + EVERY_N_WEEKS_SQL + `
+      WHEN s.frequency = 'monthly' THEN ` + MONTHLY_SQL + `
+      ELSE true END)`)
 
 /**
  * `name AS (...)` — use inside `WITH ${occurrencesCte(companyId, from, to)} SELECT … FROM occ`. from / to are
@@ -195,7 +209,7 @@ export function occurrencesCte(companyId: string, from: string, to: string, name
         OR (
           s.day_of_week IS NOT NULL
           AND s.day_of_week = EXTRACT(DOW FROM d.dt)::int
-          AND (COALESCE(s.frequency, 'weekly') NOT IN ('biweekly', 'bi-weekly') OR ${BIWEEKLY_ON_WEEK})
+          AND ${REPEAT_ON}
           AND d.dt::date >= COALESCE(s.effective_date, s.created_at::date)
           AND (s.end_date IS NULL OR d.dt::date <= s.end_date)
         )

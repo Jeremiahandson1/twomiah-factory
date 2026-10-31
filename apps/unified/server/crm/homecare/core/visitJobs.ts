@@ -12,6 +12,9 @@ const FIVE_MIN = 5 * 60 * 1000
 export function createVisitJobs(d: CrmDeps, deps: {
   reminders: { scanShiftReminders: () => Promise<number> }
   overtime: { scanOvertimeAlerts: () => Promise<number> }
+  certReminders: { scanCertReminders: () => Promise<number> }
+  /** Autopay's scan (item 3): optional, so a caller without it runs as before. */
+  autopay?: { sweep: () => Promise<number> }
 }) {
   let started = false
   const timers: ReturnType<typeof setTimeout>[] = []
@@ -40,7 +43,11 @@ export function createVisitJobs(d: CrmDeps, deps: {
     started = true
     every('shift-reminders', 60_000, () => deps.reminders.scanShiftReminders())
     every('overtime-alerts', 90_000, () => deps.overtime.scanOvertimeAlerts())
-    d.logger.info('[visit-jobs] shift reminders + overtime alerts every 5 min')
+    // Credential-expiry reminders: the claim rows make each stage send once a day's worth, however often this ticks.
+    every('cert-reminders', 150_000, () => deps.certReminders.scanCertReminders())
+    // Autopay: the safety net behind the charge on issue, and the retries after a declined card (claimed per try, so never twice).
+    if (deps.autopay) every('autopay', 210_000, () => deps.autopay!.sweep())
+    d.logger.info('[visit-jobs] shift reminders + overtime alerts + credential reminders every 5 min')
   }
 
   function stop() {

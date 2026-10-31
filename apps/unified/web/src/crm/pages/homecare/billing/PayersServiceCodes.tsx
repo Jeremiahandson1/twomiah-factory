@@ -9,6 +9,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { useMay } from '../lib/useMay'
+import { useAuth } from '../../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 // The payer's billing classification (referral_sources.payer_type). Claims, EVV, the punch rules and the
@@ -24,9 +25,11 @@ const PAYER_TYPE_OPTIONS = [
   { value: 'private_pay', label: 'Private pay' },
   { value: 'other', label: 'Other' },
 ]
+/** Offered only to an agency with care_ltc_billing (not ready); a payer already set to it keeps its label either way. */
+const LTC_OPTION = { value: 'ltc_insurance', label: 'Long-term care insurance' }
 const LEGACY_TYPE_LABELS: Record<string, string> = { mco_family_care: 'Family Care MCO', FFS: 'Medicaid fee-for-service' }
 const payerTypeLabel = (v: string | null | undefined) =>
-  PAYER_TYPE_OPTIONS.find((o) => o.value === v)?.label || (v ? LEGACY_TYPE_LABELS[v] : undefined) || v || '—'
+  PAYER_TYPE_OPTIONS.find((o) => o.value === v)?.label || (v === LTC_OPTION.value ? LTC_OPTION.label : undefined) || (v ? LEGACY_TYPE_LABELS[v] : undefined) || v || '—'
 // A Sandata preset's program decides the payer type: WIMCO is a Family Care MCO, WIHMO an HMO, FFS fee-for-service.
 const TYPE_FOR_PROGRAM: Record<string, string> = { WIMCO: 'MCO', WIHMO: 'HMO', FFS: 'medicaid' }
 
@@ -63,6 +66,7 @@ const pill = (bg: string) => ({ padding: '4px 8px', borderRadius: '4px', fontSiz
 const PayersServiceCodes = () => {
   // Each control for whoever the server lets use it (care-billing create / update — lib/useMay.ts).
   const may = useMay('care-billing')
+  const ltcOn = useAuth().hasFeature('care_ltc_billing')
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<'payers' | 'service-codes'>('payers')
   const [payers, setPayers] = useState<Payer[]>([])
@@ -300,7 +304,7 @@ const PayersServiceCodes = () => {
                     <label>Payer type *</label>
                     <select value={payerForm.payerType} onChange={(e) => setPayerForm({ ...payerForm, payerType: e.target.value })} required>
                       <option value="">Choose…</option>
-                      {PAYER_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      {(ltcOn ? [...PAYER_TYPE_OPTIONS, LTC_OPTION] : PAYER_TYPE_OPTIONS).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                       {payerForm.payerType && !PAYER_TYPE_OPTIONS.some((o) => o.value === payerForm.payerType) && (
                         <option value={payerForm.payerType}>{payerTypeLabel(payerForm.payerType)}</option>
                       )}

@@ -16,6 +16,9 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   caregiverId: text('caregiver_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
   notes: text('notes'),
   capabilities: text('capabilities'),
+  // Item 5 (care_match_prefs): what the matcher compares to a client's gender and language preferences.
+  gender: text('gender'),
+  languages: text('languages'),
   limitations: text('limitations'),
   preferredHours: text('preferred_hours'),
   availableMon: boolean('available_mon').default(true).notNull(),
@@ -28,6 +31,8 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   npiNumber: text('npi_number'),
   taxonomyCode: text('taxonomy_code').default('374700000X'),
   evvWorkerId: text('evv_worker_id'),
+  // Item 2 (care_payroll_rules): this caregiver's id in the agency's payroll provider — the ADP file number / the Paychex worker id.
+  payrollWorkerId: text('payroll_worker_id'),
   medicaidProviderId: text('medicaid_provider_id'),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
   smsEnabled: boolean('sms_enabled').default(true),
@@ -179,6 +184,12 @@ export const clients = pgTable('clients', {
   dateOfBirth: date('date_of_birth'),
   ssnEncrypted: text('ssn_encrypted'),
   gender: text('gender'),
+  // Item 5 (care_match_prefs): what this client needs from a caregiver — skills (a comma list), a gender, a language.
+  requiredSkills: text('required_skills'),
+  preferredCaregiverGender: text('preferred_caregiver_gender'),
+  preferredLanguage: text('preferred_language'),
+  // Item 11 (care_supervisory_visits): this client's own days between supervisory visits; NULL = the agency's rule, 0 = none needed.
+  supervisoryIntervalDays: integer('supervisory_interval_days'),
   address: text('address'),
   city: text('city'),
   state: text('state'),
@@ -1726,10 +1737,15 @@ export const medicationLogs = pgTable('medication_logs', {
   dosageGiven: text('dosage_given'),
   witnessedBy: text('witnessed_by'),
   effectiveStatus: text('effective_status'),
+  // Follow-up 10/30 (care_offline_saves): one dose given once. Set (company|medicine|due time) only on a 'given' / 'self_administered' entry with a
+  // due time, by an agency with the feature on; empty on every other entry, including all that existed before. The unique index lets the database,
+  // not a read-then-write, say no to a second save of the same dose at the same moment.
+  doseKey: text('dose_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('medication_logs_company_id_idx').on(t.companyId),
   index('medication_logs_time_entry_idx').on(t.timeEntryId),
+  uniqueIndex('medication_logs_dose_key_idx').on(t.doseKey),
 ])
 
 export const shiftSwaps = pgTable('shift_swaps', {
@@ -2067,6 +2083,9 @@ export const familyMembers = pgTable('family_members', {
   canViewMedications: boolean('can_view_medications').default(false).notNull(),
   canMessage: boolean('can_message').default(true).notNull(),
   isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
+  // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
+  visitTextOptIn: boolean('visit_text_optin').default(false).notNull(),
+  visitTextOptInAt: timestamp('visit_text_optin_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2191,6 +2210,39 @@ export const certificationAlerts = pgTable('certification_alerts', {
   index('certification_alerts_status_idx').on(t.status),
 ])
 
+// One reminder per (credential, expiry date, stage) — stage '30', '14' or '0' days before it expires. The unique key is
+// how the daily scan sends each reminder once, across restarts and across instances (core/certReminders.ts). A renewed
+// credential has a new expiry date, so its reminders start over.
+export const certificationReminder = pgTable('certification_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  certificationRecordId: text('certification_record_id').notNull().references(() => certificationRecords.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  expiryDate: date('expiry_date').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  index('certification_reminder_company_id_idx').on(t.companyId),
+  uniqueIndex('certification_reminder_key').on(t.certificationRecordId, t.expiryDate, t.stage),
+])
+
+// One row per (visit, relative, arrival or departure): the claim that makes each family text send once — across a
+// replayed or offline punch and across instances — and the record of what happened to it: 'sent', 'failed' (the text
+// service could not send), or 'skipped_quiet' / 'skipped_late' (the agency's quiet hours; a punch saved hours before it
+// reached us).
+export const familyVisitText = pgTable('family_visit_text', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  event: text('event').notNull(),
+  status: text('status').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_visit_text_company_id_idx').on(t.companyId),
+  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event),
+])
+
 export const payrollRecords = pgTable('payroll_records', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -2199,6 +2251,8 @@ export const payrollRecords = pgTable('payroll_records', {
   periodEnd: date('period_end').notNull(),
   regularHours: decimal('regular_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   overtimeHours: decimal('overtime_hours', { precision: 8, scale: 2 }).default('0').notNull(),
+  // Item 2 (care_payroll_rules): hours paid at double the rate (grossPay includes them).
+  doubleTimeHours: decimal('double_time_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   holidayHours: decimal('holiday_hours', { precision: 8, scale: 2 }).default('0').notNull(),
   regularRate: decimal('regular_rate', { precision: 8, scale: 2 }),
   overtimeRate: decimal('overtime_rate', { precision: 8, scale: 2 }),
@@ -2302,6 +2356,9 @@ export const clientTaskTemplates = pgTable('client_task_templates', {
   assessmentSource: text('assessment_source'),
   // 'daily' = every shift; 'weekly' = once a week
   cadence: text('cadence').default('daily').notNull(),
+  // Item 12: a required task blocks the caregiver's clock-out until it is done, or skipped / refused with a reason.
+  // Only enforced for agencies with the care_required_tasks feature.
+  isRequired: boolean('is_required').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdById: text('created_by_id').references(() => user.id),
@@ -2858,3 +2915,127 @@ export const clientServices = pgTable('client_services', {
   index('client_services_company_id_idx').on(t.companyId),
   index('idx_client_services_client').on(t.clientId),
 ])
+
+// Item 11 (care_supervisory_visits): a supervisor's check-in on a client's care — in the home or by phone. The next one is
+// due the agency's rule (60 or 90 days) after the last (data/homecareSupervisory.ts). Plain-English form, no medical terms.
+export const supervisoryVisit = pgTable('supervisory_visit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  visitDate: date('visit_date').notNull(),
+  supervisorId: text('supervisor_id').references(() => user.id),
+  // the caregiver this visit looked at, when it was about one person's work
+  caregiverId: text('caregiver_id').references(() => user.id),
+  visitType: text('visit_type').default('home').notNull(),
+  clientFeedback: text('client_feedback'),
+  carePlanFollowed: boolean('care_plan_followed'),
+  caregiverFeedback: text('caregiver_feedback'),
+  concerns: text('concerns'),
+  followUpNotes: text('follow_up_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('supervisory_visit_company_client_idx').on(t.companyId, t.clientId, t.visitDate),
+])
+
+// Item 1 (care_import): one CSV import of clients, caregivers or recurring shifts, and the records it created, so the
+// whole batch can be undone (core/csvImport.ts, data/homecareImport.ts). Only what the import CREATED is listed; a
+// record that matched an existing one is skipped, never changed.
+export const importBatch = pgTable('import_batch', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'clients' | 'caregivers' | 'schedules'
+  fileName: text('file_name'),
+  status: text('status').default('done').notNull(), // 'done' | 'undone'
+  rowsInFile: integer('rows_in_file').default(0).notNull(),
+  created: integer('created').default(0).notNull(),
+  skippedDuplicates: integer('skipped_duplicates').default(0).notNull(),
+  failed: integer('failed').default(0).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  undoneAt: timestamp('undone_at'),
+  undoneBy: text('undone_by'),
+}, (t) => [
+  index('import_batch_company_idx').on(t.companyId, t.createdAt),
+])
+
+export const importBatchRecord = pgTable('import_batch_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  batchId: text('batch_id').notNull().references(() => importBatch.id, { onDelete: 'cascade' }),
+  recordId: text('record_id').notNull(),
+  line: integer('line'),
+  undone: boolean('undone').default(false).notNull(),
+}, (t) => [
+  index('import_batch_record_batch_idx').on(t.batchId),
+])
+
+// Item 3 (care_autopay): a client's saved card for automatic payment of their invoices — on the AGENCY's own Stripe
+// account, never ours (core/autopay.ts). The card itself is only ever typed on Stripe's page; we keep Stripe's ids and
+// the card's brand and last four. `stripe_account` is the account the customer lives on, so a card saved on one account
+// is never charged through another. One row per client.
+export const clientAutopay = pgTable('client_autopay', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  status: text('status').default('pending').notNull(), // 'pending' (link sent, no card yet) | 'active' | 'paused' (a card that cannot be charged) | 'removed'
+  pausedReason: text('paused_reason'),
+  stripeAccount: text('stripe_account'),
+  stripeCustomerId: text('stripe_customer_id'),
+  paymentMethodId: text('payment_method_id'),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  setupSessionId: text('setup_session_id'),
+  consentText: text('consent_text'),
+  consentAt: timestamp('consent_at'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_autopay_client_key').on(t.clientId),
+  index('client_autopay_company_idx').on(t.companyId, t.status),
+])
+
+// One row per try at charging an invoice. The unique (invoice, attempt number) is the guard against charging twice: a
+// try is claimed here BEFORE Stripe is asked, two scans or two instances cannot both claim the same number, and Stripe
+// is given the same key for the same try.
+export const autopayAttempt = pgTable('autopay_attempt', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  attemptNo: integer('attempt_no').notNull(),
+  status: text('status').default('pending').notNull(), // 'pending' | 'succeeded' | 'failed' | 'needs_action' | 'skipped'
+  amountCents: integer('amount_cents').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureCode: text('failure_code'),
+  failureMessage: text('failure_message'),
+  hardDecline: boolean('hard_decline').default(false).notNull(),
+  nextAttemptAt: timestamp('next_attempt_at'),
+  notifiedAt: timestamp('notified_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('autopay_attempt_key').on(t.invoiceId, t.attemptNo),
+  index('autopay_attempt_company_idx').on(t.companyId, t.status),
+])
+
+// Item 3 (care_ltc_billing): a client's long-term-care insurance policy, for the claim packet the payer asks for.
+export const clientLtcPolicy = pgTable('client_ltc_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  insuredName: text('insured_name'),
+  policyNumber: text('policy_number'),
+  claimNumber: text('claim_number'),
+  dailyMax: decimal('daily_max', { precision: 10, scale: 2 }),
+  notes: text('notes'),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_ltc_policy_client_key').on(t.clientId),
+])
+
+// Item 4 (care_offline_saves): the saved answers behind Idempotency-Key are the server-wide saved_request (db/schema/core.ts,
+// http/savedOnce.ts) — one table and one guard for every signed-in write (10/30 integration).

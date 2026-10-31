@@ -2,7 +2,7 @@
 // the administration record (MAR) and vitals. (server/crm/homecare/clients/medications.ts: rows are camelCase; a
 // medication carries medicationName / prescriber / isActive beside the table's name / prescribedBy / status.)
 import { useState, useEffect, type FormEvent } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
@@ -33,6 +33,8 @@ interface Medication {
 interface MedLog {
   id: string
   administeredTime: string
+  /** When the entry reached the server (the row's created_at). */
+  createdAt?: string | null
   medicationName: string
   dosage?: string | null
   dosageGiven?: string | null
@@ -79,6 +81,8 @@ const MedicationsManagement = () => {
   const may = useMay('care-clients')
   const mayEvv = useMay('evv')
   const toast = useToast()
+  // Item 4 (care_offline_saves): an entry that reached us long after it was given says so (it was saved on a phone without signal).
+  const showLate = useAuth().hasFeature('care_offline_saves')
   const confirm = useConfirm()
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState('')
@@ -189,7 +193,7 @@ const MedicationsManagement = () => {
   return (
     <div>
       <div className="page-header">
-        <h2>💊 Medication Management</h2>
+        <h2>💊 Medicine list &amp; dose log</h2>
       </div>
 
       {/* Client Selector */}
@@ -214,10 +218,10 @@ const MedicationsManagement = () => {
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
             <button className={`hc-btn ${activeTab === 'medications' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('medications')}>
-              Medications ({activeMeds.length})
+              Medicine list ({activeMeds.length})
             </button>
             <button className={`hc-btn ${activeTab === 'logs' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('logs')}>
-              Administration Log ({logs.length})
+              Dose log ({logs.length})
             </button>
             <button className={`hc-btn ${activeTab === 'vitals' ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setActiveTab('vitals')}>
               📋 Vitals
@@ -330,7 +334,7 @@ const MedicationsManagement = () => {
           {activeTab === 'logs' && (
             <div className="hc-card">
               {logs.length === 0 ? (
-                <p>No administration logs for the past 30 days.</p>
+                <p>No doses recorded in the past 30 days.</p>
               ) : (
                 <table className="hc-table">
                   <thead>
@@ -347,7 +351,9 @@ const MedicationsManagement = () => {
                   <tbody>
                     {logs.map((log) => (
                       <tr key={log.id}>
-                        <td>{formatDateTime(log.administeredTime)}</td>
+                        <td>{formatDateTime(log.administeredTime)}{showLate && log.createdAt && Date.parse(log.createdAt) - Date.parse(log.administeredTime) > 15 * 60_000 && (
+                          <div className="text-xs text-gray-500 dark:text-slate-400">Saved on the phone, sent {formatDateTime(log.createdAt)}</div>
+                        )}</td>
                         <td><strong>{log.medicationName}</strong></td>
                         <td>{log.dosageGiven || log.dosage || '-'}</td>
                         <td>{getLogStatusBadge(log.effectiveStatus || log.status)}</td>
@@ -382,7 +388,7 @@ const MedicationsManagement = () => {
         <div className="modal active" onClick={() => setShowLogModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Log Medication Administration</h3>
+              <h3>Record a dose</h3>
               <button className="modal-close" onClick={() => setShowLogModal(false)}>×</button>
             </div>
             <LogForm medications={activeMeds} onSubmit={logAdministration} onCancel={() => setShowLogModal(false)} />

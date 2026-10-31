@@ -17,7 +17,8 @@ import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
-import { alignBiweeklyAnchor } from '../core/biweekly.ts'
+import { alignRepeatAnchor } from '../core/repeats.ts'
+import { frequencyFromRequest } from './repeatInput.ts'
 import { insertSchedule, oneTimeOverlap, oneTimeTwin } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, who, type SchedulingShared } from './shared.ts'
 
@@ -73,12 +74,15 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
   app.post('/', perm('care-schedule:create'), async (c) => {
     const { companyId, me } = who(c)
     const b = await c.req.json().catch(() => ({})) as any
-    const { caregiverId, clientId, scheduleType, date, notes, frequency, splitShift, isTraining } = b
+    const { caregiverId, clientId, scheduleType, date, notes, splitShift, isTraining } = b
     const startTime = hms(b.startTime), endTime = hms(b.endTime)
     if (!caregiverId || !clientId || !startTime || !endTime) return fail(c, 400, 'Missing required fields')
     const timesError = shiftTimesError(startTime, endTime, b.overnight)
     if (timesError) return fail(c, 400, timesError)
 
+    const asked = await frequencyFromRequest(d, companyId, b)
+    if ('error' in asked) return fail(c, 400, asked.error, asked.code)
+    const frequency = asked.frequency
     const dayOfWeek = b.dayOfWeek === '' || b.dayOfWeek === null || b.dayOfWeek === undefined ? null : Number(b.dayOfWeek)
     const isRecurring = dayOfWeek !== null
     if (isRecurring && !(Number.isInteger(dayOfWeek) && dayOfWeek! >= 0 && dayOfWeek! <= 6)) return fail(c, 400, 'dayOfWeek must be 0 (Sunday) to 6 (Saturday).')
@@ -95,8 +99,8 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     }
     // Bi-weekly: the anchor sits on the row's own weekday (see core/biweekly.ts).
     let anchorDate: string | null = b.anchorDate || null
-    if (isRecurring && (frequency || 'weekly') === 'biweekly') {
-      anchorDate = alignBiweeklyAnchor({ anchorDate: b.anchorDate, effectiveDate, dayOfWeek })
+    if (isRecurring && (frequency || 'weekly') !== 'weekly') {
+      anchorDate = alignRepeatAnchor({ frequency, anchorDate: b.anchorDate, effectiveDate, dayOfWeek })
     }
 
     let totalHours = shiftHours(startTime, endTime)

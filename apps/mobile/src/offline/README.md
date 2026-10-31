@@ -55,10 +55,12 @@ A waiting item never blocks another record. A failed item blocks only its own re
   list is read back, a save that was out at the time is `waiting` again, order is kept, failed saves are still failed.
 - The queue is the signed-in person's (`twomiah_offline_queue_v2:<userId>`). Another person on the same phone never
   sees it and nothing is sent with their sign-in.
-- **At least once, not exactly once.** If the phone loses the *reply* to a save the server did take, the retry sends it
-  again. Each try carries `Idempotency-Key: <item id>` (the same on every try), **but the server does not look at it yet**.
-  Until it does: make queued saves safe to repeat (a PUT of the whole value; a status change to a status it is already
-  in; a create that carries a client-made id), and say so in the PR of the screen that depends on it.
+- **Sent at least once, made exactly once.** If the phone loses the *reply* to a save the server did take, the retry sends
+  it again. Each try carries `Idempotency-Key: <item id>` (the same on every try), and the server honours it for every
+  signed-in write (apps/unified `server/http/savedOnce.ts`, 10/30): the first answer is kept 30 days and a repeat gets it
+  back, so the save is made once. What the key cannot fix is TIME: a save sent hours late is stamped when it arrives unless
+  the route takes the phone's own time (`savedAt`, as the care visit's tasks and medicine log do) — so a visit's Start /
+  Finish is still not queued (landscaping) until its route takes the tapped time.
 - JSON only. Queueing a photo needs the file kept on the phone (`expo-file-system`, a native build) and an upload
   transport; the engine takes any `Sender`, so that is an addition to `OfflineQueue.ts`, not to the rules.
 - 401 is retried (the API client has already tried to refresh the sign-in); the item says "Signed out".

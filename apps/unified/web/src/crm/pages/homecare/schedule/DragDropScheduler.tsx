@@ -16,7 +16,7 @@
 import { Fragment, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
-import { isBiweeklyOn } from '../lib/biweekly'
+import { isRepeatOn } from '../lib/repeats'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
 import { endsBeforeStart, shiftTimesError } from '../lib/shiftTimes'
 import { toLocalYMD, parseLocalDate, formatDate } from '../lib/date'
@@ -240,8 +240,8 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
         if (s.endDate && dateStr > s.endDate.slice(0, 10)) return
         // Suspended service: hide occurrences on/after the suspend date (matches the server).
         if (s.suspendedFrom && dateStr >= s.suspendedFrom.slice(0, 10)) return
-        // Bi-weekly: the shared whole-day parity rule (lib/biweekly), the one payroll uses.
-        if (s.frequency === 'biweekly' && s.anchorDate && !isBiweeklyOn(dateStr, s.anchorDate)) return
+        // Bi-weekly, every N weeks, monthly: the shared rule (lib/repeats), the one payroll uses.
+        if (s.anchorDate && !isRepeatOn(dateStr, s.frequency, s.anchorDate)) return
 
         const exc = (s.exceptions || []).find((e) => (e.exceptionDate || '').slice(0, 10) === dateStr)
         if (exc && exc.exceptionType === 'cancelled') return // a cancelled occurrence
