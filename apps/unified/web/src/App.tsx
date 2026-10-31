@@ -85,6 +85,7 @@ const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
 const PlanReportsPage = page(() => import('./crm/pages/PlanReportsPage'))
 const ClientCommunicationsPage = page(() => import('./crm/pages/ClientCommunicationsPage'))
+const AiCallAnsweringPage = page(() => import('./crm/pages/AiCallAnsweringPage'))
 const ExportEverythingPage = page(() => import('./crm/pages/ExportEverythingPage'))
 
 function NotFound() {
@@ -202,6 +203,7 @@ export default function App() {
                         <Route path="selections" element={<SelectionsPage />} />
                         <Route path="call-tracking" element={<CallTrackingPage />} />
                         <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                        <Route path="ai-call-answering" element={<AiCallAnsweringPage />} />
                         <Route path="support" element={<SupportPage />} />
                         <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                         <Route path="visualizer" element={<VisualizerPage />} />
