@@ -61,6 +61,11 @@ const orderRow = (o: any): Row & { id: string } => ({
   meta: dayOnly(o.createdAt), badge: orderWord(o.status), tone: ORDER_TONE[o.status],
 })
 
+const REORDER_WORDS: Record<string, string> = { draft: 'Draft', sent: 'On the way', partly_received: 'Partly arrived', received: 'Arrived', cancelled: 'Cancelled' }
+const reorderWord = (s: string) => REORDER_WORDS[s] || words(s)
+/** Units ordered and not yet booked in, over all lines. */
+const dueUnits = (o: any): number => (o.lines || []).reduce((n: number, l: any) => n + Math.max(0, Number(l.quantity || 0) - Number(l.receivedQuantity || 0)), 0)
+
 export const STORE: ScreenSpec[] = [
   {
     id: 'store-orders', title: 'Orders', any: ['orders:read'],
@@ -106,6 +111,31 @@ export const STORE: ScreenSpec[] = [
         confirm: { title: 'Set the count', body: (d) => `The system says ${d.inventoryQty}. Count what is on the shelf and enter it. If a sale lands first, nothing is saved and you are told.`, button: 'Save count' },
         inputs: [{ id: 'qty', label: 'On the shelf', kind: 'number', required: true }],
         request: (d, v) => ({ method: 'PATCH', path: `/api/admin/products/variants/${d.id}`, body: { inventoryQty: Math.max(0, Math.floor(Number(v.qty) || 0)), inventoryFrom: d.inventoryQty } }), done: 'Count saved' }],
+    },
+  },
+  {
+    // Deliveries (parity row 4, 2026-10-31; the desktop's Reorders, behind store_reorders): a supplier's delivery arrives at the back door and
+    // is booked into stock there. Only that one job is on the phone — drafting, editing and emailing a reorder stay on the desktop (costs, the
+    // supplier's email). NOT queued for later when there is no signal (no `offline`): receiving is not safe to send twice, and the counts
+    // may have moved by the time a queued save went; the server also refuses more than was ordered, so a double tap books once.
+    id: 'store-reorders', title: 'Deliveries', any: ['margin:read'], feature: 'store_reorders',
+    list: { path: '/api/admin/reorders', query: { status: 'sent' } },
+    chips: [
+      { id: 'sent', label: 'On the way', query: { status: 'sent' } }, { id: 'partly', label: 'Partly arrived', query: { status: 'partly_received' } }, { id: 'arrived', label: 'Arrived', query: { status: 'received' } },
+    ],
+    rows: (o) => ({ id: o.id, key: o.id, title: join(o.number, o.supplierName) || 'Supplier order', subtitle: `${dueUnits(o)} still to come in`, meta: o.expectedOn ? dayOnly(o.expectedOn) : undefined, badge: reorderWord(o.status), tone: o.status === 'received' ? 'success' : o.status === 'cancelled' ? 'neutral' : 'info' }),
+    empty: { title: 'Nothing on the way', body: 'Supplier orders you have sent show here until they arrive.' },
+    detail: {
+      path: (id) => `/api/admin/reorders/${id}`,
+      title: (d) => join(d.number, d.supplierName) || 'Supplier order', subtitle: (d) => (d.expectedOn ? `Expected ${dayOnly(d.expectedOn)}` : undefined), badge: (d) => reorderWord(d.status),
+      sections: [{ title: 'Count it against the delivery', rows: (d) => (d.lines || []).map((l: any) => ({ key: l.id, title: `${l.quantity} × ${l.name}`, subtitle: l.sku, meta: `${l.receivedQuantity} in of ${l.quantity}` })), empty: 'No lines.' }],
+      actions: [{
+        id: 'received-all', label: 'Everything still due is here', icon: 'checkmark-done', any: ['products:update'],
+        when: (d) => ['sent', 'partly_received'].includes(d.status) && dueUnits(d) > 0,
+        confirm: { title: 'Book the delivery into stock?', body: (d) => `${dueUnits(d)} units go onto the shelf counts now. If only some came, do it on the desktop where you can enter each line.`, button: 'Book it in' },
+        request: (d) => ({ method: 'POST', path: `/api/admin/reorders/${d.id}/receive`, body: { lines: (d.lines || []).filter((l: any) => l.quantity - l.receivedQuantity > 0).map((l: any) => ({ lineId: l.id, quantity: l.quantity - l.receivedQuantity })) } }),
+        done: 'Booked into stock',
+      }],
     },
   },
   {
