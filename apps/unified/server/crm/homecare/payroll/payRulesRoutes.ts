@@ -261,6 +261,9 @@ export function createPayRulesRoutes(core: HomecareCore, d: CrmDeps) {
     const buckets = new Map(lines.map((l) => [l.caregiverId, fileBuckets(l, rules, mileageOf(l.caregiverId), expensesOf(l.caregiverId))]))
     const ids = await payrollWorkerIds(d.db, companyId, lines.map((l) => l.caregiverId))
     if (needs !== 'excel') {
+      // a pickup bonus the file cannot carry refuses it first (row 18): ADP needs its bonus code, Paychex has a bonus component
+      const noBonus = bonusNotInFile(lines, needs === 'adp' ? 'ADP file' : 'Paychex file', needs === 'paychex' || !!files.adpBonusCode)
+      if (noBonus) return { res: fail(c, 400, noBonus, 'pickup_bonus_not_in_file') }
       const missing = lines.filter((l) => !ids.has(l.caregiverId))
       if (missing.length) return { res: fail(c, 400, `${missing.length} caregiver(s) have no payroll id: ${missing.map((l) => `${l.firstName} ${l.lastName}`).join(', ')}. Set one on each in Pay rules.`, 'missing_worker_ids', Object.fromEntries(missing.map((l) => [l.caregiverId, `${l.firstName} ${l.lastName}`]))) }
     }
@@ -298,8 +301,6 @@ export function createPayRulesRoutes(core: HomecareCore, d: CrmDeps) {
     const f = r.files
     if (!f.adpCompanyCode) return fail(c, 400, 'Set the ADP company code in Pay rules first.', 'adp_not_set_up')
     const bs = r.lines.map((l) => r.buckets.get(l.caregiverId)!)
-    const noBonus = bonusNotInFile(r.lines, 'ADP file', !!f.adpBonusCode)
-    if (noBonus) return fail(c, 400, noBonus, 'pickup_bonus_not_in_file')
     const missing = adpCodeMissing(c, f, bs); if (missing) return missing
     const seq = /^\d{2}$/.test(String(c.req.query('seq') ?? '01')) ? String(c.req.query('seq') ?? '01') : '01'
     const batch = r.endDate.slice(2, 4) + r.endDate.slice(5, 7) + r.endDate.slice(8, 10)
@@ -349,8 +350,6 @@ export function createPayRulesRoutes(core: HomecareCore, d: CrmDeps) {
     if ('res' in r) return r.res
     const f = r.files
     if (!f.paychexClientId) return fail(c, 400, 'Set the Paychex client id in Pay rules first.', 'paychex_not_set_up')
-    const noBonus = bonusNotInFile(r.lines, 'Paychex file', true)
-    if (noBonus) return fail(c, 400, noBonus, 'pickup_bonus_not_in_file')
     const comp = f.paychexComponents, ov = f.paychexOverrides, template = f.paychexCheckTemplate
     const tail = template ? [ov.state ?? '', ov.local ?? '', ov.localJurisdiction ?? '', ov.laborAssignment ?? '', quote(template)] : []
     const rows: string[] = []
