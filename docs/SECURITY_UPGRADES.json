@@ -18,6 +18,14 @@
       "at": "2026-10-28"
     },
     {
+      "manifest": "package.json",
+      "package": "follow-redirects",
+      "to": "^1.16.2",
+      "advisory": "GHSA-mrwp-f3q8-3g9p",
+      "why": "cross-realm sensitiveHeaders arrays are discarded and custom credentials can follow redirects (>=1.16.0 <=1.16.1); transitive via axios",
+      "at": "2026-10-31"
+    },
+    {
       "manifest": "packages/tenant-backend/package.json",
       "package": "zod",
       "to": "^4.6.6",
