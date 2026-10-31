@@ -33,6 +33,7 @@ const NotificationCenter = page(() => import('./NotificationCenter'))
 const IntegrationsHub = page(() => import('./IntegrationsHub'))
 const UserManagement = page(() => import('./UserManagement'))
 const CredentialTracking = page(() => import('./CredentialTracking'))
+const VisitQuestions = page(() => import('./VisitQuestions'))
 const MarginReports = page(() => import('./MarginReports'))
 const DataImport = page(() => import('./DataImport'))
 const PayRules = page(() => import('./PayRules'))
@@ -78,6 +79,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/reports': 'care-billing:read',
   '/crm/margin-reports': 'care-billing:read',
   '/crm/credentials': 'care-hr:read',
+  '/crm/visit-questions': 'care-clients:update',
   '/crm/data-import': 'care-clients:create',
   '/crm/pay-rules': 'care-payroll:read',
   '/crm/autopay': 'care-billing:read',
@@ -100,6 +102,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-incident" path="incidents/:id" element={<IncidentDetail />} />,
   <Route key="hc-office-reports" path="reports" element={<ReportsAnalytics />} />,
   <Route key="hc-office-credentials" path="credentials" element={<CredentialTracking />} />,
+  <Route key="hc-office-visit-questions" path="visit-questions" element={<VisitQuestions />} />,
   <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
@@ -124,6 +127,7 @@ export const nav: NavItem[] = [
   { to: '/crm/incidents', icon: AlertTriangle, label: 'Incidents', permission: PERMISSION['/crm/incidents'] },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports & Analytics', permission: PERMISSION['/crm/reports'], features: ['reports'] },
   { to: '/crm/credentials', icon: ShieldCheck, label: 'Credentials', permission: PERMISSION['/crm/credentials'], features: ['care_cert_reminders'] },
+  { to: '/crm/visit-questions', icon: ClipboardList, label: 'Clock-in questions', permission: PERMISSION['/crm/visit-questions'], features: ['care_visit_questions'] },
   { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
   { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create'], features: ['care_import'] },
   { to: '/crm/pay-rules', icon: Calculator, label: 'Pay rules', permission: PERMISSION['/crm/pay-rules'], features: ['care_payroll_rules'] },

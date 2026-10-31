@@ -82,6 +82,9 @@ export interface VisitPhoto {
 
 export type SandataPrompt = { kind: 'in' | 'out'; clientId: string; clientName: string } | null
 
+/** The answers sent with a punch (questions the agency asks at clock-in / clock-out). */
+export type Answers = { questionId: string; answer: string }[]
+
 export interface PunchResult { ok: boolean; error?: string; code?: string; queued?: boolean; message?: string }
 
 export interface ClockInCheck {
@@ -131,8 +134,8 @@ interface CareValue {
   refreshCounts: () => Promise<void>
   warmFix: () => void
   checkClockIn: (clientId: string) => Promise<ClockInCheck>
-  clockIn: (clientId: string, fix: Fix | null) => Promise<PunchResult>
-  clockOut: (notes: string) => Promise<PunchResult>
+  clockIn: (clientId: string, fix: Fix | null, answers?: Answers) => Promise<PunchResult>
+  clockOut: (notes: string, answers?: Answers) => Promise<PunchResult>
   visitNote: string
   setVisitNote: (v: string) => void
   photos: VisitPhoto[]
@@ -488,7 +491,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }, [clockingIn, clientName, getFix, geofenceFor, clients, sandata])
 
   // ── clock in ────────────────────────────────────────────────────────────────
-  const clockIn = useCallback(async (clientId: string, fix: Fix | null): Promise<PunchResult> => {
+  const clockIn = useCallback(async (clientId: string, fix: Fix | null, answers?: Answers): Promise<PunchResult> => {
     if (!userId) return { ok: false, error: 'Not signed in.' }
     const blocked = clockInBlocker({ clientId, active: activeRef.current, busy: clockingIn, activeClientName: activeRef.current ? (activeRef.current.clientName || clientName(activeRef.current.clientId)) : null })
     if (blocked) return { ok: false, error: blocked }
@@ -497,17 +500,17 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     const tapAt = new Date().toISOString() // the real clock-in time, even if the send fails
     const name = clientName(clientId)
     try {
-      const res = await carePost('/api/time-entries/clock-in', { clientId, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null })
+      const res = await carePost('/api/time-entries/clock-in', { clientId, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, ...(answers?.length ? { answers } : {}) })
       if (isUnreachable(res.status)) {
         const localId = newLocalId()
-        const saved = await punchQueue.save({ userId, localId, kind: 'in', at: tapAt, clientId, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null })
+        const saved = await punchQueue.save({ userId, localId, kind: 'in', at: tapAt, clientId, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, answers })
         if (!saved) return { ok: false, error: 'No signal, and this phone could not save the clock-in. Call the office with your start time.' }
         setActive({ id: `${OFFLINE_PREFIX}${localId}`, offline: true, clientId, startTime: tapAt, clientName: name })
         setPendingPunches(await punchQueue.count(userId))
         afterPunch('in', clientId, null)
         return { ok: true, queued: true, message: `No signal — clock-in saved on your phone at ${formatClock(tapAt)}. It sends by itself when you have signal.` }
       }
-      if (!res.ok) return { ok: false, error: res.error || 'Clock-in failed.', code: res.data?.code }
+      if (!res.ok) return { ok: false, error: res.data?.error || res.error || 'Clock-in failed.', code: res.data?.code }
       // The new time entry (camelCase): id, clientId, startTime, sandataRequired — the server's EVV call for this visit.
       const d = res.data || {}
       setActive({
@@ -563,7 +566,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }, [active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── clock out ───────────────────────────────────────────────────────────────
-  const clockOut = useCallback(async (notes: string): Promise<PunchResult> => {
+  const clockOut = useCallback(async (notes: string, answers?: Answers): Promise<PunchResult> => {
     const a = activeRef.current
     if (!a || !userId) return { ok: false, error: 'No open visit.' }
     const offline = isOfflineId(a.id)
@@ -591,13 +594,13 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       const { fix } = await getFix(2500)
       if (offline) {
         // Its clock-in is still on the phone — queue the clock-out behind it.
-        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: a.id.slice(OFFLINE_PREFIX.length), entryId: null, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes })
+        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: a.id.slice(OFFLINE_PREFIX.length), entryId: null, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers })
         if (!saved) return { ok: false, error: 'This phone could not save the clock-out. Call the office with your end time.' }
         return await finishSavedOffline()
       }
-      const res = await carePost(`/api/time-entries/${a.id}/clock-out`, { latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes })
+      const res = await carePost(`/api/time-entries/${a.id}/clock-out`, { latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, ...(answers?.length ? { answers } : {}) })
       if (isUnreachable(res.status)) {
-        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: null, entryId: a.id, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes })
+        const saved = await punchQueue.save({ userId, localId: newLocalId(), kind: 'out', at: tapAt, inLocalId: null, entryId: a.id, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, notes, answers })
         if (!saved) return { ok: false, error: 'No signal, and this phone could not save the clock-out. Call the office with your end time.' }
         return await finishSavedOffline()
       }

@@ -167,3 +167,20 @@ export function docsToSign<T>(prev: T[], res: { ok: boolean; status: number }, l
   if (res.status === 403) return []
   return prev
 }
+
+
+// ─── Clock-in / clock-out questions (care_visit_questions) ────────────────────────────────────────
+
+/** A question the agency asks at a clock event (GET /api/visit-questions/active). */
+export interface VisitQuestion { id: string; prompt: string; kind: 'yes_no' | 'text' | 'choice'; options?: string[] | null; required?: boolean }
+export type VisitAnswers = Record<string, string>
+
+/** The questions still blank that must be answered, in the agency's order. A live punch waits for these. */
+export function unansweredRequired(questions: VisitQuestion[], answers: VisitAnswers): VisitQuestion[] {
+  return questions.filter((q) => q.required && !String(answers[q.id] ?? '').trim())
+}
+
+/** The answers as the server takes them: [{ questionId, answer }] for what was filled in (blank ones are left out). */
+export function answersBody(questions: VisitQuestion[], answers: VisitAnswers): { questionId: string; answer: string }[] {
+  return questions.filter((q) => String(answers[q.id] ?? '').trim()).map((q) => ({ questionId: q.id, answer: String(answers[q.id]).trim() }))
+}

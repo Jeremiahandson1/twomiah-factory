@@ -26,6 +26,8 @@ import { SandataIdBox, SandataPromptCard, VisitSandata, SandataHelp } from '../.
 import { CareTaskChecklist, MedicationLog, VisitPhotos, VitalsForm } from '../../src/care/components/VisitParts'
 import { ConfirmSheet } from '../../src/components/ConfirmSheet'
 import { needsSandata } from '../../src/care/sandata'
+import { VisitQuestionFields, useVisitQuestions } from '../../src/care/components/VisitQuestions'
+import { answersBody, type VisitAnswers } from '../../src/care/rules'
 
 function ActiveVisitView() {
   const t = useTheme()
@@ -36,6 +38,10 @@ function ActiveVisitView() {
   const [now, setNow] = useState(Date.now())
   const [outOpen, setOutOpen] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  // The agency's clock-out questions (care_visit_questions): none unless the agency has them.
+  const outQuestions = useVisitQuestions('clock_out')
+  const [outAnswers, setOutAnswers] = useState<VisitAnswers>({})
+  const [outMissing, setOutMissing] = useState<string[]>([])
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [])
   const start = new Date(a.startTime).getTime()
   const elapsed = isNaN(start) ? 0 : (now - start) / 1000
@@ -48,8 +54,12 @@ function ActiveVisitView() {
 
   const doClockOut = async () => {
     setNoteError(null)
-    const r = await care.clockOut(care.visitNote)
+    // The server holds a live clock-out until the required questions are answered (409, handled below); a clock-out with no signal is
+    // saved with whatever was answered.
+    setOutMissing([])
+    const r = await care.clockOut(care.visitNote, answersBody(outQuestions, outAnswers))
     if (!r.ok) {
+      if (r.code === 'questions_required') { setOutMissing(outQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
       haptics.error()
       // A note the server or the offline rule requires: keep the sheet open and say why.
       if (r.code === 'va_note_required' || r.code === 'note_required') { setNoteError(r.error || 'A visit note is required.'); return }
@@ -116,6 +126,7 @@ function ActiveVisitView() {
                 placeholderTextColor={t.textMuted}
                 style={[styles.noteInput, { color: t.text, borderColor: noteError ? dangerTone.border : t.border, backgroundColor: t.background }]}
               />
+              <VisitQuestionFields title="Before you go" questions={outQuestions} answers={outAnswers} onChange={(a) => { setOutAnswers(a); setOutMissing([]) }} missing={outMissing} />
               {care.photos.some((p) => p.status !== 'sent') && (
                 <Text style={[styles.sheetText, { color: t.textSecondary }]}>Photos not sent yet will be retried when you clock out.</Text>
               )}
@@ -144,6 +155,10 @@ function ClockInView() {
   const [stage, setStage] = useState<null | 'gps' | 'send'>(null)
   const [confirm, setConfirm] = useState<{ fix: Fix | null; text: string } | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  // The agency's clock-in questions (care_visit_questions): none unless the agency has them.
+  const inQuestions = useVisitQuestions('clock_in')
+  const [inAnswers, setInAnswers] = useState<VisitAnswers>({})
+  const [inMissing, setInMissing] = useState<string[]>([])
 
   useEffect(() => { care.warmFix() }, []) // a fix is usually in hand before the tap
   useEffect(() => { if (params.clientId) setSelected(String(params.clientId)) }, [params.clientId])
@@ -157,8 +172,10 @@ function ClockInView() {
 
   const send = async (clientId: string, fix: Fix | null) => {
     setStage('send')
-    const r = await care.clockIn(clientId, fix)
+    const r = await care.clockIn(clientId, fix, answersBody(inQuestions, inAnswers))
     setStage(null)
+    if (!r.ok && r.code === 'questions_required') { setInMissing(inQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
+    if (r.ok) setInAnswers({})
     if (!r.ok) { haptics.error(); Alert.alert('Clock-in failed', r.error || 'Please try again.'); return }
     haptics.success()
     if (r.queued) Alert.alert('Saved on your phone', r.message || '')
@@ -168,6 +185,9 @@ function ClockInView() {
 
   const start = async () => {
     if (!selected) { toast.warning('Pick the client you are with.'); return }
+    // The server holds a live clock-in until the required questions are answered (409 questions_required, handled in send()); a punch
+    // with no signal is saved with whatever was answered and never refused, so the phone does not pre-block it here.
+    setInMissing([])
     haptics.medium()
     setStage('gps')
     const chk = await care.checkClockIn(selected)
@@ -233,6 +253,8 @@ function ClockInView() {
         <Button small variant="ghost" icon="navigate" label={fullAddress(client)} onPress={() => openDirections(fullAddress(client))} style={{ alignSelf: 'flex-start' }} />
       ) : null}
       {selected ? <SandataIdBox client={sc} /> : null}
+
+      {selected ? <VisitQuestionFields title="Before you start" questions={inQuestions} answers={inAnswers} onChange={(a) => { setInAnswers(a); setInMissing([]) }} missing={inMissing} /> : null}
 
       <Button
         style={{ marginTop: 16, minHeight: 60 }}

@@ -27,6 +27,8 @@ export interface Punch {
   latitude?: number | null
   longitude?: number | null
   notes?: string | null
+  /** The answers to the agency's clock-in / clock-out questions, kept with the saved punch and sent with it. */
+  answers?: { questionId: string; answer: string }[]
   /** clock-out: the server entry it closes, when known. */
   entryId?: string | null
   /** clock-out: the saved clock-in it closes, when that clock-in was offline too. */
@@ -132,7 +134,7 @@ export function createPunchQueue(kv: KV, key = 'twomiah_care_offline_punches_v1'
         let body: Record<string, unknown>
         if (cur.kind === 'in') {
           path = '/api/time-entries/clock-in'
-          body = { clientId: cur.clientId, latitude: cur.latitude ?? null, longitude: cur.longitude ?? null, offlineAt: cur.at }
+          body = { clientId: cur.clientId, latitude: cur.latitude ?? null, longitude: cur.longitude ?? null, offlineAt: cur.at, ...(cur.answers?.length ? { answers: cur.answers } : {}) }
         } else {
           const entryId = cur.entryId || (cur.inLocalId ? (await syncedIds())[cur.inLocalId] : null)
           if (!entryId) {
@@ -142,7 +144,7 @@ export function createPunchQueue(kv: KV, key = 'twomiah_care_offline_punches_v1'
             continue
           }
           path = `/api/time-entries/${entryId}/clock-out`
-          body = { latitude: cur.latitude ?? null, longitude: cur.longitude ?? null, notes: cur.notes ?? null, offlineAt: cur.at }
+          body = { latitude: cur.latitude ?? null, longitude: cur.longitude ?? null, notes: cur.notes ?? null, offlineAt: cur.at, ...(cur.answers?.length ? { answers: cur.answers } : {}) }
         }
         let res: { status: number; data: any }
         try { res = await send(path, body) } catch { break } // still no signal

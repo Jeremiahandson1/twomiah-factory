@@ -3118,3 +3118,40 @@ export const medicationDoseReminder = pgTable('medication_dose_reminder', {
   uniqueIndex('medication_dose_reminder_once_idx').on(t.medicationId, t.timeEntryId, t.dueAt, t.kind),
   index('medication_dose_reminder_company_idx').on(t.companyId),
 ])
+
+// Questions the caregiver answers when they clock in and/or out (item 3, care_visit_questions): safety, the client's
+// condition, breaks. Yes/no, a short text, or one pick from a list; one may be required, and an answer can raise a flag to the office.
+export const visitQuestion = pgTable('visit_question', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  prompt: text('prompt').notNull(),
+  kind: text('kind').notNull(), // 'yes_no' | 'text' | 'choice'
+  options: json('options'), // the list a 'choice' picks from
+  phase: text('phase').notNull(), // 'clock_in' | 'clock_out' | 'both'
+  required: boolean('required').default(false).notNull(),
+  // The answer that tells the office ("no" to "Was the home safe?"): compared with what was answered, ignoring case.
+  flagOn: text('flag_on'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_question_company_idx').on(t.companyId),
+])
+
+// One answer to one question at one clock event of one visit. The prompt is copied, so the record reads the same after the question is edited or removed.
+export const visitAnswer = pgTable('visit_answer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  questionId: text('question_id').notNull(),
+  prompt: text('prompt').notNull(),
+  phase: text('phase').notNull(), // 'clock_in' | 'clock_out'
+  answer: text('answer').notNull(),
+  flagged: boolean('flagged').default(false).notNull(),
+  answeredById: text('answered_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_answer_once_idx').on(t.timeEntryId, t.questionId, t.phase),
+  index('visit_answer_company_idx').on(t.companyId, t.createdAt),
+])
