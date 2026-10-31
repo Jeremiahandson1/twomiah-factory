@@ -132,6 +132,15 @@ async function main() {
   // ── server errors and no answer ─────────────────────────────────────────────────────────────
   console.log('5xx and no answer')
   {
+    // A save tried at once whose reply is lost: the server may have taken it, so its retry must be the SAME save.
+    const w = world(), e = w.make()
+    await e.load('u1')
+    w.say('/api/door', 'throw', { status: 201 })
+    const r = await e.submit({ method: 'POST', path: '/api/door', recordKey: 'door' })
+    w.advance(BASE_WAIT_MS); await e.flush()
+    check('a lost reply on the first try: the retry carries the id it was tried with', r.queued && w.sent.length === 2 && w.sent[0].id === w.sent[1].id && r.item?.id === w.sent[0].id, w.sent.map((s) => s.id))
+  }
+  {
     const w = world(), e = w.make()
     await e.load('u1')
     w.say('/api/a', { status: 500 }, { status: 503 }, { status: 200 })

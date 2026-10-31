@@ -238,11 +238,14 @@ export function createEngine(deps: EngineDeps) {
       notify(); void flush()
     },
 
-    /** Keep a save for later. Resolves once it is written to the phone. */
-    async enqueue(req: NewItem): Promise<QueueItem> {
+    /**
+     * Keep a save for later. Resolves once it is written to the phone. `id` is submit's: a save first tried now keeps the
+     * id it was tried with, so its retry carries the same Idempotency-Key and the server knows it as a repeat.
+     */
+    async enqueue(req: NewItem, id: string = newId()): Promise<QueueItem> {
       if (!userId) throw new Error('Nobody is signed in.')
       const it: QueueItem = {
-        id: newId(), method: req.method, path: req.path, body: req.body, recordKey: req.recordKey || req.path, label: req.label,
+        id, method: req.method, path: req.path, body: req.body, recordKey: req.recordKey || req.path, label: req.label,
         createdAt: now(), tries: 0, serverErrors: 0, nextAttemptAt: now(), state: 'waiting',
       }
       items.push(it)
@@ -259,10 +262,13 @@ export function createEngine(deps: EngineDeps) {
       const key = req.recordKey || req.path
       if (!userId) throw new Error('Nobody is signed in.')
       if (!online || items.some((i) => i.recordKey === key)) return { queued: true, status: 0, item: await engine.enqueue(req) }
+      // The id this try is sent with is the one it keeps if it has to wait: a reply lost after the server took the save
+      // must come back as the same save (the same Idempotency-Key), not as a second one.
+      const id = newId()
       let res: { status: number; data?: any }
-      try { res = await deps.send({ id: newId(), method: req.method, path: req.path, body: req.body }) } catch { res = { status: 0 } }
+      try { res = await deps.send({ id, method: req.method, path: req.path, body: req.body }) } catch { res = { status: 0 } }
       if (res.status >= 200 && res.status < 300) return { queued: false, ...res }
-      if (RETRY.has(res.status) || res.status >= 500) return { queued: true, status: res.status, item: await engine.enqueue(req) }
+      if (RETRY.has(res.status) || res.status >= 500) return { queued: true, status: res.status, item: await engine.enqueue(req, id) }
       return { queued: false, ...res }
     },
 

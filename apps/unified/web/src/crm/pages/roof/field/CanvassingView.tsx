@@ -236,19 +236,22 @@ function CanvassingView() {
     requestGps()
   }
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Each photo goes to the photo store as it is picked (POST /api/canvassing/sessions/:id/photos); the door keeps its
+  // address, never the picture itself (they were data URLs inside the door's row).
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return
-    // For now, just store as data URLs — in production these upload to R2
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const photo = reader.result
+    if (!files || !activeSession) return
+    const picked = Array.from(files)
+    e.target.value = ''
+    for (const file of picked) {
+      try {
+        const fd = new FormData()
+        fd.append('photo', file)
+        const up = await api.upload(`/api/canvassing/sessions/${encodeURIComponent(activeSession.id)}/photos`, fd) as { url?: string }
         // Six at most, counted at the moment each one lands (the template read the count from before the pick).
-        if (typeof photo === 'string') setLogPhotos((prev) => (prev.length < 6 ? [...prev, photo] : prev))
-      }
-      reader.readAsDataURL(file)
-    })
+        if (up?.url) setLogPhotos((prev) => (prev.length < 6 ? [...prev, up.url!] : prev))
+      } catch (err) { toast.error(errorText(err, 'That photo could not be uploaded')) }
+    }
   }
 
   const handleSubmitStop = async (andDone: boolean) => {

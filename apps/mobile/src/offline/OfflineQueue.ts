@@ -6,8 +6,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo'
-import { api } from '../api/client'
+import { api, upload } from '../api/client'
 import { createEngine, type NewItem, type QueueItem, type QueueStatus, type Sender } from './engine'
+import { withUploadedPhotos, type FileExists, type UploadPhoto } from './localPhotos'
 
 export type { NewItem, QueueItem, QueueStatus, ItemView, Refusal, Method } from './engine'
 
@@ -16,7 +17,22 @@ export type { NewItem, QueueItem, QueueStatus, ItemView, Refusal, Method } from 
  * it does. 0 means "no answer". `Idempotency-Key` is the item's id, the same on every try — the server may use it to
  * recognise a repeat, and does: the server keeps the first answer and replays it (apps/unified server/http/savedOnce.ts, 10/30).
  */
-const send: Sender = async ({ id, method, path, body }) => {
+/** Is a photo the camera saved still on the phone? (React Native's fetch reads file:// addresses.) */
+const fileExists: FileExists = async (uri) => {
+  try { const r = await fetch(uri); return r.ok } catch { return false }
+}
+const uploadPhoto: UploadPhoto = async (path, name, uri) => {
+  const fd = new FormData()
+  fd.append('photo', { uri, type: 'image/jpeg', name: `${name}.jpg` } as any)
+  fd.append('name', name)
+  try { const r = await upload(path, fd); return { status: r.status, data: r.data } } catch { return { status: 0 } }
+}
+
+const send: Sender = async ({ id, method, path, body: raw }) => {
+  // A save with photos (`$photos`, ./localPhotos.ts) uploads them first and goes with their addresses.
+  const prepared = await withUploadedPhotos(id, raw, fileExists, uploadPhoto)
+  if ('status' in prepared) return prepared
+  const body = prepared.body
   try {
     const res = await api(path, {
       method,

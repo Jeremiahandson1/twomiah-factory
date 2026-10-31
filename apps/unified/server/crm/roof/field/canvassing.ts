@@ -17,6 +17,15 @@
 //   · an edited door's outcome is one of the outcomes, as a logged door's is (T17/N3: "banana" was refused on POST and
 //     stored by PUT);
 //   · an unreadable appointment or follow-up date is a 400, not a 500; an unreadable body is a 400.
+//
+// Canvassing with no signal (the phone's offline queue, apps/mobile src/offline; docs/parity/roof-canvass-offline.md):
+//   · the phone names a session itself (`id` on POST /sessions), so the doors it logs before the server has heard of the
+//     session already carry its address; sending the same session again answers the one saved (200), never a second;
+//   · the times are the phone's when it sends them — `startedAt`, a door's `visitedAt`, the session's `endedAt` — so a door
+//     sent hours later is dated when it was knocked (only a time from the last week and not ahead of the server is taken);
+//   · a door's photos are files in the photo store (POST /sessions/:id/photos → its /media address), never the picture
+//     itself in the door's row; a door's `photos` are those addresses, at most six. A repeat of a door is the queue's
+//     Idempotency-Key's to recognise (server/http/savedOnce.ts).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
@@ -24,13 +33,42 @@ import { canvassingScript, canvassingSession, canvassingStop } from '../../../db
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { companyTimeZone } from '@twomiah/tenant-backend'
+import { companyTimeZone, sniffType } from '@twomiah/tenant-backend'
+import { uploadedForm } from '../../office/upload.ts'
 import { canvassingOutcome, email as emailField, onCompanyClock, optional, phone as phoneField } from '../validation.ts'
 import { homeownerName, insertHomeowner, insertRoofJob } from './roofJob.ts'
 import { createBusinessCentre } from '../../field/maps.ts'
 import { createGeocodingService } from '../../field/geocodingService.ts'
 
 const body = async (c: any): Promise<any> => (await c.req.json().catch(() => null)) ?? {}
+/** A session id a phone made (letters, digits, - and _): it names the session before the server has seen it. */
+export const CLIENT_SESSION_ID = /^[A-Za-z0-9_-]{16,64}$/
+/** How far back a phone's own time is taken (a week of doors waiting for signal), and how far ahead of ours (clock drift). */
+const CLIENT_TIME_BACK_MS = 7 * 24 * 3600_000
+const CLIENT_TIME_AHEAD_MS = 10 * 60_000
+/** The time the phone says something happened, when it is a time it could have happened; otherwise now. */
+export function phoneTime(v: unknown, now = new Date()): Date {
+  if (typeof v !== 'string' || !v) return now
+  const t = new Date(v)
+  const ms = t.getTime()
+  if (!Number.isFinite(ms) || ms < now.getTime() - CLIENT_TIME_BACK_MS || ms > now.getTime() + CLIENT_TIME_AHEAD_MS) return now
+  return t
+}
+export const MAX_DOOR_PHOTOS = 6
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+const PHOTO_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
+/** Why a door's photos cannot be kept — or null. Each is one of this business's canvass photos (or, kept as it was, a web address). */
+export function doorPhotosProblem(photos: unknown, companyId: string): string | null {
+  if (photos === undefined || photos === null) return null
+  if (!Array.isArray(photos)) return 'Send the photos as a list.'
+  if (photos.length > MAX_DOOR_PHOTOS) return `A door keeps at most ${MAX_DOOR_PHOTOS} photos.`
+  const own = `/media/photos/${companyId}/canvass/`
+  for (const p of photos) {
+    if (typeof p !== 'string' || p.length > 2000 || p.includes('..')) return 'A photo could not be read — take it again.'
+    if (!(p.startsWith(own) || /^https:\/\/[^\s"'<>]+$/i.test(p))) return 'A photo could not be read — take it again.'
+  }
+  return null
+}
 const decimal = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v))
 /** A timestamp from a form: '' / null / absent → null; one that does not parse → an error naming the field. */
 /** A time a canvasser picked (a datetime-local box): on the company's clock (../validation.ts onCompanyClock). */
@@ -168,16 +206,23 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const b = await body(c)
     // No phone location (refused, or a desk browser): the business's own centre, never a stored or template default —
     // the session map opened on downtown Dallas for an Eau Claire roofer (roofing live test 2026-10-24).
+    // A session the phone named: sent again (its reply was lost), it is the one already saved; someone else's id is refused.
+    if (b.id !== undefined && b.id !== null) {
+      if (typeof b.id !== 'string' || !CLIENT_SESSION_ID.test(b.id)) return fail(c, 400, 'That session id cannot be used.')
+      const [had] = await db.select().from(canvassingSession).where(eq(canvassingSession.id, b.id)).limit(1)
+      if (had) return had.companyId === companyId && had.userId === userId ? one(c, had) : fail(c, 409, 'That session id is already taken.')
+    }
     const fromPhone = decimal(b.centerLat || null) !== null && decimal(b.centerLng || null) !== null
     const home = fromPhone ? null : await businessCentre(companyId).catch(() => null)
     const [session] = await db.insert(canvassingSession).values({
+      ...(typeof b.id === 'string' ? { id: b.id } : {}),
       companyId, userId,
       name: b.name || `Session — ${new Date().toLocaleDateString()}`,
       status: 'active',
       centerLat: fromPhone ? decimal(b.centerLat) : decimal(home?.lat ?? null), centerLng: fromPhone ? decimal(b.centerLng) : decimal(home?.lng ?? null),
       radiusMiles: decimal(b.radiusMiles || null),
       weatherEvent: b.weatherEvent || null,
-      startedAt: new Date(),
+      startedAt: phoneTime(b.startedAt),
     } as any).returning()
     return one(c, session, 201)
   })
@@ -221,9 +266,10 @@ export function createCanvassingRoutes(d: CrmDeps) {
   app.post('/sessions/:id/end', requirePermission('canvassing:create'), async (c) => {
     const { companyId } = c.get('user')
     const id = c.req.param('id')
+    const b = await body(c)
     const stops = await db.select().from(canvassingStop).where(and(eq(canvassingStop.sessionId, id), eq(canvassingStop.companyId, companyId)))
     const [updated] = await db.update(canvassingSession).set({
-      status: 'completed', endedAt: new Date(),
+      status: 'completed', endedAt: phoneTime(b.endedAt),
       totalDoors: stops.length,
       answeredDoors: stops.filter((s: any) => s.outcome !== 'no_answer').length,
       leadsCreated: stops.filter((s: any) => s.jobId).length,
@@ -247,6 +293,8 @@ export function createCanvassingRoutes(d: CrmDeps) {
     const appointment = when('appointmentDate', b.appointmentDate, tz)
     const followUp = when('followUpDate', b.followUpDate, tz)
     if (appointment.error || followUp.error) return fail(c, 400, (appointment.error || followUp.error)!)
+    const photoProblem = doorPhotosProblem(b.photos, companyId)
+    if (photoProblem) return fail(c, 400, photoProblem, 'validation_failed')
 
     const [session] = await db.select().from(canvassingSession).where(and(eq(canvassingSession.id, sessionId), eq(canvassingSession.companyId, companyId))).limit(1)
     if (!session) return fail(c, 404, 'Session not found')
@@ -284,7 +332,7 @@ export function createCanvassingRoutes(d: CrmDeps) {
         address: b.address || '', city: b.city || null, state: b.state || null, zip: b.zip || null,
         lat: decimal(b.lat || null), lng: decimal(b.lng || null),
         outcome: b.outcome || 'no_answer', notes: b.notes || null, jobId, contactId,
-        doorHangerLeft: b.doorHangerLeft || false, followUpDate: followUp.value, photos: b.photos || [], visitedAt: new Date(),
+        doorHangerLeft: b.doorHangerLeft || false, followUpDate: followUp.value, photos: b.photos || [], visitedAt: phoneTime(b.visitedAt),
       } as any).returning()
       const counts: any = { totalDoors: (session.totalDoors || 0) + 1, updatedAt: new Date() }
       if (b.outcome !== 'no_answer') counts.answeredDoors = (session.answeredDoors || 0) + 1
@@ -293,6 +341,30 @@ export function createCanvassingRoutes(d: CrmDeps) {
       return { ...row, jobId, contactId }
     })
     return one(c, stop, 201)
+  })
+
+  // POST /sessions/:id/photos — one door photo into the photo store; answers its /media address for the door's `photos`.
+  // `name` (letters, digits, - and _) lets the phone send the same photo again under the same address, so a retry after
+  // a lost reply replaces the file instead of leaving a second one. Its type is read from its bytes.
+  app.post('/sessions/:id/photos', requirePermission('canvassing:create'), async (c) => {
+    const { companyId } = c.get('user')
+    const id = c.req.param('id')
+    const [session] = await db.select({ id: canvassingSession.id }).from(canvassingSession).where(and(eq(canvassingSession.id, id), eq(canvassingSession.companyId, companyId))).limit(1)
+    if (!session) return fail(c, 404, 'Session not found')
+    const form = await uploadedForm(c)
+    const file = form.get('photo') as File | null
+    if (!file || typeof file === 'string') return fail(c, 400, 'No photo provided')
+    if (file.size > MAX_PHOTO_BYTES) return fail(c, 400, 'Photo exceeds 10MB limit')
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const type = sniffType(buffer) || ''
+    if (!PHOTO_EXT[type]) return fail(c, 400, 'That file is not an image. JPEG, PNG, GIF and WebP are supported.')
+    const storage: any = d.services.storage
+    if (storage.storageConfigured && !storage.storageConfigured()) return fail(c, 503, 'Photo storage is not set up yet.', 'storage_not_configured')
+    const asked = String(form.get('name') || '')
+    const name = /^[A-Za-z0-9_-]{8,80}$/.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
+    const key = `photos/${companyId}/canvass/${session.id}/${name}.${PHOTO_EXT[type]}`
+    await storage.put(key, buffer, type)
+    return one(c, { url: `/media/${key}` }, 201)
   })
 
   // GET /sessions/:sessionId/stops — every door in the session.
@@ -322,7 +394,11 @@ export function createCanvassingRoutes(d: CrmDeps) {
       if (f.error) return fail(c, 400, f.error)
       updates.followUpDate = f.value
     }
-    if (b.photos !== undefined) updates.photos = b.photos
+    if (b.photos !== undefined) {
+      const problem = doorPhotosProblem(b.photos, companyId)
+      if (problem) return fail(c, 400, problem, 'validation_failed')
+      updates.photos = b.photos
+    }
     // An empty SET clause makes Drizzle throw: a caller who sent no recognised field gets a 400, not a 500. (T42)
     if (Object.keys(updates).length === 0) return fail(c, 400, 'Nothing to update')
     // A stop is edited through its session's owner, the same rule as the session routes. (T63)

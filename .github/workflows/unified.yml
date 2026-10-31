@@ -71,6 +71,18 @@ jobs:
           bun run tests/mobile/home-routes.test.ts
           bun run tests/mobile/trade-screens.test.ts
           bun run tests/mobile/tier1-native.test.ts
+      # The phone's own rules, under plain bun: the offline queue and what rides on it (canvassing with no signal, the job
+      # flow, the care visit), photo stamps, pipeline labels, sign-in with a second step. Each was written with a test that
+      # never ran here (10/31).
+      - name: Phone app — offline queue, canvassing offline, job flow, care visit, photo stamps, pipeline labels, sign-in
+        run: |
+          bun run tests/mobile/offline-queue.test.ts
+          bun run tests/mobile/offline-canvass.test.ts
+          bun run tests/mobile/job-flow.test.ts
+          bun run tests/mobile/care-app.test.ts
+          bun run tests/mobile/photo-stamp.test.ts
+          bun run tests/mobile/pipeline-labels.test.ts
+          bun run tests/mobile/sign-in-mfa.test.ts
 
   # The app's own test files, split across parallel runners (runEach.ts SHARD=i/n): every file runs exactly once, each
   # in its own process, and any failing shard fails the push. One runner took ~40 min; six take a fraction (10/24).

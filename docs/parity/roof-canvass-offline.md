@@ -1,9 +1,32 @@
 # Roofing parity — canvass offline on the phone (gap 11)
 
-**Status: NOT BUILT in this change.** The owner has the field-service session rebuilding the phone's offline queue
-(`apps/mobile/src/offline/`), because the current one drops refused replies silently and can hang; nothing under that folder was
-touched here. This page records what was confirmed in the code, what the leader says, and exactly what the wiring needs, so it
-can be built against the new queue once it exists.
+**Status (10/31): BUILT** on the rebuilt offline queue (`apps/mobile/src/offline/`). Not yet tried on a real phone with the
+signal off — hidden behind `canvassing_tool` as before; test it in a dead zone before saying it works.
+
+What was built:
+- **Phone** (`apps/mobile/app/(tabs)/canvass.tsx`, `src/canvass/offlineCanvass.ts`): start, every door and the end go through
+  the queue under one record per session (`canvass:<id>`), so the session goes first, doors in the order knocked, the end
+  last. The phone makes the session id, so doors logged before the server has heard of the session already name it — no id
+  swap needed. The phone's own times are sent (`startedAt`, `visitedAt`, `endedAt`). The open session and its doors are kept
+  on the phone, so a restart with no signal carries on; once nothing waits, the screen takes the server's version. "N waiting
+  to send" with **Send now**, doors marked "waiting to send", "Saved on this phone" instead of "Lead created", refused doors
+  counted and kept in the queue's list with the server's words.
+- **Photos** (up to six per door, from the camera): kept as the camera's files, never inside the queue; uploaded just before
+  their door is sent (`src/offline/localPhotos.ts`, wired in `OfflineQueue.ts`), under names made from the save's id, so a
+  retry replaces the same file. A photo whose file is gone is left off and the door's notes say so.
+- **Server** (`apps/unified/server/crm/roof/field/canvassing.ts`): takes the phone's session `id` (sent again → the saved
+  session, 200; someone else's → 409), takes the phone's times when they could be real (the last week, not ahead), and
+  `POST /sessions/:id/photos` stores a door photo in the photo store and answers its `/media` address. A door's `photos` must
+  be this business's canvass photos (or https), at most six — **the desktop page now uploads too**: it used to keep each
+  picture as a data URL inside the door's row.
+- **Repeats** are one door: the queue's Idempotency-Key (server `http/savedOnce.ts`). Found and fixed on the way: a save
+  tried at once and then kept for a retry was given a NEW id for the retry, so a lost reply could make a second save — for
+  every queued save on the phone (job moves too). The retry now keeps the first try's id.
+- **Tests:** `apps/unified/tests/roof-canvass-offline.test.ts` (server), `tests/mobile/offline-canvass.test.ts` (the real
+  queue engine with a scripted network and camera roll), a new check in `tests/mobile/offline-queue.test.ts`. CI now runs the
+  phone's queue, job-flow, care, photo-stamp, pipeline and sign-in tests too — they existed but never ran there.
+
+The research below is what this was built to.
 
 Leader: JobNimbus. Read on 2026-10-30; a point the pages did not state is marked "not stated", never assumed.
 
