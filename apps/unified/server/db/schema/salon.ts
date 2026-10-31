@@ -351,6 +351,20 @@ export const saleTipSplit = pgTable('sale_tip_split', {
   index('sale_tip_split_invoice_idx').on(t.invoiceId),
 ])
 
+/**
+ * The receipt a paid sale emailed to the client (salon parity row 11): one row per sale, so the automatic receipt goes once however many ways
+ * the sale's money arrives. A person pressing "Send receipt" again updates `sentAt`.
+ */
+export const saleReceipt = pgTable('sale_receipt', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  toEmail: text('to_email').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('sale_receipt_invoice_unique').on(t.invoiceId),
+])
+
 /** A preset kind of blocked time the owner keeps (salon parity row 2; Fresha's blocked time types): a name, a colour, a usual length, paid or not. */
 export const bookBlockType = pgTable('book_block_type', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

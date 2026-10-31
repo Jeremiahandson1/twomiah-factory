@@ -152,6 +152,37 @@ ${data.disclosure}`,
   }),
 
   /**
+   * The receipt for a paid sale at the salon (salon parity row 11): what was bought, what was paid, the tip so far, and — when the salon allows
+   * it — a button to add a tip afterwards (data.tipPath, the sale's private tip page). Everything typed by a person is escaped.
+   */
+  saleReceipt: (data, b, appUrl) => {
+    const m = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const lines = (Array.isArray(data.lines) ? data.lines : []) as Array<{ description: string; total: number }>
+    const link = data.tipPath ? appUrl + String(data.tipPath) : ''
+    const rows = lines.map((l) => `<tr><td>${escHtml(l.description)}</td><td style="text-align:right;">${m(l.total)}</td></tr>`).join('')
+    return {
+      subject: `Your receipt from ${b.companyName} - ${data.invoiceNumber}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">Receipt</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Thank you for visiting ${escHtml(b.companyName)}.</p>
+          <table style="width:100%;border-collapse:collapse;">${rows}
+            <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>${m(data.total)}</strong></td></tr>
+            ${Number(data.tip) > 0 ? `<tr><td>Tip</td><td style="text-align:right;">${m(data.tip)}</td></tr>` : ''}
+          </table>
+          <p>Invoice ${escHtml(data.invoiceNumber)}</p>
+          ${link ? `<p>Want to leave a tip for the team? <a href="${escHtml(link)}" style="display:inline-block;padding:10px 18px;background:#0f766e;color:#fff;border-radius:8px;text-decoration:none;">Add a tip</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>`,
+      text: `Receipt ${data.invoiceNumber} from ${b.companyName}\n${lines.map((l) => `${l.description}: ${m(l.total)}`).join('\n')}\nTotal: ${m(data.total)}${Number(data.tip) > 0 ? `\nTip: ${m(data.tip)}` : ''}${link ? `\n\nAdd a tip for the team: ${link}` : ''}`,
+    }
+  },
+
+  /**
    * The quote, as the customer receives it. (E2E run 1, 10/14: it arrived as "Quote from …: undefined", with no
    * number, no lines and no way to approve.) Everything here was typed by a person — escaped. The internal cost of a
    * line is never passed in. The button opens the quote's own private link (data.documentPath, /d/<token>), where the

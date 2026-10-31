@@ -16,6 +16,7 @@ const toCents = (v: string) => Math.round(Number(v) * 100)
 const CLOSED = new Set(['paid', 'void', 'refunded', 'draft'])
 
 interface Reader { id: string; label: string; deviceType: string | null; simulated: boolean; status?: string | null }
+interface TipInfo { amountCents: number; eligibleCents: number; retailLeftOut: boolean; suggestions: Array<{ percent: number; cents: number }> }
 interface Charge { id: string; status: string; failure: string | null; amountCents: number; tipCents: number; readerLabel: string | null; paymentId: string | null }
 interface ReaderPayment { chargeId: string; paymentId: string; amountCents: number; tipCents: number; refundedCents: number; tipRefundedCents?: number }
 
@@ -35,6 +36,7 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
   const [amount, setAmount] = useState('')
   const [tip, setTip] = useState('')
   const [onReaderTip, setOnReaderTip] = useState(false)
+  const [tipInfo, setTipInfo] = useState<TipInfo | null>(null)
   const [charge, setCharge] = useState<Charge | null>(null)
   const [paid, setPaid] = useState<ReaderPayment[]>([])
   const [problem, setProblem] = useState('')
@@ -65,11 +67,19 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
     api.get(`/api/chair-checkout/sales/${invoiceId}/charge`).then((r: { charge: Charge | null }) => { if (r.charge) { setCharge(r.charge); if (r.charge.status === 'pending') poll(r.charge.id) } }).catch(() => {})
     loadPaid()
   }, [on, invoiceId, poll, loadPaid])
+  // The salon's tip percentages, worked on the services of what is being charged (retail on the sale is left out) — the server decides.
+  const saleCents = amount ? toCents(amount) : dueCents
+  useEffect(() => {
+    if (!on || !owing || !(saleCents > 0)) return
+    let live = true
+    api.get(`/api/chair-checkout/sales/${invoiceId}/tip-info?amountCents=${saleCents}`).then((r: TipInfo) => { if (live) setTipInfo(r) }).catch(() => { if (live) setTipInfo(null) })
+    return () => { live = false }
+  }, [on, owing, invoiceId, saleCents])
   if (!on || status === 'void' || status === 'draft') return null
   if (!owing && !paid.length) return null
 
   const sale = amount ? toCents(amount) : dueCents
-  const chip = (pct: number) => setTip(((sale * pct) / 100 / 100).toFixed(2))
+  const chip = (cents: number) => setTip((cents / 100).toFixed(2))
   const send = async () => {
     setBusy(true); setProblem('')
     try {
@@ -134,9 +144,10 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
           </div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={onReaderTip} onChange={(e) => { setOnReaderTip(e.target.checked); if (e.target.checked) setTip('') }} />Let the client choose the tip on the reader</label>
           <div className={'flex flex-wrap gap-2' + (onReaderTip ? ' hidden' : '')} role="group" aria-label="Tip shortcuts">
-            {[15, 18, 20].map((n) => <button key={n} type="button" onClick={() => chip(n)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">{n}%</button>)}
+            {(tipInfo?.suggestions ?? [15, 18, 20].map((percent) => ({ percent, cents: Math.round((sale * percent) / 100) }))).map((x) => <button key={x.percent} type="button" onClick={() => chip(x.cents)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">{x.percent}%</button>)}
             <button type="button" onClick={() => setTip('')} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">No tip</button>
           </div>
+          {tipInfo?.retailLeftOut && <p className="text-xs text-gray-600 dark:text-slate-400">Tip percentages are worked on the services ({cents(tipInfo.eligibleCents)}), not on the retail on this sale.</p>}
           {readers.length > 1 && <label className="block">Reader<select value={readerId} onChange={(e) => setReaderId(e.target.value)} className={inputCls + ' mt-1'}>{readers.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></label>}
           {problem && <p role="alert" className="text-red-700 dark:text-red-300">{problem}</p>}
           <Button onClick={send} disabled={busy || !readerId}>{busy ? 'Sending…' : onReaderTip ? `Send ${cents(sale)} to the reader` : `Send ${cents(sale + (tip ? toCents(tip) : 0))} to the reader`}</Button>
@@ -265,6 +276,7 @@ export default function CardReadersSettingsPage() {
           </ul>
         )}
       </section>
+      <TipSettingsSection mayEdit={mayEdit} />
       {mayEdit && (
         <section className={box} aria-label="Add a reader">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add a reader</h2>
@@ -359,4 +371,67 @@ export function TipSplitPanel({ invoiceId, reload }: { invoiceId: string; reload
       )}
     </section>
   )
+}
+
+
+interface TipSettingsView { presets: number[]; lateTipLink: boolean; sendReceipts: boolean; readers?: { updated: number; failed: string[] } }
+
+/** Settings › Card readers › Tips (salon parity row 11): up to three percentages for the desk and the reader's own screen, the receipt, and its tip link. */
+function TipSettingsSection({ mayEdit }: { mayEdit: boolean }) {
+  const toast = useToast()
+  const [loaded, setLoaded] = useState(false)
+  const [presets, setPresets] = useState<string[]>(['15', '18', '20'])
+  const [lateTipLink, setLateTipLink] = useState(true)
+  const [sendReceipts, setSendReceipts] = useState(true)
+  const [problem, setProblem] = useState('')
+  const [warning, setWarning] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.get('/api/chair-checkout/tip-settings').then((r: TipSettingsView) => { setPresets(r.presets.map(String)); setLateTipLink(r.lateTipLink); setSendReceipts(r.sendReceipts); setLoaded(true) }).catch(() => setLoaded(true))
+  }, [])
+  const save = async () => {
+    setBusy(true); setProblem(''); setWarning('')
+    try {
+      const list = presets.map((p) => p.trim()).filter(Boolean).map(Number)
+      const r: TipSettingsView = await api.put('/api/chair-checkout/tip-settings', { presets: list, lateTipLink, sendReceipts })
+      setPresets(r.presets.map(String))
+      if (r.readers?.failed.length) setWarning(`Saved, but a reader's tip screen could not be changed yet: ${r.readers.failed[0]}`)
+      else toast.success('Tip settings saved')
+    } catch (e: any) { setProblem(e?.data?.fields?.presets || e?.message || 'The tip settings could not be saved.') } finally { setBusy(false) }
+  }
+  return (
+    <section className={box} aria-label="Tips">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tips</h2>
+      <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">The percentages offered at the desk and on the reader&rsquo;s own screen (up to three). They are worked on the services on the sale, not on retail or gift cards.</p>
+      {!loaded ? <Loader2 className="mt-2 h-5 w-5 animate-spin text-gray-500" /> : (
+        <div className="mt-3 space-y-3 text-sm text-gray-900 dark:text-slate-100">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => (
+              <label key={i}>Tip {i + 1} (%)<input inputMode="numeric" aria-label={`Tip percentage ${i + 1}`} value={presets[i] ?? ''} disabled={!mayEdit} onChange={(e) => setPresets(Object.assign([...presets, '', '', ''].slice(0, 3), { [i]: e.target.value }))} className={inputCls + ' mt-1'} /></label>
+            ))}
+          </div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={sendReceipts} disabled={!mayEdit} onChange={(e) => setSendReceipts(e.target.checked)} />Email a receipt when a sale is paid</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={lateTipLink} disabled={!mayEdit || !sendReceipts} onChange={(e) => setLateTipLink(e.target.checked)} />Let the client add a tip afterwards from a link in the receipt</label>
+          {problem && <p role="alert" className="text-red-700 dark:text-red-300">{problem}</p>}
+          {warning && <p role="status" className="text-amber-800 dark:text-amber-300">{warning}</p>}
+          {mayEdit && <div className="flex justify-end"><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save tips'}</Button></div>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** "Email the receipt" beside a paid sale (the app sends one by itself when a sale is paid; this sends it again). */
+export function SaleReceiptButton({ invoiceId, status }: { invoiceId: string; status: string }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const [busy, setBusy] = useState(false)
+  if (!hasFeature('chair_checkout') || !known || status !== 'paid' || !(can('invoices:update') || can('cardreader:use'))) return null
+  const send = async () => {
+    setBusy(true)
+    try { await api.post(`/api/chair-checkout/sales/${invoiceId}/receipt`, {}); toast.success('Receipt emailed') }
+    catch (e: any) { toast.error(e?.message || 'The receipt could not be sent.') } finally { setBusy(false) }
+  }
+  return <Button onClick={send} disabled={busy}>{busy ? 'Sending…' : 'Email the receipt'}</Button>
 }

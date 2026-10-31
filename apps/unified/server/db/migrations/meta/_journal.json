@@ -414,6 +414,13 @@
       "when": 1793471969078,
       "tag": "0058_sale_tip_split",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793472644912,
+      "tag": "0059_sale_receipt",
+      "breakpoints": true
     }
   ]
 }

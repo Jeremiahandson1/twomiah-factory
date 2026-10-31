@@ -24,6 +24,8 @@ import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
 import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
+import { createLateTips } from './lateTip.ts'
+import { createSaleReceipts } from './saleReceipt.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
@@ -87,6 +89,12 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
+  // A tip added after the visit (the link in the receipt) is paid on Stripe's own page; its finished event is claimed here. A paid sale is
+  // emailed its receipt however its money arrived (reader, typed in, card online, bank): once.
+  const lateTips = createLateTips(d)
+  const receipts = createSaleReceipts(d, lateTips)
+  d.services.useConnectedEvents?.(lateTips.claim)
+  d.services.onInvoicePaid?.(receipts.onPaid)
   // The card an online booking waited for: saved, so the booking stands (booking/engine.ts cardSaved).
   d.services.bookingCard.cards = s.cards
   s.cards.onSaved(async ({ companyId, metadata }) => { if (metadata.booking_token) await d.services.bookingCard.confirm?.(companyId, metadata.booking_token) })
@@ -109,7 +117,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     // Retail products with stock, sold onto a sale (not ready: owner tests it first).
     { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
     // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
-    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d)) } as Mount,
+    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts })) } as Mount,
+    // The receipt's private tip page (404 while Checkout at the chair is off).
+    { path: '/api/late-tip', access: 'public', feature: 'chair_checkout', router: lateTips.routes() } as Mount,
     // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
     { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).

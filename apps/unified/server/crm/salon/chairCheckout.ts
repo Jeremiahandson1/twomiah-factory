@@ -26,6 +26,9 @@ import type { CrmDeps } from '../deps.ts'
 import { platformStripe } from '../platformStripe.ts'
 import { tipsOutstanding } from '../../data/salon.ts'
 import { createTipShares } from './tipShares.ts'
+import { createTipPresets } from './tipPresets.ts'
+import type { SaleReceipts } from './saleReceipt.ts'
+import { parseTipSettings } from './tipSettings.ts'
 import { weightsFromPercents } from './tipSplit.ts'
 
 type Tx = any
@@ -37,8 +40,6 @@ export class TerminalError extends Error { constructor(message: string, public s
 export const CHARGE_TIMEOUT_MS = 3 * 60_000
 export const MIN_CARD_CENTS = 50
 export const MAX_TIP_CENTS = 100_000
-/** What the reader suggests when the client picks the tip on its own screen. */
-export const TIP_PERCENTAGES = [15, 18, 20]
 
 const nameOf = (u: any) => [u?.firstName, u?.lastName].filter(Boolean).join(' ').trim() || u?.email || 'Staff'
 const dollars = (c: number) => '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100))
@@ -55,11 +56,12 @@ export interface ChargeView {
   invoiceId: string; readerId: string; readerLabel: string | null; paymentId: string | null; createdAt: string
 }
 
-export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | null; now?: () => number } = {}) {
+export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | null; now?: () => number; receipts?: SaleReceipts } = {}) {
   const { db, logger } = d
   const live = d.realtime
   const stripeOf = deps.stripe ?? (() => platformStripe(d.services.testStripeClient))
   const now = deps.now ?? (() => Date.now())
+  const tips = createTipPresets(d, stripeOf)
 
   /** The client and the salon's account, or the refusal that says what is missing. */
   async function account(companyId: string): Promise<{ stripe: Stripe; acct: string; opts: { stripeAccount: string } }> {
@@ -97,8 +99,9 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     // On-reader tipping (the client picks 15 / 18 / 20% on the reader's own screen) is a Terminal configuration set on the location. A charge that
     // takes its tip at the desk hides that screen (skip_tipping), so having it here costs nothing; if Stripe refuses, desk tips still work.
     try {
-      const cfg: any = await stripe.terminal.configurations.create({ tipping: { usd: { percentages: TIP_PERCENTAGES } } } as any, { stripeAccount: acct })
+      const { cfg } = await tips.configFor(companyId, stripe, acct)
       await stripe.terminal.locations.update(loc.id, { configuration_overrides: cfg.id } as any, { stripeAccount: acct })
+      await tips.remember(companyId, loc.id, cfg.id)
     } catch (e: any) { logger.warn('[chair-checkout] on-reader tipping not set up', { error: e?.message }) }
     return loc.id as string
   }
@@ -183,7 +186,11 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     try {
       // A tip chosen at the desk is already in the amount: the reader is not asked for one. Otherwise the reader shows its own tip screen first,
       // and the tip the client picks arrives on the PaymentIntent (recorded as the tip when Stripe confirms it).
-      await stripe.terminal.readers.processPaymentIntent(reader.stripeReaderId, { payment_intent: pi.id, process_config: onReader ? { enable_customer_cancellation: true } : { skip_tipping: true, enable_customer_cancellation: true } } as any, opts)
+      // On the reader's own screen the suggestions are worked on the services of this charge (Stripe's tip-eligible amount): retail on the sale is
+      // left out. A charge that is all retail has nothing to tip on, so the screen is skipped.
+      const eligible = onReader ? (await tips.eligibleFor(companyId, inv.id, amount))?.eligibleCents ?? amount : amount
+      const readerTipping = eligible <= 0 ? { skip_tipping: true } : eligible < amount ? { tipping: { amount_eligible: eligible } } : {}
+      await stripe.terminal.readers.processPaymentIntent(reader.stripeReaderId, { payment_intent: pi.id, process_config: onReader ? { enable_customer_cancellation: true, ...readerTipping } : { skip_tipping: true, enable_customer_cancellation: true } } as any, opts)
     } catch (e) {
       // The reader is offline, busy or asleep: nothing was taken. The PaymentIntent goes, so it never lingers.
       try { await stripe.paymentIntents.cancel(pi.id, {}, opts) } catch { /* nothing to cancel */ }
@@ -238,6 +245,8 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     } catch (e: any) { logger.warn('[chair-checkout] payment not audited', { error: e?.message }) }
     // Same as any other payment: the stylist of a visit paid for this way earns on it.
     void d.services.earnCommission(charge.invoiceId).catch(() => {})
+    // A paid sale is emailed its receipt (with the link to add a tip afterwards), once.
+    if (outcome.newStatus === 'paid') void deps.receipts?.onPaid(charge.invoiceId)
   }
 
   /** Where the payment stands, asked of Stripe while it is pending. */
@@ -387,7 +396,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return { refundedCents: want, tipRefundedCents: tipBack, invoiceStatus: out.newStatus }
   }
 
-  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment }
+  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment, tips, receipts: deps.receipts }
 }
 export type ChairCheckout = ReturnType<typeof createChairCheckout>
 
@@ -461,6 +470,40 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
   // Who the sale's tip goes to (salon parity row 10): by the value of each person's services unless the salon set the shares on this sale.
   // Read by anyone who can see the sale; changed by the seat that takes the payment, at checkout and afterwards. Reports follow at once.
   const shares = createTipShares(d.db)
+  // The salon's tip percentages (row 11): read by the desk, set by whoever configures the salon; a change goes to the readers' tip screens too.
+  app.get('/tip-settings', requirePermission('invoices:read'), async (c) => {
+    c.header('Cache-Control', 'no-store')
+    return one(c, await t.tips.settings((c.get('user') as any).companyId))
+  })
+  app.put('/tip-settings', requirePermission('company:update'), async (c) => {
+    const u = c.get('user') as any
+    const b = await body(c)
+    const got = parseTipSettings(b)
+    if ('fields' in got) return fail(c, 400, Object.values(got.fields)[0], 'BAD_TIPS', got.fields)
+    const before = await t.tips.settings(u.companyId)
+    const out = await t.tips.save(u.companyId, got.values)
+    d.audit.log({ req: c, action: 'update', entity: 'salon_tip_settings', entityId: u.companyId, changes: { before: before.presets.join('/') + (before.lateTipLink ? '' : ' no late-tip link'), after: out.settings.presets.join('/') + (out.settings.lateTipLink ? '' : ' no late-tip link') } })
+    return one(c, { ...out.settings, readers: out.readers })
+  })
+  // What the desk shows for a sale: the percentages worked on the services of the amount being charged (retail left out).
+  app.get('/sales/:invoiceId/tip-info', requirePermission('invoices:read'), async (c) => {
+    c.header('Cache-Control', 'no-store')
+    const raw = c.req.query('amountCents')
+    const amount = raw == null || raw === '' ? null : Number(raw)
+    if (amount != null && !(Number.isInteger(amount) && amount > 0)) return fail(c, 400, 'The amount is a whole number of cents.', 'BAD_AMOUNT')
+    const out = await t.tips.info((c.get('user') as any).companyId, c.req.param('invoiceId'), amount)
+    return out ? one(c, out) : fail(c, 404, 'Sale not found')
+  })
+  // Send the receipt again (or for the first time, for a sale paid some way that sent none).
+  app.post('/sales/:invoiceId/receipt', mayCharge, async (c) => {
+    const u = c.get('user') as any
+    if (!t.receipts) return fail(c, 503, 'Receipts are not available.')
+    const outcome = await t.receipts.send(c.req.param('invoiceId'), { auto: false, companyId: u.companyId })
+    const words: Record<string, string> = { no_email: 'This client has no email address on file.', not_paid: 'The receipt is sent once the sale is paid.', off: 'Receipts are not switched on for this salon.', failed: 'The receipt could not be sent. Try again.', already_sent: 'Already sent.' }
+    if (outcome !== 'sent') return fail(c, outcome === 'failed' ? 502 : 409, words[outcome] || 'The receipt was not sent.', outcome.toUpperCase())
+    d.audit.log({ req: c, action: 'update', entity: 'invoice', entityId: c.req.param('invoiceId'), changes: { receipt: 'emailed' } })
+    return one(c, { sent: true })
+  })
   app.get('/sales/:invoiceId/tip-split', requirePermission('invoices:read'), async (c) => {
     c.header('Cache-Control', 'no-store')
     const view = await shares.view((c.get('user') as any).companyId, c.req.param('invoiceId'))

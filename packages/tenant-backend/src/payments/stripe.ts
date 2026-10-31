@@ -877,7 +877,8 @@ export function createStripeService(deps: StripeServiceDeps) {
       console.log('[Stripe] Refund on a charge without a PaymentIntent:', charge.id)
       return { handled: false }
     }
-    const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`${payment.amount}::numeric > 0`)).limit(1)
+    // A tip-only payment (a salon's late tip, paid from the receipt's link: no sale amount, the tip beside it) is an invoice payment too.
+    const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`(${payment.amount}::numeric > 0 OR ${payment.tipAmount}::numeric > 0)`)).limit(1)
     // Not an invoice payment: a booking deposit refunded at Stripe — the owner's own dashboard, which is where a paid
     // deposit is refunded — is recorded on the booking. This looked only for an invoice payment, so the booking said
     // "$1 · paid" after the money had gone back (live $1 test, 2026-10-21). The deposit's PaymentIntent carries

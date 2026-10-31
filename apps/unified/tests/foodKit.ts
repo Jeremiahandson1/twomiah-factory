@@ -130,7 +130,7 @@ export function terminalStripeFake() {
     if (p === '/v1/refunds' && method === 'GET') return json({ object: 'list', has_more: false, data: refunds.filter((r) => r.payment_intent === u.searchParams.get('payment_intent')).slice().reverse() })
     if (p === '/v1/checkout/sessions' && method === 'POST') {
       const id = `cs_test_${++state.n}`
-      const s = { id, object: 'checkout.session', url: `https://checkout.stripe.com/c/pay/${id}`, payment_status: 'unpaid', status: 'open', amount_total: 0, payment_intent: null as string | null, metadata: {} as Record<string, string> }
+      const s = { id, object: 'checkout.session', mode: param(params, 'mode') || 'payment', url: `https://checkout.stripe.com/c/pay/${id}`, payment_status: 'unpaid', status: 'open', amount_total: 0, payment_intent: null as string | null, metadata: {} as Record<string, string> }
       let total = 0
       for (let i = 0; params.get(`line_items[${i}][quantity]`); i++) total += Number(params.get(`line_items[${i}][quantity]`)) * Number(params.get(`line_items[${i}][price_data][unit_amount]`))
       s.amount_total = total
