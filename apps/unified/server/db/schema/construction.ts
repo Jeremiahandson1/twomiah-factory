@@ -71,6 +71,8 @@ export const vendorBill = pgTable('vendor_bill', {
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   purchaseOrderId: text('purchase_order_id').references(() => jobPurchaseOrder.id, { onDelete: 'set null' }),
+  /** The project budget line this bill files under (project_budget_line.cost_code); null = uncoded. */
+  costCode: text('cost_code'),
 }, (t) => [
   index('vendor_bill_company_id_idx').on(t.companyId),
   // see vendorBillPayment below — the ledger that makes amount_paid reconcilable

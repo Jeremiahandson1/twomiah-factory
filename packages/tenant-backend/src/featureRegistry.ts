@@ -224,6 +224,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   // Not ready: a project's budget by cost code (from its approved quotes) beside what its jobs have cost, under Job Costing.
   { id: 'job_budgets', name: 'Project Budgets', description: 'A project\'s budget by cost code, set by its approved quotes, beside what its jobs have cost so far', category: 'Finance', core: false, templates: ['crm'], hidden: true },
+  // Not ready: cost codes on time, expenses and vendor bills, so the project budget shows actual cost and profit per line.
+  { id: 'cost_by_code', name: 'Cost by Cost Code', description: 'File time, expenses and vendor bills under a cost code, so each budget line shows what it really cost and the profit it will make', category: 'Finance', core: false, templates: ['crm'], hidden: true },
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
   { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },
   { id: 'vendor_portal', name: 'Vendor Portal', description: 'Subs and suppliers acknowledge POs and submit invoices through a private link', category: 'Communication', core: false, templates: ['crm'] },

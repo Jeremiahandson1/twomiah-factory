@@ -614,6 +614,8 @@ export const timeEntry = pgTable('time_entry', {
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  /** The project budget line this time files under (project_budget_line.cost_code); null = uncoded. */
+  costCode: text('cost_code'),
 }, (t) => [
   index('time_entry_company_id_idx').on(t.companyId),
   index('time_entry_user_id_idx').on(t.userId),
@@ -658,6 +660,8 @@ export const expense = pgTable('expense', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  /** The project budget line this expense files under (project_budget_line.cost_code); null = uncoded. */
+  costCode: text('cost_code'),
 }, (t) => [
   index('expense_company_id_idx').on(t.companyId),
   index('expense_project_id_idx').on(t.projectId),

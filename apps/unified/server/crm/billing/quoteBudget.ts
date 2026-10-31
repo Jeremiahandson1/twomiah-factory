@@ -12,7 +12,8 @@
 // Nothing here moves money: no invoice, no payment, no change order is made.
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { round2, includedLines } from '@twomiah/tenant-backend'
-import { quote, quoteLineItem, projectBudgetLine, projectSelection, project } from '../../db/schema/index.ts'
+import { quote, quoteLineItem, projectBudgetLine, projectSelection, project, job } from '../../db/schema/index.ts'
+import { costByCode } from '../../data/jobCosting.ts'
 import type { CrmDeps } from '../deps.ts'
 
 export const UNCODED = 'Uncoded'
@@ -91,6 +92,39 @@ export function createQuoteBudget(d: CrmDeps) {
     }
   }
 
-  return { carryOver, budgetFor }
+  /**
+   * The budget with what each line has ACTUALLY cost (cost_by_code), so the screen can show profit per line. Actual cost is
+   * everything coded to that line on the project's jobs — time, expenses, vendor bills — and what nobody coded files under
+   * "Uncoded" (the budget's own Uncoded line if it has one). Cost coded to a line the budget does not have is listed on its
+   * own as `unbudgeted`, so the lines and that list always add up to the project's actual cost.
+   *   profit = priced at − the larger of budgeted and actual cost: before the work is spent it is the budget's profit, and once a
+   *   line runs over it is the profit that line will really make. Cost-side, so the route stays reports:read like the budget.
+   */
+  async function budgetWithActuals(companyId: string, projectId: string) {
+    const budget = await budgetFor(companyId, projectId)
+    const jobs = await db.select({ id: job.id }).from(job).where(and(eq(job.companyId, companyId), eq(job.projectId, projectId)))
+    const rows = await costByCode(db, companyId, jobs.map((j: any) => j.id))
+    const key = (code: string | null | undefined) => (String(code ?? '').trim() || UNCODED).toLowerCase()
+    const actual = new Map<string, { label: string; cost: number }>()
+    for (const r of rows) {
+      const k = key(r.costCode)
+      const a = actual.get(k) || { label: String(r.costCode ?? '').trim() || UNCODED, cost: 0 }
+      a.cost = round2(a.cost + Number(r.cost || 0)); actual.set(k, a)
+    }
+    const used = new Set<string>()
+    const lines = budget.lines.map((l) => {
+      const k = key(l.costCode); used.add(k)
+      const actualCost = actual.get(k)?.cost ?? 0
+      const expectedCost = Math.max(l.estimatedCost, actualCost)
+      const profit = round2(l.estimatedPrice - expectedCost)
+      return { ...l, actualCost, overBy: round2(Math.max(0, actualCost - l.estimatedCost)), profit, margin: l.estimatedPrice > 0 ? Math.round((profit / l.estimatedPrice) * 1000) / 10 : null }
+    })
+    const unbudgeted = [...actual.entries()].filter(([k, a]) => !used.has(k) && Math.abs(a.cost) > 0.004).map(([, a]) => ({ costCode: a.label, actualCost: a.cost }))
+    const actualCost = round2([...actual.values()].reduce((s, a) => s + a.cost, 0))
+    const totalProfit = round2(lines.reduce((s, l) => s + l.profit, 0) - unbudgeted.reduce((s, u) => s + u.actualCost, 0))
+    return { ...budget, lines, unbudgeted, actualCost, remainingCost: round2(budget.totalCost - actualCost), totalProfit, jobCount: jobs.length }
+  }
+
+  return { carryOver, budgetFor, budgetWithActuals }
 }
 export type QuoteBudget = ReturnType<typeof createQuoteBudget>

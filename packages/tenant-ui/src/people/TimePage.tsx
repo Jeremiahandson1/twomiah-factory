@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, Check, Play, Square, Clock, Download } from 'lucide
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money, downloadFile } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
+import { CostCodeField } from '../reporting/CostCodeField'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -34,7 +35,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)
-  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '' })
+  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '', costCode: '' })
   const [data, setData] = useState<Entry[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [jobs, setJobs] = useState<Array<{ id: string; title: string; number?: string }>>([])
@@ -115,7 +116,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
 
   const handleSave = async () => {
     setFormError('')
-    const payload: any = { date: form.date, description: form.description.trim() || null, billable: form.billable, projectId: form.projectId || null, jobId: form.jobId || null }
+    const payload: any = { date: form.date, description: form.description.trim() || null, billable: form.billable, projectId: form.projectId || null, jobId: form.jobId || null, ...(auth.hasFeature('cost_by_code') ? { costCode: form.costCode.trim() || null } : {}) }
     if (form.mode === 'hours') {
       const h = Number(form.hours)
       if (!form.hours || !(h > 0)) { setFormError('Hours must be greater than 0'); return }
@@ -140,7 +141,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   }
   const approve = async (row: Entry) => { try { await api.post(`/api/time/${row.id}/approve`); toast.success('Approved'); load() } catch (e) { toast.error(errMsg(e, 'Failed to approve')) } }
   const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true) }
-  const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
+  const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '', costCode: (item as any).costCode || '' }); setFormError(''); setModalOpen(true) }
   // The top of the tree may approve their own time — the server's carve-out, mirrored here. (RR6 N2)
   const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
   const canEdit = (row: Entry) => mayCorrect && (manager || (row.userId === auth.user?.id && !row.approved))
@@ -299,6 +300,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
             </div>
           )}
           {showJobs && <Field label={jobLabel}><select value={form.jobId} onChange={set('jobId')} className={inputCls}><option value="">None</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></Field>}
+          {auth.hasFeature('cost_by_code') && <CostCodeField api={api as any} projectId={form.projectId} value={form.costCode} onChange={(v) => setForm((f) => ({ ...f, costCode: v }))} />}
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           <Field label="Description"><textarea value={form.description} onChange={set('description')} rows={2} className={inputCls} /></Field>
           {config?.billable !== false && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable</label>}

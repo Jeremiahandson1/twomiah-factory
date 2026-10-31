@@ -58,6 +58,8 @@ export function createJobCostingRoutes(d: CrmDeps) {
     if (!(await d.features.isFeatureEnabled(user.companyId, 'job_budgets'))) return fail(c, 404, 'Not found')
     const [pr] = await d.db.select({ id: project.id, name: project.name }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, user.companyId))).limit(1)
     if (!pr) return fail(c, 404, 'Project not found')
+    // With the cost_by_code feature the budget carries actual cost and profit per line; without it, as before.
+    if (await d.features.isFeatureEnabled(user.companyId, 'cost_by_code')) return one(c, { ...(await quoteBudget.budgetWithActuals(user.companyId, projectId)), projectName: pr.name, byCode: true })
     const budget = await quoteBudget.budgetFor(user.companyId, projectId)
     const costing = await jobCosting.getJobCostingSummary(user.companyId, { projectId, limit: 500 } as any)
     const actualCost = round2(Number(costing.totals.totalCost || 0))
