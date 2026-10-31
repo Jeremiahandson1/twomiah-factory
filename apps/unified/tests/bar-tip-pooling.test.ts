@@ -1,7 +1,7 @@
 // Tip pooling and tip-out on the close-out (restaurant-bar-depth #9). The arithmetic (barTipMath.ts), then the real server:
 // rules set by a manager, a night's tips and hours read from the checks and the time clock, the close-out freezing who gets
 // what, a report, and a bartender seeing only their own nights.
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll, setSystemTime } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootFood } from './foodKit.ts'
 import { rulesRefusal, settleTips, split, type TipRules } from '../server/crm/bar/barTipMath.ts'
@@ -72,10 +72,14 @@ const today = () => new Date().toISOString().slice(0, 10)
 describe('on the real server', () => {
   let day = ''
   beforeAll(async () => {
+    // A fixed evening (10:30 PM in Eau Claire, the kit's shop): the night's hours below are the four before now, and from
+    // 4 AM to 8 AM they fell before the bar's 4 AM business day began and counted as none (CI 10/31, 09:48 UTC). Pinned
+    // before the boot, so the sign-ins are issued on the same clock.
+    setSystemTime(new Date('2026-10-30T03:30:00Z'))
     k = await bootFood({ features: ON })
     items = await k.menu()
   }, 60_000)
-  afterAll(() => k.restore())
+  afterAll(() => { k.restore(); setSystemTime() })
 
   test('switched off the routes are closed; on, rules are a manager\'s and are checked', async () => {
     expect((await k.M('GET', '/api/tips/rules')).status).toBe(403)
