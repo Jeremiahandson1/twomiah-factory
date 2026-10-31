@@ -9,6 +9,7 @@ import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 import { useConfirm } from '../ui/confirmContext'
 import { groupLines } from './sections'
+import { applyDefaultMarkup, lineMargin, type MarkupDefaults } from './markup'
 
 // ---------------------------------------------------------------- formatting
 // The one money formatter (../money.ts): the sign before the dollar sign.
@@ -574,15 +575,30 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
    * (phases) with a subtotal each, a description that can run to several lines, a markup on our cost, and — where asked —
    * allowances and cost codes. The server keeps and works from the same fields (tenant-backend invoicing/quoteSections.ts).
    */
-  estimating?: { allowances?: boolean; costCodes?: boolean }
+  estimating?: {
+    allowances?: boolean; costCodes?: boolean
+    /** The company's usual markup by kind of line (markup_defaults): filled in on a costed line, and the margin shown beside it. */
+    markupDefaults?: MarkupDefaults | null
+    /** A picture on each line (quote_line_images): `upload` stores the file and answers its address. */
+    images?: { upload: (file: File) => Promise<string> }
+  }
   /** Offer an "Option" name on each line: lines sharing a name are one option (Good / Better / Best) the customer picks between. */
 }) {
   const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => {
     if (idx !== i) return li
     // A price typed by itself is the price: the markup that set it no longer holds (a cost or markup change sets both).
     const typedPrice = 'unitPrice' in patch && !('markupPct' in patch) && !('unitCost' in patch)
-    return { ...li, ...patch, ...(typedPrice && li.markupPct !== undefined ? { markupPct: undefined } : {}) }
+    const next = { ...li, ...patch, ...(typedPrice && li.markupPct !== undefined ? { markupPct: undefined } : {}) }
+    // A cost and a kind with no price typed take the company's usual markup (markup_defaults); a typed price or markup is left alone.
+    return applyDefaultMarkup(li, next, estimating?.markupDefaults)
   }))
+  const [uploading, setUploading] = useState<number | null>(null)
+  const [pictureError, setPictureError] = useState('')
+  const addPicture = async (i: number, file: File | undefined) => {
+    if (!file || !estimating?.images) return
+    setUploading(i); setPictureError('')
+    try { const url = await estimating.images.upload(file); update(i, { imageUrl: url }) } catch (e) { setPictureError(errMsg(e, 'Could not add that picture')) } finally { setUploading(null) }
+  }
   const lineError = moneyInputError(items, 0, 0)
   const withPricebook = !!pricebook && pricebook.items.length > 0
   /** Cost is only shown when this vertical records it AND this person is allowed to see it. */
@@ -641,6 +657,14 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
                 <input aria-label="Cost code" value={li.costCode || ''} onChange={(e) => update(i, { costCode: e.target.value || undefined })} placeholder="e.g. 06-Framing" className={`${inputCls} w-32 py-0.5 text-xs`} />
               </label>
             )}
+            {estimating?.images && (
+              <span className="flex items-center gap-2">
+                {li.imageUrl && <img src={li.imageUrl} alt="" className="h-10 w-10 rounded object-cover" data-testid="line-picture" />}
+                {li.imageUrl
+                  ? <button type="button" onClick={() => update(i, { imageUrl: undefined })} className="text-red-700 hover:underline dark:text-red-300" aria-label="Remove picture">Remove picture</button>
+                  : <label className="cursor-pointer font-medium text-orange-700 hover:underline dark:text-orange-200">{uploading === i ? 'Adding…' : 'Add picture'}<input type="file" accept="image/*" aria-label="Add picture" className="sr-only" onChange={(e) => addPicture(i, e.target.files?.[0])} /></label>}
+              </span>
+            )}
             {estimating?.allowances && (
               <label className="flex items-center gap-1" title="The customer chooses against this amount; approving the quote adds it to Selections.">
                 <input type="checkbox" checked={!!li.allowance} onChange={(e) => update(i, { allowance: e.target.checked })} aria-label="Allowance line" /> Allowance
@@ -694,6 +718,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
             }}
             placeholder="%" className={inputCls}
           />
+          {estimating?.markupDefaults && lineMargin(li) !== null && <p className="mt-0.5 text-xs text-gray-600 dark:text-slate-300" data-testid="line-margin">margin {lineMargin(li)}%</p>}
         </td>
       )}
       {/* typing a price over a markup-priced line takes the markup off it: the price typed is the price */}
@@ -760,6 +785,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
         </tbody>
       </table>
       {lineError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{lineError}</p>}
+      {pictureError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{pictureError}</p>}
       <div className="p-2 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0, ...(est && sectionNames.length ? { section: sectionNames[sectionNames.length - 1] } : {}) }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
         {est && <button type="button" onClick={addSection} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add section</button>}

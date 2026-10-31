@@ -7,6 +7,8 @@ import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { SaveTemplateModal, TemplatePickerModal, formLines, useQuoteFeature } from './quoteTemplates'
+import type { MarkupDefaults } from './markup'
+import { MarginSummary } from './MarginSummary'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
@@ -40,6 +42,21 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const templatesOn = useQuoteFeature('quote_templates')
   const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Usual markup by kind of line, with the margin shown as the quote is built (markup_defaults); a picture on each line (quote_line_images).
+  const markupOn = useQuoteFeature('markup_defaults')
+  const imagesOn = useQuoteFeature('quote_line_images')
+  const [markupDefaults, setMarkupDefaults] = useState<MarkupDefaults | null>(null)
+  useEffect(() => {
+    if (!markupOn || !maySeeCost) { setMarkupDefaults(null); return }
+    let live = true
+    Promise.resolve(api.get('/api/markup-defaults')).then((r: any) => { if (live) setMarkupDefaults(r || {}) }).catch(() => { if (live) setMarkupDefaults(null) })
+    return () => { live = false }
+  }, [markupOn, maySeeCost]) // eslint-disable-line react-hooks/exhaustive-deps
+  const uploadLinePicture = async (file: File) => {
+    const body = new FormData(); body.append('file', file)
+    const r: any = await (api as any).upload('/api/quote-line-images', body)
+    return String(r?.url || '')
+  }
   // Every status a quote can hold here. 'rejected' is written by the owner's Reject and the portal's decline in every
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
@@ -300,7 +317,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
-              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes } : undefined}
+              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}) } : undefined}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (
@@ -333,6 +350,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             </div>
           )}
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
+          {markupDefaults && <MarginSummary lines={cfg.quoteOptions ? countedLines(form.lineItems) : form.lineItems} />}
           {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm((f) => ({ ...f, customerMessage: e.target.value }))} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
           <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
           <Field label="Terms"><textarea value={form.terms} onChange={e => setForm((f) => ({ ...f, terms: e.target.value }))} rows={2} className={inputCls} /></Field>

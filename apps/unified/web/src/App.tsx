@@ -78,6 +78,7 @@ const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
 const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
+const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
 const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
 const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
@@ -252,6 +253,7 @@ export default function App() {
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="settings/job-reminders" element={<JobRemindersPage />} />
                       <Route path="settings/quote-followup" element={<QuoteFollowUpPage />} />
+                      <Route path="settings/markup-defaults" element={<MarkupDefaultsPage />} />
                       <Route path="settings/export" element={<ExportEverythingPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />

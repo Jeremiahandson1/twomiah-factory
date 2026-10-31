@@ -28,6 +28,7 @@ export function formLines(lineItems: any[] | undefined, blank: () => LineItemInp
     ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
     ...(li.allowance ? { allowance: true } : {}),
     ...(li.costCode ? { costCode: li.costCode } : {}),
+    ...(li.imageUrl ? { imageUrl: li.imageUrl } : {}),
   }))
 }
 

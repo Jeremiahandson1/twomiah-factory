@@ -143,6 +143,8 @@ export interface LineItemInput {
   section?: string
   markupPct?: number
   allowance?: boolean
+  /** A picture on the line the customer sees (quote_line_images): an https address or one of the business's /media photos. */
+  imageUrl?: string
   costCode?: string
 }
 

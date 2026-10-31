@@ -73,6 +73,8 @@ export interface QuoteOptions {
    * tables exist.
    */
   proposalsEnabled?: (companyId: string) => Promise<boolean> | boolean
+  /** May this business put a picture on a quote line? Asked when the lines are saved; absent, no line keeps one. */
+  lineImagesEnabled?: (companyId: string) => Promise<boolean> | boolean
   /**
    * The zone this business keeps its calendar in, for deciding what "today" is when an expiry is
    * defaulted. Render runs UTC, so from 19:00 Central a quote raised in the evening expired a day late
@@ -186,6 +188,8 @@ const lineItemSchema = z.object({
   markupPct: z.number().min(0, 'Markup cannot be negative').max(1000, 'Markup cannot be more than 1000%').optional(),
   allowance: z.boolean().optional(),
   costCode: z.string().trim().max(60, 'A cost code is 60 characters or fewer').optional(),
+  /** A picture on the line the customer sees (a web address or one of the business's own /media photos). Kept only where asked for (options.lineImagesEnabled). */
+  imageUrl: z.string().trim().max(2000).refine((v) => v === '' || /^https:\/\/[^\s]+$/i.test(v) || /^\/media\/[^\s]+$/.test(v), 'The picture must be a web address (https://…) or an uploaded photo').optional(),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
@@ -200,7 +204,7 @@ const EDITABLE = OPEN_QUOTE_STATUSES
 const SETTABLE = ['draft', 'sent']
 
 const isOpt = (i: { optional?: boolean }) => !!i.optional
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false) => items.map((item, i) => ({
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasImage = false) => items.map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -223,6 +227,8 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
     allowance: !!item.allowance,
     costCode: item.costCode || null,
   } : {}),
+  // Only where the business has line pictures on (a template without the column, or the feature off, keeps none).
+  ...(hasImage ? { imageUrl: item.imageUrl || null } : {}),
 }))
 /** The lines that count, for a quote whose lines may be optional (quoteOptions.ts) — every line where none can be. */
 const counted = (items: z.infer<typeof lineItemSchema>[], hasOptional: boolean) => (hasOptional ? includedLines(items.map((i) => ({ ...i, optional: isOpt(i), selected: isOpt(i) ? !!i.selected : true }))) : items)
@@ -304,6 +310,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const hasDeposit = !!t.quote?.depositType
   // Sections, markup, allowances and cost codes on a quote's lines: where the table has the columns (migration 0041).
   const hasSections = !!t.quoteLineItem?.section
+  // Pictures on lines: where the table has the column AND the business has the feature on.
+  const imagesOn = async (cid: string) => !!t.quoteLineItem?.imageUrl && !!o.lineImagesEnabled && !!(await o.lineImagesEnabled(cid))
   // Good/Better/Best options the customer chooses from (quoteOptions.ts). Needs the optional-lines columns it rides on.
   const hasProposal = hasOptional && hasProposalTables(t)
   const proposalAllowed = async (cid: string) => hasProposal && (await proposalsLive(t as any, o.proposalsEnabled, cid))
@@ -506,10 +514,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // Who wrote it, for the per-person conversion report — only where the table has the column (additive for the templates).
     if (currentUser.userId && 'createdById' in t.quote) values.createdById = currentUser.userId
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
+    const withImages = await imagesOn(cid)
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections, withImages)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
@@ -593,13 +602,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const deposit = depositValues(data, existing, depositBase)
     if ('error' in deposit) return c.json({ error: deposit.error }, 400)
     Object.assign(update, deposit)
+    const withImages = await imagesOn(cid)
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.quote).set(update).where(eq(t.quote.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {
         // The lines every option shares are replaced; a proposal option's own lines are not (PUT /:id/proposal changes those).
         await tx.delete(t.quoteLineItem).where(hasProposal ? and(eq(t.quoteLineItem.quoteId, id), isNull(t.quoteLineItem.proposalOptionId)) : eq(t.quoteLineItem.quoteId, id))
-        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections))
+        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections, withImages))
         items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on

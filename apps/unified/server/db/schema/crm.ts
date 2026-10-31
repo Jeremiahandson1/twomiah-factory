@@ -420,6 +420,8 @@ export const quoteLineItem = pgTable('quote_line_item', {
   markupPct: decimal('markup_pct', { precision: 7, scale: 2 }),
   allowance: boolean('allowance').default(false).notNull(),
   costCode: text('cost_code'),
+  /** A picture on the line the customer sees (quote_line_images, not ready): an https address or one of the business's /media photos. */
+  imageUrl: text('image_url'),
   // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
   // exactly while its option is the one the customer chose. Null for the lines every option shares.
   proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),

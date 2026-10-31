@@ -1,0 +1,1 @@
+ALTER TABLE "quote_line_item" ADD COLUMN "image_url" text;
