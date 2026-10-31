@@ -42,6 +42,8 @@ const settingsSchema = z.object({
 const VARIABLES = ['customer_name', 'company_name', 'job', 'when', 'date', 'time', 'address', 'tech_name', 'confirm_link']
 const MANAGERS = new Set(['owner', 'admin', 'manager'])
 const STATUS_WORDS: Record<string, string> = { sent: 'Sent', skipped: 'Not sent', failed: 'Failed', held: 'Waiting to send', sending: 'Sending' }
+/** A reminder or moved notice a person sent carries who in its step (manual:<time>:<user>, moved:<time>:<user>). */
+const byPerson = (step: unknown) => /^(manual|moved):/.test(String(step))
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
 
 export function createJobReminderRoutes(d: CrmDeps) {
@@ -118,7 +120,7 @@ export function createJobReminderRoutes(d: CrmDeps) {
       hasCustomer: !!j.contactId,
       canText: !!(ct && (ct.mobile || ct.phone) && !ct.sms),
       canEmail: !!(ct && ct.address && !ct.email),
-      notices: rows.map((r) => ({ id: r.id, what: JOB_NOTICE_LABEL[r.kind] ?? 'Message', channel: r.kind.endsWith('_sms') ? 'Text' : 'Email', status: STATUS_WORDS[r.status] ?? r.status, detail: r.status === 'sent' ? null : r.detail, at: new Date(r.createdAt).toISOString(), manual: String(r.step).startsWith('manual:') })),
+      notices: rows.map((r) => ({ id: r.id, what: JOB_NOTICE_LABEL[r.kind] ?? 'Message', channel: r.kind.endsWith('_sms') ? 'Text' : 'Email', status: STATUS_WORDS[r.status] ?? r.status, detail: r.status === 'sent' ? null : r.detail, at: new Date(r.createdAt).toISOString(), manual: byPerson(r.step) })),
     })
   })
 
@@ -147,12 +149,12 @@ export function createJobReminderRoutes(d: CrmDeps) {
       .where(and(eq(reminderLog.companyId, u.companyId), inArray(reminderLog.kind, kinds), gte(reminderLog.createdAt, from), lt(reminderLog.createdAt, to), ...(status ? [eq(reminderLog.status, status)] : [])))
       .orderBy(desc(reminderLog.createdAt)).limit(2000)
     const byId = new Map<string, string>()
-    const senders = [...new Set(logs.map((r) => String(r.step).startsWith('manual:') ? String(r.step).split(':').pop() : '').filter(Boolean))] as string[]
+    const senders = [...new Set(logs.map((r) => byPerson(r.step) ? String(r.step).split(':').pop() : '').filter(Boolean))] as string[]
     if (senders.length) for (const p of await db.select({ id: user.id, f: user.firstName, l: user.lastName }).from(user).where(and(eq(user.companyId, u.companyId), inArray(user.id, senders)))) byId.set(p.id, `${p.f} ${p.l}`.trim())
     const rows = logs.map((r) => ({
       id: r.id, at: new Date(r.at).toISOString(), what: JOB_NOTICE_LABEL[r.kind] ?? 'Message', channel: r.kind.endsWith('_sms') ? 'Text' : 'Email',
       status: STATUS_WORDS[r.status] ?? r.status, detail: r.status === 'sent' ? '' : (r.detail ?? ''), to: r.sentTo ?? '',
-      sentBy: String(r.step).startsWith('manual:') ? (byId.get(String(r.step).split(':').pop() || '') || 'A team member') : 'Automatic',
+      sentBy: byPerson(r.step) ? (byId.get(String(r.step).split(':').pop() || '') || 'A team member') : 'Automatic',
       jobId: r.jobId, jobNumber: r.jobNumber, jobTitle: r.jobTitle, contactId: r.contactId, customer: r.customer ?? '',
       confirmed: !!r.confirmedAt, confirmedAt: r.confirmedAt ? new Date(r.confirmedAt).toISOString() : null,
     }))

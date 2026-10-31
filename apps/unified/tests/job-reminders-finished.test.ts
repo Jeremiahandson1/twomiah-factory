@@ -209,6 +209,7 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         expect((await row(j.id)).confirmedAt).toBeNull()
       })
       test('in the customer portal: the coming visits, a Confirm for the customer\'s own visit only', async () => {
+        await features(['contacts', 'jobs', 'job_reminders', 'client_portal'])
         await setRules()
         const mine = await job({ scheduledDate: tomorrow() })
         const theirs = await job({ scheduledDate: tomorrow(), contactId: stopper })
@@ -221,7 +222,7 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         const ok = await t.call(`/api/portal/p/${PORTAL}/upcoming-visits/${mine.id}/confirm`, { method: 'POST', json: {} })
         expect(ok.status).toBe(200)
         expect(await row(mine.id)).toMatchObject({ confirmedVia: 'portal' })
-        await features(['contacts', 'jobs'])
+        await features(['contacts', 'jobs', 'client_portal'])
         expect((await t.call(`/api/portal/p/${PORTAL}/upcoming-visits`)).status).toBe(404)
       })
     })
@@ -301,6 +302,7 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
     describe('Client Communications', () => {
       test('what was sent and how it went, the visits confirmed, the customers\' texts back, and a CSV', async () => {
         await setRules()
+        await t.db.delete(t.schema.smsMessage) // the earlier tests' texts are not this report's
         const sent = await job({ scheduledDate: tomorrow() })
         const stopped = await job({ contactId: stopper, scheduledDate: tomorrow() })
         await owner(`/api/job-reminders/send/${sent.id}`, { method: 'POST', json: { channels: ['sms', 'email'] } })
@@ -310,7 +312,7 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         const rep = await data(await owner('/api/job-reminders/report'))
         expect(rep.summary).toMatchObject({ sent: 2, notSent: 1, failed: 0, visitsConfirmed: 1, visitsReminded: 1, replies: 1 })
         expect(rep.rows).toHaveLength(3)
-        expect(rep.rows.find((r: any) => r.what === 'Visit moved')).toMatchObject({ status: 'Not sent', channel: 'Text', customer: 'Stu Stop', sentBy: 'Owner Test' })
+        expect(rep.rows.find((r: any) => r.what === 'Visit moved')).toMatchObject({ status: 'Not sent', channel: 'Text', customer: 'Stu Stop', sentBy: 'Olive Owner' })
         expect(rep.rows.find((r: any) => r.channel === 'Email')).toMatchObject({ status: 'Sent', confirmed: true, to: 'ann@example.com' })
         expect(rep.replies[0]).toMatchObject({ customer: 'Ann Able', body: 'Thanks, see you then' })
         // filters

@@ -315,8 +315,8 @@ export function createJobReminders(deps: JobReminderDeps) {
     const outcomes: Outcome[] = []
     for (const ch of [...new Set(channels)]) {
       const kind = what === 'moved' ? (ch === 'sms' ? JOB_NOTICE_KIND.movedSms : JOB_NOTICE_KIND.movedEmail) : JOB_REMINDER_KIND[ch]
-      // A manual reminder is its own row each time; a moved notice is once for each time the visit has been moved to.
-      const step = what === 'moved' ? `moved:${v.start.toISOString()}` : `manual:${now.toISOString()}:${byUserId ?? ''}`
+      // A manual reminder is its own row each time; a moved notice is once for each time the visit has been moved to, by each person who sends it (the step ends in who).
+      const step = what === 'moved' ? `moved:${v.start.toISOString()}:${byUserId ?? ''}` : `manual:${now.toISOString()}:${byUserId ?? ''}`
       const logId = await claim(companyId, kind, j.id, step)
       if (!logId) { outcomes.push({ channel: ch, status: 'skipped', detail: 'The customer was already told about this time.', to: null }); continue }
       outcomes.push(await deliver(co, cfg, ch, j, v, tz, logId, what === 'moved' ? 'moved' : 'manual'))
