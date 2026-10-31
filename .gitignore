@@ -81,3 +81,8 @@ apps/api/scripts/test-audit/
 # Test-tenant tracking + bundled SQL — both regenerable, never commit
 apps/api/.path-aplusplus-test-tenants.json
 twomiah-migrations.sql
+
+# Mobile app: native folders and the Expo cache are generated (expo prebuild / EAS builds them from app.config.ts) — never commit
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/

@@ -281,8 +281,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
       '@react-native-community/datetimepicker',
       // Tap to Pay (tap_to_pay, not ready): Stripe Terminal's SDK. Its plugin adds the Swift file iOS needs to build it and,
-      // with tapToPayCheck, Android's guard for the Tap to Pay process; the location text stays the app's own.
-      ['@stripe/stripe-terminal-react-native', { locationWhenInUsePermission: v.locationPermission, tapToPayCheck: true }],
+      // with tapToPayCheck, Android's guard for the Tap to Pay process; the location text stays the app's own. On iOS the
+      // plugin always writes Bluetooth and local-network usage texts (its stock words name "card readers" the app never
+      // connects to), so they are given the app's own honest words — a store reviewer reads every one. On Android the same
+      // plugin's Bluetooth permissions are blocked below (android.blockedPermissions).
+      [
+        '@stripe/stripe-terminal-react-native',
+        {
+          locationWhenInUsePermission: v.locationPermission,
+          tapToPayCheck: true,
+          bluetoothPeripheralPermission: `${v.appName} does not use Bluetooth: cards are taken by tapping them to this iPhone. The payments library asks for this on behalf of card readers the app never connects to.`,
+          bluetoothAlwaysUsagePermission: `${v.appName} does not use Bluetooth: cards are taken by tapping them to this iPhone. The payments library asks for this on behalf of card readers the app never connects to.`,
+          localNetworkUsagePermission: `${v.appName} does not use the local network: cards are taken by tapping them to this iPhone. The payments library asks for this on behalf of card readers the app never connects to.`,
+        },
+      ],
       // Stripe Terminal's Android library needs Android 8 (API 26) or later; Expo 54 builds for 7 (24) by default.
       ['expo-build-properties', { android: { minSdkVersion: 26 } }],
     ],
