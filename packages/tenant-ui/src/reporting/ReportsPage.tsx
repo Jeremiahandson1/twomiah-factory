@@ -127,7 +127,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   const [range, setRange] = useState('30')
 
   useEffect(() => {
-    let cancelled = false
+    let superseded = false
     const days = parseInt(range) || 30
     const endDate = todayKey()
     const startDate = dayKeyPlus(todayKey(), -days)
@@ -144,11 +144,11 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       cfg.dealership ? api.get('/api/dashboard/sales-report', q).catch(() => null) : Promise.resolve(null),
       showBranches ? api.get('/api/reports/revenue/locations', q).catch(() => []) : Promise.resolve([]),
     ]).then(([summary, m, c, tm, ev, dl, br]) => {
-      if (cancelled) return
+      if (superseded) return
       setData(summary || null); setMonthly(Array.isArray(m) ? m : []); setCustomers(Array.isArray(c) ? c : []); setTeam(Array.isArray(tm) ? tm : []); setEvents(ev); setDealer(dl || null); setBranchRows(Array.isArray(br) ? br : [])
-    }).catch(e => { if (!cancelled) setError(e instanceof Error && e.message ? e.message : 'Could not load reports') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    }).catch(e => { if (!superseded) setError(e instanceof Error && e.message ? e.message : 'Could not load reports') })
+      .finally(() => { if (!superseded) setLoading(false) })
+    return () => { superseded = true }
   }, [api, range, cfg.team, cfg.eventsPipeline, cfg.dealership, showBranches])
 
   const rangeLabel = RANGES.find(r => r[0] === range)?.[1] || `Last ${range} days`

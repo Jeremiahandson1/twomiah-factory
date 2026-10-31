@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../../api'
 import { useToast, useMayWrite } from '../../../shared'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface QuoteRow { id: string; number: string; name: string; status: string; total?: string | number }
 const errorText = (e: unknown, fallback: string) => (e as any)?.response?.data?.error || (e as any)?.message || fallback
@@ -58,7 +59,7 @@ export default function AddToQuote({ siteId, serviceType, line }: { siteId: stri
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <select aria-label="Quote to add to" className="input w-auto" value={pick} onChange={(e) => setPick(e.target.value)}>
         {mayCreate && <option value="new">A new quote for this customer</option>}
-        {mayAdd && quotes.map((q) => <option key={q.id} value={q.id}>{q.number} · {q.name} ({q.status})</option>)}
+        {mayAdd && quotes.map((q) => <option key={q.id} value={q.id}>{q.number} · {q.name} ({codeLabel(q.status)})</option>)}
       </select>
       {pick !== 'new' && <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={optional} onChange={(e) => setOptional(e.target.checked)} /> As an option the customer can tick</label>}
       <button onClick={add} disabled={busy || (pick === 'new' && !mayCreate)} className="btn-primary disabled:opacity-50">Add to quote</button>

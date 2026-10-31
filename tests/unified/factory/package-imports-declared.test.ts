@@ -32,9 +32,11 @@ export function undeclared(pkgDir: string, srcDir = 'src'): string[] {
   for (const f of walk(join(pkgDir, srcDir))) {
     const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
     const specs = [
-      ...src.matchAll(/^\s*import\s+(?:type\s+)?[^'"]*?from\s+['"]([^'"]+)['"]/gm),
+      // No backtick before the `from`: `export async function f() { sql\`… substring(x from '^every_…')\` }` is not a re-export
+      // (apps/unified/server/data/homecareCore.ts, 10/31); an import or export statement never holds a template string.
+      ...src.matchAll(/^\s*import\s+(?:type\s+)?[^'"`]*?from\s+['"]([^'"]+)['"]/gm),
       ...src.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
-      ...src.matchAll(/^\s*export\s+[^'"]*?from\s+['"]([^'"]+)['"]/gm),
+      ...src.matchAll(/^\s*export\s+[^'"`]*?from\s+['"]([^'"]+)['"]/gm),
       ...src.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g),
       ...src.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g),
     ].filter((m) => !/^\s*import\s+type\b/.test(m[0]) && !/^\s*export\s+type\b/.test(m[0])).map((m) => m[1])

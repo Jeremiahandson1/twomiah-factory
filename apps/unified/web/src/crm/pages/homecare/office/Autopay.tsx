@@ -5,6 +5,7 @@
 //   (server/crm/homecare/billing/autopayRoutes.ts)
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../../../../shared'
+import { moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useMay } from '../lib/useMay'
 
@@ -13,7 +14,7 @@ interface Failed { id: string; invoiceId: string; invoiceNumber: string; firstNa
 interface ClientOption { id: string; firstName: string; lastName: string }
 
 const inp = 'rounded-md border px-2 py-1.5 text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
-const dollars = (c: number) => `$${(c / 100).toFixed(2)}`
+const dollars = (c: number) => moneyCents(c)
 
 export default function Autopay() {
   const may = useMay('care-billing')

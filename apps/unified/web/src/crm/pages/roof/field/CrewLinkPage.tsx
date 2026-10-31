@@ -4,6 +4,7 @@
 // photos and mark it done. Self-contained on purpose (no auth context, no api client), built for a phone on a roof.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -95,7 +96,7 @@ export default function CrewLinkPage() {
         <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-2 dark:border-slate-700">
           <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">For </span>{order.recipientName}</p>
           {order.address && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">Where </span><a className="underline" href={`https://maps.google.com/?q=${encodeURIComponent(order.address)}`}>{order.address}</a></p>}
-          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">Start </span>{new Date(order.startDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>}
+          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">Start </span>{whenDate(order.startDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>}
           {order.scope && <p className="text-sm whitespace-pre-wrap pt-2">{order.scope}</p>}
         </section>
 

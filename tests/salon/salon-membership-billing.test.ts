@@ -55,7 +55,9 @@ let enrolId = ''
   enrolId = r.json?.id
   check('H4: the enrolment has a renewal date (it came back null)', !!r.json?.renewsAt, r.json?.renewsAt)
   const start = r.json?.startDate || salonDay()
-  const expected = new Date(`${start}T00:00:00.000Z`); expected.setUTCMonth(expected.getUTCMonth() + 1)
+  // A month on, held to the next month's last day (Oct 31 → Nov 30, as Stripe bills): setUTCMonth alone rolls it to Dec 1.
+  const s0 = new Date(`${start}T00:00:00.000Z`)
+  const expected = new Date(Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + 1, Math.min(s0.getUTCDate(), new Date(Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + 2, 0)).getUTCDate())))
   check('…one month after the start, for a monthly plan', String(r.json?.renewsAt).slice(0, 10) === iso(expected), { got: r.json?.renewsAt, want: iso(expected) })
   check('H4: an invoice was raised for the first period (none ever was)', !!r.json?.invoiceId, r.json)
 

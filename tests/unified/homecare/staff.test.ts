@@ -531,7 +531,7 @@ let checkId = ''
   const lines = csv.text.split('\n')
   check('the hours CSV carries regular/overtime/total', lines[0] === 'First Name,Last Name,Email,Regular Hours,Overtime Hours,Total Hours' && lines[1] === '"Carol","Tester","carol@staff.test",46.00,5.00,51.00', lines)
   const push = await asAdmin('POST', '/api/gusto/export', {})
-  check('the direct Gusto push is refused until rebuilt (501)', push.status === 501, push.status)
+  check('the direct Gusto push is gone: the hours CSV is the way in (404)', push.status === 404, push.status) /* unified: POST /api/gusto/export answered 501 for every agency and was removed (home care depth item 2, server/crm/homecare/payroll/gusto.ts) */
 
   // No rate: $15.
   await db.update(users).set({ defaultPayRate: null }).where(eq(users.id, caregiver.id))

@@ -9,7 +9,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling.ts'
-import { makeRouteVisits, retimeRouteVisits, reassignOpenVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, todayUtc, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
+import { makeRouteVisits, retimeRouteVisits, reassignOpenVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, companyToday, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
 import { createRoutingService } from '../field/routingService.ts'
 import { createGeocodingService } from '../field/geocodingService.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
@@ -332,7 +332,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
   app.post('/:id/visits', requirePermission('jobs:create'), async (c) => {
     const u = c.get('user')
     const body: any = await c.req.json().catch(() => ({}))
-    const from = body?.from == null || body.from === '' ? todayUtc() : String(body.from)
+    const from = body?.from == null || body.from === '' ? await companyToday(db, u.companyId) : String(body.from)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(Date.parse(from))) return fail(c, 400, FROM_HELP, undefined, { from: FROM_HELP })
     const weeksRaw = body?.weeks == null || body.weeks === '' ? 4 : Number(body.weeks)
     if (!Number.isInteger(weeksRaw) || weeksRaw < 1 || weeksRaw > MAX_VISIT_WEEKS) return fail(c, 400, WEEKS_HELP, undefined, { weeks: WEEKS_HELP })
@@ -362,7 +362,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const [route] = await db.select({ id: recurringRoute.id }).from(recurringRoute)
       .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
     if (!route) return fail(c, 404, 'Route not found')
-    const from = c.req.query('from') || todayUtc()
+    const from = c.req.query('from') || await companyToday(db, u.companyId)
     const to = c.req.query('to') || new Date(Date.parse(from) + 27 * 86_400_000).toISOString().slice(0, 10)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return fail(c, 400, 'Give the days as YYYY-MM-DD.')
     const rows = await visitsOfRoute(db, u.companyId, route.id, from, to)
@@ -380,7 +380,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const [route] = await db.select({ id: recurringRoute.id, name: recurringRoute.name }).from(recurringRoute)
       .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
     if (!route) return fail(c, 404, 'Route not found')
-    const to = c.req.query('to') || todayUtc()
+    const to = c.req.query('to') || await companyToday(db, u.companyId)
     const from = c.req.query('from') || new Date(Date.parse(to) - 29 * 86_400_000).toISOString().slice(0, 10)
     const DAYS = /^\d{4}-\d{2}-\d{2}$/
     if (!DAYS.test(from) || !DAYS.test(to) || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return fail(c, 400, 'Give the days as YYYY-MM-DD.')

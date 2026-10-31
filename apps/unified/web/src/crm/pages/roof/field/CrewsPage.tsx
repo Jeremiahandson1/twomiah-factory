@@ -18,6 +18,7 @@ import { Briefcase, HardHat, Phone, Plus, Users, X } from 'lucide-react'
 import { api } from '../../../../api'
 import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { listOf } from './http'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface CrewJob {
   id: string
@@ -231,7 +232,7 @@ export default function CrewsPage() {
                       <Users className="w-3.5 h-3.5" />
                       {crew.size || '—'} members
                     </span>
-                    {maySeePay && crew.payPerSquare != null && <span>${Number(crew.payPerSquare).toFixed(2)}/sq</span>}
+                    {maySeePay && crew.payPerSquare != null && <span>{money(crew.payPerSquare)}/sq</span>}
                     <button
                       onClick={() => toggleJobs(crew)}
                       disabled={!crew.activeJobCount}

@@ -21,8 +21,9 @@ const failed: string[] = []
 let passed = 0, failedTests = 0
 
 // A file that never finishes is killed and counted as failed: on 10/30 one child hung for two hours with every test of
-// its file already passed, and the run (and so CI) waited on it with nothing to say.
-const FILE_LIMIT_MS = 10 * 60_000
+// its file already passed, and the run (and so CI) waited on it with nothing to say. Well above the slowest file:
+// move-run.test.ts builds two whole databases per case and takes ~11 minutes in CI.
+const FILE_LIMIT_MS = 30 * 60_000
 
 for (const f of files) {
   const run = Bun.spawnSync([process.execPath, 'test', '--timeout', '120000', path.join('tests', f)], { cwd: path.join(dir, '..'), stdout: 'pipe', stderr: 'pipe', timeout: FILE_LIMIT_MS })

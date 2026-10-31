@@ -73,5 +73,6 @@ export interface JobsDashboardPageProps {
   config?: JobsDashboardConfig
 }
 
-export const defaultJobsDashboardConfig: Required<JobsDashboardConfig> = { jobsLabel: 'Jobs', jobsPath: '/crm/jobs', todayBoard: false, projects: true, overdueTile: false }
+// overdueTile is off unless a trade says so, and so is not a shared default (scripts/check-vertical-vocabulary.ts pins these).
+export const defaultJobsDashboardConfig: Required<Omit<JobsDashboardConfig, 'overdueTile'>> = { jobsLabel: 'Jobs', jobsPath: '/crm/jobs', todayBoard: false, projects: true }
 export const resolveJobsDashboardConfig = (c?: JobsDashboardConfig) => ({ ...defaultJobsDashboardConfig, ...(c || {}) })

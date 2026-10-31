@@ -579,7 +579,12 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
   /** Offer an "Option" name on each line: lines sharing a name are one option (Good / Better / Best) the customer picks between. */
   optionGroups?: boolean
 }) {
-  const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
+  const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => {
+    if (idx !== i) return li
+    // A price typed by itself is the price: the markup that set it no longer holds (a cost or markup change sets both).
+    const typedPrice = 'unitPrice' in patch && !('markupPct' in patch) && !('unitCost' in patch)
+    return { ...li, ...patch, ...(typedPrice && li.markupPct !== undefined ? { markupPct: undefined } : {}) }
+  }))
   const lineError = moneyInputError(items, 0, 0)
   const withPricebook = !!pricebook && pricebook.items.length > 0
   /** Cost is only shown when this vertical records it AND this person is allowed to see it. */
@@ -694,7 +699,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
         </td>
       )}
       {/* typing a price over a markup-priced line takes the markup off it: the price typed is the price */}
-      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, li.markupPct !== undefined ? { unitPrice: n, markupPct: undefined } : { unitPrice: n })} className={inputCls} /></td>
+      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
       <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
       {optionGroups && (
         <td className="px-3 py-2">

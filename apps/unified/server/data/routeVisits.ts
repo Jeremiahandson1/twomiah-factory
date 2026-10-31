@@ -3,7 +3,7 @@
 // and the phone, is started and completed like any job, and keeps the stop it came from (job.recurring_route_stop_id).
 // Raw SQL lives here (RULEBOOK §2); every function returns camelCase objects.
 import { and, asc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
-import { nextNumber } from '@twomiah/tenant-backend'
+import { nextNumber, companyTimeZone, businessToday } from '@twomiah/tenant-backend'
 import { job, site, recurringRoute, recurringRouteStop } from '../db/schema/index.ts'
 
 /** The most weeks one call makes: half a mowing season, so a mistake is quick to undo and the calendar stays readable. */
@@ -17,7 +17,8 @@ const hhmmOf = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${
 
 /** The date every visit is stored on: UTC midnight, as the job routes store a scheduled day. */
 const dayDate = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
-export const todayUtc = () => new Date().toISOString().slice(0, 10)
+/** Today on the company's clock (YYYY-MM-DD): from the evening on, UTC's day is already tomorrow in every US zone. */
+export const companyToday = async (db: any, companyId: string) => businessToday(await companyTimeZone(db, companyId)).toISOString().slice(0, 10)
 
 /** 'mulch_install' → 'Mulch install'. The stop's service, said the way the crew reads a job title. */
 const serviceWords = (serviceType: string) => {
@@ -129,7 +130,7 @@ export async function retimeRouteVisits(db: any, companyId: string, routeId: str
     .where(and(
       eq(job.companyId, companyId), eq(job.status, 'scheduled'),
       inArray(job.recurringRouteStopId, rows.map((r) => r.stop.id)),
-      gte(job.scheduledDate, dayDate(todayUtc())),
+      gte(job.scheduledDate, dayDate(await companyToday(db, companyId))),
     ))
   let changed = 0
   for (const v of open) {
@@ -151,7 +152,7 @@ export async function cancelOpenVisits(db: any, companyId: string, stopIds: stri
     .where(and(
       eq(job.companyId, companyId), eq(job.status, 'scheduled'),
       inArray(job.recurringRouteStopId, stopIds),
-      gte(job.scheduledDate, dayDate(todayUtc())),
+      gte(job.scheduledDate, dayDate(await companyToday(db, companyId))),
     )).returning({ id: job.id })
   return gone.length
 }
@@ -245,7 +246,7 @@ export async function routeStopPoints(db: any, companyId: string, routeId: strin
     .from(job)
     .where(and(eq(job.companyId, companyId), inArray(job.recurringRouteStopId, stopIds)))
     .orderBy(sql`${job.scheduledDate} DESC`)
-  const today = dayDate(todayUtc()).getTime()
+  const today = dayDate(await companyToday(db, companyId)).getTime()
   return rows.map((r) => {
     const mine = visits.filter((v) => v.stopId === r.stop.id)
     const placed = mine.find((v) => v.lat != null && v.lng != null)
@@ -273,7 +274,7 @@ export async function reassignOpenVisits(db: any, companyId: string, routeId: st
   const moved = await db.update(job).set({ assignedToId, updatedAt: new Date() })
     .where(and(
       eq(job.companyId, companyId), eq(job.status, 'scheduled'), inArray(job.recurringRouteStopId, stopIds),
-      gte(job.scheduledDate, dayDate(todayUtc())),
+      gte(job.scheduledDate, dayDate(await companyToday(db, companyId))),
     )).returning({ id: job.id })
   return moved.length
 }

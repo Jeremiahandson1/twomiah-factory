@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../api';
 import { useAuth, useMayWrite } from '../../../shared';
+import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
 import FormError, { errorText } from '../../ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, Dialog } from './registerUi';
 
@@ -96,7 +97,7 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
   useEffect(() => { if (hasFeature('bar_shift_swaps')) load(); }, [load, hasFeature]);
   if (!hasFeature('bar_shift_swaps') || !mayAsk) return null;
   const act = async (fn: () => Promise<unknown>, fallback: string) => { setErr(''); try { await fn(); await load(); } catch (e) { setErr(errorText(e, fallback)); } };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = companyTodayKey();
   const mineShifts = published.filter((s) => s.userId === meId && s.id && s.day >= today);
   const others = published.filter((s) => s.userId !== meId && s.id && s.day >= today);
   const busyIds = new Set((data?.mine || []).filter((r) => ['open', 'offered', 'pending'].includes(r.status)).map((r) => r.shift?.id));

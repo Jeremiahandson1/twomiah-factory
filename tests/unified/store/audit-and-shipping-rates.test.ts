@@ -247,7 +247,7 @@ check('floor: …and records no request body', added.every((r) => !JSON.stringif
   const isPosInt = guards.match(/const isPosInt = \(v: string\) => (\/[^/]+\/)\.test/)?.[1]
   check(`paging: the guard accepts real numbers — ${isPosInt} (it was /^d+$/, refusing ?limit=100 and ?page=1)`, isPosInt === String.raw`/^\d+$/` && new RegExp(isPosInt!.slice(1, -1)).test('100') && !new RegExp(isPosInt!.slice(1, -1)).test('1.5') && at("app.use('/api/*', pagingGuard)") > 0) /* unified: …and the guard is applied to /api/* in server/app.ts */
   const nav = src('web/src/shell.ts') /* unified: the menu is web/src/shell.ts */
-  check('screen: the Audit Log link asks audit:read, as its route does', /\{ to: '\/crm\/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit:read' \}/.test(nav)) /* unified: the link is /crm/audit (the back office lives under /crm) */
+  check('screen: the Audit Log link asks audit:read, as its route does', /\{ to: '\/crm\/audit', icon: ScrollText, label: 'Audit Log', (section: 'Account', )?permission: 'audit:read' \}/.test(nav)) /* unified: the link is /crm/audit (the back office lives under /crm), under the menu's Account heading */
   check('screen: the route is mounted', /<Route path="audit" element=\{<AuditLog \/>\} \/>/.test(src('web/src/App.tsx'))) /* unified: web/src/App.tsx, under /crm */
   const settings = src('web/src/crm/pages/store/catalog/StoreSettingsPage.tsx') /* unified: the store's settings page is StoreSettingsPage.tsx (/crm/store-settings) */
   // unified: the page is in more sections than the template's three — the store's name and email (company:update, PUT /api/company), currency & tax, flat shipping, zones, regional tax, the shopper emails — so each check reads every section under a rule, not the first.

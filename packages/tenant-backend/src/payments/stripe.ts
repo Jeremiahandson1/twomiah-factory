@@ -856,18 +856,19 @@ export function createStripeService(deps: StripeServiceDeps) {
     let saleLeft = round2(Number(paymentRow.amount))
     let tipLeft = round2(Number(paymentRow.tipAmount || 0))
     const inOrder = [...listed.data].sort((a, b) => (a.created || 0) - (b.created || 0))
-    for (const refund of inOrder) {
+    for (const listedRefund of inOrder) {
+      let refund = listedRefund
       // Money that never went back is not a refund; pending card refunds settle on their own.
       if (refund.status === 'failed' || refund.status === 'canceled') continue
-      let split: { sale: number; tip: number } | undefined
       if (tipped) {
         const total = round2(refund.amount / 100)
         const named = refund.metadata?.tip_cents !== undefined ? round2(Number(refund.metadata.tip_cents) / 100) : null
         const tip = named ?? Math.min(tipLeft, Math.max(0, round2(total - saleLeft)))
-        split = { sale: round2(total - tip), tip }
-        saleLeft = round2(saleLeft - split.sale); tipLeft = round2(tipLeft - tip)
+        // The dashboard's refund named its tip the way this app's own refunds do, so recordStripeRefund reads one field.
+        if (named === null) refund = { ...refund, metadata: { ...(refund.metadata || {}), tip_cents: String(Math.round(tip * 100)) } } as Stripe.Refund
+        saleLeft = round2(saleLeft - (total - tip)); tipLeft = round2(tipLeft - tip)
       }
-      const outcome = await recordStripeRefund(refund, paymentRow, split)
+      const outcome = await recordStripeRefund(refund, paymentRow)
       if (!outcome.ok) {
         console.error(`[Stripe] Refund ${refund.id} on invoice ${paymentRow.invoiceId} NOT recorded: ${outcome.error}`)
         errors.push(`${refund.id}: ${outcome.error}`)
@@ -949,13 +950,16 @@ export function createStripeService(deps: StripeServiceDeps) {
    * balance and only a fully returned sale reads 'refunded'), dated at Stripe's timestamp, refunded the
    * way the money came in, once per refund id.
    */
-  async function recordStripeRefund(refund: Stripe.Refund, paymentRow: any, split?: { sale: number; tip: number }) {
+  async function recordStripeRefund(refund: Stripe.Refund, paymentRow: any) {
+    // A charge that carried a tip (a salon's card reader: the payment row holds the sale, its tip beside it, and Stripe charged
+    // both): the refund's metadata.tip_cents is its tip part (this app's own refund names it; handleChargeRefunded names it for a
+    // dashboard refund). The sale part leaves the invoice, the tip part goes back as a negative tip.
+    const total = round2(refund.amount / 100)
+    const tip = Number(paymentRow.tipAmount || 0) > 0.005 && refund.metadata?.tip_cents !== undefined ? round2(Number(refund.metadata.tip_cents) / 100) : 0
     return recordInvoiceRefund(db, { invoice, payment }, {
       invoiceId: paymentRow.invoiceId,
-      // A charge that carried a tip (a salon's card reader: the payment row holds the sale, its tip beside it, and Stripe charged
-      // both) is split by handleChargeRefunded: the sale part leaves the invoice, the tip part goes back as a negative tip.
-      amount: split ? split.sale : round2(refund.amount / 100),
-      ...(split && split.tip > 0.005 ? { tips: { amount: split.tip } } : {}),
+      amount: round2(total - tip),
+      ...(tip > 0.005 ? { tips: { amount: tip } } : {}),
       method: paymentRow.method || 'card',
       reference: refund.id,
       notes: refund.reason ? `Stripe refund (${String(refund.reason).replace(/_/g, ' ')})` : 'Stripe refund',

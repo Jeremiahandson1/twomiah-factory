@@ -229,7 +229,14 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
         continue
       }
-      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now, ...endStamp('expired', now) }).where(stillEnded(agr)).returning()
+      // The expiry is claimed on "still active and still ended" (scripts/check-agreements.ts); the row it claimed is then stamped
+      // with how and when it ended, in the same transaction, so an expired agreement never lacks its stamp.
+      const expired = await db.transaction(async (tx: any) => {
+        const [row] = await tx.update(serviceAgreement).set({ status: 'expired', updatedAt: now }).where(stillEnded(agr)).returning()
+        const stamp = endStamp('expired', now)
+        if (!row || !Object.keys(stamp).length) return row
+        return (await tx.update(serviceAgreement).set(stamp).where(eq(serviceAgreement.id, row.id)).returning())[0]
+      })
       if (expired) audit?.log({ action: 'expire', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
         metadata: { automatic: true, endDate: agr.endDate, renewalType: agr.renewalType,
           reason: agr.renewalType === 'auto' ? `ended ${Math.floor(lapsedDays)} days ago — past the ${RENEWAL_GRACE_DAYS}-day automatic renewal window` : 'manual renewal' } })

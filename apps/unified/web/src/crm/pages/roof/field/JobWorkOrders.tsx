@@ -8,6 +8,7 @@ import { api } from '../../../../api'
 import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Line { description: string; qty: number | string; unit: string }
 interface WorkOrder {
@@ -73,7 +74,7 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
             <div key={o.id} className="text-sm border-b last:border-0 pb-3 dark:border-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-gray-900 dark:text-slate-100">{o.title}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${CHIP[o.status] || CHIP.draft}`}>{o.status}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${CHIP[o.status] || CHIP.draft}`}>{codeLabel(o.status)}</span>
               </div>
               <p className="text-xs text-gray-600 dark:text-slate-400">
                 {o.recipientName} · {o.recipientPhone}{o.startDate ? ` · Starts ${formatDate(o.startDate)}` : ''}

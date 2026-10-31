@@ -10,6 +10,7 @@ import { CloudLightning, Circle as CircleIcon, MapPinned, Pentagon, Undo2, Trash
 import { api } from '../../../../api'
 import { errorText, useMayWrite, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
+import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { listOf } from './http'
 import ShapeMap, { type DrawnArea, type LatLng, type Shape } from './ShapeMap'
 import type { Pin } from './PinMap'
@@ -27,7 +28,7 @@ const yearsAgo = (iso: string | null) => {
   const y = (Date.now() - new Date(iso).getTime()) / (365.25 * 86400000)
   return y >= 0 && Number.isFinite(y) ? Math.floor(y) : null
 }
-const label = (e: StormEvent) => `${new Date(e.eventDate).toLocaleDateString()} · ${e.eventType}${e.hailSizeInches ? ` ${e.hailSizeInches}"` : ''}${e.windSpeedMph ? ` ${e.windSpeedMph} mph` : ''}${e.path ? ' · path drawn' : ''}`
+const label = (e: StormEvent) => `${whenDate(e.eventDate)} · ${e.eventType}${e.hailSizeInches ? ` ${e.hailSizeInches}"` : ''}${e.windSpeedMph ? ` ${e.windSpeedMph} mph` : ''}${e.path ? ' · path drawn' : ''}`
 
 export default function StormMapPage() {
   const mayDraw = useMayWrite('storms:update')
@@ -100,7 +101,7 @@ export default function StormMapPage() {
     if (!ev || !saved) return
     setBusy(true)
     try {
-      await api.post('/api/territories', { name: `Storm ${new Date(ev.eventDate).toLocaleDateString()} ${ev.eventType}`, boundary: saved, stormEventId: ev.id })
+      await api.post('/api/territories', { name: `Storm ${whenDate(ev.eventDate)} ${ev.eventType}`, boundary: saved, stormEventId: ev.id })
       toast.success('Territory made — open Territories to give it to your reps')
     } catch (e) { toast.error(errorText(e, 'Could not make the territory')) } finally { setBusy(false) }
   }

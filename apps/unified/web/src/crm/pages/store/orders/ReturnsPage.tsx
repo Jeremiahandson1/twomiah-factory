@@ -12,6 +12,7 @@ import { Undo2 } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { cents } from './lib'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Line { orderItemId: string; quantity: number; productName: string; variantName: string; unitPriceCents: number }
 interface Ret {
@@ -71,7 +72,7 @@ function Card({ ret, onChange, onError }: { ret: Ret; onChange: () => void; onEr
       </p>
       {ret.declineReason && <p className="text-sm text-gray-700 dark:text-slate-300">Declined: {ret.declineReason}</p>}
       {ret.labelUrl && <p className="text-sm"><a className="underline text-orange-900 dark:text-orange-200" href={ret.labelUrl} target="_blank" rel="noreferrer">Return label</a> ({ret.labelCarrier} {ret.labelTracking})</p>}
-      {ret.refund && <p className="text-sm text-gray-700 dark:text-slate-300">Money: {cents(ret.refund.amountCents - ret.refund.creditCents)} to the card{ret.refund.creditCents ? `, ${cents(ret.refund.creditCents)} as store credit` : ''} — {ret.refund.status}{ret.refund.error ? ` (${ret.refund.error})` : ''}</p>}
+      {ret.refund && <p className="text-sm text-gray-700 dark:text-slate-300">Money: {cents(ret.refund.amountCents - ret.refund.creditCents)} to the card{ret.refund.creditCents ? `, ${cents(ret.refund.creditCents)} as store credit` : ''} — {codeLabel(ret.refund.status)}{ret.refund.error ? ` (${ret.refund.error})` : ''}</p>}
       {ret.exchangeOrder && <p className="text-sm text-gray-700 dark:text-slate-300">Exchange sent as order {ret.exchangeOrder.orderNumber}.</p>}
 
       {mayDecide && ret.status === 'requested' && (

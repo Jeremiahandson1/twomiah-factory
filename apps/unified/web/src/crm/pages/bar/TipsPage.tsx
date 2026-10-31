@@ -5,6 +5,7 @@ import { api } from '../../../api';
 import FormError, { errorText } from '../../ui/FormError';
 import { useMayWrite } from '../../../shared';
 import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money } from './registerUi';
 
 /**
@@ -34,7 +35,7 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
         <tbody>
           {payouts.map((p) => (
             <tr key={p.userId} className="border-t border-gray-100 dark:border-slate-800">
-              <td className={TD}>{p.name}</td><td className={TD}>{p.role}</td><td className={TD}>{p.hours}</td><td className={`${TD} font-mono`}>{money(p.tipsCents)}</td>
+              <td className={TD}>{p.name}</td><td className={TD}>{codeLabel(p.role)}</td><td className={TD}>{p.hours}</td><td className={`${TD} font-mono`}>{money(p.tipsCents)}</td>
               <td className={`${TD} font-mono`}>{p.tipOutPaidCents ? `−${money(p.tipOutPaidCents)}` : '—'}</td><td className={`${TD} font-mono`}>{p.tipOutReceivedCents ? money(p.tipOutReceivedCents) : '—'}</td>
               <td className={`${TD} font-mono`}>{p.poolShareCents ? money(p.poolShareCents) : '—'}</td><td className={`${TD} font-mono font-bold`}>{money(p.totalCents)}</td>
             </tr>

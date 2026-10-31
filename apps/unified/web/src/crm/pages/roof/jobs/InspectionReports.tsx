@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FileText, Link2, Copy, Download, Trash2, Plus, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { useMayWrite, useToast, errorText } from '../../../../shared'
+import { useConfirm, useMayWrite, useToast, errorText } from '../../../../shared'
 import { downloadFile } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
@@ -26,6 +26,7 @@ const fullUrl = (l: Link) => (/^https?:\/\//.test(l.url) ? l.url : `${window.loc
 
 export default function InspectionReports({ jobId, photos }: { jobId: string; photos: ReportPhotoChoice[] }) {
   const toast = useToast()
+  const confirm = useConfirm()
   const mayBuild = useMayWrite('jobs:update')
   const mayDelete = useMayWrite('jobs:delete')
   const mayShare = useMayWrite('portal:share')
@@ -62,7 +63,7 @@ export default function InspectionReports({ jobId, photos }: { jobId: string; ph
     } catch (e) { toast.error(errorText(e, 'Could not save the report')) } finally { setBusy(false) }
   }
   const remove = async () => {
-    if (!open || !window.confirm('Delete this report? Its link stops working.')) return
+    if (!open || !(await confirm('Its link stops working.', { title: 'Delete this report?', confirmText: 'Delete report' }))) return
     setBusy(true)
     try { await api.delete(`/api/inspection-reports/${open.id}`); setOpen(null); setDraft(null); await load() } catch (e) { toast.error(errorText(e, 'Could not delete the report')) } finally { setBusy(false) }
   }

@@ -692,7 +692,9 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : authenticate(c, next)))
   // Email Marketing switched off refuses the module at the API too (403 FEATURE_NOT_ENABLED); links stay open.
   if (featureGate) app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : featureGate(c, next)))
-  if (campaignsGate) for (const p of ['/campaigns', '/campaigns/*', '/templates', '/templates/*', '/audience/*', '/automations']) app.use(p, campaignsGate)
+  if (campaignsGate) for (const p of ['/campaigns', '/campaigns/*', '/templates', '/templates/*', '/audience/*']) app.use(p, campaignsGate)
+  // The welcome and win-back automations are campaigns sent on their own: the same switch.
+  if (campaignsGate) app.use('/automations', campaignsGate)
   const user = (c: any) => (c as any).get('user')
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid request', details: err.flatten().fieldErrors }, 400)
   const guarded = (fn: (c: any) => Promise<Response>) => async (c: any) => {

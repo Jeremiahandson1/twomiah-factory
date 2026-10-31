@@ -88,6 +88,9 @@ jobs:
           bun-version: 1.3.14
       - name: Install
         run: bun install
+      # pdftotext reads a drawn quote PDF back as text (tests/estimating-depth.test.ts: sections, subtotals, no markup).
+      - name: PDF text reader
+        run: sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Tests — boot, rule mutations, fence
         working-directory: apps/unified
         env:

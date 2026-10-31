@@ -174,13 +174,13 @@ const north = (await O('POST', '/api/locations', { name: 'North', code: 'NTH' })
 const south = (await O('POST', '/api/locations', { name: 'South', code: 'STH' })).json
 const theirBranch = (await X('POST', '/api/locations', { name: 'Theirs', code: 'THR' })).json
 {
-  const j = await O('POST', '/api/jobs', { title: 'Porch at North', locationId: north.id })
+  const j = await O('POST', '/api/jobs', { title: 'Porch at North', locationId: north.id, contactId: cust.id }) /* unified: a contractor's job is for a customer (crm.jobs.requireCustomer) */
   check(`jobs: a job is put at a branch, and comes back naming it (${j.status})`, j.status === 201 && j.json?.locationId === north.id, j.json)
   const got = await O('GET', `/api/jobs/${j.json.id}`)
   check('jobs: the job reads back with its branch', got.json?.location?.name === 'North' && got.json?.location?.code === 'NTH', got.json?.location)
-  const foreign = await O('POST', '/api/jobs', { title: 'Wrong', locationId: theirBranch.id })
+  const foreign = await O('POST', '/api/jobs', { title: 'Wrong', locationId: theirBranch.id, contactId: cust.id })
   check(`jobs: another company's branch is refused (${foreign.status})`, foreign.status === 400 && /not one of your branches/.test(foreign.json?.error), foreign.json)
-  await O('POST', '/api/jobs', { title: 'Porch at South', locationId: south.id })
+  await O('POST', '/api/jobs', { title: 'Porch at South', locationId: south.id, contactId: cust.id })
   const list = await O('GET', `/api/jobs?locationId=${north.id}`)
   check(`jobs: the list filters by branch (${list.json?.data?.length})`, list.json?.data?.length === 1 && list.json.data[0].title === 'Porch at North')
   const cleared = await O('PUT', `/api/jobs/${j.json.id}`, { locationId: '' })

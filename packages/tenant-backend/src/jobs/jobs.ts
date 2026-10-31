@@ -1215,7 +1215,10 @@ export function createJobRoutes(deps: JobDeps) {
    * two taps at once — or a phone's queued "start" arriving after the office completed the job — cannot both win.
    * Before 10/30 every tap wrote and re-ran the hook, and a late tap reverted a completed job (field service PR #169).
    */
-  const transition = (path: string, status: keyof typeof JOB_MOVES_FROM, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
+  const transition = (path: string, status: string, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
+    // Every button's status has its moves listed; one without them refuses to start rather than letting every job through.
+    const movesFrom = (JOB_MOVES_FROM as Record<string, readonly string[]>)[status]
+    if (!movesFrom) throw new Error(`jobs: no JOB_MOVES_FROM entry for the "${status}" button`)
     app.post(`/:id/${path}`, requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
@@ -1228,7 +1231,7 @@ export function createJobRoutes(deps: JobDeps) {
         ...(status === 'completed' ? {} : { completedAt: null }),
         ...extra(),
         updatedAt: new Date(),
-      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), inArray(t.job.status, [...JOB_MOVES_FROM[status]]))).returning()
+      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), inArray(t.job.status, [...movesFrom]))).returning()
       if (!updated) {
         const now = await findOwned(id, currentUser.companyId)
         if (!now) return c.json({ error: 'Job not found' }, 404)
