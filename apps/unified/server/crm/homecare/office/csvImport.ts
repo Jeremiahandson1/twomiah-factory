@@ -45,6 +45,8 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
 
   /** The kind in the request, if the person may import it and the agency has it; otherwise the refusal. */
   async function allowed(c: Context, v: unknown, verb: 'create' | 'delete'): Promise<ImportKind | Response> {
+    // the permission first, before the kind is even looked at: a caregiver learns nothing from a validation message
+    if (!(await mayAny(c, verb))) return fail(c, 403, 'Permission denied', 'forbidden')
     const kind = kindOf(v)
     if (!kind) return fail(c, 400, `kind must be one of: ${IMPORT_KINDS.join(', ')}.`, 'bad_kind')
     if (!(await holds(d, c, IMPORT_PERMISSION[kind][verb]))) return fail(c, 403, 'Permission denied', 'forbidden')
@@ -122,6 +124,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
 
   app.post('/attach', async (c) => {
     const user = me(c)
+    if (!(await mayAny(c, 'create'))) return fail(c, 403, 'Permission denied', 'forbidden')
     if (!(await core.csvImport.enabledWizard(user.companyId))) return notReady(c, 'care_import_wizard')
     const form = await uploadedForm(c)
     const kind = String(form.get('kind') ?? '') as AttachKind
@@ -168,6 +171,7 @@ export function createCsvImportRoutes(core: HomecareCore, d: CrmDeps) {
     return listAll(c, await core.csvImport.savedMappings(me(c).companyId, kind))
   })
   app.post('/mappings', async (c) => {
+    if (!(await mayAny(c, 'create'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const b = await bodyOf(c)
     const kind = await allowed(c, b.kind, 'create')
     if (kind instanceof Response) return kind
