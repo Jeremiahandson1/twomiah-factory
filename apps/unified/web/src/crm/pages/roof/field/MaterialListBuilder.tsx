@@ -12,7 +12,7 @@ import { listOf } from './http'
 interface ListLine { code?: string; description: string; qty: number | string; unit: string; basis?: string }
 interface ReportChoice { id: string; kind: 'roof_report' | 'provider_report'; label: string; provider: string | null; createdAt: string }
 interface Built {
-  squares: number; squaresSource: 'job' | 'measurement' | 'typed' | 'roof_report' | 'provider_report' | null; orderedSquares: number
+  address: string | null; squares: number; squaresSource: 'job' | 'measurement' | 'typed' | 'roof_report' | 'provider_report' | null; orderedSquares: number
   lengths: Record<string, number>; estimated: string[]; lines: ListLine[]; warnings: string[]; assumptions: Record<string, number | string>
   lengthSources: Record<string, 'typed' | 'roof_report' | 'provider_report' | 'estimated' | 'none'>
   lengthsReport: ReportChoice | null; reportChoices: ReportChoice[]

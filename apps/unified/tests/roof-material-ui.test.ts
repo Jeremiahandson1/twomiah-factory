@@ -263,3 +263,39 @@ describe('saved templates', () => {
     } finally { s.undo() }
   })
 })
+
+describe('opening an order and printing it', () => {
+  const ORDER = { id: 'm1', jobId: 'j1', jobNumber: 'ROOF-0005', supplier: 'abc_supply', status: 'sent', orderStatus: 'ordered', poNumber: 'PO-1001', deliveryAddress: '12 Gable Ln', orderDate: '2026-11-01T00:00:00Z', deliveryDate: '2026-11-05T00:00:00Z', totalCost: '400.00', contactName: 'Sam Foreman', contactPhone: '715-555-0188', supplierOrderNumber: 'ABC-77', lineItems: [{ description: 'Shingles', qty: 10, unit: 'bundle', unitPrice: 40, total: 400 }], notes: 'Driveway' }
+  test('a row opens the order with its PO, delivery and contact; Print / PDF downloads the server\'s PDF', async () => {
+    const s = stub((url) => (url === '/api/materials/m1' ? ORDER : { data: [ORDER], pagination: { page: 1, limit: 25, total: 1, pages: 1 } }))
+    const rawReal = api.raw
+    const asked: string[] = []
+    api.raw = async (url: string) => { asked.push(url); return new Response(new Uint8Array([37, 80, 68, 70]), { status: 200, headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="material-order-PO-1001.pdf"' } }) }
+    const created: string[] = []
+    const realCreate = (win as any).URL.createObjectURL
+    ;(win as any).URL.createObjectURL = () => { created.push('blob'); return 'blob:x' }
+    ;(globalThis as any).URL.createObjectURL = (win as any).URL.createObjectURL
+    try {
+      await mount(h(MaterialsPage), { permissions: ['margin:read', 'inventory:read'] })
+      await click(document.querySelector('tbody tr'))
+      const dialog = document.querySelector('[data-testid="material-order"]')!
+      for (const want of ['PO-1001', 'ABC Supply', 'Deliver to', '12 Gable Ln', 'Sam Foreman · 715-555-0188', 'ABC-77', 'Shingles', 'Total $400']) expect(dialog.textContent).toContain(want)
+      await click(button('Print / PDF'))
+      expect(asked).toEqual(['/api/material-list/orders/m1/pdf'])
+      expect(created).toEqual(['blob'])
+      await click(button('Close'))
+      expect(document.querySelector('[data-testid="material-order"]')).toBeNull()
+    } finally { s.undo(); api.raw = rawReal; (win as any).URL.createObjectURL = realCreate }
+  })
+
+  test('without the material-list feature there is no print button; a seat that may not see cost sees no prices', async () => {
+    const s = stub((url) => (url === '/api/materials/m1' ? { ...ORDER, totalCost: undefined, lineItems: [{ description: 'Shingles', qty: 10, unit: 'bundle' }] } : { data: [ORDER], pagination: { page: 1, limit: 25, total: 1, pages: 1 } }))
+    try {
+      await mount(h(MaterialsPage), { features: ['materials'], permissions: ['inventory:read'] })
+      await click(document.querySelector('tbody tr'))
+      expect(document.querySelector('[data-testid="material-order"]')).not.toBeNull()
+      expect(button('Print / PDF')).toBeUndefined()
+      expect(document.querySelector('[data-testid="material-order"]')!.textContent).not.toMatch(/\$|Total/)
+    } finally { s.undo() }
+  })
+})

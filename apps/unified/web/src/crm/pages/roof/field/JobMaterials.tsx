@@ -11,10 +11,11 @@ import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
 import { listOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
+import MaterialOrderDetail from './MaterialOrderDetail'
 import MaterialListBuilder from './MaterialListBuilder'
 
 interface Order {
-  id: string; supplier?: string | null; status?: string | null; orderDate?: string | null; deliveryDate?: string | null
+  id: string; poNumber?: string | null; supplier?: string | null; status?: string | null; orderDate?: string | null; deliveryDate?: string | null
   totalCost?: string | number | null; lineItems?: Array<{ description?: string; qty?: number; unit?: string }> | null
 }
 
@@ -26,6 +27,7 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
   // The squares → material list calculator (roof_material_list, not ready): offered with the same permission that orders.
   const hasList = useAuth().hasFeature('roof_material_list')
   const [listOpen, setListOpen] = useState(false)
+  const [viewing, setViewing] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try { setOrders(listOf<Order>(await api.get('/api/materials', { jobId, limit: 100 }))) } catch { setOrders([]) }
@@ -59,7 +61,10 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
             <div key={o.id} className="text-sm border-b last:border-0 pb-2 dark:border-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-gray-900 dark:text-slate-100">{supplierName(o.supplier) || '—'}</span>
-                <span className="text-xs text-gray-600 dark:text-slate-400">{(o.status || '').replace(/_/g, ' ')}</span>
+                <span className="flex items-center gap-3">
+                  <button type="button" onClick={() => setViewing(o.id)} className="text-xs font-medium text-orange-700 hover:underline dark:text-orange-300">Open</button>
+                  <span className="text-xs text-gray-600 dark:text-slate-400">{(o.status || '').replace(/_/g, ' ')}</span>
+                </span>
               </div>
               <p className="text-xs text-gray-600 dark:text-slate-400">
                 {(o.lineItems || []).map((l) => `${l.qty ?? ''} ${l.unit ?? ''} ${l.description ?? ''}`.trim()).join(' · ')}
@@ -72,6 +77,7 @@ export default function JobMaterials({ jobId, jobAddress }: { jobId: string; job
           ))}
         </div>
       )}
+      {viewing && <MaterialOrderDetail orderId={viewing} onClose={() => setViewing(null)} />}
       {listOpen && <MaterialListBuilder jobId={jobId} onClose={() => setListOpen(false)} onSaved={load} />}
       {open && <MaterialOrderForm jobId={jobId} jobAddress={jobAddress} onClose={() => setOpen(false)} onSaved={load} />}
     </div>

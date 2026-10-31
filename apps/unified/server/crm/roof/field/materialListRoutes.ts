@@ -8,6 +8,7 @@
 //   POST /jobs/:jobId/order      the edited list → a material order on the job                          inventory:create
 //   GET/POST/PUT/DELETE /api/material-list/templates   saved assumption sets with standing extra lines (./materialListTemplates.ts,
 //                                mounted beside this router in ./index.ts)
+//   GET  /orders/:id/pdf         the material order as a printable PDF (prices only for a seat with margin:read)  any signed-in seat
 //   GET  /jobs/:jobId/quote-lines  the material lines of the job's signed (approved) quotes, newest first     jobs:read
 //   POST /jobs/:jobId/provider-report   an EagleView / HOVER / GAF report keyed in from its PDF: its squares and   measurements:create
 //                                       lengths become the job's measurement, and the list is worked from them
@@ -23,12 +24,15 @@ import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith } from '../../deps.ts'
 import { normaliseLineItems } from '../validation.ts'
 import { orderReference } from './materials.ts'
 import { PROVIDERS, PROVIDER_LABELS, listLengths, reportChoicesFor, type ReportChoice } from '../reportLengths.ts'
 import { ASSUMPTION_LABELS, DEFAULT_ASSUMPTIONS, buildMaterialList, type Lengths } from '../materialList.ts'
 import { createSeatJob } from './seatJob.ts'
 import { shapeTemplate } from './materialListTemplates.ts'
+import { buildOrderDocument, orderFileName, renderOrderPdf } from './materialOrderDocument.ts'
+import { materialStatusLabel } from '../materialStatus.ts'
 
 const num = z.coerce.number().finite().nonnegative()
 const lengthsSchema = z.object({ eaveFt: num.optional(), rakeFt: num.optional(), ridgeFt: num.optional(), valleyFt: num.optional() })
@@ -77,6 +81,7 @@ export function createMaterialListRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
   const seatJob = createSeatJob(d)
+  const canSee = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
 
   app.get('/assumptions', (c) => one(c, { defaults: DEFAULT_ASSUMPTIONS, labels: ASSUMPTION_LABELS }))
@@ -149,6 +154,19 @@ export function createMaterialListRoutes(d: CrmDeps) {
       reportChoices: choices.map((r) => ({ id: r.id, kind: r.kind, label: r.label, provider: r.provider ?? null, createdAt: r.createdAt })),
       ...list,
     })
+  })
+
+  // The order as a document to print or keep (Roofr: download the order). Anyone who can read the Materials list can print an
+  // order, as the list is not scoped to a seat's own jobs; what the business paid is in it only for a seat that may see it.
+  app.get('/orders/:id/pdf', async (c) => {
+    const me = c.get('user')
+    const [order] = await db.select().from(material).where(and(eq(material.id, c.req.param('id')), eq(material.companyId, me.companyId))).limit(1)
+    if (!order) return fail(c, 404, 'Material order not found')
+    let showPrices = false
+    try { showPrices = !!(await canSee(me.role, 'margin:read', me.userId)) } catch { showPrices = false }
+    const doc = await buildOrderDocument(db, me.companyId, order, { showPrices })
+    const pdf = await renderOrderPdf(doc, materialStatusLabel(doc.status))
+    return c.body(new Uint8Array(pdf), 200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${orderFileName(doc)}"`, 'Cache-Control': 'no-store' })
   })
 
   // The material lines of the job's signed quotes (Roofr: an order from the signed proposal). A quote is "signed" here when it is

@@ -11,7 +11,6 @@
 //   · the columns are Roofr's order dashboard (status, PO number, job, address, supplier, order date, delivery, amount) and each
 //     header sorts the whole list on the server (?sort=&dir=), a click ascending, a second descending, a third back to newest.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react'
 import { api } from '../../../../api'
 import { errorText, useMayWrite, usePermissions, useToast } from '../../../../shared'
@@ -19,6 +18,7 @@ import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
+import MaterialOrderDetail from './MaterialOrderDetail'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
@@ -62,12 +62,13 @@ export default function MaterialsPage() {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
-  const navigate = useNavigate()
   // What the business paid: shown to the seats the server shows it to (margin:read). (T42)
   const showCost = usePermissions().can('margin:read')
   // A new order (POST /api/materials asks inventory:create): the page had no add control (live test 2026-10-22).
   const mayAdd = useMayWrite('inventory:create')
   const [adding, setAdding] = useState(false)
+  // The order opened for reading (and printing).
+  const [openOrder, setOpenOrder] = useState<MaterialOrder | null>(null)
 
   const [orders, setOrders] = useState<MaterialOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,6 +129,7 @@ export default function MaterialsPage() {
           )}
         </div>
         {adding && <MaterialOrderForm onClose={() => setAdding(false)} onSaved={load} />}
+        {openOrder && <MaterialOrderDetail orderId={openOrder.id} jobNumber={openOrder.jobNumber} onClose={() => setOpenOrder(null)} />}
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Filter className="w-4 h-4 text-gray-400" />
@@ -176,7 +178,9 @@ export default function MaterialsPage() {
                   orders.map((order) => (
                     <tr
                       key={order.id}
-                      onClick={() => order.jobId && navigate(`/crm/jobs/${order.jobId}`)}
+                      onClick={() => setOpenOrder(order)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setOpenOrder(order) }}
+                      tabIndex={0}
                       className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
                     >
                       <td className="px-4 py-3">

@@ -6,7 +6,20 @@
 //     that may see it.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
+import { inflateSync } from 'node:zlib'
 import { bootTenant, seedOwner } from './harness.ts'
+
+/** The text a PDF draws: pdfkit writes each page's content stream deflated, its strings as hex runs inside TJ arrays. */
+function pdfText(buf: Uint8Array): string {
+  const raw = Buffer.from(buf).toString('latin1')
+  let out = ''
+  for (const m of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+    let body: string
+    try { body = inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1') } catch { continue }
+    for (const tj of body.matchAll(/\[(.*?)\]\s*TJ/g)) { for (const h of tj[1].matchAll(/<([0-9a-fA-F]+)>/g)) out += Buffer.from(h[1], 'hex').toString('latin1'); out += '\n' }
+  }
+  return out
+}
 
 type T = Awaited<ReturnType<typeof bootTenant>>
 let t: T
@@ -107,5 +120,44 @@ describe('the Materials dashboard sorts', () => {
     const ok = await ask('view', 'sort=supplier&dir=asc')
     expect(ok.status).toBe(200)
     expect(ok.body.data.every((o: any) => o.totalCost === undefined)).toBe(true)
+  })
+})
+
+describe('the printable order', () => {
+  test('a PDF with the supplier, PO number, delivery, contact and lines — and the prices only for a seat that may see them', async () => {
+    const jobId = await makeJob('22 Gable Ln')
+    const made = await order(jobId, {
+      supplier: 'ABC Supply', poNumber: 'PO-2044', deliveryDate: '2026-11-05', deliveryAddress: '22 Gable Ln, Akron, OH', contactName: 'Sam Foreman', contactPhone: '715-555-0188',
+      notes: 'Leave on the driveway, not the lawn.', lineItems: [{ description: 'GAF Timberline HDZ shingles', qty: 99, unit: 'bundle', unitPrice: 41.5 }, { description: 'Starter strip', qty: 3, unit: 'bundle', unitPrice: 30 }],
+    })
+    expect(made.status).toBe(201)
+    const asked = await as('mgr')(`/api/material-list/orders/${made.body.id}/pdf`)
+    expect(asked.status).toBe(200)
+    expect(asked.headers.get('content-type')).toBe('application/pdf')
+    expect(asked.headers.get('content-disposition')).toContain('material-order-PO-2044.pdf')
+    const bytes = new Uint8Array(await asked.arrayBuffer())
+    expect(Buffer.from(bytes).subarray(0, 4).toString()).toBe('%PDF')
+    const text = pdfText(bytes)
+    for (const want of ['MATERIAL ORDER', 'PO-2044', 'ABC Supply', '22 Gable Ln, Akron, OH', 'Nov 5, 2026', 'Sam Foreman', '715-555-0188', 'GAF Timberline HDZ shingles', 'Starter strip', 'Leave on the driveway']) expect(text).toContain(want)
+    // 99 × $41.50 + 3 × $30.00 = $4,198.50 — for the seat that sees what the business paid.
+    expect(text).toContain('$4,198.50')
+    expect(text).toContain('$41.50')
+    const plain = pdfText(new Uint8Array(await (await as('view')(`/api/material-list/orders/${made.body.id}/pdf`)).arrayBuffer()))
+    expect(plain).toContain('GAF Timberline HDZ shingles')
+    expect(plain).not.toMatch(/\$|4,198|41\.50/)
+    ids.pdfOrder = made.body.id
+  })
+
+  test('another company\'s order and an unknown one are not there; with the feature off the door is closed', async () => {
+    const [other] = await t.db.insert(t.schema.company).values({ name: 'Other Roofing', slug: 'other-roofing' } as any).returning()
+    const oj = await ins(t.schema.job, { companyId: other.id, title: '9 Elm', number: 'ROOF-0001', status: 'lead' })
+    const foreign = await ins(t.schema.material, { companyId: other.id, jobId: oj.id, supplier: 'ABC', lineItems: [], orderStatus: 'ordered' })
+    expect((await as('owner')(`/api/material-list/orders/${foreign.id}/pdf`)).status).toBe(404)
+    expect((await as('owner')('/api/material-list/orders/nope/pdf')).status).toBe(404)
+    await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'materials'] } as any).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
+    expect((await as('owner')(`/api/material-list/orders/${ids.pdfOrder}/pdf`)).status).toBeGreaterThanOrEqual(400)
+    await t.db.update(t.schema.company).set({ enabledFeatures: FEATURES } as any).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
   })
 })
