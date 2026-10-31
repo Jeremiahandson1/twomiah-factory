@@ -7,7 +7,7 @@
  * so a tile could not open exactly what it counts. The count itself is a tab screen.
  */
 import type { TileDef } from '../home/tiles'
-import { type ScreenSpec, type Row, words, calDay, hhmm, dayOnly, join } from './kit'
+import { type ScreenSpec, type Row, words, money, calDay, hhmm, dayOnly, join } from './kit'
 import { EVENT_TILES } from './restaurant'
 import { lineRows, lineChoice, fixBody, type ScanLine } from './invoiceScan'
 import { DAY_NAMES, WEEK_CHOICES, DATE_CHOICES, STATUS, STATUS_TONE, weekAfter, windowWords, dateBody, dateWords, shiftWords, swapRows, mayTakeBack, swapChoices, choiceLabel, localDay } from './shiftRequests'

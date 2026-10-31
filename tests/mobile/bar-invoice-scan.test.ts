@@ -27,6 +27,17 @@ check('behind the switch and permission its routes ask (bar_invoice_scan, bar:up
 check('lists from /api/stock/invoices and never a register or card path', s.list.path === '/api/stock/invoices' && !FORBIDDEN.test(s.list.path))
 check('a + opens the photo screen, for the same permission', s.create?.route === '/(details)/stock-invoice' && JSON.stringify(s.create.any) === JSON.stringify(['bar:update']))
 check('the photo screen is a file of the app and is drawn without the stack header', fs.existsSync(path.join(app, 'app/(details)/stock-invoice.tsx')) && read('app/(details)/_layout.tsx').includes("'stock-invoice'"))
+// The detail screen is drawn from these getters on a real answer: every one must run (a name that is not imported fails only on the phone).
+{
+  const sample = { id: 'i1', status: 'review', supplierName: 'Badger Beverage', vendorName: 'Badger Beverage', invoiceNumber: 'B-1', invoiceDate: '2026-10-20', totalCents: 12345, linesTotalCents: 12000, notes: 'smudged', createdAt: '2026-10-21T10:00:00Z', needsAttention: 2, duplicateOf: { number: 'PO-3' }, lines: [] }
+  let threw: unknown = null
+  const shown: Record<string, unknown> = {}
+  try {
+    shown.title = s.detail!.title(sample as any); shown.subtitle = s.detail!.subtitle!(sample as any); shown.badge = (s.detail as any).badge(sample)
+    for (const sec of s.detail!.sections) for (const f of (sec as any).fields || []) shown[f.label] = f.get(sample as any)
+  } catch (e) { threw = String(e) }
+  check('the detail screen draws from a real answer (every field runs, money is shown as dollars)', threw === null && shown['The invoice says'] === '$123.45' && shown['The lines add up to'] === '$120.00', { threw, shown })
+}
 const count = specFor('bar-count')!
 check('the Count screen links to it, for a manager only, behind the same switch', !!count.links?.find((l) => l.route === '/(details)/t/bar-invoices' && l.feature === 'bar_invoice_scan' && l.any.join() === 'bar:update'))
 check('it is reachable by id (the link and the + open a real screen)', SPECS.some((x) => x.id === 'bar-invoices'))
