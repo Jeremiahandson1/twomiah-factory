@@ -65,6 +65,8 @@ import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
+import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
+import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
@@ -416,6 +418,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
+    // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
+    { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
+    { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,

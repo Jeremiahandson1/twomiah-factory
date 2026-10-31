@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { TextButton } from '../text/TextButton'
 import { documentLink } from '../text/textMessages'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned, Copy, BookmarkPlus } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money, quoteSentMessage } from './ui'
 import { SectionedRows, AllowanceTag } from './sections'
+import { SaveTemplateModal, useQuoteFeature } from './quoteTemplates'
 
 type Q = Record<string, any>
 // Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES): a quote the customer has opened is still the office's to
@@ -28,6 +29,9 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const mayDelete = useMayWrite('quotes:delete')
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
+  const mayCreate = useMayWrite('quotes:create')
+  const templatesOn = useQuoteFeature('quote_templates')
+  const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -72,6 +76,8 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           {/* One invoice per quote: the server refuses a second (convert-to-invoice), so a billed quote links its invoice instead. */}
           {quote.status === 'approved' && mayInvoice && !quote.invoiced && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
+          {templatesOn && mayCreate && <NavLink to={`/crm/quotes?similar=${id}`} className={secondary}><Copy className="w-4 h-4" /> Create similar</NavLink>}
+          {templatesOn && mayCreate && <Button variant="secondary" onClick={() => setSaveAs({ id, name: quote.name })}><BookmarkPlus className="w-4 h-4" /> Save as template</Button>}
           {editable && mayUpdate && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}
           {quote.status === 'draft' && mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete quote"><Trash2 className="w-4 h-4" /></Button>}
         </div>
@@ -174,6 +180,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           <div className="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-6 text-center text-orange-700 dark:text-orange-200"><p className="text-3xl font-bold">{money(quote.total)}</p><p className="text-sm">Quote Total</p></div>
         </div>
       </div>
+      {templatesOn && <SaveTemplateModal api={api as any} toast={toast as any} quote={saveAs} onClose={() => setSaveAs(null)} />}
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete quote" message={`Delete ${quote.number}? This cannot be undone.`} confirmText="Delete" />
     </div>
   )

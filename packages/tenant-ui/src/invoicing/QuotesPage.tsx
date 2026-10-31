@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search, Copy, BookmarkPlus, LayoutTemplate } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig, countedLines } from './types'
 import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { SaveTemplateModal, TemplatePickerModal, formLines, useQuoteFeature } from './quoteTemplates'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
@@ -35,6 +36,10 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const mayDelete = useMayWrite('quotes:delete')
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
+  // Create similar / start from a template (quote_templates, not ready): both fill the form below and save through the ordinary create.
+  const templatesOn = useQuoteFeature('quote_templates')
+  const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   // Every status a quote can hold here. 'rejected' is written by the owner's Reject and the portal's decline in every
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
@@ -103,29 +108,45 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({
-      description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
-      /*
-       * The cost fields have to survive a round trip. PUT replaces the whole line set, so reading a
-       * quote back without them and saving it again would silently wipe every cost the quote had —
-       * the edit path throwing away what the create path recorded. (T41)
-       */
-      ...(li.type ? { type: li.type } : {}),
-      ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
-      ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
-      ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
-      // Estimating fields must survive the round trip too: PUT replaces every line.
-      ...(li.section ? { section: li.section } : {}),
-      ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
-      ...(li.allowance ? { allowance: true } : {}),
-      ...(li.costCode ? { costCode: li.costCode } : {}),
-    })) : [blankLine()], depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A new quote filled in from an old one: same customer, project, lines and wording; nothing tied to the old job, and no expiry. */
+  const createSimilar = useCallback(async (id: string) => {
+    try {
+      const item = await api.get(`/api/quotes/${id}`)
+      setEditing(null)
+      setForm({
+        name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: '', siteId: '', equipmentId: '', expiryDate: '',
+        taxRate: Number(item.taxRate), discount: 0, notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '',
+        lineItems: formLines(item.lineItems?.filter((li: any) => !li.proposalOptionId), blankLine),
+        depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0,
+      })
+      loadCustomerExtras(item.contactId || '')
+      setModalOpen(true)
+      toast.success(`Copied from ${item.number}. Change what is different, then save.`)
+    } catch (e) { toast.error(errMsg(e, 'Could not copy that quote')) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  /** A new quote filled in from a template: its lines and wording, and no customer until you pick one. */
+  const fromTemplate = (body: any) => {
+    setEditing(null)
+    setForm({
+      ...emptyForm(), name: body?.name || '', notes: body?.notes || '', customerMessage: body?.customerMessage || '', terms: body?.terms || '',
+      taxRate: Number(body?.taxRate ?? defaultTaxRate) || 0, lineItems: formLines(body?.lineItems, blankLine),
+      depositType: body?.depositType === 'percent' || body?.depositType === 'fixed' ? body.depositType : '', depositValue: Number(body?.depositValue) || 0,
+    })
+    setSites([]); setEquipment([]); setModalOpen(true)
+  }
+
   useEffect(() => {
     // ?new=1 (a job's "Create Quote"), or a contact's quick action, which sends ?contactId= alone.
+    if (searchParams.get('similar') && templatesOn && mayCreate) {
+      const from = searchParams.get('similar') as string
+      searchParams.delete('similar'); setSearchParams(searchParams, { replace: true }); createSimilar(from)
+      return
+    }
     if ((searchParams.get('new') !== '1' && !searchParams.get('contactId')) || !mayCreate) return
     const contactId = searchParams.get('contactId') || ''
     const jobId = cfg.quoteJobs ? searchParams.get('jobId') || '' : ''
@@ -217,7 +238,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
 
   return (
     <div>
-      <PageHeader title="Quotes" action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button> : undefined} />
+      <PageHeader title="Quotes" action={mayCreate ? <div className="flex gap-2">{templatesOn && <Button variant="secondary" onClick={() => setPickerOpen(true)}><LayoutTemplate className="w-4 h-4" /> From a template</Button>}<Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button></div> : undefined} />
       <div className="mb-4 flex flex-wrap gap-3">
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
@@ -236,8 +257,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => mayInvoice && r.status === 'approved' && !r.invoiced },
         ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => mayJob && r.status === 'approved' && !r.convertedToJobId && !r.jobId }] : []),
+        ...(templatesOn ? [
+          { label: 'Create similar', icon: Copy, onClick: (r: Row) => createSimilar(r.id), show: () => mayCreate },
+          { label: 'Save as template', icon: BookmarkPlus, onClick: (r: Row) => setSaveAs({ id: r.id, name: r.name }), show: () => mayCreate },
+        ] : []),
         { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && r.status === 'draft' },
       ]} />
+      {templatesOn && <SaveTemplateModal api={api as any} toast={toast as any} quote={saveAs} onClose={() => setSaveAs(null)} />}
+      {templatesOn && <TemplatePickerModal api={api as any} toast={toast as any} open={pickerOpen} onClose={() => setPickerOpen(false)} onUse={fromTemplate} mayDelete={mayDelete} />}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Quote'} size="xl">
         <div className="space-y-4">

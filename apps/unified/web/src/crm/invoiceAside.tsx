@@ -3,9 +3,9 @@
 // loyalty standing and tier perk for the desk at checkout (pages/salon/loyaltyTiers.tsx).
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BellRing } from 'lucide-react'
+import { BellRing, MailCheck } from 'lucide-react'
 import { api } from '../api'
-import { usePermissions } from '../shared'
+import { useAuth, usePermissions } from '../shared'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { FinancingPanel } from './financing'
 import { ClientLoyaltyCard } from './pages/salon/loyaltyTiers'
@@ -59,6 +59,43 @@ export function InvoiceRemindersPanel({ invoiceId, status }: { invoiceId: string
   )
 }
 
+interface FollowUpEntry { step: string; status: string; sentTo: string | null; detail: string | null; at: string }
+
+/** The follow-ups this quote has had (server crm/billing/quoteFollowUp.ts), where Quote Follow-up is on and the quote is still waiting for an answer or had one. */
+export function QuoteFollowUpPanel({ quoteId, status }: { quoteId: string; status?: string }) {
+  const { hasFeature, can } = useAuth()
+  const on = hasFeature('quote_followup') && can('quotes:read')
+  const [entries, setEntries] = useState<FollowUpEntry[] | null>(null)
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    api.get(`/api/quote-followup/history/${quoteId}`).then((r: { data: FollowUpEntry[] }) => { if (live) setEntries(r?.data || []) }).catch(() => { if (live) setEntries(null) })
+    api.get('/api/quote-followup/settings').then((r: { enabled: boolean }) => { if (live) setEnabled(!!r?.enabled) }).catch(() => { if (live) setEnabled(null) })
+    return () => { live = false }
+  }, [quoteId, on])
+  if (!on || entries === null || enabled === null) return null
+  if (!entries.length && !['sent', 'viewed'].includes(String(status))) return null
+  return (
+    <section aria-label="Automatic follow-up" className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900" data-testid="quote-followup-panel">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><MailCheck className="h-4 w-4 text-orange-600 dark:text-orange-300" aria-hidden="true" />Automatic follow-up</h2>
+      {entries.length ? (
+        <ul className="mt-2 space-y-1.5 text-sm text-gray-700 dark:text-slate-200">
+          {entries.map((e, i) => (
+            <li key={i}>
+              <span className="font-medium">{(/^after_(\d+)/.exec(e.step)?.[1] ?? '') ? `Follow-up, ${/^after_(\d+)/.exec(e.step)![1]} days after sending` : 'Follow-up'}</span> — {STATUS[e.status] || e.status}{e.sentTo && e.status === 'sent' ? ` to ${e.sentTo}` : ''}, {whenDateTime(e.at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {e.status !== 'sent' && e.detail && <span className="block text-xs text-gray-600 dark:text-slate-300">{e.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">{enabled ? 'None sent yet. A follow-up goes out if the customer has not answered, as set in Settings.' : 'Automatic follow-up is off.'}</p>
+      )}
+      {can('company:update') && <Link to="/crm/settings/quote-followup" className="mt-2 inline-block text-sm font-medium text-orange-700 hover:underline dark:text-orange-200">Quote follow-up settings</Link>}
+    </section>
+  )
+}
+
 const isSalon = () => { const h = verticalScreens().home; return typeof h === 'string' && h === 'salon' }
 
 /** The quote's and the invoice's aside, as InvoiceDetailPage and QuoteDetailPage render it. */
@@ -66,6 +103,7 @@ export function DocumentAside({ kind, record, reload }: { kind: 'quote' | 'invoi
   return (
     <>
       <FinancingPanel kind={kind} record={record} />
+      {kind === 'quote' && record?.id && <QuoteFollowUpPanel quoteId={String(record.id)} status={String(record.status || '')} />}
       {kind === 'invoice' && record?.id && <InvoiceRemindersPanel invoiceId={String(record.id)} status={String(record.status || '')} />}
       {kind === 'invoice' && isSalon() && record?.id && <RetailSellPanel invoiceId={String(record.id)} status={String(record.status || '')} lines={record.lineItems} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <ChairCheckoutPanel invoiceId={String(record.id)} status={String(record.status || '')} balance={record.balance} reload={reload} />}

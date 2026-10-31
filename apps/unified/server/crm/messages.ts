@@ -159,6 +159,33 @@ ${data.disclosure}`,
    * portal was on, so everyone else had no way to accept). Without a link (a caller that made none) they are told how.
    */
 
+  /** A quote the customer was sent and has not answered (billing/quoteFollowUp.ts): a short, polite nudge with the quote's own link. */
+  quoteFollowUp: (data, b, appUrl) => {
+    const link = data.documentPath ? appUrl + String(data.documentPath) : ''
+    const total = '$' + Number(data.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const name = data.quoteName ? ` (${escHtml(data.quoteName)})` : ''
+    const until = data.expiryDate ? `<p>The price holds until <strong>${escHtml(data.expiryDate)}</strong>.</p>` : ''
+    const reach = data.companyPhone ? `If you have a question, reply to this email or call us on ${escHtml(data.companyPhone)}.` : 'If you have a question, just reply to this email.'
+    return {
+      subject: `Following up on quote ${data.quoteNumber} from ${data.companyName}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We sent you quote ${escHtml(data.quoteNumber)}${name} for <strong>${total}</strong> and wanted to check that you got it.</p>
+          ${until}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View the quote</a></p>` : ''}
+          <p>${reach}</p>
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `Hi ${data.contactName}, we sent you quote ${data.quoteNumber} for ${total} and wanted to check that you got it.${data.expiryDate ? ` The price holds until ${data.expiryDate}.` : ''}${link ? ` View it here: ${link}` : ''} ${data.companyPhone ? `Questions? Reply or call ${data.companyPhone}.` : 'Questions? Just reply to this email.'}`,
+    }
+  },
+
   quoteSent: (data, b, appUrl) => {
     const money = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const title = data.quoteName ? escHtml(data.quoteName) : 'Your quote'

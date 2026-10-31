@@ -453,6 +453,24 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
 ])
 
 /**
+ * A saved quote to start the next one from (quote_templates, server/crm/billing/quoteTemplates.ts). `body` is the quote as the
+ * New Quote form takes it — name, notes, terms, tax rate, deposit and the lines (with section, cost code, markup, allowance) —
+ * and never the customer, the dates or the proposal options. Cost-side line fields (unitCost, markupPct) are in it and are
+ * sent back only to a seat holding margin:read. Nothing here is a quote: it has no number, and no report counts it.
+ */
+export const quoteTemplate = pgTable('quote_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  body: json('body').notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('quote_template_company_id_idx').on(t.companyId),
+])
+
+/**
  * What an approved quote says the project should cost, by cost code (0041, apps/unified server/crm/billing/quoteBudget.ts):
  * one row per cost code per quote, made when the quote is approved and replaced if it is approved again. Job Costing reads
  * it as the project's estimated cost and price. Not a ledger — nothing here moves money.

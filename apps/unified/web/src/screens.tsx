@@ -14,7 +14,7 @@ import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
 import { useLiveConnection, subscribeLive } from './live'
-import { MessageSquare, BellRing, FileArchive } from 'lucide-react'
+import { MessageSquare, BellRing, FileArchive, MailCheck } from 'lucide-react'
 import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
@@ -26,6 +26,9 @@ const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: 
  * business invoices — the Invoices feature, or home care's own Billing.
  */
 const INVOICE_REMINDER_SETTINGS = { to: '/crm/settings/invoice-reminders', label: 'Invoice Reminders', icon: BellRing, permission: 'company:update', ...(isHomecare ? {} : { feature: 'invoices' }) }
+
+/** Settings › Quote Follow-up (crm/pages/QuoteFollowUpPage.tsx; server crm/billing/quoteFollowUp.ts): the owner and admins, where the Quote Follow-up feature is on. */
+const QUOTE_FOLLOWUP_SETTINGS = { to: '/crm/settings/quote-followup', label: 'Quote Follow-up', icon: MailCheck, permission: 'company:update', feature: 'quote_followup' }
 
 /** Settings › Job Reminders (crm/pages/JobRemindersPage.tsx; server crm/field/jobReminderRoutes.ts): the owner and admins, where the Job Reminders feature is on. */
 const JOB_REMINDER_SETTINGS = { to: '/crm/settings/job-reminders', label: 'Job Reminders', icon: BellRing, permission: 'company:update', feature: 'job_reminders' }
@@ -79,7 +82,7 @@ export function Settings() {
   // workWeek: on for every vertical unless its settings say `workWeek: false` (the store runs no pay week). It used to be
   // passed as `true` after the vertical's own settings were spread, so no vertical could turn it off.
   const own = verticalScreens().settings as { workWeek?: boolean }
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, JOB_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, QUOTE_FOLLOWUP_SETTINGS, JOB_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />
