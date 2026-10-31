@@ -12,6 +12,10 @@
 //     GET  /counts · GET /counts/:id/report                 variance, food cost %, pour cost %
 //     GET  /orders · POST /orders · PUT /orders/:id · POST /orders/draft-low
 //     POST /orders/:id/send { email } · POST /orders/:id/cancel · POST /orders/:id/receive { lines }
+//   Invoice scanning (restaurant-bar parity #7; also behind bar_invoice_scan, not ready; bar:update):
+//     POST /invoices (multipart file, vendorId?)  ·  GET /invoices  ·  GET /invoices/:id  ·  GET /invoices/:id/file
+//     PATCH /invoices/:id { vendorId, invoiceNumber, invoiceDate, lines }   the person's corrections
+//     POST /invoices/:id/confirm { allowDuplicate }   the one thing that changes counts and costs  ·  POST /invoices/:id/discard
 //
 // Moved from templates/crm-bar/backend/src/routes/barStock.ts; paths, permissions and answers as they were. The order
 // email goes through the app's email (the template's sendRaw).
@@ -20,10 +24,11 @@ import { eq } from 'drizzle-orm'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, one } from '../../http/reply.ts'
+import { fail, listAll, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { CATEGORIES, PACK_PRESETS, UNITS } from './barCosting.ts'
 import { StockError, orderEmailHtml } from './barStock.ts'
+import { MAX_INVOICE_BYTES } from './barInvoices.ts'
 import type { BarServices } from './services.ts'
 import { ORDER_TILES } from './tileConditions.ts'
 
@@ -37,7 +42,9 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
   const on = d.features.requireEnabledFeature('bar_stock')
   const manage = [on, requirePermission('bar:update')] as const
   const counter = [on, requirePermission('bar:register')] as const
+  const scanning = [on, d.features.requireEnabledFeature('bar_invoice_scan'), requirePermission('bar:update')] as const
   const { actorOf } = bar.managers
+  const { invoices } = bar
   const {
     countHistory, countItem, countReport, currentCount, draftFromLow, finishCount, menuEngineering, orderList,
     receiveOrder, recipeBook, saveOrder, saveStockItem, saveVendor, setOrderStatus, setRecipe, setTapPour, stockList, vendorList,
@@ -155,6 +162,54 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
       const order = await receiveOrder(actor.companyId, c.req.param('id'), Array.isArray(b.lines) ? b.lines : [], actor.name)
       audit.log({ req: c, action: 'update', entity: 'bar_purchase_order', entityId: order.id, entityName: `Order #${order.number}`, changes: { status: 'received' } })
       return { order }
+    })
+  })
+
+  // ── Invoices read from a photo or PDF: read, matched, checked by a person, and only then received ──
+  app.post('/invoices', ...scanning, async (c) => {
+    const actor = await actorOf(c)
+    const form = await c.req.formData().catch(() => null)
+    const file = form?.get('file')
+    if (!(file instanceof File)) return fail(c, 400, 'Choose a photo or a PDF of the invoice.')
+    if (file.size > MAX_INVOICE_BYTES) return fail(c, 413, 'That file is over 10 MB. Take the photo again at a lower quality, or send the PDF a page at a time.')
+    const vendorId = form?.get('vendorId')
+    return run(c, async () => {
+      const scan = await invoices.scan(actor, { bytes: Buffer.from(await file.arrayBuffer()), name: file.name }, typeof vendorId === 'string' ? vendorId : null)
+      audit.log({ req: c, action: 'create', entity: 'bar_invoice_scan', entityId: scan.id, entityName: `Invoice ${scan.invoiceNumber || scan.supplierName || ''}`.trim(), changes: { lines: scan.lines.length } })
+      return scan
+    })
+  })
+  app.get('/invoices', ...scanning, async (c) => {
+    const companyId = companyOf(c)
+    try { c.header('Cache-Control', 'no-store'); return listAll(c, await invoices.list(companyId)) }
+    catch (e: any) { logger.error('[stock]', { error: e?.message || String(e) }); return fail(c, 500, 'That did not load. Try again.') }
+  })
+  app.get('/invoices/:id', ...scanning, async (c) => { const companyId = companyOf(c); return run(c, () => invoices.get(companyId, c.req.param('id'))) })
+  app.get('/invoices/:id/file', ...scanning, async (c) => {
+    const companyId = companyOf(c)
+    try {
+      const f = await invoices.fileOf(companyId, c.req.param('id'))
+      return c.body(f.body as any, 200, { 'Content-Type': f.contentType, 'Cache-Control': 'private, no-store', 'Content-Disposition': `inline; filename="${f.name.replace(/[^\w.\- ]/g, '_')}"` })
+    } catch (e: any) {
+      if (e instanceof StockError) return fail(c, e.status as any, e.message)
+      logger.error('[stock]', { error: e?.message || String(e) }); return fail(c, 500, 'That did not load. Try again.')
+    }
+  })
+  app.patch('/invoices/:id', ...scanning, async (c) => { const actor = await actorOf(c); const b = await body(c); return run(c, () => invoices.update(actor, c.req.param('id'), b)) })
+  app.post('/invoices/:id/confirm', ...scanning, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const received = await invoices.confirm(actor, c.req.param('id'), { allowDuplicate: b.allowDuplicate === true })
+      audit.log({ req: c, action: 'update', entity: 'bar_invoice_scan', entityId: received.scanId, entityName: `Order #${received.orderNumber}`, changes: { status: 'confirmed', lines: received.lines, totalCents: received.totalCents, priceChanges: received.costChanges.length } })
+      return received
+    })
+  })
+  app.post('/invoices/:id/discard', ...scanning, async (c) => {
+    const actor = await actorOf(c)
+    return run(c, async () => {
+      await invoices.discard(actor, c.req.param('id'))
+      audit.log({ req: c, action: 'update', entity: 'bar_invoice_scan', entityId: c.req.param('id'), entityName: 'Invoice', changes: { status: 'discarded' } })
+      return { success: true }
     })
   })
 

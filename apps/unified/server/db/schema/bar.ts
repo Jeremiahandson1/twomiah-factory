@@ -352,6 +352,34 @@ export const barPurchaseOrderLine = pgTable('bar_purchase_order_line', {
   index('bar_purchase_order_line_order_idx').on(t.orderId),
 ])
 
+// A supplier invoice read from a photo or PDF (restaurant-bar parity #7, bar_invoice_scan). The lines are the READING and the
+// person's corrections to it; nothing here touches a count or a cost until a person confirms, and confirming makes the one
+// received purchase order (order_id) that does. status: review | confirmed | discarded.
+export const barInvoiceScan = pgTable('bar_invoice_scan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('review').notNull(),
+  vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
+  supplierName: text('supplier_name'),            // as printed on the invoice
+  invoiceNumber: text('invoice_number'),
+  invoiceDate: text('invoice_date'),              // YYYY-MM-DD as printed (not a moment)
+  totalCents: integer('total_cents'),             // the invoice's own total, as read
+  lines: json('lines').default([]).notNull(),     // review lines: what was printed, the match to a stock item, quantity and price per pack
+  notes: text('notes'),                           // what the reader said it could not make out
+  fileKey: text('file_key'),
+  fileType: text('file_type'),
+  fileName: text('file_name'),
+  reader: text('reader'),
+  orderId: text('order_id').references(() => barPurchaseOrder.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name'),
+  confirmedByName: text('confirmed_by_name'),
+  confirmedAt: timestamp('confirmed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_invoice_scan_company_idx').on(t.companyId, t.createdAt),
+])
+
 // What goes into one of a menu item, per size (null = every size). qty is in the stock item's unit.
 export const barRecipeLine = pgTable('bar_recipe_line', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

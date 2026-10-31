@@ -407,6 +407,13 @@
       "when": 1793472334370,
       "tag": "0057_shift_swap_and_tip_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793474421754,
+      "tag": "0058_bar_invoice_scan",
+      "breakpoints": true
     }
   ]
 }
