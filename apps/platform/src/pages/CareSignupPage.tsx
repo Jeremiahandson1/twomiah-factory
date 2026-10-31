@@ -11,12 +11,14 @@ type AddonData = {
   description: string
 }
 
+// The add-ons this sign-up can charge: texting, billed by its own checkout right after the plan's (the Factory's signup reads
+// `addons`, config/signupQuestions.ts). Everything else an agency uses is in every plan. The page used to offer "EVV Integration
+// — GPS-verified … Medicaid compliance" (EVV is NOT integrated: clocking in opens the Sandata app — owner, 10/27), "Advanced
+// Billing — insurance claims, Medicaid" and three more for $29–$49 each, add them into the total shown, and charge none of them:
+// the total on the page and the charge at checkout differed (10/30).
+const SIGNUP_CHARGES = ['texting']
 const FALLBACK_ADDONS: AddonData[] = [
-  { id: 'evv', name: 'EVV Integration', price: 29, description: 'GPS-verified clock-in/out for Medicaid compliance' },
-  { id: 'homecare_billing', name: 'Advanced Billing', price: 49, description: 'Insurance claims, Medicaid billing, batch invoicing' },
-  { id: 'caregiver_training', name: 'Training & Compliance', price: 39, description: 'Certification tracking, in-app training modules' },
-  { id: 'family_portal', name: 'Family Portal', price: 29, description: 'Real-time updates, care notes, and visit logs for families' },
-  { id: 'marketing_site', name: 'Marketing Website', price: 49, description: 'SEO-optimized agency website with lead capture' },
+  { id: 'texting', name: 'Texting', price: 10, description: 'Two-way texting with clients and families from your own number (plus the messages you send)' },
 ]
 
 function mapApiAddonsToLocal(apiAddons: any[]): AddonData[] {
@@ -95,9 +97,8 @@ export default function CareSignupPage() {
           }
         }
 
-        if (data.addons && data.addons.length > 0) {
-          setAddons(mapApiAddonsToLocal(data.addons))
-        }
+        const chargeable = (data.addons || []).filter((a: any) => SIGNUP_CHARGES.includes(String(a.id)))
+        if (chargeable.length > 0) setAddons(mapApiAddonsToLocal(chargeable))
 
         setPricingLoaded(true)
       } catch (err) {
@@ -192,14 +193,11 @@ export default function CareSignupPage() {
     setLoading(true)
     setError('')
 
-    // Every plan has every feature (seats only); the add-ons picked are extra.
-    const features = careFeatures(selectedAddons)
-
-    // Determine products
+    // Every plan has every feature (seats only) and includes the agency's website. A paid add-on is not a feature sent here: it is
+    // switched on when its own checkout is paid (`addons` below).
+    const features = careFeatures([])
     const products = ['crm']
-    if (selectedAddons.includes('marketing_site')) {
-      products.push('website')
-    }
+    const addons = selectedAddons.filter((a) => SIGNUP_CHARGES.includes(a))
 
     try {
       const res = await fetch(`${API_URL}/api/v1/factory/public/signup`, {
@@ -222,6 +220,7 @@ export default function CareSignupPage() {
           billing_type: 'subscription',
           products,
           features,
+          addons,
           website_theme: websiteTheme,
           branding: {
             primaryColor: branding.primaryColor,
@@ -270,7 +269,7 @@ export default function CareSignupPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Twomiah Care!</h2>
           <p className="text-gray-600 mb-6">
-            Your agency account has been created. Our team will provision your system and send you login credentials within 24 hours.
+            Your agency account has been created. Next is the secure payment page; once your payment goes through, your system is set up automatically and we email your sign-in details.
           </p>
           <p className="text-sm text-gray-500">Check your email at <strong>{formData.email}</strong> for next steps.</p>
         </div>

@@ -360,7 +360,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
   const tabs = [
     { id: 'basic', label: '📋 Basic Info' },
     { id: 'billing', label: '💰 Billing' },
-    { id: 'medical', label: '🏥 Medical' },
+    { id: 'medical', label: '📋 Medical' },
     { id: 'caregivers', label: '👤 Caregivers' },
     { id: 'portal', label: '🌐 Portal' },
   ]

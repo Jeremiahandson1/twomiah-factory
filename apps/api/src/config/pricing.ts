@@ -7,6 +7,7 @@
  */
 
 import { PLANS } from './planSeats'
+import { MESSAGING_ENABLE_MONTHLY_CENTS, AI_ENABLE_MONTHLY_CENTS } from './messagingCosts'
 
 const SEAT_PLAN_IDS = ['starter10', 'team25', 'business50'] as const
 
@@ -50,91 +51,39 @@ export const DEFAULT_SAAS_TIERS = seatPlanTiers()
 
 export const DEFAULT_SELF_HOSTED = seatPlanLicenses()
 
+/**
+ * THE OFFER (owner, 10/27 and pricing v2) — what the Factory sells beyond a plan, in one place. Every standard feature is in every
+ * plan, so no feature is sold as an add-on; the paid add-ons are the three with a price of their own, each billed where it is
+ * switched on (texting and AI from Settings › Billing — factoryStripe messaging_enable / ai_enable; the Visualizer, contractor
+ * and roofing only). The one paid custom service is the $499 one-time custom build. Support is free: no support contract and no
+ * hourly custom development (both retired 10/27). The set-up tiers ($299 / $499 / $699) and the per-feature "bundles" were the
+ * retired pricing and are gone (10/30).
+ */
 export const DEFAULT_SELF_HOSTED_ADDONS = [
   { id: 'installation', name: 'Installation Service', price: 500, type: 'one_time' },
   { id: 'updates_yearly', name: 'Update Subscription', price: 999, type: 'yearly' },
-  { id: 'support_monthly', name: 'Support Contract', price: 199, type: 'monthly' },
   { id: 'white_label', name: 'White-Label Setup', price: 500, type: 'one_time' },
-  { id: 'custom_dev', name: 'Custom Development', price: 150, type: 'per_hour' },
 ]
 
 export const DEFAULT_DEPLOY_SERVICES = [
-  { id: 'basic', name: 'Basic', price: 299, description: 'CRM + website setup, login credentials, live URL' },
-  { id: 'full', name: 'Full Setup', price: 499, description: 'Basic + data import, integrations, 30-min walkthrough' },
-  { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full concierge: website content, data migration, team training, 30-day support' },
+  { id: 'custom_build', name: 'Custom build', price: 499, description: 'One time: we tailor your website and set-up to your business' },
 ]
 
-export const DEFAULT_FEATURE_BUNDLES = [
-  { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
-  // exterior_visualizer AND instant_estimator intentionally NOT in the fallback bundle — both are
-  // offered only via CRM_BUNDLES (contractor) and ROOF_BUNDLES (roofer), so no other product surfaces them.
-  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
-  { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
-  { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
-  { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
-  { id: 'equipment', name: 'Equipment Tracking', price: 29, description: 'Customer equipment & maintenance' },
-  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
-  { id: 'construction_pm', name: 'Construction PM', price: 149, description: 'Projects, change orders, RFIs, and more' },
-  { id: 'compliance', name: 'Compliance & Draws', price: 79, description: 'Lien waivers, draw schedules, AIA forms' },
-  { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49, description: 'Client selections, material takeoffs' },
-  { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties' },
-  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
-]
+/** The paid add-ons a product's customers can buy (monthly, in dollars). */
+export function offeredAddons(product: string) {
+  return [
+    { id: 'texting', name: 'Texting', price: MESSAGING_ENABLE_MONTHLY_CENTS / 100, description: 'Two-way texting with your own business number (plus the messages you send)' },
+    { id: 'ai', name: 'AI features', price: AI_ENABLE_MONTHLY_CENTS / 100, description: 'The AI assistant and AI writing tools (plus what they use)' },
+    ...(product === 'crm' || product === 'crm-roof'
+      ? [{ id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'Show customers their home in new siding, roofing or paint colours' }]
+      : []),
+  ]
+}
+
+/** @deprecated name kept for callers: the add-ons of a product with no product of its own. */
+export const DEFAULT_FEATURE_BUNDLES = offeredAddons('')
 
 // ─── Per-Product Defaults ────────────────────────────────────────────────────
-// Each product gets its own tailored tiers and relevant add-ons.
-
-// Per-product add-on bundles — only show what's relevant to each industry
-const CRM_BUNDLES = [
-  { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
-  { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
-  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
-  { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
-  { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
-  { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
-  { id: 'equipment', name: 'Equipment Tracking', price: 29, description: 'Customer equipment & maintenance' },
-  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
-  { id: 'construction_pm', name: 'Construction PM', price: 149, description: 'Projects, change orders, RFIs, and more' },
-  { id: 'compliance', name: 'Compliance & Draws', price: 79, description: 'Lien waivers, draw schedules, AIA forms' },
-  { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49, description: 'Client selections, material takeoffs' },
-  { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties' },
-  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
-]
-
-const FIELDSERVICE_BUNDLES = [
-  { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
-  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
-  { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
-  { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
-  { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
-  { id: 'equipment', name: 'Equipment Tracking', price: 29, description: 'Customer equipment & maintenance' },
-  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
-  { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties, recurring maintenance' },
-  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
-]
-
-const ROOF_BUNDLES = [
-  { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
-  { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
-  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
-  { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
-  { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
-  { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
-  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
-  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks' },
-]
-
-const HOMECARE_BUNDLES = [
-  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with clients and families' },
-  { id: 'gps_field', name: 'GPS & Visit Tracking', price: 49, description: 'Track caregivers, verify visits' },
-  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, referral tracking' },
-  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom assessments and checklists' },
-  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, payroll, insurance billing' },
-]
 
 // Dispensary (Leaf) tiers
 const DISPENSARY_TIERS = [
@@ -144,7 +93,7 @@ const DISPENSARY_TIERS = [
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 1299, annualPrice: 1039, users: { included: 100, max: null }, features: ['Everything in Business', 'Cultivation / Grow Tracking', 'Manufacturing / Processing', 'Wholesale / Distribution', 'Lab Testing + CoA', 'Franchise Management', 'Open API + Marketplace', 'Dedicated Success Manager', 'Unlimited Locations', 'Consumer Mobile App', 'White-Label Option'] },
 ]
 
-const DISPENSARY_BUNDLES: typeof DEFAULT_FEATURE_BUNDLES = []  // All-inclusive, no add-ons
+const DISPENSARY_BUNDLES: ReturnType<typeof offeredAddons> = []  // All-inclusive, no add-ons
 
 const DISPENSARY_SELF_HOSTED = [
   { id: 'starter', name: 'Starter License', price: 10764 },
@@ -162,7 +111,7 @@ export function getProductDefaults(product: string) {
         self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
-        feature_bundles: CRM_BUNDLES,
+        feature_bundles: offeredAddons('crm'),
       }
     case 'crm-fieldservice':
       return {
@@ -170,7 +119,7 @@ export function getProductDefaults(product: string) {
         self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
-        feature_bundles: FIELDSERVICE_BUNDLES,
+        feature_bundles: offeredAddons('crm-fieldservice'),
       }
     case 'crm-roof':
       return {
@@ -178,7 +127,7 @@ export function getProductDefaults(product: string) {
         self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
-        feature_bundles: ROOF_BUNDLES,
+        feature_bundles: offeredAddons('crm-roof'),
       }
     case 'crm-homecare':
       return {
@@ -186,7 +135,7 @@ export function getProductDefaults(product: string) {
         self_hosted: seatPlanLicenses(),
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
-        feature_bundles: HOMECARE_BUNDLES,
+        feature_bundles: offeredAddons('crm-homecare'),
       }
     case 'crm-dispensary':
       return {
@@ -220,9 +169,18 @@ export const usesSeatPlans = (product: string) => SEAT_PLAN_PRODUCTS.has(product
  * with the old feature tiers and the admin page can still edit it). Everything else on the row (add-ons, set-up services)
  * is passed through as stored.
  */
-export function publicPlans(product: string, stored: { saas_tiers?: unknown; self_hosted?: unknown } | null | undefined) {
-  if (usesSeatPlans(product)) return { plans: seatPlanTiers(), selfHosted: seatPlanLicenses() }
-  return { plans: stored?.saas_tiers ?? getProductDefaults(product).saas_tiers, selfHosted: stored?.self_hosted ?? getProductDefaults(product).self_hosted }
+export function publicPlans(product: string, stored: { saas_tiers?: unknown; self_hosted?: unknown; self_hosted_addons?: unknown; deploy_services?: unknown; feature_bundles?: unknown } | null | undefined) {
+  // A seat product's whole offer is code (the plans, the add-ons, the custom build): the stored row still holds the retired
+  // tiers, set-up tiers and per-feature bundles (10/30). Another product (the dispensary) keeps what its row says.
+  if (usesSeatPlans(product)) {
+    const d = getProductDefaults(product)
+    return { plans: seatPlanTiers(), selfHosted: seatPlanLicenses(), selfHostedAddons: d.self_hosted_addons, deployServices: d.deploy_services, addons: d.feature_bundles }
+  }
+  const d = getProductDefaults(product)
+  return {
+    plans: stored?.saas_tiers ?? d.saas_tiers, selfHosted: stored?.self_hosted ?? d.self_hosted,
+    selfHostedAddons: stored?.self_hosted_addons ?? d.self_hosted_addons, deployServices: stored?.deploy_services ?? d.deploy_services, addons: stored?.feature_bundles ?? d.feature_bundles,
+  }
 }
 
 /** Where the seat plans are set. The admin Pricing page shows this next to the read-only plans. */
@@ -236,7 +194,8 @@ export const SEAT_PLANS_SET_IN = 'packages/tenant-backend/src/plans.ts'
  */
 export function adminPricingRow<T extends { product: string }>(row: T) {
   if (!usesSeatPlans(row.product)) return row
-  return { ...row, saas_tiers: seatPlanTiers(), self_hosted: seatPlanLicenses(), seat_plans_read_only: true, seat_plans_set_in: SEAT_PLANS_SET_IN }
+  const d = getProductDefaults(row.product)
+  return { ...row, saas_tiers: seatPlanTiers(), self_hosted: seatPlanLicenses(), self_hosted_addons: d.self_hosted_addons, deploy_services: d.deploy_services, feature_bundles: d.feature_bundles, seat_plans_read_only: true, seat_plans_set_in: SEAT_PLANS_SET_IN }
 }
 
 /**
@@ -251,7 +210,7 @@ export function adminPricingWrite(product: string, body: Record<string, unknown>
     deploy_services: body.deploy_services,
     feature_bundles: body.feature_bundles,
   }
+  // A seat product's offer is code (plans.ts and the offer above): nothing on its row is the admin page's to change.
   if (!usesSeatPlans(product)) return all
-  const { saas_tiers: _t, self_hosted: _s, ...rest } = all
-  return rest
+  return {}
 }

@@ -382,7 +382,7 @@ export default function RosterOptimizer() {
             <div className="hc-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <h4 style={{ margin: 0, color: green.ink }}>
-                  🏥 Clients
+                  🏡 Clients
                   <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: green.bg, color: green.ink, padding: '0.2rem 0.5rem', borderRadius: '12px' }}>
                     {activeClCount} / {clients.length} active
                   </span>
@@ -522,7 +522,7 @@ export default function RosterOptimizer() {
           </div>
 
           <div className="hc-card" style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ margin: '0 0 0.75rem' }}>🏥 Client Coverage</h4>
+            <h4 style={{ margin: '0 0 0.75rem' }}>🏡 Client Coverage</h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
               {result.summary.clients.map((cl) => {
                 const t = cl.fullyScheduled ? green : amber

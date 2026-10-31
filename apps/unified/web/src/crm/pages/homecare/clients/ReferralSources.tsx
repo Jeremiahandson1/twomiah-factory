@@ -114,7 +114,7 @@ const ReferralSources = () => {
   return (
     <div>
       <div className="page-header">
-        <h2>🏥 Referral Sources</h2>
+        <h2>🤝 Referral Sources</h2>
         {may.create && <button
           className="hc-btn hc-btn-primary"
           onClick={() => {

@@ -159,7 +159,7 @@ export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: 
       {/* Setup tier */}
       <div className="mb-8">
         <h3 className="text-white font-bold text-sm mb-3">Setup & Onboarding</h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {SETUP_TIERS.map(t => {
             const active = plan.setupTierId === t.id
             return (

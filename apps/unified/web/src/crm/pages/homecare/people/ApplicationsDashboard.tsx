@@ -270,7 +270,7 @@ export default function ApplicationsDashboard() {
                     <div>📞 {hireModal.phone || 'No phone'}</div>
                     <div>📍 {[hireModal.city, hireModal.state].filter(Boolean).join(', ') || 'No city given'}</div>
                     {/* A number in `{n && …}` prints a bare "0" when it is 0 — compare instead. */}
-                    {Number(hireModal.yearsExperience) > 0 && <div>🏥 {hireModal.yearsExperience} yrs experience</div>}
+                    {Number(hireModal.yearsExperience) > 0 && <div>💼 {hireModal.yearsExperience} yrs experience</div>}
                     {hireModal.hasCna === true && <div>📋 CNA</div>}
                   </div>
                 </div>

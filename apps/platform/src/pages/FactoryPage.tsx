@@ -33,7 +33,7 @@ const DEFAULT_PLAN: PlanSelection = {
   product: 'build',
   planId: '',
   billingCycle: 'monthly',
-  setupTierId: 'basic',
+  setupTierId: 'none',
   addonIds: [],
 }
 

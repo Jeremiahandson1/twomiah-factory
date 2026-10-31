@@ -1094,14 +1094,7 @@ factory.get('/plans', async (c) => {
     if (data) {
       // Seat plans for the products that sell them (config/pricing.ts publicPlans); the stored tiers for any other.
       const shown = publicPlans(product, data)
-      return c.json({
-        product,
-        plans: shown.plans,
-        selfHosted: shown.selfHosted,
-        selfHostedAddons: data.self_hosted_addons,
-        deployServices: data.deploy_services,
-        addons: data.feature_bundles,
-      })
+      return c.json({ product, ...shown })
     }
   } catch {}
   // Auto-seed this product on first request
@@ -1109,14 +1102,7 @@ factory.get('/plans', async (c) => {
     await supabase.from('factory_pricing').upsert({ product, ...defaults })
   } catch {}
   const shown = publicPlans(product, defaults)
-  return c.json({
-    product,
-    plans: shown.plans,
-    selfHosted: shown.selfHosted,
-    selfHostedAddons: defaults.self_hosted_addons,
-    deployServices: defaults.deploy_services,
-    addons: defaults.feature_bundles,
-  })
+  return c.json({ product, ...shown })
 })
 
 // ─── Pricing Admin (authenticated) ──────────────────────────────────────────
@@ -1152,11 +1138,11 @@ factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) =
     product: body.product,
     updated_at: new Date().toISOString(),
     updated_by: (c as any).get?.('userEmail') || 'admin',
-    // A seat product's plans and licences are set in plans.ts: a save never writes them (config/pricing.ts adminPricingWrite).
+    // A seat product's whole offer is code (plans.ts and config/pricing.ts): a save writes none of it (adminPricingWrite).
     ...adminPricingWrite(String(body.product), body),
   })
   if (error) return c.json({ error: error.message }, 500)
-  return c.json({ success: true, ...(usesSeatPlans(String(body.product)) ? { readOnly: ['saas_tiers', 'self_hosted'] } : {}) })
+  return c.json({ success: true, ...(usesSeatPlans(String(body.product)) ? { readOnly: ['saas_tiers', 'self_hosted', 'self_hosted_addons', 'deploy_services', 'feature_bundles'] } : {}) })
 })
 
 }

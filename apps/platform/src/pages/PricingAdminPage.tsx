@@ -148,8 +148,9 @@ export default function PricingAdminPage() {
 
   const seatNote = (
     <div className="bg-blue-500/10 border border-blue-500/30 text-blue-200 px-4 py-3 rounded-lg text-sm">
-      These plans are not set on this page. They are set in <code className="text-white">{seatSetIn || 'packages/tenant-backend/src/plans.ts'}</code> — the one list the
-      sign-up pages and billing read — so change them there. Add-ons and set-up services can still be edited here.
+      This product's offer is not set on this page. The plans are set in <code className="text-white">{seatSetIn || 'packages/tenant-backend/src/plans.ts'}</code>; the add-ons,
+      the custom build and the self-hosted extras in <code className="text-white">apps/api/src/config/pricing.ts</code> — the one list the sign-up pages and billing read.
+
     </div>
   )
 
@@ -302,7 +303,21 @@ export default function PricingAdminPage() {
       )}
 
       {/* Feature Bundles / Add-Ons */}
-      {tab === 'bundles' && (
+      {tab === 'bundles' && seatReadOnly && (
+        <div className="space-y-3">
+          {seatNote}
+          {featureBundles.map((x: any) => (
+            <div key={x.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm text-white">{x.name} <span className="text-xs text-gray-400">({x.id})</span></div>
+                {x.description && <div className="text-xs text-gray-400 mt-0.5">{x.description}</div>}
+              </div>
+              <span className="text-sm font-semibold text-white whitespace-nowrap">${Number(x.price).toLocaleString()}<span className="text-xs font-normal text-gray-400">/mo</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'bundles' && !seatReadOnly && (
         <div className="space-y-3">
           {featureBundles.map((b, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center gap-4">
@@ -370,7 +385,21 @@ export default function PricingAdminPage() {
       )}
 
       {/* Self-Hosted Add-Ons */}
-      {tab === 'addons' && (
+      {tab === 'addons' && seatReadOnly && (
+        <div className="space-y-3">
+          {seatNote}
+          {selfHostedAddons.map((x: any) => (
+            <div key={x.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm text-white">{x.name} <span className="text-xs text-gray-400">({x.id})</span></div>
+                {x.description && <div className="text-xs text-gray-400 mt-0.5">{x.description}</div>}
+              </div>
+              <span className="text-sm font-semibold text-white whitespace-nowrap">${Number(x.price).toLocaleString()}{x.type === 'yearly' ? <span className="text-xs font-normal text-gray-400">/yr</span> : x.type === 'monthly' ? <span className="text-xs font-normal text-gray-400">/mo</span> : <span className="text-xs font-normal text-gray-400"> once</span>}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'addons' && !seatReadOnly && (
         <div className="space-y-3">
           {selfHostedAddons.map((a, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center gap-4">
@@ -405,7 +434,21 @@ export default function PricingAdminPage() {
       )}
 
       {/* Deploy Services */}
-      {tab === 'deploy' && (
+      {tab === 'deploy' && seatReadOnly && (
+        <div className="space-y-3">
+          {seatNote}
+          {deployServices.map((x: any) => (
+            <div key={x.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm text-white">{x.name} <span className="text-xs text-gray-400">({x.id})</span></div>
+                {x.description && <div className="text-xs text-gray-400 mt-0.5">{x.description}</div>}
+              </div>
+              <span className="text-sm font-semibold text-white whitespace-nowrap">${Number(x.price).toLocaleString()}<span className="text-xs font-normal text-gray-400"> once</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'deploy' && !seatReadOnly && (
         <div className="space-y-3">
           {deployServices.map((d, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center gap-4">

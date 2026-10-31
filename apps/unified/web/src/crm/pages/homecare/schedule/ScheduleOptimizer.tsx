@@ -309,7 +309,7 @@ export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: 
           {/* Clients */}
           <div className="hc-card">
             <h4 style={{ margin: '0 0 1rem', color: green.ink, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              🏥 Clients
+              🏡 Clients
               <span style={{ marginLeft: 'auto', fontSize: '0.75rem', background: green.bg, color: green.ink, padding: '0.2rem 0.5rem', borderRadius: '12px' }}>
                 {selectedClients.length} added
               </span>
@@ -448,7 +448,7 @@ export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: 
           </div>
 
           <div className="hc-card" style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ margin: '0 0 0.75rem' }}>🏥 Client Coverage</h4>
+            <h4 style={{ margin: '0 0 0.75rem' }}>🏡 Client Coverage</h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
               {result.summary.clients.map((cl) => {
                 const t = cl.fullyScheduled ? green : amber

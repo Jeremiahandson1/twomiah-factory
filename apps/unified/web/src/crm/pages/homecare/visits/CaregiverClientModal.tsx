@@ -89,7 +89,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
 
   const tabs = [
     { id: 'info' as const, label: '📋 Info' },
-    { id: 'medical' as const, label: '🏥 Medical' },
+    { id: 'medical' as const, label: '📋 Medical' },
     { id: 'notes' as const, label: '📝 Notes' },
   ]
   const plain = { marginBottom: '1rem' }
@@ -188,7 +188,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
                 </div>
 
                 <div className="hc-card" style={plain}>
-                  <h4 style={{ marginTop: 0 }}>🏥 Medical Conditions</h4>
+                  <h4 style={{ marginTop: 0 }}>📋 Medical Conditions</h4>
                   <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{client.medicalConditions || 'None on file'}</p>
                 </div>
 

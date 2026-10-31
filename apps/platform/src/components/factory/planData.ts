@@ -67,21 +67,23 @@ export const SEAT_PLANS: Plan[] = SEAT_PLAN_IDS.map((id) => {
 // SETUP TIERS (one-time, same for all products)
 // ═══════════════════════════════════════════════════════════════════
 
+// The owner's offer (10/27): the one paid custom service is the $499 one-time custom build; support is free. The $299 / $699
+// set-up tiers were the retired pricing (10/30). Same list as apps/api/src/config/pricing.ts DEFAULT_DEPLOY_SERVICES.
 export const SETUP_TIERS: SetupTier[] = [
-  { id: 'basic', name: 'Basic', price: 299, description: 'Guided setup docs + 1 onboarding call' },
-  { id: 'full', name: 'Full Setup', price: 499, description: 'We configure CRM, import contacts, build website' },
-  { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full setup + team training + 30-day hands-on support' },
+  { id: 'none', name: 'No custom build', price: 0, description: 'Set up from the signup answers; support is free' },
+  { id: 'custom_build', name: 'Custom build', price: 499, description: 'One time: we tailor the website and set-up to the business' },
 ]
 
 // ═══════════════════════════════════════════════════════════════════
 // ADD-ONS (monthly)
 // ═══════════════════════════════════════════════════════════════════
 
+// The paid add-ons (apps/api/src/config/pricing.ts offeredAddons): every standard feature is in every plan. The Ads Hub is not
+// ready and is not sold; the Visualizer is one $59 add-on, contractor and roofing only (10/30).
 export const ADDONS: Addon[] = [
-  { id: 'ads-single', name: 'Ads Hub — 1 Platform', monthly: 99, description: 'Performance dashboard for Google OR Meta' },
-  { id: 'ads-both', name: 'Ads Hub — Both Platforms', monthly: 199, description: 'Performance dashboard for Google AND Meta' },
-  { id: 'vision-starter', name: 'Vision Starter', monthly: 29, description: '25 renders/mo', products: ['build'] },
-  { id: 'vision-pro', name: 'Vision Pro', monthly: 59, description: '100 renders/mo', products: ['build'] },
+  { id: 'texting', name: 'Texting', monthly: 10, description: 'Two-way texting with the business’s own number (plus messages sent)' },
+  { id: 'ai', name: 'AI features', monthly: 10, description: 'The AI assistant and writing tools (plus what they use)' },
+  { id: 'exterior_visualizer', name: 'Exterior Visualizer', monthly: 59, description: 'Homes shown in new siding, roofing or paint colours', products: ['build', 'roof'] },
 ]
 
 // ═══════════════════════════════════════════════════════════════════
@@ -90,7 +92,7 @@ export const ADDONS: Addon[] = [
 
 export const PRODUCT_META: Record<ProductLine, { name: string; tagline: string; icon: string; color: string }> = {
   build: { name: 'Twomiah Build', tagline: 'Construction CRM', icon: '🏗️', color: '#f97316' },
-  care: { name: 'Twomiah Care', tagline: 'Home Care Agency CRM', icon: '🏥', color: '#10b981' },
+  care: { name: 'Twomiah Care', tagline: 'Home Care Agency CRM', icon: '🏡', color: '#10b981' },
   wrench: { name: 'Twomiah Wrench', tagline: 'Field Service CRM', icon: '🔧', color: '#3b82f6' },
   roof: { name: 'Twomiah Roof', tagline: 'Roofing CRM', icon: '🏠', color: '#dc2626' },
   landscaping: { name: 'Twomiah Landscaping', tagline: 'Lawn & Landscape CRM', icon: '🌳', color: '#22c55e' },

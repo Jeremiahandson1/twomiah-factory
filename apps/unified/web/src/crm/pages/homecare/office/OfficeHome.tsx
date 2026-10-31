@@ -236,7 +236,7 @@ export default function OfficeHome() {
       {/* Referral Sources Performance */}
       {seesMoney && (
         <div className="hc-card">
-          <div className="hc-card-title">🏥 Referral Sources Performance</div>
+          <div className="hc-card-title">🤝 Referral Sources Performance</div>
 
           {referrals.length === 0 ? (
             <p className="hc-card-empty-state">No referral data yet</p>
