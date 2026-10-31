@@ -32,7 +32,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
   if (!mayUse(spec, can, hasFeature)) return <Screen title={spec.title} onBack={tab ? undefined : () => router.back()}><EmptyState icon="lock-closed" title="Not for this seat" body="Your role does not include this screen." /></Screen>
   // A long figure beside the title squeezes the title to a sliver: it goes to the second line instead (only a short one stays at the right).
   const items = rows.map((r) => {
-    const v = spec.rows(r, { userId: user?.id }); rowCache.set(`${spec.id}:${v.id}`, r)
+    const v = spec.rows(r, { userId: user?.id }); rowCache.set(`${spec.id}:${v.id}`, r && typeof r === 'object' ? { ...r, _me: user?.id } : r)
     return v.meta && v.meta.length > 12 ? { ...v, subtitle: [v.subtitle, v.meta].filter(Boolean).join(' · '), meta: undefined } : v
   })
   return (
@@ -49,6 +49,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
                 divider={i < items.length - 1}
                 onPress={r.open || spec.detail ? () => router.push({ pathname: '/(details)/t/[spec]/[id]', params: r.open ? { spec: r.open.spec, id: r.open.id } : { spec: spec.id, id: r.id } } as any) : undefined} />
             ))}</Group>}
+        {(spec.links || []).filter((l) => l.any.some((p) => can(p)) && (!l.feature || hasFeature(l.feature))).map((l) => <Button key={l.route} label={l.label} icon={l.icon} variant="secondary" fullWidth onPress={() => router.push(l.route as any)} />)}
         {(spec.actions || []).filter((a) => a.any.some((p) => can(p))).map((a) => <Button key={a.id} label={a.label} icon={a.icon} variant="secondary" fullWidth onPress={() => setOpen(a)} />)}
         {!loading && total != null && rows.length < total ? <Button label="Show more" variant="secondary" onPress={loadMore} /> : null}
       </View>

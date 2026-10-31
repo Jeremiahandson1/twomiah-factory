@@ -124,7 +124,7 @@ export const PHONE_HAS: PhoneHas[] = [
   { paths: ['/crm/tonight'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Tonight tab (open / closed, how busy, note — until 4 AM)', files: ['app/(tabs)/bar-tonight.tsx'] },
   { paths: ['/crm/menu'], trades: ['restaurant', 'bar'], how: 'tab', what: '86 board (put an item out, back on)', files: ['app/(tabs)/bar-menu.tsx'] },
   { paths: ['/crm/stock'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More)', files: ['app/(tabs)/bar-count.tsx'] },
-  { paths: ['/crm/shifts'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Shifts (published schedule, ask for a day off; a restaurant opens it from More)', files: ['app/(tabs)/bar-shifts.tsx'] },
+  { paths: ['/crm/shifts'], trades: ['restaurant', 'bar'], how: 'tab', what: 'Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More)', files: ['app/(tabs)/bar-shifts.tsx'] },
   { paths: ['/crm/orders'], trades: ['store'], how: 'tab', what: 'Orders tab + order (pack, ready for pickup, mark shipped, buy a label)', files: ['app/(tabs)/store-orders.tsx'] },
   { paths: ['/crm/products'], trades: ['store'], how: 'partial', what: 'Stock tab (look up by name, SKU or barcode; set the count)', files: ['app/(tabs)/store-stock.tsx'] },
   { paths: ['/crm/product-reviews'], trades: ['store'], how: 'tab', what: 'Reviews tab (approve, reject)', files: ['app/(tabs)/store-reviews.tsx'] },

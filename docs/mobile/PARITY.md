@@ -620,7 +620,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Kitchen & Counter | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
 | Kitchen & Counter | Kitchen Stock | `/crm/stock` | bar:update | bar_stock (off by default (add-on or opt-in)) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | C |
-| Kitchen & Counter | Staff Schedule | `/crm/shifts` | bar:read | bar_schedule (off by default (add-on or opt-in)) | all | Shifts (published schedule, ask for a day off; a restaurant opens it from More) | C |
+| Kitchen & Counter | Staff Schedule | `/crm/shifts` | bar:read | bar_schedule (off by default (add-on or opt-in)) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | C |
 | Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | 86 board (put an item out, back on) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Taps | `/crm/taps` | bar:read | draft_taps (off by default (add-on or opt-in)) | all | none | C |
 | Kitchen & Counter | What's on | `/crm/whats-on` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | C |
@@ -681,7 +681,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | The Bar | Gift Cards | `/crm/gift-cards` | bar:manage | gift_cards (on by default) | owner, admin, manager | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Regulars | `/crm/regulars` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful later, not the bar's nightly loop |
 | The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | A — blind count and receiving a delivery in the back room |
-| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts (published schedule, ask for a day off; a restaurant opens it from More) | A — my shifts, time off and the clock |
+| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | A — my shifts, time off and the clock |
 | The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | 86 board (put an item out, back on) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Taps | `/crm/taps` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | What's on | `/crm/whats-on` | bar:read | bar_tonight (on by default) | all | none | C |

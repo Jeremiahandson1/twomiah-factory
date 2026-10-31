@@ -25,7 +25,7 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
       const o = inp.options
       get(o.path(row)).then((r) => {
         if (!r.ok) { setOffered((p) => ({ ...p, [inp.id]: { map: {}, none: r.error || o.none } })); return }
-        const b = unwrap(r.data); const rows: any[] = Array.isArray(b) ? b : Array.isArray(b?.data) ? b.data : []
+        const b = unwrap(r.data); const rows: any[] = o.pick ? o.pick(r.data, row) : Array.isArray(b) ? b : Array.isArray(b?.data) ? b.data : []
         setOffered((p) => ({ ...p, [inp.id]: { map: Object.fromEntries(rows.map((x) => [o.label(x), o.value(x)])), none: rows.length ? undefined : o.none } }))
       })
     }
@@ -55,7 +55,7 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
           {action.confirm ? <DText variant="body">{action.confirm.body(row)}</DText> : null}
           {(action.inputs || []).map((inp) => inp.options ? (
             <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
-              {!offered[inp.id] ? <DText variant="callout" tone="textSecondary">Getting prices…</DText>
+              {!offered[inp.id] ? <DText variant="callout" tone="textSecondary">{inp.options.loading ?? 'Getting prices…'}</DText>
                 : offered[inp.id].none ? <DText variant="callout" tone="textSecondary">{offered[inp.id].none}</DText>
                 : <View style={{ gap: space[2] }}>{Object.keys(offered[inp.id].map).map((c) => <Button key={c} label={c} variant={values[inp.id] === c ? 'primary' : 'secondary'} fullWidth onPress={() => setValues((v) => ({ ...v, [inp.id]: c }))} />)}</View>}</View>
           ) : inp.kind === 'choice' ? (
