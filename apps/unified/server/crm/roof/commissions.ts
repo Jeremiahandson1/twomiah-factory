@@ -37,8 +37,8 @@
 // every plan: a job under it earns nothing until its figures clear it.
 //
 // Costs entered AFTER Collected do not change a commission already earned — void it and record the corrected one by hand.
-// A refund in full of the invoice it hangs on cancels it (the shared earner's refund handling); a refund of an earlier
-// invoice does not.
+// A refund in full of the invoice it hangs on cancels it (the shared earner's refund handling); so does a refund in full of any
+// other invoice of the job (takeBackForRefund — row 4's decision, in docs/parity/roof-commissions-costing.md #14).
 import { and, asc, eq, inArray, ne, notInArray } from 'drizzle-orm'
 import { commission, commissionPlan, invoice, job, jobPerson, quote, user } from '../../db/schema/index.ts'
 import { commissionFor, jobRoleOfAutoEarn, measuredOnOf, planPaysPerson, COMMISSION_JOB_ROLE_WORDS, COMMISSION_TRIGGERS, type CommissionJobRole, type CommissionTrigger } from '@twomiah/tenant-backend'
@@ -218,10 +218,47 @@ export function createRoofCommissions(d: CrmDeps) {
     return made
   }
 
-  /** The step run after money lands on an invoice: the people of that invoice's job, for each plan that is ready. */
+  /**
+   * A full refund of an EARLIER invoice on a job (roofing parity row 4; docs/parity/roof-commissions-costing.md #14). A commission paid
+   * on the whole job when it was paid in full hangs on the last invoice paid, and the shared earner already takes it back when THAT
+   * invoice is refunded. When any other invoice of the job is refunded in full the job is no longer paid in full — money the commission
+   * was worked out on has gone back — so the same happens: a commission not yet paid out is cancelled, and one already paid out gets a
+   * negative line of the same size. DECISION: all of the job's Collected commissions, not a share of them — a share cannot be worked
+   * out fairly on a profit or a bracket, and the office records the right one by hand after the refund (the job is not re-earned
+   * automatically: the cancelled commission still stands for it). A PARTIAL refund changes nothing (the invoice is still paid), and a
+   * commission made at an earlier trigger (Approved, Completed, Invoiced — not hung on an invoice) is not touched: that plan was
+   * written to pay before the money was in. A draw is not touched either; it was paid out on its own.
+   */
+  async function takeBackForRefund(inv: { id: string; companyId: string; jobId: string; number?: string | null }): Promise<number> {
+    const hung = await db.select().from(commission).where(and(
+      eq(commission.companyId, inv.companyId), eq(commission.jobId, inv.jobId), eq(commission.source, 'auto'), ne(commission.invoiceId, inv.id),
+    ))
+    let taken = 0
+    for (const a of hung as any[]) {
+      if (!a.invoiceId) continue
+      const why = `${inv.number || 'an invoice'} was refunded in full`
+      if (['pending', 'approved', 'disputed'].includes(a.status)) {
+        const rows = await db.update(commission).set({ status: 'cancelled', notes: `${a.notes ? a.notes + ' · ' : ''}Cancelled: ${why}`, updatedAt: new Date() } as any)
+          .where(and(eq(commission.id, a.id), eq(commission.status, a.status))).returning({ id: commission.id })
+        taken += rows.length
+      } else if (a.status === 'paid') {
+        const rows = await db.insert(commission).values({
+          companyId: a.companyId, planId: a.planId, userId: a.userId, jobId: a.jobId, invoiceId: a.invoiceId,
+          baseAmount: String(-Number(a.baseAmount || 0)), rateApplied: a.rateApplied,
+          commissionAmount: String(-Number(a.commissionAmount || 0)), source: 'reversal', reversalOf: a.id,
+          notes: `Taken back: ${why} after this commission was paid`,
+        } as any).onConflictDoNothing().returning({ id: commission.id })
+        taken += rows.length
+      }
+    }
+    return taken
+  }
+
+  /** The step run after money moves on an invoice: a refund takes commissions back; otherwise the people of its job are followed up. */
   async function earnForInvoice(invoiceId: string): Promise<number> {
-    const [inv] = await db.select({ companyId: invoice.companyId, jobId: invoice.jobId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
+    const [inv] = await db.select({ id: invoice.id, number: invoice.number, status: invoice.status, companyId: invoice.companyId, jobId: invoice.jobId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
     if (!inv?.jobId) return 0
+    if (inv.status === 'refunded') { await takeBackForRefund(inv as any); return 0 }
     return earnForJob(inv.companyId, inv.jobId)
   }
 
