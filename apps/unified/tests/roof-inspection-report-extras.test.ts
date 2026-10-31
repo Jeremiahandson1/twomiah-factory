@@ -355,3 +355,25 @@ describe('save a copy to documents', () => {
     expect((await copy(other.id, 'field')).status).toBe(404)
   })
 })
+
+describe('a saved copy is dated by the company’s day', () => {
+  test('the document’s name carries the company’s calendar day, not UTC’s', async () => {
+    // A zone whose calendar day differs from UTC's right now, whatever the hour: UTC+14 from noon UTC on, UTC-11 before it.
+    const zone = new Date().getUTCHours() >= 12 ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago'
+    const [before] = await t.db.select({ timezone: (t.schema.company as any).timezone }).from(t.schema.company).where(eq(t.schema.company.id, companyId))
+    await t.db.update(t.schema.company).set({ timezone: zone } as any).where(eq(t.schema.company.id, companyId))
+    try {
+      const r = await json(await as('owner')(`/api/inspection-reports/${reportA}/copy`, { method: 'POST' }))
+      expect(r.status).toBe(201)
+      const companyDay = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const utcDay = new Date().toISOString().slice(0, 10)
+      expect(companyDay).not.toBe(utcDay)
+      const [row] = await t.db.select().from(t.schema.document).where(eq(t.schema.document.id, r.body.document.id))
+      expect(row.name).toContain(`(${companyDay})`)
+      expect(row.name).not.toContain(`(${utcDay})`)
+      expect(row.originalName).toContain(companyDay)
+    } finally {
+      await t.db.update(t.schema.company).set({ timezone: (before as any)?.timezone ?? null } as any).where(eq(t.schema.company.id, companyId))
+    }
+  })
+})

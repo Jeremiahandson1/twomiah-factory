@@ -11,7 +11,7 @@
 import type { Hono } from 'hono'
 import { z } from 'zod'
 import { and, eq, inArray } from 'drizzle-orm'
-import { newDocumentToken } from '@twomiah/tenant-backend'
+import { newDocumentToken, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { company, contact, document, inspectionReport, jobNote } from '../../../db/schema/index.ts'
 import { cleanLines } from '../../../core/sanitize.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -103,7 +103,7 @@ export function addDeliveryRoutes(app: Hono<AppEnv>, d: CrmDeps, h: {
     if (storage.storageConfigured && !storage.storageConfigured()) return fail(c, 503, 'File storage is not set up yet.', 'storage_not_configured')
     const view = await buildReportView(db, r)
     const pdf = await reportPdf(storage, view)
-    const day = new Date().toISOString().slice(0, 10)
+    const day = storeDateString(new Date(), await companyTimeZone(db, me.companyId))
     const fileName = reportFileName(view.job.number).replace(/\.pdf$/, `-${day}.pdf`)
     const stored = await storage.saveFile(new File([new Uint8Array(pdf)], fileName, { type: 'application/pdf' }), me.companyId, 'documents')
     const jb = await h.jobFor(c, r.jobId)
