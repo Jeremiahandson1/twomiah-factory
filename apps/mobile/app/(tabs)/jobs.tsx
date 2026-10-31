@@ -20,6 +20,7 @@ import { useTheme } from '../../src/theme/ThemeContext'
 import { ACTION } from '../../src/theme/actions'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { get, post } from '../../src/api/client'
+import { getSaved } from '../../src/offline/readThrough'
 import { useAuth } from '../../src/auth/AuthContext'
 import { uploadJobPhoto } from '../../src/components/PhotoGallery'
 import { StatusBadge } from '../../src/components/StatusBadge'
@@ -90,7 +91,8 @@ export default function JobsScreen() {
     if (tile) Object.entries(tile.list.query || {}).forEach(([k, v]) => params.set(k, v))
     else if (filter !== 'all') params.set('status', filter)
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
-    const res = await get(`/api/jobs?${params}`)
+    // The first page is kept on the phone: with no signal the list opens from the last good copy.
+    const res = p === 1 ? await getSaved(`/api/jobs?${params}`) : await get(`/api/jobs?${params}`)
     if (res.ok) {
       const data: any[] = Array.isArray(res.data?.data) ? res.data.data : []
       if (append) setJobs(prev => [...prev, ...data])

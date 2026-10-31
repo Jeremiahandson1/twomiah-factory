@@ -14,22 +14,24 @@ import type { ItemView } from '../offline/engine'
 const TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral' | 'info'> = { done: 'success', waiting: 'warning', failed: 'danger', next: 'info', todo: 'neutral' }
 const WORDS: Record<string, string> = { done: 'Done', waiting: 'Waiting to send', failed: "Couldn't send — tap to fix", next: 'Next', todo: 'To do' }
 const BUTTON: Record<StepKey, { label: string; icon: string }> = {
+  on_hold: { label: 'Resume work', icon: 'play' },
   on_my_way: { label: 'On my way', icon: 'navigate' }, arrived: { label: "I've arrived", icon: 'location' },
   checklist: { label: 'Fill in the checklist', icon: 'clipboard' }, photos: { label: 'Add photos below', icon: 'camera' },
   signature: { label: 'Get the customer’s signature', icon: 'create' }, complete: { label: 'Complete job', icon: 'checkmark-circle' },
 }
 
-export function JobFlowCard({ jobId, status, queue, checklists, photoCount, busy, onMove, onComplete }: {
+export function JobFlowCard({ jobId, status, queue, checklists, photoCount, busy, onMove, onComplete, startedAt }: {
   jobId: string; status: string; queue: ItemView[]; checklists: (ChecklistInfo & { submissions?: any[] }) | null; photoCount: number | null
-  busy: boolean; onMove: (move: 'dispatch' | 'start') => void; onComplete: () => void
+  busy: boolean; onMove: (move: 'dispatch' | 'start' | 'hold') => void; onComplete: () => void; startedAt?: string | null
 }) {
   const router = useRouter()
-  const flow = buildFlow({ jobId, status, queue, checklists, photoCount })
+  const flow = buildFlow({ jobId, status, queue, checklists, photoCount, startedAt })
   const open = (sub?: string | null) => router.push(`/(details)/job/checklist?id=${jobId}${sub ? `&sign=${sub}` : ''}` as any)
   const waitingSig = checklists?.outstanding.find((o) => o.why === 'needs the customer to sign')
 
   const act = (key: StepKey) => {
-    if (key === 'on_my_way') onMove('dispatch')
+    if (key === 'on_hold') onMove('start')
+    else if (key === 'on_my_way') onMove('dispatch')
     else if (key === 'arrived') onMove('start')
     else if (key === 'checklist') open()
     else if (key === 'signature') open(waitingSig?.submissionId)
@@ -59,6 +61,7 @@ export function JobFlowCard({ jobId, status, queue, checklists, photoCount, busy
           <Button size="lg" fullWidth label={BUTTON[next].label} icon={BUTTON[next].icon} loading={busy} disabled={!!blocked} onPress={() => act(next)} />
         ) : null}
         {next === 'photos' ? <DText variant="callout" tone="textSecondary">Take a photo of the work in Photos below, then complete the job.</DText> : null}
+        {flow.canHold ? <Button variant="ghost" fullWidth label="Put on hold" icon="pause" disabled={busy} onPress={() => onMove('hold')} /> : null}
       </View>
     </Card>
   )

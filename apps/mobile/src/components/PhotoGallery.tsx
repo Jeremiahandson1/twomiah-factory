@@ -28,6 +28,10 @@ import { stampFields, type PhotoStamp } from '../photos/stamp'
 import { useToast } from './ToastProvider'
 import { useHaptics } from '../hooks/useHaptics'
 import { useVertical } from '../vertical/VerticalContext'
+import { useOfflineApi } from '../offline/useOfflineApi'
+import { useOfflineQueue } from '../offline/OfflineContext'
+import { getSaved } from '../offline/readThrough'
+import { jobPhotoRequest, pendingJobPhotos } from '../jobflow/jobPhotos'
 
 /** The verticals whose job carries its own photos (CrmSettings.jobs.photos, and roofing's job module). */
 const PHOTOS_ON_JOB = ['basic', 'fieldservice', 'landscaping', 'roofing']
@@ -43,8 +47,8 @@ export interface JobPhoto {
 /** The photos of one job, as either store answers them (a bare array from the shared module, { data } from roofing's). */
 export async function loadJobPhotos(vertical: string, jobId: string): Promise<{ ok: boolean; photos: JobPhoto[] }> {
   const res = photosOnJob(vertical)
-    ? await get(`/api/jobs/${jobId}/photos`)
-    : await get(`/api/photos?jobId=${encodeURIComponent(jobId)}`)
+    ? await getSaved(`/api/jobs/${jobId}/photos`)
+    : await getSaved(`/api/photos?jobId=${encodeURIComponent(jobId)}`)
   if (!res.ok) return { ok: false, photos: [] }
   const rows = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : []
   return { ok: true, photos: rows }
@@ -93,6 +97,10 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const [uploading, setUploading] = useState(false)
   const [viewPhoto, setViewPhoto] = useState<JobPhoto | null>(null)
   const enabled = hasFeature('photo_capture')
+  const offline = useOfflineApi()
+  const { queue } = useOfflineQueue()
+  // Pictures taken here that are still on the phone (no signal, or not yet sent).
+  const pending = photosOnJob(vertical) ? pendingJobPhotos(queue, jobId) : []
 
   const loadPhotos = useCallback(async () => {
     if (!enabled) { setLoading(false); return }
@@ -103,6 +111,9 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   }, [vertical, jobId, enabled])
 
   useEffect(() => { loadPhotos() }, [loadPhotos])
+  // When what was waiting is sent, the strip is read again.
+  const sentCount = pending.length
+  useEffect(() => { if (sentCount === 0) loadPhotos() }, [sentCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Photo capture is switched off for this business: no strip, rather than one that is refused.
   if (!enabled) return null
@@ -110,6 +121,16 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const handleAdd = async (mode: 'camera' | 'gallery') => {
     const result = mode === 'camera' ? await takePhoto() : await pickImage()
     if (!result) return
+    // A job that keeps its own photos sends them through the offline queue: with signal at once, without it kept on the phone.
+    if (photosOnJob(vertical)) {
+      setUploading(true)
+      const r = await offline.post(`/api/jobs/${jobId}/photos/saved`, jobPhotoRequest(jobId, [result.uri], 'Job photo').body, { recordKey: jobPhotoRequest(jobId, [], '').recordKey, label: 'Job photo' })
+      setUploading(false)
+      if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
+      else if (r.ok) { haptics.success(); toast.success('Photo uploaded'); loadPhotos() }
+      else { haptics.error(); toast.error(r.error || 'Upload failed') }
+      return
+    }
     setUploading(true)
     const res = await uploadJobPhoto(vertical, jobId, result.uri, result.stamp)
     if (res.ok) {
@@ -143,7 +164,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
         <ActivityIndicator style={{ marginVertical: 20 }} color={t.primary} />
       ) : failed ? (
         <Text style={{ color: t.textMuted, fontSize: 12 }}>Photos could not be loaded. Pull to refresh.</Text>
-      ) : photos.length === 0 && !uploading ? (
+      ) : photos.length === 0 && !uploading && pending.length === 0 ? (
         canAdd ? (
           <TouchableOpacity style={[styles.emptyBox, { borderColor: t.border }]} onPress={() => handleAdd('camera')}>
             <Ionicons name="camera-outline" size={24} color={t.textMuted} />
@@ -159,6 +180,12 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
               <ActivityIndicator color={t.primary} />
             </View>
           )}
+          {pending.map(p => (
+            <View key={`${p.itemId}:${p.uri}`} accessibilityLabel={p.state === 'failed' ? "Couldn't send \u2014 tap to fix in Waiting to send" : 'Waiting to send'}>
+              <Image source={{ uri: p.uri }} style={[styles.thumb, { opacity: 0.6 }]} />
+              <View style={{ position: 'absolute', right: 4, bottom: 4 }}><Ionicons name={p.state === 'failed' ? 'alert-circle' : 'time'} size={18} color={p.state === 'failed' ? t.error : t.warning} /></View>
+            </View>
+          ))}
           {photos.map(photo => (
             <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)}>
               <Image source={photoSource(photo, true)} style={styles.thumb} />

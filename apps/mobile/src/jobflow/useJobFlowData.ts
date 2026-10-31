@@ -4,7 +4,7 @@
  * own photos). Either that cannot be read leaves its steps out rather than guessing.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { get } from '../api/client'
+import { getSaved } from '../offline/readThrough'
 import { photosOnJob } from '../components/PhotoGallery'
 import { useVertical } from '../vertical/VerticalContext'
 import type { ChecklistInfo } from './flow'
@@ -17,8 +17,8 @@ export function useJobFlowData(jobId: string | undefined, enabled: boolean) {
   const reload = useCallback(async () => {
     if (!jobId || !enabled) return
     const [c, p] = await Promise.all([
-      get(`/api/checklists/job/${jobId}`),
-      photosOnJob(vertical) ? get(`/api/jobs/${jobId}/photos`) : Promise.resolve(null),
+      getSaved(`/api/checklists/job/${jobId}`),
+      photosOnJob(vertical) ? getSaved(`/api/jobs/${jobId}/photos`) : Promise.resolve(null),
     ])
     // A refusal (the feature is off, or this seat may not) or no answer: the checklist steps are left out.
     if (c.ok && c.data && Array.isArray(c.data.templates)) {

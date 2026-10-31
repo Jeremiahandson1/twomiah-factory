@@ -41,7 +41,8 @@ import { useOfflineQueue } from '../../../src/offline/OfflineContext'
 import { useOfflineApi } from '../../../src/offline/useOfflineApi'
 import { JobFlowCard } from '../../../src/jobflow/JobFlowCard'
 import { useJobFlowData } from '../../../src/jobflow/useJobFlowData'
-import { effectiveStatus, jobKey } from '../../../src/jobflow/flow'
+import { effectiveStatus, jobKey, moveBody } from '../../../src/jobflow/flow'
+import { getSaved, savedCopyNote } from '../../../src/offline/readThrough'
 
 const STATUS_STEPS = ['scheduled', 'dispatched', 'in_progress', 'completed']
 /** Roofing's pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES — Advance steps along it). */
@@ -83,8 +84,11 @@ export default function JobDetailScreen() {
   const [showInspection, setShowInspection] = useState<null | 'date' | 'time'>(null)
   const [inspectionAt, setInspectionAt] = useState(() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d })
 
+  const [savedCopy, setSavedCopy] = useState<string | null>(null)
   const load = useCallback(async () => {
-    const res = await get(`/api/jobs/${id}`)
+    // A job opened before can be read again with no signal: the last good copy, said to be one.
+    const res = await getSaved(`/api/jobs/${id}`)
+    setSavedCopy(res.ok && res.fromCache ? savedCopyNote(res.savedAt) : null)
     if (res.ok) {
       setJob(res.data)
       // The shared job's notes are one text: the box edits it in place.
@@ -99,10 +103,11 @@ export default function JobDetailScreen() {
   useEffect(() => { void flowData.reload(); void load() }, [queueSignature]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** On my way / arrived / complete: sent now with signal, kept on the phone without — never lost, never shown as done early. */
-  const moveJob = async (m: 'dispatch' | 'start' | 'complete') => {
+  const moveJob = async (m: 'dispatch' | 'start' | 'complete' | 'hold') => {
     setMoving(true)
-    const words = { dispatch: 'On my way', start: 'Arrived', complete: 'Completed' }[m]
-    const r = await offline.post(`/api/jobs/${id}/${m}`, undefined, { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
+    const words = { dispatch: 'On my way', start: job?.status === 'on_hold' ? 'Resumed' : 'Arrived', complete: 'Completed', hold: 'On hold' }[m]
+    // The body says when the tech tapped, so a move kept until signal returns still records the real time (flow.ts moveBody).
+    const r = await offline.post(`/api/jobs/${id}/${m}`, moveBody(), { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
     setMoving(false)
     if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
     else if (r.ok) { haptics.success(); toast.success(words); load(); void flowData.reload() }
@@ -192,6 +197,7 @@ export default function JobDetailScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
       >
+        {savedCopy ? <Text accessibilityRole="alert" style={{ color: t.textSecondary, fontSize: 13, marginBottom: 8 }}>{savedCopy}</Text> : null}
         {/* Header */}
         <AnimatedCard index={0}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -387,7 +393,7 @@ export default function JobDetailScreen() {
               {!isRoof && (
                 <JobFlowCard
                   jobId={String(id)} status={job.status} queue={queue} checklists={flowData.checklists} photoCount={flowData.photoCount}
-                  busy={moving} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
+                  busy={moving} startedAt={job.startedAt} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
                 />
               )}
 

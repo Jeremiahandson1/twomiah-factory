@@ -62,7 +62,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   crewLogin?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
-export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
+export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
 export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook }
 /**
@@ -177,6 +177,7 @@ export const JOB_STATUSES = ['scheduled', 'pending', 'confirmed', 'dispatched', 
 
 /** What each button (dispatch / start / complete) may move a job FROM — forward only. Anything else: see jobMoveRefusal. */
 export const JOB_MOVES_FROM = {
+  on_hold: ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress'],
   dispatched: ['scheduled', 'pending', 'confirmed', 'on_hold'],
   in_progress: ['scheduled', 'pending', 'confirmed', 'dispatched', 'on_hold'],
   completed: ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold'],
@@ -184,7 +185,7 @@ export const JOB_MOVES_FROM = {
 
 /** The sentence for a button that would move a job backwards (or out of cancelled). */
 export function jobMoveRefusal(to: string, from: string): string {
-  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : 'completed'
+  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : to === 'on_hold' ? 'put on hold' : 'completed'
   if (from === 'cancelled') return `This job was cancelled, so it can't be ${doing}. Reopen it first.`
   if (from === 'completed') return `This job is already completed, so it can't be ${doing} again. Reopen it first if there is more to do.`
   return `This job is already ${from === 'in_progress' ? 'in progress' : from.replace(/_/g, ' ')}, so it can't be ${doing} now.`
@@ -640,9 +641,9 @@ export function createJobRoutes(deps: JobDeps) {
   }
   /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
   const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
-  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any) => {
+  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null) => {
     if (!hook) return {}
-    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
+    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
   }
 
   // ---------------------------------------------------------------- list / today
@@ -814,6 +815,43 @@ export function createJobRoutes(deps: JobDeps) {
       const caption = (form!.get('caption') as string) || null
       const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption }).returning()
       return c.json(photo, 201)
+    })
+
+    // The phone's offline queue (apps/mobile/src/offline/localPhotos.ts) sends a photo in two steps: the file first, named from the
+    // save's id (the same name is the same file, so a retry after a lost reply replaces it), answering its address — then the save,
+    // which records the addresses. A photo taken with no signal is therefore one photo however many times it is sent.
+    app.post('/:id/photos/file', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      const form = await c.req.formData().catch(() => null)
+      const file = form?.get('photo') as File | null
+      if (!file || typeof file === 'string') return c.json({ error: 'No photo provided' }, 400)
+      if (file.size > MAX_PHOTO_SIZE) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const type = sniffType(buffer) || ''
+      if (!PHOTO_EXT[type]) return c.json({ error: 'File must be an image' }, 400)
+      if (storage.storageConfigured && !storage.storageConfigured()) return c.json({ error: 'Photo storage is not set up yet.', code: 'storage_not_configured' }, 503)
+      const asked = String(form!.get('name') || '')
+      const name = /^[A-Za-z0-9_-]{8,80}$/.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
+      const key = `photos/${currentUser.companyId}/${id}/${name}.${PHOTO_EXT[type]}`
+      await storage.put(key, buffer, type)
+      return c.json({ url: mediaPrefix + key }, 201)
+    })
+
+    app.post('/:id/photos/saved', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown } | null
+      const own = `${mediaPrefix}photos/${currentUser.companyId}/${id}/`
+      const urls = Array.isArray(body?.photos) ? body!.photos.filter((u): u is string => typeof u === 'string') : []
+      if (urls.some((u) => !u.startsWith(own) || u.includes('..'))) return c.json({ error: 'A photo could not be read — take it again.', code: 'bad_photo' }, 400)
+      const caption = [typeof body?.caption === 'string' ? body.caption : '', typeof body?.notes === 'string' ? body.notes : ''].map((x) => x.trim()).filter(Boolean).join('\n') || null
+      const have = new Set((await db.select({ url: t.jobPhoto.url }).from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId)))).map((r: any) => r.url))
+      const fresh = [...new Set(urls)].filter((u) => !have.has(u))
+      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption }))).returning() : []
+      return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
     })
 
     app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {
@@ -1228,6 +1266,11 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      // The phone says WHEN the tech tapped (`tappedAt`): a move kept on the phone until signal returns still records the real
+      // time. Believed only if it is a time (not in the future, not more than a week back); else the time it arrives is used.
+      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
+      const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : null
       // Moving a job OUT of completed clears the completion stamp — the same rule the status dropdown has
       // followed since landscaping T14 L13. Start and Dispatch only wrote the status, so reopening a finished
       // job left it still claiming a completion time, and "Completed today" kept counting it. (T26 M1)
@@ -1235,6 +1278,9 @@ export function createJobRoutes(deps: JobDeps) {
         status,
         ...(status === 'completed' ? {} : { completedAt: null }),
         ...extra(),
+        ...(status === 'completed' && when ? { completedAt: when } : {}),
+        // Started: the first time the tech said so is kept (a job put on hold and resumed keeps its first start).
+        ...(status === 'in_progress' && t.job.startedAt ? { startedAt: sql`COALESCE(${t.job.startedAt}, ${(when ?? new Date()).toISOString()}::timestamp)` } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), inArray(t.job.status, [...movesFrom]))).returning()
       if (!updated) {
@@ -1244,7 +1290,7 @@ export function createJobRoutes(deps: JobDeps) {
         return c.json({ error: jobMoveRefusal(status, String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
       }
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
-      const more = await runHook(hook(), updated, currentUser)
+      const more = await runHook(hook(), updated, currentUser, when)
       // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
@@ -1252,6 +1298,8 @@ export function createJobRoutes(deps: JobDeps) {
   transition('start', 'in_progress', () => hookFor('in_progress'))
   transition('complete', 'completed', () => hookFor('completed'), () => ({ completedAt: new Date() }))
   transition('dispatch', 'dispatched', () => hookFor('dispatched'))
+  // Put on hold (waiting on a part, the customer, the weather): the job keeps its crew and day; Start or On my way picks it up again.
+  transition('hold', 'on_hold', () => undefined)
 
   /**
    * POST /:id/invoice — bill this job. Mounted only where options.billing says the template can. (T41)

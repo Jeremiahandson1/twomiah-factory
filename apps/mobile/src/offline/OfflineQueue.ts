@@ -9,6 +9,7 @@ import NetInfo from '@react-native-community/netinfo'
 import { api, upload } from '../api/client'
 import { createEngine, type NewItem, type QueueItem, type QueueStatus, type Sender } from './engine'
 import { withUploadedPhotos, type FileExists, type UploadPhoto } from './localPhotos'
+import { setReadCacheUser } from './readThrough'
 
 export type { NewItem, QueueItem, QueueStatus, ItemView, Refusal, Method } from './engine'
 
@@ -52,6 +53,7 @@ let signedInAs: string | null = null
 export const OfflineQueue = {
   /** Call when someone signs in (and with null when they sign out). Their queue is theirs alone. */
   async start(userId: string | null) {
+    setReadCacheUser(userId)
     if (signedInAs === userId && unsubscribeNet) return
     signedInAs = userId
     if (!unsubscribeNet) {

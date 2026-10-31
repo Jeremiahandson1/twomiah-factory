@@ -229,10 +229,14 @@ export function createCrmServices(deps: CrmServiceDeps) {
       try { await step(kind, ctx) } catch (err) { logger.warn?.('[jobs] a job-moment step failed', { kind, error: (err as Error)?.message }) }
     }
   }
+  // "On my way" and "on site" are told to the customer as they happen. A move the tech tapped with no signal and that reaches the
+  // server long after (JobHook ctx.tappedAt) is recorded with its real time but not texted: "I'm on my way" an hour late is wrong.
+  const STALE_AFTER_MS = 30 * 60_000
+  const stillCurrent = (tappedAt: Date | null | undefined) => !tappedAt || Date.now() - tappedAt.getTime() <= STALE_AFTER_MS
   const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook } = {
     onCreate: async (ctx) => { await afterJobMoment('created', ctx) },
     onDispatch: async (ctx) => {
-      if (textArrival) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
       await afterJobMoment('dispatched', ctx)
     },
     // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
@@ -240,7 +244,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       const { job: j, companyId } = ctx
       await afterJobMoment('started', ctx)
       if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
-      if (textArrival) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
     },
     onComplete: async (ctx) => {
       const { job: done, companyId } = ctx
