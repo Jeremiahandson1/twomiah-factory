@@ -9,7 +9,7 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
-import { useConfirm, useMayWrite, useAuth } from '../../../shared'
+import { useConfirm, useMayWrite, useAuth, usePermissions } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
 import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
@@ -284,15 +284,24 @@ export default function AppointmentsPage() {
       ];
 
   // Moving a card on the grid is the Reschedule button's PUT; a clash is refused by the server in words, and a blocked time asks first.
+  const mayOverrideClash = useMayOverrideClash();
+  const [clashAsk, setClashAsk] = useState<null | { id: string; payload: Record<string, unknown>; message: string }>(null);
   const putMove = async (a: { id: string }, payload: Record<string, unknown>) => {
     try {
       await api.put(`/api/appointments/${a.id}`, payload);
     } catch (err) {
       const code = (err as { data?: { code?: string } }).data?.code;
+      if (mayOverrideClash && isStylistClash(code, (err as Error).message)) { setClashAsk({ id: a.id, payload, message: (err as Error).message }); load(); return; }
       if (code === 'BOOK_BLOCKED' && await confirm(`${(err as Error).message}`, { title: 'Blocked time', confirmText: 'Book it anyway', danger: false })) {
         try { await api.put(`/api/appointments/${a.id}`, { ...payload, overrideBlock: true }); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
       } else if (code !== 'BOOK_BLOCKED') toast.error((err as Error).message || 'Could not move it');
     }
+    load();
+  };
+  const bookOverClash = async (reason: string) => {
+    const ask = clashAsk; setClashAsk(null);
+    if (!ask) return;
+    try { await api.put(`/api/appointments/${ask.id}`, { ...ask.payload, overrideConflict: true, conflictReason: reason }); toast.success('Moved, over the clash'); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
     load();
   };
   const moveOnGrid = (a: { id: string }, to: { start: Date; end: Date; stylistId?: string; itemised: boolean }) =>
@@ -464,6 +473,7 @@ export default function AppointmentsPage() {
           onClose={() => { setShowForm(false); setNewAt(null); }}
         />
       )}
+      {clashAsk && <ClashReasonModal message={clashAsk.message} onConfirm={bookOverClash} onClose={() => setClashAsk(null)} />}
       {blockFor && (
         <BlockTimeModal
           block={blockFor.block} defaultDay={blockFor.date || day} defaultStylistId={blockFor.stylistId}
@@ -659,10 +669,15 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
 
   const [needsReason, setNeedsReason] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState<string>('');
+  // A stylist clash a manager may book over, with a reason (server clashOverride).
+  const mayOverrideClash = useMayOverrideClash();
+  const [clashMessage, setClashMessage] = useState<string>('');
+  const [clashReason, setClashReason] = useState<string>('');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactId) { toast.error('A client is required'); return; }
     if (needsReason && overrideReason.trim().length < 3) { toast.error('Say why you are booking it anyway'); return; }
+    if (clashMessage && clashReason.trim().length < 3) { toast.error('Say why you are booking over the clash'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -684,10 +699,12 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
       if (form.notes) payload.notes = form.notes;
       // The salon's patch-test rule: a service that needs a passing test is booked only with a reason, kept on the appointment.
       if (overrideReason.trim()) payload.patchTestOverrideReason = overrideReason.trim();
+      if (clashMessage) { payload.overrideConflict = true; payload.conflictReason = clashReason.trim(); }
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
       const data = (err as { data?: { code?: string } }).data;
+      if (mayOverrideClash && isStylistClash(data?.code, (err as Error).message)) { setClashMessage((err as Error).message); return; }
       if (data?.code === 'PATCH_TEST_NEEDED') { setNeedsReason((err as Error).message || 'This service needs a patch test first.'); return; }
       toast.error((err as Error).message || 'Failed to create appointment');
     } finally {
@@ -783,6 +800,14 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {clashMessage && (
+              <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="text-sm text-amber-900 dark:text-amber-100">{clashMessage}. You can book it anyway, with a reason that is kept on the appointment.</p>
+                <label className="mt-2 block text-sm font-medium text-gray-800 dark:text-slate-100">Book over the clash because
+                  <input value={clashReason} onChange={(e) => setClashReason(e.target.value)} maxLength={200} className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Two short services, same client" />
+                </label>
+              </div>
+            )}
             {needsReason && (
               <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
                 <p className="text-sm text-amber-900 dark:text-amber-100">{needsReason}</p>
@@ -804,6 +829,38 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
   );
 }
 
+
+/* ---------------- Book over a clash ---------------- */
+
+// A manager may book a stylist over another booking on purpose, with a reason that is kept on the appointment (server clashOverride).
+function useMayOverrideClash(): boolean {
+  const { can, known } = usePermissions();
+  return known && can('schedule:read-all') && can('schedule:update');
+}
+const isStylistClash = (code?: string, message?: string) => code === 'APPOINTMENT_CONFLICT' && /stylist is already booked|same stylist at the same time/i.test(message || '');
+
+function ClashReasonModal({ message, onConfirm, onClose }: { message: string; onConfirm: (reason: string) => void; onClose: () => void }) {
+  const [reason, setReason] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <form onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 3) onConfirm(reason.trim()); }} role="dialog" aria-modal="true" aria-label="Book over a clash"
+          className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+          <h2 className="text-lg font-bold">Book it anyway?</h2>
+          <p className="text-sm text-gray-700 dark:text-slate-200">{message}. A stylist is not double-booked by accident, so this needs a reason — it is kept on the appointment.</p>
+          <label className="block text-sm font-medium text-gray-800 dark:text-slate-100">Book it anyway because
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} autoFocus className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Two short services, same client" />
+          </label>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={reason.trim().length < 3} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">Book it anyway</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 /* ---------------- Blocked time ---------------- */
 

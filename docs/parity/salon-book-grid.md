@@ -20,7 +20,7 @@ Not reached: Fresha's "Create and manage blocked time in your calendar" (576) re
 | One stylist's week (the brief's "week per stylist") | Grid with a stylist picked: seven day columns for that stylist | **Matches** |
 | Drag a card to a new time slot or team member on the Day view (Fresha) | Drag in the grid: to a new time (15-minute steps) or, in the day grid, another stylist's column. The same PUT as the Reschedule button, so the server's clash, own-chair and blocked-time checks decide; a clash is refused in words | **Matches** |
 | Drag the bottom edge to change the length (Fresha) | Same, for a one-service appointment | **Matches** |
-| Confirmation window showing conflicts, and overriding them (Fresha) | A clash is refused (a stylist is never double-booked); blocked time asks first and can be booked over with "Book it anyway" | **Different — stricter for clashes, same for blocked time** |
+| Confirmation window showing conflicts, and overriding them (Fresha) | A stylist clash is refused for everyone except a manager, who can book or move over it with "Book it anyway" and a typed reason (3+ characters) that is kept on the appointment note and in the audit log; a station clash is still refused; blocked time asks first and can be booked over | **Matches — manager only, with a reason** |
 | Move an appointment to another day by drag | In a stylist's week, drag to another day's column; in the day grid use Reschedule | **Matches in the week** |
 | Click a free time slot to start an appointment (Square) | Click an empty part of a column: New Appointment opens at that time and stylist | **Matches** |
 | Processing time drawn as a faded segment (Fresha) | Hatched stretch inside the card, in the service's colour | **Matches** |

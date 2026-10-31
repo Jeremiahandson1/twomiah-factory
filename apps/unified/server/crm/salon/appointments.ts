@@ -265,6 +265,19 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   }
 
   /**
+   * "Book it anyway" over a STYLIST CLASH (salon parity row 27; Fresha's confirmation window lets staff override a conflict): a manager only — a
+   * seat that sees the whole Book and holds schedule:update — and with a reason, kept on the appointment's notes and in the audit log. A clash is
+   * otherwise always refused (a stylist is never double-booked by accident). A chair or station clash is still refused.
+   */
+  async function clashOverride(u: any, reason: unknown): Promise<{ ok: true; reason: string } | { ok: false; status: 400 | 403; error: string; code: string }> {
+    const manager = (await book.seesWholeBook(u)) && d.permissions.hasPermission(String(u.role || ''), 'schedule:update', await d.permissions.getExtraPermissions(u.userId))
+    if (!manager) return { ok: false, status: 403, error: 'Only a manager can book over a clash. Ask the owner or a manager.', code: 'MANAGER_ONLY' }
+    const why = String(reason ?? '').trim().slice(0, 200)
+    if (why.length < 3) return { ok: false, status: 400, error: 'Type why you are booking over the clash.', code: 'CLASH_REASON_REQUIRED' }
+    return { ok: true, reason: why }
+  }
+
+  /**
    * Blocked time (lunch, training; feature `book_grid`): the desk may still book over it, on purpose (`overrideBlock: true`), but is told first.
    * Only the hands-on pieces count, so a gap inside a colour may sit over a break. Returns the sentence, or null.
    */
@@ -483,6 +496,14 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if ('problem' in made) return fail(c, 400, made.problem, 'BAD_PROCESSING', { processingMin: made.problem })
     const proc = made.proc
     const blocksOn = !body.overrideBlock && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    // Booking over a stylist clash on purpose (manager only, with a reason) — see clashOverride.
+    let overridingClash: string | null = null
+    if (body.overrideConflict === true) {
+      const gate = await clashOverride(currentUser, body.conflictReason)
+      if (!gate.ok) return fail(c, gate.status, gate.error, gate.code, gate.code === 'CLASH_REASON_REQUIRED' ? { conflictReason: gate.error } : undefined)
+      overridingClash = gate.reason
+    }
+    let overrodeClash = false
     const spansOf = () => itemList
       ? itemList.map((i) => ({ stylist: i.stylist, start: new Date(startTime.getTime() + i.offset * 60_000), end: new Date(startTime.getTime() + (i.offset + i.duration) * 60_000), proc: i.proc }))
       : [{ stylist, start: startTime, end: endTime, proc }]
@@ -493,9 +514,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         await lockAppointmentBook(tx, currentUser.companyId)
         if (itemList) {
           const clash = await itemsConflict(currentUser.companyId, itemList, startTime, undefined, tx)
-          if (clash) throw new ApptConflict(clash)
+          if (clash) { if (overridingClash === null) throw new ApptConflict(clash); overrodeClash = true }
         } else if (stylist.stylistId || stylist.stylistMemberId) {
-          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) { if (overridingClash === null) throw new ApptConflict('That stylist is already booked at this time'); overrodeClash = true }
         }
         if (blocksOn && body.status !== 'cancelled') {
           const why = await blockSentence(currentUser.companyId, spansOf(), tx)
@@ -517,7 +538,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           endTime,
           processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
           quotedPrice: body.quotedPrice ?? null,
-          notes: [patchNote, body.notes].filter(Boolean).join(' — ') || null,
+          notes: [patchNote, body.notes, overrodeClash ? `Booked over a clash: ${overridingClash}` : null].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
         }).returning()
         if (itemList) {
@@ -535,7 +556,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       throw e
     }
 
-    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: itemList ? { ...created, services: itemList.map((i) => i.name) } : created, req: { user: currentUser } })
+    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: { ...(itemList ? { ...created, services: itemList.map((i) => i.name) } : created), ...(overrodeClash ? { overrodeClash: overridingClash } : {}) }, req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     const made201 = itemList ? (await itemsOf(currentUser.companyId, [created.id])).get(created.id) : undefined
     return one(c, { ...named(created), ...(made201 ? { items: made201 } : {}) }, 201)
@@ -633,6 +654,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const nextStation = 'station' in updates ? updates.station : existing.station
     const checkBlocks = !body.overrideBlock && ('startTime' in updates || 'endTime' in updates || 'stylistId' in updates) && !CANCELLED.includes(nextStatus)
       && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    let overridingClash: string | null = null
+    if (body.overrideConflict === true) {
+      const gate = await clashOverride(currentUser, body.conflictReason)
+      if (!gate.ok) return fail(c, gate.status, gate.error, gate.code, gate.code === 'CLASH_REASON_REQUIRED' ? { conflictReason: gate.error } : undefined)
+      overridingClash = gate.reason
+    }
+    let overrodeClash = false
     let updated: AppointmentRow
     try {
       updated = await db.transaction(async (tx: any) => {
@@ -642,9 +670,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
             stylist: { stylistId: i.stylistId, stylistMemberId: i.stylistMemberId ?? null }, offset: i.startOffsetMin, duration: i.durationMin,
             proc: i.processingMin && i.processingMin > 0 ? { afterMin: i.processingAfterMin ?? 0, min: i.processingMin } : null,
           })), nextStart, id, tx)
-          if (clash) throw new ApptConflict(clash)
+          if (clash) { if (overridingClash === null) throw new ApptConflict(clash); overrodeClash = true }
         } else if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
-          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) { if (overridingClash === null) throw new ApptConflict('That stylist is already booked at this time'); overrodeClash = true }
         }
         if (checkBlocks) {
           const spans = itemised
@@ -656,6 +684,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
           if (await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id, tx)) throw new ApptConflict(`${String(nextStation).trim()} is already booked at this time`)
         }
+        if (overrodeClash) updates.notes = [('notes' in updates ? updates.notes : existing.notes), `Booked over a clash: ${overridingClash}`].filter(Boolean).join(' — ')
         const [row] = await tx.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
         return row
       })
@@ -663,7 +692,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (e instanceof ApptConflict) return fail(c, 409, e.sentence, e.code)
       throw e
     }
-    await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+    await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), ...(overrodeClash ? { metadata: { overrodeClash: overridingClash } } : {}), req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     // Completing raises the sale; already completed (five of six simultaneous requests) still answers with the bill.
     const invoiceId = nextStatus === 'completed'
