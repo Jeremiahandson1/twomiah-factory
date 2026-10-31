@@ -46,6 +46,8 @@ export interface FamilyMember {
   canViewDocuments?: boolean | null
   /** care_family_content is on for this agency: the Daily care and Documents tabs exist, and vitals have their own switch */
   careContent?: boolean | null
+  /** care_family_comms is on: the Requests tab exists */
+  careComms?: boolean | null
   canMessage?: boolean | null
 }
 
@@ -570,9 +572,67 @@ function DocumentsView() {
   )
 }
 
+// ── Requests to the office (care_family_comms): change a visit, change the service, ask for a new visit ───────────────────────
+interface MyRequest { id: string; kind: string; kindLabel: string; visitDate: string | null; details: string; status: string; statusLabel: string; handledNote: string | null; createdAt: string }
+const REQUEST_CHOICES: Array<[string, string]> = [['visit_change', 'Change a visit'], ['service_change', 'Change the service'], ['new_visit', 'Ask for a new visit']]
+
+function RequestsView() {
+  const portal = usePortal()
+  const [list, setList] = useState<MyRequest[]>([])
+  const [kind, setKind] = useState('visit_change')
+  const [visitDate, setVisitDate] = useState('')
+  const [details, setDetails] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  const [sent, setSent] = useState(false)
+  const load = useCallback(() => {
+    portal.get('/api/family-portal/portal/requests').then((r) => { if (r) setList(listRows<MyRequest>(r)) }).catch(() => {})
+  }, [portal])
+  useEffect(() => { load() }, [load])
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setProblem(''); setSent(false); setBusy(true)
+    try {
+      await portal.send('POST', '/api/family-portal/portal/requests', { kind, visitDate: visitDate || undefined, details })
+      setDetails(''); setVisitDate(''); setSent(true); load()
+    } catch (err) { setProblem((err as Error).message || 'That could not be sent. Please try again.') } finally { setBusy(false) }
+  }
+  const field: CSSProperties = { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--hc-line)', background: 'var(--hc-surface)', color: 'var(--hc-ink)', boxSizing: 'border-box' }
+  return (
+    <div>
+      <form onSubmit={submit} style={CARD}>
+        <h3 style={{ margin: '0 0 12px', fontSize: '1.05rem' }}>Ask the office</h3>
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-kind">What would you like?</label>
+        <select id="req-kind" value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...field, marginBottom: '10px' }}>
+          {REQUEST_CHOICES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-date">Which day is it about? (optional)</label>
+        <input id="req-date" type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} style={{ ...field, marginBottom: '10px' }} />
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-details">Tell us what you need</label>
+        <textarea id="req-details" rows={4} value={details} onChange={(e) => setDetails(e.target.value)} maxLength={2000} style={{ ...field, marginBottom: '10px' }} />
+        {problem && <div style={{ color: 'var(--hc-danger-ink)', marginBottom: '8px' }}>{problem}</div>}
+        {sent && <div style={{ color: 'var(--hc-success-ink)', marginBottom: '8px' }}>Sent. The office has been told and will get back to you.</div>}
+        <button type="submit" disabled={busy} style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--hcp-forest)', color: '#fff', cursor: 'pointer' }}>{busy ? 'Sending...' : 'Send to the office'}</button>
+      </form>
+      {list.length > 0 && <h3 style={{ margin: '0 0 12px', fontSize: '1.05rem' }}>Your requests</h3>}
+      {list.map((r) => (
+        <div key={r.id} style={{ ...CARD, borderLeft: `4px solid ${r.status === 'open' ? '#e67e22' : r.status === 'done' ? '#27ae60' : '#95a5a6'}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+            <strong>{r.kindLabel}{r.visitDate ? ` — ${fmtDay(r.visitDate)}` : ''}</strong>
+            <span style={BADGE(r.status === 'done' ? 'green' : r.status === 'open' ? 'yellow' : 'blue')}>{r.statusLabel}</span>
+          </div>
+          <div style={{ ...SOFT, whiteSpace: 'pre-wrap', margin: '6px 0' }}>{r.details}</div>
+          {r.handledNote && <div style={{ fontSize: '0.88rem' }}>From the office: {r.handledNote}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Overview ──────────────────────────────────────────────────
-type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'messages'
-interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; careContent: boolean; canMessage: boolean }
+type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'requests' | 'messages'
+interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; careContent: boolean; careComms: boolean; canMessage: boolean }
 
 function OverviewView({ client, userName, permissions, setActiveTab }: { client: FamilyClient | null; userName: string; permissions: Permissions; setActiveTab: (k: TabKey) => void }) {
   const quickLinks: Array<{ key: TabKey; label: string; icon: string; color: string }> = []
@@ -677,6 +737,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
     canViewMedications: !!member?.canViewMedications,
     // With care_family_content on, vitals and documents have their own switches; off, vitals follow medicines and there is no Documents tab.
     careContent: !!member?.careContent,
+    careComms: !!member?.careComms,
     canViewVitals: member?.careContent ? !!member?.canViewVitals : !!member?.canViewMedications,
     canViewDocuments: !!member?.careContent && !!member?.canViewDocuments,
     canMessage: !!member?.canMessage,
@@ -690,6 +751,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewMedications) tabs.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'Medications', icon: '💊' })
   if (permissions.canViewVitals) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
   if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
+  if (permissions.canMessage && permissions.careComms) tabs.push({ key: 'requests', label: 'Requests', icon: '✉️' })
   if (permissions.canMessage) tabs.push({ key: 'messages', label: 'Messages', icon: '💬' })
   const tabKeys = tabs.map((t) => t.key).join()
 
@@ -710,6 +772,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
       case 'medications': return permissions.canViewMedications ? <MedicationsView medicineList={permissions.careContent} /> : null
       case 'vitals': return permissions.canViewVitals ? <VitalsView /> : null
       case 'documents': return permissions.canViewDocuments ? <DocumentsView /> : null
+      case 'requests': return permissions.canMessage && permissions.careComms ? <RequestsView /> : null
       case 'messages': return permissions.canMessage ? <MessagesView canMessage /> : null
       default: return <OverviewView client={client} userName={userName} permissions={permissions} setActiveTab={setActiveTab} />
     }

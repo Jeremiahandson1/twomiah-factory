@@ -144,8 +144,8 @@ export async function familyEmailTaken(q: Q, email: string, exceptId?: string): 
 }
 
 /** The active relative signing in with this email (whatever its case), with the password hash, or null. */
-export async function familyMemberForLogin(q: Q, email: string): Promise<{ id: string; companyId: string; clientId: string; passwordHash: string | null } | null> {
-  return camelFirst(await q.execute(sql`SELECT id, company_id, client_id, password_hash FROM family_members
+export async function familyMemberForLogin(q: Q, email: string): Promise<{ id: string; companyId: string; clientId: string; passwordHash: string | null; name: string; email: string | null; isActive: boolean } | null> {
+  return camelFirst(await q.execute(sql`SELECT id, company_id, client_id, password_hash, name, email, is_active FROM family_members
     WHERE lower(email) = ${email} AND is_active = true LIMIT 1`)) ?? null
 }
 

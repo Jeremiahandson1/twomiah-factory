@@ -15,12 +15,13 @@
 //   · the text names the caregiver by first name and says nothing of care, health or the visit's contents.
 import { eq } from 'drizzle-orm'
 import { company } from '../../../db/schema/index.ts'
-import { claimFamilyText, optedInRelatives, setFamilyTextStatus, visitNames } from '../../../data/homecareFamilyTexts.ts'
+import { claimFamilyText, emailOptedInRelatives, optedInRelatives, setFamilyTextStatus, visitNames } from '../../../data/homecareFamilyTexts.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AgencyTime } from './agencyTime.ts'
 import type { AgencyProfiles } from './agencyProfile.ts'
 import type { VisitNotify } from './visitNotify.ts'
 import { inQuietHours } from './notificationPrefs.ts'
+import { DEFAULT_TEXTS, emailHtml, fill, type FamilyComms } from './familyComms.ts'
 
 export const FAMILY_TEXT_FEATURE = 'care_family_texts'
 /** Quiet hours for these texts until an agency sets its own (on its own clock). */
@@ -31,7 +32,7 @@ const LATE_MS = 30 * 60 * 1000
 
 const hm = (at: Date, tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(at)
 
-export function createFamilyTexts(d: CrmDeps, deps: { time: AgencyTime; notify: VisitNotify; profile: Pick<AgencyProfiles, 'agencyShortName'> }) {
+export function createFamilyTexts(d: CrmDeps, deps: { time: AgencyTime; notify: VisitNotify; profile: Pick<AgencyProfiles, 'agencyShortName'>; comms: FamilyComms }) {
   /** The agency's quiet hours: what it saved, else 9 PM–8 AM. */
   async function quietHours(companyId: string): Promise<{ quietHoursStart: string; quietHoursEnd: string }> {
     const [row] = await d.db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -47,7 +48,8 @@ export function createFamilyTexts(d: CrmDeps, deps: { time: AgencyTime; notify: 
     if (start === end) return { problem: 'The quiet hours cannot start and end at the same time.' }
     const [row] = await d.db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
     const hours = { quietHoursStart: String(start), quietHoursEnd: String(end) }
-    await d.db.update(company).set({ settings: { ...((row?.settings as object) || {}), familyTexts: hours } as any, updatedAt: new Date() } as any).where(eq(company.id, companyId))
+    const old = ((row?.settings as any) || {}).familyTexts || {}
+    await d.db.update(company).set({ settings: { ...((row?.settings as object) || {}), familyTexts: { ...old, ...hours } } as any, updatedAt: new Date() } as any).where(eq(company.id, companyId))
     return hours
   }
 
@@ -58,23 +60,47 @@ export function createFamilyTexts(d: CrmDeps, deps: { time: AgencyTime; notify: 
   async function onClockEvent(companyId: string, entry: { id: string; caregiverId: string; clientId: string }, event: 'clock_in' | 'clock_out', punchAt: Date, now: Date = new Date()): Promise<number> {
     try {
       if (!(await d.features.isFeatureEnabled(companyId, FAMILY_TEXT_FEATURE))) return 0
-      const relatives = await optedInRelatives(d.db, companyId, entry.clientId)
-      if (!relatives.length) return 0
+      // care_family_comms: the agency's own wording, and the same notice by email for relatives who asked for it.
+      const comms = await deps.comms.enabled(companyId)
+      const textRelatives = await optedInRelatives(d.db, companyId, entry.clientId)
+      const emailRelatives = comms ? await emailOptedInRelatives(d.db, companyId, entry.clientId) : []
+      if (!textRelatives.length && !emailRelatives.length) return 0
       const names = await visitNames(d.db, companyId, entry.caregiverId, entry.clientId)
       if (!names) return 0
       const { tz } = await deps.time.now(companyId, now)
-      const skip = now.getTime() - punchAt.getTime() > LATE_MS ? 'skipped_late' : inQuietHours(await quietHours(companyId), now, tz) ? 'skipped_quiet' : null
+      const late = now.getTime() - punchAt.getTime() > LATE_MS
+      const hours = await quietHours(companyId)
+      const quiet = inQuietHours(hours, now, tz)
       const prefix = await deps.profile.agencyShortName(companyId)
       const at = hm(punchAt, tz)
-      const body = `${prefix ? prefix + ': ' : ''}${event === 'clock_in'
-        ? `${names.caregiverFirst} has arrived to help ${names.clientFirst} (${at}).`
-        : `${names.caregiverFirst} has finished the visit with ${names.clientFirst} (${at}).`} Reply STOP to stop these texts.`
+      const wording = comms ? await deps.comms.textWording(companyId) : { ...DEFAULT_TEXTS }
+      const template = event === 'clock_in' ? wording.arrivalText : wording.departureText
+      const said = fill(template, { caregiver: names.caregiverFirst, client: names.clientFirst, time: at, agency: prefix })
+      const hasAgency = /\{agency\}/.test(template)
+      const text = `${!hasAgency && prefix ? prefix + ': ' : ''}${said}${/STOP/i.test(said) ? '' : ' Reply STOP to stop these texts.'}`
+      const lateWhy = 'The punch reached us more than 30 minutes after it happened, so the family was not told.'
+      const quietWhy = `It fell in quiet hours (${hours.quietHoursStart}–${hours.quietHoursEnd} on the agency\'s clock), so the family was not woken.`
       let sent = 0
-      for (const r of relatives) {
-        if (!(await claimFamilyText(d.db, companyId, entry.id, r.id, event, skip ?? 'pending'))) continue
+      for (const r of textRelatives) {
+        const skip = late ? 'skipped_late' : quiet ? 'skipped_quiet' : null
+        const why = skip === 'skipped_late' ? lateWhy : skip === 'skipped_quiet' ? quietWhy : null
+        if (!(await claimFamilyText(d.db, companyId, entry.id, r.id, event, skip ?? 'pending', 'sms', why))) continue
         if (skip) continue
-        const ok = await deps.notify.sendText({ companyId, phone: r.phone, body })
-        await setFamilyTextStatus(d.db, companyId, entry.id, r.id, event, ok ? 'sent' : 'failed')
+        const ok = await deps.notify.sendText({ companyId, phone: r.phone, body: text })
+        await setFamilyTextStatus(d.db, companyId, entry.id, r.id, event, ok ? 'sent' : 'failed', 'sms', ok ? null : 'The texting service could not send it (texting may not be set up for this agency, or the number cannot receive texts).')
+        if (ok) sent++
+      }
+      // Email is not held for quiet hours (it does not wake anyone), but a late punch is still not news.
+      for (const r of emailRelatives) {
+        const skip = late ? 'skipped_late' : null
+        if (!(await claimFamilyText(d.db, companyId, entry.id, r.id, event, skip ?? 'pending', 'email', skip ? lateWhy : null))) continue
+        if (skip) continue
+        let ok = false
+        try {
+          await d.services.emailService.sendRaw({ to: r.email, subject: `${prefix ? prefix + ': ' : ''}${event === 'clock_in' ? `${names.caregiverFirst} has arrived` : `${names.caregiverFirst} has finished the visit`}`, html: emailHtml(prefix, said) })
+          ok = true
+        } catch (e: any) { d.logger.error('[family-texts] email', { error: e?.message }) }
+        await setFamilyTextStatus(d.db, companyId, entry.id, r.id, event, ok ? 'sent' : 'failed', 'email', ok ? null : 'The email could not be sent.')
         if (ok) sent++
       }
       return sent

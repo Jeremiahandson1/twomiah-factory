@@ -29,6 +29,7 @@ import { createAppointmentReminders } from './salon/appointmentReminders.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
+import { stopFamilyTexts } from '../data/homecareFamilyTexts.ts'
 import { createInvoiceReminders } from './billing/invoiceReminders.ts'
 import { createJobReminders } from './field/jobReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
@@ -143,7 +144,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     // A customer's own text: texting the business first is consent to be texted back; STOP withdraws it (site/smsConsent.ts).
     onConsent: (companyId: string, phone: string, change: 'given' | 'withdrawn') => change === 'given'
       ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
-      : withdrawConsent(db, companyId, phone),
+      // STOP also ends a relative's arrival texts, by our own record (a home care relative has no saved contact to carry an "opted out" flag).
+      : withdrawConsent(db, companyId, phone).then(() => stopFamilyTexts(db, companyId, phone)).then(() => {}),
     // Picture messages: files in the private store, handed to the carrier by short-lived signed links (comms/smsMedia.ts).
     media: smsMediaLinks,
   } as any)

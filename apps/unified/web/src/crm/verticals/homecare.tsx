@@ -93,6 +93,7 @@ export const MENU: Array<[path: string, section: string]> = [
   ['/crm/communication-log', 'Communication'],
   ['/crm/sms', 'Communication'],
   ['/crm/family-portal', 'Communication'],
+  ['/crm/family-messages', 'Communication'],
   ['/crm/alerts', 'Communication'],
   ['/crm/messages', 'Communication'],
   ['/crm/integrations', 'Communication'],

@@ -33,6 +33,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
 import { mimeOf, UPCOMING_DAYS } from '../core/familyContent.ts'
+import { consentWording, REQUEST_KINDS } from '../core/familyComms.ts'
 import { activePlanWhere } from '../core/carePlanStatus.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -57,6 +58,10 @@ const memberColumns = {
   isPrimaryContact: familyMembers.isPrimaryContact,
   visitTextOptIn: familyMembers.visitTextOptIn,
   visitTextOptInAt: familyMembers.visitTextOptInAt,
+  visitTextConsentWording: familyMembers.visitTextConsentWording,
+  visitTextOptOutAt: familyMembers.visitTextOptOutAt,
+  visitEmailOptIn: familyMembers.visitEmailOptIn,
+  visitEmailOptInAt: familyMembers.visitEmailOptInAt,
   canViewSchedule: familyMembers.canViewSchedule,
   canViewCarePlan: familyMembers.canViewCarePlan,
   canViewMedications: familyMembers.canViewMedications,
@@ -154,10 +159,18 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       // The relative's yes to arrival/departure texts, recorded by the office; never assumed.
       visitTextOptIn: b.visitTextOptIn === true && !!b.phone,
       visitTextOptInAt: b.visitTextOptIn === true && !!b.phone ? new Date() : null,
+      // The exact words the relative agreed to, kept with the yes (care_family_comms shows them; they are kept either way).
+      visitTextConsentWording: b.visitTextOptIn === true && !!b.phone ? consentWording(await agencyName(me.companyId)) : null,
+      visitEmailOptIn: b.visitEmailOptIn === true,
+      visitEmailOptInAt: b.visitEmailOptIn === true ? new Date() : null,
       isActive: true,
     }).returning(memberColumns)
     // Welcome email with the login. The account stands even if the email cannot go out.
-    try {
+    // care_family_comms: the agency's own wording for this email; without it (or switched off) the standard welcome goes.
+    const own = await core.familyComms.sendPortalEmail(me.companyId, 'accountCreated', email, {
+      name, client: `${client.firstName} ${client.lastName}`, email, tempPassword: password, loginUrl: familyLoginUrl(),
+    })
+    if (!own) try {
       await core.email.sendFamilyPortalWelcome(email, {
         familyName: name,
         clientName: `${client.firstName} ${client.lastName}`,
@@ -176,10 +189,18 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   app.put('/admin/members/:id/status', ...staff('care-portal:update'), async (c) => {
     const { isActive } = await c.req.json().catch(() => ({} as any))
     if (typeof isActive !== 'boolean') return fail(c, 400, 'isActive must be true or false')
+    const companyId = c.get('user').companyId
+    const [before] = await db.select({ isActive: familyMembers.isActive }).from(familyMembers)
+      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, companyId))).limit(1)
     const [row] = await db.update(familyMembers).set({ isActive, updatedAt: new Date() })
-      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, c.get('user').companyId)))
+      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, companyId)))
       .returning(memberColumns)
     if (!row) return fail(c, 404, 'Family member not found')
+    // care_family_comms: tell the relative their access was turned on or off, in the agency's words (each can be switched off there).
+    if (before && before.isActive !== isActive && row.email) {
+      const [cl] = await db.select({ f: clients.firstName, l: clients.lastName }).from(clients).where(and(eq(clients.id, row.clientId), eq(clients.companyId, companyId))).limit(1)
+      await core.familyComms.sendPortalEmail(companyId, isActive ? 'accessGranted' : 'accessRevoked', row.email, { name: row.name, client: `${cl?.f ?? ''} ${cl?.l ?? ''}`.trim(), loginUrl: familyLoginUrl() })
+    }
     return one(c, { success: true, member: row })
   })
 
@@ -233,7 +254,13 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
         if (!phone) return fail(c, 400, 'Add a phone number before turning on arrival texts.', 'phone_required')
         patch.visitTextOptIn = true
         patch.visitTextOptInAt = new Date()
-      } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null }
+        patch.visitTextConsentWording = consentWording(await agencyName(me.companyId))
+        patch.visitTextOptOutAt = null
+      } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null; patch.visitTextConsentWording = null }
+    }
+    if (typeof b?.visitEmailOptIn === 'boolean') {
+      patch.visitEmailOptIn = b.visitEmailOptIn
+      patch.visitEmailOptInAt = b.visitEmailOptIn ? new Date() : null
     }
     const [row] = await db.update(familyMembers).set({ ...patch, updatedAt: new Date() })
       .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId)))
@@ -352,6 +379,43 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   // ════ FAMILY SIGN-IN (public) ═══════════════════════════════════════════════════════════
 
   // 20 sign-ins per 15 minutes per address (the template's index.ts limit, here beside the route).
+  // ── Forgot password (care_family_comms): the relative asks for a link; it works once, for an hour ─────────────────────────────
+  // One company per database, so the public sign-in page can ask whether this agency has the flow before it shows the link.
+  const theCompanyId = async (): Promise<string | null> => (await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.id ?? null
+  app.get('/options', createRateLimiter(60 * 1000, 60), async (c) => {
+    const id = await theCompanyId()
+    return one(c, { forgotPassword: !!id && await core.familyComms.enabled(id) })
+  })
+  const RESET_MESSAGE = 'If that email has a family portal account, we have sent a link to reset the password. It works for one hour.'
+  app.post('/forgot-password', createRateLimiter(15 * 60 * 1000, 5), async (c) => {
+    const { email } = await c.req.json().catch(() => ({} as any))
+    const member = email ? await familyMemberForLogin(db, normEmail(email)) : null
+    // The same answer whether or not there is an account, so the page cannot be used to find out who has one.
+    if (member?.passwordHash && member.isActive !== false && await core.familyComms.enabled(member.companyId)) {
+      const token = jwt.sign({ purpose: 'family_reset', fid: member.id, v: String(member.passwordHash).slice(-12) }, process.env.JWT_SECRET!, { expiresIn: '1h' })
+      const [cl] = await db.select({ f: clients.firstName, l: clients.lastName }).from(clients).where(and(eq(clients.id, member.clientId), eq(clients.companyId, member.companyId))).limit(1)
+      await core.familyComms.sendPortalEmail(member.companyId, 'forgotPassword', member.email, {
+        name: member.name, client: `${cl?.f ?? ''} ${cl?.l ?? ''}`.trim(), resetUrl: `${familyLoginUrl()}?reset=${token}`,
+      })
+    }
+    return one(c, { message: RESET_MESSAGE })
+  })
+  app.post('/reset-password', createRateLimiter(15 * 60 * 1000, 10), async (c) => {
+    const { token, password } = await c.req.json().catch(() => ({} as any))
+    if (typeof password !== 'string' || password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters', 'password_too_short')
+    let claims: any
+    try { claims = jwt.verify(String(token || ''), process.env.JWT_SECRET!) } catch { return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link') }
+    if (claims?.purpose !== 'family_reset' || !claims.fid) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    const [member] = await db.select({ id: familyMembers.id, companyId: familyMembers.companyId, passwordHash: familyMembers.passwordHash, isActive: familyMembers.isActive })
+      .from(familyMembers).where(eq(familyMembers.id, String(claims.fid))).limit(1)
+    // Single use: the link carries the tail of the password it replaces, so once the password changes the link is spent.
+    if (!member || !member.isActive || !member.passwordHash || String(member.passwordHash).slice(-12) !== claims.v) return fail(c, 400, 'This link has already been used or has expired. Ask for a new one.', 'bad_reset_link')
+    if (!(await core.familyComms.enabled(member.companyId))) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    await db.update(familyMembers).set({ passwordHash: await Bun.password.hash(password, 'bcrypt'), updatedAt: new Date() })
+      .where(and(eq(familyMembers.id, member.id), eq(familyMembers.companyId, member.companyId)))
+    return done(c, 'Your password has been changed. You can sign in now.')
+  })
+
   app.post('/login', createRateLimiter(15 * 60 * 1000, 20), async (c) => {
     const { email, password } = await c.req.json().catch(() => ({} as any))
     if (!email || !password) return fail(c, 400, 'Email and password are required')
@@ -401,7 +465,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   // ════ THE FAMILY'S PORTAL ═══════════════════════════════════════════════════════════════
 
   // careContent: the agency has the daily-care tabs on (care_family_content) — the portal shows them and wording like "Medicine list".
-  app.get('/portal/me', familyAuth, async (c) => one(c, { ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')) }))
+  app.get('/portal/me', familyAuth, async (c) => one(c, { ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')), careComms: await core.familyComms.enabled(c.get('familyCompanyId')) }))
 
   app.get('/portal/client', familyAuth, async (c) => {
     const companyId = c.get('familyCompanyId')
@@ -527,6 +591,23 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       'Content-Disposition': `attachment; filename="${String(doc.fileName || 'document').replace(/[^\w.\- ]/g, '_')}"`,
       'X-Content-Type-Options': 'nosniff',
     } })
+  })
+
+  // ── Requests to the office (care_family_comms): change a visit, change the service, ask for a new visit ────────────────────
+  app.get('/portal/requests', familyAuth, async (c) => {
+    if (!(await core.familyComms.enabled(c.get('familyCompanyId')))) return fail(c, 404, 'Not found')
+    if (!allowed(c, 'canMessage')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyComms.requestsOf(c.get('familyCompanyId'), c.get('familyMember').id))
+  })
+  app.post('/portal/requests', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    if (!allowed(c, 'canMessage')) return fail(c, 403, 'Access denied')
+    const b = await c.req.json().catch(() => ({} as any))
+    const m = c.get('familyMember')
+    const r = await core.familyComms.createRequest(companyId, { id: m.id, clientId: c.get('familyClientId'), name: m.name }, b)
+    if (!r.ok) return fail(c, 400, r.message, r.code, r.fields)
+    return one(c, { id: r.id, kinds: REQUEST_KINDS }, 201)
   })
 
   // Visit notes are part of the care-plan tier.

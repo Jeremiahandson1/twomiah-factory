@@ -55,6 +55,9 @@ interface Member {
   isActive: boolean
   isPrimaryContact: boolean | null
   visitTextOptIn?: boolean | null
+  visitTextConsentWording?: string | null
+  visitTextOptOutAt?: string | null
+  visitEmailOptIn?: boolean | null
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
@@ -713,6 +716,7 @@ interface EditPatch {
   name: string; phone: string; relationship: string
   canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canMessage: boolean; isPrimaryContact: boolean
   visitTextOptIn: boolean
+  visitEmailOptIn: boolean
 }
 
 function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubmit: (patch: EditPatch) => Promise<void>; onCancel: () => void }) {
@@ -729,9 +733,15 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
     visitTextOptIn: !!member.visitTextOptIn,
+    visitEmailOptIn: !!member.visitEmailOptIn,
   })
   const textsOn = useAuth().hasFeature('care_family_texts')
   const editContentOn = useAuth().hasFeature('care_family_content')
+  const commsOn = useAuth().hasFeature('care_family_comms')
+  const [words, setWords] = useState('')
+  useEffect(() => {
+    if (commsOn && textsOn) api.get('/api/family-comms/consent-wording').then((r: any) => setWords(r?.text || '')).catch(() => {})
+  }, [commsOn, textsOn])
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -783,6 +793,25 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
             Text them when the caregiver arrives and when they leave
           </label>
           <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. No texts between 9 PM and 8 AM; they can reply STOP at any time.</small>
+          {commsOn && (
+            <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>
+              {member.visitTextOptIn && member.visitTextConsentWording
+                ? <>What they agreed to, kept with their yes: &ldquo;{member.visitTextConsentWording}&rdquo;</>
+                : member.visitTextOptIn
+                  ? <>Their yes was recorded before the words were kept.</>
+                  : words ? <>Ticking this records their yes to: &ldquo;{words}&rdquo; Read it to them first.</> : null}
+              {member.visitTextOptOutAt && !member.visitTextOptIn ? <div>They replied STOP on {formatDateTime(member.visitTextOptOutAt)}. Texts stay off until you record a new yes.</div> : null}
+            </div>
+          )}
+        </div>
+      )}
+      {commsOn && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input type="checkbox" checked={form.visitEmailOptIn} onChange={(e) => setForm({ ...form, visitEmailOptIn: e.target.checked })} />
+            Email them when the caregiver arrives and when they leave
+          </label>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Goes to their login email.</small>
         </div>
       )}
       <div className="modal-actions">

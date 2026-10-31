@@ -2125,6 +2125,12 @@ export const familyMembers = pgTable('family_members', {
   // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
   visitTextOptIn: boolean('visit_text_optin').default(false).notNull(),
   visitTextOptInAt: timestamp('visit_text_optin_at'),
+  // care_family_comms: the exact words the relative agreed to (kept with the yes), when they texted STOP (our own record of it), and the same
+  // yes for the arrival / finish EMAIL.
+  visitTextConsentWording: text('visit_text_consent_wording'),
+  visitTextOptOutAt: timestamp('visit_text_optout_at'),
+  visitEmailOptIn: boolean('visit_email_optin').default(false).notNull(),
+  visitEmailOptInAt: timestamp('visit_email_optin_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2276,10 +2282,34 @@ export const familyVisitText = pgTable('family_visit_text', {
   familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
   event: text('event').notNull(),
   status: text('status').notNull(),
+  // care_family_comms: how it was sent (sms | email), and why it was not when it was not (plain words for the office's screen)
+  channel: text('channel').default('sms').notNull(),
+  reason: text('reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('family_visit_text_company_id_idx').on(t.companyId),
-  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event),
+  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event, t.channel),
+])
+
+// A relative's request to the office (care_family_comms): a change to a visit, a change to the service, or a new visit. It becomes an office task
+// (task_id) and counts on the "Open requests" tile until the office has dealt with it.
+export const familyRequest = pgTable('family_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // visit_change | service_change | new_visit
+  visitDate: text('visit_date'), // the visit it is about / wanted day, YYYY-MM-DD
+  details: text('details').notNull(),
+  status: text('status').default('open').notNull(), // open | done | declined
+  taskId: text('task_id'),
+  handledById: text('handled_by_id').references(() => user.id),
+  handledNote: text('handled_note'),
+  handledAt: timestamp('handled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_request_company_idx').on(t.companyId, t.status, t.createdAt),
+  index('family_request_client_idx').on(t.clientId),
 ])
 
 export const payrollRecords = pgTable('payroll_records', {
