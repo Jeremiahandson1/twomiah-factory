@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useToast } from '../../../../shared'
+import { errorText, useMayWrite, useToast } from '../../../../shared'
 
 interface Start { to: string[]; cc: string[]; subject: string; message: string; attachment: string; sendable: boolean; statusLabel: string; supplierApi: { label: string; connected: boolean } | null }
 interface BulkResult { sent: number; failed: number; results: Array<{ id: string; sent: boolean; error?: string }> }
@@ -13,6 +13,8 @@ interface BulkResult { sent: number; failed: number; results: Array<{ id: string
 export default function MaterialSendForm({ orderIds, onClose, onSent }: { orderIds: string[]; onClose: () => void; onSent: () => void }) {
   const toast = useToast()
   const many = orderIds.length > 1
+  // POST …/send asks inventory:update.
+  const mayUpdate = useMayWrite('inventory:update')
   const [start, setStart] = useState<Start | null>(null)
   const [to, setTo] = useState('')
   const [cc, setCc] = useState('')
@@ -95,7 +97,7 @@ export default function MaterialSendForm({ orderIds, onClose, onSent }: { orderI
         <div className="flex justify-end gap-2 mt-5">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg dark:text-slate-300 dark:hover:bg-slate-800">{outcome ? 'Close' : 'Cancel'}</button>
           {start && !outcome && (
-            <button type="button" onClick={send} disabled={sending || (!many && !start.sendable)} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+            <button type="button" onClick={send} disabled={sending || !mayUpdate || (!many && !start.sendable)} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
               <Send className="w-4 h-4" /> {sending ? 'Sending…' : 'Send'}
             </button>
           )}

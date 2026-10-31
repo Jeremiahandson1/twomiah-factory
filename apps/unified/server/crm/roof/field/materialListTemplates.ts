@@ -15,7 +15,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { materialListTemplate } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { DEFAULT_ASSUMPTIONS, cleanAssumptions } from '../materialList.ts'
 
@@ -55,7 +55,7 @@ export function createMaterialListTemplateRoutes(d: CrmDeps) {
   app.get('/', requirePermission('jobs:read'), async (c) => {
     const me = c.get('user')
     const rows = await db.select().from(materialListTemplate).where(eq(materialListTemplate.companyId, me.companyId)).orderBy(asc(materialListTemplate.name))
-    return list(c, rows.map(shapeTemplate), { page: 1, limit: rows.length || 1, total: rows.length })
+    return listAll(c, rows.map(shapeTemplate))
   })
 
   app.post('/', requirePermission('inventory:create'), async (c) => {

@@ -22,7 +22,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { material, supplierPriceItem, supplierPriceList, user } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { clearPricing, dollarsToCents, parsePriceCsv, priceLines, sameSupplier, totalOf, type OrderLine, type ParsedItem, type PriceItem } from '../supplierPricing.ts'
@@ -110,7 +110,7 @@ export function createMaterialSupplyRoutes(d: CrmDeps) {
     const mine = supplier ? rows.filter((r: any) => sameSupplier(r.supplier, supplier)) : rows
     const counts = new Map<string, number>()
     for (const r of mine) counts.set(r.id, (await db.select({ id: supplierPriceItem.id }).from(supplierPriceItem).where(eq(supplierPriceItem.priceListId, r.id))).length)
-    return list(c, mine.map((r: any) => shapeList(r, { itemCount: counts.get(r.id) ?? 0 })), { page: 1, limit: mine.length || 1, total: mine.length })
+    return listAll(c, mine.map((r: any) => shapeList(r, { itemCount: counts.get(r.id) ?? 0 })))
   })
 
   app.get('/price-lists/:id', needCost, async (c) => {
@@ -268,7 +268,7 @@ export function createMaterialSupplyRoutes(d: CrmDeps) {
   app.get('/supplier-apis', requirePermission('inventory:read'), async (c) => {
     const me = c.get('user')
     const rows = SUPPLIER_APIS.map((a) => describeSupplierApi(a, me.companyId))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // Declared before the single-order route so "send" is never read as an order id.
