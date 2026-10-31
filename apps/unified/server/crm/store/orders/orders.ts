@@ -255,6 +255,8 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const final = givesMoneyBack ? (await refunds.orderOf(prev.id, companyId))! : updated
     await refunds.logStatusChange(c, prev, final, restocked, money)
     if (next === 'shipped' && prev.status !== 'shipped') void core.notifyShipped(updated)
+    // The first time an order is fulfilled (shipped, packed, picked up) the shop's webhooks are told (store_webhooks).
+    if (!prev.fulfilledAt && updated.fulfilledAt) await core.events.order(companyId, 'order.fulfilled', updated.id)
     if (next === 'ready_for_pickup' && prev.status !== 'ready_for_pickup') void notifyReady(updated)
     // An order that has reached the customer (delivered, or picked up) asks for a Google review — when the shop has Review Requests
     // on and has switched requests on in Reviews › Settings (the service checks that). One request per customer per 30 days.
@@ -408,6 +410,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
       })
     }
     if (markShipped && prev.status !== 'shipped') void core.notifyShipped(updated)
+    if (!prev.fulfilledAt && updated.fulfilledAt) await core.events.order(updated.companyId, 'order.fulfilled', updated.id)
     return one(c, orderForSeat(seat, updated))
   })
 

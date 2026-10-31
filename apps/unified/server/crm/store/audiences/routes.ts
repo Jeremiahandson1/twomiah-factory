@@ -54,7 +54,7 @@ export function createAudienceRoutes(d: CrmDeps) {
 
   /** The segment's people as hashed rows for a platform, and who was left out. */
   async function rowsFor(c: Context, platform: 'meta' | 'google') {
-    const [seg] = await db.select().from(storeSegment).where(and(eq(storeSegment.id, c.req.param('id')), eq(storeSegment.companyId, own(c)))).limit(1)
+    const [seg] = await db.select().from(storeSegment).where(and(eq(storeSegment.id, String(c.req.param('id'))), eq(storeSegment.companyId, own(c)))).limit(1)
     if (!seg) return { reply: fail(c, 404, 'Not found') }
     const found = await audiencePeople(db, own(c), seg.definition, await zoneOf(own(c)))
     const rows = platform === 'meta' ? found.people.map(metaRow).filter((r): r is MetaRow => !!r) : found.people.map(googleRow).filter((r): r is GoogleRow => !!r)

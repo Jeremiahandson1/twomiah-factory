@@ -266,6 +266,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
   /** The parcel is here. The units go back on the shelf now (once), unless the owner says they cannot be sold again. */
   async function receive(companyId: string, id: string, a: { restock: boolean; staffNote?: string | null }, by: Who, c?: Context | null): Promise<{ ok: true; ret: Return; restocked: number } | Refusal> {
     let restocked = 0
+    const restockedVariants: string[] = []
     const moved: Return | null = await db.transaction(async (tx: any) => {
       const [row]: Return[] = await tx.update(storeReturn).set({
         status: 'received', receivedAt: new Date(), receivedByName: by.name ?? null, staffNote: a.staffNote?.trim().slice(0, 1000) || undefined, ...(a.restock ? { restockedAt: new Date() } : {}), updatedAt: new Date(),
@@ -274,7 +275,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       if (a.restock) {
         for (const l of row.items) {
           const [it] = await tx.select({ variantId: storeOrderItem.variantId }).from(storeOrderItem).where(and(eq(storeOrderItem.id, l.orderItemId), eq(storeOrderItem.orderId, row.orderId))).limit(1)
-          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity))) restocked += l.quantity
+          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity))) { restocked += l.quantity; restockedVariants.push(it.variantId) }
         }
       }
       return row
@@ -283,6 +284,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       const had = await returnOf(id, companyId)
       return had ? no(409, 'This return is not waiting to be received.', 'wrong_status') : no(404, 'Not found', 'not_found')
     }
+    await core.events.stock(companyId, restockedVariants)
     const order = await orderOf(moved.orderId, companyId)
     if (order) {
       await log(companyId, { action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber, metadata: { description: `Return ${moved.returnNumber} received${restocked ? `, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : a.restock ? '' : ', not restocked'}`, returnId: moved.id, restocked } }, c)
@@ -450,6 +452,10 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       if (!(e instanceof Moved)) throw e
       return no(409, 'Someone else just changed this order, return or stock, so the exchange was not made. Reload and try again.', 'order_changed')
     }
+    // The exchange is an order of its own, paid at no charge: told to the shop's webhooks, with its stock (store_webhooks).
+    await core.events.order(companyId, 'order.created', made.id)
+    await core.events.order(companyId, 'order.paid', made.id)
+    await core.events.stock(companyId, [...wanted.keys()].map((sku) => found.find((x) => x.v.sku === sku)?.v.id))
     await log(companyId, { action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber, metadata: { description: `Return ${ret0.returnNumber} exchanged: order ${made.orderNumber} sent at no charge${difference ? `, ${formatCents(difference, order.currency)} of the difference ${credit === difference ? 'as store credit' : 'refunded'}` : ''}`, returnId: id, exchangeOrderId: orderId } }, c)
     let pending = false
     if (difference > 0) {

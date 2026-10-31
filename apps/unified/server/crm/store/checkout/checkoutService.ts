@@ -188,6 +188,12 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       await decrementStock(db, it.variantId, it.quantity)
     }
 
+    // Told to the shop's webhooks (store_webhooks): the order exists from here — a checkout nobody paid for is not an order and says
+    // nothing — then its stock. Never blocks, never waits on the receiver.
+    await core.events.order(companyId, 'order.created', order.id)
+    await core.events.order(companyId, 'order.paid', order.id)
+    await core.events.stock(companyId, items.map((it) => it.variantId))
+
     // Notify the buyer (confirmation) + the merchant (new order). Non-blocking — never fail the order because email
     // is down or unconfigured (core.mail never throws).
     try {

@@ -713,3 +713,66 @@ export const storeAudienceLog = pgTable('store_audience_log', {
   detail: text('detail'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('store_audience_log_company_idx').on(t.companyId, t.createdAt)])
+
+/**
+ * Outgoing webhooks (store_webhooks, 2026-10-31, parity row 8; Shopify's webhook subscriptions). One row per address the shop posts
+ * its events to. The signing secret is encrypted (core/crypto); it is shown to the owner once, at creation, and can be replaced.
+ */
+export const storeWebhook = pgTable('store_webhooks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secretEnc: text('secret_enc').notNull(),
+  /** ['order.paid', …] — never empty; a webhook that wants everything lists them all. */
+  events: json('events').$type<string[]>().notNull(),
+  active: boolean('active').notNull().default(true),
+  lastDeliveryAt: timestamp('last_delivery_at'),
+  lastStatus: integer('last_status'),
+  /** Deliveries in a row that did not end well; reset by one that did. */
+  failureCount: integer('failure_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [index('store_webhooks_company_idx').on(t.companyId)])
+
+/**
+ * One event owed to one webhook — the delivery log, and the queue the retries read. `eventId` is the same for every attempt (and
+ * for every webhook the event went to), so a receiver can ignore one it already handled.
+ */
+export const storeWebhookDelivery = pgTable('store_webhook_deliveries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  webhookId: text('webhook_id').notNull().references(() => storeWebhook.id, { onDelete: 'cascade' }),
+  eventId: text('event_id').notNull(),
+  event: text('event').notNull(),
+  /** The exact JSON body that is signed and posted. */
+  payload: text('payload').notNull(),
+  /** pending (next attempt due) | delivered | dead (out of attempts) | stopped (the webhook was switched off or its address refused) */
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  responseStatus: integer('response_status'),
+  error: text('error'),
+  nextAttemptAt: timestamp('next_attempt_at'),
+  lastAttemptAt: timestamp('last_attempt_at'),
+  deliveredAt: timestamp('delivered_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  index('store_webhook_deliveries_webhook_idx').on(t.webhookId, t.createdAt),
+  index('store_webhook_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+])
+
+/**
+ * Public store API keys (store_api, 2026-10-31, parity row 8; Shopify's Admin API access tokens, within one shop). Only the hash of
+ * the key is kept: the key is shown once, at creation. `prefix` is its first characters, to tell keys apart on the screen.
+ */
+export const storeApiKey = pgTable('store_api_keys', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  prefix: text('prefix').notNull(),
+  keyHash: text('key_hash').notNull().unique(),
+  /** products:read, orders:read, customers:read, inventory:read, inventory:write */
+  scopes: json('scopes').$type<string[]>().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [index('store_api_keys_company_idx').on(t.companyId)])

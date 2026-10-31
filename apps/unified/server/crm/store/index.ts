@@ -24,6 +24,10 @@ import { createAudienceRoutes } from './audiences/routes.ts'
 import { audiencesEnabled, settingsRow as audienceSettings } from './audiences/audiences.ts'
 import { createExpressRoutes } from './checkout/expressRoutes.ts'
 import { createStoreGiftCards } from './giftCards.ts'
+import { createStoreEvents, registerStoreEvents } from './apps/events.ts'
+import { createApiKeys } from './apps/apiKeys.ts'
+import { createStoreApi } from './apps/publicApi.ts'
+import { createApiKeyRoutes, createAppsRoutes, createWebhookRoutes } from './apps/routes.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
 const cores = new WeakMap<object, StoreCore>()
@@ -39,6 +43,11 @@ export function storeMounts(d: CrmDeps): Mount[] {
   const core = coreFor(d)
   const followups = createFollowups(d, core)
   d.services.addJob(() => followups.start())
+  // 2026-10-31, parity row 8: what happens in the store is told to the shop's webhooks (store_webhooks); the retries run on a timer.
+  const events = createStoreEvents(d)
+  registerStoreEvents(d.services, events)
+  d.services.addJob(() => { const t = setInterval(() => { void events.webhooks.sweep().catch((e: any) => d.logger.warn('[store] webhook sweep failed', { error: e?.message })) }, 60_000); (t as any).unref?.() })
+  const apiKeys = createApiKeys(d.db)
   return ([
     // The payment and supplier webhooks move an order's refunds and status by the orders group's rules.
     ...checkoutMounts(d, core, createOrderHooks(d, core)),
@@ -54,6 +63,12 @@ export function storeMounts(d: CrmDeps): Mount[] {
     { path: '/api/admin/audiences', access: 'user', feature: 'store_audiences', router: createAudienceRoutes(d) },
     // 2026-10-31, parity row 6: Apple Pay / Google Pay / Link buttons (quote, intent, keys), behind store_fast_checkout (not ready), 404 when off.
     { path: '/api/public/express', access: 'public', feature: 'store_fast_checkout', router: createExpressRoutes(d, core, createCheckoutService(d, core), createStoreGiftCards(d, core)) },
+    // 2026-10-31, parity row 8: Apps & integrations — the catalogue, the outgoing webhooks, the Store API keys (each hidden, 403 when off) and
+    // the Store API itself, which answers to a key rather than a sign-in (public, 404 when off).
+    { path: '/api/admin/apps', access: 'user', feature: 'store_apps', router: createAppsRoutes(d, core) },
+    { path: '/api/admin/store-webhooks', access: 'user', feature: 'store_webhooks', router: createWebhookRoutes(d, events) },
+    { path: '/api/admin/store-api-keys', access: 'user', feature: 'store_api', router: createApiKeyRoutes(d, apiKeys) },
+    { path: '/api/store/v1', access: 'public', feature: 'store_api', router: createStoreApi(d, core, apiKeys) },
     // 2026-10-30, gap 7: shoppers sign in (their own cookie, not the staff's); behind store_accounts (not ready), 404 when off.
     { path: '/api/public/account', access: 'public', feature: 'store_accounts', router: createShopperAccountRoutes(d, core) },
   ] as Mount[]).map((m) => ({ ...m, addon: 'store' }))

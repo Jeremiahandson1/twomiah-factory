@@ -218,6 +218,8 @@ export function createReorderRoutes(d: CrmDeps, core: StoreCore) {
     if (!parsed.data.lines.some((l) => l.quantity > 0)) return fail(c, 400, 'Enter at least one count above zero.', 'validation_failed')
     const result = await receiveAgainst(db, companyId, po.id, parsed.data.lines)
     if ('problem' in result) return fail(c, 409, result.problem, 'too_many')
+    // The received lines' options have more on the shelf: told to the shop's webhooks (store_webhooks).
+    await core.events.stock(companyId, (await linesOf(db, po.id)).filter((l: any) => parsed.data.lines.some((r) => r.lineId === l.id && r.quantity > 0)).map((l: any) => l.variantId))
     await d.audit.log({ action: 'update', entity: 'store_purchase_order', entityId: po.id, entityName: po.number, metadata: { description: `${po.number}: ${result.booked} received, stock updated (${result.status === 'received' ? 'complete' : 'part'})` }, companyId, req: c })
     return one(c, await whole(companyId, (await orderOf(companyId, po.id))!))
   })

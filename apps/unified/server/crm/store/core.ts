@@ -34,6 +34,7 @@ import type { SupplierProvider, SupplierCredentials } from './suppliers/types.ts
 import { PrintfulProvider } from './suppliers/printful.ts'
 import { CjProvider } from './suppliers/cj.ts'
 import { storeTemplates, emailOrder, emailItems } from './emails.ts'
+import { lazyEvents } from './apps/events.ts'
 
 export const DEFAULT_PARCEL: Parcel = { lengthIn: 10, widthIn: 8, heightIn: 4, weightOz: 16 }
 /** A shop rewards an order with goods, not a "service" — the shared default's word. (Store QA T1, L1) */
@@ -251,7 +252,7 @@ export function createStoreCore(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>) 
               fulfilledAt: new Date(), updatedAt: new Date(),
               // still paid AT THE UPDATE: a refund or cancellation since the read keeps its status
             }).where(and(eq(storeOrder.id, o.id), eq(storeOrder.companyId, co.id), eq(storeOrder.status, 'paid'))).returning()
-            if (updated) void notifyShipped(updated)
+            if (updated) { void notifyShipped(updated); await events.order(co.id, 'order.fulfilled', updated.id) }
           }
         } catch (err: any) {
           logger.warn('[store] supplier tracking poll failed', { orderId: o.id, error: err?.message })
@@ -444,8 +445,11 @@ export function createStoreCore(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>) 
     } catch (e: any) { d.logger.warn('[store] welcome email not sent', { error: e?.message }) }
   }
 
+  // What happened in the store, told to the addresses that asked (store_webhooks, parity row 8). Silent when none is registered.
+  const events = lazyEvents(d.services)
+
   return {
-    shop, isClosed, settings, welcomeFirstOrder,
+    shop, isClosed, settings, welcomeFirstOrder, events,
     getActiveProvider, connectedStripe, getActiveShipping, getActiveSupplier,
     mail, notifyShipped, forwardOrderToSupplier, sweepSupplierOrders,
     findShopper, shopperFor,

@@ -317,7 +317,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       trackingNumber: result.trackingNumber,
       updatedAt: new Date(),
     }).where(moves ? and(eq(storeOrder.id, order.id), mine, eq(storeOrder.status, order.status)) : and(eq(storeOrder.id, order.id), mine)).returning()
-    if (moves && updated) void core.notifyShipped(updated)
+    if (moves && updated) { void core.notifyShipped(updated); await core.events.order(updated.companyId, 'order.fulfilled', updated.id) }
     if (!moves && order.status !== 'shipped') logger.warn('[store] supplier shipped an order that is not open to ship', { order: order.id, status: order.status })
     return done(c)
   })

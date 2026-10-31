@@ -14,6 +14,7 @@
 //   Segments   /crm/segments    GET /api/admin/segments               marketing:read, with the store_segments feature
 //   Post-purchase emails /crm/followups GET /api/admin/followups     marketing:read, with the store_followups feature
 //   Audiences  /crm/audiences GET /api/admin/audiences         marketing:update, with the store_audiences feature
+//   Apps & integrations /crm/apps GET /api/admin/apps                integrations:update, with the store_apps feature
 //   Reorders   /crm/reorders  GET /api/admin/reorders           margin:read, with the store_reorders feature
 //   Returns    /crm/returns     GET /api/admin/store-returns          orders:read, with the store_returns feature
 //   Sales      /crm/sales       GET /api/admin/sales-reports           revenue:read, with the store_sales_reports feature
@@ -25,7 +26,7 @@
 // The dashboard is not a route here: it is the store's home at /crm/dashboard (crm/screens.tsx HOMES, `dashboard`).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BarChart3, CreditCard, Filter, Home, MailCheck, Megaphone, Package, PackageCheck, ShieldAlert, ShoppingBag, Truck, Undo2, Users } from 'lucide-react'
+import { BarChart3, CreditCard, Filter, Home, MailCheck, Megaphone, Package, PackageCheck, Plug, ShieldAlert, ShoppingBag, Truck, Undo2, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -43,6 +44,7 @@ const SegmentsPage = page(() => import('./SegmentsPage'))
 const FollowupsPage = page(() => import('./FollowupsPage'))
 const ReordersPage = page(() => import('./ReordersPage'))
 const AudiencesPage = page(() => import('./AudiencesPage'))
+const AppsPage = page(() => import('./AppsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
 export const routes: ReactElement[] = [
@@ -63,6 +65,8 @@ export const routes: ReactElement[] = [
   <Route key="store-reorders" path="reorders" element={<ReordersPage />} />,
   // Audiences and purchase tags (GET /api/admin/audiences: store_audiences + marketing:update; gated below, in routeGates).
   <Route key="store-audiences" path="audiences" element={<AudiencesPage />} />,
+  // Apps & integrations: the catalogue, Store API keys, webhooks (GET /api/admin/apps: store_apps + integrations:update; gated below, in routeGates).
+  <Route key="store-apps" path="apps" element={<AppsPage />} />,
   <Route key="store-customers" path="customers" element={<CustomersPage />} />,
   <Route key="store-payments" path="payments" element={<PaymentsPage />} />,
   <Route key="store-shipping" path="shipping" element={<ShippingPage />} />,
@@ -87,6 +91,8 @@ export const nav: NavItem[] = [
   // Sales reports: behind the store_sales_reports switch and the takings' permission (revenue:read), as the server asks both.
   { to: '/crm/sales', icon: BarChart3, label: 'Sales', features: ['store_sales_reports'], permission: 'revenue:read' },
   { to: '/crm/payments', icon: CreditCard, label: 'Payments', permission: 'payments:update' },
+  // Every account the shop connects, the Store API keys and the webhooks: behind store_apps; the server asks integrations:update.
+  { to: '/crm/apps', icon: Plug, label: 'Apps & integrations', features: ['store_apps'], permission: 'integrations:update' },
   { to: '/crm/suppliers', icon: Truck, label: 'Suppliers', permission: 'integrations:update' },
   // The carrier account and its labels' defaults: the seats that set shipping (shipping:configure — manager, owner). Staff
   // hold shipping:read only to buy a label from an order (store live test, 2026-10-26: staff reached the API key form).
@@ -106,6 +112,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/followups': 'marketing:read',
   '/crm/reorders': 'margin:read',
   '/crm/audiences': 'marketing:update',
+  '/crm/apps': 'integrations:update',
   '/crm/payments': 'payments:update',
   '/crm/suppliers': 'integrations:update',
   '/crm/shipping': 'shipping:configure',
@@ -113,7 +120,7 @@ export const routePermissions: Record<string, string> = {
 }
 
 /** Addresses typed in: the feature each needs, as its menu row does (the shell's routeGates). */
-export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'], '/crm/returns': ['store_returns'], '/crm/segments': ['store_segments'], '/crm/followups': ['store_followups'], '/crm/reorders': ['store_reorders'], '/crm/audiences': ['store_audiences'] }
+export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'], '/crm/returns': ['store_returns'], '/crm/segments': ['store_segments'], '/crm/followups': ['store_followups'], '/crm/reorders': ['store_reorders'], '/crm/audiences': ['store_audiences'], '/crm/apps': ['store_apps'] }
 
 /** The store's home at /crm/dashboard (its sales, orders to ship, set-up). */
 export const dashboard: import('react').ComponentType | null = page(() => import('./DashboardPage'))

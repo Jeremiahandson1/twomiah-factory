@@ -331,6 +331,12 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'store_reorders', name: 'Store Supplier Reorders', description: 'Draft a purchase order for each supplier from what is running low, email it, and book the stock in when it arrives', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'store_fast_checkout', name: 'Store Accelerated Checkout', description: 'Shoppers keep a card on the shop\'s own Stripe account (with their consent) and pay in one tap — at checkout, from order history, and with Apple Pay, Google Pay and Link buttons', category: 'POS & Sales', core: false, templates: ['crm-store'], hidden: true },
   { id: 'store_audiences', name: 'Store Audiences & Purchase Tags', description: 'Send a customer segment to Meta and Google Ads as a hashed audience (file or direct), and report purchases to Meta and Google Tag Manager', category: 'Marketing', core: false, templates: ['crm-store'], hidden: true },
+  // Store Apps & integrations — NOT ready (2026-10-31, parity row 8). Three hidden pieces: the catalogue page (connect state and settings of the
+  // shop's accounts), the Store API (per-shop keys with scopes), and outgoing signed webhooks (retries and a delivery log). Hidden until a run
+  // in a real browser has been seen.
+  { id: 'store_apps', name: 'Store Apps & Integrations', description: 'One page listing every account the shop connects (payments, shipping, QuickBooks, email, reviews, Google and Meta), with whether it is connected and where to change it', category: 'Marketing', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_api', name: 'Store API', description: 'Keys, each limited to what it may read or change, so a script or another system can read products, orders, customers and stock, and change stock counts', category: 'Marketing', core: false, templates: ['crm-store'], hidden: true },
+  { id: 'store_webhooks', name: 'Store Webhooks', description: 'The shop posts orders created, paid, fulfilled and refunded, and product and stock changes, to addresses you give it, signed, with retries and a delivery log', category: 'Marketing', core: false, templates: ['crm-store'], hidden: true },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance
