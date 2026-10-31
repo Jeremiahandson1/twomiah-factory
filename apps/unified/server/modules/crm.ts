@@ -274,7 +274,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, user, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     loadPdf: loadQuotePdf,
@@ -292,7 +292,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A converted quote's invoice is numbered as every invoice is (CrmSettings.invoices.numbering; templates/crm-rv routes/quotes.ts).
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
-      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
+      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', 'salespersonId', ...(v.roof ? ['jobId'] : [])],
       // An approved roofing proposal converts to a roofing job, made the one way a roofing job is made (ROOF-0001, titled
       // by the property address — server/crm/roof/jobs.ts insertRoofJob), at `signed`: an approved quote is the signed
       // contract. The CRM's default made a JOB-00001 at `pending`, a status no roofing screen has a column for.

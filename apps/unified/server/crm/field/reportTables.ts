@@ -7,7 +7,7 @@ export type ColKind = 'text' | 'money' | 'number' | 'date' | 'datetime' | 'perce
 export interface Col {
   key: string; label: string; kind?: ColKind
   /** The cell opens a record: which kind, and the row key that holds its id. */
-  link?: 'contact' | 'agreement' | 'invoice' | 'job'; idKey?: string
+  link?: 'contact' | 'agreement' | 'invoice' | 'job' | 'quote'; idKey?: string
   /** Shown unless the person has chosen their own columns. */
   default?: boolean
 }
@@ -40,7 +40,8 @@ export const monthStartIn = (tz: string) => (ym: string) => storeDayStart(`${ym}
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
 const cellText = (c: Col, v: unknown): string => {
   if (v == null || v === '') return ''
-  if ((c.kind === 'money' || c.kind === 'percent') && typeof v === 'number') return v.toFixed(c.kind === 'money' ? 2 : 0)
+  if (c.kind === 'money' && typeof v === 'number') return v.toFixed(2)
+  if (c.kind === 'percent' && typeof v === 'number') return String(Math.round(v * 100) / 100)
   return String(v)
 }
 

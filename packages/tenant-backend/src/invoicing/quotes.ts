@@ -32,6 +32,8 @@ export interface QuoteTables {
   invoiceLineItem: any
   company: any
   job: any
+  /** With the salesperson field: the team, to check the person named is on it. */
+  user?: any
   /** field service / landscaping */
   equipment?: any
   site?: any
@@ -42,7 +44,7 @@ export interface QuoteTables {
   pricebookGoodBetterBest?: any
 }
 
-export type QuoteExtraField = 'siteId' | 'equipmentId' | 'customerMessage' | 'jobId'
+export type QuoteExtraField = 'siteId' | 'equipmentId' | 'customerMessage' | 'jobId' | 'salespersonId'
 
 export interface QuoteOptions {
   /** Extra quote columns this vertical has (siteId, equipmentId, customerMessage). */
@@ -325,6 +327,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ...(extra.has('customerMessage') ? { customerMessage: z.string().optional() } : {}),
     // The job a quote is for (roofing: a proposal belongs to its job — quote.job_id, migration 0012).
     ...(extra.has('jobId') ? { jobId: optionalId } : {}),
+    // The salesperson credited with the quote (a team member), blank/null for none. Sent as a user id.
+    ...(extra.has('salespersonId') ? { salespersonId: z.string().nullable().optional() } : {}),
     expiryDate: z.union([z.string(), z.null()]).optional(),
     taxRate: z.number().min(0).max(100).optional(),
     discount: z.number().min(0, 'Discount cannot be negative').default(0),
@@ -344,7 +348,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (problem) return { error: problem }
     return { depositType: type, depositValue: round2(Number(value)).toString() }
   }
-  const COPY_FIELDS = ['name', 'contactId', 'projectId', 'notes', 'terms', ...(extra.has('siteId') ? ['siteId'] : []), ...(extra.has('equipmentId') ? ['equipmentId'] : []), ...(extra.has('customerMessage') ? ['customerMessage'] : []), ...(extra.has('jobId') ? ['jobId'] : [])] as const
+  const COPY_FIELDS = ['name', 'contactId', 'projectId', 'notes', 'terms', ...(extra.has('siteId') ? ['siteId'] : []), ...(extra.has('equipmentId') ? ['equipmentId'] : []), ...(extra.has('customerMessage') ? ['customerMessage'] : []), ...(extra.has('jobId') ? ['jobId'] : []), ...(extra.has('salespersonId') ? ['salespersonId'] : [])] as const
 
   const app = new Hono()
   app.use('*', authenticate)
@@ -360,6 +364,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     return r.ok && r.contactId ? r.contactId : null
   }
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
+  const ownSalesperson = async (companyId: string, id: string) => !t.user || (await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, companyId))).limit(1))[0]
   const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
   const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
@@ -502,6 +507,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // price. (Field Service T26 L2)
     const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings, today), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
+    // Salesperson: the signed-in writer unless the form names someone else (a blank is "no one"); checked against the team.
+    if (extra.has('salespersonId')) {
+      if (data.salespersonId === undefined) values.salespersonId = currentUser.userId || null
+      else if (!data.salespersonId) values.salespersonId = null
+      else if (!(await ownSalesperson(cid, data.salespersonId))) return c.json({ error: 'Choose the salesperson from your team.', fields: { salespersonId: 'Choose the salesperson from your team.' } }, 400)
+    }
     Object.assign(values, deposit)
     // Who wrote it, for the per-person conversion report — only where the table has the column (additive for the templates).
     if (currentUser.userId && 'createdById' in t.quote) values.createdById = currentUser.userId
@@ -562,6 +573,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
     const update: Record<string, any> = { updatedAt: new Date() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) update[k] = data[k]
+    if (extra.has('salespersonId') && data.salespersonId !== undefined) {
+      if (!data.salespersonId) update.salespersonId = null
+      else if (!(await ownSalesperson(cid, data.salespersonId))) return c.json({ error: 'Choose the salesperson from your team.', fields: { salespersonId: 'Choose the salesperson from your team.' } }, 400)
+    }
     if (exp.value !== undefined) update.expiryDate = exp.value
     // status may move between draft and sent from the editor; approvals go through their own routes
     if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
@@ -1052,7 +1067,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           : (await tx.insert(t.job).values(values).returning())[0]
         // The quote is the new job's proposal: it records the job it became and, where quotes belong to jobs, sits on it.
         if (o.hasConvertedToJobId || extra.has('jobId')) {
-          await tx.update(t.quote).set({ ...(o.hasConvertedToJobId ? { convertedToJobId: newJob.id } : {}), ...(extra.has('jobId') ? { jobId: newJob.id } : {}), updatedAt: new Date() }).where(eq(t.quote.id, id))
+          await tx.update(t.quote).set({ ...('convertedAt' in t.quote ? { convertedAt: new Date() } : {}), ...(o.hasConvertedToJobId ? { convertedToJobId: newJob.id } : {}), ...(extra.has('jobId') ? { jobId: newJob.id } : {}), updatedAt: new Date() }).where(eq(t.quote.id, id))
         }
         return newJob
       })

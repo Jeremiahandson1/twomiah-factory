@@ -247,6 +247,10 @@ export const job = pgTable('job', {
   // estimated_value; its money is the CRM's precision (12, 2), wider than roofing's (10, 2), so every value fits.
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
+  // How the job's revenue is shared when several people are on it: null/'equal' = equal shares, 'hours' = by the billable hours each
+  // logged on the job, 'percent' = the office's own split (`percents`, keyed "u:<user id>" / "m:<member id>", totalling 100).
+  // Written only by /api/team-revenue/jobs/:id/split, which checks it against the crew; read by the team revenue reports.
+  revenueSplit: json('revenue_split').$type<{ mode: 'equal' | 'hours' | 'percent'; percents?: Record<string, number> } | null>(),
   roofAge: integer('roof_age'),
   roofType: text('roof_type'),
   stories: integer('stories'),
@@ -388,8 +392,14 @@ export const quote = pgTable('quote', {
   // Who made the quote (the rep or tech who wrote it): quote conversion by person (field-service reports, 0041). Null on a
   // quote made before this was recorded, and where a quote was made by the system.
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  // The salesperson credited with the quote (Jobber's "salesperson"): the quote's writer by default, any team member on request,
+  // null for none. Separate from created_by_id, which stays who typed it. Team revenue reports cut quotes by it.
+  salespersonId: text('salesperson_id').references(() => user.id, { onDelete: 'set null' }),
+  // When the quote became a job (stamped by the convert route); the "converted" date basis of the team revenue report.
+  convertedAt: timestamp('converted_at'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
+  index('quote_salesperson_idx').on(t.salespersonId),
   index('quote_status_idx').on(t.status),
 ])
 
