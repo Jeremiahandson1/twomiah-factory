@@ -33,6 +33,7 @@ const qtyOf = (v: unknown, what = 'amount') => {
 export interface StockRow {
   id: string; name: string; category: string; unit: string; unitLabel: string; packName: string; packSize: number; packCostCents: number | null
   unitCostCents: number | null; vendorId: string | null; vendorName: string | null; parPacks: number | null; isActive: boolean
+  bottleTareGrams: number | null; bottleFullGrams: number | null
   lastCountAt: string | null; lastCountQty: number | null; receivedSince: number; usedSince: number
   onHand: number | null; onHandPacks: number | null; low: boolean; suggestPacks: number
 }
@@ -45,6 +46,28 @@ export function cleanFills(raw: unknown): number[] {
     const n = Number(v)
     if (!Number.isFinite(n) || n < 0 || n > 1) throw new StockError('A bottle is between empty and full.')
     return Math.round(n * 100) / 100
+  })
+}
+
+/**
+ * A bottle on a scale (parity row 15, Backbar's weighing): how full it is from its weight, between the empty bottle's weight
+ * (tare) and a full one's. Clamped to 0..1, in hundredths. Null when the item has no weights on file.
+ */
+export function fillFromWeight(grams: number, tareGrams: number | null, fullGrams: number | null): number | null {
+  if (tareGrams === null || fullGrams === null || fullGrams <= tareGrams) return null
+  if (!Number.isFinite(grams) || grams < 0) return null
+  return Math.round(Math.min(1, Math.max(0, (grams - tareGrams) / (fullGrams - tareGrams))) * 100) / 100
+}
+
+/** The weights typed or read from the scale, as fills, for an item with its weights on file. */
+export function fillsFromWeights(raw: unknown, it: { bottleTareGrams: number | null; bottleFullGrams: number | null; name: string }): number[] {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw) || raw.length > 24) throw new StockError('Weigh at most 24 open bottles of one thing.')
+  if (it.bottleTareGrams === null || it.bottleFullGrams === null) throw new StockError(`${it.name} has no bottle weights on file. Put the empty and full weights on the stock item first.`)
+  return raw.map((g) => {
+    const n = Number(g)
+    if (!Number.isFinite(n) || n < 0 || n > 100_000) throw new StockError('A weight is grams, 0 or more.')
+    return fillFromWeight(n, it.bottleTareGrams, it.bottleFullGrams)!
   })
 }
 
@@ -134,7 +157,7 @@ async function stockList(companyId: string, opts: { includeInactive?: boolean } 
     return {
       id: it.id, name: it.name, category: it.category, unit: it.unit, unitLabel: UNITS[it.unit] || it.unit, packName: it.packName, packSize: size,
       packCostCents: it.packCostCents, unitCostCents: unitCostCents(it), vendorId: it.vendorId, vendorName: it.vendorId ? vName.get(it.vendorId) || null : null,
-      parPacks: par, isActive: it.isActive, lastCountAt: b ? b.at.toISOString() : null, lastCountQty: b ? b.qty : null,
+      parPacks: par, isActive: it.isActive, bottleTareGrams: it.bottleTareGrams, bottleFullGrams: it.bottleFullGrams, lastCountAt: b ? b.at.toISOString() : null, lastCountQty: b ? b.qty : null,
       receivedSince: Math.round(receivedSince * 1000) / 1000, usedSince: Math.round(usedSince * 1000) / 1000,
       onHand, onHandPacks: onHand === null || size <= 0 ? null : Math.round((onHand / size) * 100) / 100,
       low: suggest > 0, suggestPacks: suggest,
@@ -151,9 +174,15 @@ async function saveStockItem(companyId: string, id: string | null, b: Record<str
   if (packSize <= 0) throw new StockError('A pack holds at least something.')
   const cost = b.packCostCents === null || b.packCostCents === undefined || String(b.packCostCents) === '' ? null : Math.round(qtyOf(b.packCostCents, 'price'))
   const par = b.parPacks === null || b.parPacks === undefined || String(b.parPacks) === '' ? null : qtyOf(b.parPacks, 'par')
+  // Bottle weights for the scale (parity row 15): both or neither, whole grams, a full bottle heavier than an empty one.
+  const grams = (v: unknown, what: string) => { if (v === null || v === undefined || String(v) === '') return null; const n = Math.round(Number(v)); if (!Number.isFinite(n) || n < 0 || n > 100_000) throw new StockError(`Check the ${what} weight: whole grams.`); return n }
+  const tare = grams(b.bottleTareGrams, 'empty bottle'), full = grams(b.bottleFullGrams, 'full bottle')
+  if ((tare === null) !== (full === null)) throw new StockError('Give both the empty bottle\'s weight and a full one\'s, or neither.')
+  if (tare !== null && full !== null && full <= tare) throw new StockError('A full bottle weighs more than an empty one.')
   const values = {
     name, category, unit, packName: clean(b.packName, 40) || (unit === 'each' ? 'each' : UNITS[unit]), packSize: String(packSize), packCostCents: cost,
     parPacks: par === null ? null : String(par), vendorId: await ownVendor(companyId, b.vendorId), isActive: b.isActive === undefined ? true : !!b.isActive, updatedAt: new Date(),
+    ...(b.bottleTareGrams !== undefined || b.bottleFullGrams !== undefined ? { bottleTareGrams: tare, bottleFullGrams: full } : {}),
   }
   if (id) {
     const [row] = await db.update(barStockItem).set(values).where(and(eq(barStockItem.id, id), eq(barStockItem.companyId, companyId))).returning()
@@ -277,8 +306,8 @@ async function currentCount(companyId: string, byName: string, create = true) {
   return { ...c, lines: lines.map(l => ({ stockItemId: l.stockItemId, qty: num(l.qty), fills: Array.isArray(l.fills) ? l.fills : [], countedByName: l.countedByName, countedAt: l.countedAt })) }
 }
 
-/** Record one item: packs + loose units → units. `clear` takes it back off the count. */
-async function countItem(companyId: string, countId: string, stockItemId: string, input: { packs?: unknown; units?: unknown; clear?: boolean; fills?: unknown }, byName: string) {
+/** Record one item: packs + loose units → units. `clear` takes it back off the count. Open bottles come as fills (how full) or as weights in grams (the scale), which become fills by the item's bottle weights. */
+async function countItem(companyId: string, countId: string, stockItemId: string, input: { packs?: unknown; units?: unknown; clear?: boolean; fills?: unknown; weightsGrams?: unknown }, byName: string) {
   const [c] = await db.select().from(barStockCount).where(and(eq(barStockCount.id, countId), eq(barStockCount.companyId, companyId))).limit(1)
   if (!c || c.status !== 'open') throw new StockError('That count is finished. Start a new one.', 409)
   const [it] = await db.select().from(barStockItem).where(and(eq(barStockItem.id, stockItemId), eq(barStockItem.companyId, companyId))).limit(1)
@@ -286,7 +315,8 @@ async function countItem(companyId: string, countId: string, stockItemId: string
   if (input.clear) { await db.delete(barStockCountLine).where(and(eq(barStockCountLine.countId, countId), eq(barStockCountLine.stockItemId, stockItemId))); return null }
   const packs = input.packs === undefined || String(input.packs) === '' ? 0 : qtyOf(input.packs, 'count')
   const units = input.units === undefined || String(input.units) === '' ? 0 : qtyOf(input.units, 'count')
-  const fills = cleanFills(input.fills)
+  const fills = [...cleanFills(input.fills), ...fillsFromWeights(input.weightsGrams, it)]
+  if (fills.length > 24) throw new StockError('Count at most 24 open bottles of one thing.')
   const qty = Math.round((packs * num(it.packSize) + units + fills.reduce((a, b) => a + b, 0)) * 1000) / 1000
   await db.insert(barStockCountLine).values({ countId, stockItemId, qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, companyId })
     .onConflictDoUpdate({ target: [barStockCountLine.countId, barStockCountLine.stockItemId], set: { qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, countedAt: new Date() } })

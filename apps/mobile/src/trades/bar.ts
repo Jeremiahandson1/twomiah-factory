@@ -113,12 +113,17 @@ export const BAR: ScreenSpec[] = [
       path: () => null, title: (d) => d.name, subtitle: (d) => d.packName && d.packSize ? `${d.packName} of ${d.packSize}` : undefined,
       sections: [{ fields: [{ label: 'Counting', get: () => 'Count what is on the shelf. The system\'s number stays hidden until you finish.' }] }],
       actions: [{ id: 'save-count', label: 'Save this count', icon: 'create', any: ['bar:register'],
-        // Open bottles by how full each is: sent only when one is filled in (the server takes it only where the venue has switched it on).
+        // Open bottles by how full each is (parity row 15): any number of them on a draggable slider, or weighed - grams typed in
+        // (a Bluetooth scale on the phone needs a native build with a Bluetooth module; see docs/parity/bar-13-fill-levels.md) and
+        // turned into fills by the server from the item's bottle weights. Sent only when filled in (the server takes them only where the venue has switched it on).
         inputs: [{ id: 'packs', label: 'Full packs', kind: 'number' }, { id: 'units', label: 'Loose units', kind: 'number' },
-          { id: 'fill1', label: 'Open bottle 1, how full', kind: 'level' }, { id: 'fill2', label: 'Open bottle 2, how full', kind: 'level' }, { id: 'fill3', label: 'Open bottle 3, how full', kind: 'level' }],
+          { id: 'fills', label: 'Open bottles, how full', kind: 'levels' },
+          { id: 'weights', label: 'Or weigh them: grams, one per bottle, with commas (needs the bottle weights on the item)' }],
         request: (d, v) => {
-          const fills = ['fill1', 'fill2', 'fill3'].filter((k) => String(v[k] ?? '').trim() !== '').map((k) => Number(v[k]) / 100)
-          return { method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0), ...(fills.length ? { fills } : {}) } }
+          let fills: number[] = []
+          try { fills = (JSON.parse(v.fills || '[]') as unknown[]).map(Number).filter((n) => Number.isFinite(n)).map((n) => Math.min(100, Math.max(0, n)) / 100) } catch { fills = [] }
+          const weightsGrams = String(v.weights ?? '').split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isFinite(n) && n >= 0)
+          return { method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0), ...(fills.length ? { fills } : {}), ...(weightsGrams.length ? { weightsGrams } : {}) } }
         }, done: 'Saved' }],
     },
   },

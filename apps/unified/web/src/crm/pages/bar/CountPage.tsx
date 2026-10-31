@@ -25,6 +25,41 @@ export default function CountPage() {
   const [entry, setEntry] = useState<Record<string, { packs: string; units: string }>>({});
   // Open bottles by how full each is, 0 to 1 (restaurant-bar-depth #13), per item.
   const [fills, setFills] = useState<Record<string, number[]>>({});
+  // The scale (parity row 15): a weight typed or read over Bluetooth becomes a fill by the item's bottle weights, the same arithmetic the server uses.
+  const [weighing, setWeighing] = useState<Record<string, string>>({});
+  const [scaleBusy, setScaleBusy] = useState('');
+  const bluetooth = typeof navigator !== 'undefined' && !!(navigator as any).bluetooth;
+  const fillOf = (grams: number, it: { bottleTareGrams?: number | null; bottleFullGrams?: number | null }) => (it.bottleTareGrams == null || it.bottleFullGrams == null || it.bottleFullGrams <= it.bottleTareGrams ? null : Math.round(Math.min(1, Math.max(0, (grams - it.bottleTareGrams) / (it.bottleFullGrams - it.bottleTareGrams))) * 100) / 100);
+  const addWeight = (it: any) => {
+    const g = Number(weighing[it.id]);
+    const f = Number.isFinite(g) && g >= 0 ? fillOf(g, it) : null;
+    if (f === null) { setErr('Type the weight in grams.'); return; }
+    setFills((s) => ({ ...s, [it.id]: [...(s[it.id] || []), f] })); setWeighing((s) => ({ ...s, [it.id]: '' }));
+  };
+  /** Bluetooth SIG Weight Scale service (0x181D), Weight Measurement (0x2A9D): flags bit 0 picks the unit; SI is 0.005 kg a step, imperial 0.01 lb. One reading, then the scale is let go. */
+  const readScale = async (it: any) => {
+    if (!bluetooth) return;
+    setScaleBusy(it.id); setErr('');
+    let device: any = null;
+    try {
+      device = await (navigator as any).bluetooth.requestDevice({ filters: [{ services: ['weight_scale'] }], optionalServices: ['weight_scale'] });
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('weight_scale');
+      const ch = await service.getCharacteristic('weight_measurement');
+      const grams = await new Promise<number>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('The scale did not send a weight. Put the bottle on and try again.')), 15000);
+        ch.addEventListener('characteristicvaluechanged', (ev: any) => {
+          const v: DataView = ev.target.value; const flags = v.getUint8(0); const raw = v.getUint16(1, true);
+          clearTimeout(timer); resolve(flags & 1 ? raw * 0.01 * 453.592 : raw * 0.005 * 1000);
+        });
+        ch.startNotifications().catch(reject);
+      });
+      const f = fillOf(Math.round(grams), it);
+      if (f === null) throw new Error('Put the empty and full bottle weights on the stock item first.');
+      setFills((s) => ({ ...s, [it.id]: [...(s[it.id] || []), f] }));
+    } catch (e: any) { setErr(e?.message || 'The scale could not be read.'); }
+    finally { try { device?.gatt?.disconnect(); } catch { /* already gone */ } setScaleBusy(''); }
+  };
   const [saved, setSaved] = useState<Record<string, number | null>>({});
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
@@ -98,6 +133,16 @@ export default function CountPage() {
                         </div>
                       ))}
                       <button type="button" className={`${BTN} ${OFF}`} onClick={() => setFills((s) => ({ ...s, [it.id]: [...(s[it.id] || []), 1] }))}>Add an open bottle</button>
+                      {/* The scale (parity row 15, Backbar): a weight in grams becomes a fill by the item's bottle weights; a Bluetooth scale reads straight in. */}
+                      {it.bottleTareGrams != null && it.bottleFullGrams != null && (
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <label className={LABEL} htmlFor={`w-${it.id}`}>Or weigh one (g)</label>
+                          <input id={`w-${it.id}`} className={`${INPUT} max-w-[7rem]`} inputMode="numeric" value={weighing[it.id] || ''} onChange={(ev) => setWeighing((s) => ({ ...s, [it.id]: ev.target.value }))} />
+                          <button type="button" className={`${BTN} ${OFF}`} onClick={() => addWeight(it)}>Add it as a bottle</button>
+                          <button type="button" className={`${BTN} ${OFF}`} disabled={!bluetooth} title={bluetooth ? 'Reads a Bluetooth scale (Weight Scale service)' : 'This browser cannot reach a Bluetooth scale; Chrome or Edge on a computer or Android can.'} onClick={() => readScale(it)}>{scaleBusy === it.id ? 'Reading…' : 'Read the scale'}</button>
+                          <span className={`text-xs ${MUTED}`}>Empty {it.bottleTareGrams} g, full {it.bottleFullGrams} g</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>

@@ -621,6 +621,9 @@ export const barStockItem = pgTable('bar_stock_item', {
   packCostCents: integer('pack_cost_cents'),              // last price paid (set when an order is received)
   vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
   parPacks: decimal('par_packs', { precision: 10, scale: 2 }),   // keep at least this many packs
+  /** Weighing a bottle on a scale (parity row 15, Backbar): the empty bottle's weight and a full one's, in grams; null = not weighed. */
+  bottleTareGrams: integer('bottle_tare_grams'),
+  bottleFullGrams: integer('bottle_full_grams'),
   isActive: boolean('is_active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

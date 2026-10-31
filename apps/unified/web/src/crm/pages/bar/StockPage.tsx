@@ -18,7 +18,7 @@ import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
  */
 
 type Tab = 'stock' | 'recipes' | 'counts' | 'orders' | 'invoices';
-interface StockRow { id: string; name: string; category: string; unit: string; unitLabel: string; packName: string; packSize: number; packCostCents: number | null; unitCostCents: number | null; vendorId: string | null; vendorName: string | null; parPacks: number | null; isActive: boolean; onHand: number | null; onHandPacks: number | null; low: boolean; suggestPacks: number; lastCountAt: string | null }
+interface StockRow { id: string; name: string; category: string; unit: string; unitLabel: string; packName: string; packSize: number; packCostCents: number | null; unitCostCents: number | null; vendorId: string | null; vendorName: string | null; parPacks: number | null; isActive: boolean; onHand: number | null; onHandPacks: number | null; low: boolean; suggestPacks: number; lastCountAt: string | null; bottleTareGrams?: number | null; bottleFullGrams?: number | null }
 interface Vendor { id: string; name: string; email: string | null; phone: string | null; orderDays: string | null }
 interface Meta { categories: Array<{ id: string; label: string }>; units: Record<string, string>; presets: Array<{ name: string; unit: string; size: number }> }
 
@@ -129,6 +129,11 @@ function ItemDialog({ item, meta, vendors, onClose, onSaved }: { item: Partial<S
         </div>
         <div><label className={LABEL} htmlFor="si-cost">Price per pack ($)</label><input id="si-cost" className={`${INPUT} mt-1`} inputMode="decimal" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: e.target.value })} placeholder="Set when an order comes in" /></div>
         <div><label className={LABEL} htmlFor="si-par">Keep at least (packs)</label><input id="si-par" className={`${INPUT} mt-1`} inputMode="decimal" value={f.par || ''} onChange={(e) => setF({ ...f, par: e.target.value })} /></div>
+        {/* Bottle weights for the scale (parity row 15): an empty bottle's weight and a full one's, in grams. */}
+        <div className="grid grid-cols-2 gap-2">
+          <div><label className={LABEL} htmlFor="si-tare">Empty bottle (g)</label><input id="si-tare" className={`${INPUT} mt-1`} inputMode="numeric" value={f.bottleTareGrams ?? ''} onChange={(e) => setF({ ...f, bottleTareGrams: e.target.value === '' ? null : (Number(e.target.value) as any) })} placeholder="for the scale" /></div>
+          <div><label className={LABEL} htmlFor="si-full">Full bottle (g)</label><input id="si-full" className={`${INPUT} mt-1`} inputMode="numeric" value={f.bottleFullGrams ?? ''} onChange={(e) => setF({ ...f, bottleFullGrams: e.target.value === '' ? null : (Number(e.target.value) as any) })} /></div>
+        </div>
         <div className="sm:col-span-2"><label className={LABEL} htmlFor="si-vendor">Vendor</label><select id="si-vendor" className={`${INPUT} mt-1`} value={f.vendorId || ''} onChange={(e) => setF({ ...f, vendorId: e.target.value || null })}><option value="">None</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
         <label className="sm:col-span-2 flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="checkbox" className="w-5 h-5" checked={f.isActive !== false} onChange={(e) => setF({ ...f, isActive: e.target.checked })} /> Still stocked (uncheck to retire it)</label>
       </div>
@@ -137,7 +142,7 @@ function ItemDialog({ item, meta, vendors, onClose, onSaved }: { item: Partial<S
         <button className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
         <button className={`${BTN} ${ON}`} disabled={busy || !f.name?.trim()} onClick={async () => {
           setBusy(true); setErr('');
-          const body = { name: f.name, category: f.category, unit: f.unit, packName: f.packName, packSize: f.packSize, packCostCents: f.cost?.trim() ? centsFrom(f.cost) : null, parPacks: f.par?.trim() ? f.par : null, vendorId: f.vendorId || null, isActive: f.isActive !== false };
+          const body = { name: f.name, category: f.category, unit: f.unit, packName: f.packName, packSize: f.packSize, packCostCents: f.cost?.trim() ? centsFrom(f.cost) : null, parPacks: f.par?.trim() ? f.par : null, vendorId: f.vendorId || null, isActive: f.isActive !== false, bottleTareGrams: f.bottleTareGrams ?? null, bottleFullGrams: f.bottleFullGrams ?? null };
           try { if (f.id) await api.patch(`/api/stock/items/${f.id}`, body); else await api.post('/api/stock/items', body); onSaved(); }
           catch (e) { setErr(errorText(e, 'That did not save.')); } finally { setBusy(false); }
         }}>Save</button>

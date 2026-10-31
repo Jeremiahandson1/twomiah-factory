@@ -1,11 +1,46 @@
 /** The sheet every kit write goes through: the words that say what will happen (confirm), the inputs, the button — and the server's own refusal shown as it came. */
 import React, { useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { PanResponder, View } from 'react-native'
 import { BottomSheet, Button, DText, TextField, Chip, space } from '../design'
 import { api, get } from '../api/client'
 import { useToast } from '../components/ToastProvider'
 import { useOfflineApi } from '../offline/useOfflineApi'
 import { unwrap, type Action } from './kit'
+
+/** A 'levels' value is a JSON list of percents; anything else reads as none. */
+export const levelsOf = (v: unknown): number[] => { try { const a = JSON.parse(String(v ?? '[]')); return Array.isArray(a) ? a.map(Number).filter((n) => Number.isFinite(n)).map((n) => Math.min(100, Math.max(0, Math.round(n)))) : [] } catch { return [] } }
+
+/**
+ * A real slider for a bottle's fill (parity row 15, Backbar): drag anywhere on the bar, or tap, to set the percent in steps of 5;
+ * −5 / +5 beside it for a precise nudge, and the whole thing is adjustable to a screen reader. Pure React Native (PanResponder), no native module.
+ */
+export function LevelSlider({ label, value, onChange, onRemove }: { label: string; value: number; onChange: (n: number) => void; onRemove?: () => void }) {
+  const width = React.useRef(1)
+  const set = (x: number) => onChange(Math.min(100, Math.max(0, Math.round((x / width.current) * 100 / 5) * 5)))
+  const pan = React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true, onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => set(e.nativeEvent.locationX), onPanResponderMove: (e) => set(e.nativeEvent.locationX),
+  }), []) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <View style={{ gap: space[1] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+        <Button label="−5" variant="secondary" onPress={() => onChange(Math.max(0, value - 5))} />
+        <View {...pan.panHandlers} onLayout={(e) => { width.current = Math.max(1, e.nativeEvent.layout.width) }}
+          accessibilityRole="adjustable" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: value, text: `${value} percent full` }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={(e) => onChange(e.nativeEvent.actionName === 'increment' ? Math.min(100, value + 5) : Math.max(0, value - 5))}
+          style={{ flex: 1, height: 28, justifyContent: 'center' }}>
+          <View style={{ height: 12, borderRadius: 6, backgroundColor: '#d1d5db', overflow: 'hidden' }}><View style={{ width: `${value}%`, height: 12, backgroundColor: '#ea580c' }} /></View>
+          <View style={{ position: 'absolute', left: `${value}%`, marginLeft: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#ea580c', borderWidth: 2, borderColor: '#fff' }} />
+        </View>
+        <Button label="+5" variant="secondary" onPress={() => onChange(Math.min(100, value + 5))} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <DText variant="callout" tone="textSecondary">{label}: {value}% full</DText>
+        {onRemove ? <Button label="Remove" variant="ghost" onPress={onRemove} /> : null}
+      </View>
+    </View>
+  )
+}
 
 /** The choices wrap onto more lines instead of hiding behind a sideways scroll: every answer is on the screen. */
 const Wrap = ({ children }: { children: React.ReactNode }) => <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>{children}</View>
@@ -69,14 +104,18 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
               <Wrap>{(inp.choices || []).map((c) => <Chip key={c} label={c.replace(/_/g, ' ')} selected={values[inp.id] === c} onPress={() => setValues((v) => ({ ...v, [inp.id]: c }))} />)}</Wrap></View>
           ) : inp.kind === 'level' ? (
             <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
-                <Button label="−5" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: v[inp.id] === undefined || v[inp.id] === '' ? '' : String(Math.max(0, Number(v[inp.id]) - 5)) }))} />
-                <View accessibilityRole="adjustable" accessibilityLabel={inp.label} accessibilityValue={{ min: 0, max: 100, now: values[inp.id] === '' || values[inp.id] === undefined ? 0 : Number(values[inp.id]) }} style={{ flex: 1, height: 12, borderRadius: 6, backgroundColor: '#d1d5db', overflow: 'hidden' }}>
-                  <View style={{ width: `${values[inp.id] === '' || values[inp.id] === undefined ? 0 : Number(values[inp.id])}%`, height: 12, backgroundColor: '#ea580c' }} />
-                </View>
-                <Button label="+5" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: v[inp.id] === undefined || v[inp.id] === '' ? '100' : String(Math.min(100, Number(v[inp.id]) + 5)) }))} />
-              </View>
-              <DText variant="callout" tone="textSecondary">{values[inp.id] === '' || values[inp.id] === undefined ? 'Not used. Tap + to add an open bottle.' : `${values[inp.id]}% full`}</DText></View>
+              {values[inp.id] === '' || values[inp.id] === undefined
+                ? <Button label="Add an open bottle" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: '100' }))} />
+                : <LevelSlider label={inp.label} value={Number(values[inp.id])} onChange={(n) => setValues((v) => ({ ...v, [inp.id]: String(n) }))} onRemove={() => setValues((v) => ({ ...v, [inp.id]: '' }))} />}
+            </View>
+          ) : inp.kind === 'levels' ? (
+            <View key={inp.id} style={{ gap: space[2] }}><DText variant="bodyStrong">{inp.label}</DText>
+              {levelsOf(values[inp.id]).map((n, i) => (
+                <LevelSlider key={i} label={`Open bottle ${i + 1}`} value={n} onChange={(x) => setValues((v) => ({ ...v, [inp.id]: JSON.stringify(levelsOf(v[inp.id]).map((y, j) => (j === i ? x : y))) }))} onRemove={() => setValues((v) => ({ ...v, [inp.id]: JSON.stringify(levelsOf(v[inp.id]).filter((_, j) => j !== i)) }))} />
+              ))}
+              {levelsOf(values[inp.id]).length < 24 ? <Button label="Add an open bottle" variant="secondary" onPress={() => setValues((v) => ({ ...v, [inp.id]: JSON.stringify([...levelsOf(v[inp.id]), 100]) }))} /> : null}
+              <DText variant="callout" tone="textSecondary">{levelsOf(values[inp.id]).length ? `${levelsOf(values[inp.id]).length} open bottle${levelsOf(values[inp.id]).length === 1 ? '' : 's'}: drag each to how full it is.` : 'No open bottles counted.'}</DText>
+            </View>
           ) : (
             <TextField key={inp.id} label={inp.label} value={values[inp.id] ?? ''} required={inp.required} multiline={inp.kind === 'multiline'} keyboardType={inp.kind === 'number' ? 'decimal-pad' : 'default'}
               onChangeText={(t) => setValues((v) => ({ ...v, [inp.id]: t }))} />

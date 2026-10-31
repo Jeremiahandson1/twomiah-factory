@@ -68,17 +68,18 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
     return run(c, async () => {
       const [stock, count] = await Promise.all([stockList(actor.companyId), currentCount(actor.companyId, actor.name, false)])
       // Blind: what to count and in what packs, never what the system expects to find.
-      return { categories: CATEGORIES, count, stock: stock.map(r => ({ id: r.id, name: r.name, category: r.category, unitLabel: r.unitLabel, packName: r.packName, packSize: r.packSize })) }
+      // The bottle weights ride along for the scale (parity row 15); they say nothing about what is expected.
+      return { categories: CATEGORIES, count, stock: stock.map(r => ({ id: r.id, name: r.name, category: r.category, unitLabel: r.unitLabel, packName: r.packName, packSize: r.packSize, bottleTareGrams: r.bottleTareGrams, bottleFullGrams: r.bottleFullGrams })) }
     })
   })
   app.post('/count/item', ...counter, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     if (!b.stockItemId) return fail(c, 400, 'Which item?')
     // Counting open bottles by how full they are is the venue's choice (stock_fill_levels, not ready): off, only packs and units.
-    if (b.fills !== undefined && !(await d.features.isFeatureEnabled(actor.companyId, 'stock_fill_levels'))) return fail(c, 400, 'Counting open bottles by how full they are is not switched on for this business.')
+    if ((b.fills !== undefined || b.weightsGrams !== undefined) && !(await d.features.isFeatureEnabled(actor.companyId, 'stock_fill_levels'))) return fail(c, 400, 'Counting open bottles by how full they are is not switched on for this business.')
     return run(c, async () => {
       const count = await currentCount(actor.companyId, actor.name)
-      const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear, fills: b.fills }, actor.name)
+      const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear, fills: b.fills, weightsGrams: b.weightsGrams }, actor.name)
       return { ok: true, qty, countId: count!.id }
     })
   })
