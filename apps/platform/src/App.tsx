@@ -17,6 +17,7 @@ import PricingAdminPage from './pages/PricingAdminPage'
 import RoofReviewPage from './pages/RoofReviewPage'
 import PremiumReviewPage from './pages/PremiumReviewPage'
 import PublicIntakePage from './pages/PublicIntakePage'
+import MigrationPage from './pages/MigrationPage'
 import AppLayout from './components/AppLayout'
 import RequireRole from './components/RequireRole'
 
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="pricing" element={<RequireRole allowed={['owner', 'admin']}><PricingAdminPage /></RequireRole>} />
             <Route path="roof-review" element={<RequireRole allowed={['owner', 'admin']}><RoofReviewPage /></RequireRole>} />
             <Route path="premium-review" element={<RequireRole allowed={['owner', 'admin', 'editor']}><PremiumReviewPage /></RequireRole>} />
+            <Route path="migration" element={<RequireRole allowed={['owner', 'admin']}><MigrationPage /></RequireRole>} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

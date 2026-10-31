@@ -3191,6 +3191,13 @@ export const importBatch = pgTable('import_batch', {
   created: integer('created').default(0).notNull(),
   skippedDuplicates: integer('skipped_duplicates').default(0).notNull(),
   failed: integer('failed').default(0).notNull(),
+  // Parity rows 8–10 (0063): records a re-import UPDATED (care_import_wizard), files a zip ATTACHED, who ran it
+  // ('office' — the agency; 'factory' — Twomiah staff through the assisted migration, core/migration.ts) and the choices
+  // it was run with ({ dateFormat, updateMatches, mappingName }).
+  updated: integer('updated').default(0).notNull(),
+  attached: integer('attached').default(0).notNull(),
+  source: text('source').default('office').notNull(),
+  options: json('options'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   undoneAt: timestamp('undone_at'),
@@ -3206,8 +3213,91 @@ export const importBatchRecord = pgTable('import_batch_record', {
   recordId: text('record_id').notNull(),
   line: integer('line'),
   undone: boolean('undone').default(false).notNull(),
+  // 0063: which table the record is in (a child kind's, e.g. 'medications'; null = the batch kind's own table), whether
+  // the import CREATED it, UPDATED it (`previous` holds the columns as they were, so undo puts them back) or ATTACHED a
+  // file to it, and any rows made beside it (`extra`: a qualification's document row), removed with it on undo.
+  tableName: text('table_name'),
+  action: text('action').default('created').notNull(), // 'created' | 'updated' | 'attached'
+  previous: json('previous'),
+  extra: json('extra'),
 }, (t) => [
   index('import_batch_record_batch_idx').on(t.batchId),
+])
+
+// Row 9 (care_import_wizard): a column mapping the agency saved to reuse next time (the headers it was saved for, and
+// which field each goes into). Offered automatically when a file with the same headers is previewed.
+export const importMapping = pgTable('import_mapping', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  name: text('name').notNull(),
+  headers: json('headers').notNull(),
+  mapping: json('mapping').notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+}, (t) => [
+  uniqueIndex('import_mapping_company_kind_name').on(t.companyId, t.kind, t.name),
+])
+
+// Row 9: the id a client, caregiver or payer had in the agency's OLD system ("reference code"), so a re-import — or a
+// child file (authorizations, medicines…) — finds the same record by it, whatever the name says. One per record.
+export const importExternalId = pgTable('import_external_id', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  entity: text('entity').notNull(), // 'client' | 'caregiver' | 'payer'
+  externalId: text('external_id').notNull(),
+  recordId: text('record_id').notNull(),
+}, (t) => [
+  uniqueIndex('import_external_id_key').on(t.companyId, t.entity, t.externalId),
+  index('import_external_id_record_idx').on(t.companyId, t.entity, t.recordId),
+])
+
+// Row 9: a value from a "custom:" column of an import — a field the old system had and this one has no column for —
+// kept against the record by name, so nothing in the agency's file is thrown away.
+export const customFieldValue = pgTable('custom_field_value', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  entity: text('entity').notNull(), // 'client' | 'caregiver' | 'payer'
+  recordId: text('record_id').notNull(),
+  name: text('name').notNull(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('custom_field_value_key').on(t.companyId, t.entity, t.recordId, t.name),
+])
+
+// Row 10 (care_migration): an agency's request for Twomiah to load its old system's export for it (core/migration.ts).
+// The files it sent (migration_file), the record counts the old system showed (old_counts: { clients: 120, … }), the
+// sign-off checklist ({ item: { by, at } }), the imports staff ran for it (batch ids) and where it stands.
+export const migrationRequest = pgTable('migration_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  status: text('status').default('sent').notNull(), // 'sent' | 'in_progress' | 'done' | 'cancelled'
+  fromSystem: text('from_system'),
+  note: text('note'),
+  oldCounts: json('old_counts'),
+  signoffs: json('signoffs').default({}).notNull(),
+  batchIds: json('batch_ids').default([]).notNull(),
+  staffNote: text('staff_note'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('migration_request_company_idx').on(t.companyId, t.createdAt),
+])
+
+export const migrationFile = pgTable('migration_file', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  requestId: text('request_id').notNull().references(() => migrationRequest.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  size: integer('size').notNull(),
+  // the file itself, base64 — a Render disk is wiped on every deploy (the same rule as documents.file_data)
+  data: text('data').notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+}, (t) => [
+  index('migration_file_request_idx').on(t.requestId),
 ])
 
 // Item 3 (care_autopay): a client's saved card for automatic payment of their invoices — on the AGENCY's own Stripe

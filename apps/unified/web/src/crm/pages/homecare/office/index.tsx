@@ -41,6 +41,7 @@ const PickupRewards = page(() => import('./PickupRewards'))
 const OpenShiftOffers = page(() => import('./OpenShiftOffers'))
 const MarginReports = page(() => import('./MarginReports'))
 const DataImport = page(() => import('./DataImport'))
+const MigrationRequest = page(() => import('./MigrationRequest'))
 const PayRules = page(() => import('./PayRules'))
 const Autopay = page(() => import('./Autopay'))
 const LtcBilling = page(() => import('./LtcBilling'))
@@ -62,7 +63,10 @@ const Home = page(() => import('./OfficeHome'))
  *   ltc-billing         care-billing:read     billing/ltcRoutes.ts: reading and the claim packet ask :read; saving a policy asks :update (the page shows the form's Save only to whoever holds it)
  *   split-billing       care-billing:read     billing/splitRoutes.ts: reading asks :read; saving a client's split asks :update (the page shows Save only to whoever holds it)
  *   data-import         care-clients:create   office/csvImport.ts: each kind asks its own area's :create (clients care-clients, caregivers care-hr,
- *                                             recurring shifts care-schedule) and the page offers only the kinds the person holds
+ *                                             recurring shifts care-schedule, authorizations / payers / billing history care-billing, pay rates /
+ *                                             expenses care-payroll, certifications / training / leave / reviews care-hr) and the page offers only
+ *                                             the kinds the person holds
+ *   migration           care-clients:create   office/migration.ts (the assisted migration: office business, the same verb as importing clients)
  *   communication-log   care-portal:update    portals/communication.ts (caregivers hold care-portal:read)
  *   sms                 care-portal:update    portals/sms.ts
  *   alerts              care-compliance:read  visits/alerts.ts
@@ -91,6 +95,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/pickup-rewards': 'care-schedule:update',
   '/crm/open-shift-offers': 'care-schedule:update',
   '/crm/data-import': 'care-clients:create',
+  '/crm/migration': 'care-clients:create',
   '/crm/pay-rules': 'care-payroll:read',
   '/crm/autopay': 'care-billing:read',
   '/crm/ltc-billing': 'care-billing:read',
@@ -120,6 +125,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-open-shift-offers" path="open-shift-offers" element={<OpenShiftOffers />} />,
   <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
+  <Route key="hc-office-migration" path="migration" element={<MigrationRequest />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
   <Route key="hc-office-autopay" path="autopay" element={<Autopay />} />,
   <Route key="hc-office-ltc-billing" path="ltc-billing" element={<LtcBilling />} />,
@@ -149,7 +155,8 @@ export const nav: NavItem[] = [
   { to: '/crm/open-shift-offers', icon: BellRing, label: 'Open shift offers', permission: PERMISSION['/crm/open-shift-offers'], features: ['care_open_shift_offers'] },
   { to: '/crm/family-messages', icon: MessageSquare, label: 'Family messages', permission: PERMISSION['/crm/family-messages'], features: ['care_family_comms'] },
   { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
-  { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create'], features: ['care_import'] },
+  { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create', 'care-billing:create', 'care-payroll:create'], features: ['care_import'] },
+  { to: '/crm/migration', icon: Upload, label: 'Assisted migration', permission: PERMISSION['/crm/migration'], features: ['care_migration'] },
   { to: '/crm/pay-rules', icon: Calculator, label: 'Pay rules', permission: PERMISSION['/crm/pay-rules'], features: ['care_payroll_rules'] },
   { to: '/crm/autopay', icon: CreditCard, label: 'Automatic payments', permission: PERMISSION['/crm/autopay'], features: ['care_autopay'] },
   { to: '/crm/ltc-billing', icon: FileText, label: 'Long-term care insurance', permission: PERMISSION['/crm/ltc-billing'], features: ['care_ltc_billing'] },

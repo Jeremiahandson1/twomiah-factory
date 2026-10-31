@@ -42,6 +42,8 @@ import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
 import { createMargin } from './margin.ts'
 import { createCsvImport } from './csvImport.ts'
+import { createImportAttach } from './importAttach.ts'
+import { createMigration } from './migration.ts'
 import { createAutopay } from './autopay.ts'
 import { createLtc } from './ltc.ts'
 import { createOfflineSaves } from './offlineSaves.ts'
@@ -114,6 +116,8 @@ function buildHomecareCore(d: CrmDeps) {
   const payrollProviders = createPayrollProviders(d)
   const margin = createMargin(d, { invoices })
   const csvImport = createCsvImport(d, { time })
+  const importAttach = createImportAttach(d, { csvImport })
+  const migration = createMigration(d, { csvImport, importAttach })
   const ltc = createLtc(d)
 
   // Hiring and onboarding.
@@ -150,7 +154,7 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, autopay, ltc, offlineSaves,
+    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, importAttach, migration, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
     reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */

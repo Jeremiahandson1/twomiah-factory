@@ -14,6 +14,7 @@ import { registerA2pRoutes } from './factory/a2p'
 import { registerMessagingRoutes } from './factory/messaging'
 import { registerStripeOAuthRoutes } from './factory/stripeOAuth'
 import { registerWebPresenceRoutes } from './factory/webPresence'
+import { registerMigrationRoutes } from '../unified/migration'
 
 const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 
@@ -100,5 +101,7 @@ registerA2pRoutes(factory)
 registerMessagingRoutes(factory)
 registerStripeOAuthRoutes(factory)
 registerWebPresenceRoutes(factory)
+// Home care parity row 10: the assisted migration, passed through to the unified tenant's own service (unified/migration.ts).
+registerMigrationRoutes(factory)
 
 export default factory

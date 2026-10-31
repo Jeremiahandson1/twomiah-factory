@@ -24,8 +24,16 @@ import { createComplianceRoutes } from './compliance.ts'
 import { createAuditLogRoutes } from './auditLogs.ts'
 import { createStaffPickerRoutes } from './signIn.ts'
 import { createCsvImportRoutes } from './csvImport.ts'
+import { createMigrationRoutes, createMigrationInternalRoutes } from './migration.ts'
+import { asc } from 'drizzle-orm'
+import { company } from '../../../db/schema/index.ts'
 
 export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
+  /** One company per tenant database (SPEC §2): the oldest row is the business (the same rule as server/app.ts). */
+  const oneCompany = async (): Promise<string | null> => {
+    const [row] = await d.db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
+    return row?.id ?? null
+  }
   return [
     { path: '/api/incidents', access: 'user', router: createIncidentRoutes(core, d) },
     { path: '/api/compliance', access: 'user', router: createComplianceRoutes(d) },
@@ -33,5 +41,8 @@ export function officeMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/auth/users', access: 'user', router: createStaffPickerRoutes(d) },
     // item 1: CSV import of clients, caregivers and recurring shifts (not ready)
     { path: '/api/care-import', access: 'user', feature: 'care_import', router: createCsvImportRoutes(core, d) },
+    // row 10: the assisted migration — the agency's door, and the Factory's (its staff run the same importer; the feature is checked inside)
+    { path: '/api/care-migration', access: 'user', feature: 'care_migration', router: createMigrationRoutes(core, d) },
+    { path: '/api/internal/care-migration', access: 'factory', router: createMigrationInternalRoutes(core, d, oneCompany) },
   ]
 }
