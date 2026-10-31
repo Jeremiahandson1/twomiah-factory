@@ -660,6 +660,17 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     if (!row) return fail(c, 404, 'Caregiver not found')
     const [updated] = await d.db.update(user).set({ isActive: !row.isActive, updatedAt: new Date() })
       .where(and(eq(user.id, id), eq(user.companyId, companyId))).returning({ isActive: user.isActive })
+    // Row 11: deactivating a caregiver dates their leaving today on the agency's clock (the office can correct it on the profile);
+    // reactivating clears it, so turnover never counts someone who came back as gone.
+    const mine = and(eq(caregiverProfiles.companyId, companyId), eq(caregiverProfiles.caregiverId, id))
+    const [profileRow] = await d.db.select({ id: caregiverProfiles.id, leftOn: caregiverProfiles.leftOn }).from(caregiverProfiles).where(mine).limit(1)
+    if (!updated.isActive) {
+      const leftOn = await core.time.today(companyId)
+      if (profileRow) { if (!profileRow.leftOn) await d.db.update(caregiverProfiles).set({ leftOn, updatedAt: new Date() }).where(mine) }
+      else await d.db.insert(caregiverProfiles).values({ caregiverId: id, companyId, leftOn })
+    } else if (profileRow?.leftOn) {
+      await d.db.update(caregiverProfiles).set({ leftOn: null, leftReason: null, updatedAt: new Date() }).where(mine)
+    }
     return one(c, { isActive: updated.isActive })
   })
 

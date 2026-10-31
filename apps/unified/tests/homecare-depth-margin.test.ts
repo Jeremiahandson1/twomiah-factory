@@ -115,7 +115,8 @@ describe('home care — caregiver turnover (item 10)', () => {
     const r = await json(await as('owner')('/api/margin-reports/turnover?startDate=2026-10-01&endDate=2026-10-31'))
     expect(r.status).toBe(200)
     expect(r.body).toMatchObject({ headcountStart: 2, headcountEnd: 2, hires: 1, departures: 1, turnoverPercent: 50, retentionPercent: 50, hiresWith90Days: 0, ninetyDayRetentionPercent: null })
-    expect(r.body.departed).toEqual([{ caregiverId: ids.bob, name: 'Bob Carer', hired: '2026-02-01', lastWorked: '2026-10-10', tenureDays: 251 }])
+    // Row 11 added the stored leaving date (leftOn, exact, leftReason) and where they sat; the item-10 fields are unchanged.
+    expect(r.body.departed).toEqual([expect.objectContaining({ caregiverId: ids.bob, name: 'Bob Carer', hired: '2026-02-01', lastWorked: '2026-10-10', tenureDays: 251, exact: false })])
     expect(r.body.averageTenureDaysOfDeparted).toBe(251)
   })
 

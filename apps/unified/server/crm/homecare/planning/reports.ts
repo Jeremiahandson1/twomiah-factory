@@ -16,7 +16,6 @@
 // pay ask care-payroll:read; a caregiver's performance and ratings ask care-hr:read; incidents ask care-compliance:read.
 // An export asks the permission of the report it exports.
 import { Hono, type Context, type Next } from 'hono'
-import PDFDocument from 'pdfkit'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -24,6 +23,7 @@ import { createHomecareCore } from '../core/index.ts'
 import { addDays, isYmd } from '../core/agencyTime.ts'
 import { ON_TIME_GRACE_MINUTES } from '../core/punchRules.ts'
 import * as q from '../../../data/homecarePlanning.ts'
+import { toCSV, csvReply, pdfReply, renderPdf, slug, heading, columnTitle } from './reportFiles.ts'
 
 const num = (v: any) => parseFloat(v) || 0
 
@@ -40,35 +40,7 @@ async function postBody(c: Context): Promise<any> {
   try { return (await c.req.json()) || {} } catch { return {} }
 }
 
-// ==================== CSV / PDF ====================
-const csvCell = (v: any) => {
-  if (v == null) return ''
-  const s = v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-type Col = { key: string; label: string }
-const toCSV = (data: any[], columns: Col[]) =>
-  columns.map((col) => csvCell(col.label)).join(',') + '\n' +
-  data.map((r) => columns.map((col) => csvCell(r[col.key])).join(',')).join('\n') + '\n'
-const csvReply = (c: Context, filename: string, body: string) =>
-  c.body(body, 200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${filename}"` })
-const pdfReply = (c: Context, filename: string, buf: Buffer) =>
-  c.body(new Uint8Array(buf), 200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${filename}"` })
-function renderPdf(build: (doc: PDFKit.PDFDocument) => void, opts: any = {}): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'LETTER', ...opts })
-    const chunks: Buffer[] = []
-    doc.on('data', (b: Buffer) => chunks.push(b))
-    doc.on('end', () => resolve(Buffer.concat(chunks)))
-    doc.on('error', reject)
-    try { build(doc); doc.end() } catch (e) { reject(e) }
-  })
-}
-const slug = (s: string) => s.replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'agency'
-/** A camelCase key as a column heading: payableHours → PAYABLE HOURS. */
-const heading = (key: string) => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toUpperCase()
-/** A CSV column's title, for a spreadsheet: "clockedHours" → "Clocked Hours" (the export's titles were the code's keys). */
-const columnTitle = (key: string) => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+// CSV / PDF: planning/reportFiles.ts (shared with the margin reports and the report builder).
 
 // ==================== CLIENT HOURS BY WEEK: pairing ====================
 /**

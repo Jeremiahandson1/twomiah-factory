@@ -38,6 +38,15 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   mileageRate: decimal('mileage_rate', { precision: 5, scale: 3 }),
   isFacilityStaff: boolean('is_facility_staff').default(false).notNull(),
   medicaidProviderId: text('medicaid_provider_id'),
+  // Row 11 (care_margin_reports): where the caregiver sits in the agency — the branch (a service location), a team, a department,
+  // their manager — so margin and turnover can be drilled total → branch → team → caregiver and results read by manager.
+  branchId: text('branch_id').references(() => serviceLocations.id, { onDelete: 'set null' }),
+  team: text('team'),
+  department: text('department'),
+  managerUserId: text('manager_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // Row 11: the day the caregiver left and why, so turnover is exact (it was dated by their last visit). NULL = still here.
+  leftOn: date('left_on'),
+  leftReason: text('left_reason'),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
   smsEnabled: boolean('sms_enabled').default(true),
   smsOpenShifts: boolean('sms_open_shifts').default(true),
@@ -203,6 +212,8 @@ export const clients = pgTable('clients', {
   phone: text('phone'),
   email: text('email'),
   referredById: text('referred_by_id').references(() => referralSources.id),
+  // Row 11 (care_margin_reports): the branch (service location) this client is served from, for margin by branch.
+  branchId: text('branch_id').references(() => serviceLocations.id, { onDelete: 'set null' }),
   referralDate: date('referral_date'),
   startDate: date('start_date'),
   isActive: boolean('is_active').default(true).notNull(),
@@ -3583,4 +3594,147 @@ export const alertRuleLog = pgTable('alert_rule_log', {
 }, (t) => [
   index('alert_rule_log_company_idx').on(t.companyId, t.createdAt),
   uniqueIndex('alert_rule_log_key').on(t.ruleId, t.timeEntryId, t.recipientId, t.channel),
+])
+
+// ── Row 12 (care_report_builder): the report builder, custom dashboards and scheduled report emails ─────────────────────────────
+// A saved custom report over the visit fields: which columns, which filters, the sort and the grouping. Copied from the library
+// (core/reportBuilder.ts LIBRARY) or from another saved report (copiedFromId), then edited.
+export const reportDefinition = pgTable('report_definition', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  source: text('source').default('visits').notNull(), // what the rows are: 'visits'
+  columns: json('columns').notNull(), // ['date', 'clientName', …] — the field keys, in order
+  filters: json('filters').default([]).notNull(), // [{ field, op, value }]
+  sortBy: text('sort_by'),
+  sortDir: text('sort_dir').default('asc'),
+  groupBy: text('group_by'),
+  copiedFromId: text('copied_from_id'), // a library key or another report's id
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_definition_company_idx').on(t.companyId, t.name),
+])
+
+// A custom dashboard: the tiles the office chose (each a kind from the catalogue with its settings).
+export const dashboardLayout = pgTable('dashboard_layout', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tiles: json('tiles').notNull(), // [{ kind, title?, days?, by? }]
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('dashboard_layout_company_idx').on(t.companyId),
+])
+
+// A report the agency wants emailed on a schedule: which report, as what file, how often and when (on the agency's clock), over what
+// window, to whom. The mail never carries the report: the file is stored encrypted (report_delivery) and the mail carries a link that
+// opens only for a signed-in recipient.
+export const reportSchedule = pgTable('report_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  reportKind: text('report_kind').notNull(), // client_margin | visit_margin | turnover | daily_manager | caregiver_performance | workforce | saved
+  reportId: text('report_id').references(() => reportDefinition.id, { onDelete: 'cascade' }), // kind 'saved': which one
+  format: text('format').default('csv').notNull(), // csv | pdf
+  cadence: text('cadence').notNull(), // daily | weekly | monthly
+  dayOfWeek: integer('day_of_week'), // weekly: 0 Sunday … 6
+  dayOfMonth: integer('day_of_month'), // monthly: 1 … 28
+  hour: integer('hour').default(6).notNull(), // the agency's clock
+  windowDays: integer('window_days').default(7).notNull(), // the report covers the last N days ending yesterday
+  recipients: json('recipients').notNull(), // user ids of the agency's staff
+  isActive: boolean('is_active').default(true).notNull(),
+  lastRunOn: date('last_run_on'),
+  nextRunOn: date('next_run_on'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_schedule_company_idx').on(t.companyId, t.isActive),
+  index('report_schedule_due_idx').on(t.nextRunOn),
+])
+
+// One sent report: the file, encrypted at rest (AES-256-GCM, core/encryption.ts), who it went to, until when the link works.
+export const reportDelivery = pgTable('report_delivery', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  scheduleId: text('schedule_id').references(() => reportSchedule.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').notNull(),
+  ciphertext: text('ciphertext').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  periodStart: date('period_start'),
+  periodEnd: date('period_end'),
+  recipients: json('recipients').notNull(), // user ids
+  sentTo: json('sent_to').default([]).notNull(), // the addresses the mail went to
+  expiresAt: timestamp('expires_at').notNull(),
+  downloads: integer('downloads').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_delivery_company_idx').on(t.companyId, t.createdAt),
+])
+
+// ── Row 13 (care_caregiver_surveys): caregiver satisfaction surveys and the retention risk ──────────────────────────────────────
+// A survey the agency asks caregivers at set points: after their first visit with a client, N days after they were hired, or every N
+// days. Its questions are the agency's (a 1–5 scale, yes/no or free text); a score under alertBelow tells the office.
+export const caregiverSurvey = pgTable('caregiver_survey', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // first_visit_with_client | days_after_hire | every_days
+  days: integer('days'), // days_after_hire: how many days after; every_days: how often
+  questions: json('questions').notNull(), // [{ id, text, kind: 'scale' | 'yes_no' | 'text' }]
+  alertBelow: integer('alert_below').default(3).notNull(), // a score (1–5 average of the scale questions) under this alerts the office
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('caregiver_survey_company_idx').on(t.companyId, t.isActive),
+])
+
+// One survey asked of one caregiver at one point: when it was due and sent, what they answered and the score; the key makes each
+// point ask once (a first visit with a client once per client, a day-after-hire once, a repeat once per cycle).
+export const caregiverSurveyRequest = pgTable('caregiver_survey_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  surveyId: text('survey_id').notNull().references(() => caregiverSurvey.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }), // first_visit_with_client: which client
+  pointKey: text('point_key').notNull(), // what made it due: client:<id> | hire:<days> | cycle:<YYYY-MM-DD>
+  reason: text('reason').notNull(), // in words, for the caregiver and the office
+  dueOn: date('due_on').notNull(),
+  sentAt: timestamp('sent_at'),
+  pushed: boolean('pushed').default(false).notNull(),
+  answeredAt: timestamp('answered_at'),
+  answers: json('answers'), // { [questionId]: number | boolean | string }
+  score: integer('score'), // average of the scale answers × 100 (so 3.5 is 350), null when there were no scale questions
+  comment: text('comment'),
+  alertedAt: timestamp('alerted_at'), // the office was told of a low score
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('caregiver_survey_request_once_idx').on(t.surveyId, t.caregiverId, t.pointKey),
+  index('caregiver_survey_request_caregiver_idx').on(t.caregiverId, t.answeredAt),
+  index('caregiver_survey_request_company_idx').on(t.companyId, t.dueOn),
+])
+
+// The retention risk of one caregiver on one day, kept so the office sees the trend: the score (0–100, higher = more likely to leave),
+// the band and the reasons (our own signals: hours drop, call-outs and missed visits, survey, tenure).
+export const caregiverRiskSnapshot = pgTable('caregiver_risk_snapshot', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  asOf: date('as_of').notNull(),
+  score: integer('score').notNull(),
+  band: text('band').notNull(), // low | watch | high
+  reasons: json('reasons').notNull(), // [{ signal, label, points, detail }]
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('caregiver_risk_snapshot_day_idx').on(t.caregiverId, t.asOf),
+  index('caregiver_risk_snapshot_company_idx').on(t.companyId, t.asOf),
 ])
