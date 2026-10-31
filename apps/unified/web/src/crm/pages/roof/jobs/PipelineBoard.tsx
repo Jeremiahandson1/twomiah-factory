@@ -24,7 +24,7 @@ import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTrian
 import { api } from '../../../../api'
 import { useAuth, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { displayName } from '../lib/user'
-import { STAGE_LABELS, pipelineFor, rowsOf } from './model'
+import { boardOf, pipelineFor, pipelineNames, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 
 const STAGE_THRESHOLDS: Record<string, number> = {
@@ -78,6 +78,10 @@ export default function PipelineBoard() {
   const [mineOnly, setMineOnly] = useState(false)
 
   const [dragJobId, setDragJobId] = useState<string | null>(null)
+  // Separate Retail and Insurance boards where Pipeline Stages & Boards is on (server/crm/roof/pipeline.ts): a tab per board.
+  const boardNames = pipelineNames()
+  const [board, setBoard] = useState<'all' | 'retail' | 'insurance'>('all')
+  const nameOf = (stage: string) => stageLabel(stage, board === 'all' ? undefined : board)
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +110,7 @@ export default function PipelineBoard() {
     if (filterType && j.jobType !== filterType) return false
     if (filterPriority && j.priority !== filterPriority) return false
     if (filterCanvassing && j.source !== 'canvassing') return false
+    if (boardNames && board !== 'all' && boardOf(j.jobType) !== board) return false
     return true
   })
 
@@ -150,7 +155,7 @@ export default function PipelineBoard() {
     const next = at > -1 && at < STAGES.length - 1 ? STAGES[at + 1] : null
     if (targetStage !== next) {
       toast.error(next
-        ? `A job moves one stage at a time — drop it on ${STAGE_LABELS[next]}.`
+        ? `A job moves one stage at a time — drop it on ${nameOf(next)}.`
         : 'This job is at the last stage.')
       return
     }
@@ -161,7 +166,7 @@ export default function PipelineBoard() {
     try {
       const updated = await api.post(`/api/jobs/${jobId}/advance`) as RoofJob
       setJobs((prev) => prev.map((j) => (String(j.id) === String(jobId) ? { ...j, ...updated, contact: j.contact } : j)))
-      toast.success(`Moved to ${STAGE_LABELS[updated?.status] || STAGE_LABELS[targetStage]}`)
+      toast.success(`Moved to ${nameOf(updated?.status || targetStage)}`)
     } catch (err) {
       toast.error(errorText(err, 'Failed to advance job'))
       load()
@@ -183,6 +188,19 @@ export default function PipelineBoard() {
 
   return (
     <div className="h-full flex flex-col">
+      {boardNames && (
+        <div role="tablist" aria-label="Boards" className="flex gap-2 px-6 pt-3 bg-white flex-shrink-0 dark:bg-slate-900">
+          {([['all', 'All jobs'], ...boardNames.boards.map((b) => [b.id, b.name])] as Array<['all' | 'retail' | 'insurance', string]>).map(([id, label]) => {
+            const count = jobs.filter((j) => j.status !== 'lost' && j.status !== 'cancelled' && (id === 'all' || boardOf(j.jobType) === id)).length
+            return (
+              <button key={id} type="button" role="tab" aria-selected={board === id} onClick={() => setBoard(id)}
+                className={`text-sm px-3 py-1.5 rounded-t-lg border-b-2 font-medium ${board === id ? 'border-orange-600 text-orange-700 dark:text-orange-300' : 'border-transparent text-gray-600 dark:text-slate-300'}`}>
+                {label} ({count})
+              </button>
+            )
+          })}
+        </div>
+      )}
       {/* Filter Bar */}
       <div className="flex items-center gap-3 px-6 py-4 bg-white border-b flex-shrink-0 overflow-x-auto dark:bg-slate-900">
         <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -259,7 +277,7 @@ export default function PipelineBoard() {
                 {/* Column Header */}
                 <div className="px-3 py-3 flex items-center justify-between flex-shrink-0">
                   <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider truncate dark:text-slate-400">
-                    {STAGE_LABELS[stage]}
+                    {nameOf(stage)}
                   </h3>
                   <span className="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 ml-2 flex-shrink-0 dark:text-slate-300 dark:bg-slate-700">
                     {stageJobs.length}

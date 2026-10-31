@@ -38,6 +38,15 @@ export interface CommissionsConfig {
   roleWords: Record<string, string>
   /** Placeholder for a plan's name, e.g. "Standard sales plan". */
   planExample: string
+  /**
+   * A trade that pays the job's SELLER once the whole job is paid (roofing): offers that choice on a plan — margin plans
+   * included, since the server works their margin out — and says so on the card. Absent: the three choices every trade has.
+   */
+  salesRepAutoEarn?: boolean
+  /** The plan types in this trade's words (roofing: "% of the contract", "% of gross profit"); absent ones keep the default. */
+  planTypeWords?: Partial<Record<'flat_rate' | 'percent_of_invoice' | 'percent_of_margin' | 'tiered', string>>
+  /** What the percentage is of, on a plan's card: { percent_of_invoice: 'the contract before tax', percent_of_margin: 'the job’s gross profit' }. */
+  planBaseWords?: Partial<Record<'percent_of_invoice' | 'percent_of_margin', string>>
 }
 export interface CommissionsPageProps { api: CommissionsApi; toast: CommissionsToast; config: CommissionsConfig }
 
@@ -65,6 +74,8 @@ const AUTO_WORDS: Record<string, string> = {
   job_assignee: "Yes — the person assigned the job",
   job_creator: 'Yes — the person who booked the job',
 }
+/** Offered only where the config says the trade pays the job's seller (CommissionsConfig.salesRepAutoEarn). */
+const SALES_REP_AUTO_WORDS: Record<string, string> = { job_sales_rep: "Yes — the job\u2019s sales rep, when the whole job is paid" }
 const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded' }
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const blankRecord = { userId: '', planId: '', invoiceId: '', jobId: '', baseAmount: '', commissionAmount: '', notes: '' }
@@ -81,6 +92,15 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const mayUpdate = can('commissions:update')
   const mayRetire = can('commissions:delete')
   const roleKeys = Object.keys(config.roleWords)
+  const planWords = { ...PLAN_TYPE_WORDS, ...(config.planTypeWords || {}) } as Record<string, string>
+  const baseWords = { percent_of_invoice: 'the invoice before tax', percent_of_margin: 'the margin', ...(config.planBaseWords || {}) } as Record<string, string>
+  const salesRepAuto = !!config.salesRepAutoEarn
+  /** A margin plan is recorded by hand — unless the trade pays the seller, whose margin the server works out. */
+  const autoFor = (planType: string, autoEarn: string) => (planType === 'percent_of_margin' && !(salesRepAuto && autoEarn === 'job_sales_rep') ? 'none' : autoEarn)
+  const autoChoices = (planType: string): Record<string, string> =>
+    planType === 'percent_of_margin'
+      ? (salesRepAuto ? { none: AUTO_WORDS.none, ...SALES_REP_AUTO_WORDS } : { none: AUTO_WORDS.none })
+      : { ...AUTO_WORDS, ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}) }
 
   const [tab, setTab] = useState<'records' | 'plans' | 'statements'>('records')
   const [stmtWho, setStmtWho] = useState('')
@@ -133,7 +153,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const togglePerson = (id: string) => setPlanForm((prev) => ({ ...prev, userIds: prev.userIds.includes(id) ? prev.userIds.filter((x) => x !== id) : [...prev.userIds, id] }))
   const savePlan = async (e: React.FormEvent) => {
     e.preventDefault()
-    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn, userIds: planForm.userIds }
+    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: autoFor(planForm.planType, planForm.autoEarn), userIds: planForm.userIds }
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else body.percentRate = Number(planForm.percentRate || 0)
     setBusy(true)
@@ -362,7 +382,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 {mayUpdate && <button aria-label={`Edit ${p.name}`} onClick={() => openEditPlan(p)} className="p-1 rounded text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"><Pencil className="w-4 h-4" /></button>}
               </div>
               <div className="text-sm text-gray-600 mb-3 dark:text-slate-400">
-                {PLAN_TYPE_WORDS[p.planType] || p.planType} · for {config.roleWords[p.appliesToRole] || p.appliesToRole || config.roleWords.all}
+                {planWords[p.planType] || p.planType} · for {config.roleWords[p.appliesToRole] || p.appliesToRole || config.roleWords.all}
                 {p.isActive === false && ' · no longer offered for new earnings'}
               </div>
               <div className="text-sm text-gray-700 mb-2 dark:text-slate-300">
@@ -372,10 +392,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </div>
               <div className="text-sm text-gray-900 dark:text-slate-100">
                 {p.planType === 'flat_rate' && <>{money(p.flatRateAmount)} per job</>}
-                {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'the invoice before tax' : 'the margin'}</>}
+                {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {baseWords[p.planType]}</>}
                 {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets</>}
               </div>
-              {p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</p>}
+              {p.autoEarn === 'job_sales_rep'
+                ? <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays the job&rsquo;s sales rep{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when the whole job is paid</p>
+                : p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</p>}
               {p.isActive === false
                 ? (mayUpdate && <button onClick={() => restorePlan(p)} className="mt-3 text-sm text-gray-700 underline dark:text-slate-300">Bring back</button>)
                 : (mayRetire && <button onClick={() => retirePlan(p)} className="mt-3 text-sm text-red-700 underline dark:text-red-300">Retire</button>)}
@@ -390,10 +412,10 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="How it is worked out">
               <select value={planForm.planType} onChange={(e) => setPlanForm((prev) => ({ ...prev, planType: e.target.value }))} className={inputCls} disabled={editingPlan?.planType === 'tiered'}>
-                <option value="flat_rate">{PLAN_TYPE_WORDS.flat_rate}</option>
-                <option value="percent_of_invoice">{PLAN_TYPE_WORDS.percent_of_invoice}</option>
-                <option value="percent_of_margin">{PLAN_TYPE_WORDS.percent_of_margin}</option>
-                {editingPlan?.planType === 'tiered' && <option value="tiered">{PLAN_TYPE_WORDS.tiered}</option>}
+                <option value="flat_rate">{planWords.flat_rate}</option>
+                <option value="percent_of_invoice">{planWords.percent_of_invoice}</option>
+                <option value="percent_of_margin">{planWords.percent_of_margin}</option>
+                {editingPlan?.planType === 'tiered' && <option value="tiered">{planWords.tiered}</option>}
               </select>
             </Field>
             {/* "Intended for" is a note on the plan: a commission is recorded against a person, and nothing matches a plan to anyone by role. (T51) */}
@@ -420,9 +442,9 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               {people.length === 0 && <p className="text-xs text-gray-600 dark:text-slate-400">Loading the team…</p>}
             </div>
           </fieldset>
-          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' ? 'A margin plan is recorded by hand — the margin has to be entered.' : 'When an invoice for a job is paid in full, from now on, the job\u2019s person earns it if this plan pays them. A full refund takes it back.'}>
-            <select value={planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn} disabled={planForm.planType === 'percent_of_margin'} onChange={(e) => setPlanForm((prev) => ({ ...prev, autoEarn: e.target.value }))} className={inputCls}>
-              {Object.entries(AUTO_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
+          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' && !salesRepAuto ? 'A margin plan is recorded by hand — the margin has to be entered.' : salesRepAuto && autoFor(planForm.planType, planForm.autoEarn) === 'job_sales_rep' ? 'When every invoice on a job is paid, from now on, the job\u2019s sales rep earns it once, on the whole job, if this plan pays them. A percent-of plan is worked out on what was invoiced before tax; a margin plan on the job\u2019s gross profit. A full refund of the last invoice takes it back.' : 'When an invoice for a job is paid in full, from now on, the job\u2019s person earns it if this plan pays them. A full refund takes it back.'}>
+            <select value={autoFor(planForm.planType, planForm.autoEarn)} disabled={planForm.planType === 'percent_of_margin' && !salesRepAuto} onChange={(e) => setPlanForm((prev) => ({ ...prev, autoEarn: e.target.value }))} className={inputCls}>
+              {Object.entries(autoChoices(planForm.planType)).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
             </select>
           </Field>
           <div className="flex justify-end gap-2 pt-2">
@@ -456,7 +478,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               {people.filter((u) => u.isActive !== false).map((u) => <option key={u.id} value={u.id}>{personName(u)}</option>)}
             </select>
           </Field>
-          <Field label="Plan" hint={plan ? `${PLAN_TYPE_WORDS[plan.planType] || plan.planType}. The amount is worked out from the plan when you save.` : 'No plan: enter the agreed amount yourself.'}>
+          <Field label="Plan" hint={plan ? `${planWords[plan.planType] || plan.planType}. The amount is worked out from the plan when you save.` : 'No plan: enter the agreed amount yourself.'}>
             <select value={recordForm.planId} onChange={(e) => setRecordForm((prev) => ({ ...prev, planId: e.target.value }))} className={inputCls}>
               <option value="">No plan — an agreed amount</option>
               {plansFor(recordForm.userId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

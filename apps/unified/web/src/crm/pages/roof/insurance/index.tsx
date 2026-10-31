@@ -9,7 +9,7 @@
 // page's), so it carries its own gate below — the same rule: wait for the company, then say the module is off.
 import type { ReactElement, ReactNode } from 'react'
 import { Route } from 'react-router-dom'
-import { Shield } from 'lucide-react'
+import { ClipboardCheck, Shield } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { useAuth, ModuleNotEnabled } from '../../../../shared'
 import { page } from '../../../lazy'
@@ -18,6 +18,7 @@ const FEATURE = 'insurance_workflow'
 
 const InsuranceClaimPage = page(() => import('./InsuranceClaimPage'))
 const AdjusterDirectoryPage = page(() => import('./AdjusterDirectoryPage'))
+const InsuranceFollowUpsPage = page(() => import('./InsuranceExtras'))
 
 /**
  * A page behind a feature, where the shell's URL gate can't reach it. Renders nothing until the company has loaded —
@@ -39,6 +40,7 @@ export const routes: ReactElement[] = [
     element={<RequireFeature feature={FEATURE} title="Insurance claims"><InsuranceClaimPage /></RequireFeature>}
   />,
   <Route key="roof-adjusters" path="adjusters" element={<AdjusterDirectoryPage />} />,
+  <Route key="roof-insurance-follow-ups" path="insurance-follow-ups" element={<InsuranceFollowUpsPage />} />,
 ]
 
 /**
@@ -48,6 +50,8 @@ export const routes: ReactElement[] = [
  */
 export const nav: NavItem[] = [
   { to: '/crm/adjusters', icon: Shield, label: 'Adjusters', features: [FEATURE] },
+  // Not ready (insurance_extras): the depreciation to get back and the mortgage-company checks, across every claim. The office's (insurance:read).
+  { to: '/crm/insurance-follow-ups', icon: ClipboardCheck, label: 'Insurance follow-ups', features: ['insurance_extras'], permission: 'insurance:read' },
 ]
 
 /**
@@ -55,4 +59,6 @@ export const nav: NavItem[] = [
  * one: GET /api/insurance/claims/:jobId and GET /api/insurance/adjusters are sign-in and the feature only (the crew reads
  * the claim, T63; the server withholds its figures instead). So there is nothing to list.
  */
-export const routePermissions: Record<string, string> = {}
+export const routePermissions: Record<string, string> = {
+  '/crm/insurance-follow-ups': 'insurance:read',
+}

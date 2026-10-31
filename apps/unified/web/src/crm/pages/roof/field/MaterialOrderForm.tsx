@@ -13,7 +13,7 @@ const STATUSES = ['not_ordered', 'ordered', 'partial', 'delivered', 'cancelled']
 const label = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
 /** The supply houses a roofer names most (lib/supplier.ts KNOWN), offered as they type; anything typed is kept. */
-const SUPPLIERS = ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'Allied Building Products', 'Home Depot', "Lowe's", 'Bradco Supply', 'Gulfeagle Supply', 'Roofers Supply']
+export const SUPPLIERS = ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'Allied Building Products', 'Home Depot', "Lowe's", 'Bradco Supply', 'Gulfeagle Supply', 'Roofers Supply']
 
 interface Line { description: string; qty: string; unit: string; unitPrice: string }
 const blankLine = (): Line => ({ description: '', qty: '', unit: 'ea', unitPrice: '' })

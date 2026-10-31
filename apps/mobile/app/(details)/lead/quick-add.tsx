@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
 import { post } from '../../../src/api/client'
 import { uploadJobPhoto } from '../../../src/components/PhotoGallery'
+import type { PhotoStamp } from '../../../src/photos/stamp'
 import { FilterChips } from '../../../src/components/FilterChips'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
@@ -53,7 +54,7 @@ export default function QuickAddLeadScreen() {
   const [zip, setZip] = useState('')
   const [source, setSource] = useState('door_knock')
   const [notes, setNotes] = useState('')
-  const [photo, setPhoto] = useState<{ uri: string } | null>(null)
+  const [photo, setPhoto] = useState<{ uri: string; stamp?: PhotoStamp } | null>(null)
   const [saving, setSaving] = useState(false)
 
   // Auto-fill address from GPS on mount
@@ -104,7 +105,7 @@ export default function QuickAddLeadScreen() {
       return
     }
     if (photo && res.data?.id) {
-      const up = await uploadJobPhoto(vertical, res.data.id, photo.uri)
+      const up = await uploadJobPhoto(vertical, res.data.id, photo.uri, photo.stamp)
       if (!up.ok) toast.error(`Lead added; the photo did not upload (${up.error || 'try again on the job'})`)
     }
     haptics.success()

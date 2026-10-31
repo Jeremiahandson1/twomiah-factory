@@ -42,11 +42,16 @@ export interface JobCostingConfig {
    * produces "Service Calls Costing". Each vertical says what it calls the thing.
    */
   costingLabel?: string
+  /**
+   * The status choices the roll-up filters by, as [stored value, words] with '' for all. Absent: the recurring-job trades'
+   * (completed, in progress, scheduled) — a roofer's jobs are in pipeline stages, so roofing states its own.
+   */
+  statuses?: Array<[string, string]>
 }
 
 export interface JobCostingPageProps { api: ReportingApi; config?: JobCostingConfig }
 
-export const defaultJobCostingConfig: Required<JobCostingConfig> = { jobsLabel: 'Jobs', costingLabel: 'Job Costing' }
+export const defaultJobCostingConfig: Required<JobCostingConfig> = { jobsLabel: 'Jobs', costingLabel: 'Job Costing', statuses: [['', 'All statuses'], ['completed', 'Completed'], ['in_progress', 'In progress'], ['scheduled', 'Scheduled']] }
 export const resolveJobCostingConfig = (c?: JobCostingConfig) => ({ ...defaultJobCostingConfig, ...(c || {}) })
 
 export interface JobsDashboardConfig {

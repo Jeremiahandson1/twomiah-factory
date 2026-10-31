@@ -30,7 +30,7 @@ import { z } from 'zod'
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
 import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer, JOB_DISPATCH_PERMISSION, dispatchRefusal } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage, user } from '../../db/schema/index.ts'
-import { cleanText, cleanLines } from '../../core/sanitize.ts'
+import { cleanText, cleanLines, stripHtml } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one, listAll } from '../../http/reply.ts'
@@ -40,6 +40,9 @@ import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
+import { AUTO_SMS, createStageEffects } from './stageEffects.ts'
+import { loadPipelineConfig, stageLabelFor } from './pipeline.ts'
+import { createRoofCommissions } from './commissions.ts'
 import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -47,8 +50,31 @@ import { partialOf } from '@twomiah/tenant-backend'
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MEDIA_PREFIX = '/media/'
-/** The stage at which a roofing job is done and the homeowner is asked for a review (askForReview). */
-const REVIEW_STAGE = 'collected'
+
+/**
+ * Where and when the phone says a photo was taken (the inspection report prints them under the photo): both coordinates
+ * or neither, within the earth's range, and a time that is not in the future (a phone whose clock runs fast is stamped
+ * with the moment it was uploaded). Nothing is asked of the phone here — it sends what it already has.
+ */
+function photoStamp(get: (key: string) => unknown): { error?: { field: string; message: string }; latitude: string | null; longitude: string | null; takenAt: Date } {
+  const text = (k: string) => { const v = get(k); return typeof v === 'string' ? v.trim() : '' }
+  const out = { latitude: null as string | null, longitude: null as string | null, takenAt: new Date() }
+  const lat = text('latitude'), lng = text('longitude')
+  if (lat || lng) {
+    const la = lat === '' ? NaN : Number(lat), lo = lng === '' ? NaN : Number(lng)
+    if (!Number.isFinite(la) || la < -90 || la > 90) return { ...out, error: { field: 'latitude', message: 'Latitude is a number from -90 to 90, sent with the longitude' } }
+    if (!Number.isFinite(lo) || lo < -180 || lo > 180) return { ...out, error: { field: 'longitude', message: 'Longitude is a number from -180 to 180, sent with the latitude' } }
+    out.latitude = la.toFixed(7)
+    out.longitude = lo.toFixed(7)
+  }
+  const at = text('takenAt')
+  if (at) {
+    const when = new Date(at)
+    if (Number.isNaN(when.getTime())) return { ...out, error: { field: 'takenAt', message: 'takenAt is a date and time' } }
+    if (when.getTime() <= Date.now()) out.takenAt = when
+  }
+  return out
+}
 
 // Date fields arrive as strings from the form; an unparseable one reached Postgres as an Invalid Date and 500'd. '' clears
 // the field, a bad value is a 400 naming it. The date of loss is a calendar day (the CRM's day marker, as an invoice's due
@@ -68,23 +94,6 @@ const jobDates = (data: Record<string, any>, tz: string): { error?: string; valu
     values[f] = r.value
   }
   return { values }
-}
-
-/**
- * What the homeowner is texted when a job reaches a stage. A link only where the office has given them the portal: the
- * CRM's portal is a private link per customer, so a text without one says where else to look.
- */
-const AUTO_SMS: Record<string, (p: { first: string; company: string; date: string; link: string | null }) => string> = {
-  inspection_scheduled: (p) => `Hi ${p.first}, your roof inspection is scheduled for ${p.date}. – ${p.company}`,
-  inspected: (p) => `Hi ${p.first}, your roof inspection is complete! We'll be preparing your estimate shortly. – ${p.company}`,
-  measurement_ordered: (p) => `Hi ${p.first}, we've ordered measurements for your roof. We'll have your proposal ready soon. – ${p.company}`,
-  proposal_sent: (p) => `Hi ${p.first}, your roof proposal is ready for review. ${p.link ? `View it at ${p.link}` : 'Check your email for it'}. – ${p.company}`,
-  signed: (p) => `Hi ${p.first}, your contract is signed! We'll be in touch to schedule installation. – ${p.company}`,
-  material_ordered: (p) => `Hi ${p.first}, materials for your roof have been ordered and are on the way. – ${p.company}`,
-  in_production: (p) => `Hi ${p.first}, your roof installation has started today! Our crew is on-site. – ${p.company}`,
-  final_inspection: (p) => `Hi ${p.first}, your new roof is complete! We'll be doing a final inspection. – ${p.company}`,
-  invoiced: (p) => `Hi ${p.first}, your invoice is ready.${p.link ? ` Pay online at ${p.link}` : ''} – ${p.company}`,
-  collected: (p) => `Hi ${p.first}, payment received — thank you!${p.link ? ` Your warranty info is at ${p.link}` : ''} – ${p.company}`,
 }
 
 /** The refusal for the measurement stage while Measurement Reports is off (./validation.ts pipelineFor). */
@@ -200,6 +209,15 @@ export function createRoofJobRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const canSee = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
+  // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
+  // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
+  const { companyFeatures, stageReached, textHomeowner } = createStageEffects(d)
+  // The rep is paid when the job is Collected (commissions.ts) — also when the office moves it there by hand.
+  const roofCommissions = createRoofCommissions(d)
+  const payRep = async (companyId: string, jobId: string, stage: string) => {
+    if (stage !== 'collected') return
+    try { await roofCommissions.earnForJob(companyId, jobId) } catch (err) { d.logger?.warn?.('[roof] commission not earned', { error: (err as Error).message }) }
+  }
 
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
   /**
@@ -400,7 +418,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       ...withoutJobMoney(found, withheld),
       // The homeowner's portal credential never travels with their record (T42).
       contact: jobContact[0] ? withoutPortalCredential(jobContact[0]) : null,
-      crew: jobCrew[0] || null,
+      // What the crew is paid per square is the shop's cost (margin:read, as materialCost is): not in the job's crew card.
+      crew: jobCrew[0] ? (withheld.includes('materialCost') ? (({ payPerSquare: _p, ...rest }: any) => rest)(jobCrew[0]) : jobCrew[0]) : null,
       measurementReport: measurement[0] ? (seesCost ? measurement[0] : (({ cost: _c, ...rest }: any) => rest)(measurement[0])) : null,
       // What people wrote. What happened to the job (stage moves, closing, reopening) is the timeline's (jobRecord.ts).
       photos, notes: notes.filter((n: any) => !jobEvent(n.body)),
@@ -446,7 +465,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     // Moved to the last stage from the job's own form: the same ask as Advance (askForReview).
-    if (data.status) await askForReview(me.companyId, id, data.status)
+    if (data.status) { await stageReached(me.companyId, id, data.status); await payRep(me.companyId, id, data.status) }
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
@@ -568,50 +587,14 @@ export function createRoofJobRoutes(d: CrmDeps) {
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: statusChangeBody(existing.status, next) } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
-    await askForReview(me.companyId, id, next)
+    await stageReached(me.companyId, id, next)
+    await payRep(me.companyId, id, next)
     return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
-  /**
-   * A finished roof asks the homeowner for a review, as a completed job does everywhere else (crm/services.ts
-   * jobHooks.onComplete): when Review Requests is on, a request is made for the processor to send — or not, where the
-   * owner has left Auto-Request off (the reviews service decides; live test 2026-10-22). Collected is the end of a
-   * roofing job: built, inspected, billed and paid. One request per job, however often the stage is reached.
-   */
-  async function askForReview(companyId: string, jobId: string, stage: string) {
-    if (stage !== REVIEW_STAGE) return
-    try {
-      if (!(await companyFeatures(companyId)).includes('google_reviews')) return
-      await d.services.reviews.scheduleReviewRequest(jobId)
-    } catch (err) { d.logger?.warn?.('[roof] review request not scheduled', { error: (err as Error).message }) }
-  }
-
-  /** The business's switched-on features (company.enabled_features). */
-  async function companyFeatures(companyId: string): Promise<string[]> {
-    const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-    return (co?.enabledFeatures as string[] | null) || []
-  }
   /** A stage a job may be put in here: a terminal one, or one of the pipeline this business walks (pipelineFor). */
   async function stageOpen(companyId: string, status: string): Promise<boolean> {
     return status !== MEASUREMENT_STAGE || pipelineFor(await companyFeatures(companyId)).includes(status)
-  }
-
-  /** The stage's text to the homeowner, through the shared sender (it refuses an opted-out number and unset-up texting). */
-  async function textHomeowner(companyId: string, row: any, stage: string) {
-    if (!row.contactId) return
-    const [co] = await db.select({ name: company.name, enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-    const features = (co?.enabledFeatures as string[] | null) || []
-    if (!features.includes('two_way_texting') && !features.includes('all')) return
-    const [who] = await db.select().from(contact).where(and(eq(contact.id, row.contactId), eq(contact.companyId, companyId))).limit(1)
-    if (!who?.mobile && !who?.phone) return
-    const portalOpen = who.portalEnabled && who.portalToken && (!who.portalTokenExp || new Date(who.portalTokenExp) > new Date())
-    const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
-    const message = AUTO_SMS[stage]({
-      first: firstNameOf(who.name), company: co?.name || '',
-      date: row.inspectionDate ? new Date(row.inspectionDate).toLocaleDateString('en-US') : 'TBD',
-      link: portalOpen && origin ? `${origin}/portal/${who.portalToken}` : null,
-    })
-    await d.services.sms.sendSMS(companyId, { contactId: who.id, message, jobId: row.id })
   }
 
   // POST /:id/photos — a photo, its type read from its bytes (an HTML file sent as image/png was stored as one, M9).
@@ -625,6 +608,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (file.size > MAX_PHOTO_SIZE) return fail(c, 400, 'Photo exceeds 10MB limit')
     const photoType = (form.get('photoType') as string) || 'general'
     if (!(JOB_PHOTO_TYPES as readonly string[]).includes(photoType)) return fail(c, 400, `photoType must be one of: ${JOB_PHOTO_TYPES.join(', ')}`)
+    const stamp = photoStamp((k) => form.get(k))
+    if (stamp.error) return fail(c, 400, stamp.error.message, 'validation_failed', { [stamp.error.field]: stamp.error.message })
     const buffer = Buffer.from(await file.arrayBuffer())
     const type = sniffType(buffer) || ''
     if (!PHOTO_EXT[type]) return fail(c, 400, 'That file is not an image. JPEG, PNG, GIF and WebP are supported.')
@@ -634,9 +619,29 @@ export function createRoofJobRoutes(d: CrmDeps) {
     await d.services.storage.put(key, buffer, type)
     const [photo] = await db.insert(jobPhoto).values({
       companyId: me.companyId, jobId: id, uploadedById: me.userId, photoType, url: MEDIA_PREFIX + key,
-      caption: (form.get('caption') as string) || null, takenAt: new Date(),
+      caption: (form.get('caption') as string) || null, takenAt: stamp.takenAt, latitude: stamp.latitude, longitude: stamp.longitude,
     } as any).returning()
     return one(c, photo, 201)
+  })
+
+  // PUT /:id/photos/:photoId — a photo's caption and kind (jobs:update). Showing it to the homeowner is another door,
+  // with its own permission (portal/jobFiles.ts: PUT /api/job-files/photos/:id, portal:share).
+  app.put('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
+    const me = c.get('user')
+    const parsed = z.object({
+      caption: z.string().transform(stripHtml).pipe(z.string().max(500, 'A caption is 500 characters at most')).nullable().optional(),
+      photoType: z.enum(JOB_PHOTO_TYPES).optional(),
+    }).safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const [existing] = await db.select().from(jobPhoto)
+      .where(and(eq(jobPhoto.id, c.req.param('photoId')), eq(jobPhoto.jobId, c.req.param('id')), eq(jobPhoto.companyId, me.companyId))).limit(1)
+    if (!existing) return fail(c, 404, 'Photo not found')
+    const set: Record<string, unknown> = {}
+    if (parsed.data.caption !== undefined) set.caption = parsed.data.caption || null
+    if (parsed.data.photoType !== undefined) set.photoType = parsed.data.photoType
+    if (!Object.keys(set).length) return one(c, existing)
+    const [photo] = await db.update(jobPhoto).set(set as any).where(and(eq(jobPhoto.id, existing.id), eq(jobPhoto.companyId, me.companyId))).returning()
+    return one(c, photo)
   })
 
   app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {
@@ -686,8 +691,11 @@ export function createRoofJobRoutes(d: CrmDeps) {
         .from(smsMessage).innerJoin(smsConversation, eq(smsMessage.conversationId, smsConversation.id))
         .where(and(eq(smsConversation.companyId, me.companyId), eq(smsConversation.contactId, found.contactId), gt(smsMessage.createdAt, found.createdAt)))
       : []
+    // The company's own stage names, where Pipeline Stages & Boards is on; the standard names otherwise.
+    const names = (await companyFeatures(me.companyId)).includes('pipeline_boards') ? await loadPipelineConfig(db, me.companyId) : null
+    const stageName = (stage: string) => stageLabelFor(names, stage, found.jobType)
     const timeline: any[] = [
-      ...notes.flatMap((n: any) => { const e = jobEvent(n.body); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
+      ...notes.flatMap((n: any) => { const e = jobEvent(n.body, stageName); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
       // An event on a timeline says what happened (N2): a photo carries a body like a note does.
       ...photos.map((p: any) => ({ type: 'photo', id: p.id, url: p.url, caption: p.caption, photoType: p.photoType, createdAt: p.createdAt,
         body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}` })),

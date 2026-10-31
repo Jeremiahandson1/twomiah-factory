@@ -107,6 +107,9 @@ export const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATC
  * "client, hop, hop" and Render's edge appends a varying hop, so keying on the whole header gave every request its
  * own counter. Tells the browser its limit, what remains and when to retry.
  */
+/** The caller's address, the way every limiter here keys it (see createRateLimiter). */
+export const clientKey = (c: Context): string => c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+
 export function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean): MiddlewareHandler {
   const hits = new Map<string, { count: number; resetAt: number }>()
   const sweep = setInterval(() => {
@@ -118,7 +121,7 @@ export function createRateLimiter(windowMs: number, max: number, countMethod?: (
 
   return async (c: Context, next: Next) => {
     if (countMethod && !countMethod(c.req.method)) return next()
-    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+    const key = clientKey(c)
     const now = Date.now()
     let entry = hits.get(key)
     if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; hits.set(key, entry) }
@@ -134,28 +137,50 @@ export function createRateLimiter(windowMs: number, max: number, countMethod?: (
 }
 
 /**
- * A ceiling on guessing a secret link. Counts the lookups that came back "not found" (a wrong token) per client address;
- * once an address has missed `max` times in the window, EVERY request from it answers the same "not found" for the rest
- * of the window, even for a right token, so a limited address learns nothing a wrong guess would not tell it. No
- * RateLimit headers and no 429: the reply for a limited token is the reply for a wrong one.
+ * A limit on GUESSING a private link's token, per address. A public token route counts the lookups that found nothing; an
+ * address that has missed `max` times in the window is shut out, and the route then answers it exactly as it answers a
+ * wrong token (the same "not found", never a 429), so the answer says neither that a limit exists nor whether a guess was
+ * right. Lookups that find a link do not count, so a crew sending twenty photos is never held up. Keyed like
+ * createRateLimiter (by the caller's address).
  */
-export function createTokenGuessGuard(windowMs: number, max: number, notFound: string): MiddlewareHandler {
+export function createGuessLimiter(windowMs: number, max: number) {
   const misses = new Map<string, { count: number; resetAt: number }>()
   const sweep = setInterval(() => {
     const now = Date.now()
     for (const [key, entry] of misses) if (now > entry.resetAt) misses.delete(key)
   }, windowMs)
   ;(sweep as any).unref?.()
+  return {
+    /** Has this address used up its guesses? */
+    shut(c: Context): boolean {
+      const entry = misses.get(clientKey(c))
+      return !!entry && Date.now() <= entry.resetAt && entry.count >= max
+    },
+    /** A lookup from this address found no link. */
+    miss(c: Context): void {
+      const key = clientKey(c), now = Date.now()
+      let entry = misses.get(key)
+      if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; misses.set(key, entry) }
+      entry.count++
+    },
+  }
+}
 
+/** Guesses allowed per address per window on a private-link token route (the link itself is 256 bits, so this is for noise and probing). */
+export const TOKEN_GUESS_WINDOW_MS = 15 * 60 * 1000
+export const TOKEN_GUESS_MAX = 30
+
+/**
+ * The same limit as a route middleware (restaurant's guest links): a lookup that answers 404 counts as a miss; an address
+ * that is shut out gets `notFound`, exactly the reply a wrong token gets. One counter (createGuessLimiter) for every private
+ * link — the crew link, the inspection report, the event proposal, the event payment and the room feed (10/30 integration:
+ * two copies had been written side by side).
+ */
+export function createTokenGuessGuard(windowMs: number, max: number, notFound: string): MiddlewareHandler {
+  const limiter = createGuessLimiter(windowMs, max)
   return async (c: Context, next: Next) => {
-    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
-    const now = Date.now()
-    const entry = misses.get(key)
-    if (entry && now <= entry.resetAt && entry.count >= max) return fail(c, 404, notFound)
+    if (limiter.shut(c)) return fail(c, 404, notFound)
     await next()
-    if (c.res.status !== 404) return
-    const cur = misses.get(key)
-    if (!cur || now > cur.resetAt) misses.set(key, { count: 1, resetAt: now + windowMs })
-    else cur.count++
+    if (c.res.status === 404) limiter.miss(c)
   }
 }

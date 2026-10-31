@@ -65,6 +65,7 @@ export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/st
 export { createQuoteRoutes } from './invoicing/quotes'
 export { isIncluded, includedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
 export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
+export { proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
 export { SIGNING_EVIDENCE, withoutSigningEvidence } from './invoicing/signingEvidence'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.
@@ -190,7 +191,7 @@ export { signQboState, verifyQboState, QBO_STATE_TTL_MS } from './integrations/q
 export type { QboStatePayload } from './integrations/quickbooksState'
 export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } from './integrations/reviews'
 export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'
-export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'
+export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService, PortalJobFiles } from './portal/portal'
 
 // Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
 export { createTeamRoutes, teamMemberSchema } from './team/team'
@@ -247,7 +248,7 @@ export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
 
 // Commissions — plans + earnings, the amount worked out server-side from the plan (crm, crm-fieldservice, crm-landscaping, crm-basic).
-export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN } from './commissions/commissions'
+export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP } from './commissions/commissions'
 export type { CommissionRoutesDeps, CommissionTables, CommissionEarner, CommissionEarnerDeps, CommissionEarnerTables } from './commissions/commissions'
 
 // Locations — a company's branches (crm, crm-fieldservice, crm-landscaping, crm-basic). crm-dispensary keeps its own stock-per-store system.

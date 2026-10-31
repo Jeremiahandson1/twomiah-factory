@@ -17,6 +17,9 @@ export const crew = pgTable('crew', {
   isSubcontractor: boolean('is_subcontractor').default(false).notNull(),
   subcontractorCompanyName: text('subcontractor_company_name'),
   isActive: boolean('is_active').default(true).notNull(),
+  // What the crew is paid per square (100 sq ft) of roof: the job's crew cost is this times the job's squares (job costing,
+  // server/crm/roof/jobCosts.ts). Null: not set, so the crew's cost on a job is not known — never read as free.
+  payPerSquare: decimal('pay_per_square', { precision: 10, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -115,6 +118,13 @@ export const insuranceClaim = pgTable('insurance_claim', {
   adjusterInspectionDate: timestamp('adjuster_inspection_date'),
   approvalDate: timestamp('approval_date'),
 
+  // Insurance extras (roofing depth, gap 7): the held depreciation is released when the carrier gets the certificate of
+  // completion. When the reminder was made (once), when the certificate went to the carrier, what came back and when.
+  depreciationRemindedAt: timestamp('depreciation_reminded_at'),
+  completionCertificateSentAt: timestamp('completion_certificate_sent_at'),
+  depreciationRecoveredAmount: decimal('depreciation_recovered_amount', { precision: 10, scale: 2 }),
+  depreciationRecoveredAt: timestamp('depreciation_recovered_at'),
+
   // Xactimate
   xactimateScopeUrl: text('xactimate_scope_url'),
   xactimateExportUrl: text('xactimate_export_url'),
@@ -128,6 +138,35 @@ export const insuranceClaim = pgTable('insurance_claim', {
 }, (t) => [
   index('insurance_claim_company_id_idx').on(t.companyId),
   index('insurance_claim_job_id_idx').on(t.jobId),
+])
+
+/**
+ * A check from the carrier made out to the homeowner AND their mortgage company: the lender has to endorse it before it can be
+ * deposited. Tracked from the day it arrives to the day it is deposited (roofing depth, gap 7). `status` is
+ * received → sent_to_mortgage → endorsed → deposited, each with the day it happened.
+ */
+export const mortgageCheck = pgTable('mortgage_check', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id),
+  claimId: text('claim_id').notNull().references(() => insuranceClaim.id, { onDelete: 'cascade' }),
+  mortgageCompany: text('mortgage_company').notNull(),
+  loanNumber: text('loan_number'),
+  checkNumber: text('check_number'),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').default('received').notNull(),
+  receivedAt: timestamp('received_at'),
+  sentAt: timestamp('sent_at'),
+  trackingNumber: text('tracking_number'),
+  endorsedAt: timestamp('endorsed_at'),
+  depositedAt: timestamp('deposited_at'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('mortgage_check_company_id_idx').on(t.companyId),
+  index('mortgage_check_claim_id_idx').on(t.claimId),
 ])
 
 export const supplement = pgTable('supplement', {
@@ -196,6 +235,8 @@ export const stormEvent = pgTable('storm_event', {
   leadCount: integer('lead_count').default(0).notNull(),
   status: text('status').default('detected').notNull(),
   source: text('source').default('manual').notNull(),
+  /** Where the storm fell, drawn on the map (field/geo.ts StormPath: a polygon or a circle). Null: by zip only. */
+  path: json('path'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('storm_event_company_id_idx').on(t.companyId),
@@ -289,6 +330,40 @@ export const canvassingStop = pgTable('canvassing_stop', {
   index('canvassing_stop_session_id_idx').on(t.sessionId),
 ])
 
+/**
+ * A canvass territory: an area of the map a rep is sent to knock. Drawn (`boundary`: a polygon or a circle, field/geo.ts)
+ * and/or a list of five-digit zips; it may be drawn around a storm (`stormEventId`). Reps are on it through
+ * canvass_territory_rep.
+ */
+export const canvassTerritory = pgTable('canvass_territory', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  color: text('color').default('#2563eb').notNull(),
+  boundary: json('boundary'),
+  zips: json('zips').default([]).notNull(),
+  stormEventId: text('storm_event_id').references(() => stormEvent.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvass_territory_company_id_idx').on(t.companyId),
+])
+
+/** A rep on a territory (one row each). */
+export const canvassTerritoryRep = pgTable('canvass_territory_rep', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  territoryId: text('territory_id').notNull().references(() => canvassTerritory.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvass_territory_rep_company_id_idx').on(t.companyId),
+  uniqueIndex('canvass_territory_rep_territory_user_uniq').on(t.territoryId, t.userId),
+  index('canvass_territory_rep_user_id_idx').on(t.userId),
+])
+
 export const canvassingScript = pgTable('canvassing_script', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -344,4 +419,83 @@ export const stormRadarEventMatch = pgTable('storm_event_match', {
   index('storm_event_match_company_id_idx').on(t.companyId),
   index('storm_event_match_storm_radar_event_id_idx').on(t.stormRadarEventId),
   index('storm_event_match_status_idx').on(t.status),
+])
+
+/**
+ * A work order: the job a crew or subcontractor is asked to do — scope, address, start date, the material list and some of
+ * the job's photos — texted to them as a private link (public_token, 64 hex characters) they accept, reject or complete
+ * from with no sign-in (server/crm/roof/workOrders). `material_lines` carry NO prices: a sub never sees what the roofer
+ * pays. `photo_ids` are the job photos shared with the crew; `completion_photo_ids` the ones the crew took, which are also
+ * the job's own photos. The link stops answering at `token_expires_at`.
+ */
+export const workOrder = pgTable('work_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  crewId: text('crew_id').references(() => crew.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  scope: text('scope'),
+  address: text('address'),
+  startDate: timestamp('start_date'),
+  recipientName: text('recipient_name').notNull(),
+  recipientPhone: text('recipient_phone').notNull(),
+  materialLines: json('material_lines').default([]).notNull(),
+  photoIds: json('photo_ids').default([]).notNull(),
+  // draft → sent → accepted | rejected → completed; cancelled by the office from any stage short of completed.
+  status: text('status').default('draft').notNull(),
+  publicToken: text('public_token'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  sentAt: timestamp('sent_at'),
+  respondedAt: timestamp('responded_at'),
+  respondedByName: text('responded_by_name'),
+  rejectReason: text('reject_reason'),
+  completedAt: timestamp('completed_at'),
+  completionNote: text('completion_note'),
+  completionPhotoIds: json('completion_photo_ids').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('work_order_company_id_idx').on(t.companyId),
+  index('work_order_job_id_idx').on(t.jobId),
+  uniqueIndex('work_order_public_token_uniq').on(t.publicToken),
+])
+
+/**
+ * How a roofing company names its pipeline (roofing depth, gap 8): one row per company. `config` holds DISPLAY NAMES only —
+ * `{ stageLabels: { invoiced: 'Billed' }, boards: { retail: { name, stageLabels }, insurance: { name, stageLabels } } }` — over
+ * the same stage keys every job is stored with, so the stage texts, the review request and "paid → Collected" never read it
+ * (server/crm/roof/pipeline.ts). No row, or an empty config, is today's names.
+ */
+export const roofPipelineConfig = pgTable('roof_pipeline_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  config: json('config').default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
+])
+
+
+// A job's inspection report (docs/parity/roof-inspection-report.md): a branded write-up built from the job's photos, in
+// roof sections, that the roofer shares as a private link (public_token, the same kind a quote's link is) and a PDF.
+// `sections` is [{ title, notes, photoIds[] }]; the photos themselves are the job's (job_photo), read when the report is
+// opened, so a caption fixed later shows. public_token is empty while the link is off.
+export const inspectionReport = pgTable('inspection_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  intro: text('intro'),
+  sections: json('sections').default([]).notNull(),
+  publicToken: text('public_token').unique(),
+  linkExpiresAt: timestamp('link_expires_at'),
+  // Listed in the homeowner's portal under Photos & documents (the portal opens it by their own login link, not this one).
+  sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('inspection_report_company_id_idx').on(t.companyId),
+  index('inspection_report_job_id_idx').on(t.jobId),
 ])

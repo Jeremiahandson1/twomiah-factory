@@ -11,8 +11,9 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 /** The paths that open the admin's page (react-router takes it from there). */
 // /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link; /d/<token>
 // is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
-// /event-proposal/<token> and /event-pay/<token> are a private event's proposal and one of its payments (crm/restaurant).
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/event-proposal/*', '/event-pay/*']
+// /event-proposal/<token> and /event-pay/<token> are a private event's proposal and one of its payments (crm/restaurant); /w/<token>
+// is a crew's or sub's work order, the link in the text (server/crm/roof/crewLink.ts).
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/event-proposal/*', '/event-pay/*', '/w/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client
@@ -36,6 +37,7 @@ const PUBLIC_TITLES: Array<[RegExp, string]> = [
   [/^\/vendor\//, 'Vendor portal'],
   [/^\/event-proposal\//, 'Your event proposal'],
   [/^\/event-pay\//, 'Pay for your event'],
+  [/^\/w\//, 'Work order'],
   [/^\/family(\/|$)/, 'Family portal'],
   [/^\/pay\//, 'Pay your invoice'],
   [/^\/payment-success$/, 'Payment received'],
@@ -59,7 +61,7 @@ const NOT_BUILT = '<!doctype html><html lang="en"><head><meta charset="utf-8"><m
 
 export function createAdminScreens(deps: {
   companyName: () => Promise<string | null>
-  screens: () => Record<string, unknown>
+  screens: () => Record<string, unknown> | Promise<Record<string, unknown>>
   distDir?: string
   extraPages?: readonly string[]
   /**
@@ -79,7 +81,7 @@ export function createAdminScreens(deps: {
     const name = (await deps.companyName()) || ''
     // The vertical's screen settings (VerticalSettings.screens) as data the page reads: not run, and < escaped so no
     // value can close the element.
-    const screens = JSON.stringify(deps.screens()).replace(/</g, '\\u003c')
+    const screens = JSON.stringify(await deps.screens()).replace(/</g, '\\u003c')
     const colours = (await deps.brand?.()) ?? null
     const hex = (v?: string | null) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '')
     const head = `<title>${escHtml(tabTitle(c.req.path, name))}</title><meta name="company-name" content="${escHtml(name)}">` +

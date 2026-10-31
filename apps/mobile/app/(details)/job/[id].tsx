@@ -29,6 +29,7 @@ import { useVertical } from '../../../src/vertical/VerticalContext'
 import { get, post, put } from '../../../src/api/client'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
+import { useStageName } from '../../../src/pipeline/useStageName'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../../src/components/AnimatedCard'
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet'
@@ -59,6 +60,7 @@ export default function JobDetailScreen() {
   const router = useRouter()
   const t = useTheme()
   const { vertical } = useVertical()
+  const { stageName } = useStageName()
   const { can } = useAuth()
   const isRoof = vertical === 'roofing'
   // jobs:update — the office and the field seat hold it; the viewer reads only.
@@ -200,7 +202,7 @@ export default function JobDetailScreen() {
                   {job.number}{isRoof && job.jobType ? ` • ${label(job.jobType)}` : ''}
                 </Text>
               </View>
-              <StatusBadge status={shownStatus} />
+              <StatusBadge status={shownStatus} label={stageName(shownStatus, job.jobType)} />
             </View>
           </View>
         </AnimatedCard>
@@ -226,7 +228,7 @@ export default function JobDetailScreen() {
                         styles.stepLabel,
                         { color: isActive ? t.text : t.textMuted },
                         isCurrent && { fontWeight: '700' },
-                      ]}>{step.replace(/_/g, ' ')}</Text>
+                      ]}>{isRoof ? (stageName(step, job.jobType) ?? step.replace(/_/g, ' ')) : step.replace(/_/g, ' ')}</Text>
                       {i < shownSteps.length - 1 && (
                         <View style={[styles.connector, { backgroundColor: at < currentStep ? t.primary : t.border }]} />
                       )}
@@ -396,9 +398,9 @@ export default function JobDetailScreen() {
                 </TouchableOpacity>
               )}
               {isRoof && nextStage && (
-                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.green }]} onPress={() => act('advance', undefined, `Moved to ${label(nextStage)}`)}>
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: ACTION.green }]} onPress={() => act('advance', undefined, `Moved to ${stageName(nextStage, job.jobType) ?? label(nextStage)}`)}>
                   <Ionicons name="arrow-forward-circle" size={20} color={ACTION_INK} />
-                  <Text style={styles.actionBtnText}>Advance to {label(nextStage)}</Text>
+                  <Text style={styles.actionBtnText}>Advance to {stageName(nextStage, job.jobType) ?? label(nextStage)}</Text>
                 </TouchableOpacity>
               )}
               {isRoof && !roofClosed && job.status !== 'collected' && (

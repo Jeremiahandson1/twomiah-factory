@@ -42,6 +42,7 @@ const EXEMPT: Record<string, string> = {
   'apps/unified/web/src/crm/pages/homecare/people/ApplicationForm': 'the public job application',
   'apps/unified/web/src/crm/pages/homecare/people/CareersPage': 'the public careers page',
   'apps/unified/web/src/crm/pages/VendorPortalPage': "a vendor's portal, by their private link",
+  'apps/unified/web/src/crm/pages/roof/field/CrewLinkPage': "a crew's or sub's work order, by the private link in the text (the caller has no seat)",
   'packages/tenant-ui/src/portal/': "the CUSTOMER's portal",
   'packages/tenant-ui/src/auth/': 'sign-in, password reset and two-factor enrolment',
   'packages/tenant-ui/src/account/': "the signed-in person's own profile, password and two-factor — every role's",

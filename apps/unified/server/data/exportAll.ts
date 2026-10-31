@@ -58,7 +58,12 @@ function scopeOf(name: string, companyId: string, depth = 0): SQL | 'whole' | nu
     const inner = scopeOf(plain.parent, companyId, depth + 1)
     if (inner && inner !== 'whole') return sql`${q(plain.column)} IN (SELECT ${q('id')} FROM ${q(plain.parent)} WHERE ${inner})`
   }
-  for (const fk of cfg.foreignKeys) {
+  // A required link (NOT NULL) scopes every row; an optional one only the rows that have it. So required links are tried
+  // first: quote_line_item's optional proposal_option_id (roofing PR #170) came first and the export left out every ordinary
+  // quote line (10/30 integration).
+  const required = (fk: (typeof cfg.foreignKeys)[number]) => fk.reference().columns.every((c) => c.notNull)
+  const fks = [...cfg.foreignKeys].sort((a, b) => Number(required(b)) - Number(required(a)))
+  for (const fk of fks) {
     const ref = fk.reference()
     const parent = getTableName(ref.foreignTable as PgTable)
     if (parent === name) continue

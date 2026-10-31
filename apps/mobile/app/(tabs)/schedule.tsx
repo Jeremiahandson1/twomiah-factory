@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
 import { StatusBadge } from '../../src/components/StatusBadge'
+import { useStageName } from '../../src/pipeline/useStageName'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { EmptyState } from '../../src/components/EmptyState'
@@ -24,6 +25,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const dayOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 export default function ScheduleScreen() {
+  const { stageName } = useStageName()
   const t = useTheme()
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -88,7 +90,7 @@ export default function ScheduleScreen() {
                   <View style={{ flex: 1 }}>
                     <View style={styles.cardHeader}>
                       <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>{job.title}</Text>
-                      <StatusBadge status={job.status} />
+                      <StatusBadge status={job.status} label={stageName(job.status, job.jobType)} />
                     </View>
                     {job.contact?.name && (
                       <Text style={[styles.sub, { color: t.textSecondary }]}>{job.contact.name}</Text>

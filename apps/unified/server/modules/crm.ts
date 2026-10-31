@@ -30,7 +30,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest,
 } from '../db/schema/index.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity } from '../data/salon.ts'
@@ -81,7 +81,9 @@ import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
 import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
+import { syncJobValueFromProposal } from '../crm/roof/proposalValue.ts'
 import { roofMounts } from '../crm/roof/index.ts'
+import { roofPortalJobFiles } from '../crm/roof/portalFiles/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
@@ -150,11 +152,13 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const canTakeCardPayments = cardPaymentsFor({ features, services: s })
   // A quote billed in parts: its deposit on approval, progress invoices, the final invoice crediting them (crm/billing).
   const quoteBilling = createQuoteBilling(own, { canTakeCardPayments })
-  // Approving a quote sets up the work: its budget by cost code and its allowances on Selections (crm/billing/quoteBudget.ts).
-  // One hook for both doors (the office marking it approved, the customer approving on their link); a failure here is
-  // logged and never undoes the approval or the deposit.
+  // Approving a quote sets up the work: its budget by cost code and its allowances on Selections (crm/billing/quoteBudget.ts), and —
+  // for a quote with Good / Better / Best options approved for one — the job it was written for is worth that option
+  // (roof/proposalValue.ts). One hook for both doors (the office marking it approved, the customer approving on their link); a
+  // failure here is logged and never undoes the approval or the deposit.
   const quoteBudget = createQuoteBudget(own)
   const afterApproval = async (companyId: string, quoteId: string) => {
+    await syncJobValueFromProposal(db, companyId, quoteId).catch((err: Error) => logger.error('[quotes] job value not updated from the chosen option', { quote: quoteId, error: err?.message }))
     const deposit = await quoteBilling.raiseDeposit(companyId, quoteId)
     try { await quoteBudget.carryOver(companyId, quoteId) } catch (err: any) { logger.error?.('[quotes] budget not set up after approval', { quote: quoteId, error: err?.message }) }
     return deposit
@@ -267,7 +271,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     loadPdf: loadQuotePdf,
@@ -278,6 +282,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
+      // Good / Better / Best: a business sees, builds and answers options only with the feature on (quoteOptions.ts proposalsLive).
+      proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       billedBefore: (tx: any, q: any) => quoteBilling.billedBefore(tx, q),
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
       // the field-service copies had them, the base CRM didn't).
@@ -330,7 +336,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
     loadPdf: loadInvoicePdf, audit,
     options: {
-      timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId),
+      timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.commissionEarner.earnForInvoice(invoiceId); await s.afterInvoicePaid(invoiceId) },
       // A deposit, progress or final invoice is never edited above what is left of its quote (crm/billing/quoteBilling.ts).
       checkTotal: (existing: any, total: number) => quoteBilling.checkTotal(existing, total),
       // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
@@ -457,7 +463,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       db, tables: { job, jobAssignee, crewLogin, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
-    { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit } as any) },
+    { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -533,7 +539,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
-        contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        contact, company, user, quote, quoteLineItem, quoteProposalOption, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).
@@ -544,6 +550,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
       fileService: s.storage,
+      // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
+      ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
@@ -555,6 +563,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },
+      // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
+      proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

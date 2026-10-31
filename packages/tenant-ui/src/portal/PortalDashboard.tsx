@@ -27,6 +27,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   agreements: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
   serviceRequest: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'Request' },
   visits: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
+  jobFiles: { color: 'bg-sky-100 text-sky-700 dark:text-sky-300 dark:bg-sky-950/40', value: 'View' },
 }
 
 export function PortalDashboard() {

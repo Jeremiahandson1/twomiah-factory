@@ -17,7 +17,7 @@ import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../in
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, chooseOptionGroup, optionChoiceProblem, optionTotals, hasOptions, pickedOption, optionNames } from '../invoicing/quoteOptions'
+import { includedLines, depositAmount, chooseOptionalLine, chooseOptionGroup, optionChoiceProblem, optionTotals, hasOptions, pickedOption, optionNames, proposalView, proposalNeedsChoice, chooseProposalOption, proposalsLive, CHOOSE_FIRST } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -25,6 +25,8 @@ import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 export interface PortalTables {
   contact: any; company: any; user: any
   quote: any; quoteLineItem: any; invoice: any; invoiceLineItem: any; payment: any
+  /** The unified app's proposal options (invoicing/quoteOptions.ts): a quote the customer chooses one option of. */
+  quoteProposalOption?: any
   message: any; auditLog: any
   activity?: any
   project?: any; job?: any; changeOrder?: any; changeOrderLineItem?: any
@@ -54,11 +56,26 @@ export interface PortalOptions {
   /** Status a portal service request is created in. Default 'pending' (unscheduled, waiting for the office). */
   serviceRequestStatus?: string
   /** Endpoint groups to leave unmounted even though their tables exist. */
-  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits'>
+  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits' | 'jobFiles'>
+}
+/**
+ * The photos and documents a business has chosen to show this customer, for a vertical that keeps them on the job (roofing:
+ * apps/unified/server/crm/roof/portalFiles). The portal adds a "job files" section only when this is passed; every other
+ * template and vertical leaves it out and has no such section. The vertical decides what "shared" means; the portal only
+ * authenticates the customer (their private link) and hands THEIR contact row to both functions, which must answer for
+ * that customer's own jobs alone.
+ */
+export interface PortalJobFiles {
+  /** What is shared with this customer: items of kind 'photo' | 'document' | 'report', each with the job it belongs to. */
+  list: (contact: any) => Promise<any[]>
+  /** One shared item's bytes, or null when it is not shared with this customer (read as "not found"). */
+  file: (contact: any, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
 }
 export interface PortalDeps {
   db: any
   tables: PortalTables
+  /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
+  jobFiles?: PortalJobFiles
   authenticate: any
   requirePermission: (permission: string) => any
   /** emailService.send — templates: portalInvite, collaboratorAction. */
@@ -112,6 +129,13 @@ export interface PortalDeps {
    */
   visits?: (who: { companyId: string; contactId: string }) => Promise<unknown[] | null>
   options?: PortalOptions
+  /**
+   * May this business's customers see and answer proposal options (Good / Better / Best)? The app's feature question for
+   * `quote_proposals`; the same rule the office's quote routes ask (quoteOptions.ts proposalsLive). With it off the page
+   * shows no options and the pick is refused, and the quote is signed as it stood before options existed. Not given: a
+   * template, whose quotes have none.
+   */
+  proposalsEnabled?: (companyId: string) => Promise<boolean> | boolean
 }
 
 /**
@@ -133,6 +157,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   changeOrders: ['change_orders'],
   selections: ['selections'],
   sharedDocuments: ['documents'],
+  // The photos and documents a roofer chose to show a homeowner: only where that switch (not ready) is on.
+  jobFiles: ['portal_job_files'],
   projectFiles: ['documents', 'projects'],
   equipment: ['equipment_tracking'],
   agreements: [['service_agreements', 'maintenance_contracts']],
@@ -170,6 +196,8 @@ const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'exp
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). optionGroup: the
 // good / better / best option a line belongs to. Never cost or markup.
 const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'optionGroup'] as const
+// What a customer is shown of a proposal option: no cost, no item code.
+const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
 const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
   const out: Record<string, any> = {}
@@ -194,6 +222,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     submittals: !!t.submittal && !off('collaborators'),
     rfis: !!t.rfi && !off('collaborators'),
     sharedDocuments: !!t.document && !!t.documentShare && !off('sharedDocuments'),
+    // Only for a vertical that passes deps.jobFiles: every other portal's section list is exactly what it was.
+    ...(deps.jobFiles ? { jobFiles: !off('jobFiles') } : {}),
     projectFiles: !!t.document && !!t.project && !!fileService && !off('projectFiles'),
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
@@ -709,9 +739,21 @@ export function createPortalRoutes(deps: PortalDeps) {
   const customerQuote = async (companyId: string, found: any, lineItems: any[], company: any) => {
     const asks = 'depositType' in found ? depositAmount(found) : 0
     const deposit = asks > 0 && found.status === 'approved' && deps.quoteDeposit ? await deps.quoteDeposit.depositFor(companyId, found.id).catch(() => null) : null
+    // A quote with options: the lines every option shares are the quote's lines, and the options come apart with their own.
+    const view = (await proposalsLive(t, deps.proposalsEnabled, companyId)) ? await proposalView(db, t, found) : null
+    const proposal = view ? {
+      chosenOptionId: view.chosenOptionId, needsChoice: view.needsChoice,
+      options: await Promise.all(view.options.map(async (op) => ({
+        ...pick(op, PORTAL_OPTION_FIELDS),
+        lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      }))),
+    } : null
     return {
       ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone),
-      lineItems: (await customerLines(db, companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId)
+        // Options off: an option nobody chose is not on the page; the lines of one that was chosen are in the total, so they stay.
+        : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
       // Good / better / best: what each option costs in full (and its deposit), and which one is picked.
       ...(hasOptions(lineItems) ? { options: {
@@ -753,6 +795,31 @@ export function createPortalRoutes(deps: PortalDeps) {
     emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
     return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
   }
+  /** The customer chooses one of a quote's options while the quote is theirs to answer; the price follows. */
+  const chooseProposal = async (c: any) => {
+    const { contact, company } = P(c)
+    const quoteId = c.req.param('quoteId')
+    const found = await visibleQuote(quoteId, contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    // Options switched off: there is nothing to choose, and the answer is the one a path that does not exist gives.
+    if (!(await proposalsLive(t, deps.proposalsEnabled, contact.companyId))) return c.json({ error: 'Quote not found' }, 404)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
+    if (refused) return c.json({ error: refused }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r: any = await chooseProposalOption(db, t, contact.companyId, quoteId, body?.optionId)
+    if ('error' in r) return c.json({ error: r.error }, r.status)
+    emitToCompany?.(contact.companyId, EVENTS?.QUOTE_UPDATED || 'quote:updated', { id: quoteId, number: r.quote.number, total: r.quote.total })
+    return c.json(await customerQuote(contact.companyId, r.quote, r.lineItems, company))
+  }
+  /**
+   * One address for the customer's pick (10/30 integration): field service's options are named lines (`group`, quote_options),
+   * roofing's are proposal options (`optionId`, quote_proposals). Both are hidden until the two are made one (see
+   * docs/parity/quote-options-unify.md); until then the pick goes to the one the request names.
+   */
+  const pickOption = async (c: any) => {
+    const body = await c.req.json().catch(() => ({}))
+    return body && typeof body.optionId === 'string' ? chooseProposal(c) : chooseGroup(c)
+  }
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
   function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
@@ -766,12 +833,12 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
   const documentFingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown }) {
+  async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null }) {
     try {
       await db.insert(t.auditLog).values({
         companyId: params.companyId, action: `${params.entity}.signed`, entity: params.entity, entityId: params.entityId, entityName: params.entityName,
         ipAddress: params.ip, userAgent: params.userAgent, userName: params.signerName, userEmail: params.signerEmail || null,
-        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
+        metadata: { signedAt: params.signedAt.toISOString(), documentHash: params.documentHash, amount: params.amount ?? null, ...(params.option ? { option: params.option } : {}), consent: true, consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.', method: 'customer-portal-drawn-signature' },
       })
     } catch (err) { log.error('[esign] audit write failed', { error: (err as Error).message }) }
   }
@@ -796,6 +863,11 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
+    // A quote with options is signed for ONE of them: the customer chooses before they sign.
+    const optionsLive = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
+    if (optionsLive && (await proposalNeedsChoice(db, t, quoteId))) return c.json({ error: CHOOSE_FIRST }, 400)
+    const view = optionsLive ? await proposalView(db, t, found) : null
+    const chosenOption = view?.options.find((op) => op.chosen) || null
     // What they signed is what is included: an optional line they left unticked is not part of the agreement.
     const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     // A quote that is a choice is signed with one option picked: the signature is for that option and its price.
@@ -803,10 +875,10 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (choice) return c.json({ error: choice, code: 'option_required' }, 400)
     const lineItems = includedLines(allLines)
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
-    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
+    const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', ...(chosenOption ? { option: chosenOption.name } : {}), lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
-    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total })
-    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
+    await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total, option: chosenOption?.name ?? null })
+    notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"${chosenOption ? ` — ${chosenOption.name}` : ''}`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash, ...(chosenOption ? { option: chosenOption.name, optionId: chosenOption.id } : {}) } })
     // The deposit the quote asks becomes its invoice now; the page offers paying it (or says how). Never undoes the approval.
     let deposit: unknown = null
     if (deps.quoteDeposit) {
@@ -904,7 +976,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
   app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
   app.post('/p/:token/quotes/:quoteId/options', portalAuth, chooseOption)
-  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseGroup)
+  app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, pickOption)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
@@ -919,7 +991,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
   app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
   app.post('/d/:token/quotes/:quoteId/options', docAuth, onlyLinked('quote', 'quoteId'), chooseOption)
-  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseGroup)
+  app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), pickOption)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
   app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
   app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)
@@ -1242,6 +1314,23 @@ export function createPortalRoutes(deps: PortalDeps) {
         : db.select(base).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
       const rows = await q.where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt), asc(t.documentShare.id))
       return c.json(rows)
+    })
+  }
+
+  // ---- job files: the photos and documents the business chose to show THIS customer (deps.jobFiles decides what that is)
+  if (has.jobFiles && deps.jobFiles) {
+    const jobFiles = deps.jobFiles
+    app.get('/p/:token/job-files', portalAuth, gate('jobFiles'), async (c) => {
+      c.header('Cache-Control', 'private, no-store')
+      return c.json({ data: await jobFiles.list(P(c).contact) })
+    })
+    app.get('/p/:token/job-files/:kind/:id/file', portalAuth, gate('jobFiles'), async (c) => {
+      const file = await jobFiles.file(P(c).contact, c.req.param('kind'), c.req.param('id'))
+      if (!file) return c.json({ error: 'File not found' }, 404)
+      return new Response(file.body, { headers: {
+        'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',
+        'Content-Disposition': `${file.inline ? 'inline' : 'attachment'}; filename="${String(file.filename).replace(/["\r\n\\]/g, '')}"`,
+      } })
     })
   }
 

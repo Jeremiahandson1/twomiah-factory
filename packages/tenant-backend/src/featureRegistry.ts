@@ -206,9 +206,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'fleet', name: 'Fleet Management', description: 'Vehicle fleet tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
 
   // Finance
-  { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — invoices and deposits paid by card, or by bank account where you turn that on in your Stripe account', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — invoices and deposits paid by card, or by bank account where you turn that on in your Stripe account', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] /* not crm-roof YET (owner, 2026-10-30): roofing payments are built and proven (apps/unified/tests/roof-online-payments.test.ts) but not released, and offering a feature advertises it. To release: add 'crm-roof' here and drop 'roofing' from SIGNUP_PAGE_HIDES.online_payments in tests/signup-questions.test.ts (and the website signup page's ASK_HIDDEN_FOR). */ },
   { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
-  { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   // Not ready: a project's budget by cost code (from its approved quotes) beside what its jobs have cost, under Job Costing.
   { id: 'job_budgets', name: 'Project Budgets', description: 'A project\'s budget by cost code, set by its approved quotes, beside what its jobs have cost so far', category: 'Finance', core: false, templates: ['crm'], hidden: true },
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
@@ -268,7 +268,15 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Roofing
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'quote_proposals', name: 'Proposal Options', description: 'One quote with two to six priced options, each with photos, a brand and a warranty, that the customer picks between and signs', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // Not ready (roofing depth, gaps 6 and 10): the owner tests them first.
+  { id: 'inspection_reports', name: 'Inspection Reports', description: 'A branded photo report of a roof inspection, shared by a private link and as a PDF', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'portal_job_files', name: 'Homeowner Photos & Documents', description: 'The photos and documents you choose to share with a homeowner, in their portal', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  // Not ready (owner tests it first): the held-depreciation reminder when a job is done, and mortgage-company check tracking.
+  { id: 'insurance_extras', name: 'Insurance Follow-ups', description: 'Reminds you to send the certificate of completion for held depreciation, and tracks mortgage-company checks through endorsement', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // Not ready (owner tests it first): rename the pipeline stages and keep separate Retail and Insurance boards. Display names only.
+  { id: 'pipeline_boards', name: 'Pipeline Stages & Boards', description: 'Rename the pipeline stages and keep separate Retail and Insurance boards', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is
   // no state of the product where it is off, and the Settings toggle could never do anything. `core` is a
   // global flag, but this feature is offered to crm-roof alone, so marking it core locks it to "Included"
@@ -276,8 +284,12 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: true, templates: ['crm-roof'] },
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'roof_work_orders', name: 'Crew & Sub Work Orders', description: 'Text a crew or subcontractor a work order they accept, reject or complete from a private link — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_customer_map', name: 'Storm Map', description: 'Past customers inside a storm’s path — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'canvass_territories', name: 'Canvass Territories', description: 'Draw territories and assign them to reps — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
 
   // Dispensary — POS & Sales
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
@@ -363,7 +375,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Cross-vertical pages that ship in several templates and are gated in their sidebars
   { id: 'support_tickets', name: 'Support Tickets', description: 'Customer support ticket queue with statuses and assignment', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
   { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s jobs, directions, on my way / on site / done, photos and a checklist', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
-  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: earned by hand or automatically when an invoice is paid, approved, paid out, with statements', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
+  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: earned by hand or automatically when an invoice is paid, approved, paid out, with statements', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm', 'crm-roof'] },
 
   // Construction pages that ship in crm
   { id: 'lien_waivers', name: 'Lien Waivers', description: 'Conditional and unconditional lien waiver tracking per payment', category: 'Construction', core: false, templates: ['crm'] },

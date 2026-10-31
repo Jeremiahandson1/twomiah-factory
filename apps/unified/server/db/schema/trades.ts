@@ -1,7 +1,7 @@
 // Service-trades layer: a customer's service sites, job photos, vehicle trips, the activity log and portal sessions —
 // the tables the trades CRMs (basic, field service, landscaping, bar) share beyond the base CRM's. Column for column
 // from templates/crm-{basic,fieldservice,landscaping,bar}/backend/db/schema.ts (the union where they differ).
-import { pgTable, text, integer, real, timestamp, json, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, decimal, integer, real, timestamp, json, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, job } from './crm.ts'
@@ -35,6 +35,12 @@ export const jobPhoto = pgTable('job_photo', {
   // What the photo shows — before, damage, during, after … (templates/crm-roof job_photo.photo_type; roofing's
   // insurance paperwork is built from them). Every other vertical's photo is 'general'.
   photoType: text('photo_type').default('general').notNull(),
+  // Where the phone was when it took the photo, when the phone said (roofing's inspection report prints it under the
+  // photo; nothing else reads it). Both or neither.
+  latitude: decimal('latitude', { precision: 10, scale: 7 }),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }),
+  // Shown to the homeowner in their portal (roofing's Photos & documents). Off until someone with portal:share turns it on.
+  sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
 }, (t) => [
   index('job_photo_company_id_idx').on(t.companyId),
   index('job_photo_job_id_idx').on(t.jobId),

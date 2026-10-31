@@ -7,16 +7,34 @@
 //     own zip. The unified app's provisioning writes no such setting, so a company that has never set its service area
 //     is served by its own zip (serviceAreaZips below) — an explicitly emptied list stays empty;
 //   · the feed is reached through `fetch` handed in (tests stub it; nothing here calls out at import);
-//   · runDailyStormCheck is NOT scheduled. The template defined it and never called it (no caller anywhere in
-//     templates/crm-roof), so no roofer's storm board has ever been filled by it; starting it is a new behaviour that
-//     writes storm events from a feed whose CSV shape is not verified, and waits for the owner's yes.
-import { and, count, eq, inArray, or } from 'drizzle-orm'
+//   · a storm event that has a drawn path (storm_event.path, set through /api/storm-map) matches the company's customers by
+//     where they are — their pin inside the shape — and by zip only for a customer with no pin (customerGeo.ts); an event
+//     with no path is matched by zip as before;
+//   · runStormCheck(companyId) is the owner's "check NOAA now" (POST /api/storm-map/noaa-check): one company, on demand.
+//   · runDailyStormCheck (the template's, with auto-leads) is still NOT scheduled: the template never called it either.
+//   · Owner, 2026-10-30: a DAILY check of the same kind as "check NOAA now" — events onto the storm board, no leads — runs at
+//     5 am on each company's clock (runScheduledNoaaCheck, started by startNoaaSchedule through the CRM's addJob, so never in
+//     tests), but ONLY for a company that has the hidden `storm_customer_map` switch on. That switch is not ready and no plan,
+//     owner or Factory save can turn it on, so today it checks nobody; it is lifted only after the check has been run
+//     against the real NOAA feed (the CSV shape is verified by fixture only).
+//   · A report the feed gave on an earlier check is not added again (a two-day window means a daily check sees each report
+//     twice): same company, source, type, place and size, within the window.
+import { and, count, eq, gte, inArray, or } from 'drizzle-orm'
+import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import { zip5Of } from '../../../data/zip5.ts'
 import { company, contact, job, stormEvent, stormLead } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { customersInArea } from './customerGeo.ts'
+import { pathOf, zipSet, type StormPath } from './geo.ts'
 
 // NOAA Storm Events CSV endpoint (free, public, no API key)
 const NOAA_BASE = 'https://www.ncdc.noaa.gov/stormevents/csv'
+
+/** The hour of the company's day (24-hour clock) the scheduled check runs in. */
+export const NOAA_CHECK_HOUR = 5
+/** The switch the scheduled check requires — hidden (not ready), so no real company has it. */
+export const NOAA_SCHEDULE_FEATURE = 'storm_customer_map'
+const hourIn = (now: Date, tz: string) => Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now))
 
 /**
  * The zips a company's storm work covers: what it set in Settings, or — never having set any — its own zip. The
@@ -39,11 +57,12 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
   const { db, logger } = d
   const fetchFn = opts.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
 
-  async function fetchStormEvents(companyId: string, zipCodes: string[], dateFrom: Date, dateTo: Date) {
+  async function fetchStormEvents(companyId: string, zipCodes: string[], dateFrom: Date, dateTo: Date, onStatus?: (s: { reached: boolean; status: number | null }) => void) {
     const events: any[] = []
     try {
       const url = `${NOAA_BASE}?beginDate_mm=${String(dateFrom.getMonth() + 1).padStart(2, '0')}&beginDate_dd=${String(dateFrom.getDate()).padStart(2, '0')}&beginDate_yyyy=${dateFrom.getFullYear()}&endDate_mm=${String(dateTo.getMonth() + 1).padStart(2, '0')}&endDate_dd=${String(dateTo.getDate()).padStart(2, '0')}&endDate_yyyy=${dateTo.getFullYear()}&eventType=Hail&eventType=Thunderstorm+Wind&eventType=Tornado`
       const res = await fetchFn(url, { signal: AbortSignal.timeout(15000) }).catch(() => null)
+      onStatus?.({ reached: !!res?.ok, status: res ? res.status : null })
       if (res?.ok) {
         const text = await res.text()
         const lines = text.split('\n').slice(1) // skip header
@@ -74,8 +93,13 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
       logger.warn('NOAA fetch failed, using manual entry fallback', { error: (err as Error).message })
     }
     if (events.length === 0) return []
+    // Reports an earlier check already put on this board (created since the window began) are not added a second time.
+    const known = await db.select({ eventType: stormEvent.eventType, description: stormEvent.description, hailSizeInches: stormEvent.hailSizeInches, windSpeedMph: stormEvent.windSpeedMph })
+      .from(stormEvent).where(and(eq(stormEvent.companyId, companyId), eq(stormEvent.source, 'noaa'), gte(stormEvent.createdAt, dateFrom)))
+    const keyOf = (e: any) => [e.eventType, e.description, e.hailSizeInches ?? '', e.windSpeedMph ?? ''].join('|')
+    const seen = new Set<string>((known as any[]).map(keyOf))
     const created: any[] = []
-    for (const evt of events.slice(0, 10)) { // max 10 events per check
+    for (const evt of events.filter((e) => { const k = keyOf(e); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 10)) { // max 10 events per check
       const [record] = await db.insert(stormEvent).values(evt).returning()
       created.push(record)
     }
@@ -92,8 +116,8 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
    * so a contact saved as 54701-1234 was never in 54701. Now the five-digit zip decides (zip5s), and a customer with a
    * job is matched and flagged: the lead links their newest job and its note says so.
    */
-  async function generateStormLeads(companyId: string, stormEventId: string, zipCodes: string[]) {
-    const contactsInZips = await contactsInStorm(companyId, zipCodes)
+  async function generateStormLeads(companyId: string, stormEventId: string, zipCodes: string[], opts: { path?: StormPath | null } = {}) {
+    const contactsInZips = await contactsInStorm(companyId, zipCodes, opts.path ?? null)
 
     // The jobs those contacts already have — theirs by the job's contact, or at their address — the lead links the
     // newest, and its note names it.
@@ -141,9 +165,16 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
     return leads.length
   }
 
-  /** The company's contacts whose zip is one of the storm's, by the five-digit zip. */
-  async function contactsInStorm(companyId: string, zipCodes: string[]) {
+  /**
+   * The company's contacts the storm hit. With a drawn path: those whose pin is inside it, plus those with no pin whose zip
+   * is one of the storm's. Without one: those whose zip is one of the storm's, by the five-digit zip.
+   */
+  async function contactsInStorm(companyId: string, zipCodes: string[], path: StormPath | null = null) {
     const zips = zip5s(zipCodes)
+    if (path) {
+      const found = await customersInArea(db, companyId, { path, zips: zipSet(zips) }, { scope: 'all' })
+      return found.customers.map((c) => ({ id: c.contactId, name: c.name, address: c.address, city: c.city, state: c.state, zip: c.zip }))
+    }
     if (!zips.length) return []
     return db.select({ id: contact.id, name: contact.name, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip })
       .from(contact).where(and(eq(contact.companyId, companyId), inArray(zip5Of(contact.zip), zips)))
@@ -152,7 +183,22 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
   async function checkExistingCustomers(companyId: string, stormEventId: string) {
     const [event] = await db.select().from(stormEvent).where(and(eq(stormEvent.id, stormEventId), eq(stormEvent.companyId, companyId))).limit(1)
     if (!event) return []
-    return contactsInStorm(companyId, (event.affectedZipCodes as string[]) || [])
+    return contactsInStorm(companyId, (event.affectedZipCodes as string[]) || [], pathOf((event as any).path))
+  }
+
+  /** One company's check: the last `days` days from the feed into its storm board, and leads where it auto-generates. */
+  async function checkCompany(comp: any, days = 2, auto = true) {
+    const settings = (comp.settings as any) || {}
+    const zips = serviceAreaZips(comp)
+    if (zips.length === 0) return { skipped: 'no_service_area' as const, events: [] as any[], reached: false, status: null as number | null }
+    const dateTo = new Date()
+    const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    let feed: { reached: boolean; status: number | null } = { reached: false, status: null }
+    const events = await fetchStormEvents(comp.id, zips, dateFrom, dateTo, (s) => { feed = s })
+    if (auto && events.length > 0 && settings.stormAutoGenerate) {
+      for (const evt of events) await generateStormLeads(comp.id, evt.id, zips)
+    }
+    return { skipped: null, events, ...feed }
   }
 
   /** Every company with storm_lead_gen: the last 48 hours from the feed, and leads where it auto-generates. Not scheduled (header). */
@@ -162,24 +208,56 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
     for (const comp of companies as any[]) {
       const features = (comp.enabledFeatures as string[]) || []
       if (!features.includes('storm_lead_gen') && !features.includes('all')) continue
-      const settings = (comp.settings as any) || {}
-      const zips = serviceAreaZips(comp)
-      if (zips.length === 0) continue
-      const dateTo = new Date()
-      const dateFrom = new Date(Date.now() - 48 * 60 * 60 * 1000)
       try {
-        const events = await fetchStormEvents(comp.id, zips, dateFrom, dateTo)
-        if (events.length > 0 && settings.stormAutoGenerate) {
-          for (const evt of events) await generateStormLeads(comp.id, evt.id, zips)
-        }
-        if (events.length > 0) logger.info(`Storm check: found ${events.length} events for ${comp.name}`)
+        const r = await checkCompany(comp)
+        if (r.events.length > 0) logger.info(`Storm check: found ${r.events.length} events for ${comp.name}`)
       } catch (err) {
         logger.error(`Storm check failed for ${comp.name}`, { error: (err as Error).message })
       }
     }
   }
 
-  return { fetchStormEvents, generateStormLeads, checkExistingCustomers, runDailyStormCheck }
+  /**
+   * The owner's "check NOAA now": this company only, the last `days` days, events onto its storm board — no leads are made
+   * (the owner decides what to do with an event). Runs only when the route asks; nothing calls it on a timer.
+   */
+  async function runStormCheck(companyId: string, days = 2) {
+    const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+    if (!comp) return { skipped: 'no_company' as const, events: [] as any[], reached: false, status: null as number | null }
+    return checkCompany(comp, days, false)
+  }
+
+  /**
+   * The scheduled check: every company with the (hidden) storm_customer_map switch on, once a day at NOAA_CHECK_HOUR on its
+   * own clock — the same run as "check NOAA now" for that company (events onto the board, no leads). Called by the hourly
+   * timer; `now` is a parameter so the hour can be proven without waiting for it. A failure for one company never stops the next.
+   */
+  async function runScheduledNoaaCheck(now: Date = new Date()) {
+    const ran: Array<{ companyId: string; fetched: number; reached: boolean }> = []
+    const companies = await db.select().from(company)
+    for (const comp of companies as any[]) {
+      try {
+        if (!(await d.features.isFeatureEnabled(comp.id, NOAA_SCHEDULE_FEATURE))) continue
+        if (hourIn(now, companyRowTimeZone(comp)) !== NOAA_CHECK_HOUR) continue
+        const r = await runStormCheck(comp.id)
+        if (r.skipped) continue
+        ran.push({ companyId: comp.id, fetched: r.events.length, reached: r.reached })
+        if (!r.reached) logger.warn('Scheduled NOAA check: the feed did not answer', { company: comp.name, status: r.status })
+        else if (r.events.length > 0) logger.info(`Scheduled NOAA check: ${r.events.length} new storm reports for ${comp.name}`)
+      } catch (err) {
+        logger.error(`Scheduled NOAA check failed for ${comp.name}`, { error: (err as Error).message })
+      }
+    }
+    return ran
+  }
+
+  /** The hourly timer for runScheduledNoaaCheck. Started once, at boot, through the CRM's addJob (never in tests). */
+  function startNoaaSchedule() {
+    const timer = setInterval(() => { void runScheduledNoaaCheck() }, 60 * 60_000)
+    ;(timer as any).unref?.()
+  }
+
+  return { fetchStormEvents, generateStormLeads, checkExistingCustomers, runDailyStormCheck, runStormCheck, runScheduledNoaaCheck, startNoaaSchedule }
 }
 
 export type StormData = ReturnType<typeof createStormData>

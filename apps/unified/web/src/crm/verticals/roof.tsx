@@ -2,7 +2,7 @@
 // quotes, invoices, documents and the rest are the CRM's shared screens; its jobs pages are roofing's own, over the CRM's
 // job (the server's /api/jobs is roofing's module for this vertical), so they are registered before the CRM's.
 import type { ReactElement } from 'react'
-import { Calculator } from 'lucide-react'
+import { Calculator, LayoutDashboard } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { verticalScreens } from '../vertical'
 import * as jobs from '../pages/roof/jobs'
@@ -30,7 +30,7 @@ export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
 // The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
 // and the storm leads under the field tools, where a roofer never looked (live test 2026-10-22).
-const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters']
+const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters', '/crm/insurance-follow-ups']
 // …and its field tools under their own heading.
 const FIELD = ['/crm/canvassing', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports']
 
@@ -70,7 +70,11 @@ export const CanvassView = field.canvassView
  * snippet — for whoever may change the company (PUT /api/settings/estimator asks company:update), with the estimator on.
  */
 export const SETTINGS_EXTRA = isRoofing
-  ? [{ to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' }]
+  ? [
+    { to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' },
+    // Not ready (pipeline_boards): rename the pipeline stages and name the Retail and Insurance boards' stages.
+    { to: '/crm/settings/pipeline', label: 'Pipeline stages', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_boards' },
+  ]
   : []
 /** The roofer's home at /crm/dashboard (crm/screens.tsx HOMES). */
 export const dashboard = jobs.dashboard

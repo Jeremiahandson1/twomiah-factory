@@ -5,7 +5,7 @@ import {
   PortalProvider, PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes,
   PortalQuoteDetail, PortalInvoices, PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail,
   PortalSelections, PortalMessages, PortalMyJobs, PortalLienWaivers, PortalSubmittalReview, PortalAssignedRfis,
-  PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest, PortalVisits,
+  PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest, PortalVisits, PortalJobFiles,
 } from '@twomiah/tenant-ui/src/portal'
 import { verticalScreens } from './vertical'
 
@@ -29,6 +29,7 @@ export default function PortalApp() {
           <Route path="selections" element={<PortalSelections />} />
           <Route path="messages" element={<PortalMessages />} />
           <Route path="my-jobs" element={<PortalMyJobs />} />
+          <Route path="job-files" element={<PortalJobFiles />} />
           <Route path="lien-waivers" element={<PortalLienWaivers />} />
           <Route path="submittal-review" element={<PortalSubmittalReview />} />
           <Route path="rfis-assigned" element={<PortalAssignedRfis />} />

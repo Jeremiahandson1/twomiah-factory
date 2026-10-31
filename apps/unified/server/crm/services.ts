@@ -88,6 +88,15 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // services and hands its claim in with useConnectedEvents. Until then (and for every vertical without the store) an
   // event is the invoices' as before.
   let connectedEvents: ConnectedEventClaim | null = null
+  // What a module does once an invoice is paid in full-or-part (roofing collects the job): registered when the module
+  // mounts, run by BOTH ways money arrives — a payment typed in on the screen (invoice routes' afterMoney) and a card or
+  // bank payment on the business's Stripe (afterInvoicePayment below). One failing step never stops the others.
+  const invoicePaidSteps: Array<(invoiceId: string) => Promise<unknown>> = []
+  const afterInvoicePaid = async (invoiceId: string) => {
+    for (const step of invoicePaidSteps) {
+      try { await step(invoiceId) } catch (err) { logger.warn?.('[invoices] an after-payment step failed', { invoiceId, error: (err as Error)?.message }) }
+    }
+  }
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
@@ -97,6 +106,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       claimConnectedEvent: (event: Stripe.Event, stripeAccount: string) => (connectedEvents ? connectedEvents(event, stripeAccount) : Promise.resolve(null)),
       afterInvoicePayment: async (invoiceId: string) => {
         await commissionEarner.earnForInvoice(invoiceId)
+        await afterInvoicePaid(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
         // confirmed; a held room is only logged, the money is already taken — then the due date moves to the next
         // unpaid installment (templates/crm-restaurant services/stripe.ts, T16 M8).
@@ -228,7 +238,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   }
 
   // Bulk status changes run the same moments as the job routes (packages/tenant-backend jobs.ts jobHookFor).
-  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks } as any)
+  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks, afterInvoicePaid } as any)
 
   // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
   // vertical's invoices, and home care's Billing invoices where this is home care.
@@ -250,6 +260,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
     useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
+    /** A step to run after money lands on an invoice, by either way it arrives (roofing's: collect the job). */
+    onInvoicePaid(step: (invoiceId: string) => Promise<unknown>) { invoicePaidSteps.push(step) },
+    /** Runs those steps: commissions' sibling for a payment typed in on the screen. */
+    afterInvoicePaid,
     /** Who claims a connected-account event before the invoices see it (the store's orders). */
     useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents = claim },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */

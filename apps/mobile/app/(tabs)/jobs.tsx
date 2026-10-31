@@ -23,6 +23,7 @@ import { get, post } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
 import { uploadJobPhoto } from '../../src/components/PhotoGallery'
 import { StatusBadge } from '../../src/components/StatusBadge'
+import { useStageName } from '../../src/pipeline/useStageName'
 import { SearchBar } from '../../src/components/SearchBar'
 import { FilterChips } from '../../src/components/FilterChips'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
@@ -61,6 +62,7 @@ export default function JobsScreen() {
   const router = useRouter()
   const t = useTheme()
   const { vertical, hasFeature } = useVertical()
+  const { stageName } = useStageName()
   const { can } = useAuth()
   const isRoof = vertical === 'roofing'
   const canWork = can('jobs:update')
@@ -148,7 +150,7 @@ export default function JobsScreen() {
   const handlePhoto = async (job: any) => {
     const photo = await takePhoto()
     if (!photo) return
-    const res = await uploadJobPhoto(vertical, job.id, photo.uri)
+    const res = await uploadJobPhoto(vertical, job.id, photo.uri, photo.stamp)
     if (res.ok) { haptics.success(); toast.success(`Photo added to ${job.number}`) }
     else { haptics.error(); toast.error(res.error || 'Photo upload failed') }
   }
@@ -185,7 +187,7 @@ export default function JobsScreen() {
                   {job.number}{job.contact?.name ? ` • ${job.contact.name}` : ''}
                 </Text>
               </View>
-              <StatusBadge status={job.status} />
+              <StatusBadge status={job.status} label={stageName(job.status, job.jobType)} />
             </View>
 
             {job.scheduledDate && (

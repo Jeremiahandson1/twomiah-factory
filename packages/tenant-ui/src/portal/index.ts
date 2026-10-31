@@ -15,6 +15,7 @@ export { PortalChangeOrders, PortalChangeOrderDetail } from './PortalChangeOrder
 export { PortalSelections } from './PortalSelections'
 export { PortalMyJobs, PortalLienWaivers, PortalSubmittalReview, PortalAssignedRfis, PortalSharedDocuments } from './PortalCollaborators'
 export { PortalProjectFiles } from './PortalProjectFiles'
+export { PortalJobFiles } from './PortalJobFiles'
 export { PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest } from './PortalService'
 export { SignaturePad, SignatureModal, SignatureDisplay } from './SignaturePad'
 export { PortalPaymentForm, PortalPaymentModal } from './PaymentForm'

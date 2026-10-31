@@ -78,15 +78,16 @@ export type JobEventKind = 'status_change' | 'closed' | 'reopened'
 /**
  * A job_note row that records something that happened to the job, in words with stage names — or null for a note a
  * person wrote. Only the exact forms above whose codes are real stages count, so a note someone types that happens to
- * begin "Status changed:" stays their note.
+ * begin "Status changed:" stays their note. `label` names a stage (the company's own names, pipeline.ts); by default the
+ * standard names. The stored note is always the code, so a rename reaches every old entry.
  */
-export function jobEvent(body: string | null | undefined): { kind: JobEventKind; text: string } | null {
+export function jobEvent(body: string | null | undefined, label: (stage: string) => string = stageLabel): { kind: JobEventKind; text: string } | null {
   const b = String(body ?? '')
   let m = STATUS.exec(b)
-  if (m && known(m[1], m[2])) return { kind: 'status_change', text: `Stage moved from ${stageLabel(m[1])} to ${stageLabel(m[2])}` }
+  if (m && known(m[1], m[2])) return { kind: 'status_change', text: `Stage moved from ${label(m[1])} to ${label(m[2])}` }
   m = CLOSED.exec(b)
-  if (m && known(m[1], m[2])) return { kind: 'closed', text: `Closed as ${stageLabel(m[1])} (was ${stageLabel(m[2])}): ${m[3]}` }
+  if (m && known(m[1], m[2])) return { kind: 'closed', text: `Closed as ${label(m[1])} (was ${label(m[2])}): ${m[3]}` }
   m = REOPENED.exec(b)
-  if (m && known(m[1], m[2])) return { kind: 'reopened', text: `Reopened at ${stageLabel(m[1])} (was ${stageLabel(m[2])}${m[3] ? `: ${m[3]}` : ''})` }
+  if (m && known(m[1], m[2])) return { kind: 'reopened', text: `Reopened at ${label(m[1])} (was ${label(m[2])}${m[3] ? `: ${m[3]}` : ''})` }
   return null
 }

@@ -20,8 +20,56 @@ export interface PortalQuoteData {
   /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
   depositAmount?: string
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
+  /** A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote. */
+  proposal?: { chosenOptionId: string | null; needsChoice: boolean; options: ProposalOption[] }
   project?: { name: string; number?: string } | null
   [key: string]: unknown
+}
+
+export interface ProposalOption {
+  id: string; name: string; tier?: string | null; brand?: string | null; warranty?: string | null; description?: string | null
+  photos?: string[]; recommended?: boolean; chosen?: boolean; price: string
+  lines?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number }>
+}
+
+/** The options of a quote, side by side: photos, brand, warranty, what is in each, the whole job's price — and the choice. */
+function ProposalOptions({ proposal, canRespond, busy, onChoose }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string) => void }) {
+  const options = proposal.options
+  return (
+    <div className="p-6 border-b dark:border-slate-700" data-testid="quote-options">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{canRespond ? 'Choose your option' : 'Your option'}</h2>
+      {canRespond && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each price is for the whole job. Pick the one you want, then sign.</p>}
+      <div className={`grid gap-4 ${options.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+        {options.map((op) => {
+          const shown = canRespond || op.chosen
+          if (!shown) return null
+          return (
+            <div key={op.id} data-testid="quote-option" aria-current={op.chosen ? 'true' : undefined}
+              className={`relative flex flex-col rounded-xl border p-4 ${op.chosen ? 'border-green-600 ring-2 ring-green-200 dark:ring-green-900/50' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-900`}>
+              {op.recommended && <span className="absolute -top-3 left-4 rounded-full bg-orange-600 px-3 py-0.5 text-xs font-semibold text-white">Recommended</span>}
+              {op.photos && op.photos.length > 0 && (
+                <div className="mb-3">
+                  <img src={op.photos[0]} alt={`${op.name}`} loading="lazy" className="h-40 w-full rounded-lg object-cover bg-gray-100 dark:bg-slate-800" />
+                  {op.photos.length > 1 && <div className="mt-1 flex gap-1">{op.photos.slice(1, 4).map((src, i) => <img key={i} src={src} alt={`${op.name}, photo ${i + 2}`} loading="lazy" className="h-12 w-1/3 rounded object-cover bg-gray-100 dark:bg-slate-800" />)}</div>}
+                </div>
+              )}
+              <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{op.name}</h3>
+              {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
+              {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
+              {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
+              {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
+              <div className="mt-auto pt-4">
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{moneyShort(op.price)}</p>
+                {canRespond
+                  ? <button type="button" disabled={busy} onClick={() => onChoose(op.id)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>{op.chosen ? <><CheckCircle className="w-4 h-4" /> Your choice</> : 'Choose this option'}</button>
+                  : <p className="mt-1 text-sm font-medium text-green-800 dark:text-green-300">You chose this option</p>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function PortalQuotes() {
@@ -105,6 +153,12 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
     try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ group }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not pick that option: ' + (e as Error).message) } finally { setBusy(false) }
   }
+  // Choose one of the quote's options before signing: the server answers the quote with its total for that option.
+  const chooseOption = async (optionId: string) => {
+    setBusy(true); setError('')
+    try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    catch (e) { setError('Could not choose that option: ' + (e as Error).message) } finally { setBusy(false) }
+  }
   const decline = async () => {
     setBusy(true); setError('')
     try { await portalFetch(`/quotes/${quoteId}/reject`, { method: 'POST', body: JSON.stringify({ reason: reason || null }) }); setQuote((q) => ({ ...(q as PortalQuoteData), status: 'rejected' })); setShowDecline(false) }
@@ -118,6 +172,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   const hasOptional = (quote.lineItems || []).some((li) => li.optional && !li.optionGroup)
   const options = quote.options && quote.options.names.length > 1 ? quote.options : null
   const mustPick = !!options && !options.picked
+  const proposal = quote.proposal
+  const mustChoose = !!proposal && proposal.needsChoice && canRespond
   const reach = [(quote.company as any)?.phone, (quote.company as any)?.email].filter(Boolean).join(' or ')
 
   return (
@@ -155,7 +211,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             <p className="mt-2 text-xs text-gray-600 dark:text-slate-400">Prices include tax. {mustPick && canRespond ? 'Choose one to sign for it.' : ''}</p>
           </div>
         )}
+        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} />}
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
+          {proposal && quote.lineItems && quote.lineItems.length > 0 && <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">{canRespond ? 'Included with every option' : 'Included'}</h3>}
           <table className="w-full">
             <thead><tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400 dark:border-slate-700"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Total</th></tr></thead>
             <tbody><SectionedRows lines={quote.lineItems || []} colSpan={4} pad="py-2" row={(item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 whitespace-pre-line dark:text-slate-100">{item.allowance && <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Allowance</span>}{item.optional && !item.optionGroup && canRespond && item.id
@@ -168,7 +226,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Subtotal</span><span>{moneyShort(quote.subtotal)}</span></div>
             {Number(quote.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({quote.taxRate}%)</span><span>{moneyShort(quote.taxAmount)}</span></div>}
             {Number(quote.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(quote.discount)}</span></div>}
-            <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(quote.total)}</span></div>
+            {mustChoose
+              ? <p className="border-t pt-2 text-sm font-medium dark:border-slate-700" data-testid="quote-choose-first">Choose an option above to see your total.</p>
+              : <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(quote.total)}</span></div>}
             {hasOptional && canRespond && <p className="text-xs text-gray-600 dark:text-slate-400">Optional items count once you tick them.</p>}
             {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">{canRespond ? 'Deposit due on approval' : 'Deposit'}</span><span>{moneyShort(quote.depositAmount)}</span></div>}
           </div>
@@ -176,9 +236,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
         {quote.terms && <div className="p-6 border-t dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3><p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p></div>}
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
-            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Please review this quote and provide your signature to approve.</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : 'Please review this quote and provide your signature to approve.'}</p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => setShowSign(true)} disabled={busy || mustPick} title={mustPick ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
+              <button onClick={() => setShowSign(true)} disabled={busy || mustPick || mustChoose} title={mustPick || mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
               <button onClick={() => setShowDecline(true)} disabled={busy} className={btnSecondary}><XCircle className="w-4 h-4" /> Decline</button>
             </div>
           </div>
